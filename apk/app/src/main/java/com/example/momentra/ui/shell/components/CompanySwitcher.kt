@@ -1,7 +1,6 @@
 package com.example.momentra.ui.shell.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
@@ -29,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.domain.CompanySummary
 import com.example.momentra.ui.shell.maestro.MaestroIds
-import com.example.momentra.ui.theme.shell.GlobalTheme
 
 /**
  * Independent Business CompanySwitcher (Context → Company → Moment).
@@ -51,19 +49,18 @@ fun CompanySwitcher(
                 .widthIn(max = 140.dp)
                 .heightIn(min = 28.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(GlobalTheme.companyChipBackground)
-                .border(1.dp, GlobalTheme.companyChipBorder, RoundedCornerShape(8.dp))
+                .background(Color(0xFF1E293B))
                 .clickable { onToggle(!menuOpen) }
                 .testTag(MaestroIds.COMPANY_SWITCHER)
                 .semantics { contentDescription = "Switch company" }
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
             androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = selected?.displayName ?: "Company",
                     color = Color.White,
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

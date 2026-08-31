@@ -303,12 +303,20 @@ fun AppShellScreen(
                             life360Available = true,
                             globalCreateAvailable = true,
                             qrScanAvailable = true,
+                            referAvailable = true,
                         ),
                         onCompanyMenuToggle = shellViewModel::toggleCompanyMenu,
                         onCompanySelected = shellViewModel::selectCompany,
                         onQrScan = { showJoinQrScanner = true },
                         onLife360 = { shellViewModel.openLife360(true) },
                         onNewMoment = openNewMoment,
+                        onRefer = {
+                            Toast.makeText(
+                                context,
+                                "Referrals coming soon",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        },
                         onAvatar = { shellViewModel.openProfile(true) },
                     )
                     ContextSwitcher(
