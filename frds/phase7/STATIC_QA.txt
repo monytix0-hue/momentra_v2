@@ -1,0 +1,18 @@
+Migration sequence V001-V030: PASS - 30 sequential files
+Duplicate table definitions: PASS - 0
+Duplicate constraint names: PASS - 0
+Duplicate index names: PASS - 0
+Duplicate policy names per table: PASS - 0
+FK target tables exist: PASS - 0 missing
+FK target columns exist: PASS - 0 missing
+FK target keys unique/PK: PASS - 0 invalid
+No forward FK before target migration: PASS - 0 forward refs
+Seed INSERT target columns valid: PASS - 0 errors across 821 INSERT statements
+RLS policy targets exist: PASS - 0 missing
+Enabled RLS tables have policy: PASS - 0 no-policy tables
+Trigger targets exist: PASS - 0 missing
+Forbidden ownership tables absent: PASS - 0
+Authenticated mutation grants absent: PASS - 0 lines
+V030 referenced tables exist: PASS - 0 missing
+Transaction wrappers present V001-V029: PASS - all wrapped
+Tables=156 Constraints=872 FKs=283 Indexes=159 Policies=222

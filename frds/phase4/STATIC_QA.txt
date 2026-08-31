@@ -1,0 +1,28 @@
+Momentra Phase 11.4 static seed QA
+===================================
+V018 categories: 14
+V018 moment types: 41
+V019 capabilities: 39
+V019 moment-type capability mappings: 373
+V020 permissions: 48
+V020 roles: 8
+V020 role-permission mappings: 214
+V021 consent purposes: 8
+V021 data categories: 10
+V022 metric definitions: 14
+V022 active metric versions: 0 (intentional fail-closed; exact formulas not frozen)
+V022 thresholds: 0 (intentional; exact thresholds not frozen)
+V023 policies: 9
+V023 active policy versions: 0 (intentional fail-closed; exact rules not frozen)
+Duplicate category domain/code: 0
+Duplicate moment type domain/code: 0
+Duplicate capability code: 0
+Duplicate permission code: 0
+Duplicate role code: 0
+Duplicate consent purpose: 0
+Duplicate data category: 0
+Duplicate metric code: 0
+Duplicate policy code: 0
+Unresolved capability mappings: 0
+Lifestyle canonical contexts (V003 CHECK): EXPERIENCE, WELLBEING, DISCOVERY, CREATION, LIFESTYLE
+Review blockers: REVIEW-001..004 documented in SEED_REVIEW_REQUIRED.md

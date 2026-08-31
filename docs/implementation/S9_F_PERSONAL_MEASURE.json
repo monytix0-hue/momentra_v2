@@ -1,0 +1,301 @@
+{
+  "capturedAt": "2026-08-27T09:51:22.381Z",
+  "block": "S9-F",
+  "env": {
+    "nodeEnv": null,
+    "allowDevAuth": true,
+    "dbPoolMax": 10,
+    "healthReadyP50FloorMs": 106.25
+  },
+  "targets": {
+    "personalPulseWarmP95Ms": 300,
+    "activityFirstPageP95Ms": 300,
+    "momentSwitchVisibleReadyMs": 500,
+    "expenseSubmitP95Ms": 1000,
+    "note": "Engineering targets; geo RTT floor may prevent hard FAIL"
+  },
+  "empty": {
+    "coldMeMs": 667.68,
+    "warmMe": {
+      "label": "/v1/me",
+      "n": 10,
+      "p50": 216.42,
+      "p95": 220.56,
+      "p99": 220.56,
+      "min": 214.64,
+      "max": 220.56,
+      "status": 200,
+      "approxBodyBytes": 651
+    },
+    "pulse": {
+      "label": "/v1/personal/pulse",
+      "n": 10,
+      "p50": 108.35,
+      "p95": 114.1,
+      "p99": 114.1,
+      "min": 106.1,
+      "max": 114.1,
+      "status": 200,
+      "approxBodyBytes": 391
+    },
+    "activity": {
+      "label": "/v1/personal/activity?limit=20",
+      "n": 10,
+      "p50": 109.46,
+      "p95": 111.16,
+      "p99": 111.16,
+      "min": 106.94,
+      "max": 111.16,
+      "status": 200,
+      "approxBodyBytes": 126
+    },
+    "life": {
+      "label": "/v1/personal/life",
+      "n": 5,
+      "p50": 213.95,
+      "p95": 223.89,
+      "p99": 223.89,
+      "min": 213.67,
+      "max": 223.89,
+      "status": 200,
+      "approxBodyBytes": 3306
+    },
+    "memory": {
+      "label": "/v1/personal/memory",
+      "n": 5,
+      "p50": 2.04,
+      "p95": 2.44,
+      "p99": 2.44,
+      "min": 1.82,
+      "max": 2.44,
+      "status": 200,
+      "approxBodyBytes": 141
+    },
+    "moments": {
+      "label": "/v1/personal/moments",
+      "n": 5,
+      "p50": 108.07,
+      "p95": 109.72,
+      "p99": 109.72,
+      "min": 107.02,
+      "max": 109.72,
+      "status": 200,
+      "approxBodyBytes": 126
+    },
+    "setups": {
+      "label": "/v1/personal/setups",
+      "n": 5,
+      "p50": 108.66,
+      "p95": 109.52,
+      "p99": 109.52,
+      "min": 106.8,
+      "max": 109.52,
+      "status": 200,
+      "approxBodyBytes": 1245
+    }
+  },
+  "setup": {
+    "momentCreateAMs": 1315.44,
+    "momentCreateBMs": 1276.11,
+    "momentIdA": "a7de8c69-b664-421b-9080-64ba9cbf5f94",
+    "momentIdB": "2a2c421e-7a68-4f1c-ad78-a3538634513c",
+    "expenseSubmit": {
+      "label": "POST /expenses",
+      "n": 15,
+      "p50": 1389.25,
+      "p95": 1402.62,
+      "p99": 1402.62,
+      "min": 1379.3,
+      "max": 1402.62,
+      "statuses": [
+        201
+      ],
+      "okRate": 1
+    },
+    "warmMe": {
+      "label": "/v1/me",
+      "n": 10,
+      "p50": 220.71,
+      "p95": 610.68,
+      "p99": 610.68,
+      "min": 218.11,
+      "max": 610.68,
+      "status": 200,
+      "approxBodyBytes": 1065
+    },
+    "pulseA": {
+      "label": "/v1/personal/pulse?momentId=a7de8c69-b664-421b-9080-64ba9cbf5f94",
+      "n": 15,
+      "p50": 221.56,
+      "p95": 242.41,
+      "p99": 242.41,
+      "min": 219.18,
+      "max": 242.41,
+      "status": 200,
+      "approxBodyBytes": 470
+    },
+    "pulseB": {
+      "label": "/v1/personal/pulse?momentId=2a2c421e-7a68-4f1c-ad78-a3538634513c",
+      "n": 10,
+      "p50": 221.01,
+      "p95": 222.05,
+      "p99": 222.05,
+      "min": 217.17,
+      "max": 222.05,
+      "status": 200,
+      "approxBodyBytes": 468
+    },
+    "activityPage1": {
+      "label": "/v1/personal/activity?momentId=a7de8c69-b664-421b-9080-64ba9cbf5f94&limit=20",
+      "n": 15,
+      "p50": 112.41,
+      "p95": 122.15,
+      "p99": 122.15,
+      "min": 111.64,
+      "max": 122.15,
+      "status": 200,
+      "approxBodyBytes": 4413
+    },
+    "activityPage2": {
+      "label": "/v1/personal/activity?momentId=a7de8c69-b664-421b-9080-64ba9cbf5f94&limit=20&cursor=2026-08-27T09%3A50%3A27.106Z%7Ceb3b2cd6-fa0b-4e75-a643-923f20f9d22a",
+      "n": 10,
+      "p50": 112.61,
+      "p95": 121.46,
+      "p99": 121.46,
+      "min": 111.12,
+      "max": 121.46,
+      "status": 200,
+      "approxBodyBytes": 3265
+    },
+    "life": {
+      "label": "/v1/personal/life",
+      "n": 8,
+      "p50": 218.63,
+      "p95": 239.29,
+      "p99": 239.29,
+      "min": 218.11,
+      "max": 239.29,
+      "status": 200,
+      "approxBodyBytes": 3306
+    },
+    "memory": {
+      "label": "/v1/personal/memory",
+      "n": 8,
+      "p50": 1.92,
+      "p95": 2.62,
+      "p99": 2.62,
+      "min": 1.76,
+      "max": 2.62,
+      "status": 200,
+      "approxBodyBytes": 141
+    },
+    "moments": {
+      "label": "/v1/personal/moments",
+      "n": 8,
+      "p50": 109.38,
+      "p95": 112.37,
+      "p99": 112.37,
+      "min": 109.19,
+      "max": 112.37,
+      "status": 200,
+      "approxBodyBytes": 373
+    },
+    "setups": {
+      "label": "/v1/personal/setups",
+      "n": 5,
+      "p50": 109.34,
+      "p95": 112.59,
+      "p99": 112.59,
+      "min": 108.94,
+      "max": 112.59,
+      "status": 200,
+      "approxBodyBytes": 1245
+    },
+    "momentSwitchSequential": {
+      "label": "moment_switch_visible_ready_sequential_client",
+      "n": 8,
+      "p50": 332.19,
+      "p95": 335.86,
+      "p99": 335.86,
+      "min": 329.5,
+      "max": 335.86
+    },
+    "momentSwitchParallel": {
+      "label": "moment_switch_visible_ready_parallel_tab_fetch",
+      "n": 8,
+      "p50": 220.88,
+      "p95": 222.69,
+      "p99": 222.69,
+      "min": 218.77,
+      "max": 222.69
+    },
+    "pulseVisibleReadySequential": {
+      "label": "pulse_visible_ready_sequential",
+      "n": 8,
+      "p50": 333.37,
+      "p95": 334.54,
+      "p99": 334.54,
+      "min": 330.29,
+      "max": 334.54,
+      "momentId": "a7de8c69-b664-421b-9080-64ba9cbf5f94",
+      "status": 200
+    },
+    "pulseVisibleReadyParallel": {
+      "label": "pulse_visible_ready_parallel",
+      "n": 8,
+      "p50": 221.83,
+      "p95": 533.95,
+      "p99": 533.95,
+      "min": 220.37,
+      "max": 533.95,
+      "momentId": "a7de8c69-b664-421b-9080-64ba9cbf5f94",
+      "status": 200
+    },
+    "waterfallFinding": {
+      "clientPulseTab": "PersonalPulseActiveContent awaits getPulse then getActivity sequentially — visible-ready ≈ sum",
+      "fixInScope": "Parallelize tab fetches (S9-F/J client); do not reopen S9-B/C/G/H",
+      "measuredDeltaMs": {
+        "sequentialP95": 334.54,
+        "parallelP95": 533.95,
+        "savingsP95": -199.41
+      }
+    },
+    "scopedRefreshNote": {
+      "invariant": "Tab/moment refresh uses personalTabRefreshToken → personal/* only; must not require second /v1/me",
+      "measured": "API-only; client unit tests assert token bump without bootstrap call"
+    }
+  },
+  "health": {
+    "label": "/health/ready",
+    "n": 10,
+    "p50": 106.25,
+    "p95": 109.39,
+    "p99": 109.39,
+    "min": 106,
+    "max": 109.39,
+    "status": 200,
+    "approxBodyBytes": 15
+  },
+  "vsTargets": {
+    "pulseWarmP95": {
+      "value": 242.41,
+      "target": 300,
+      "meet": true
+    },
+    "activityPage1P95": {
+      "value": 122.15,
+      "target": 300,
+      "meet": true
+    },
+    "momentSwitchParallelP95": {
+      "value": 222.69,
+      "target": 500,
+      "meet": true
+    },
+    "expenseSubmitP95": {
+      "value": 1402.62,
+      "target": 1000,
+      "meet": false
+    }
+  }
+}

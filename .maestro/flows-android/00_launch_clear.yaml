@@ -1,0 +1,16 @@
+appId: com.example.momentra
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Skip"
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible: "Continue"
+    timeout: 5000
+    optional: true
+- extendedWaitUntil:
+    visible: "Sign in"
+    timeout: 5000
+    optional: true

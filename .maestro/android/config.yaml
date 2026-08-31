@@ -1,0 +1,6 @@
+﻿# Android S9-QA workspace
+flows:
+  - "**"
+excludeTags:
+  - disabled
+  - pending_fixtures

@@ -1,0 +1,101 @@
+﻿appId: com.example.momentra
+tags: [critical, android, group, finance]
+---
+# QA_GROUP_OWNER creates equal-split expense; QA_GROUP_MEMBER sees it
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_GROUP_OWNER_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_GROUP_OWNER_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
+- tapOn:
+    id: "context.group"
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- extendedWaitUntil:
+    visible:
+      id: "group.expense.amount"
+    timeout: 20000
+- tapOn:
+    id: "group.expense.note"
+- eraseText
+- inputText: "MAESTRO-${MAESTRO_RUN_ID}"
+- tapOn:
+    id: "group.expense.amount"
+- eraseText
+- inputText: "137.41"
+- runFlow:
+    when:
+      visible: "EQUAL"
+    commands:
+      - tapOn: "EQUAL"
+- tapOn:
+    id: "group.expense.submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "group.expense.submit"
+    timeout: 45000
+- tapOn:
+    id: "bottom.pulse"
+- assertVisible: "MAESTRO-${MAESTRO_RUN_ID}"
+- tapOn:
+    id: "topbar.profile"
+- tapOn:
+    id: "account.sign_out"
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 30000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_GROUP_MEMBER_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_GROUP_MEMBER_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
+- tapOn:
+    id: "context.group"
+- tapOn:
+    id: "bottom.pulse"
+- assertVisible: "MAESTRO-${MAESTRO_RUN_ID}"
+- takeScreenshot: android_group_expense_member_sees

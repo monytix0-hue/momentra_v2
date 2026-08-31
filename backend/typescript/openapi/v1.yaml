@@ -1,0 +1,59 @@
+openapi: 3.0.3
+info:
+  title: Momentra API
+  version: 1.0.0
+paths:
+  /health/live:
+    get:
+      summary: Liveness probe
+  /health/ready:
+    get:
+      summary: Readiness probe
+  /v1/personal/moments:
+    post:
+      summary: Moment.Create
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string }
+        - in: header
+          name: Authorization
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [momentTypeCode, title]
+              properties:
+                momentTypeCode: { type: string }
+                title: { type: string }
+                description: { type: string }
+                startAt: { type: string, format: date-time }
+                endAt: { type: string, format: date-time }
+                timezone: { type: string }
+  /v1/personal/expenses:
+    post:
+      summary: Expense.Create
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [momentId, amount, currencyCode]
+              properties:
+                momentId: { type: string, format: uuid }
+                amount: { type: string }
+                currencyCode: { type: string }
+  /v1/personal/pulse:
+    get:
+      summary: Personal Pulse projection read

@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "315259659778",
+    "project_id": "momentra-v2",
+    "storage_bucket": "momentra-v2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:315259659778:android:1e5714d69fcbc5be88291b",
+        "android_client_info": {
+          "package_name": "com.example.momentra"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "315259659778-vhau66jfi22k27rc8lbgueo3os92knrl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyApZ3gpT9lIHOgR9VPZb2mu7eqgmlqeqac"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "315259659778-vhau66jfi22k27rc8lbgueo3os92knrl.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "315259659778-mdc1l1fo69l2vitvk2c7tp5ak36bn34i.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "resolvingpoint.momentra"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

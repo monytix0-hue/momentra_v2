@@ -1,0 +1,31 @@
+appId: resolvingpoint.momentra
+tags:
+  - smoke
+  - preauth
+---
+- runFlow: 00_launch_clear.yaml
+
+# Product + cinematic onboarding may each show Skip more than once
+- repeat:
+    times: 5
+    commands:
+      - runFlow:
+          when:
+            visible: "Skip"
+          commands:
+            - tapOn: "Skip"
+            - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Sign in"
+    timeout: 45000
+- assertVisible: "Sign in"
+- assertVisible: "Continue with Google"
+- takeScreenshot: login_screen

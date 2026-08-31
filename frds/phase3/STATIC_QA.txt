@@ -1,0 +1,5 @@
+table_count=156 duplicate_tables=0
+constraint_count=872 duplicate_constraints=0
+index_count=159 duplicate_indexs=0
+fk_reference_count=283 missing_fk_target_tables=0
+forbidden_ownership_tables_found=0

@@ -1,0 +1,41 @@
+﻿appId: resolvingpoint.momentra
+tags: [smoke, ios, auth]
+---
+- runFlow: smoke_launch_clear.yaml
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.screen"
+    timeout: 30000
+- assertVisible:
+    id: "login.email"
+- assertVisible:
+    id: "login.submit"
+- assertVisible:
+    id: "login.google"
+- assertVisible:
+    id: "login.apple"
+- takeScreenshot: ios_smoke_login

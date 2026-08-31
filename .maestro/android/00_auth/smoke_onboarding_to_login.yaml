@@ -1,0 +1,48 @@
+﻿appId: com.example.momentra
+tags: [smoke, android, auth]
+---
+- runFlow: smoke_launch_clear.yaml
+# Prefer id; fall back to visible text if testTagsAsResourceId is slow to attach
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 45000
+- assertVisible:
+    id: "login.email"
+- assertVisible:
+    id: "login.submit"
+- takeScreenshot: android_smoke_login

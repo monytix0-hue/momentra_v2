@@ -1,0 +1,24 @@
+appId: com.example.momentra
+tags:
+  - smoke
+  - auth
+  - android
+---
+- runFlow: 01_onboarding_to_login.yaml
+
+- tapOn:
+    id: "login_field_email"
+- eraseText
+- inputText: ${MAESTRO_EMAIL}
+- tapOn:
+    id: "login_field_password"
+- eraseText
+- inputText: ${MAESTRO_PASSWORD}
+- tapOn:
+    id: "login_btn_email_submit"
+- extendedWaitUntil:
+    visible: "Pulse"
+    timeout: 60000
+- takeScreenshot: android_shell_after_login
+- assertVisible: "Pulse"
+- assertVisible: "Personal"

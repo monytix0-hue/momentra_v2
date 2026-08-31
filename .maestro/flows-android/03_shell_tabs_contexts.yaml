@@ -1,0 +1,66 @@
+appId: com.example.momentra
+tags:
+  - shell
+  - regression
+  - android
+  - s9j
+---
+- runFlow: 02_email_login.yaml
+
+- tapOn: "Pulse"
+- takeScreenshot: android_tab_pulse
+- tapOn: "Moments"
+- takeScreenshot: android_tab_moments
+- tapOn:
+    id: "tab_create"
+- takeScreenshot: android_tab_quickadds
+- tapOn: "Life"
+- takeScreenshot: android_tab_life
+- tapOn: "Memory"
+- takeScreenshot: android_tab_memory
+- tapOn: "Pulse"
+
+- tapOn:
+    id: "context_group"
+- takeScreenshot: android_context_group
+- assertVisible: "Group"
+
+- tapOn:
+    id: "context_business"
+- takeScreenshot: android_context_business
+
+- tapOn:
+    id: "context_circle"
+- takeScreenshot: android_context_circle
+
+- tapOn:
+    id: "context_personal"
+- takeScreenshot: android_context_personal
+
+- tapOn:
+    id: "shell_btn_life360"
+- extendedWaitUntil:
+    visible: "Coming Soon"
+    timeout: 10000
+    optional: true
+- takeScreenshot: android_life360_sheet
+- runFlow:
+    when:
+      visible: "Close"
+    commands:
+      - tapOn: "Close"
+- back
+
+- tapOn:
+    id: "shell_btn_profile"
+- extendedWaitUntil:
+    visible: "Sign out"
+    timeout: 10000
+    optional: true
+- takeScreenshot: android_account_hub
+- runFlow:
+    when:
+      visible: "Close"
+    commands:
+      - tapOn: "Close"
+- back

@@ -1,0 +1,11 @@
+﻿appId: resolvingpoint.momentra
+tags: [smoke, ios, suite]
+---
+- runFlow: ../01_shell/smoke_context_and_tabs.yaml
+- tapOn:
+    id: "topbar.life360"
+- takeScreenshot: ios_smoke_life360
+- back
+- tapOn:
+    id: "topbar.profile"
+- takeScreenshot: ios_smoke_account

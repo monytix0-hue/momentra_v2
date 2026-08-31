@@ -1,0 +1,9 @@
+﻿appId: com.example.momentra
+tags: [critical, android, group, invite]
+---
+# Owner mints invite (API or UI) → member redeems via deep link / code.
+# PENDING_FIXTURES until QA_GROUP_OWNER/MEMBER seeded.
+- runFlow: ../00_auth/smoke_email_login.yaml
+- tapOn:
+    id: "context.group"
+- takeScreenshot: android_group_invite_placeholder

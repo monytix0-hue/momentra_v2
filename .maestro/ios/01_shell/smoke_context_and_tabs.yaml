@@ -1,0 +1,26 @@
+﻿appId: resolvingpoint.momentra
+tags: [smoke, ios, shell]
+---
+- runFlow: ../00_auth/smoke_email_login.yaml
+- tapOn:
+    id: "bottom.pulse"
+- tapOn:
+    id: "bottom.moments"
+- tapOn:
+    id: "bottom.quickadd"
+- takeScreenshot: ios_smoke_quickadd
+- tapOn:
+    id: "bottom.life"
+- tapOn:
+    id: "bottom.memory"
+- tapOn:
+    id: "bottom.pulse"
+- tapOn:
+    id: "context.group"
+- tapOn:
+    id: "context.business"
+- tapOn:
+    id: "context.circle"
+- tapOn:
+    id: "context.personal"
+- takeScreenshot: ios_smoke_contexts

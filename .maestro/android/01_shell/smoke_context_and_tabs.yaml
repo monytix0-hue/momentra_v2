@@ -1,0 +1,79 @@
+﻿appId: com.example.momentra
+tags: [smoke, android, shell, critical]
+---
+# Small infrastructure smoke: launch → login → shell → contexts → profile → logout
+- runFlow: ../00_auth/smoke_email_login.yaml
+- tapOn:
+    id: "bottom.pulse"
+- assertVisible:
+    id: "bottom.pulse"
+- tapOn:
+    id: "bottom.moments"
+- tapOn:
+    id: "bottom.quickadd"
+- takeScreenshot: android_smoke_quickadd
+- tapOn:
+    id: "bottom.life"
+- tapOn:
+    id: "bottom.memory"
+- tapOn:
+    id: "bottom.pulse"
+- tapOn:
+    id: "context.group"
+- assertVisible:
+    id: "context.group"
+- tapOn:
+    id: "context.business"
+- assertVisible:
+    id: "context.business"
+- tapOn:
+    id: "context.circle"
+- tapOn:
+    id: "context.personal"
+- assertVisible:
+    id: "context.personal"
+- runFlow:
+    when:
+      visible:
+        id: "moment.switcher"
+    commands:
+      - tapOn:
+          id: "moment.switcher"
+- runFlow:
+    when:
+      visible:
+        id: "company.switcher"
+    commands:
+      - assertVisible:
+          id: "company.switcher"
+- tapOn:
+    id: "topbar.profile"
+- runFlow:
+    when:
+      visible: "Sign out"
+    commands:
+      - tapOn: "Sign out"
+- runFlow:
+    when:
+      true: true
+    commands:
+      - scrollUntilVisible:
+          element: "Sign out"
+          direction: DOWN
+          timeout: 8000
+          optional: true
+      - tapOn:
+          text: "Sign out"
+          optional: true
+- runFlow:
+    when:
+      visible:
+        id: "account.sign_out"
+    commands:
+      - tapOn:
+          id: "account.sign_out"
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 30000
+- takeScreenshot: android_smoke_logged_out

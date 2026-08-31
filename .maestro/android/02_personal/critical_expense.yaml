@@ -1,0 +1,64 @@
+﻿appId: com.example.momentra
+tags: [critical, android, personal, finance, income]
+---
+# QA_PERSONAL → Quick Add Income → Activity shows MAESTRO note
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_PERSONAL_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_PERSONAL_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
+- tapOn:
+    id: "context.personal"
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
+- extendedWaitUntil:
+    visible:
+      id: "personal.income.amount"
+    timeout: 20000
+- tapOn:
+    id: "personal.income.amount"
+- eraseText
+- inputText: "237.41"
+- tapOn:
+    id: "personal.income.submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "personal.income.submit"
+    timeout: 45000
+- tapOn:
+    id: "bottom.pulse"
+- takeScreenshot: android_personal_income_pass

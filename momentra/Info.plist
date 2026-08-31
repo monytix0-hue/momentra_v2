@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.315259659778-mdc1l1fo69l2vitvk2c7tp5ak36bn34i</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>app.momentra.join</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>momentra</string>
+			</array>
+		</dict>
+	</array>
+	<key>MKDirectionsApplicationSupportedModes</key>
+	<array/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>MomentraAPIBaseURL</key>
+	<string>https://veggie-handmade-splashed.ngrok-free.dev/</string>
+	<key>SENTRY_DSN</key>
+	<string></string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Momentra uses the camera to capture photos and to scan invite QR codes so you can join a group.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Momentra needs photo library access so you can attach photos to wedding memories.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Momentra saves invite QR codes to your photo library so you can share them.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Momentra uses your contacts to help you invite people to circles and moments.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>PlusJakartaSans-Regular.ttf</string>
+		<string>PlusJakartaSans-SemiBold.ttf</string>
+		<string>PlusJakartaSans-Bold.ttf</string>
+		<string>PlusJakartaSans-ExtraBold.ttf</string>
+	</array>
+</dict>
+</plist>

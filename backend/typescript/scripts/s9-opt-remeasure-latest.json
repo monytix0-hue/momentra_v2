@@ -1,0 +1,150 @@
+{
+  "capturedAt": "2026-08-26T17:44:15.870Z",
+  "stage": "S9-G-OPT+S9-H-OPT",
+  "before": {
+    "groupExpenseP95": {
+      "small": 3646,
+      "medium": 10361,
+      "large": 35431
+    },
+    "groupPulseP95": {
+      "small": 712,
+      "medium": 691,
+      "large": 800
+    },
+    "businessWritesP95": "~1800-2000",
+    "mePopulatedP95": "~760-960"
+  },
+  "group": {
+    "skipped": true
+  },
+  "business": {
+    "companyId": "2fc6f2ce-4cf8-4b88-a523-12bf137e1b62",
+    "primaryMoment": "bdce8a43-a4a9-4d78-a9f4-5a72beee6e11",
+    "meBootstrap": {
+      "label": "/v1/me",
+      "n": 10,
+      "p50": 224.25,
+      "p95": 330.78,
+      "p99": 330.78,
+      "min": 222.15,
+      "max": 330.78,
+      "status": 200,
+      "approxBodyBytes": 2326
+    },
+    "expenseSubmit": {
+      "label": "/v1/moments/bdce8a43-a4a9-4d78-a9f4-5a72beee6e11/business-expenses",
+      "n": 8,
+      "p50": 783.86,
+      "p95": 924.42,
+      "p99": 924.42,
+      "min": 775.91,
+      "max": 924.42,
+      "status": 201,
+      "lastBody": {
+        "data": {
+          "expenseId": "f1bd842f-0d0c-4c28-b413-1a5073f4e36b",
+          "momentId": "bdce8a43-a4a9-4d78-a9f4-5a72beee6e11",
+          "companyId": "2fc6f2ce-4cf8-4b88-a523-12bf137e1b62",
+          "amount": "15.0000",
+          "currencyCode": "USD",
+          "categoryCode": null,
+          "status": "POSTED",
+          "approvalRequestId": null,
+          "version": 1
+        },
+        "correlationId": "ad9d7674-26d6-4fa0-a968-d341a88e068f",
+        "resourceVersion": 1,
+        "projectionHints": [
+          {
+            "projection": "business.pulse",
+            "action": "refresh"
+          },
+          {
+            "projection": "business.finance",
+            "action": "refresh"
+          },
+          {
+            "projection": "business.moments",
+            "action": "refresh"
+          }
+        ]
+      }
+    },
+    "revenueSubmit": {
+      "label": "/v1/moments/bdce8a43-a4a9-4d78-a9f4-5a72beee6e11/revenues",
+      "n": 5,
+      "p50": 774.14,
+      "p95": 921.42,
+      "p99": 921.42,
+      "min": 771.67,
+      "max": 921.42,
+      "status": 201,
+      "lastBody": {
+        "data": {
+          "revenueId": "f7306889-3001-46e1-857b-2b1b35e7f3c7",
+          "companyId": "2fc6f2ce-4cf8-4b88-a523-12bf137e1b62",
+          "amount": "20.0000",
+          "currencyCode": "USD",
+          "status": "POSTED"
+        },
+        "correlationId": "9fa48c37-99a4-439e-b198-56660c1a84de",
+        "projectionHints": [
+          {
+            "projection": "business.pulse",
+            "action": "refresh"
+          },
+          {
+            "projection": "business.finance",
+            "action": "refresh"
+          }
+        ]
+      }
+    },
+    "invoiceSubmit": {
+      "label": "/v1/moments/bdce8a43-a4a9-4d78-a9f4-5a72beee6e11/invoices",
+      "n": 5,
+      "p50": 886.22,
+      "p95": 911.83,
+      "p99": 911.83,
+      "min": 884.95,
+      "max": 911.83,
+      "status": 201,
+      "lastBody": {
+        "data": {
+          "invoiceId": "3d4b2b1a-071a-4793-af9b-446ffc47c772",
+          "companyId": "2fc6f2ce-4cf8-4b88-a523-12bf137e1b62",
+          "invoiceNumber": "INV-OPT-c68bfa55",
+          "subtotalAmount": "50.0000",
+          "taxAmount": "0.0000",
+          "totalAmount": "50.0000",
+          "status": "ISSUED"
+        },
+        "correlationId": "0a12ede4-0d0c-436b-bdfc-be38272c8112",
+        "projectionHints": [
+          {
+            "projection": "business.pulse",
+            "action": "refresh"
+          },
+          {
+            "projection": "business.finance",
+            "action": "refresh"
+          }
+        ]
+      }
+    },
+    "invoiceConflict": {
+      "firstStatus": 201,
+      "secondStatus": 409,
+      "secondErrorCode": "INVOICE_NUMBER_CONFLICT",
+      "secondMessage": "Invoice number already exists for this company."
+    },
+    "targets": {
+      "meP95Improved": true,
+      "expenseP95Under750": false,
+      "revenueP95Under750": false,
+      "invoiceP95Under750": false,
+      "invoiceConflictMapped": true
+    }
+  }
+}

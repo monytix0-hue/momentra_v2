@@ -1,0 +1,23 @@
+appId: resolvingpoint.momentra
+tags:
+  - group
+---
+- runFlow: 02_email_login.yaml
+
+- tapOn: "Switch to Group"
+- tapOn: "Pulse"
+- takeScreenshot: group_pulse
+
+- tapOn: "Quickadds"
+- takeScreenshot: group_create_chooser
+
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
+      - extendedWaitUntil:
+          visible: "Back"
+          timeout: 15000
+          optional: true
+      - takeScreenshot: group_experience_setup

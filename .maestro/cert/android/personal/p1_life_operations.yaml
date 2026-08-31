@@ -1,0 +1,255 @@
+appId: com.example.momentra
+tags: [cert, personal, p1, android]
+---
+# Q1-P1 Life Operations Master Certification
+# type=LIFE_RHYTHM theme=#7C5CFC
+# PASS requires UI + API + DB + audit + event + outbox + projection + persist (see qa:verify)
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Skip"
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_EMPTY_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_EMPTY_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+- takeScreenshot: cert_p1_empty
+- tapOn:
+    id: "topbar.new_moment"
+- runFlow:
+    when:
+      visible: "Life Operations"
+    commands:
+      - tapOn: "Life Operations"
+- takeScreenshot: cert_p1_setup
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Activate"
+    commands:
+      - tapOn: "Activate"
+- runFlow:
+    when:
+      visible: "Create"
+    commands:
+      - tapOn: "Create"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- takeScreenshot: cert_p1_pulse
+- tapOn:
+    id: "bottom.moments"
+- takeScreenshot: cert_p1_moments
+- tapOn:
+    id: "bottom.life"
+- takeScreenshot: cert_p1_life
+- tapOn:
+    id: "bottom.memory"
+- takeScreenshot: cert_p1_memory
+- tapOn:
+    id: "bottom.pulse"
+- assertVisible:
+    id: "bottom.pulse"
+
+# Quick Add: Income (PASS_CANDIDATE)
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
+- takeScreenshot: cert_p1_qa_income
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "137.41"
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+
+
+# Quick Add: Recovery (PASS_CANDIDATE)
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Recovery"
+    commands:
+      - tapOn: "Recovery"
+- takeScreenshot: cert_p1_qa_recovery
+- runFlow:
+    when:
+      visible:
+        id: "personal.lifeops.recovery.submit"
+    commands:
+      - tapOn:
+          id: "personal.lifeops.recovery.note"
+      - eraseText
+      - inputText: "MAESTRO-${MAESTRO_RUN_ID}-P1-Recovery"
+      - tapOn:
+          id: "personal.lifeops.recovery.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.lifeops.recovery.submit"
+          timeout: 45000
+- back
+
+
+# Quick Add: Mood (PASS_CANDIDATE)
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Mood"
+    commands:
+      - tapOn: "Mood"
+- takeScreenshot: cert_p1_qa_mood
+- runFlow:
+    when:
+      visible:
+        id: "personal.lifeops.mood.submit"
+    commands:
+      - tapOn:
+          id: "personal.lifeops.mood.note"
+      - eraseText
+      - inputText: "MAESTRO-${MAESTRO_RUN_ID}-P1-Mood"
+      - tapOn:
+          id: "personal.lifeops.mood.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.lifeops.mood.submit"
+          timeout: 45000
+- back
+
+
+# Quick Add: Attention (PASS_CANDIDATE)
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Attention"
+    commands:
+      - tapOn: "Attention"
+- takeScreenshot: cert_p1_qa_attention
+- runFlow:
+    when:
+      visible:
+        id: "personal.lifeops.attention.submit"
+    commands:
+      - tapOn:
+          id: "personal.lifeops.attention.note"
+      - eraseText
+      - inputText: "MAESTRO-${MAESTRO_RUN_ID}-P1-Attention"
+      - tapOn:
+          id: "personal.lifeops.attention.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.lifeops.attention.submit"
+          timeout: 45000
+- back
+
+
+# Quick Add: Adjust (PASS_CANDIDATE)
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Adjust"
+    commands:
+      - tapOn: "Adjust"
+- takeScreenshot: cert_p1_qa_adjust
+- runFlow:
+    when:
+      visible:
+        id: "personal.lifeops.adjust.submit"
+    commands:
+      - tapOn:
+          id: "personal.lifeops.adjust.note"
+      - eraseText
+      - inputText: "MAESTRO-${MAESTRO_RUN_ID}-P1-Adjust"
+      - tapOn:
+          id: "personal.lifeops.adjust.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.lifeops.adjust.submit"
+          timeout: 45000
+- back
+
+- tapOn:
+    id: "bottom.pulse"
+- takeScreenshot: cert_p1_after_writes
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- takeScreenshot: cert_p1_relaunch
+# Backend proof (runner): npm run qa:verify -- --run-id $MAESTRO_RUN_ID --expect personal-expense --alias QA_EMPTY

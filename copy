@@ -1,0 +1,2 @@
+chmod +x momentra/scripts/ios-device-verify.sh
+./momentra/scripts/ios-device-verify.sh /path/to/momentra_v2

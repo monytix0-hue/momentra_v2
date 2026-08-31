@@ -1,0 +1,10 @@
+Momentra Phase 11.6 STATIC QA
+===============================
+Generated V001-V014 table catalogue: 155
+Actual table references used by V030 validation queries: 70
+Referenced tables missing from generated catalogue: 0
+Validation codes: 83
+Duplicate validation codes: 0
+
+Expected current production gate: FAIL CLOSED because Phase 11.4 metric/policy versions remain DRAFT and Quick Add subset reconciliation remains P1.
+PostgreSQL engine execution is not available in this runtime; syntax/semantic engine validation remains Phase 11.8.

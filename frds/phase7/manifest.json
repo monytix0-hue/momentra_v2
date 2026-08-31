@@ -1,0 +1,126 @@
+{
+  "phase": "11.7",
+  "migration_count": 30,
+  "tables": 156,
+  "constraints": 872,
+  "foreign_keys": 283,
+  "indexes": 159,
+  "rls_policies": 222,
+  "rls_tables": 111,
+  "seed_insert_statements": 821,
+  "static_checks": [
+    {
+      "check": "Migration sequence V001-V030",
+      "result": "PASS",
+      "detail": "30 sequential files"
+    },
+    {
+      "check": "Duplicate table definitions",
+      "result": "PASS",
+      "detail": "0"
+    },
+    {
+      "check": "Duplicate constraint names",
+      "result": "PASS",
+      "detail": "0"
+    },
+    {
+      "check": "Duplicate index names",
+      "result": "PASS",
+      "detail": "0"
+    },
+    {
+      "check": "Duplicate policy names per table",
+      "result": "PASS",
+      "detail": "0"
+    },
+    {
+      "check": "FK target tables exist",
+      "result": "PASS",
+      "detail": "0 missing"
+    },
+    {
+      "check": "FK target columns exist",
+      "result": "PASS",
+      "detail": "0 missing"
+    },
+    {
+      "check": "FK target keys unique/PK",
+      "result": "PASS",
+      "detail": "0 invalid"
+    },
+    {
+      "check": "No forward FK before target migration",
+      "result": "PASS",
+      "detail": "0 forward refs"
+    },
+    {
+      "check": "Seed INSERT target columns valid",
+      "result": "PASS",
+      "detail": "0 errors across 821 INSERT statements"
+    },
+    {
+      "check": "RLS policy targets exist",
+      "result": "PASS",
+      "detail": "0 missing"
+    },
+    {
+      "check": "Enabled RLS tables have policy",
+      "result": "PASS",
+      "detail": "0 no-policy tables"
+    },
+    {
+      "check": "Trigger targets exist",
+      "result": "PASS",
+      "detail": "0 missing"
+    },
+    {
+      "check": "Forbidden ownership tables absent",
+      "result": "PASS",
+      "detail": "0"
+    },
+    {
+      "check": "Authenticated mutation grants absent",
+      "result": "PASS",
+      "detail": "0 lines"
+    },
+    {
+      "check": "V030 referenced tables exist",
+      "result": "PASS",
+      "detail": "0 missing"
+    },
+    {
+      "check": "Transaction wrappers present V001-V029",
+      "result": "PASS",
+      "detail": "all wrapped"
+    }
+  ],
+  "release_status": "BLOCKED_PRE_RC",
+  "blockers": [
+    {
+      "code": "BLOCKER-001",
+      "severity": "P0",
+      "message": "Analytics metric versions remain DRAFT; no approved ACTIVE formula versions/thresholds are present."
+    },
+    {
+      "code": "BLOCKER-002",
+      "severity": "P0",
+      "message": "Governance policy versions remain DRAFT; exact rule bodies/approval semantics are not approved."
+    },
+    {
+      "code": "BLOCKER-003",
+      "severity": "P1",
+      "message": "Per-Moment-Type Quick Add subsets must be reconciled against the historical product/Figma matrix; current V019 applies known family master sets."
+    },
+    {
+      "code": "BLOCKER-004",
+      "severity": "P1",
+      "message": "Baseline Role-Permission bundles must be reconciled against any separately frozen Phase 6.6 matrix before production RC."
+    },
+    {
+      "code": "BLOCKER-005",
+      "severity": "P0",
+      "message": "Actual PostgreSQL/Supabase engine execution has not yet been performed; static compilation cannot replace Phase 11.8."
+    }
+  ]
+}

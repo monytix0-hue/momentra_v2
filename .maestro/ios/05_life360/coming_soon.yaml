@@ -1,0 +1,8 @@
+appId: resolvingpoint.momentra
+tags: [regression, ios, life360]
+---
+- runFlow: ../00_auth/smoke_email_login.yaml
+- tapOn:
+    id: "topbar.life360"
+- takeScreenshot: ios_life360_full
+- back

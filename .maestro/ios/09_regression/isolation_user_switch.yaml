@@ -1,0 +1,13 @@
+﻿appId: resolvingpoint.momentra
+tags: [isolation, ios, security, release_blocker]
+---
+- runFlow: ../00_auth/smoke_email_login.yaml
+- takeScreenshot: ios_isolation_user_a
+- tapOn:
+    id: "topbar.profile"
+- runFlow:
+    when:
+      visible: "Sign out"
+    commands:
+      - tapOn: "Sign out"
+- takeScreenshot: ios_isolation_logged_out

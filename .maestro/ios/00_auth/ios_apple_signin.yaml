@@ -1,0 +1,9 @@
+﻿appId: resolvingpoint.momentra
+tags: [ios, auth, apple, regression]
+---
+# iOS-specific: Apple Sign In sheet / system dialogs
+- runFlow: smoke_onboarding_to_login.yaml
+- tapOn:
+    id: "login.apple"
+- takeScreenshot: ios_apple_signin_sheet
+# System Apple ID UI is environment-dependent

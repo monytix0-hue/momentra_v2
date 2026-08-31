@@ -1,0 +1,12 @@
+appId: resolvingpoint.momentra
+tags:
+  - business
+---
+- runFlow: 02_email_login.yaml
+
+- tapOn: "Switch to Business"
+- tapOn: "Pulse"
+- takeScreenshot: business_pulse
+
+- tapOn: "Quickadds"
+- takeScreenshot: business_create

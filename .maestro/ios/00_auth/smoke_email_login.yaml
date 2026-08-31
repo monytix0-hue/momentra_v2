@@ -1,0 +1,21 @@
+﻿appId: resolvingpoint.momentra
+tags: [smoke, ios, auth, critical]
+---
+- runFlow: smoke_onboarding_to_login.yaml
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${MAESTRO_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${MAESTRO_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
+- assertVisible:
+    id: "context.personal"
+- takeScreenshot: ios_smoke_shell

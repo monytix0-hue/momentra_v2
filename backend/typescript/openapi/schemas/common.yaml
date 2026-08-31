@@ -1,0 +1,738 @@
+# Shared OpenAPI 3.1 components — Momentra /v1 transport contract (Phase 2 freeze)
+Money:
+  type: object
+  required: [amount, currencyCode]
+  properties:
+    amount:
+      type: string
+      description: Decimal string (maps to PostgreSQL NUMERIC). Never a JSON number.
+      pattern: '^[0-9]+(\.[0-9]{1,4})?$'
+      example: '1250.50'
+    currencyCode:
+      type: string
+      minLength: 3
+      maxLength: 3
+      example: INR
+
+ProjectionHint:
+  type: object
+  required: [projection, action]
+  properties:
+    projection:
+      type: string
+      description: Stable public projection code (not a DB object name).
+      enum:
+        - personal.pulse
+        - personal.moments
+        - personal.life
+        - personal.memory
+        - personal.activity
+        - group.moments
+        - group.pulse
+        - business.moments
+        - business.pulse
+        - business.finance
+    action:
+      type: string
+      enum: [invalidate, refresh]
+
+CommandEnvelope:
+  type: object
+  required: [data, correlationId]
+  properties:
+    data: {}
+    resourceVersion:
+      type: integer
+      format: int64
+      minimum: 1
+    correlationId:
+      type: string
+      format: uuid
+    projectionHints:
+      type: array
+      items:
+        $ref: '#/ProjectionHint'
+
+ProjectionEnvelope:
+  type: object
+  required: [data, correlationId]
+  properties:
+    data: {}
+    projectionVersion:
+      type: integer
+      format: int64
+    updatedAt:
+      type: string
+      format: date-time
+    status:
+      type: string
+      enum: [OK, STALE, EMPTY]
+    nextCursor:
+      type: string
+      nullable: true
+    correlationId:
+      type: string
+      format: uuid
+
+ErrorEnvelope:
+  type: object
+  required: [code, message, correlationId]
+  description: Flat error envelope (authoritative — matches Node errorHandler).
+  properties:
+    code:
+      $ref: '#/ErrorCode'
+    message:
+      type: string
+    correlationId:
+      type: string
+      format: uuid
+    details:
+      type: object
+      additionalProperties: true
+
+ErrorCode:
+  type: string
+  enum:
+    - VALIDATION_FAILED
+    - UNAUTHORIZED
+    - GOVERNANCE_DENIED
+    - RESOURCE_NOT_FOUND
+    - VERSION_CONFLICT
+    - IDEMPOTENCY_CONFLICT
+    - APPROVAL_REQUIRED
+    - CONSENT_REQUIRED
+    - SETTLEMENT_EXCEEDS_OUTSTANDING
+    - INFRASTRUCTURE_UNAVAILABLE
+    - RATE_LIMITED
+
+VersionConflictDetails:
+  type: object
+  properties:
+    resourceId:
+      type: string
+      format: uuid
+    expectedVersion:
+      type: integer
+    currentVersion:
+      type: integer
+
+CursorPageMeta:
+  type: object
+  properties:
+    nextCursor:
+      type: string
+      nullable: true
+    hasMore:
+      type: boolean
+
+DomainCode:
+  type: string
+  enum: [PERSONAL, GROUP, BUSINESS]
+
+MeResponse:
+  type: object
+  required:
+    - userId
+    - firebaseUid
+    - supportedContexts
+    - currentlySelectedContext
+    - activeMoments
+    - companies
+    - preferences
+    - featureFlags
+    - capabilities
+    - roles
+  properties:
+    userId:
+      type: string
+      format: uuid
+    email:
+      type: string
+      nullable: true
+    displayName:
+      type: string
+      nullable: true
+    firebaseUid:
+      type: string
+    timezone:
+      type: string
+    locale:
+      type: string
+      nullable: true
+    status:
+      type: string
+    roles:
+      type: array
+      items:
+        type: string
+    permissions:
+      type: array
+      items:
+        type: string
+    capabilities:
+      type: array
+      items:
+        type: string
+      description: Capability wire codes for the actor (V019 + baseline shell codes)
+    supportedContexts:
+      type: array
+      items:
+        type: string
+        enum: [PERSONAL, GROUP, BUSINESS, CIRCLE]
+    currentlySelectedContext:
+      type: string
+      enum: [PERSONAL, GROUP, BUSINESS, CIRCLE]
+      description: Server default; client may overlay locally persisted last selection
+    activeMoments:
+      type: object
+      required: [personal, group, business]
+      properties:
+        personal:
+          type: array
+          items:
+            $ref: '#/BootstrapMomentSummary'
+        group:
+          type: array
+          items:
+            $ref: '#/BootstrapMomentSummary'
+        business:
+          type: array
+          items:
+            $ref: '#/BootstrapMomentSummary'
+    companies:
+      type: array
+      items:
+        $ref: '#/BootstrapCompanySummary'
+    selectedCompany:
+      allOf:
+        - $ref: '#/BootstrapCompanySummary'
+      nullable: true
+    preferences:
+      type: object
+      required: [timezone]
+      properties:
+        timezone:
+          type: string
+        locale:
+          type: string
+          nullable: true
+    featureFlags:
+      type: object
+      additionalProperties:
+        oneOf:
+          - type: boolean
+          - type: string
+          - type: number
+
+BootstrapMomentSummary:
+  type: object
+  required: [momentId, title, status, domainCode]
+  properties:
+    momentId:
+      type: string
+      format: uuid
+    title:
+      type: string
+    status:
+      type: string
+    momentTypeCode:
+      type: string
+      nullable: true
+    domainCode:
+      type: string
+      enum: [PERSONAL, GROUP, BUSINESS]
+
+BootstrapCompanySummary:
+  type: object
+  required: [companyId, displayName]
+  properties:
+    companyId:
+      type: string
+      format: uuid
+    displayName:
+      type: string
+
+RegisterDeviceRequest:
+  type: object
+  required: [platform, pushToken]
+  properties:
+    deviceId:
+      type: string
+    platform:
+      type: string
+      enum: [ANDROID, IOS, WEB]
+    pushToken:
+      type: string
+    appVersion:
+      type: string
+
+MomentCreateParticipant:
+  type: object
+  properties:
+    userId:
+      type: string
+      format: uuid
+    displayName:
+      type: string
+      maxLength: 200
+    roleCode:
+      type: string
+      enum: [ORGANIZER, CO_ORGANIZER, PARTICIPANT, RESIDENT, CONTRIBUTOR, OBSERVER]
+      default: PARTICIPANT
+
+MomentCreateRequest:
+  type: object
+  required: [momentTypeCode, title]
+  properties:
+    domainCode:
+      $ref: '#/DomainCode'
+    momentTypeCode:
+      type: string
+      description: V018 wire code (not Figma display label). GROUP SHARED_EXPERIENCE uses TRIP, WEDDING, HOUSE_PARTY, OFFICE_OUTING.
+    title:
+      type: string
+      minLength: 1
+      maxLength: 500
+    description:
+      type: string
+      maxLength: 5000
+    startAt:
+      type: string
+      format: date-time
+    endAt:
+      type: string
+      format: date-time
+    timezone:
+      type: string
+      default: UTC
+    customTypeLabel:
+      type: string
+      maxLength: 500
+    companyId:
+      type: string
+      format: uuid
+    teamId:
+      type: string
+      format: uuid
+    participants:
+      type: array
+      maxItems: 50
+      items:
+        $ref: '#/MomentCreateParticipant'
+      description: Optional invitees for GROUP create. displayName creates an external party when userId is omitted.
+    personalSetup:
+      type: object
+      required: [systemCode]
+      properties:
+        systemCode:
+          type: string
+          enum: [LIFE_OPERATIONS, FUTURE_BUILDING, LIFESTYLE, RELATIONSHIPS]
+        preferences:
+          type: object
+          additionalProperties: true
+          description: Validated per systemCode server-side against catalog keys.
+    businessSetup:
+      type: object
+      required: [familyCode]
+      properties:
+        familyCode:
+          type: string
+          enum: [TEAM_OPERATIONS, BUSINESS_RUNWAY, BUSINESS_OPERATIONS]
+        preferences:
+          type: object
+          additionalProperties: true
+          description: Validated per familyCode server-side against catalog keys. companyId is authoritative at request root.
+
+MomentUpdateRequest:
+  type: object
+  required: [expectedVersion]
+  properties:
+    title:
+      type: string
+      minLength: 1
+      maxLength: 500
+    description:
+      type: string
+      maxLength: 5000
+    startAt:
+      type: string
+      format: date-time
+    endAt:
+      type: string
+      format: date-time
+    timezone:
+      type: string
+    customTypeLabel:
+      type: string
+    expectedVersion:
+      type: integer
+      minimum: 1
+
+MomentResponse:
+  type: object
+  required: [momentId, domainCode, title, status, version]
+  properties:
+    momentId:
+      type: string
+      format: uuid
+    domainCode:
+      $ref: '#/DomainCode'
+    title:
+      type: string
+    status:
+      type: string
+    version:
+      type: integer
+
+LifecycleCommandRequest:
+  type: object
+  required: [expectedVersion]
+  properties:
+    expectedVersion:
+      type: integer
+      minimum: 1
+
+ExpenseCreateRequest:
+  type: object
+  required: [amount, currencyCode]
+  properties:
+    amount:
+      type: string
+      pattern: '^[0-9]+(\.[0-9]{1,4})?$'
+    currencyCode:
+      type: string
+      minLength: 3
+      maxLength: 3
+    description:
+      type: string
+      maxLength: 500
+    merchantName:
+      type: string
+    categoryCode:
+      type: string
+    financialAccountId:
+      type: string
+      format: uuid
+      description: Optional paid-from financial account (Personal).
+    effectiveAt:
+      type: string
+      format: date-time
+    splits:
+      type: array
+      items:
+        $ref: '#/ExpenseSplitLine'
+
+ExpenseSplitLine:
+  type: object
+  required: [strategy]
+  properties:
+    participantId:
+      type: string
+      format: uuid
+    strategy:
+      type: string
+      enum: [EQUAL, EXACT, PERCENTAGE, SHARES]
+    amount:
+      type: string
+    percentage:
+      type: string
+    shares:
+      type: integer
+
+MovementCreateRequest:
+  type: object
+  required: [amount, currencyCode, movementType]
+  properties:
+    amount:
+      type: string
+    currencyCode:
+      type: string
+    movementType:
+      type: string
+      enum: [TRANSFER, SAVINGS, ADJUSTMENT]
+    description:
+      type: string
+    effectiveAt:
+      type: string
+      format: date-time
+
+GoalCreateRequest:
+  type: object
+  required: [title]
+  properties:
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+    description:
+      type: string
+
+MilestoneCreateRequest:
+  type: object
+  required: [title, goalId]
+  properties:
+    title:
+      type: string
+    goalId:
+      type: string
+      format: uuid
+
+TaskCreateRequest:
+  type: object
+  required: [title]
+  properties:
+    title:
+      type: string
+    goalId:
+      type: string
+      format: uuid
+    milestoneId:
+      type: string
+      format: uuid
+
+PollCreateRequest:
+  type: object
+  required: [question, options]
+  properties:
+    question:
+      type: string
+    pollType:
+      type: string
+      enum: [SINGLE_CHOICE, MULTI_CHOICE, YES_NO]
+      default: SINGLE_CHOICE
+    closesAt:
+      type: string
+      format: date-time
+    options:
+      type: array
+      minItems: 2
+      items:
+        type: object
+        required: [optionText]
+        properties:
+          optionText:
+            type: string
+          sortOrder:
+            type: integer
+
+PollVoteRequest:
+  type: object
+  required: [pollOptionId]
+  properties:
+    pollOptionId:
+      type: string
+      format: uuid
+
+PollResponse:
+  type: object
+  required: [pollId, momentId, question, status]
+  properties:
+    pollId:
+      type: string
+      format: uuid
+    momentId:
+      type: string
+      format: uuid
+    question:
+      type: string
+    status:
+      type: string
+      enum: [DRAFT, OPEN, CLOSED, CANCELLED]
+    options:
+      type: array
+      items:
+        type: object
+        properties:
+          pollOptionId:
+            type: string
+            format: uuid
+          optionText:
+            type: string
+          sortOrder:
+            type: integer
+
+CompanyCreateRequest:
+  type: object
+  required: [legalName, displayName]
+  properties:
+    legalName:
+      type: string
+    displayName:
+      type: string
+    timezone:
+      type: string
+      default: UTC
+
+CompanyUpdateRequest:
+  type: object
+  required: [expectedVersion]
+  properties:
+    displayName:
+      type: string
+    legalName:
+      type: string
+    timezone:
+      type: string
+    expectedVersion:
+      type: integer
+
+CompanyLocationCreateRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+    addressText:
+      type: string
+    timezone:
+      type: string
+
+CompanyLocationUpdateRequest:
+  type: object
+  required: [expectedVersion]
+  properties:
+    name:
+      type: string
+    addressText:
+      type: string
+    timezone:
+      type: string
+    status:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+    expectedVersion:
+      type: integer
+
+CompanyLocationResponse:
+  type: object
+  required: [companyLocationId, companyId, name, status, version]
+  properties:
+    companyLocationId:
+      type: string
+      format: uuid
+    companyId:
+      type: string
+      format: uuid
+    name:
+      type: string
+    addressText:
+      type: string
+      nullable: true
+    timezone:
+      type: string
+      nullable: true
+    status:
+      type: string
+    version:
+      type: integer
+
+MediaUploadIntentRequest:
+  type: object
+  required: [scopeType, scopeId, contentType]
+  properties:
+    scopeType:
+      type: string
+      enum: [USER, MOMENT, COMPANY]
+    scopeId:
+      type: string
+      format: uuid
+    contentType:
+      type: string
+    sizeBytes:
+      type: integer
+
+MediaUploadCompleteRequest:
+  type: object
+  properties:
+    checksumSha256:
+      type: string
+
+PersonalPulseResponse:
+  type: object
+  properties:
+    userId:
+      type: string
+      format: uuid
+    attentionCount:
+      type: integer
+    activeMomentCount:
+      type: integer
+    recoveryScore:
+      type: string
+      nullable: true
+    moodState:
+      type: string
+      nullable: true
+    widgetPayload:
+      type: object
+      additionalProperties: true
+    projectionVersion:
+      type: integer
+
+MomentListItem:
+  type: object
+  required: [momentId, title, status, momentTypeCode]
+  properties:
+    momentId:
+      type: string
+      format: uuid
+    title:
+      type: string
+    status:
+      type: string
+    momentTypeCode:
+      type: string
+
+CursorPageOfMoments:
+  type: object
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/MomentListItem'
+    nextCursor:
+      type: string
+      nullable: true
+
+ActivityItem:
+  type: object
+  required: [activityId, kind, occurredAt]
+  properties:
+    activityId:
+      type: string
+      format: uuid
+    kind:
+      type: string
+      description: Discriminator for activity type (expense, milestone, mood, etc.).
+    title:
+      type: string
+    occurredAt:
+      type: string
+      format: date-time
+    momentId:
+      type: string
+      format: uuid
+      nullable: true
+
+CursorPageOfActivity:
+  type: object
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ActivityItem'
+    nextCursor:
+      type: string
+      nullable: true
+
+AvailableActionItem:
+  type: object
+  required: [capabilityCode, label]
+  properties:
+    capabilityCode:
+      type: string
+    label:
+      type: string
+    sortOrder:
+      type: integer
+

@@ -1,0 +1,34 @@
+appId: resolvingpoint.momentra
+tags:
+  - create
+  - personal
+---
+- runFlow: 02_email_login.yaml
+
+- tapOn: "Switch to Personal"
+- tapOn: "Quickadds"
+- takeScreenshot: personal_create_chooser
+
+- runFlow:
+    when:
+      visible: "Life Operations"
+    commands:
+      - tapOn: "Life Operations"
+- runFlow:
+    when:
+      visible: "Life Ops"
+    commands:
+      - tapOn: "Life Ops"
+
+- extendedWaitUntil:
+    visible: "Back"
+    timeout: 15000
+    optional: true
+- takeScreenshot: personal_setup_wizard
+
+- runFlow:
+    when:
+      visible: "Create moment"
+    commands:
+      - tapOn: "Create moment"
+      - takeScreenshot: new_moment_cta

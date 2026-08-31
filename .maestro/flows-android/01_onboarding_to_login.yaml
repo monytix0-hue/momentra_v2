@@ -1,0 +1,35 @@
+appId: com.example.momentra
+tags:
+  - smoke
+  - preauth
+  - android
+---
+- runFlow: 00_launch_clear.yaml
+
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Sign in"
+    timeout: 30000
+- assertVisible: "Sign in"
+- assertVisible: "Continue with Google"
+- takeScreenshot: android_login_screen

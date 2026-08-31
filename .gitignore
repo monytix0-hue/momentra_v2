@@ -1,0 +1,44 @@
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Maestro
+.maestro/.env.maestro.local
+.maestro/reports/
+
+# Syncthing (must not be compiled by Xcode synchronized folders)
+**/.syncthing*
+**/*.sync-conflict*
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+**/local.properties
+**/*.keystore
+**/*.jks
+
+# Dependencies & build outputs
+**/node_modules/
+**/dist/
+**/build/
+**/.gradle/
+**/DerivedData/
+**/.next/
+**/Pods/
+**/.venv/
+**/__pycache__/
+**/*.xcuserstate
+**/xcuserdata/
+
+# IDE / sync / temp
+.cursor/
+.stfolder/
+.tmp/
+*.log
+.DS_Store
+Thumbs.db

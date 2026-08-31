@@ -1,0 +1,8 @@
+appId: com.example.momentra
+tags: [regression, android, settings]
+---
+- runFlow: ../00_auth/smoke_email_login.yaml
+- tapOn:
+    id: "topbar.profile"
+- takeScreenshot: android_settings_account
+# Expand: PIN, hide balances, devices/revoke

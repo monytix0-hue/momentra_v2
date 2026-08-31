@@ -1,0 +1,12 @@
+appId: com.example.momentra
+tags: [regression, android, circle]
+---
+- runFlow: ../00_auth/smoke_email_login.yaml
+- tapOn:
+    id: "context.circle"
+- extendedWaitUntil:
+    visible:
+      id: "circle.coming_soon"
+    timeout: 10000
+    optional: true
+- takeScreenshot: android_circle_full

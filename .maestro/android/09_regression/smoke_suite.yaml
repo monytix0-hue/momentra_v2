@@ -1,0 +1,7 @@
+﻿appId: com.example.momentra
+tags: [smoke, android, suite]
+---
+# ~5–10 min smoke gate
+- runFlow: ../01_shell/smoke_context_and_tabs.yaml
+- runFlow: ../01_shell/smoke_life360_circle.yaml
+- takeScreenshot: android_smoke_suite_done

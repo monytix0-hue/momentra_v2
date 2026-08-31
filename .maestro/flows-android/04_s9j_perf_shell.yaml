@@ -1,0 +1,9 @@
+appId: com.example.momentra
+tags:
+  - s9j
+  - perf
+  - android
+---
+# S9-J: launch + login + tab/context switches; screenshots for visible-ready review.
+- runFlow: 03_shell_tabs_contexts.yaml
+- takeScreenshot: android_s9j_complete

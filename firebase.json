@@ -1,0 +1,20 @@
+{
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Momentra",
+        "supportEmail": "resolvingpoint@gmail.com",
+        "authorizedRedirectUris": [
+          "http://localhost",
+          "https://momentra-v2.firebaseapp.com/__/auth/handler",
+          "https://momentra-v2.web.app/__/auth/handler"
+        ]
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

@@ -1,0 +1,8 @@
+appId: com.example.momentra
+tags: [regression, android, security]
+---
+- runFlow: ../00_auth/smoke_email_login.yaml
+- tapOn:
+    id: "topbar.profile"
+- takeScreenshot: android_security_entry
+# Expand: App lock PIN, auto-lock, background resume

@@ -1,0 +1,62 @@
+appId: com.momentra.momentra
+tags: [critical, ios, personal, finance, qh-transaction-crud]
+---
+# S9-QH iOS: create expense lifecycle smoke (create + activity visibility)
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_PERSONAL_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_PERSONAL_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
+- tapOn:
+    id: "context.personal"
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- extendedWaitUntil:
+    visible:
+      id: "personal.expense.amount"
+    timeout: 20000
+- tapOn:
+    id: "personal.expense.note"
+- eraseText
+- inputText: "QH-CRUD-${MAESTRO_RUN_ID}"
+- tapOn:
+    id: "personal.expense.amount"
+- eraseText
+- inputText: "88.88"
+- tapOn:
+    id: "personal.expense.submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "personal.expense.submit"
+    timeout: 45000
+- tapOn:
+    id: "bottom.pulse"
+- assertVisible: "QH-CRUD-${MAESTRO_RUN_ID}"
+- takeScreenshot: ios_qh_transaction_create_pass

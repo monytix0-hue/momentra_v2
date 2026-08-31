@@ -1,0 +1,258 @@
+[
+  {
+    "name": "personal_pulse_ellipse",
+    "ext": "svg",
+    "bytes": 664,
+    "url": "https://www.figma.com/api/mcp/asset/cd4af704-8de3-4129-9345-66d0c0c30d1c.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse.svg",
+    "ios": "personal_pulse_ellipse"
+  },
+  {
+    "name": "personal_pulse_chevron_right",
+    "ext": "svg",
+    "bytes": 304,
+    "url": "https://www.figma.com/api/mcp/asset/a0fef677-b537-4bff-92b8-6b29acee2889.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_chevron_right.svg",
+    "ios": "personal_pulse_chevron_right"
+  },
+  {
+    "name": "personal_pulse_ellipse1",
+    "ext": "svg",
+    "bytes": 667,
+    "url": "https://www.figma.com/api/mcp/asset/211b6a9f-dadb-4707-a0e4-3b5932e60f11.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse1.svg",
+    "ios": "personal_pulse_ellipse1"
+  },
+  {
+    "name": "personal_pulse_ellipse2",
+    "ext": "svg",
+    "bytes": 663,
+    "url": "https://www.figma.com/api/mcp/asset/136dae2b-623f-4930-8914-5cff4c5eb44d.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse2.svg",
+    "ios": "personal_pulse_ellipse2"
+  },
+  {
+    "name": "personal_pulse_line",
+    "ext": "svg",
+    "bytes": 402,
+    "url": "https://www.figma.com/api/mcp/asset/2dbc2b15-a949-411e-8f34-90680eda267f.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_line.svg",
+    "ios": "personal_pulse_line"
+  },
+  {
+    "name": "personal_pulse_ellipse3",
+    "ext": "svg",
+    "bytes": 227,
+    "url": "https://www.figma.com/api/mcp/asset/c2755ef3-6659-4218-8539-20c1001a24cd.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse3.svg",
+    "ios": "personal_pulse_ellipse3"
+  },
+  {
+    "name": "personal_pulse_ellipse4",
+    "ext": "svg",
+    "bytes": 246,
+    "url": "https://www.figma.com/api/mcp/asset/84a8a306-9a92-4887-b323-e1c8583e33f6.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse4.svg",
+    "ios": "personal_pulse_ellipse4"
+  },
+  {
+    "name": "personal_pulse_ellipse5",
+    "ext": "svg",
+    "bytes": 651,
+    "url": "https://www.figma.com/api/mcp/asset/903bf3dc-5103-4570-b38a-cf623c5535db.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse5.svg",
+    "ios": "personal_pulse_ellipse5"
+  },
+  {
+    "name": "personal_pulse_ellipse6",
+    "ext": "svg",
+    "bytes": 651,
+    "url": "https://www.figma.com/api/mcp/asset/3d28fd48-e786-4ba9-baac-2a794e780d16.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse6.svg",
+    "ios": "personal_pulse_ellipse6"
+  },
+  {
+    "name": "personal_pulse_ellipse7",
+    "ext": "svg",
+    "bytes": 651,
+    "url": "https://www.figma.com/api/mcp/asset/827cd98d-3678-4869-a919-52e31736ad30.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse7.svg",
+    "ios": "personal_pulse_ellipse7"
+  },
+  {
+    "name": "personal_pulse_ellipse8",
+    "ext": "svg",
+    "bytes": 667,
+    "url": "https://www.figma.com/api/mcp/asset/b943866e-a25b-4c8a-afa8-19352f4bcb15.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse8.svg",
+    "ios": "personal_pulse_ellipse8"
+  },
+  {
+    "name": "personal_pulse_ellipse9",
+    "ext": "svg",
+    "bytes": 644,
+    "url": "https://www.figma.com/api/mcp/asset/1aeab128-9943-4611-8e01-a9df3ddabac0.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse9.svg",
+    "ios": "personal_pulse_ellipse9"
+  },
+  {
+    "name": "personal_pulse_ellipse10",
+    "ext": "svg",
+    "bytes": 644,
+    "url": "https://www.figma.com/api/mcp/asset/d799b5d0-abee-4e75-bf8c-964b95d83eff.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse10.svg",
+    "ios": "personal_pulse_ellipse10"
+  },
+  {
+    "name": "personal_pulse_ellipse11",
+    "ext": "svg",
+    "bytes": 644,
+    "url": "https://www.figma.com/api/mcp/asset/2a1a4802-6919-4f7a-88b6-64dcc842ab52.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse11.svg",
+    "ios": "personal_pulse_ellipse11"
+  },
+  {
+    "name": "personal_pulse_ellipse12",
+    "ext": "svg",
+    "bytes": 644,
+    "url": "https://www.figma.com/api/mcp/asset/2e596e45-aba2-401f-87e5-429975d8c4b3.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_ellipse12.svg",
+    "ios": "personal_pulse_ellipse12"
+  },
+  {
+    "name": "personal_pulse_frame",
+    "ext": "svg",
+    "bytes": 376,
+    "url": "https://www.figma.com/api/mcp/asset/5ecd00a5-758e-4f1a-b2a2-63e44d0e543f.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_frame.svg",
+    "ios": "personal_pulse_frame"
+  },
+  {
+    "name": "personal_pulse_frame1",
+    "ext": "svg",
+    "bytes": 587,
+    "url": "https://www.figma.com/api/mcp/asset/4057c67d-9d7e-48df-836b-9b9203466d65.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_frame1.svg",
+    "ios": "personal_pulse_frame1"
+  },
+  {
+    "name": "personal_pulse_frame2",
+    "ext": "svg",
+    "bytes": 545,
+    "url": "https://www.figma.com/api/mcp/asset/80075178-d4e1-4609-8556-aa8b01dae0d8.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_frame2.svg",
+    "ios": "personal_pulse_frame2"
+  },
+  {
+    "name": "personal_pulse_frame3",
+    "ext": "svg",
+    "bytes": 1076,
+    "url": "https://www.figma.com/api/mcp/asset/1f991943-573f-4d35-8ae1-1716a9bede9e.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_frame3.svg",
+    "ios": "personal_pulse_frame3"
+  },
+  {
+    "name": "personal_pulse_frame4",
+    "ext": "svg",
+    "bytes": 554,
+    "url": "https://www.figma.com/api/mcp/asset/cf241c0b-4f8e-4172-aa24-cd53aeb9671f.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_pulse_frame4.svg",
+    "ios": "personal_pulse_frame4"
+  },
+  {
+    "name": "personal_life_arrow_right",
+    "ext": "svg",
+    "bytes": 345,
+    "url": "https://www.figma.com/api/mcp/asset/4767c66e-062e-436d-a830-65e534d0c9c2.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_life_arrow_right.svg",
+    "ios": "personal_life_arrow_right"
+  },
+  {
+    "name": "personal_life_arrow_right1",
+    "ext": "svg",
+    "bytes": 345,
+    "url": "https://www.figma.com/api/mcp/asset/b3ab959f-34a3-4d7b-bff2-7b2fcd7d2acd.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_life_arrow_right1.svg",
+    "ios": "personal_life_arrow_right1"
+  },
+  {
+    "name": "personal_life_icon",
+    "ext": "svg",
+    "bytes": 1180,
+    "url": "https://www.figma.com/api/mcp/asset/a55a5834-180f-4184-a83e-8ead61fcbf31.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_life_icon.svg",
+    "ios": "personal_life_icon"
+  },
+  {
+    "name": "personal_life_grid",
+    "ext": "svg",
+    "bytes": 582,
+    "url": "https://www.figma.com/api/mcp/asset/efe1ef4a-7f17-4414-88a2-233c9b630bc0.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_life_grid.svg",
+    "ios": "personal_life_grid"
+  },
+  {
+    "name": "personal_life_star",
+    "ext": "svg",
+    "bytes": 1972,
+    "url": "https://www.figma.com/api/mcp/asset/2c3962fe-0f60-43e9-a2ac-f1ea107f979d.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_life_star.svg",
+    "ios": "personal_life_star"
+  },
+  {
+    "name": "personal_memory_bg_glow",
+    "ext": "svg",
+    "bytes": 674,
+    "url": "https://www.figma.com/api/mcp/asset/7fa84a02-6899-4cdf-ac8b-c81f07649b60.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_memory_bg_glow.svg",
+    "ios": "personal_memory_bg_glow"
+  },
+  {
+    "name": "personal_memory_conn_dot1",
+    "ext": "svg",
+    "bytes": 1020,
+    "url": "https://www.figma.com/api/mcp/asset/a70d4f9c-2f0f-4290-be3f-365e9a57bda7.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_memory_conn_dot1.svg",
+    "ios": "personal_memory_conn_dot1"
+  },
+  {
+    "name": "personal_memory_conn_dot2",
+    "ext": "svg",
+    "bytes": 1024,
+    "url": "https://www.figma.com/api/mcp/asset/d62ca6a9-7216-4fab-9050-148c79ae1a50.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_memory_conn_dot2.svg",
+    "ios": "personal_memory_conn_dot2"
+  },
+  {
+    "name": "personal_memory_conn_dot3",
+    "ext": "svg",
+    "bytes": 336,
+    "url": "https://www.figma.com/api/mcp/asset/368d4cc7-7894-4aaa-a1f8-33a6bd663f57.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_memory_conn_dot3.svg",
+    "ios": "personal_memory_conn_dot3"
+  },
+  {
+    "name": "personal_memory_center_glow",
+    "ext": "svg",
+    "bytes": 668,
+    "url": "https://www.figma.com/api/mcp/asset/968bce8d-bb99-4f71-bc5d-f71008487614.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_memory_center_glow.svg",
+    "ios": "personal_memory_center_glow"
+  },
+  {
+    "name": "personal_memory_arrow_right",
+    "ext": "svg",
+    "bytes": 345,
+    "url": "https://www.figma.com/api/mcp/asset/f2dc5991-ea82-440c-a3a0-a14a3f0a524a.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_memory_arrow_right.svg",
+    "ios": "personal_memory_arrow_right"
+  },
+  {
+    "name": "personal_memory_arrow_right1",
+    "ext": "svg",
+    "bytes": 345,
+    "url": "https://www.figma.com/api/mcp/asset/e1ec01f6-816d-4ab9-947b-f3a76ce87fe7.svg",
+    "android": "g:\\momentra_v2\\apk\\app\\src\\main\\assets\\personal_empty\\personal_memory_arrow_right1.svg",
+    "ios": "personal_memory_arrow_right1"
+  }
+]

@@ -1,0 +1,9 @@
+﻿appId: resolvingpoint.momentra
+tags: [ios, security, biometric, regression]
+---
+# Face ID / Touch ID + Keychain-backed PIN — execute on Mac + enrolled biometrics.
+- runFlow: ../00_auth/smoke_email_login.yaml
+- tapOn:
+    id: "topbar.profile"
+- takeScreenshot: ios_security_account
+# PENDING: navigate App Lock settings; enroll PIN ${QA_APP_LOCK_PIN}; background/foreground

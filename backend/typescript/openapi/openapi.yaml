@@ -1,0 +1,850 @@
+openapi: 3.1.0
+info:
+  title: Momentra API
+  version: 1.0.0
+  description: |
+    SUPERSEDED — use openapi/momentra-v1.yaml (Phase 2 authoritative contract).
+    This file remains for Mapping Freeze v4 reference only.
+servers:
+  - url: /v1
+    description: API v1
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    CommandEnvelope:
+      type: object
+      required: [data, correlationId]
+      properties:
+        data: {}
+        resourceVersion:
+          type: integer
+        correlationId:
+          type: string
+          format: uuid
+        projectionHints:
+          type: array
+          items:
+            type: string
+    ProjectionEnvelope:
+      type: object
+      required: [data, correlationId]
+      properties:
+        data: {}
+        projectionVersion:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        nextCursor:
+          type: string
+          nullable: true
+        correlationId:
+          type: string
+          format: uuid
+    ErrorEnvelope:
+      type: object
+      required: [code, message, correlationId]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        correlationId:
+          type: string
+          format: uuid
+        details: {}
+    MeResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        email:
+          type: string
+        displayName:
+          type: string
+        firebaseUid:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+security:
+  - bearerAuth: []
+paths:
+  /me:
+    get:
+      summary: Bootstrap identity after Firebase sign-in
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/CommandEnvelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/MeResponse'
+  /me/devices:
+    post:
+      summary: Register FCM device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [platform, pushToken]
+              properties:
+                deviceId:
+                  type: string
+                  format: uuid
+                platform:
+                  type: string
+                  enum: [ANDROID, IOS, WEB]
+                pushToken:
+                  type: string
+                appVersion:
+                  type: string
+      responses:
+        '201':
+          description: Device registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /me/devices/{deviceId}:
+    delete:
+      summary: Revoke FCM device
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Device revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments:
+    post:
+      summary: Create moment
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [momentTypeCode, title]
+              properties:
+                domainCode:
+                  type: string
+                  enum: [PERSONAL, GROUP, BUSINESS]
+                momentTypeCode:
+                  type: string
+                title:
+                  type: string
+                description:
+                  type: string
+                startAt:
+                  type: string
+                  format: date-time
+                endAt:
+                  type: string
+                  format: date-time
+                timezone:
+                  type: string
+                customTypeLabel:
+                  type: string
+                expectedVersion:
+                  type: integer
+      responses:
+        '201':
+          description: Moment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}:
+    get:
+      summary: Get moment
+      parameters:
+        - name: momentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+    patch:
+      summary: Update moment
+      parameters:
+        - name: momentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedVersion]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                expectedVersion:
+                  type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/archive:
+    post:
+      summary: Archive moment
+      parameters:
+        - name: momentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedVersion]
+              properties:
+                expectedVersion:
+                  type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/cancel:
+    post:
+      summary: Cancel moment
+      parameters:
+        - name: momentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/expenses:
+    post:
+      summary: Record expense (EXPENSE_CREATE)
+      parameters:
+        - name: momentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, currencyCode]
+              properties:
+                amount:
+                  type: string
+                currencyCode:
+                  type: string
+                description:
+                  type: string
+                merchantName:
+                  type: string
+                categoryCode:
+                  type: string
+                effectiveAt:
+                  type: string
+                  format: date-time
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/tasks:
+    post:
+      summary: Create task (TASK_CREATE)
+      parameters:
+        - name: momentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/goals:
+    post:
+      summary: Create goal (GOAL_CREATE)
+      parameters:
+        - name: momentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/milestones:
+    post:
+      summary: Create milestone (MILESTONE_CREATE)
+      parameters:
+        - name: momentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/movements:
+    post:
+      summary: Record transfer/savings movement
+      parameters:
+        - name: momentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/observations:
+    post:
+      summary: Record life ops observation
+      parameters:
+        - name: momentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/future-items:
+    post:
+      summary: Create future item
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/lifestyle-activities:
+    post:
+      summary: Create lifestyle activity
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/relationship-activities:
+    post:
+      summary: Record relationship activity (PX-3 precision fields optional)
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /personal/moments/{momentId}/future-runtime-summary:
+    get:
+      summary: Future Building runtime summary (PER-FU-S01)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments/{momentId}/future-axis-snapshot:
+    get:
+      summary: Future Building axis snapshot (PER-FU-S02)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments/{momentId}/future-inventory:
+    get:
+      summary: Future Building inventory (PER-FU-S03)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments/{momentId}/future-journey:
+    get:
+      summary: Future Building journey (PER-FU-S04)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments/{momentId}/future-profile:
+    patch:
+      summary: Upsert Future Building profile (PER-FU-S05)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /personal/moments/{momentId}/lifestyle-runtime-summary:
+    get:
+      summary: Lifestyle runtime summary (PER-LS-S01)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments/{momentId}/lifestyle-vitality-snapshot:
+    get:
+      summary: Lifestyle vitality axes (PER-LS-S02)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments/{momentId}/lifestyle-inventory:
+    get:
+      summary: Lifestyle inventory (PER-LS-S03)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments/{momentId}/lifestyle-journey:
+    get:
+      summary: Lifestyle journey (PER-LS-S04)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments/{momentId}/lifestyle-profile:
+    patch:
+      summary: Upsert Lifestyle profile (PER-LS-S05)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /personal/moments/{momentId}/relationships-runtime-summary:
+    get:
+      summary: Relationships runtime summary (PER-RE-S01)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments/{momentId}/relationships-bond-snapshot:
+    get:
+      summary: Relationships bond axes (PER-RE-S02)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments/{momentId}/relationships-connections:
+    get:
+      summary: Relationships connections (PER-RE-S03)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments/{momentId}/relationships-journey:
+    get:
+      summary: Relationships journey (PER-RE-S04)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments/{momentId}/relationships-profile:
+    patch:
+      summary: Upsert Relationships profile (PER-RE-S05)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/settlements:
+    post:
+      summary: Record group settlement (GX-1)
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/polls:
+    post:
+      summary: Create poll (shared kernel)
+      parameters:
+        - name: momentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /moments/{momentId}/activity:
+    get:
+      summary: Moment activity feed
+      parameters:
+        - name: momentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/pulse:
+    get:
+      summary: Personal pulse projection
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/moments:
+    get:
+      summary: Personal moments list
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/life:
+    get:
+      summary: Personal life projection
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/memory:
+    get:
+      summary: Personal memory projection
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/attention:
+    get:
+      summary: Personal attention projection
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /personal/activity:
+    get:
+      summary: Personal activity feed
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /group/moments:
+    get:
+      summary: Group moments list
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /group/moments/{momentId}/pulse:
+    get:
+      summary: Group moment pulse
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /business/moments:
+    get:
+      summary: Business moments list
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /business/moments/{momentId}/actions:
+    get:
+      summary: Business available actions
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+  /companies:
+    get:
+      summary: List companies
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+    post:
+      summary: Create company
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /companies/{companyId}/locations:
+    get:
+      summary: List company locations
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+    post:
+      summary: Create company location
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /companies/{companyId}/teams:
+    get:
+      summary: List company teams
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'
+    post:
+      summary: Create company team
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /media/uploads:
+    post:
+      summary: Create signed upload intent
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /media/uploads/{uploadId}/complete:
+    post:
+      summary: Finalize media upload
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /life360:
+    get:
+      summary: Life360 circle projection
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionEnvelope'

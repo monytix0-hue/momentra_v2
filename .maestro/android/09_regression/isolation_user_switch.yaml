@@ -1,0 +1,125 @@
+﻿appId: com.example.momentra
+tags: [isolation, android, security, release_blocker]
+---
+# Cross-user: QA_PERSONAL data must not appear for QA_EMPTY
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_PERSONAL_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_PERSONAL_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
+- tapOn:
+    id: "context.personal"
+- assertVisible: "QA Personal"
+- takeScreenshot: android_isolation_user_a
+- tapOn:
+    id: "topbar.profile"
+- tapOn:
+    id: "account.sign_out"
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 30000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_EMPTY_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_EMPTY_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
+- tapOn:
+    id: "context.personal"
+- assertNotVisible: "QA Personal Alpha"
+- assertNotVisible: "QA Personal Beta"
+- takeScreenshot: android_isolation_user_b_empty
+# Group isolation: member sees Group A, not Group B
+- tapOn:
+    id: "topbar.profile"
+- tapOn:
+    id: "account.sign_out"
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 30000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_GROUP_MEMBER_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_GROUP_MEMBER_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
+- tapOn:
+    id: "context.group"
+- assertVisible: "QA Group A"
+- assertNotVisible: "QA Group B"
+- takeScreenshot: android_isolation_group_member
+# Business isolation: member has Company A, not Company B
+- tapOn:
+    id: "topbar.profile"
+- tapOn:
+    id: "account.sign_out"
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 30000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_BUSINESS_MEMBER_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_BUSINESS_MEMBER_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
+- tapOn:
+    id: "context.business"
+- assertVisible: "QA Company A"
+- assertNotVisible: "QA Company B"
+- takeScreenshot: android_isolation_business_member

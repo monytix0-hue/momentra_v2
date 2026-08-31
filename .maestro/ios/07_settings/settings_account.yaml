@@ -1,0 +1,7 @@
+appId: resolvingpoint.momentra
+tags: [regression, ios, settings]
+---
+- runFlow: ../00_auth/smoke_email_login.yaml
+- tapOn:
+    id: "topbar.profile"
+- takeScreenshot: ios_settings_account

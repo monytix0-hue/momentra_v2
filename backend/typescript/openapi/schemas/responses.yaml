@@ -1,0 +1,56 @@
+Error400:
+  description: Validation error
+  content:
+    application/json:
+      schema:
+        $ref: './common.yaml#/ErrorEnvelope'
+Error401:
+  description: Unauthenticated
+  content:
+    application/json:
+      schema:
+        $ref: './common.yaml#/ErrorEnvelope'
+Error403:
+  description: Forbidden
+  content:
+    application/json:
+      schema:
+        $ref: './common.yaml#/ErrorEnvelope'
+Error404:
+  description: Not found
+  content:
+    application/json:
+      schema:
+        $ref: './common.yaml#/ErrorEnvelope'
+Error409Version:
+  description: Optimistic concurrency version conflict
+  content:
+    application/json:
+      schema:
+        allOf:
+          - $ref: './common.yaml#/ErrorEnvelope'
+          - type: object
+            properties:
+              code:
+                type: string
+                enum: [VERSION_CONFLICT]
+              details:
+                $ref: './common.yaml#/VersionConflictDetails'
+Error409Idempotency:
+  description: Idempotency key reused with incompatible payload
+  content:
+    application/json:
+      schema:
+        allOf:
+          - $ref: './common.yaml#/ErrorEnvelope'
+          - type: object
+            properties:
+              code:
+                type: string
+                enum: [IDEMPOTENCY_CONFLICT]
+Error500:
+  description: Internal server error
+  content:
+    application/json:
+      schema:
+        $ref: './common.yaml#/ErrorEnvelope'

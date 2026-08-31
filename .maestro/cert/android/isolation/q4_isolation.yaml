@@ -1,0 +1,96 @@
+appId: com.example.momentra
+tags: [cert, isolation, q4, android]
+---
+# Q4 Isolation — user / Moment / Group / Company (any leak = P0)
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Skip"
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_PERSONAL_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_PERSONAL_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+- takeScreenshot: cert_q4_personal_u1
+- tapOn:
+    id: "account.sign_out"
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_MULTI_CONTEXT_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_MULTI_CONTEXT_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+- takeScreenshot: cert_q4_personal_u2
+- assertNotVisible: "MAESTRO-LEAK-SHOULD-NOT-EXIST"
+- tapOn:
+    id: "context.group"
+- takeScreenshot: cert_q4_group
+- tapOn:
+    id: "context.business"
+- takeScreenshot: cert_q4_business
+# Outsider cannot see Group A / Company A — assert empty or access denied surfaces

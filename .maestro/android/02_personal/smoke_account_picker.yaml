@@ -1,0 +1,78 @@
+appId: com.example.momentra
+tags: [android, personal, finance, account]
+---
+# Life Ops — account picker + create from Income Paid From
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_PERSONAL_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_PERSONAL_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.quickadd"
+    timeout: 60000
+- tapOn:
+    id: "context.personal"
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
+- extendedWaitUntil:
+    visible:
+      id: "personal.income.account"
+    timeout: 20000
+- tapOn:
+    id: "personal.income.account"
+- extendedWaitUntil:
+    visible:
+      id: "personal.account.picker"
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: "personal.account.picker.create"
+    commands:
+      - tapOn:
+          id: "personal.account.picker.create"
+- extendedWaitUntil:
+    visible:
+      id: "personal.account.add.name"
+    timeout: 15000
+- tapOn:
+    id: "personal.account.add.name"
+- inputText: "Maestro Test Bank"
+- tapOn:
+    id: "personal.account.add.submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "personal.account.add.submit"
+    timeout: 45000
+- takeScreenshot: android_personal_account_create_pass

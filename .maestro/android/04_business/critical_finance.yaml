@@ -1,0 +1,77 @@
+﻿appId: com.example.momentra
+tags: [critical, android, business, finance]
+---
+# QA_BUSINESS_MEMBER submits expense; owner path asserts visibility.
+# Approval threshold may be PRODUCT_GAP — still assert expense form + member write.
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_BUSINESS_MEMBER_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_BUSINESS_MEMBER_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
+- tapOn:
+    id: "context.business"
+- runFlow:
+    when:
+      visible:
+        id: "company.switcher"
+    commands:
+      - tapOn:
+          id: "company.switcher"
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- extendedWaitUntil:
+    visible:
+      id: "business.expense.amount"
+    timeout: 20000
+- tapOn:
+    id: "business.expense.note"
+- eraseText
+- inputText: "MAESTRO-${MAESTRO_RUN_ID}"
+- tapOn:
+    id: "business.expense.amount"
+- eraseText
+- inputText: "137.41"
+- tapOn:
+    id: "business.expense.submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "business.expense.submit"
+    timeout: 45000
+- tapOn:
+    id: "bottom.pulse"
+- assertVisible: "MAESTRO-${MAESTRO_RUN_ID}"
+- takeScreenshot: android_business_expense_member

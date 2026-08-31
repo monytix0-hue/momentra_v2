@@ -1,0 +1,19 @@
+﻿appId: com.example.momentra
+tags: [smoke, android, auth]
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Skip"
+    timeout: 20000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: "consent.continue"
+    timeout: 5000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 5000
+    optional: true

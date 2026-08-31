@@ -1,0 +1,13 @@
+appId: com.example.momentra
+tags: [regression, android, life360]
+---
+- runFlow: ../00_auth/smoke_email_login.yaml
+- tapOn:
+    id: "topbar.life360"
+- extendedWaitUntil:
+    visible:
+      id: "life360.coming_soon"
+    timeout: 10000
+    optional: true
+- takeScreenshot: android_life360_full
+- back

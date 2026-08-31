@@ -1,0 +1,156 @@
+appId: resolvingpoint.momentra
+tags: [cert, group, g06, ios]
+---
+# Q2-G06 Group Purchase (GROUP_PURCHASE) — independent certification
+# Do not treat sibling Purchase variants as equivalent without FIGMA_UNIQUE+FAMILY_UI_REUSED check
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Skip"
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: ${QA_GROUP_OWNER_EMAIL}
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: ${QA_GROUP_OWNER_PASSWORD}
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+- takeScreenshot: cert_g06_empty
+- tapOn:
+    id: "topbar.new_moment"
+- runFlow:
+    when:
+      visible: "Purchase"
+    commands:
+      - tapOn: "Purchase"
+- runFlow:
+    when:
+      visible: "Group Purchase"
+    commands:
+      - tapOn: "Group Purchase"
+- takeScreenshot: cert_g06_setup
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Activate"
+    commands:
+      - tapOn: "Activate"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- takeScreenshot: cert_g06_pulse
+- tapOn:
+    id: "bottom.moments"
+- takeScreenshot: cert_g06_moments
+- tapOn:
+    id: "bottom.life"
+- takeScreenshot: cert_g06_life
+- tapOn:
+    id: "bottom.memory"
+- takeScreenshot: cert_g06_memory
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- extendedWaitUntil:
+    visible:
+      id: "group.expense.amount"
+    timeout: 30000
+- tapOn:
+    id: "group.expense.note"
+- eraseText
+- inputText: "MAESTRO-${MAESTRO_RUN_ID}-G06-EXP"
+- tapOn:
+    id: "group.expense.amount"
+- eraseText
+- inputText: "1203.17"
+- tapOn:
+    id: "group.expense.submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "group.expense.submit"
+    timeout: 60000
+- takeScreenshot: cert_g06_expense
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.contribute"
+    commands:
+      - tapOn:
+          id: "qa.tile.contribute"
+- takeScreenshot: cert_g06_contribute
+- back
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- takeScreenshot: cert_g06_relaunch
+# Invite/redeem + qa:verify group-expense with --amount 1203.17 --participants 3

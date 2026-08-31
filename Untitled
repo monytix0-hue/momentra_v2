@@ -1,0 +1,17 @@
+.\.maestro\run-qa-android.ps1 -Class smoke          # physical preferred
+.\.maestro\run-qa-android.ps1 -Class smoke -AllowEmulator
+
+
+./.maestro/run-qa-ios.sh smoke   # Mac/CI only
+
+
+# Fixtures first (same as Android)
+cd backend/typescript
+QA_FIXTURES_ENABLED=true ALLOW_DEV_AUTH=1 npm run qa:prepare-fixtures
+
+# Smoke / critical
+./.maestro/run-qa-ios.sh smoke
+./.maestro/run-qa-ios.sh critical
+
+# Master certification
+./.maestro/run-qa-ios.sh cert

@@ -1,0 +1,17 @@
+appId: resolvingpoint.momentra
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- extendedWaitUntil:
+    visible: "Skip"
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible: "Continue"
+    timeout: 5000
+    optional: true
+- extendedWaitUntil:
+    visible: "Sign in"
+    timeout: 5000
+    optional: true

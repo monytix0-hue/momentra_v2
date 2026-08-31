@@ -1,0 +1,21 @@
+﻿appId: com.example.momentra
+tags: [smoke, android, life360, circle]
+---
+- runFlow: ../00_auth/smoke_email_login.yaml
+- tapOn:
+    id: "topbar.life360"
+- extendedWaitUntil:
+    visible:
+      id: "life360.coming_soon"
+    timeout: 10000
+    optional: true
+- takeScreenshot: android_smoke_life360
+- back
+- tapOn:
+    id: "context.circle"
+- extendedWaitUntil:
+    visible:
+      id: "circle.coming_soon"
+    timeout: 10000
+    optional: true
+- takeScreenshot: android_smoke_circle

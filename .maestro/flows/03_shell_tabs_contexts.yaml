@@ -1,0 +1,63 @@
+appId: resolvingpoint.momentra
+tags:
+  - shell
+  - regression
+---
+- runFlow: 02_email_login.yaml
+
+- tapOn: "Pulse"
+- takeScreenshot: tab_pulse
+- assertVisible: "Pulse"
+- assertVisible: "Switch to Personal"
+
+- tapOn: "Moments"
+- takeScreenshot: tab_moments
+
+- tapOn: "Quickadds"
+- takeScreenshot: tab_quickadds
+
+- tapOn: "Life"
+- takeScreenshot: tab_life
+
+- tapOn: "Memory"
+- takeScreenshot: tab_memory
+
+- tapOn: "Switch to Group"
+- takeScreenshot: context_group
+- assertVisible: "Switch to Group"
+
+- tapOn: "Switch to Business"
+- takeScreenshot: context_business
+
+- tapOn: "Switch to Circle"
+- takeScreenshot: context_circle
+
+- tapOn: "Switch to Personal"
+- takeScreenshot: context_personal
+- assertVisible: "Switch to Personal"
+
+- tapOn: "Open Life360"
+- extendedWaitUntil:
+    visible: "Coming Soon"
+    timeout: 10000
+    optional: true
+- takeScreenshot: life360_sheet
+- runFlow:
+    when:
+      visible: "Close"
+    commands:
+      - tapOn: "Close"
+- back
+
+- tapOn: "Open profile"
+- extendedWaitUntil:
+    visible: "Sign out"
+    timeout: 15000
+    optional: true
+- takeScreenshot: account_hub
+- runFlow:
+    when:
+      visible: "Close"
+    commands:
+      - tapOn: "Close"
+- back

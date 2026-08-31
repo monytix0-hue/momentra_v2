@@ -1,0 +1,78 @@
+# Dokploy service layout — Architecture v4 D15
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+
+  momentra-api:
+    build: ../typescript
+    dockerfile: Dockerfile
+    env_file: ../.env
+    environment:
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3000:3000"
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health/live"]
+      interval: 30s
+
+  outbox-dispatcher:
+    build: ../typescript
+    command: npm run worker:outbox
+    env_file: ../.env
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+
+  projection-worker:
+    build: ../typescript
+    command: npm run worker:projection
+    env_file: ../.env
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+
+  notification-worker:
+    build: ../typescript
+    command: npm run worker:notification
+    env_file: ../.env
+
+  scheduler:
+    build: ../typescript
+    command: npm run worker:scheduler
+    env_file: ../.env
+
+  fastapi-ai:
+    build: ../python/fastapi-ai
+    ports:
+      - "8000:8000"
+    env_file: ../.env
+    environment:
+      MOMENTRA_AI_INTERNAL_KEY: ${MOMENTRA_AI_INTERNAL_KEY:-}
+
+  analytics-worker:
+    build: ../typescript
+    command: npm run worker:analytics
+    env_file: ../.env
+    environment:
+      REDIS_URL: redis://redis:6379
+      FASTAPI_AI_URL: http://fastapi-ai:8000
+      MOMENTRA_AI_INTERNAL_KEY: ${MOMENTRA_AI_INTERNAL_KEY:-}
+    depends_on:
+      - redis
+      - fastapi-ai
+
+# Pool budgets: API max 10, workers max 5 each — stay below Supabase connection limit.
+# Hostinger region should be close to Supabase (ap-south-1).
+# LOGIN roles: provision momentra_api_login GRANT momentra_app before runtime.
+# /health/ready remains PostgreSQL-only — Redis/FastAPI failure must not gate core commands.

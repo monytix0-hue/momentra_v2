@@ -1,0 +1,5 @@
+# Workspace-level Maestro defaults (https://docs.maestro.dev)
+flows:
+  - "flows/*"
+excludeTags:
+  - disabled

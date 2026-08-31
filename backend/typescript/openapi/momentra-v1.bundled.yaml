@@ -1,0 +1,2780 @@
+openapi: 3.1.0
+info:
+  title: Momentra API
+  version: 1.0.0
+  description: >
+    Authoritative /v1 transport contract (Phase 2 freeze).
+
+    PostgreSQL is canonical truth; this spec defines HTTP transport only.
+
+    Work and Finance commands are moment-scoped (single canonical engines).
+
+    Group context uses GROUP-domain moments — no separate /groups CRUD entity.
+
+    Circle full CRUD is CONTRACT_DEFERRED; GET /life360 is the Circle read
+    projection.
+servers:
+  - url: /v1
+    description: Product API
+paths:
+  /ai/action-proposals/{actionProposalId}/execute:
+    post:
+      operationId: executeActionProposal
+      summary: Execute AI action proposal
+      tags:
+        - AI
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/actionProposalIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /business/moments:
+    get:
+      operationId: listBusinessMoments
+      summary: Business moments list
+      tags:
+        - Business
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-pagination: cursor
+      parameters:
+        - $ref: "#/components/parameters/cursorQuery"
+        - $ref: "#/components/parameters/limitQuery"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /business/moments/{momentId}/actions:
+    get:
+      operationId: getBusinessMomentActions
+      summary: Business moment actions projection
+      tags:
+        - Business
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /business/moments/{momentId}/finance:
+    get:
+      operationId: getBusinessMomentFinance
+      summary: Business moment finance projection
+      tags:
+        - Business
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /business/moments/{momentId}/life:
+    get:
+      operationId: getBusinessMomentLife
+      summary: Business moment life projection
+      tags:
+        - Business
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /business/moments/{momentId}/memory:
+    get:
+      operationId: getBusinessMomentMemory
+      summary: Business moment memory projection
+      tags:
+        - Business
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /business/moments/{momentId}/pulse:
+    get:
+      operationId: getBusinessMomentPulse
+      summary: Business moment pulse projection
+      tags:
+        - Business
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /companies:
+    get:
+      operationId: listCompanies
+      summary: List authorized companies
+      tags:
+        - Business
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+    post:
+      operationId: createCompany
+      summary: Create company
+      tags:
+        - Business
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /companies/{companyId}:
+    get:
+      operationId: getCompany
+      summary: Get company
+      tags:
+        - Business
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/companyIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+    patch:
+      operationId: updateCompany
+      summary: Update company
+      tags:
+        - Business
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      x-momentra-occ: required
+      parameters:
+        - $ref: "#/components/parameters/companyIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /companies/{companyId}/locations:
+    get:
+      operationId: listCompanyLocations
+      summary: List company locations
+      tags:
+        - Business
+        - CompanyLocation
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/companyIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+    post:
+      operationId: createCompanyLocation
+      summary: Create company location
+      tags:
+        - Business
+        - CompanyLocation
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/companyIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /companies/{companyId}/locations/{locationId}:
+    patch:
+      operationId: updateCompanyLocation
+      summary: Update company location
+      tags:
+        - Business
+        - CompanyLocation
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      x-momentra-occ: required
+      parameters:
+        - $ref: "#/components/parameters/companyIdParam"
+        - $ref: "#/components/parameters/locationIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /companies/{companyId}/teams:
+    get:
+      operationId: listCompanyTeams
+      summary: List company teams
+      tags:
+        - Business
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/companyIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+    post:
+      operationId: createCompanyTeam
+      summary: Create company team
+      tags:
+        - Business
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/companyIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /group/moments:
+    get:
+      operationId: listGroupMoments
+      summary: Group moments list
+      tags:
+        - Group
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-pagination: cursor
+      parameters:
+        - $ref: "#/components/parameters/cursorQuery"
+        - $ref: "#/components/parameters/limitQuery"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /group/moments/{momentId}/actions:
+    get:
+      operationId: getGroupMomentActions
+      summary: Group moment actions projection
+      tags:
+        - Group
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /group/moments/{momentId}/finance:
+    get:
+      operationId: getGroupMomentFinance
+      summary: Group moment finance projection
+      tags:
+        - Group
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /group/moments/{momentId}/life:
+    get:
+      operationId: getGroupMomentLife
+      summary: Group moment life projection
+      tags:
+        - Group
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /group/moments/{momentId}/memory:
+    get:
+      operationId: getGroupMomentMemory
+      summary: Group moment memory projection
+      tags:
+        - Group
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /group/moments/{momentId}/pulse:
+    get:
+      operationId: getGroupMomentPulse
+      summary: Group moment pulse projection
+      tags:
+        - Group
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /life360:
+    get:
+      operationId: getLife360
+      summary: Circle (Life360) projection read
+      tags:
+        - Circle
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /me:
+    get:
+      operationId: getMe
+      summary: Bootstrap authenticated identity
+      tags:
+        - Auth
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /me/devices:
+    post:
+      operationId: registerDevice
+      summary: Register push device
+      tags:
+        - Devices
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /me/devices/{deviceId}:
+    delete:
+      operationId: revokeDevice
+      summary: Revoke push device
+      tags:
+        - Devices
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/deviceIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /media/uploads:
+    post:
+      operationId: createMediaUpload
+      summary: Create signed upload intent
+      tags:
+        - Media
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /media/uploads/{uploadId}/complete:
+    post:
+      operationId: completeMediaUpload
+      summary: Complete media upload
+      tags:
+        - Media
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/uploadIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments:
+    post:
+      operationId: createMoment
+      summary: Create moment
+      tags:
+        - Moments
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          description: Optimistic concurrency version conflict
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorEnvelope"
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        enum:
+                          - VERSION_CONFLICT
+                      details:
+                        type: object
+                        properties:
+                          resourceId:
+                            type: string
+                            format: uuid
+                          expectedVersion:
+                            type: integer
+                          currentVersion:
+                            type: integer
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}:
+    get:
+      operationId: getMoment
+      summary: Get moment
+      tags:
+        - Moments
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+    patch:
+      operationId: updateMoment
+      summary: Update moment
+      tags:
+        - Moments
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      x-momentra-occ: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/activity:
+    get:
+      operationId: getMomentActivity
+      summary: Moment activity timeline
+      tags:
+        - Activity
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-pagination: cursor
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/cursorQuery"
+        - $ref: "#/components/parameters/limitQuery"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/archive:
+    post:
+      operationId: archiveMoment
+      summary: Archive moment
+      tags:
+        - Moments
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      x-momentra-occ: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/bookings:
+    post:
+      operationId: createBooking
+      summary: Create booking
+      tags:
+        - Collaboration
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/cancel:
+    post:
+      operationId: cancelMoment
+      summary: Cancel moment
+      tags:
+        - Moments
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      x-momentra-occ: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/contributions:
+    post:
+      operationId: recordContribution
+      summary: Record contribution
+      tags:
+        - Finance
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/expenses:
+    post:
+      operationId: createExpense
+      summary: Record expense in moment
+      tags:
+        - Finance
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/future-items:
+    post:
+      operationId: createFutureItem
+      summary: Create future item
+      tags:
+        - Personal
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/goals:
+    post:
+      operationId: createGoal
+      summary: Create goal in moment
+      tags:
+        - Work
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/lifestyle-activities:
+    post:
+      operationId: createLifestyleActivity
+      summary: Create lifestyle activity
+      tags:
+        - Personal
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/memories:
+    post:
+      operationId: createMemory
+      summary: Create memory
+      tags:
+        - Collaboration
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/milestones:
+    post:
+      operationId: createMilestone
+      summary: Create milestone in moment
+      tags:
+        - Work
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/movements:
+    post:
+      operationId: createMovement
+      summary: Record movement in moment
+      tags:
+        - Finance
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/observations:
+    post:
+      operationId: recordObservation
+      summary: Record observation
+      tags:
+        - Personal
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/participants:
+    post:
+      operationId: addParticipant
+      summary: Add participant
+      tags:
+        - Collaboration
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/planning-items:
+    post:
+      operationId: createPlanningItem
+      summary: Create planning item
+      tags:
+        - Collaboration
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/polls:
+    post:
+      operationId: createPoll
+      summary: Create poll in moment
+      tags:
+        - Poll
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/purchase-items:
+    post:
+      operationId: addPurchaseItem
+      summary: Add purchase item
+      tags:
+        - Collaboration
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/relationship-activities:
+    post:
+      operationId: recordRelationshipActivity
+      summary: Record relationship activity
+      tags:
+        - Personal
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/residents:
+    post:
+      operationId: addResident
+      summary: Add resident
+      tags:
+        - Collaboration
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/tasks:
+    post:
+      operationId: createTask
+      summary: Create task in moment
+      tags:
+        - Work
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /moments/{momentId}/updates:
+    post:
+      operationId: postUpdate
+      summary: Post group update
+      tags:
+        - Collaboration
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/momentIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /personal/activity:
+    get:
+      operationId: getPersonalActivity
+      summary: Personal activity timeline
+      tags:
+        - Personal
+        - Activity
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-pagination: cursor
+      parameters:
+        - $ref: "#/components/parameters/cursorQuery"
+        - $ref: "#/components/parameters/limitQuery"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /personal/attention:
+    get:
+      operationId: getPersonalAttention
+      summary: Personal attention projection
+      tags:
+        - Personal
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /personal/life:
+    get:
+      operationId: getPersonalLife
+      summary: Personal life projection
+      tags:
+        - Personal
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /personal/memory:
+    get:
+      operationId: getPersonalMemory
+      summary: Personal memory projection
+      tags:
+        - Personal
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /personal/moments:
+    get:
+      operationId: listPersonalMoments
+      summary: Personal moments list
+      tags:
+        - Personal
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-pagination: cursor
+      parameters:
+        - $ref: "#/components/parameters/cursorQuery"
+        - $ref: "#/components/parameters/limitQuery"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /personal/pulse:
+    get:
+      operationId: getPersonalPulse
+      summary: Personal pulse projection
+      tags:
+        - Personal
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /polls/{pollId}:
+    get:
+      operationId: getPoll
+      summary: Get poll
+      tags:
+        - Poll
+      x-momentra-kind: read
+      x-momentra-impl: CONTRACT_ONLY
+      parameters:
+        - $ref: "#/components/parameters/pollIdParam"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /polls/{pollId}/close:
+    post:
+      operationId: closePoll
+      summary: Close poll
+      tags:
+        - Poll
+      x-momentra-kind: command
+      x-momentra-impl: CONTRACT_ONLY
+      x-momentra-idempotency: required
+      x-momentra-occ: required
+      parameters:
+        - $ref: "#/components/parameters/pollIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+  /polls/{pollId}/votes:
+    post:
+      operationId: votePoll
+      summary: Cast poll vote
+      tags:
+        - Poll
+      x-momentra-kind: command
+      x-momentra-impl: CONTRACT_ONLY
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: "#/components/parameters/pollIdParam"
+        - $ref: "#/components/parameters/idempotencyKeyHeader"
+        - $ref: "#/components/parameters/correlationIdHeader"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandEnvelope"
+        "400":
+          $ref: "#/paths/~1me/get/responses/400"
+        "401":
+          $ref: "#/paths/~1me/get/responses/401"
+        "403":
+          $ref: "#/paths/~1me/get/responses/403"
+        "404":
+          $ref: "#/paths/~1me/get/responses/404"
+        "409":
+          $ref: "#/paths/~1moments/post/responses/409"
+        "500":
+          $ref: "#/paths/~1me/get/responses/500"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase ID token (Authorization Bearer)
+  parameters:
+    correlationIdHeader:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: Optional client correlation ID; echoed in responses.
+    idempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+    cursorQuery:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limitQuery:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    momentIdParam:
+      name: momentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    deviceIdParam:
+      name: deviceId
+      in: path
+      required: true
+      schema:
+        type: string
+    pollIdParam:
+      name: pollId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    companyIdParam:
+      name: companyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    locationIdParam:
+      name: locationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    uploadIdParam:
+      name: uploadId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    actionProposalIdParam:
+      name: actionProposalId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    Money:
+      type: object
+      required:
+        - amount
+        - currencyCode
+      properties:
+        amount:
+          type: string
+          description: Decimal string (maps to PostgreSQL NUMERIC). Never a JSON number.
+          pattern: ^[0-9]+(\.[0-9]{1,4})?$
+          example: "1250.50"
+        currencyCode:
+          type: string
+          minLength: 3
+          maxLength: 3
+          example: INR
+    ErrorEnvelope:
+      type: object
+      required:
+        - code
+        - message
+        - correlationId
+      description: Flat error envelope (authoritative — matches Node errorHandler).
+      properties:
+        code:
+          type: string
+          enum:
+            - VALIDATION_FAILED
+            - UNAUTHORIZED
+            - GOVERNANCE_DENIED
+            - RESOURCE_NOT_FOUND
+            - VERSION_CONFLICT
+            - IDEMPOTENCY_CONFLICT
+            - APPROVAL_REQUIRED
+            - CONSENT_REQUIRED
+            - SETTLEMENT_EXCEEDS_OUTSTANDING
+            - INFRASTRUCTURE_UNAVAILABLE
+            - RATE_LIMITED
+        message:
+          type: string
+        correlationId:
+          type: string
+          format: uuid
+        details:
+          type: object
+          additionalProperties: true
+    CommandEnvelope:
+      type: object
+      required:
+        - data
+        - correlationId
+      properties:
+        data: {}
+        resourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        correlationId:
+          type: string
+          format: uuid
+        projectionHints:
+          type: array
+          items:
+            type: object
+            required:
+              - projection
+              - action
+            properties:
+              projection:
+                type: string
+                description: Stable public projection code (not a DB object name).
+                enum:
+                  - personal.pulse
+                  - personal.moments
+                  - personal.life
+                  - personal.memory
+                  - personal.activity
+                  - group.moments
+                  - group.pulse
+                  - business.moments
+                  - business.pulse
+                  - business.finance
+              action:
+                type: string
+                enum:
+                  - invalidate
+                  - refresh
+    ProjectionEnvelope:
+      type: object
+      required:
+        - data
+        - correlationId
+      properties:
+        data: {}
+        projectionVersion:
+          type: integer
+          format: int64
+        updatedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - OK
+            - STALE
+            - EMPTY
+        nextCursor:
+          type: string
+          nullable: true
+        correlationId:
+          type: string
+          format: uuid
+    MeResponse:
+      type: object
+      required:
+        - userId
+        - firebaseUid
+        - supportedContexts
+        - currentlySelectedContext
+        - activeMoments
+        - companies
+        - preferences
+        - featureFlags
+        - capabilities
+        - roles
+      properties:
+        userId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          nullable: true
+        displayName:
+          type: string
+          nullable: true
+        firebaseUid:
+          type: string
+        timezone:
+          type: string
+        locale:
+          type: string
+          nullable: true
+        status:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+          description: Capability wire codes for the actor (V019 + baseline shell codes)
+        supportedContexts:
+          type: array
+          items:
+            type: string
+            enum:
+              - PERSONAL
+              - GROUP
+              - BUSINESS
+              - CIRCLE
+        currentlySelectedContext:
+          type: string
+          enum:
+            - PERSONAL
+            - GROUP
+            - BUSINESS
+            - CIRCLE
+          description: Server default; client may overlay locally persisted last selection
+        activeMoments:
+          type: object
+          required:
+            - personal
+            - group
+            - business
+          properties:
+            personal:
+              type: array
+              items:
+                $ref: "#/components/schemas/MeResponse/properties/activeMoments/properties/grou\
+                  p/items"
+            group:
+              type: array
+              items:
+                type: object
+                required:
+                  - momentId
+                  - title
+                  - status
+                  - domainCode
+                properties:
+                  momentId:
+                    type: string
+                    format: uuid
+                  title:
+                    type: string
+                  status:
+                    type: string
+                  momentTypeCode:
+                    type: string
+                    nullable: true
+                  domainCode:
+                    type: string
+                    enum:
+                      - PERSONAL
+                      - GROUP
+                      - BUSINESS
+            business:
+              type: array
+              items:
+                $ref: "#/components/schemas/MeResponse/properties/activeMoments/properties/grou\
+                  p/items"
+        companies:
+          type: array
+          items:
+            type: object
+            required:
+              - companyId
+              - displayName
+            properties:
+              companyId:
+                type: string
+                format: uuid
+              displayName:
+                type: string
+        selectedCompany:
+          allOf:
+            - $ref: "#/components/schemas/MeResponse/properties/companies/items"
+          nullable: true
+        preferences:
+          type: object
+          required:
+            - timezone
+          properties:
+            timezone:
+              type: string
+            locale:
+              type: string
+              nullable: true
+        featureFlags:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: boolean
+              - type: string
+              - type: number
+    MomentCreateRequest:
+      type: object
+      required:
+        - momentTypeCode
+        - title
+      properties:
+        domainCode:
+          type: string
+          enum:
+            - PERSONAL
+            - GROUP
+            - BUSINESS
+        momentTypeCode:
+          type: string
+          description: V018 wire code (not Figma display label). GROUP SHARED_EXPERIENCE
+            uses TRIP, WEDDING, HOUSE_PARTY, OFFICE_OUTING.
+        title:
+          type: string
+          minLength: 1
+          maxLength: 500
+        description:
+          type: string
+          maxLength: 5000
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+          default: UTC
+        customTypeLabel:
+          type: string
+          maxLength: 500
+        companyId:
+          type: string
+          format: uuid
+        teamId:
+          type: string
+          format: uuid
+        participants:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+                format: uuid
+              displayName:
+                type: string
+                maxLength: 200
+              roleCode:
+                type: string
+                enum:
+                  - ORGANIZER
+                  - CO_ORGANIZER
+                  - PARTICIPANT
+                  - RESIDENT
+                  - CONTRIBUTOR
+                  - OBSERVER
+                default: PARTICIPANT
+          description: Optional invitees for GROUP create. displayName creates an external
+            party when userId is omitted.
+        personalSetup:
+          type: object
+          required:
+            - systemCode
+          properties:
+            systemCode:
+              type: string
+              enum:
+                - LIFE_OPERATIONS
+                - FUTURE_BUILDING
+                - LIFESTYLE
+                - RELATIONSHIPS
+            preferences:
+              type: object
+              additionalProperties: true
+              description: Validated per systemCode server-side against catalog keys.
+        businessSetup:
+          type: object
+          required:
+            - familyCode
+          properties:
+            familyCode:
+              type: string
+              enum:
+                - TEAM_OPERATIONS
+                - BUSINESS_RUNWAY
+                - BUSINESS_OPERATIONS
+            preferences:
+              type: object
+              additionalProperties: true
+              description: Validated per familyCode server-side against catalog keys.
+                companyId is authoritative at request root.
+    ExpenseCreateRequest:
+      type: object
+      required:
+        - amount
+        - currencyCode
+      properties:
+        amount:
+          type: string
+          pattern: ^[0-9]+(\.[0-9]{1,4})?$
+        currencyCode:
+          type: string
+          minLength: 3
+          maxLength: 3
+        description:
+          type: string
+          maxLength: 500
+        merchantName:
+          type: string
+        categoryCode:
+          type: string
+        financialAccountId:
+          type: string
+          format: uuid
+          description: Optional paid-from financial account (Personal).
+        effectiveAt:
+          type: string
+          format: date-time
+        splits:
+          type: array
+          items:
+            type: object
+            required:
+              - strategy
+            properties:
+              participantId:
+                type: string
+                format: uuid
+              strategy:
+                type: string
+                enum:
+                  - EQUAL
+                  - EXACT
+                  - PERCENTAGE
+                  - SHARES
+              amount:
+                type: string
+              percentage:
+                type: string
+              shares:
+                type: integer
+    PollResponse:
+      type: object
+      required:
+        - pollId
+        - momentId
+        - question
+        - status
+      properties:
+        pollId:
+          type: string
+          format: uuid
+        momentId:
+          type: string
+          format: uuid
+        question:
+          type: string
+        status:
+          type: string
+          enum:
+            - DRAFT
+            - OPEN
+            - CLOSED
+            - CANCELLED
+        options:
+          type: array
+          items:
+            type: object
+            properties:
+              pollOptionId:
+                type: string
+                format: uuid
+              optionText:
+                type: string
+              sortOrder:
+                type: integer
+    CompanyLocationResponse:
+      type: object
+      required:
+        - companyLocationId
+        - companyId
+        - name
+        - status
+        - version
+      properties:
+        companyLocationId:
+          type: string
+          format: uuid
+        companyId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        addressText:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+          nullable: true
+        status:
+          type: string
+        version:
+          type: integer
+    ActivityItem:
+      type: object
+      required:
+        - activityId
+        - kind
+        - occurredAt
+      properties:
+        activityId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          description: Discriminator for activity type (expense, milestone, mood, etc.).
+        title:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        momentId:
+          type: string
+          format: uuid
+          nullable: true

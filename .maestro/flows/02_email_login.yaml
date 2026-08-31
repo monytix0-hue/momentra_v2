@@ -1,0 +1,36 @@
+appId: resolvingpoint.momentra
+tags:
+  - smoke
+  - auth
+---
+- runFlow: 01_onboarding_to_login.yaml
+
+- tapOn:
+    id: "login_field_email"
+- eraseText
+- inputText: ${MAESTRO_EMAIL}
+- tapOn:
+    id: "login_field_password"
+- eraseText
+- inputText: ${MAESTRO_PASSWORD}
+- tapOn:
+    id: "login_btn_email_submit"
+
+# iOS Keychain "Save Password?" sheet blocks the shell
+- extendedWaitUntil:
+    visible: "Not Now"
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible: "Not Now"
+    commands:
+      - tapOn: "Not Now"
+      - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Pulse"
+    timeout: 60000
+- takeScreenshot: shell_after_login
+- assertVisible: "Pulse"
+- assertVisible: "Switch to Personal"
