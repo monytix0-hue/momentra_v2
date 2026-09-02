@@ -33,6 +33,7 @@ COPY backend/workers/ ../workers/
 
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV NODE_PATH=/app/typescript/node_modules
 EXPOSE 3000
 
 WORKDIR /app/typescript
