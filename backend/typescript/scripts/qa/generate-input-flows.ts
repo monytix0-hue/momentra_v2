@@ -230,17 +230,65 @@ function loginBlock(platform: Platform, mode: string): string {
     timeout: 90000`;
 }
 
+function setupSubmitSteps(submitId: string, momentId: string): string {
+  return `- scrollUntilVisible:
+    element:
+      id: "${submitId}"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "${submitId}"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+# moment=${momentId}`;
+}
+
+const GROUP_FAMILY_UI: Record<string, string> = {
+  'Shared Experience': 'Experience',
+  'Shared Purchase': 'Purchase',
+  'Shared Living': 'Living',
+};
+
+/** Chip strip labels in group setup wizards (short labels, not ledger names). */
+const GROUP_MOMENT_CHIP: Record<string, string> = {
+  Trip: 'Trip',
+  Wedding: 'Wedding',
+  'House Party': 'Party',
+  'Office Outing': 'Office',
+  'Gift Pool': 'Gift',
+  Purchase: 'Purchase',
+  Assets: 'Asset',
+  'Custom Purchase': 'Custom',
+  Flatmates: 'Flatmates',
+  'Family Household': 'Family',
+  'Shared Living': 'Co-living',
+  'Custom Living': 'Custom',
+};
+
+const BUSINESS_SETUP_ID: Record<string, string> = {
+  'Team Operations': 'business.setup.team_operations',
+  'Business Runway': 'business.setup.business_runway',
+  'Business Operations': 'business.setup.business_operations',
+};
+
 function ensureMomentSteps(row: Row): string {
   const label = row.Moment;
   const mode = row.Mode;
   const momentId = row.catalog_moment_id;
   if (mode === 'Group') {
-    const family =
-      row.Family === 'Shared Experience'
-        ? 'Experience'
-        : row.Family === 'Shared Purchase'
-          ? 'Purchase'
-          : 'Living';
+    const family = GROUP_FAMILY_UI[row.Family] || 'Experience';
+    const chip = GROUP_MOMENT_CHIP[label];
+    const chipTap = chip
+      ? `- runFlow:
+    when:
+      visible: "${yamlEscape(chip)}"
+    commands:
+      - tapOn: "${yamlEscape(chip)}"
+      - waitForAnimationToEnd`
+      : '';
     return `- tapOn:
     id: "topbar.new_moment"
 - runFlow:
@@ -248,60 +296,18 @@ function ensureMomentSteps(row: Row): string {
       visible: "${family}"
     commands:
       - tapOn: "${family}"
-- runFlow:
-    when:
-      visible: "${yamlEscape(label)}"
-    commands:
-      - tapOn: "${yamlEscape(label)}"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
-- extendedWaitUntil:
-    visible:
-      id: "bottom.pulse"
-    timeout: 90000
-# moment=${momentId}`;
+      - waitForAnimationToEnd
+${chipTap}
+${setupSubmitSteps('group.setup.submit', momentId)}`;
   }
   if (mode === 'Business') {
+    const setupId = BUSINESS_SETUP_ID[label] || 'business.setup.team_operations';
     return `- tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "${yamlEscape(label)}"
-    commands:
-      - tapOn: "${yamlEscape(label)}"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
-- extendedWaitUntil:
-    visible:
-      id: "bottom.pulse"
-    timeout: 90000
-# moment=${momentId}`;
+- tapOn:
+    id: "${setupId}"
+- waitForAnimationToEnd
+${setupSubmitSteps('business.setup.submit', momentId)}`;
   }
   return `- tapOn:
     id: "topbar.new_moment"
@@ -310,26 +316,8 @@ function ensureMomentSteps(row: Row): string {
       visible: "${yamlEscape(label)}"
     commands:
       - tapOn: "${yamlEscape(label)}"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
-- extendedWaitUntil:
-    visible:
-      id: "bottom.pulse"
-    timeout: 90000
-# moment=${momentId}`;
+      - waitForAnimationToEnd
+${setupSubmitSteps('personal.setup.submit', momentId)}`;
 }
 
 function writeTxnSteps(row: Row): string {

@@ -84,26 +84,17 @@ env:
     id: "context.business"
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Team Operations"
-    commands:
-      - tapOn: "Team Operations"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+- tapOn:
+    id: "business.setup.team_operations"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "business.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "business.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -482,26 +473,17 @@ env:
 
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Business Runway"
-    commands:
-      - tapOn: "Business Runway"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+- tapOn:
+    id: "business.setup.business_runway"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "business.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "business.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -754,26 +736,17 @@ env:
 
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Business Operations"
-    commands:
-      - tapOn: "Business Operations"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+- tapOn:
+    id: "business.setup.business_operations"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "business.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "business.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"

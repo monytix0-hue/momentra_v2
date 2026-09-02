@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -51,6 +52,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
+import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.theme.PlusJakartaSans
 
 data class GroupDraftPerson(
@@ -590,6 +592,7 @@ fun GroupReviewCard(
                 .shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = palette.stepGlow, spotColor = palette.stepGlow)
                 .clip(RoundedCornerShape(16.dp))
                 .background(palette.accentGradient)
+                .testTag(MaestroIds.GROUP_SETUP_SUBMIT)
                 .semantics {
                     role = Role.Button
                     contentDescription = ctaLabel

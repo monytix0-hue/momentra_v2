@@ -89,26 +89,21 @@ env:
       visible: "Experience"
     commands:
       - tapOn: "Experience"
+      - waitForAnimationToEnd
 - runFlow:
     when:
       visible: "Trip"
     commands:
       - tapOn: "Trip"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "group.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "group.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -520,26 +515,21 @@ env:
       visible: "Experience"
     commands:
       - tapOn: "Experience"
+      - waitForAnimationToEnd
 - runFlow:
     when:
       visible: "Wedding"
     commands:
       - tapOn: "Wedding"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "group.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "group.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -951,26 +941,21 @@ env:
       visible: "Experience"
     commands:
       - tapOn: "Experience"
+      - waitForAnimationToEnd
 - runFlow:
     when:
-      visible: "Office Outing"
+      visible: "Office"
     commands:
-      - tapOn: "Office Outing"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - tapOn: "Office"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "group.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "group.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -1268,26 +1253,21 @@ env:
       visible: "Experience"
     commands:
       - tapOn: "Experience"
+      - waitForAnimationToEnd
 - runFlow:
     when:
-      visible: "House Party"
+      visible: "Party"
     commands:
-      - tapOn: "House Party"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - tapOn: "Party"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "group.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "group.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -1585,26 +1565,21 @@ env:
       visible: "Purchase"
     commands:
       - tapOn: "Purchase"
+      - waitForAnimationToEnd
 - runFlow:
     when:
-      visible: "Gift Pool"
+      visible: "Gift"
     commands:
-      - tapOn: "Gift Pool"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - tapOn: "Gift"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "group.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "group.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -1845,26 +1820,21 @@ env:
       visible: "Purchase"
     commands:
       - tapOn: "Purchase"
+      - waitForAnimationToEnd
 - runFlow:
     when:
       visible: "Purchase"
     commands:
       - tapOn: "Purchase"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "group.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "group.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -2105,26 +2075,21 @@ env:
       visible: "Purchase"
     commands:
       - tapOn: "Purchase"
+      - waitForAnimationToEnd
 - runFlow:
     when:
-      visible: "Assets"
+      visible: "Asset"
     commands:
-      - tapOn: "Assets"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - tapOn: "Asset"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "group.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "group.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -2422,26 +2387,21 @@ env:
       visible: "Purchase"
     commands:
       - tapOn: "Purchase"
+      - waitForAnimationToEnd
 - runFlow:
     when:
-      visible: "Custom Purchase"
+      visible: "Custom"
     commands:
-      - tapOn: "Custom Purchase"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - tapOn: "Custom"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "group.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "group.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -2568,26 +2528,21 @@ env:
       visible: "Living"
     commands:
       - tapOn: "Living"
+      - waitForAnimationToEnd
 - runFlow:
     when:
       visible: "Flatmates"
     commands:
       - tapOn: "Flatmates"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "group.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "group.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -2942,26 +2897,21 @@ env:
       visible: "Living"
     commands:
       - tapOn: "Living"
+      - waitForAnimationToEnd
 - runFlow:
     when:
-      visible: "Shared Living"
+      visible: "Co-living"
     commands:
-      - tapOn: "Shared Living"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - tapOn: "Co-living"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "group.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "group.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"

@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -630,6 +631,7 @@ private fun GroupSectionLongFormFlow(
                         .height(56.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(palette.accentGradient)
+                        .testTag(MaestroIds.GROUP_SETUP_SUBMIT)
                         .clickable(enabled = !submitting) {
                             if (name.isBlank()) return@clickable
                             val invitees = people

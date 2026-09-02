@@ -89,21 +89,15 @@ env:
       visible: "Life Operations"
     commands:
       - tapOn: "Life Operations"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "personal.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "personal.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -466,21 +460,15 @@ env:
       visible: "Future Building"
     commands:
       - tapOn: "Future Building"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "personal.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "personal.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -724,21 +712,15 @@ env:
       visible: "Lifestyle"
     commands:
       - tapOn: "Lifestyle"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "personal.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "personal.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
@@ -1051,21 +1033,15 @@ env:
       visible: "Relationships"
     commands:
       - tapOn: "Relationships"
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-- runFlow:
-    when:
-      visible: "Activate"
-    commands:
-      - tapOn: "Activate"
-- runFlow:
-    when:
-      visible: "Create"
-    commands:
-      - tapOn: "Create"
+      - waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "personal.setup.submit"
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: "personal.setup.submit"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
