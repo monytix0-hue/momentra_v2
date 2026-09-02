@@ -1,0 +1,19 @@
+# Repo-root Docker builds (Dokploy Application)
+.git
+.maestro
+.cursor
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+**/coverage
+apk
+momentra
+docs
+frds
+**/OpenAPI/.build
+**/.idea
+**/.kotlin
+**/tests
+**/scripts/qa
