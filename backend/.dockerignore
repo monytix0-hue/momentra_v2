@@ -1,0 +1,16 @@
+# Build context: backend/
+node_modules
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+**/coverage
+**/*.log
+**/.git
+**/scripts/qa
+**/tests
+**/.agents
+**/.claude
+**/.windsurf
+**/prisma

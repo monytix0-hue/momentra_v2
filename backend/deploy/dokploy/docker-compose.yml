@@ -1,78 +1,167 @@
-# Dokploy service layout — Architecture v4 D15
+# Dokploy / Hostinger — full Momentra stack (Architecture v4 D15)
+#
+# In Dokploy:
+#   Type: Docker Compose
+#   Compose path: backend/deploy/dokploy/docker-compose.yml
+#   Branch: main
+#   Inject ALL secrets via Environment (do not rely on committed .env)
+#
+# Public domain → service momentra-api port 3000 only.
+# Health: GET /health/live  and  GET /health/ready
 
 services:
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - momentra_redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
+      timeout: 5s
+      retries: 5
+    # Do NOT publish 6379 publicly on VPS
 
   momentra-api:
-    build: ../typescript
-    dockerfile: Dockerfile
-    env_file: ../.env
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
+      NODE_ENV: production
+      PORT: "3000"
       REDIS_URL: redis://redis:6379
+      FASTAPI_AI_URL: http://fastapi-ai:8000
     ports:
       - "3000:3000"
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health/live"]
       interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   outbox-dispatcher:
-    build: ../typescript
-    command: npm run worker:outbox
-    env_file: ../.env
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "worker:outbox"]
     environment:
+      NODE_ENV: production
       REDIS_URL: redis://redis:6379
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+      momentra-api:
+        condition: service_healthy
 
   projection-worker:
-    build: ../typescript
-    command: npm run worker:projection
-    env_file: ../.env
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "worker:projection"]
     environment:
+      NODE_ENV: production
       REDIS_URL: redis://redis:6379
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+      momentra-api:
+        condition: service_healthy
 
   notification-worker:
-    build: ../typescript
-    command: npm run worker:notification
-    env_file: ../.env
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "worker:notification"]
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      momentra-api:
+        condition: service_healthy
 
   scheduler:
-    build: ../typescript
-    command: npm run worker:scheduler
-    env_file: ../.env
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "worker:scheduler"]
+    environment:
+      NODE_ENV: production
+    depends_on:
+      momentra-api:
+        condition: service_healthy
+
+  memory-worker:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "worker:memory"]
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+      momentra-api:
+        condition: service_healthy
 
   fastapi-ai:
-    build: ../python/fastapi-ai
-    ports:
-      - "8000:8000"
-    env_file: ../.env
+    build:
+      context: ../../python/fastapi-ai
+      dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
+      PORT: "8000"
       MOMENTRA_AI_INTERNAL_KEY: ${MOMENTRA_AI_INTERNAL_KEY:-}
+    # Internal only — do not publish publicly
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   analytics-worker:
-    build: ../typescript
-    command: npm run worker:analytics
-    env_file: ../.env
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "worker:analytics"]
     environment:
+      NODE_ENV: production
       REDIS_URL: redis://redis:6379
       FASTAPI_AI_URL: http://fastapi-ai:8000
       MOMENTRA_AI_INTERNAL_KEY: ${MOMENTRA_AI_INTERNAL_KEY:-}
     depends_on:
-      - redis
-      - fastapi-ai
+      redis:
+        condition: service_healthy
+      fastapi-ai:
+        condition: service_started
+      momentra-api:
+        condition: service_healthy
 
-# Pool budgets: API max 10, workers max 5 each — stay below Supabase connection limit.
+volumes:
+  momentra_redis_data:
+
+# Pool budgets: API max 10, workers max 5 each — stay below Supabase pooler limit.
 # Hostinger region should be close to Supabase (ap-south-1).
-# LOGIN roles: provision momentra_api_login GRANT momentra_app before runtime.
-# /health/ready remains PostgreSQL-only — Redis/FastAPI failure must not gate core commands.
+# Production fail-closed: ALLOW_DEV_AUTH=0, GOVERNANCE_FAIL_OPEN=0, FIREBASE_PROJECT_ID set.
+# /health/ready is PostgreSQL-only — Redis/FastAPI failure must not gate core API.
