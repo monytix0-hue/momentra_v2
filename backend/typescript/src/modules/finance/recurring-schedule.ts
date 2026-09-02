@@ -10,7 +10,7 @@ import { createPersonalIncome, createPersonalIncomeSchema } from './personal-inc
 export const createRecurringScheduleSchema = z
   .object({
     resourceKind: z.enum(['EXPENSE', 'INCOME']),
-    templatePayload: z.record(z.unknown()),
+    templatePayload: z.record(z.string(), z.unknown()),
     frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']),
     intervalCount: z.number().int().positive().default(1),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -22,7 +22,7 @@ export const updateRecurringScheduleSchema = z
   .object({
     status: z.enum(['ACTIVE', 'PAUSED', 'COMPLETED', 'VOIDED']).optional(),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-    templatePayload: z.record(z.unknown()).optional(),
+    templatePayload: z.record(z.string(), z.unknown()).optional(),
   })
   .strict()
   .refine((b) => Object.values(b).some((v) => v !== undefined), { message: 'At least one field is required.' });

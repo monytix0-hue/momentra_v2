@@ -33,8 +33,9 @@ services:
       PORT: "3000"
       REDIS_URL: redis://redis:6379
       FASTAPI_AI_URL: http://fastapi-ai:8000
+    # Host 3000 is Dokploy UI — publish API on 3001
     ports:
-      - "3000:3000"
+      - "3001:3000"
     depends_on:
       redis:
         condition: service_healthy
