@@ -34,6 +34,8 @@ COPY workers/ ../workers/
 
 ENV NODE_ENV=production
 ENV PORT=3000
+# Workers run via tsx from /app/workers/* and resolve deps from the API package.
+ENV NODE_PATH=/app/typescript/node_modules
 EXPOSE 3000
 
 # Workers resolve ../../../.env → /app/.env; Dokploy injects real env vars either way.
