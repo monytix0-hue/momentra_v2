@@ -1,0 +1,159 @@
+# Momentra full stack — Dokploy Compose (repo root)
+#
+# Dokploy settings:
+#   Type: Docker Compose
+#   Compose file: docker-compose.yml
+#   Branch: main
+#
+# Public domain → service momentra-api port 3000 only.
+# Health: GET /health/live  and  GET /health/ready
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - momentra_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  momentra-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      REDIS_URL: redis://redis:6379
+      FASTAPI_AI_URL: http://fastapi-ai:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  outbox-dispatcher:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "worker:outbox"]
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+      momentra-api:
+        condition: service_healthy
+
+  projection-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "worker:projection"]
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+      momentra-api:
+        condition: service_healthy
+
+  notification-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "worker:notification"]
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      momentra-api:
+        condition: service_healthy
+
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "worker:scheduler"]
+    environment:
+      NODE_ENV: production
+    depends_on:
+      momentra-api:
+        condition: service_healthy
+
+  memory-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "worker:memory"]
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+      momentra-api:
+        condition: service_healthy
+
+  fastapi-ai:
+    build:
+      context: ./backend/python/fastapi-ai
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "8000"
+      MOMENTRA_AI_INTERNAL_KEY: ${MOMENTRA_AI_INTERNAL_KEY:-}
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  analytics-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["npm", "run", "worker:analytics"]
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      FASTAPI_AI_URL: http://fastapi-ai:8000
+      MOMENTRA_AI_INTERNAL_KEY: ${MOMENTRA_AI_INTERNAL_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      fastapi-ai:
+        condition: service_started
+      momentra-api:
+        condition: service_healthy
+
+volumes:
+  momentra_redis_data:
