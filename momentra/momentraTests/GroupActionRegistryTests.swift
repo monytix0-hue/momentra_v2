@@ -14,7 +14,14 @@ struct GroupActionRegistryTests {
         #expect(codes.contains("POLL_CREATE"))
         #expect(codes.contains("UPDATE_CREATE"))
         #expect(codes.contains("MEMORY_CREATE"))
-        #expect(GroupActionCode.allCases.count == 9)
+        #expect(GroupActionCode.allCases.count == 11)
+    }
+
+    @Test func tripHubShowsNineFigmaTiles() {
+        let tiles = GroupActionRegistry.figmaTripHubTiles(hasActiveMoment: true)
+        #expect(tiles.count == 9)
+        #expect(tiles.map(\.tileId) == GroupActionRegistry.tripHubTileIds)
+        #expect(tiles.first { $0.tileId == "expense" }?.icon == "GroupQaWallet")
     }
 
     @Test func destinationMapsV019Codes() {

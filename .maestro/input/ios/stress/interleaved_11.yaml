@@ -1,0 +1,6381 @@
+appId: resolvingpoint.momentra
+tags: [stress, ios, input]
+env:
+  QA_IOS_GROUP_OWNER_EMAIL: "qa.ios.group.owner@test.com"
+  QA_IOS_GROUP_OWNER_PASSWORD: "MaestroQa123"
+---
+# Stress shard 11 — interleaved P/G/B (50 writable rows)
+# Hard gate: pilot PASS required before running stress at scale
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0503 Group/Family Household/Bills join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.shares"
+    commands:
+      - tapOn:
+          id: "group.expense.split.shares"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0503 | Bills | 23613.28"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "23613.28"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0503 "
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0503 "
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0504 Business/Business Operations/Tax join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Spend Entry"
+    commands:
+      - tapOn: "Spend Entry"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.note"
+    commands:
+      - tapOn:
+          id: "business.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-BUSINESS-BUSINESS_OPERATIONS-0504 | Tax | 16856.11"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.amount"
+    commands:
+      - tapOn:
+          id: "business.expense.amount"
+      - eraseText
+      - inputText: "16856.11"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.submit"
+    commands:
+      - tapOn:
+          id: "business.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-BUSINESS_OPERATIONS"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-BUSINESS_OPERATIONS"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0505 Personal/Future Building/Savings join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible:
+        id: "personal.money.transfer.note"
+    commands:
+      - tapOn:
+          id: "personal.money.transfer.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-0505 | Savings | 11123.78"
+- runFlow:
+    when:
+      visible:
+        id: "personal.money.transfer.amount"
+    commands:
+      - tapOn:
+          id: "personal.money.transfer.amount"
+      - eraseText
+      - inputText: "11123.78"
+- runFlow:
+    when:
+      visible:
+        id: "personal.money.transfer.submit"
+    commands:
+      - tapOn:
+          id: "personal.money.transfer.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.money.transfer.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-050"
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-050"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0506 Group/Family Household/School join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.equal"
+    commands:
+      - tapOn:
+          id: "group.expense.split.equal"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0506 | School | 1216.54"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "1216.54"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0506 "
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0506 "
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0507 Business/Team Operations/Payroll join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Team Update"
+    commands:
+      - tapOn: "Team Update"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.note"
+    commands:
+      - tapOn:
+          id: "business.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-0507 | Payroll | 38876.26"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.amount"
+    commands:
+      - tapOn:
+          id: "business.expense.amount"
+      - eraseText
+      - inputText: "38876.26"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.submit"
+    commands:
+      - tapOn:
+          id: "business.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-050"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-050"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0508 Personal/Future Building/Emergency Fund join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible:
+        id: "personal.money.transfer.note"
+    commands:
+      - tapOn:
+          id: "personal.money.transfer.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-0508 | Emergency Fund | 4665.94"
+- runFlow:
+    when:
+      visible:
+        id: "personal.money.transfer.amount"
+    commands:
+      - tapOn:
+          id: "personal.money.transfer.amount"
+      - eraseText
+      - inputText: "4665.94"
+- runFlow:
+    when:
+      visible:
+        id: "personal.money.transfer.submit"
+    commands:
+      - tapOn:
+          id: "personal.money.transfer.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.money.transfer.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-050"
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-050"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0509 Group/Family Household/Healthcare join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.percentage"
+    commands:
+      - tapOn:
+          id: "group.expense.split.percentage"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0509 | Healthcare | 5220.62"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "5220.62"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0509 "
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0509 "
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0510 Business/Team Operations/Contractor join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Team Update"
+    commands:
+      - tapOn: "Team Update"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.note"
+    commands:
+      - tapOn:
+          id: "business.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-0510 | Contractor | 104981.70"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.amount"
+    commands:
+      - tapOn:
+          id: "business.expense.amount"
+      - eraseText
+      - inputText: "104981.7"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.submit"
+    commands:
+      - tapOn:
+          id: "business.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-051"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-051"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0511 Personal/Future Building/Investments join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.opportunity"
+- runFlow:
+    when:
+      visible: "Save"
+    commands:
+      - tapOn: "Save"
+- runFlow:
+    when:
+      visible: "Submit"
+    commands:
+      - tapOn: "Submit"
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-051"
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-051"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0512 Group/Family Household/Home join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.exact"
+    commands:
+      - tapOn:
+          id: "group.expense.split.exact"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0512 | Home | 951.35"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "951.35"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0512 "
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0512 "
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0513 Business/Team Operations/Hiring join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Team Update"
+    commands:
+      - tapOn: "Team Update"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.note"
+    commands:
+      - tapOn:
+          id: "business.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-0513 | Hiring | 101116.98"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.amount"
+    commands:
+      - tapOn:
+          id: "business.expense.amount"
+      - eraseText
+      - inputText: "101116.98"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.submit"
+    commands:
+      - tapOn:
+          id: "business.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-051"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-051"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0514 Personal/Future Building/Education join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.milestone"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-0514 | Education | 17884.14"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "17884.14"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-051"
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-051"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0515 Group/Family Household/Other join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.shares"
+    commands:
+      - tapOn:
+          id: "group.expense.split.shares"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0515 | Other | 25779.67"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "25779.67"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0515 "
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-FAMILY_HOUSEHOLD-0515 "
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0516 Business/Team Operations/Team Meal join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Team Update"
+    commands:
+      - tapOn: "Team Update"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.note"
+    commands:
+      - tapOn:
+          id: "business.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-0516 | Team Meal | 86653.95"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.amount"
+    commands:
+      - tapOn:
+          id: "business.expense.amount"
+      - eraseText
+      - inputText: "86653.95"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.submit"
+    commands:
+      - tapOn:
+          id: "business.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-051"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-051"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0517 Personal/Future Building/Goal Contribution join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible:
+        id: "personal.money.transfer.note"
+    commands:
+      - tapOn:
+          id: "personal.money.transfer.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-0517 | Goal Contribution | 11333.54"
+- runFlow:
+    when:
+      visible:
+        id: "personal.money.transfer.amount"
+    commands:
+      - tapOn:
+          id: "personal.money.transfer.amount"
+      - eraseText
+      - inputText: "11333.54"
+- runFlow:
+    when:
+      visible:
+        id: "personal.money.transfer.submit"
+    commands:
+      - tapOn:
+          id: "personal.money.transfer.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.money.transfer.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-051"
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-FUTURE_BUILDING-051"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0518 Group/Custom Living/Custom Expense join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.equal"
+    commands:
+      - tapOn:
+          id: "group.expense.split.equal"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-CUSTOM_LIVING-0518 | Custom Expense | 99.99"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "99.99"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-CUSTOM_LIVING-0518 | C"
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-CUSTOM_LIVING-0518 | C"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0519 Business/Team Operations/Travel join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Team Update"
+    commands:
+      - tapOn: "Team Update"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.note"
+    commands:
+      - tapOn:
+          id: "business.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-0519 | Travel | 5977.75"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.amount"
+    commands:
+      - tapOn:
+          id: "business.expense.amount"
+      - eraseText
+      - inputText: "5977.75"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.submit"
+    commands:
+      - tapOn:
+          id: "business.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-051"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-051"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0520 Personal/Lifestyle/Dining join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0520 | Dining | 5945.99"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "5945.99"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0520 | Di"
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0520 | Di"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0522 Business/Team Operations/Training join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Team Update"
+    commands:
+      - tapOn: "Team Update"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.note"
+    commands:
+      - tapOn:
+          id: "business.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-0522 | Training | 99575.54"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.amount"
+    commands:
+      - tapOn:
+          id: "business.expense.amount"
+      - eraseText
+      - inputText: "99575.54"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.submit"
+    commands:
+      - tapOn:
+          id: "business.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-052"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-052"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0523 Personal/Lifestyle/Shopping join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0523 | Shopping | 10364.22"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "10364.22"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0523 | Sh"
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0523 | Sh"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0524 Group/Trip/Travel join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.exact"
+    commands:
+      - tapOn:
+          id: "group.expense.split.exact"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-TRIP-0524 | Travel | 18277.44"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "18277.44"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-TRIP-0524 | Travel | 1"
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-TRIP-0524 | Travel | 1"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0525 Business/Team Operations/Tools join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Team Update"
+    commands:
+      - tapOn: "Team Update"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.note"
+    commands:
+      - tapOn:
+          id: "business.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-0525 | Tools | 38316.73"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.amount"
+    commands:
+      - tapOn:
+          id: "business.expense.amount"
+      - eraseText
+      - inputText: "38316.73"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.submit"
+    commands:
+      - tapOn:
+          id: "business.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-052"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-TEAM_OPERATIONS-052"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0526 Personal/Lifestyle/Entertainment join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0526 | Entertainment | 15832.88"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "15832.88"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0526 | En"
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0526 | En"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0527 Group/Trip/Stay join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.shares"
+    commands:
+      - tapOn:
+          id: "group.expense.split.shares"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-TRIP-0527 | Stay | 24059.04"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "24059.04"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-TRIP-0527 | Stay | 240"
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-TRIP-0527 | Stay | 240"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0528 Business/Business Runway/Funding join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "business.revenue.amount"
+    commands:
+      - tapOn:
+          id: "business.revenue.amount"
+      - eraseText
+      - inputText: "77684.68"
+- runFlow:
+    when:
+      visible:
+        id: "business.revenue.submit"
+    commands:
+      - tapOn:
+          id: "business.revenue.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.revenue.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-052"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-052"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0529 Personal/Lifestyle/Travel join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0529 | Travel | 4856.42"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "4856.42"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0529 | Tr"
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0529 | Tr"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0530 Group/Trip/Food join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.equal"
+    commands:
+      - tapOn:
+          id: "group.expense.split.equal"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-TRIP-0530 | Food | 17464.22"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "17464.22"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-TRIP-0530 | Food | 174"
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-TRIP-0530 | Food | 174"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0531 Business/Business Runway/Revenue join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "business.revenue.amount"
+    commands:
+      - tapOn:
+          id: "business.revenue.amount"
+      - eraseText
+      - inputText: "141141.87"
+- runFlow:
+    when:
+      visible:
+        id: "business.revenue.submit"
+    commands:
+      - tapOn:
+          id: "business.revenue.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.revenue.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-053"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-053"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0532 Personal/Lifestyle/Fitness join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0532 | Fitness | 14618.50"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "14618.5"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0532 | Fi"
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0532 | Fi"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0533 Group/Trip/Local Transport join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.percentage"
+    commands:
+      - tapOn:
+          id: "group.expense.split.percentage"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-TRIP-0533 | Local Transport | 24222.35"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "24222.35"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-TRIP-0533 | Local Tran"
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-TRIP-0533 | Local Tran"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0534 Business/Business Runway/Burn join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.note"
+    commands:
+      - tapOn:
+          id: "business.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-0534 | Burn | 108759.54"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.amount"
+    commands:
+      - tapOn:
+          id: "business.expense.amount"
+      - eraseText
+      - inputText: "108759.54"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.submit"
+    commands:
+      - tapOn:
+          id: "business.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-053"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-053"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0535 Personal/Lifestyle/Hobbies join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0535 | Hobbies | 6478.85"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "6478.85"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0535 | Ho"
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-LIFESTYLE-0535 | Ho"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0536 Group/Trip/Activities join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.exact"
+    commands:
+      - tapOn:
+          id: "group.expense.split.exact"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-TRIP-0536 | Activities | 3459.16"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "3459.16"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-TRIP-0536 | Activities"
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-TRIP-0536 | Activities"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0537 Business/Business Runway/Reserve join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Save"
+    commands:
+      - tapOn: "Save"
+- runFlow:
+    when:
+      visible: "Submit"
+    commands:
+      - tapOn: "Submit"
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-053"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-053"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0538 Personal/Relationships/Gifts join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0538 | Gifts | 3380.46"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "3380.46"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0538 "
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0538 "
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0539 Group/Trip/Shopping join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.shares"
+    commands:
+      - tapOn:
+          id: "group.expense.split.shares"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-TRIP-0539 | Shopping | 468.24"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "468.24"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-TRIP-0539 | Shopping |"
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-TRIP-0539 | Shopping |"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0540 Business/Business Runway/Loan join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "business.revenue.amount"
+    commands:
+      - tapOn:
+          id: "business.revenue.amount"
+      - eraseText
+      - inputText: "90761.07"
+- runFlow:
+    when:
+      visible:
+        id: "business.revenue.submit"
+    commands:
+      - tapOn:
+          id: "business.revenue.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.revenue.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-054"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-054"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0541 Personal/Relationships/Dates join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0541 | Dates | 4734.81"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "4734.81"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0541 "
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0541 "
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0542 Group/Trip/Other join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.equal"
+    commands:
+      - tapOn:
+          id: "group.expense.split.equal"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-TRIP-0542 | Other | 2675.69"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "2675.69"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-TRIP-0542 | Other | 26"
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-TRIP-0542 | Other | 26"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0543 Business/Business Runway/Investment join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "business.revenue.amount"
+    commands:
+      - tapOn:
+          id: "business.revenue.amount"
+      - eraseText
+      - inputText: "83981.4"
+- runFlow:
+    when:
+      visible:
+        id: "business.revenue.submit"
+    commands:
+      - tapOn:
+          id: "business.revenue.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.revenue.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-054"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-BUSINESS_RUNWAY-054"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0544 Personal/Relationships/Family join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0544 | Family | 9469.28"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "9469.28"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0544 "
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0544 "
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0545 Group/Wedding/Venue join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.percentage"
+    commands:
+      - tapOn:
+          id: "group.expense.split.percentage"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-WEDDING-0545 | Venue | 2138.81"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "2138.81"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-WEDDING-0545 | Venue |"
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-WEDDING-0545 | Venue |"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0546 Business/Business Operations/Software join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Spend Entry"
+    commands:
+      - tapOn: "Spend Entry"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.note"
+    commands:
+      - tapOn:
+          id: "business.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-BUSINESS-BUSINESS_OPERATIONS-0546 | Software | 28446.05"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.amount"
+    commands:
+      - tapOn:
+          id: "business.expense.amount"
+      - eraseText
+      - inputText: "28446.05"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.submit"
+    commands:
+      - tapOn:
+          id: "business.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-BUSINESS_OPERATIONS"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-BUSINESS_OPERATIONS"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0547 Personal/Relationships/Friends join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0547 | Friends | 483.99"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "483.99"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0547 "
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0547 "
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0548 Group/Wedding/Catering join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.exact"
+    commands:
+      - tapOn:
+          id: "group.expense.split.exact"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-WEDDING-0548 | Catering | 384.73"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "384.73"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-WEDDING-0548 | Caterin"
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-WEDDING-0548 | Caterin"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0549 Business/Business Operations/Rent join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Spend Entry"
+    commands:
+      - tapOn: "Spend Entry"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.note"
+    commands:
+      - tapOn:
+          id: "business.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-BUSINESS-BUSINESS_OPERATIONS-0549 | Rent | 134778.36"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.amount"
+    commands:
+      - tapOn:
+          id: "business.expense.amount"
+      - eraseText
+      - inputText: "134778.36"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.submit"
+    commands:
+      - tapOn:
+          id: "business.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-BUSINESS_OPERATIONS"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-BUSINESS_OPERATIONS"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0550 Personal/Relationships/Celebrations join=JOINED_REVIEW
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0550 | Celebrations | 5608.18"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "5608.18"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0550 "
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-RELATIONSHIPS-0550 "
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.group.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.group"
+
+# MTR-IOS-0551 Group/Wedding/Decor join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.shares"
+    commands:
+      - tapOn:
+          id: "group.expense.split.shares"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.note"
+    commands:
+      - tapOn:
+          id: "group.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-GROUP-WEDDING-0551 | Decor | 25205.46"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.amount"
+    commands:
+      - tapOn:
+          id: "group.expense.amount"
+      - eraseText
+      - inputText: "25205.46"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.submit"
+    commands:
+      - tapOn:
+          id: "group.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "group.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-GROUP-WEDDING-0551 | Decor |"
+    commands:
+      - assertVisible: "MAESTRO-IOS-GROUP-WEDDING-0551 | Decor |"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.business.owner@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.business"
+
+# MTR-IOS-0552 Business/Business Operations/Marketing join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Spend Entry"
+    commands:
+      - tapOn: "Spend Entry"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.note"
+    commands:
+      - tapOn:
+          id: "business.expense.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-BUSINESS-BUSINESS_OPERATIONS-0552 | Marketing | 64560.56"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.amount"
+    commands:
+      - tapOn:
+          id: "business.expense.amount"
+      - eraseText
+      - inputText: "64560.56"
+- runFlow:
+    when:
+      visible:
+        id: "business.expense.submit"
+    commands:
+      - tapOn:
+          id: "business.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.expense.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-BUSINESS-BUSINESS_OPERATIONS"
+    commands:
+      - assertVisible: "MAESTRO-IOS-BUSINESS-BUSINESS_OPERATIONS"
+- tapOn:
+    id: "bottom.pulse"
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "onboarding.skip"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.skip"
+    commands:
+      - tapOn:
+          id: "onboarding.skip"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Step Inside"
+    commands:
+      - tapOn: "Step Inside"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "consent.continue"
+    commands:
+      - tapOn:
+          id: "consent.continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "login.email"
+    timeout: 60000
+- tapOn:
+    id: "login.email"
+- eraseText
+- inputText: "qa.ios.personal@test.com"
+- tapOn:
+    id: "login.password"
+- eraseText
+- inputText: "MaestroQa123"
+- tapOn:
+    id: "login.submit"
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 90000
+- tapOn:
+    id: "context.personal"
+
+# MTR-IOS-0553 Personal/Life Operations/Groceries join=JOINED
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.note"
+    commands:
+      - tapOn:
+          id: "personal.income.note"
+      - eraseText
+      - inputText: "MAESTRO-IOS-PERSONAL-LIFE_OPERATIONS-0553 | Groceries | 11336.32"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.amount"
+    commands:
+      - tapOn:
+          id: "personal.income.amount"
+      - eraseText
+      - inputText: "11336.32"
+- runFlow:
+    when:
+      visible:
+        id: "personal.income.submit"
+    commands:
+      - tapOn:
+          id: "personal.income.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.income.submit"
+          timeout: 45000
+- back
+- runFlow:
+    when:
+      visible:
+        id: "bottom.activity"
+    commands:
+      - tapOn:
+          id: "bottom.activity"
+- runFlow:
+    when:
+      visible: "MAESTRO-IOS-PERSONAL-LIFE_OPERATIONS-055"
+    commands:
+      - assertVisible: "MAESTRO-IOS-PERSONAL-LIFE_OPERATIONS-055"
+- tapOn:
+    id: "bottom.pulse"
+
+- takeScreenshot: stress_11_done

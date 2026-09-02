@@ -1,0 +1,47 @@
+{
+  "gate": "S9-QA-B",
+  "generatedAt": "2026-09-02T08:02:54.484Z",
+  "sources": {
+    "androidLedger": "docs/qa/ledgers/Momentra_APK_3500_Certification_Ledger.xlsx",
+    "iosLedger": "docs/qa/ledgers/Momentra_IOS_3500_Certification_Ledger.xlsx",
+    "joinMap": ".maestro/input-catalog/ledger-join-map.json",
+    "catalog": ".maestro/input-catalog/catalog.json"
+  },
+  "knownGaps": [
+    "Ledger Quick_Add is a category label, not a hub tile — join uses Semantic_Type + Moment",
+    "P2/P3/P4 Expense categories lack dedicated money hub tiles — marked REVIEW proxies",
+    "B01 Income rows are CAPABILITY_GAP (Revenue Runway-only)",
+    "G02 Settle not in this ledger (finance Expense/Contribution only)",
+    "Non-finance hub tiles (Recovery, Mood, Decision, etc.) not covered by 3500 pack — remain catalog ACTIVE for separate scenarios"
+  ],
+  "android": {
+    "platform": "android",
+    "total": 3500,
+    "byMode": {
+      "personal": 1167,
+      "group": 1167,
+      "business": 1166
+    },
+    "pilot": 150,
+    "statusCounts": {
+      "JOINED": 2614,
+      "JOINED_REVIEW": 866,
+      "SKIP_CAPABILITY_GAP": 20
+    }
+  },
+  "ios": {
+    "platform": "ios",
+    "total": 3500,
+    "byMode": {
+      "personal": 1167,
+      "group": 1167,
+      "business": 1166
+    },
+    "pilot": 150,
+    "statusCounts": {
+      "JOINED": 2614,
+      "JOINED_REVIEW": 866,
+      "SKIP_CAPABILITY_GAP": 20
+    }
+  }
+}

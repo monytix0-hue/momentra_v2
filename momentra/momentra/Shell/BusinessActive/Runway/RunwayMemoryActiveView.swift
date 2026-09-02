@@ -12,6 +12,8 @@ struct RunwayMemoryActiveView: View {
     @State private var scope = "All"
     @State private var loading = true
     @State private var error: String?
+    @State private var shareBusy = false
+    @State private var shareMessage: String?
 
     private let theme = BusinessActiveTheme.businessRunway
     private let scopes = ["All", "Revenue", "Expenses", "Tax", "Investors"]
@@ -51,10 +53,16 @@ struct RunwayMemoryActiveView: View {
             if loading && memory == nil {
                 ProgressView().tint(theme.accent)
             } else {
-                ScrollView {
+                NativeDashboardScaffold(background: theme.bg) {
+
+                    NativeListSection {
+
                     VStack(alignment: .leading, spacing: 16) {
                         if let error {
                             Text(error).font(.caption).foregroundStyle(RunwayColors.red)
+                        }
+                        if let shareMessage {
+                            Text(shareMessage).font(.caption).foregroundStyle(theme.secondary)
                         }
                         RunwayFilterChipRow(chips: scopes, selected: scope, onSelect: { scope = $0 }, theme: theme)
                         RunwayMemoryHeroSection(
@@ -98,23 +106,25 @@ struct RunwayMemoryActiveView: View {
                                 : filtered.prefix(5).compactMap(\.title).joined(separator: " → "),
                             theme: theme
                         )
-                        HStack(spacing: 10) {
-                            RunwayGradientPrimaryButton(
-                                label: "Record a Learning",
-                                enabled: momentId?.isEmpty == false,
-                                action: onRecordLearning
-                            )
-                            RunwayOutlineButton(
-                                label: "Share",
-                                enabled: false,
-                                theme: theme,
-                                action: onOpenQuickAdd
-                            )
-                        }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
-                    .padding(.bottom, 56)
+
+                    }
+
+                }
+                .nativeStickyFooter(background: theme.bg) {
+                    HStack(spacing: 10) {
+                        RunwayGradientPrimaryButton(
+                            label: "Record a Learning",
+                            enabled: momentId?.isEmpty == false,
+                            action: onRecordLearning
+                        )
+                        RunwayOutlineButton(
+                            label: shareBusy ? "Sharing…" : "Share with Team",
+                            enabled: momentId?.isEmpty == false && !shareBusy,
+                            theme: theme,
+                            action: shareWithTeam
+                        )
+                    }
                 }
             }
         }
@@ -187,7 +197,41 @@ struct RunwayMemoryActiveView: View {
         }
         loading = false
     }
+
+    private func shareWithTeam() {
+        guard let momentId, !momentId.isEmpty else { return }
+        shareBusy = true
+        shareMessage = nil
+        Task {
+            defer { shareBusy = false }
+            do {
+                let link = try await APIClient.shared.createBusinessShareLink(momentId: momentId)
+                if let url = link.shareUrl, !url.isEmpty {
+                    #if canImport(UIKit)
+                    await MainActor.run {
+                        let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+                        UIApplication.shared.firstKeyWindow?.rootViewController?.present(activity, animated: true)
+                    }
+                    #endif
+                }
+                shareMessage = link.note ?? "Share link created"
+            } catch {
+                shareMessage = error.localizedDescription
+            }
+        }
+    }
 }
+
+#if canImport(UIKit)
+private extension UIApplication {
+    var firstKeyWindow: UIWindow? {
+        connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow }
+    }
+}
+#endif
 
 private extension String {
     var nilIfEmpty: String? {

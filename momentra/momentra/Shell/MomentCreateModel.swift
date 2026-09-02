@@ -163,6 +163,14 @@ final class MomentCreateModel: ObservableObject {
         try? await repository.redeemGroupInvite(code: code)
     }
 
+    func previewGroupInvite(code: String) async -> GroupInvite? {
+        try? await repository.previewGroupInvite(code: code)
+    }
+
+    func previewCompanyInvite(code: String) async -> CompanyInvite? {
+        try? await repository.previewCompanyInvite(code: code)
+    }
+
     func mintCompanyInvite(companyId: String, membershipType: String = "MEMBER") async -> CompanyInvite? {
         try? await repository.mintCompanyInvite(companyId: companyId, membershipType: membershipType)
     }

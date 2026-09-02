@@ -426,7 +426,11 @@ private fun CinematicOnboardingScreen(
                         contentDescription = "Step Inside"
                     }
                     .clickable {
-                        trackWidget(AnalyticsScreens.ONBOARDING, AnalyticsWidgets.ONBOARDING_STEP_INSIDE, "tap")
+                        trackWidget(
+                            AnalyticsScreens.ONBOARDING,
+                            AnalyticsWidgets.ONBOARDING_STEP_INSIDE,
+                            "tap",
+                        )
                         exiting = true
                     },
                 contentAlignment = Alignment.Center,

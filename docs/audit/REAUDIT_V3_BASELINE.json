@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-09-01T07:22:29.823384+00:00",
+  "rootGaps": {
+    "total": 60,
+    "closed": 2,
+    "validating": 0,
+    "implemented": 0,
+    "inDevelopment": 5,
+    "open": 51,
+    "deferred": 2
+  },
+  "supplemental": {
+    "PASS": 7,
+    "OPEN": 20,
+    "DEFERRED": 0,
+    "TOTAL": 27
+  },
+  "maestro": {
+    "PASS": 3,
+    "TOTAL": 20,
+    "FAIL": 0,
+    "PENDING": 17
+  },
+  "openapiDriftUnexplained": 0,
+  "parityGapsUnexplained": 0,
+  "sqlUnclassified": 0,
+  "p0Remaining": 32,
+  "p1Remaining": 24
+}

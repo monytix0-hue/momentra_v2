@@ -13,6 +13,8 @@ struct GroupMomentsActiveView: View {
     @State private var listPlanning: [APIClient.GroupLifePayload.LifeInner.PlanningItem] = []
     @State private var listBookings: [APIClient.GroupLifePayload.LifeInner.BookingItem] = []
     @State private var listUpdates: [APIClient.GroupLifePayload.LifeInner.UpdateItem] = []
+    @State private var listPolls: [APIClient.GroupPollItemPayload] = []
+    @State private var selectedPollId: String?
     @State private var loading = true
     @State private var error: String?
 
@@ -40,7 +42,10 @@ struct GroupMomentsActiveView: View {
             if loading && pulse == nil {
                 ProgressView().tint(GroupActiveTheme.brand)
             } else {
-                ScrollView {
+                NativeDashboardScaffold(background: GroupActiveTheme.bg) {
+
+                    NativeListSection {
+
                     VStack(alignment: .leading, spacing: 14) {
                         if let error {
                             Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
@@ -97,6 +102,25 @@ struct GroupMomentsActiveView: View {
                                 }
                             }
                         }
+                        GroupSectionCard(title: "Polls") {
+                            if listPolls.isEmpty {
+                                GroupEmptySection(message: "No polls yet", detail: "Create a poll from Quick Add to decide together.")
+                            } else {
+                                ForEach(Array(listPolls.enumerated()), id: \.offset) { index, item in
+                                    Button {
+                                        if let id = item.pollId { selectedPollId = id }
+                                    } label: {
+                                        momentsRow(
+                                            title: item.question ?? item.pollId ?? "Poll",
+                                            meta: item.status,
+                                            accent: accents[(index + 3) % accents.count],
+                                            glyph: "📊"
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
                         GroupSectionCard(title: "Updates") {
                             if updates.isEmpty {
                                 GroupEmptySection(message: "No updates yet", detail: "Share a status update from Quick Add.")
@@ -121,13 +145,29 @@ struct GroupMomentsActiveView: View {
                         }
                         momentsQuickAddCta
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                
+
+                    }
+
                 }
             }
         }
         .background(GroupActiveTheme.bg)
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
+        .sheet(item: Binding(
+            get: { selectedPollId.map { PollSheetItem(id: $0) } },
+            set: { selectedPollId = $0?.id }
+        )) { item in
+            PollDetailSheet(
+                pollId: item.id,
+                onDismiss: { selectedPollId = nil },
+                onSaved: { Task { await load() } }
+            )
+        }
+    }
+
+    private struct PollSheetItem: Identifiable {
+        let id: String
     }
 
     private var momentsQuickAddCta: some View {
@@ -226,6 +266,7 @@ struct GroupMomentsActiveView: View {
             async let plansResult = APIClient.shared.listPlanningItems(momentId: momentId)
             async let bookingsResult = APIClient.shared.listBookings(momentId: momentId)
             async let updatesResult = APIClient.shared.listGroupUpdates(momentId: momentId)
+            async let pollsResult = APIClient.shared.listPolls(momentId: momentId)
             let loadedPulse = try await pulseResult
             let finFacet = try await financeResult
             let loadedLife = try await lifeResult
@@ -236,6 +277,7 @@ struct GroupMomentsActiveView: View {
             listPlanning = (try? await plansResult)?.items ?? loadedLife.payload?.planningItems ?? []
             listBookings = (try? await bookingsResult)?.items ?? loadedLife.payload?.bookings ?? []
             listUpdates = (try? await updatesResult)?.items ?? loadedLife.payload?.updates ?? []
+            listPolls = (try? await pollsResult)?.items ?? []
             GroupTabDataCache.putPulse(momentId, .init(
                 title: loadedPulse.title,
                 pulse: loadedPulse,

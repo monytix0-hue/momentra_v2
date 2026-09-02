@@ -27,7 +27,18 @@ enum BottomDestination: String, CaseIterable, Identifiable {
         switch self {
         case .pulse: return "Pulse"
         case .moments: return "Moments"
-        case .create: return "Quickadds"
+        case .create: return "Create"
+        case .life: return "Life"
+        case .memory: return "Memory"
+        }
+    }
+
+    /// Label under bottom-nav tab icons — matches APK `BottomDestination.label` extension.
+    var shellNavLabel: String {
+        switch self {
+        case .pulse: return "Pulse"
+        case .moments: return "Moments"
+        case .create: return "quickadds"
         case .life: return "Life"
         case .memory: return "Memory"
         }

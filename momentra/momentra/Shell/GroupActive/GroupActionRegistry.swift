@@ -46,6 +46,11 @@ struct GroupActionTile: Identifiable {
 }
 
 enum GroupActionRegistry {
+    /// Figma 575:14655 — Trip Action Center 3×3 grid (no Settle / Purchase / Resident on hub).
+    static let tripHubTileIds: [String] = [
+        "expense", "planning", "budget", "booking", "poll", "memory", "update", "contribution", "invite",
+    ]
+
     static func destination(for capabilityCode: String) -> GroupActionDestination? {
         switch capabilityCode.uppercased() {
         case GroupActionCode.expenseCreate.rawValue: return .expense
@@ -61,6 +66,14 @@ enum GroupActionRegistry {
         case GroupActionCode.residentManage.rawValue: return .resident
         default: return nil
         }
+    }
+
+    static func figmaTripHubTiles(
+        hasActiveMoment: Bool,
+        capabilityCodes: [String]? = nil
+    ) -> [GroupActionTile] {
+        figmaHubTiles(hasActiveMoment: hasActiveMoment, capabilityCodes: capabilityCodes)
+            .filter { tripHubTileIds.contains($0.tileId) }
     }
 
     static func figmaHubTiles(
@@ -105,18 +118,18 @@ enum GroupActionRegistry {
 
     private static func catalogTiles() -> [GroupActionTile] {
         [
-            tile("expense", .expenseCreate, "Expense", "Split a cost", "creditcard.fill", "#33C759", "#0F766E", .expense),
-            tile("planning", .planningItemCreate, "Planning", "Itinerary & tasks", "calendar", "#14B8A6", "#0F766E", .planning),
-            tile("budget", nil, "Budget", "Edit planned total", "chart.bar.fill", "#FFB598", "#E8621A", .budget),
-            tile("booking", .bookingCreate, "Booking", "Reservations", "ticket.fill", "#FF7A3D", "#E85940", .booking),
-            tile("poll", .pollCreate, "Poll", "Group decisions", "checklist", "#A855F7", "#7C3AED", .poll),
-            tile("memory", .memoryCreate, "Memory", "Capture a moment", "camera.fill", "#FF8E63", "#E8744F", .memory),
-            tile("update", .updateCreate, "Update", "Share status", "megaphone.fill", "#3B82F6", "#1D4ED8", .update),
-            tile("contribution", .contributionRecord, "Contribution", "Record money in", "hand.raised.fill", "#10B981", "#047857", .contribution),
-            tile("invite", .participantManage, "Invite", "Add people", "person.badge.plus", "#FFB598", "#E8621A", .invite),
-            tile("settle", .settlementRecord, "Settle", "Pay down balances", "scalemass", "#059669", "#10B981", .settlement),
-            tile("purchase", .purchaseItemCreate, "Purchase item", "Track a buy", "cart.fill", "#F59E0B", "#D97706", .purchaseItem),
-            tile("resident", .residentManage, "Resident", "Add a housemate", "house.fill", "#6366F1", "#4338CA", .resident),
+            tile("expense", .expenseCreate, "Expense", "Split a cost", "GroupQaWallet", "#33C759", "#0F766E", .expense),
+            tile("planning", .planningItemCreate, "Planning", "Itinerary & tasks", "GroupQaCalendar", "#14B8A6", "#0F766E", .planning),
+            tile("budget", nil, "Budget", "Edit planned total", "GroupQaChartBar", "#FFB598", "#E8621A", .budget),
+            tile("booking", .bookingCreate, "Booking", "Reservations", "GroupQaTicket", "#FF7A3D", "#E85940", .booking),
+            tile("poll", .pollCreate, "Poll", "Group decisions", "GroupQaVote", "#A855F7", "#7C3AED", .poll),
+            tile("memory", .memoryCreate, "Memory", "Capture a moment", "GroupQaCamera", "#FF8E63", "#E8744F", .memory),
+            tile("update", .updateCreate, "Update", "Share status", "GroupQaMegaphone", "#3B82F6", "#1D4ED8", .update),
+            tile("contribution", .contributionRecord, "Contribution", "Record money in", "GroupQaHandshake", "#10B981", "#047857", .contribution),
+            tile("invite", .participantManage, "Invite", "Add people", "GroupQaUserPlus", "#FFB598", "#E8621A", .invite),
+            tile("settle", .settlementRecord, "Settle", "Pay down balances", "GroupQaWallet", "#059669", "#10B981", .settlement),
+            tile("purchase", .purchaseItemCreate, "Purchase item", "Track a buy", "GroupQaChartBar", "#F59E0B", "#D97706", .purchaseItem),
+            tile("resident", .residentManage, "Resident", "Add a housemate", "GroupQaUserPlus", "#6366F1", "#4338CA", .resident),
         ]
     }
 

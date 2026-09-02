@@ -20,6 +20,8 @@ import com.example.momentra.data.api.CreateBusinessInvoiceBody
 import com.example.momentra.data.api.CreateBusinessInvoiceResultDto
 import com.example.momentra.data.api.CreateBusinessIssueBody
 import com.example.momentra.data.api.CreateBusinessIssueResultDto
+import com.example.momentra.data.api.CreateIssueEvidenceBody
+import com.example.momentra.data.api.CreateIssueEvidenceResultDto
 import com.example.momentra.data.api.CreateBusinessRevenueBody
 import com.example.momentra.data.api.CreateBusinessRevenueResultDto
 import com.example.momentra.data.api.CreateBusinessUpdateBody
@@ -223,6 +225,15 @@ class BusinessSliceRepository(
         idempotencyKey: String = UUID.randomUUID().toString(),
     ): Result<CreateBusinessIssueResultDto> = runCatching {
         api.createBusinessIssue(momentId = momentId, idempotencyKey = idempotencyKey, body = body).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun createIssueEvidence(
+        momentId: String,
+        issueId: String,
+        body: CreateIssueEvidenceBody,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<CreateIssueEvidenceResultDto> = runCatching {
+        api.createIssueEvidence(momentId = momentId, issueId = issueId, idempotencyKey = idempotencyKey, body = body).data
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun createImprovement(

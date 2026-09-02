@@ -1,0 +1,6 @@
+OperationCode,CommandPath,OutboxTable,Dispatcher,ProjectionWorker,AuditResult,RegisterGapId
+EXPENSE_CREATE,runCommand,events.outbox_event,workers/outbox-dispatcher,workers/projection-worker,PENDING_VERIFY,SP-008
+SETTLEMENT_RECORD,runCommand,events.outbox_event,workers/outbox-dispatcher,workers/projection-worker,PENDING_VERIFY,SP-008
+CONTRIBUTION_RECORD,runCommand,events.outbox_event,workers/outbox-dispatcher,workers/projection-worker,PENDING_VERIFY,SP-008
+MOMENT_CREATE,runCommand,events.outbox_event,workers/outbox-dispatcher,workers/projection-worker,PENDING_VERIFY,SP-008
+BUSINESS_EXPENSE,runCommand,events.outbox_event,workers/outbox-dispatcher,workers/projection-worker,PENDING_VERIFY,SP-008

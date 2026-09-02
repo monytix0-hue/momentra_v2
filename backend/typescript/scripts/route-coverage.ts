@@ -17,7 +17,7 @@ const inventory = JSON.parse(readFileSync(join(root, 'openapi/endpoint-inventory
   implStatus: string;
 }>;
 
-const CONTRACT_ONLY = new Set(['getPoll', 'votePoll', 'closePoll']);
+const CONTRACT_ONLY = new Set<string>([]);
 const DEFERRED = [
   { operationId: '(none)', note: 'Circle CRUD — CONTRACT_DEFERRED (Life360 read only)' },
   { operationId: '(none)', note: 'Settlement command — GAP (not contracted)' },

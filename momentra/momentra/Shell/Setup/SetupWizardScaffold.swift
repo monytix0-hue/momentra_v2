@@ -6,11 +6,11 @@ struct SetupWizardScaffold<Content: View, Footer: View>: View {
     @ViewBuilder var footer: () -> Footer
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                content()
-                    .padding(.bottom, 8)
-            }
+        ScrollView {
+            content()
+                .padding(.bottom, 8)
+        }
+        .safeAreaInset(edge: .bottom) {
             footer()
         }
         .background(backgroundColor.ignoresSafeArea())

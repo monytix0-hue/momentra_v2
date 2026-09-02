@@ -69,4 +69,12 @@ struct ShellInvariantTests {
         #expect(tiles.contains { $0.label == "Milestone" })
         #expect(!tiles.contains { $0.label == "Opportunity" })
     }
+
+    @Test func businessRevenueInvoiceGatedToRunwayMomentType() {
+        let caps = [BusinessActionCode.revenueRecord.rawValue, BusinessActionCode.invoiceCreate.rawValue]
+        #expect(!BusinessActionRegistry.isKindEnabled(.revenue, capabilities: caps, momentTypeCode: "TEAM_OPERATIONS"))
+        #expect(!BusinessActionRegistry.isKindEnabled(.invoice, capabilities: caps, momentTypeCode: "BUSINESS_OPERATIONS"))
+        #expect(BusinessActionRegistry.isKindEnabled(.revenue, capabilities: caps, momentTypeCode: "BUSINESS_RUNWAY"))
+        #expect(BusinessActionRegistry.isKindEnabled(.invoice, capabilities: caps, momentTypeCode: "BUSINESS_RUNWAY"))
+    }
 }

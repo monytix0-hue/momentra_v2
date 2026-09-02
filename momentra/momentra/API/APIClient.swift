@@ -130,6 +130,20 @@ struct AnalyticsInsightsPayload: Decodable {
     let meta: AnalyticsInsightsMetaPayload?
 }
 
+struct AnalyticsMetricItemPayload: Decodable, Identifiable {
+    var id: String { metricCode ?? UUID().uuidString }
+    let metricCode: String?
+    let label: String?
+    let value: Double?
+    let unitCode: String?
+    let computedAt: String?
+    let status: String?
+}
+
+struct AnalyticsMetricsPayload: Decodable {
+    let items: [AnalyticsMetricItemPayload]
+}
+
 private struct SuccessEnvelope<T: Decodable>: Decodable {
     let data: T
     let correlationId: String
@@ -339,9 +353,15 @@ final class APIClient {
     }
 
     func listAnalyticsInsights(scopeType: String = "USER", scopeId: String? = nil) async throws -> AnalyticsInsightsPayload {
-        var path = "v1/analytics/insights?scopeType=\(scopeType)"
-        if let scopeId { path += "&scopeId=\(scopeId)" }
-        return try await authorizedGet(path: path)
+        var query: [String: String] = ["scopeType": scopeType]
+        if let scopeId { query["scopeId"] = scopeId }
+        return try await authorizedGet(path: "v1/analytics/insights", query: query)
+    }
+
+    func listAnalyticsMetrics(scopeType: String = "USER", scopeId: String? = nil) async throws -> AnalyticsMetricsPayload {
+        var query: [String: String] = ["scopeType": scopeType]
+        if let scopeId { query["scopeId"] = scopeId }
+        return try await authorizedGet(path: "v1/analytics/metrics", query: query)
     }
 
     @discardableResult
@@ -427,6 +447,24 @@ final class APIClient {
         )
     }
 
+    struct CompanyLocationItemPayload: Decodable, Identifiable {
+        var id: String { locationId }
+        let locationId: String
+        let name: String
+        let addressText: String?
+        let timezone: String?
+        let status: String?
+    }
+
+    struct CompanyLocationListPayload: Decodable {
+        let items: [CompanyLocationItemPayload]
+    }
+
+    func listCompanyLocations(companyId: String) async throws -> [CompanyLocationItemPayload] {
+        let payload: CompanyLocationListPayload = try await authorizedGet(path: "v1/companies/\(companyId)/locations")
+        return payload.items
+    }
+
     func groupMomentPreviewCount() async throws -> Int {
         let page: CursorPagePayload<GroupMomentItemPayload> =
             try await authorizedGet(path: "v1/group/moments", query: ["limit": "1"])
@@ -465,6 +503,76 @@ final class APIClient {
         return page.items.map {
             MomentSummary(momentId: $0.momentId, title: $0.title, status: $0.status)
         }
+    }
+
+    struct BusinessSetupCatalogItemPayload: Decodable {
+        let familyCode: String
+        let title: String
+        let subtitle: String?
+        let defaultMomentTypeCode: String?
+        let activateLabel: String?
+        let defaultTitle: String?
+    }
+
+    struct BusinessSetupItemPayload: Decodable, Identifiable {
+        var id: String { setupId }
+        let setupId: String
+        let familyCode: String
+        let title: String
+        let momentId: String
+        let companyId: String
+        let status: String
+        let preferences: [String: AnyDecodable]?
+        let createdAt: String
+    }
+
+    struct BusinessSetupsPayload: Decodable {
+        let catalog: [BusinessSetupCatalogItemPayload]
+        let mine: [BusinessSetupItemPayload]
+    }
+
+    func getBusinessSetups() async throws -> BusinessSetupsPayload {
+        try await authorizedGet(path: "v1/business/setups")
+    }
+
+    struct ActivateBusinessSetupResult: Decodable {
+        let setupId: String
+        let familyCode: String
+        let momentId: String
+        let companyId: String
+        let momentTypeCode: String
+        let title: String
+        let status: String
+        let version: Int
+    }
+
+    func activateBusinessSetup(
+        familyCode: String,
+        companyId: String,
+        title: String? = nil,
+        momentTypeCode: String? = nil,
+        preferences: [String: Any]? = nil,
+        timezone: String = "UTC",
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> ActivateBusinessSetupResult {
+        struct Body: Encodable {
+            let companyId: String
+            let title: String?
+            let momentTypeCode: String?
+            let preferences: [String: JSONEncodableValue]?
+            let timezone: String
+        }
+        return try await authorizedPost(
+            path: "v1/business/setups/\(familyCode)/activate",
+            body: Body(
+                companyId: companyId,
+                title: title,
+                momentTypeCode: momentTypeCode,
+                preferences: preferences.map { JSONEncodableValue.map($0) },
+                timezone: timezone
+            ),
+            idempotencyKey: idempotencyKey
+        )
     }
 
     func getLife360() async throws {
@@ -719,8 +827,12 @@ final class APIClient {
         )
     }
 
+    func getGroupInvite(code: String) async throws -> GroupInvite {
+        try await authorizedGet(path: "v1/group/invites/\(code)")
+    }
+
     func redeemGroupInvite(code: String, idempotencyKey: String) async throws -> RedeemGroupInviteResult {
-        struct EmptyBody: Encodable {}
+        struct EmptyBody: Codable {}
         return try await authorizedPost(
             path: "v1/group/invites/\(code)/redeem",
             body: EmptyBody(),
@@ -744,8 +856,12 @@ final class APIClient {
         )
     }
 
+    func getCompanyInvite(code: String) async throws -> CompanyInvite {
+        try await authorizedGet(path: "v1/company/invites/\(code)")
+    }
+
     func redeemCompanyInvite(code: String, idempotencyKey: String) async throws -> RedeemCompanyInviteResult {
-        struct EmptyBody: Encodable {}
+        struct EmptyBody: Codable {}
         return try await authorizedPost(
             path: "v1/company/invites/\(code)/redeem",
             body: EmptyBody(),
@@ -1177,6 +1293,17 @@ final class APIClient {
         )
     }
 
+    struct VoidLifestyleActivityResult: Decodable {
+        let activityId: String
+        let lifestyleContext: String
+        let title: String
+        let status: String
+    }
+
+    func voidLifestyleActivity(momentId: String, activityId: String) async throws -> VoidLifestyleActivityResult {
+        try await authorizedDelete(path: "v1/moments/\(momentId)/lifestyle-activities/\(activityId)")
+    }
+
     struct UpdateExpenseResult: Decodable {
         let expenseId: String
         let momentId: String
@@ -1470,6 +1597,206 @@ final class APIClient {
 
     func getPersonalLife() async throws -> PersonalLifePayload {
         try await authorizedGet(path: "v1/personal/life")
+    }
+
+    struct PersonalAttentionItemPayload: Decodable, Identifiable {
+        var id: String { attentionCaptureId }
+        let attentionCaptureId: String
+        let momentId: String
+        let categoryCode: String
+        let intensityCode: String
+        let timeBlockCode: String
+        let energyRemaining: Int?
+        let observedAt: String
+        let note: String?
+    }
+
+    struct PersonalAttentionPayload: Decodable {
+        let userId: String
+        let items: [PersonalAttentionItemPayload]
+    }
+
+    func getPersonalAttention() async throws -> PersonalAttentionPayload {
+        try await authorizedGet(path: "v1/personal/attention")
+    }
+
+    struct PersonalSetupCatalogItemPayload: Decodable, Identifiable {
+        var id: String { systemCode }
+        let systemCode: String
+        let title: String
+        let subtitle: String
+        let figmaNodeId: String?
+        let defaultMomentTypeCode: String
+        let activateLabel: String?
+        let defaultTitle: String?
+    }
+
+    struct PersonalSetupItemPayload: Decodable, Identifiable {
+        var id: String { setupId }
+        let setupId: String
+        let systemCode: String
+        let title: String
+        let momentId: String
+        let status: String
+        let preferences: [String: AnyDecodable]?
+        let createdAt: String
+    }
+
+    struct PersonalSetupsPayload: Decodable {
+        let catalog: [PersonalSetupCatalogItemPayload]
+        let items: [PersonalSetupItemPayload]
+    }
+
+    func getPersonalSetups() async throws -> PersonalSetupsPayload {
+        try await authorizedGet(path: "v1/personal/setups")
+    }
+
+    struct ActivatePersonalSetupResult: Decodable {
+        let setupId: String
+        let systemCode: String
+        let momentId: String
+        let momentTypeCode: String
+        let title: String
+        let status: String
+        let version: Int
+    }
+
+    func activatePersonalSetup(
+        systemCode: String,
+        title: String? = nil,
+        momentTypeCode: String? = nil,
+        preferences: [String: Any]? = nil,
+        timezone: String = "UTC",
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> ActivatePersonalSetupResult {
+        struct Body: Encodable {
+            let title: String?
+            let momentTypeCode: String?
+            let preferences: [String: JSONEncodableValue]?
+            let timezone: String
+        }
+        return try await authorizedPost(
+            path: "v1/personal/setups/\(systemCode)/activate",
+            body: Body(
+                title: title,
+                momentTypeCode: momentTypeCode,
+                preferences: preferences.map { JSONEncodableValue.map($0) },
+                timezone: timezone
+            ),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    struct ExpenseSubcategoryPayload: Decodable, Identifiable {
+        var id: String { subcategoryCode }
+        let subcategoryCode: String
+        let label: String
+        let sortOrder: Int
+    }
+
+    struct ExpenseCategoryPayload: Decodable, Identifiable {
+        var id: String { categoryCode }
+        let categoryCode: String
+        let label: String
+        let sortOrder: Int
+        let subcategories: [ExpenseSubcategoryPayload]
+    }
+
+    struct ExpenseCategoriesPayload: Decodable {
+        let categories: [ExpenseCategoryPayload]
+    }
+
+    func listExpenseCategories() async throws -> ExpenseCategoriesPayload {
+        try await authorizedGet(path: "v1/finance/expense-categories")
+    }
+
+    struct RecurringSchedulePayload: Decodable, Identifiable {
+        var id: String { recurringScheduleId }
+        let recurringScheduleId: String
+        let momentId: String
+        let resourceKind: String
+        let templatePayload: [String: AnyDecodable]?
+        let frequency: String
+        let intervalCount: Int
+        let startDate: String
+        let endDate: String?
+        let nextRunAt: String?
+        let status: String
+        let version: Int
+    }
+
+    struct GenerateRecurringInstanceResult: Decodable {
+        let expenseId: String?
+        let incomeId: String?
+        let occurrenceDate: String
+    }
+
+    func listRecurringSchedules(momentId: String) async throws -> [RecurringSchedulePayload] {
+        try await authorizedGet(path: "v1/moments/\(momentId)/recurring-schedules")
+    }
+
+    func createRecurringSchedule(
+        momentId: String,
+        resourceKind: String,
+        templatePayload: [String: Any],
+        frequency: String,
+        startDate: String,
+        intervalCount: Int = 1,
+        endDate: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> RecurringSchedulePayload {
+        struct Body: Encodable {
+            let resourceKind: String
+            let templatePayload: [String: JSONEncodableValue]
+            let frequency: String
+            let intervalCount: Int
+            let startDate: String
+            let endDate: String?
+        }
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/recurring-schedules",
+            body: Body(
+                resourceKind: resourceKind,
+                templatePayload: JSONEncodableValue.map(templatePayload),
+                frequency: frequency,
+                intervalCount: intervalCount,
+                startDate: startDate,
+                endDate: endDate
+            ),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func updateRecurringSchedule(
+        momentId: String,
+        scheduleId: String,
+        status: String? = nil,
+        endDate: String? = nil,
+        templatePayload: [String: Any]? = nil
+    ) async throws -> RecurringSchedulePayload {
+        struct Body: Encodable {
+            let status: String?
+            let endDate: String?
+            let templatePayload: [String: JSONEncodableValue]?
+        }
+        let mappedPayload = templatePayload.map { JSONEncodableValue.map($0) }
+        return try await authorizedPatch(
+            path: "v1/moments/\(momentId)/recurring-schedules/\(scheduleId)",
+            body: Body(status: status, endDate: endDate, templatePayload: mappedPayload)
+        )
+    }
+
+    func generateRecurringInstance(
+        momentId: String,
+        scheduleId: String,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> GenerateRecurringInstanceResult {
+        struct EmptyBody: Codable {}
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/recurring-schedules/\(scheduleId)/generate",
+            body: EmptyBody(),
+            idempotencyKey: idempotencyKey
+        )
     }
 
     /// Personal Memory projection — honest empty when `items` is empty (S2 G4).
@@ -1930,6 +2257,26 @@ final class APIClient {
         let items: [GroupPollItemPayload]
     }
 
+    struct GroupPollDetailOptionPayload: Decodable, Identifiable {
+        var id: String { pollOptionId ?? text ?? UUID().uuidString }
+        let pollOptionId: String?
+        let text: String?
+        let sortOrder: Int?
+        let voteCount: Int?
+        let votedByMe: Bool?
+    }
+
+    struct GroupPollDetailPayload: Decodable {
+        let pollId: String?
+        let momentId: String?
+        let question: String?
+        let status: String?
+        let pollType: String?
+        let closesAt: String?
+        let createdAt: String?
+        let options: [GroupPollDetailOptionPayload]?
+    }
+
     struct GroupPurchaseItemPayload: Decodable, Identifiable {
         var id: String { purchaseItemId ?? label ?? UUID().uuidString }
         let purchaseItemId: String?
@@ -1975,8 +2322,47 @@ final class APIClient {
         try await authorizedGet(path: "v1/group/moments/\(momentId)/polls")
     }
 
+    func getPoll(pollId: String) async throws -> GroupPollDetailPayload {
+        try await authorizedGet(path: "v1/polls/\(pollId)")
+    }
+
     func listGroupUpdates(momentId: String) async throws -> GroupUpdatesPayload {
         try await authorizedGet(path: "v1/group/moments/\(momentId)/updates")
+    }
+
+    struct GroupLivingRulePayload: Decodable, Identifiable {
+        var id: String { livingRuleId }
+        let livingRuleId: String
+        let title: String
+        let ruleText: String
+        let status: String
+        let createdAt: String
+    }
+
+    struct GroupLivingRulesPayload: Decodable {
+        let momentId: String
+        let items: [GroupLivingRulePayload]
+    }
+
+    func listLivingRules(momentId: String) async throws -> GroupLivingRulesPayload {
+        try await authorizedGet(path: "v1/group/moments/\(momentId)/living-rules")
+    }
+
+    struct GroupCollabListPayload: Decodable {
+        let momentId: String?
+        let items: [AnyDecodable]?
+    }
+
+    func listDeliveryHandovers(momentId: String) async throws -> GroupCollabListPayload {
+        try await authorizedGet(path: "v1/group/moments/\(momentId)/delivery-handovers")
+    }
+
+    func listOwnershipRecords(momentId: String) async throws -> GroupCollabListPayload {
+        try await authorizedGet(path: "v1/group/moments/\(momentId)/ownership-records")
+    }
+
+    func listGroupAttendance(momentId: String) async throws -> GroupCollabListPayload {
+        try await authorizedGet(path: "v1/group/moments/\(momentId)/attendance")
     }
 
     func listPurchaseItems(momentId: String) async throws -> GroupPurchaseItemsPayload {
@@ -2084,9 +2470,189 @@ final class APIClient {
         return try await authorizedPost(path: "v1/moments/\(momentId)/purchase-items", body: Body(label: label, amount: amount), idempotencyKey: idempotencyKey)
     }
 
+    func createDeliveryHandover(
+        momentId: String,
+        recipientName: String? = nil,
+        handoverType: String? = nil,
+        scheduledAt: String? = nil,
+        address: String? = nil,
+        note: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CollabIdResult {
+        struct Body: Encodable {
+            let recipientName: String?
+            let handoverType: String?
+            let scheduledAt: String?
+            let address: String?
+            let note: String?
+        }
+        struct Result: Decodable { let deliveryHandoverId: String; let momentId: String }
+        let r: Result = try await authorizedPost(
+            path: "v1/moments/\(momentId)/delivery-handovers",
+            body: Body(recipientName: recipientName, handoverType: handoverType, scheduledAt: scheduledAt, address: address, note: note),
+            idempotencyKey: idempotencyKey
+        )
+        return CollabIdResult(
+            planningItemId: nil, bookingId: nil, pollId: nil, updateId: nil, memoryId: nil,
+            purchaseItemId: nil, residentId: nil, sharedAssetId: nil, maintenanceRecordId: nil,
+            momentId: r.momentId
+        )
+    }
+
+    func createOwnershipRecord(
+        momentId: String,
+        assetLabel: String? = nil,
+        fromOwnerName: String? = nil,
+        toParticipantName: String? = nil,
+        ownershipShare: Double? = nil,
+        ownershipNote: String? = nil,
+        effectiveAt: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CollabIdResult {
+        struct Body: Encodable {
+            let assetLabel: String?
+            let fromOwnerName: String?
+            let toParticipantName: String?
+            let ownershipShare: Double?
+            let ownershipNote: String?
+            let effectiveAt: String?
+        }
+        struct Result: Decodable { let ownershipRecordId: String; let momentId: String }
+        let r: Result = try await authorizedPost(
+            path: "v1/moments/\(momentId)/ownership-records",
+            body: Body(
+                assetLabel: assetLabel,
+                fromOwnerName: fromOwnerName,
+                toParticipantName: toParticipantName,
+                ownershipShare: ownershipShare,
+                ownershipNote: ownershipNote,
+                effectiveAt: effectiveAt
+            ),
+            idempotencyKey: idempotencyKey
+        )
+        return CollabIdResult(
+            planningItemId: nil, bookingId: nil, pollId: nil, updateId: nil, memoryId: nil,
+            purchaseItemId: nil, residentId: nil, sharedAssetId: nil, maintenanceRecordId: nil,
+            momentId: r.momentId
+        )
+    }
+
     func addResident(momentId: String, name: String, roleCode: String? = nil, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {
         struct Body: Encodable { let name: String; let roleCode: String? }
         return try await authorizedPost(path: "v1/moments/\(momentId)/residents", body: Body(name: name, roleCode: roleCode), idempotencyKey: idempotencyKey)
+    }
+
+    func createLivingRule(momentId: String, title: String, ruleText: String, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {
+        struct Body: Encodable { let title: String; let ruleText: String }
+        struct Result: Decodable { let livingRuleId: String; let momentId: String }
+        let r: Result = try await authorizedPost(
+            path: "v1/moments/\(momentId)/living-rules",
+            body: Body(title: title, ruleText: ruleText),
+            idempotencyKey: idempotencyKey
+        )
+        return CollabIdResult(
+            planningItemId: nil,
+            bookingId: nil,
+            pollId: nil,
+            updateId: nil,
+            memoryId: nil,
+            purchaseItemId: nil,
+            residentId: nil,
+            sharedAssetId: nil,
+            maintenanceRecordId: nil,
+            momentId: r.momentId
+        )
+    }
+
+    struct CreateGoalResult: Decodable {
+        let goalId: String
+        let momentId: String
+        let title: String
+        let version: Int
+    }
+
+    func createGoal(
+        momentId: String,
+        title: String,
+        description: String? = nil,
+        targetAt: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CreateGoalResult {
+        struct Body: Encodable {
+            let title: String
+            let description: String?
+            let targetAt: String?
+        }
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/goals",
+            body: Body(title: title, description: description, targetAt: targetAt),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    struct CreateTaskResult: Decodable {
+        let taskId: String
+        let momentId: String
+        let title: String
+        let version: Int
+    }
+
+    func createTask(
+        momentId: String,
+        title: String,
+        description: String? = nil,
+        goalId: String? = nil,
+        milestoneId: String? = nil,
+        dueAt: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CreateTaskResult {
+        struct Body: Encodable {
+            let title: String
+            let description: String?
+            let goalId: String?
+            let milestoneId: String?
+            let dueAt: String?
+        }
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/tasks",
+            body: Body(
+                title: title,
+                description: description,
+                goalId: goalId,
+                milestoneId: milestoneId,
+                dueAt: dueAt
+            ),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    struct ExecuteActionProposalResult: Decodable {
+        let status: String
+        let executedResourceId: String?
+    }
+
+    func executeActionProposal(
+        actionProposalId: String,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> ExecuteActionProposalResult {
+        struct EmptyBody: Codable {}
+        return try await authorizedPost(
+            path: "v1/ai/action-proposals/\(actionProposalId)/execute",
+            body: EmptyBody(),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func votePoll(pollId: String, pollOptionId: String, idempotencyKey: String = UUID().uuidString) async throws {
+        struct Body: Encodable { let pollOptionId: String }
+        struct Result: Decodable { let pollId: String }
+        let _: Result = try await authorizedPost(path: "v1/polls/\(pollId)/votes", body: Body(pollOptionId: pollOptionId), idempotencyKey: idempotencyKey)
+    }
+
+    func closePoll(pollId: String, idempotencyKey: String = UUID().uuidString) async throws {
+        struct EmptyBody: Codable {}
+        struct Result: Decodable { let pollId: String; let status: String }
+        let _: Result = try await authorizedPost(path: "v1/polls/\(pollId)/close", body: EmptyBody(), idempotencyKey: idempotencyKey)
     }
 
     func createSharedAsset(
@@ -2525,7 +3091,7 @@ final class APIClient {
     }
 
     func createBusinessShareLink(momentId: String) async throws -> BusinessShareLinkPayload {
-        struct EmptyBody: Encodable {}
+        struct EmptyBody: Codable {}
         return try await authorizedPost(
             path: "v1/business/moments/\(momentId)/share-link",
             body: EmptyBody(),
@@ -2543,6 +3109,56 @@ final class APIClient {
 
     func getBusinessActions(momentId: String) async throws -> BusinessActionsPayload {
         try await authorizedGet(path: "v1/business/moments/\(momentId)/actions")
+    }
+
+    struct BusinessProjectionPayload: Decodable {
+        let momentId: String?
+        let payload: AnyDecodable?
+        let items: [AnyDecodable]?
+    }
+
+    func getBusinessMomDeltas(momentId: String) async throws -> BusinessProjectionPayload {
+        try await authorizedGet(path: "v1/business/moments/\(momentId)/mom-deltas")
+    }
+
+    func getBusinessProgressSnapshot(momentId: String) async throws -> BusinessProjectionPayload {
+        try await authorizedGet(path: "v1/business/moments/\(momentId)/progress-snapshot")
+    }
+
+    func getBusinessRoster(momentId: String) async throws -> BusinessProjectionPayload {
+        try await authorizedGet(path: "v1/business/moments/\(momentId)/roster")
+    }
+
+    func listBusinessExpenses(momentId: String) async throws -> BusinessProjectionPayload {
+        try await authorizedGet(path: "v1/business/moments/\(momentId)/expenses")
+    }
+
+    func listBusinessRevenues(momentId: String) async throws -> BusinessProjectionPayload {
+        try await authorizedGet(path: "v1/business/moments/\(momentId)/revenues")
+    }
+
+    func listBusinessInvoices(momentId: String) async throws -> BusinessProjectionPayload {
+        try await authorizedGet(path: "v1/business/moments/\(momentId)/invoices")
+    }
+
+    func listBusinessIssues(momentId: String) async throws -> BusinessProjectionPayload {
+        try await authorizedGet(path: "v1/business/moments/\(momentId)/issues")
+    }
+
+    func listBusinessImprovements(momentId: String) async throws -> BusinessProjectionPayload {
+        try await authorizedGet(path: "v1/business/moments/\(momentId)/improvements")
+    }
+
+    func listBusinessUpdates(momentId: String) async throws -> BusinessProjectionPayload {
+        try await authorizedGet(path: "v1/business/moments/\(momentId)/updates")
+    }
+
+    func listBusinessApprovals(momentId: String) async throws -> BusinessProjectionPayload {
+        try await authorizedGet(path: "v1/business/moments/\(momentId)/approvals")
+    }
+
+    func listBusinessMemories(momentId: String) async throws -> BusinessProjectionPayload {
+        try await authorizedGet(path: "v1/business/moments/\(momentId)/memories")
     }
 
     func listBusinessActivity(momentId: String, limit: Int = 20) async throws -> [ActivityItemPayload] {
@@ -3206,6 +3822,29 @@ final class APIClient {
         )
     }
 
+    struct CreateIssueEvidenceResult: Decodable {
+        let evidenceId: String
+        let issueId: String?
+    }
+
+    func createIssueEvidence(
+        momentId: String,
+        issueId: String,
+        note: String? = nil,
+        url: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CreateIssueEvidenceResult {
+        struct Body: Encodable {
+            let note: String?
+            let url: String?
+        }
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/issues/\(issueId)/evidence",
+            body: Body(note: note, url: url),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
     func createBusinessImprovement(
         momentId: String,
         title: String,
@@ -3268,6 +3907,274 @@ final class APIClient {
             body: Body(title: title, amount: amount, currencyCode: currencyCode, note: note),
             idempotencyKey: idempotencyKey
         )
+    }
+
+    struct PersonalProjectionPayload: Decodable {
+        let momentId: String?
+        let payload: AnyDecodable?
+        let items: [AnyDecodable]?
+    }
+
+    struct ExpenseAttachmentsPayload: Decodable {
+        let items: [AnyDecodable]?
+    }
+
+    func listExpenseAttachments(momentId: String, expenseId: String) async throws -> ExpenseAttachmentsPayload {
+        try await authorizedGet(path: "v1/moments/\(momentId)/expenses/\(expenseId)/attachments")
+    }
+
+    func deleteExpenseAttachment(
+        momentId: String,
+        expenseId: String,
+        uploadId: String,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws {
+        struct EmptyBody: Codable {}
+        let _: EmptyBody = try await authorizedDelete(
+            path: "v1/moments/\(momentId)/expenses/\(expenseId)/attachments/\(uploadId)",
+            body: EmptyBody(),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func getCompany(companyId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/companies/\(companyId)")
+    }
+
+    func patchCompany(
+        companyId: String,
+        body: [String: Any],
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> PersonalProjectionPayload {
+        struct Body: Encodable {
+            let values: [String: JSONEncodableValue]
+            init(_ dict: [String: Any]) { values = JSONEncodableValue.map(dict) }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode(values)
+            }
+        }
+        return try await authorizedPatch(
+            path: "v1/companies/\(companyId)",
+            body: Body(body),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func patchLocation(
+        companyId: String,
+        locationId: String,
+        body: [String: Any],
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> PersonalProjectionPayload {
+        struct Body: Encodable {
+            let values: [String: JSONEncodableValue]
+            init(_ dict: [String: Any]) { values = JSONEncodableValue.map(dict) }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode(values)
+            }
+        }
+        return try await authorizedPatch(
+            path: "v1/companies/\(companyId)/locations/\(locationId)",
+            body: Body(body),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func listTeams(companyId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/companies/\(companyId)/teams")
+    }
+
+    func createTeam(
+        companyId: String,
+        body: [String: Any],
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> PersonalProjectionPayload {
+        struct Body: Encodable {
+            let values: [String: JSONEncodableValue]
+            init(_ dict: [String: Any]) { values = JSONEncodableValue.map(dict) }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode(values)
+            }
+        }
+        return try await authorizedPost(
+            path: "v1/companies/\(companyId)/teams",
+            body: Body(body),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func getMomentActivity(momentId: String, limit: Int = 20) async throws -> [ActivityItemPayload] {
+        let page: CursorPagePayload<ActivityItemPayload> =
+            try await authorizedGet(path: "v1/moments/\(momentId)/activity", query: ["limit": String(limit)])
+        return page.items
+    }
+
+    func getIncome(momentId: String, incomeId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/moments/\(momentId)/income/\(incomeId)")
+    }
+
+    func patchIncome(
+        momentId: String,
+        incomeId: String,
+        body: [String: Any],
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> PersonalProjectionPayload {
+        struct Body: Encodable {
+            let values: [String: JSONEncodableValue]
+            init(_ dict: [String: Any]) { values = JSONEncodableValue.map(dict) }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode(values)
+            }
+        }
+        return try await authorizedPatch(
+            path: "v1/moments/\(momentId)/income/\(incomeId)",
+            body: Body(body),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func getPersonalMoodHistory(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/mood-history")
+    }
+
+    func getPersonalAdjustmentInsight(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/adjustment-insight")
+    }
+
+    func getPersonalActivitySummary(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/activity-summary")
+    }
+
+    func getPersonalMoneyJourney(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/money-journey")
+    }
+
+    func getPersonalFutureRuntimeSummary(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/future-runtime-summary")
+    }
+
+    func getPersonalFutureInventory(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/future-inventory")
+    }
+
+    func getPersonalFutureJourney(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/future-journey")
+    }
+
+    func patchPersonalFutureProfile(
+        momentId: String,
+        body: [String: Any],
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> PersonalProjectionPayload {
+        struct Body: Encodable {
+            let values: [String: JSONEncodableValue]
+            init(_ dict: [String: Any]) { values = JSONEncodableValue.map(dict) }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode(values)
+            }
+        }
+        return try await authorizedPatch(
+            path: "v1/personal/moments/\(momentId)/future-profile",
+            body: Body(body),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func getPersonalLifestyleRuntimeSummary(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/lifestyle-runtime-summary")
+    }
+
+    func getPersonalLifestyleInventory(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/lifestyle-inventory")
+    }
+
+    func getPersonalLifestyleJourney(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/lifestyle-journey")
+    }
+
+    func patchPersonalLifestyleProfile(
+        momentId: String,
+        body: [String: Any],
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> PersonalProjectionPayload {
+        struct Body: Encodable {
+            let values: [String: JSONEncodableValue]
+            init(_ dict: [String: Any]) { values = JSONEncodableValue.map(dict) }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode(values)
+            }
+        }
+        return try await authorizedPatch(
+            path: "v1/personal/moments/\(momentId)/lifestyle-profile",
+            body: Body(body),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func getPersonalRelationshipsRuntimeSummary(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/relationships-runtime-summary")
+    }
+
+    func getPersonalRelationshipsConnections(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/relationships-connections")
+    }
+
+    func getPersonalRelationshipsJourney(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/personal/moments/\(momentId)/relationships-journey")
+    }
+
+    func patchPersonalRelationshipsProfile(
+        momentId: String,
+        body: [String: Any],
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> PersonalProjectionPayload {
+        struct Body: Encodable {
+            let values: [String: JSONEncodableValue]
+            init(_ dict: [String: Any]) { values = JSONEncodableValue.map(dict) }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode(values)
+            }
+        }
+        return try await authorizedPatch(
+            path: "v1/personal/moments/\(momentId)/relationships-profile",
+            body: Body(body),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func patchPersonalLifeOpsProfile(
+        momentId: String,
+        body: [String: Any],
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> PersonalProjectionPayload {
+        struct Body: Encodable {
+            let values: [String: JSONEncodableValue]
+            init(_ dict: [String: Any]) { values = JSONEncodableValue.map(dict) }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode(values)
+            }
+        }
+        return try await authorizedPatch(
+            path: "v1/personal/moments/\(momentId)/life-ops-profile",
+            body: Body(body),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func listGroupVendors(momentId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/group/moments/\(momentId)/vendors")
+    }
+
+    func listMemoryMedia(momentId: String, memoryId: String) async throws -> PersonalProjectionPayload {
+        try await authorizedGet(path: "v1/moments/\(momentId)/memories/\(memoryId)/media")
     }
 
     func ingestTelemetry(_ payload: TelemetryIngestPayload) async throws {

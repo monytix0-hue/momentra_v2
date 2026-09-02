@@ -27,44 +27,42 @@ struct RunwayQuickAddSheet: View {
     var onSaved: () -> Void = {}
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color(hex: "#161B26").ignoresSafeArea()
-            VStack(spacing: 0) {
-                Capsule()
-                    .fill(Color(hex: "#625E70"))
-                    .frame(width: 48, height: 4)
-                    .padding(.top, 12)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        switch kind {
-                        case .revenue:
-                            RunwayRevenueForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
-                        case .expense, .spendEntry:
-                            RunwayExpenseForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
-                        case .taxEntry:
-                            RunwayTaxForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
-                        case .investorUpdate:
-                            RunwayInvestorForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
-                        case .budgetAlert:
-                            RunwayBudgetForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
-                        case .forecastUpdate:
-                            RunwayForecastForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
-                        case .invoice:
-                            RunwayInvoiceForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
-                        case .generalUpdate, .teamUpdate:
-                            RunwayUpdateForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
-                        case .memory:
-                            RunwayMemoryForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
-                        default:
-                            EmptyView()
-                        }
+        NativeSheetScaffold(
+            title: kind.label,
+            onClose: onClose,
+            background: Color(hex: "#161B26")
+        ) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    switch kind {
+                    case .revenue:
+                        RunwayRevenueForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                    case .expense, .spendEntry:
+                        RunwayExpenseForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                    case .taxEntry:
+                        RunwayTaxForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                    case .investorUpdate:
+                        RunwayInvestorForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                    case .budgetAlert:
+                        RunwayBudgetForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                    case .forecastUpdate:
+                        RunwayForecastForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                    case .invoice:
+                        RunwayInvoiceForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                    case .generalUpdate, .teamUpdate:
+                        RunwayUpdateForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                    case .memory:
+                        RunwayMemoryForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                    default:
+                        EmptyView()
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 28)
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
             }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 }
 
@@ -102,6 +100,7 @@ private struct RunwayRevenueForm: View {
             
             FieldBlock(label: "Amount") {
                 RunwayAmountField(displayValue: $amountDisplay, placeholder: "₹ Enter revenue amount", accent: accent)
+                    .accessibilityIdentifier("business.revenue.amount")
             }
             
             FieldBlock(label: "Type") {
@@ -131,6 +130,7 @@ private struct RunwayRevenueForm: View {
             ) {
                 Task { await submit() }
             }
+            .accessibilityIdentifier("business.revenue.submit")
         }
     }
 
@@ -654,6 +654,7 @@ private struct RunwayInvoiceForm: View {
             
             FieldBlock(label: "Client") {
                 RunwayTextField(value: $client, placeholder: "Client name", accent: accent)
+                    .accessibilityIdentifier("business.invoice.customer")
             }
             
             FieldBlock(label: "Invoice Number") {
@@ -662,6 +663,7 @@ private struct RunwayInvoiceForm: View {
             
             FieldBlock(label: "Amount") {
                 RunwayAmountField(displayValue: $amountDisplay, placeholder: "₹ Enter amount", accent: accent)
+                    .accessibilityIdentifier("business.invoice.amount")
             }
             
             FieldBlock(label: "Issue Date") {
@@ -683,6 +685,7 @@ private struct RunwayInvoiceForm: View {
             ) {
                 Task { await submit() }
             }
+            .accessibilityIdentifier("business.invoice.submit")
         }
     }
 
@@ -700,7 +703,7 @@ private struct RunwayInvoiceForm: View {
                 dueDate: dueDate,
                 currencyCode: "INR",
                 lines: [
-                    BusinessInvoiceLineInput(
+                    APIClient.BusinessInvoiceLineInput(
                         description: client.trimmingCharacters(in: .whitespaces),
                         quantity: "1",
                         unitPrice: strippedAmount,
@@ -726,7 +729,7 @@ private struct RunwayUpdateForm: View {
 
     @State private var title = ""
     @State private var visibility = "Team"
-    @State private var body = ""
+    @State private var updateBody = ""
     @State private var submitting = false
     @State private var error: String?
 
@@ -751,7 +754,7 @@ private struct RunwayUpdateForm: View {
             }
             
             FieldBlock(label: "Details") {
-                RunwayTextField(value: $body, placeholder: "Write your update...", minHeight: 90, singleLine: false, accent: accent)
+                RunwayTextField(value: $updateBody, placeholder: "Write your update...", minHeight: 90, singleLine: false, accent: accent)
             }
             
             RunwayErrorText(message: error)
@@ -772,7 +775,7 @@ private struct RunwayUpdateForm: View {
         guard let momentId, !title.isEmpty else { return }
         submitting = true
         error = nil
-        let bodyParts = ["Visibility: \(visibility)", body.isEmpty ? nil : body].compactMap { $0 }
+        let bodyParts = ["Visibility: \(visibility)", updateBody.isEmpty ? nil : updateBody].compactMap { $0 }
         
         do {
             _ = try await APIClient.shared.createBusinessUpdate(

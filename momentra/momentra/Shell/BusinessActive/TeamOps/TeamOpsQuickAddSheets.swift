@@ -19,69 +19,67 @@ struct TeamOpsGapQuickAddSheet: View {
     var onSaved: () -> Void = {}
 
     var body: some View {
-        ZStack(alignment: .top) {
-            TeamOpsSheetTokens.sheetBg.ignoresSafeArea()
-            VStack(spacing: 0) {
-                Capsule()
-                    .fill(TeamOpsSheetTokens.handle)
-                    .frame(width: 48, height: 4)
-                    .padding(.top, 12)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        switch kind {
-                        case .teamUpdate:
-                            TeamOpsTeamUpdateForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .decision:
-                            TeamOpsDecisionForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .blocker:
-                            TeamOpsIssueForm(
-                                momentId: momentId,
-                                kind: .blocker,
-                                accent: .red,
-                                sheetTitle: "Flag Blocker",
-                                explanation: "Surface a delivery blocker",
-                                titleLabel: "Blocker",
-                                titlePlaceholder: "Blocker title",
-                                ctaLabel: "Flag Blocker",
-                                footerHint: "Team will be notified",
-                                errorFallback: "Could not flag blocker",
-                                onClose: onClose,
-                                onSaved: onSaved
-                            )
-                        case .meeting:
-                            TeamOpsMeetingForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .recognition:
-                            TeamOpsRecognitionForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .approval:
-                            TeamOpsApprovalForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .milestone:
-                            TeamOpsMilestoneForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .retrospective:
-                            TeamOpsRetroForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .riskFlag:
-                            TeamOpsRiskForm(
-                                momentId: momentId,
-                                onClose: onClose,
-                                onSaved: onSaved
-                            )
-                        case .activityLog:
-                            TeamOpsActivityForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .poll:
-                            TeamOpsPollForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .memory:
-                            TeamOpsMemoryForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        default:
-                            Text("Unsupported Team Ops command")
-                                .font(.plusJakarta(size: 14))
-                                .foregroundStyle(TeamOpsSheetTokens.muted)
-                        }
+        NativeSheetScaffold(
+            title: kind.label,
+            onClose: onClose,
+            background: TeamOpsSheetTokens.sheetBg
+        ) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    switch kind {
+                    case .teamUpdate:
+                        TeamOpsTeamUpdateForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .decision:
+                        TeamOpsDecisionForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .blocker:
+                        TeamOpsIssueForm(
+                            momentId: momentId,
+                            kind: .blocker,
+                            accent: .red,
+                            sheetTitle: "Flag Blocker",
+                            explanation: "Surface a delivery blocker",
+                            titleLabel: "Blocker",
+                            titlePlaceholder: "Blocker title",
+                            ctaLabel: "Flag Blocker",
+                            footerHint: "Team will be notified",
+                            errorFallback: "Could not flag blocker",
+                            onClose: onClose,
+                            onSaved: onSaved
+                        )
+                    case .meeting:
+                        TeamOpsMeetingForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .recognition:
+                        TeamOpsRecognitionForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .approval:
+                        TeamOpsApprovalForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .milestone:
+                        TeamOpsMilestoneForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .retrospective:
+                        TeamOpsRetroForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .riskFlag:
+                        TeamOpsRiskForm(
+                            momentId: momentId,
+                            onClose: onClose,
+                            onSaved: onSaved
+                        )
+                    case .activityLog:
+                        TeamOpsActivityForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .poll:
+                        TeamOpsPollForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .memory:
+                        TeamOpsMemoryForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    default:
+                        Text("Unsupported Team Ops command")
+                            .font(.plusJakarta(size: 14))
+                            .foregroundStyle(TeamOpsSheetTokens.muted)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 28)
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
             }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 }
 

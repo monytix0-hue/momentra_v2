@@ -143,6 +143,10 @@ private final class FakeCreateGateway: MomentCreateGateway {
         )
     }
 
+    func previewGroupInvite(code: String) async throws -> GroupInvite {
+        try await mintGroupInvite(draftKey: "preview", title: "Preview", momentTypeCode: "TRIP")
+    }
+
     func redeemGroupInvite(code: String) async throws -> RedeemGroupInviteResult {
         RedeemGroupInviteResult(
             inviteCode: code,
@@ -165,6 +169,10 @@ private final class FakeCreateGateway: MomentCreateGateway {
             membershipType: membershipType,
             expiresAt: nil
         )
+    }
+
+    func previewCompanyInvite(code: String) async throws -> CompanyInvite {
+        try await mintCompanyInvite(companyId: "co1", membershipType: "MEMBER")
     }
 
     func redeemCompanyInvite(code: String) async throws -> RedeemCompanyInviteResult {

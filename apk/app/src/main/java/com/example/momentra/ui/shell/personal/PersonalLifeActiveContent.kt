@@ -122,9 +122,9 @@ fun PersonalLifeActiveContent(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (data.dataQuality.equals("FIGMA_SEEDED", ignoreCase = true)) {
+            if (data.sectionQuality.values.any { it.equals("API_GAP", ignoreCase = true) }) {
                 Text(
-                    "Life sections are provisional (API_GAP). Only active area count is live. Seeded scores are layout reference — not production metrics.",
+                    "Some Life sections are not available yet. Core areas and journey data are live when present.",
                     color = LifeAmber,
                     fontSize = 11.sp,
                     fontFamily = PlusJakartaSans,

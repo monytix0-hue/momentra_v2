@@ -1,4 +1,4 @@
-appId: com.momentra.momentra
+appId: resolvingpoint.momentra
 tags: [critical, ios, personal, finance, qh-transaction-crud]
 ---
 # S9-QH iOS: create expense lifecycle smoke (create + activity visibility)

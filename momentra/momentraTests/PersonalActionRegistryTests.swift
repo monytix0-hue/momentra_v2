@@ -36,30 +36,35 @@ struct PersonalActionRegistryTests {
         )
         let transfer = tiles.first { $0.label == "Transfer" }
         let savings = tiles.first { $0.label == "Savings" }
+        let expense = tiles.first { $0.label == "Expense" }
         #expect(transfer?.code == .movementRecord)
         #expect(transfer?.enabledWhenMomentActive == true)
         #expect(savings?.enabledWhenMomentActive == true)
-        #expect(tiles.first { $0.label == "Income" }?.enabledWhenMomentActive == true)
+        #expect(expense?.enabledWhenMomentActive == true)
+        #expect(expense?.icon == "QaWallet")
     }
 
-    @Test func emptyCapabilitiesFailClosed() {
+    @Test func emptyCapabilitiesShowAllTilesDisabled() {
         let tiles = PersonalActionRegistry.tiles(
             for: .lifeOperations,
             hasActiveMoment: true,
             capabilityCodes: []
         )
-        #expect(tiles.isEmpty)
+        #expect(tiles.count == 8)
+        #expect(tiles.allSatisfy { !$0.enabledWhenMomentActive })
         #expect(!PersonalActionRegistry.isDestinationEnabled([], destination: .expense))
         #expect(!PersonalActionRegistry.isDestinationEnabled(nil, destination: .expense))
     }
 
-    @Test func capabilityFilterKeepsMatchingCodesOnly() {
+    @Test func capabilityFilterShowsFullCatalogButEnablesMatchingOnly() {
         let tiles = PersonalActionRegistry.tiles(
             for: .futureBuilding,
             hasActiveMoment: true,
             capabilityCodes: ["EXPENSE_CREATE", "MILESTONE_CREATE"]
         )
-        #expect(tiles.map(\.label) == ["Milestone"])
+        #expect(tiles.count == 5)
+        #expect(tiles.first { $0.label == "Milestone" }?.enabledWhenMomentActive == true)
+        #expect(tiles.first { $0.label == "Opportunity" }?.enabledWhenMomentActive == false)
     }
 
     @Test func futureFamilyDefaultCodesIncludeGoalAdjacentCaps() {
@@ -69,5 +74,16 @@ struct PersonalActionRegistryTests {
         #expect(codes.contains("LEARNING_ACTIVITY_CREATE"))
         // GOAL_CREATE is in V019 set; hub surfaces milestone/progress/etc for Future Building.
         #expect(PersonalActionCode.goalCreate.rawValue == "GOAL_CREATE")
+    }
+
+    @Test func reflectTileIsVisibleButNotTappable() {
+        let tiles = PersonalActionRegistry.tiles(
+            for: .lifeOperations,
+            hasActiveMoment: true,
+            capabilityCodes: ["LIFE_OBSERVATION_RECORD"]
+        )
+        let reflect = tiles.first { $0.label == "Reflect" }
+        #expect(reflect != nil)
+        #expect(reflect?.tappable == false)
     }
 }

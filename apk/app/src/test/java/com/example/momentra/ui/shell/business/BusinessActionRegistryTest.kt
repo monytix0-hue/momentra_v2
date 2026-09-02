@@ -72,4 +72,13 @@ class BusinessActionRegistryTest {
         assertFalse(BusinessActionRegistry.isRunwayFinanceEnabled("TEAM_OPERATIONS"))
         assertFalse(BusinessActionRegistry.isRunwayFinanceEnabled("BUSINESS_OPERATIONS"))
     }
+
+    @Test
+    fun revenueInvoiceCapabilityRequiresRunwayMomentType() {
+        val caps = listOf(BusinessActionRegistry.REVENUE_RECORD, BusinessActionRegistry.INVOICE_CREATE)
+        assertFalse(BusinessQuickAddKind.REVENUE.isCapabilityEnabled(caps, "TEAM_OPERATIONS"))
+        assertFalse(BusinessQuickAddKind.INVOICE.isCapabilityEnabled(caps, "BUSINESS_OPERATIONS"))
+        assertTrue(BusinessQuickAddKind.REVENUE.isCapabilityEnabled(caps, "BUSINESS_RUNWAY"))
+        assertTrue(BusinessQuickAddKind.INVOICE.isCapabilityEnabled(caps, "BUSINESS_RUNWAY"))
+    }
 }

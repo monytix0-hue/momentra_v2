@@ -1,0 +1,8 @@
+Wave,Order Range,Focus,Primary Gaps,Entry Dependency,Exit Gate
+Wave 0,1-7,"Contract, security, migrations, canonical ownership",SP-001..SP-007,None,Authoritative API/security/schema/ownership baseline established.
+Wave 1,8-13,"Events, projections, refresh, metrics, state, client parity",SP-008..SP-013,Wave 0,Shared runtime rails are reliable and deterministic.
+Wave 2,20-29,Domain foundations,PER-001/002/008; GRP-001/002/003; Business canonical foundations,Waves 0-1,Required schema/API/governance/metric foundations exist.
+Wave 3,30-44,Domain vertical commands + reads,Personal domain setup; Group Quick Adds/settlement; Business Team Ops/Runway/Ops,Wave 2,Each domain command lands in correct canonical fact and reads are bound.
+Wave 4,45-60,Projection + Life + integration closure,PER-009; GRP-008; BUS-017..022,Waves 1-3,Write -> outbox -> projection -> refetch works across domains.
+Wave 5,90-99,Certification / production gate,SP-014..016; PER-010; GRP-009; BUS-023,All release-blocking dependencies,P0=0; P1 blockers=0 for launch scope; regression and NFR gates green.
+Deferred,110+,AI provenance + legacy cleanup,"SP-018, SP-017",Core launch complete,No fabricated intelligence; cleanup isolated from launch risk.

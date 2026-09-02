@@ -18,14 +18,21 @@ suspend fun loadGroupPulseTab(
         val pulseDeferred = async { repository.getPulse(momentId) }
         val financeDeferred = async { repository.getFinance(momentId) }
         val activityDeferred = async { repository.getActivity(momentId, limit = activityLimit) }
+        val insightsDeferred = async { repository.listAnalyticsInsights(scopeId = momentId) }
+        val metricsDeferred = async { repository.listAnalyticsMetrics(scopeId = momentId) }
+        val refreshDeferred = async { repository.refreshAnalytics(momentId = momentId) }
         val pulseFacet = pulseDeferred.await().getOrThrow()
         val financeFacet = financeDeferred.await().getOrThrow()
         val activities = activityDeferred.await().getOrThrow().items
+        val insights = insightsDeferred.await().getOrNull() ?: emptyList()
+        metricsDeferred.await()
+        refreshDeferred.await()
         val data = GroupPulseTabData(
             title = pulseFacet.title,
             pulse = pulseFacet.payload,
             finance = financeFacet.payload ?: pulseFacet.payload?.finance,
             activities = activities,
+            insights = insights,
         )
         GroupTabDataCache.putPulse(momentId, data)
         ShellPerf.end(mark, mapOf("context" to "GROUP", "parallel" to true, "cached" to false))

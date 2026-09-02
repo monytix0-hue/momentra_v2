@@ -25,54 +25,34 @@ struct GroupExpenseSheet: View {
     private let strategies = ["EQUAL", "PERCENTAGE", "EXACT", "SHARES"]
 
     var body: some View {
-        NavigationStack {
+        NativeSheetScaffold(
+            title: isWedding ? "Add Expense" : "Group expense",
+            onClose: { isPresented = false },
+            background: isWedding ? Color(hex: "#14121B") : TripSheetTokens.bg
+        ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    header
                     formCard
                     if let error {
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(Color(hex: "#F87171"))
                     }
-                    saveButton
                     Text("Split math is calculated on the server. Settlements use POST /v1/moments/:id/settlements.")
                         .font(.system(size: 11))
                         .foregroundStyle(isWedding ? Color(hex: "#C9C4D8") : TripSheetTokens.muted)
                 }
                 .padding(16)
             }
-            .background(isWedding ? Color(hex: "#14121B") : TripSheetTokens.bg)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { isPresented = false }
-                        .foregroundStyle(peach)
-                }
-            }
+        } footer: {
+            saveButton
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .background(isWedding ? Color(hex: "#14121B") : TripSheetTokens.bg)
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .task { await loadParticipants() }
-    }
-
-    private var header: some View {
-        HStack(spacing: 10) {
-            Text("💳")
-                .font(.system(size: 16))
-                .frame(width: 36, height: 36)
-                .background(accent.opacity(0.18))
-                .overlay(RoundedRectangle(cornerRadius: 18).stroke(accent.opacity(0.35)))
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(isWedding ? "Add Expense" : "Group expense")
-                    .font(.system(size: 18, weight: .heavy))
-                    .foregroundStyle(isWedding ? Color(hex: "#E5E0EE") : TripSheetTokens.text)
-                Text(isWedding ? "Track and split wedding costs" : "Split is computed on the server. Preview is local only.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(isWedding ? Color(hex: "#C9C4D8") : TripSheetTokens.muted)
-            }
-        }
     }
 
     private var formCard: some View {
@@ -87,6 +67,7 @@ struct GroupExpenseSheet: View {
                     .keyboardType(.decimalPad)
                     .font(.system(size: 26, weight: .heavy))
                     .foregroundStyle(Color(hex: "#E5E0EE"))
+                    .accessibilityIdentifier("group.expense.amount")
             }
             .padding(12)
             .background(Color(hex: "#201E28"))
@@ -100,6 +81,7 @@ struct GroupExpenseSheet: View {
                 .background(Color(hex: "#201E28"))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#938EA1"), lineWidth: 1))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
+                .accessibilityIdentifier("group.expense.note")
 
             fieldLabel("PAID BY")
             if loading {
@@ -145,6 +127,7 @@ struct GroupExpenseSheet: View {
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("group.expense.split.\(strategy.lowercased())")
                 }
             }
 
@@ -193,6 +176,7 @@ struct GroupExpenseSheet: View {
                         .padding(8)
                         .background(Color(hex: "#201E28"))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .accessibilityIdentifier("group.expense.split.value.\(id)")
                     }
                 }
             }
@@ -228,6 +212,7 @@ struct GroupExpenseSheet: View {
         .buttonStyle(.plain)
         .disabled(!canSubmit || submitting)
         .opacity(!canSubmit ? 0.55 : 1)
+        .accessibilityIdentifier("group.expense.submit")
     }
 
     private var canSubmit: Bool {

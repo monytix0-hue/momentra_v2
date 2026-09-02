@@ -1,6 +1,7 @@
 package com.example.momentra.ui.shell.group
 
 import com.example.momentra.data.api.ActivityItemDto
+import com.example.momentra.data.api.AnalyticsInsightItemDto
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupLifePayloadDto
 import com.example.momentra.data.api.GroupMemoryPayloadDto
@@ -14,6 +15,7 @@ object GroupTabDataCache {
         val pulse: GroupPulsePayloadDto?,
         val finance: GroupFinancePayloadDto?,
         val activities: List<ActivityItemDto>,
+        val insights: List<AnalyticsInsightItemDto> = emptyList(),
     )
 
     data class MemoryTab(
@@ -34,6 +36,7 @@ object GroupTabDataCache {
             pulse = data.pulse,
             finance = data.finance,
             activities = data.activities,
+            insights = data.insights,
         )
     }
 
@@ -70,4 +73,5 @@ data class GroupPulseTabData(
     val pulse: GroupPulsePayloadDto?,
     val finance: GroupFinancePayloadDto?,
     val activities: List<ActivityItemDto>,
+    val insights: List<AnalyticsInsightItemDto> = emptyList(),
 )

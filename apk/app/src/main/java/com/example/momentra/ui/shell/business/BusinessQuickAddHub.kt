@@ -195,7 +195,7 @@ fun BusinessQuickAddHub(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 chunk.forEach { kind ->
-                    val capOk = kind.isCapabilityEnabled(capabilities)
+                    val capOk = kind.isCapabilityEnabled(capabilities, momentTypeCode)
                     ActionTile(
                         kind = kind,
                         theme = theme,

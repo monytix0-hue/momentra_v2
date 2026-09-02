@@ -19,6 +19,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.momentra.R
 import com.example.momentra.data.api.BusinessInvoiceLineDto
@@ -28,6 +29,7 @@ import com.example.momentra.data.api.CreateBusinessMemoryBody
 import com.example.momentra.data.api.CreateBusinessRevenueBody
 import com.example.momentra.data.api.CreateBusinessUpdateBody
 import com.example.momentra.data.api.CreateTaxObligationBody
+import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.data.api.CreateInvestorUpdateBody
 import com.example.momentra.data.api.CreateBudgetAlertBody
 import com.example.momentra.data.api.CreateForecastScenarioBody
@@ -173,7 +175,13 @@ private fun RunwayRevenueForm(
         RunwayDropdownField(source, RevenueSources, { source = it }, "Select source")
     }
     FieldBlock("Amount") {
-        RunwayAmountField(amountDisplay, { amountDisplay = it }, accent, "₹ Enter revenue amount")
+        RunwayAmountField(
+            amountDisplay,
+            { amountDisplay = it },
+            accent,
+            "₹ Enter revenue amount",
+            modifier = Modifier.testTag(MaestroIds.BUSINESS_REVENUE_AMOUNT),
+        )
     }
     FieldBlock("Type") {
         RunwaySegmentedControl(listOf("Recurring", "One-time"), revenueType, accent) { revenueType = it }
@@ -217,6 +225,7 @@ private fun RunwayRevenueForm(
                 )
             }
         },
+        modifier = Modifier.testTag(MaestroIds.BUSINESS_REVENUE_SUBMIT),
     )
 }
 
@@ -643,13 +652,25 @@ private fun RunwayInvoiceForm(
         onClose = onDismiss,
     )
     FieldBlock("Client") {
-        RunwayTextField(client, { client = it }, "Client name", accent)
+        RunwayTextField(
+            client,
+            { client = it },
+            "Client name",
+            accent,
+            modifier = Modifier.testTag(MaestroIds.BUSINESS_INVOICE_CUSTOMER),
+        )
     }
     FieldBlock("Invoice Number") {
         RunwayTextField(invoiceNumber, { invoiceNumber = it }, "INV-001", accent)
     }
     FieldBlock("Amount") {
-        RunwayAmountField(amountDisplay, { amountDisplay = it }, accent, "₹ Enter amount")
+        RunwayAmountField(
+            amountDisplay,
+            { amountDisplay = it },
+            accent,
+            "₹ Enter amount",
+            modifier = Modifier.testTag(MaestroIds.BUSINESS_INVOICE_AMOUNT),
+        )
     }
     FieldBlock("Issue Date") { RunwayDateField(isoDate = issueDate, onIsoDateChange = { issueDate = it }) }
     FieldBlock("Due Date") { RunwayDateField(isoDate = dueDate, onIsoDateChange = { dueDate = it }) }
@@ -691,6 +712,7 @@ private fun RunwayInvoiceForm(
                 )
             }
         },
+        modifier = Modifier.testTag(MaestroIds.BUSINESS_INVOICE_SUBMIT),
     )
 }
 

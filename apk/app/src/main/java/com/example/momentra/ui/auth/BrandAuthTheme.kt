@@ -2,17 +2,20 @@ package com.example.momentra.ui.auth
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -104,32 +107,33 @@ fun BrandTextField(
     modifier: Modifier = Modifier,
     visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
-    BasicTextField(
+    OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         visualTransformation = visualTransformation,
-        modifier = modifier
-            .fillMaxWidth()
-            .background(MomentraBrandColors.Indigo500, InputShape)
-            .border(1.dp, MomentraBrandColors.Indigo100, InputShape)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = modifier.fillMaxWidth(),
+        shape = InputShape,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MomentraBrandColors.Indigo500,
+            unfocusedContainerColor = MomentraBrandColors.Indigo500,
+            disabledContainerColor = MomentraBrandColors.Indigo500,
+            focusedBorderColor = MomentraBrandColors.Indigo100,
+            unfocusedBorderColor = MomentraBrandColors.Indigo100,
+            cursorColor = MomentraBrandColors.TextOnDark,
+            focusedTextColor = MomentraBrandColors.TextOnDark,
+            unfocusedTextColor = MomentraBrandColors.TextOnDark,
+        ),
+        placeholder = {
+            Text(
+                text = placeholder,
+                color = MomentraBrandColors.TextOnDark.copy(alpha = 0.45f),
+                fontSize = 13.sp,
+            )
+        },
         textStyle = TextStyle(
-            color = MomentraBrandColors.TextOnDark,
             fontSize = 13.sp,
         ),
-        cursorBrush = SolidColor(MomentraBrandColors.TextOnDark),
-        decorationBox = { inner ->
-            Box {
-                if (value.isEmpty()) {
-                    Text(
-                        text = placeholder,
-                        color = MomentraBrandColors.TextOnDark.copy(alpha = 0.45f),
-                        fontSize = 13.sp,
-                    )
-                }
-                inner()
-            }
-        },
+        singleLine = true,
     )
 }
 
@@ -146,25 +150,27 @@ fun BrandFieldLabel(text: String) {
 
 @Composable
 fun BrandOrDivider(modifier: Modifier = Modifier) {
-    Box(
+    Row(
         modifier = modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .heightIn(min = 1.dp)
-                .background(Color.White.copy(alpha = 0.15f)),
+        HorizontalDivider(
+            modifier = Modifier.weight(1f).padding(start = 24.dp),
+            color = Color.White.copy(alpha = 0.15f),
+            thickness = 1.dp,
         )
         Text(
             text = "or",
             color = MomentraBrandColors.TextOnDark.copy(alpha = 0.55f),
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
-            modifier = Modifier
-                .background(MomentraBrandColors.Brand)
-                .padding(horizontal = 8.dp),
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f).padding(end = 24.dp),
+            color = Color.White.copy(alpha = 0.15f),
+            thickness = 1.dp,
         )
     }
 }

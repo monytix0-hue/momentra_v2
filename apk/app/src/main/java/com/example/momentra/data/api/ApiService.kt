@@ -217,6 +217,12 @@ interface ApiService {
         @Body body: UpdateLifestyleActivityBody,
     ): SuccessEnvelope<CreateLifestyleActivityResultDto>
 
+    @DELETE("v1/moments/{momentId}/lifestyle-activities/{activityId}")
+    suspend fun voidLifestyleActivity(
+        @Path("momentId") momentId: String,
+        @Path("activityId") activityId: String,
+    ): SuccessEnvelope<VoidLifestyleActivityResultDto>
+
     @GET("v1/moments/{momentId}/expenses/{expenseId}")
     suspend fun getExpense(
         @Path("momentId") momentId: String,
@@ -303,6 +309,20 @@ interface ApiService {
         @Body body: CreateRecurringScheduleBody,
     ): SuccessEnvelope<RecurringScheduleDto>
 
+    @PATCH("v1/moments/{momentId}/recurring-schedules/{scheduleId}")
+    suspend fun updateRecurringSchedule(
+        @Path("momentId") momentId: String,
+        @Path("scheduleId") scheduleId: String,
+        @Body body: UpdateRecurringScheduleBody,
+    ): SuccessEnvelope<RecurringScheduleDto>
+
+    @POST("v1/moments/{momentId}/recurring-schedules/{scheduleId}/generate")
+    suspend fun generateRecurringInstance(
+        @Path("momentId") momentId: String,
+        @Path("scheduleId") scheduleId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+    ): SuccessEnvelope<GenerateRecurringInstanceResultDto>
+
     @GET("v1/personal/activity")
     suspend fun getPersonalActivity(
         @Query("momentId") momentId: String? = null,
@@ -312,6 +332,53 @@ interface ApiService {
 
     @GET("v1/personal/memory")
     suspend fun getPersonalMemory(): SuccessEnvelope<PersonalMemoryDto>
+
+    @GET("v1/personal/attention")
+    suspend fun getPersonalAttention(): SuccessEnvelope<PersonalAttentionDto>
+
+    @GET("v1/personal/setups")
+    suspend fun getPersonalSetups(): SuccessEnvelope<PersonalSetupsDto>
+
+    @POST("v1/personal/setups/{systemCode}/activate")
+    suspend fun activatePersonalSetup(
+        @Path("systemCode") systemCode: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: ActivatePersonalSetupBody,
+    ): SuccessEnvelope<ActivatePersonalSetupResultDto>
+
+    @GET("v1/business/setups")
+    suspend fun getBusinessSetups(): SuccessEnvelope<BusinessSetupsDto>
+
+    @POST("v1/business/setups/{familyCode}/activate")
+    suspend fun activateBusinessSetup(
+        @Path("familyCode") familyCode: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: ActivateBusinessSetupBody,
+    ): SuccessEnvelope<ActivateBusinessSetupResultDto>
+
+    @GET("v1/finance/expense-categories")
+    suspend fun listExpenseCategories(): SuccessEnvelope<ExpenseCategoriesDto>
+
+    @POST("v1/moments/{momentId}/goals")
+    suspend fun createGoal(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: CreateGoalBody,
+    ): SuccessEnvelope<CreateGoalResultDto>
+
+    @POST("v1/moments/{momentId}/tasks")
+    suspend fun createTask(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: CreateTaskBody,
+    ): SuccessEnvelope<CreateTaskResultDto>
+
+    @POST("v1/ai/action-proposals/{actionProposalId}/execute")
+    suspend fun executeActionProposal(
+        @Path("actionProposalId") actionProposalId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any> = emptyMap(),
+    ): SuccessEnvelope<ExecuteActionProposalResultDto>
 
     @POST("v1/moments/{momentId}/relationship-activities")
     suspend fun recordRelationshipActivity(
@@ -437,13 +504,40 @@ interface ApiService {
     ): SuccessEnvelope<IdResultDto>
 
     @GET("v1/group/moments/{momentId}/polls")
-    suspend fun listPolls(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, Any?>>
+    suspend fun listPolls(@Path("momentId") momentId: String): SuccessEnvelope<GroupPollsDto>
 
     @POST("v1/moments/{momentId}/polls")
     suspend fun createPoll(
         @Path("momentId") momentId: String,
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: CreatePollBody,
+    ): SuccessEnvelope<IdResultDto>
+
+    @GET("v1/polls/{pollId}")
+    suspend fun getPoll(@Path("pollId") pollId: String): SuccessEnvelope<GroupPollDetailDto>
+
+    @POST("v1/polls/{pollId}/votes")
+    suspend fun votePoll(
+        @Path("pollId") pollId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: VotePollBody,
+    ): SuccessEnvelope<IdResultDto>
+
+    @POST("v1/polls/{pollId}/close")
+    suspend fun closePoll(
+        @Path("pollId") pollId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, Nothing> = emptyMap(),
+    ): SuccessEnvelope<IdResultDto>
+
+    @GET("v1/group/moments/{momentId}/living-rules")
+    suspend fun listLivingRules(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, Any?>>
+
+    @POST("v1/moments/{momentId}/living-rules")
+    suspend fun createLivingRule(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: CreateLivingRuleBody,
     ): SuccessEnvelope<IdResultDto>
 
     @GET("v1/group/moments/{momentId}/updates")
@@ -464,6 +558,26 @@ interface ApiService {
         @Path("momentId") momentId: String,
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: CreatePurchaseItemBody,
+    ): SuccessEnvelope<IdResultDto>
+
+    @GET("v1/group/moments/{momentId}/delivery-handovers")
+    suspend fun listDeliveryHandovers(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, Any?>>
+
+    @POST("v1/moments/{momentId}/delivery-handovers")
+    suspend fun createDeliveryHandover(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: CreateDeliveryHandoverBody,
+    ): SuccessEnvelope<IdResultDto>
+
+    @GET("v1/group/moments/{momentId}/ownership-records")
+    suspend fun listOwnershipRecords(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, Any?>>
+
+    @POST("v1/moments/{momentId}/ownership-records")
+    suspend fun createOwnershipRecord(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: CreateOwnershipRecordBody,
     ): SuccessEnvelope<IdResultDto>
 
     @GET("v1/group/moments/{momentId}/residents")
@@ -804,6 +918,11 @@ interface ApiService {
 
     // --- Wave 3 GET projections ---
 
+    @GET("v1/business/moments/{momentId}/actions")
+    suspend fun getBusinessActions(
+        @Path("momentId") momentId: String,
+    ): SuccessEnvelope<BusinessActionsDto>
+
     @GET("v1/business/moments/{momentId}/capacity")
     suspend fun getBusinessCapacity(
         @Path("momentId") momentId: String,
@@ -838,4 +957,161 @@ interface ApiService {
     suspend fun listCompanyVendors(
         @Path("companyId") companyId: String,
     ): SuccessEnvelope<VendorListDto>
+
+    // --- Route parity (SUPP-010) ---
+    @GET("v1/companies/{companyId}")
+    suspend fun getCompany(@Path("companyId") companyId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @PATCH("v1/companies/{companyId}")
+    suspend fun patchCompany(
+        @Path("companyId") companyId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @PATCH("v1/companies/{companyId}/locations/{locationId}")
+    suspend fun patchLocation(
+        @Path("companyId") companyId: String,
+        @Path("locationId") locationId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/companies/{companyId}/teams")
+    suspend fun listTeams(@Path("companyId") companyId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @POST("v1/companies/{companyId}/teams")
+    suspend fun createTeam(
+        @Path("companyId") companyId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/moments/{momentId}/activity")
+    suspend fun getMomentActivity(
+        @Path("momentId") momentId: String,
+        @Query("cursor") cursor: String? = null,
+        @Query("limit") limit: Int = 20,
+    ): SuccessEnvelope<CursorPageDto<ActivityItemDto>>
+
+    @GET("v1/moments/{momentId}/income/{incomeId}")
+    suspend fun getIncome(
+        @Path("momentId") momentId: String,
+        @Path("incomeId") incomeId: String,
+    ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @PATCH("v1/moments/{momentId}/income/{incomeId}")
+    suspend fun patchIncome(
+        @Path("momentId") momentId: String,
+        @Path("incomeId") incomeId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @DELETE("v1/moments/{momentId}")
+    suspend fun deleteMoment(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): SuccessEnvelope<MomentLifecycleResultDto>
+
+    @GET("v1/personal/moments/{momentId}/mood-history")
+    suspend fun getPersonalMoodHistory(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/personal/moments/{momentId}/adjustment-insight")
+    suspend fun getPersonalAdjustmentInsight(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/personal/moments/{momentId}/activity-summary")
+    suspend fun getPersonalActivitySummary(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/personal/moments/{momentId}/money-journey")
+    suspend fun getPersonalMoneyJourney(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/personal/moments/{momentId}/future-runtime-summary")
+    suspend fun getPersonalFutureRuntimeSummary(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/personal/moments/{momentId}/future-inventory")
+    suspend fun getPersonalFutureInventory(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/personal/moments/{momentId}/future-journey")
+    suspend fun getPersonalFutureJourney(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @PATCH("v1/personal/moments/{momentId}/future-profile")
+    suspend fun patchPersonalFutureProfile(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/personal/moments/{momentId}/lifestyle-runtime-summary")
+    suspend fun getPersonalLifestyleRuntimeSummary(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/personal/moments/{momentId}/lifestyle-inventory")
+    suspend fun getPersonalLifestyleInventory(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/personal/moments/{momentId}/lifestyle-journey")
+    suspend fun getPersonalLifestyleJourney(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @PATCH("v1/personal/moments/{momentId}/lifestyle-profile")
+    suspend fun patchPersonalLifestyleProfile(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/personal/moments/{momentId}/relationships-runtime-summary")
+    suspend fun getPersonalRelationshipsRuntimeSummary(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/personal/moments/{momentId}/relationships-connections")
+    suspend fun getPersonalRelationshipsConnections(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/personal/moments/{momentId}/relationships-journey")
+    suspend fun getPersonalRelationshipsJourney(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @PATCH("v1/personal/moments/{momentId}/relationships-profile")
+    suspend fun patchPersonalRelationshipsProfile(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @PATCH("v1/personal/moments/{momentId}/life-ops-profile")
+    suspend fun patchPersonalLifeOpsProfile(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/group/moments/{momentId}/vendors")
+    suspend fun listGroupVendors(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/moments/{momentId}/memories/{memoryId}/media")
+    suspend fun listMemoryMedia(
+        @Path("momentId") momentId: String,
+        @Path("memoryId") memoryId: String,
+    ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/business/moments/{momentId}/expenses")
+    suspend fun listBusinessExpenses(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/business/moments/{momentId}/revenues")
+    suspend fun listBusinessRevenues(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/business/moments/{momentId}/invoices")
+    suspend fun listBusinessInvoices(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/business/moments/{momentId}/issues")
+    suspend fun listBusinessIssues(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/business/moments/{momentId}/improvements")
+    suspend fun listBusinessImprovements(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/business/moments/{momentId}/updates")
+    suspend fun listBusinessUpdates(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/business/moments/{momentId}/approvals")
+    suspend fun listBusinessApprovals(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
+    @GET("v1/business/moments/{momentId}/memories")
+    suspend fun listBusinessMemories(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
 }

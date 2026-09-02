@@ -1,0 +1,7 @@
+Field,Meaning
+Root Gap,One deduplicated remediation unit; repeated symptoms across audits map to this row.
+Depends On,Gap IDs that should be closed/established before this row can be certified.
+Execution Order,Suggested dependency-respecting order; same-range items may execute in parallel.
+OPEN,Root cause remains to be implemented and/or validated.
+DEFERRED,Explicitly non-blocking for launch if product/release agrees.
+Exit / Validation Evidence,Mandatory proof for closure; implementation without evidence is not CLOSED.

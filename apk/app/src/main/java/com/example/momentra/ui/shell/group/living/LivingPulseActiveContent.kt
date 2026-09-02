@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ActivityItemDto
+import com.example.momentra.data.api.AnalyticsInsightItemDto
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupLifePlanningItemDto
 import com.example.momentra.data.api.GroupParticipantDto
@@ -44,6 +45,7 @@ import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.group.GroupActiveLoading
 import com.example.momentra.ui.shell.group.GroupFinanceFormat
+import com.example.momentra.ui.shell.group.GroupPulseInsightsHeroCard
 import com.example.momentra.ui.shell.group.GroupTabDataCache
 import com.example.momentra.ui.shell.group.loadGroupPulseTab
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -72,6 +74,7 @@ fun LivingPulseActiveContent(
     var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
     var planningItems by remember { mutableStateOf<List<GroupLifePlanningItemDto>>(emptyList()) }
     var residents by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
+    var insights by remember { mutableStateOf<List<AnalyticsInsightItemDto>>(emptyList()) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -86,6 +89,7 @@ fun LivingPulseActiveContent(
             pulse = cached.pulse
             finance = cached.finance
             activities = cached.activities
+            insights = cached.insights
             loading = false
         } ?: run { loading = true }
         loadGroupPulseTab(repository, momentId).fold(
@@ -94,6 +98,7 @@ fun LivingPulseActiveContent(
                 pulse = data.pulse
                 finance = data.finance
                 activities = data.activities
+                insights = data.insights
                 loading = false
             },
             onFailure = { e ->
@@ -403,30 +408,13 @@ fun LivingPulseActiveContent(
             }
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(theme.heroGradient)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("🧠 ${theme.insightsTitle}", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
-            Text("AI insights are not live yet — nothing is invented.", color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp, fontFamily = PlusJakartaSans)
-            Text(
-                "+ Open Quick Add",
-                color = theme.darkText,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = PlusJakartaSans,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White)
-                    .clickable(onClick = onOpenQuickAdd)
-                    .padding(vertical = 14.dp),
-            )
-        }
+        GroupPulseInsightsHeroCard(
+            headerTitle = "🧠 ${theme.insightsTitle}",
+            insights = insights,
+            gradient = theme.pulseHeroGradient,
+            footerLabel = "+ Open Quick Add",
+            onFooterClick = onOpenQuickAdd,
+        )
     }
 }
 

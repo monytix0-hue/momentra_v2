@@ -951,6 +951,35 @@ paths:
           $ref: './schemas/responses.yaml#/Error409Version'
         '500':
           $ref: './schemas/responses.yaml#/Error500'
+  /group/moments/{momentId}/delivery-handovers:
+    get:
+      operationId: listDeliveryHandovers
+      summary: List delivery handovers
+      tags: ["Collaboration"]
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ProjectionEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
   /group/moments/{momentId}/finance:
     get:
       operationId: getGroupMomentFinance
@@ -1014,6 +1043,35 @@ paths:
       operationId: getGroupMomentMemory
       summary: Group moment memory projection
       tags: ["Group"]
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ProjectionEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /group/moments/{momentId}/ownership-records:
+    get:
+      operationId: listOwnershipRecords
+      summary: List ownership records
+      tags: ["Collaboration"]
       x-momentra-kind: read
       x-momentra-impl: IMPLEMENTED
       parameters:
@@ -1592,6 +1650,45 @@ paths:
           $ref: './schemas/responses.yaml#/Error409Version'
         '500':
           $ref: './schemas/responses.yaml#/Error500'
+  /moments/{momentId}/delivery-handovers:
+    post:
+      operationId: createDeliveryHandover
+      summary: Plan delivery handover
+      tags: ["Collaboration"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - $ref: '#/components/parameters/idempotencyKeyHeader'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '409':
+          $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
   /moments/{momentId}/expenses:
     post:
       operationId: createExpense
@@ -1748,6 +1845,71 @@ paths:
           $ref: './schemas/responses.yaml#/Error409Version'
         '500':
           $ref: './schemas/responses.yaml#/Error500'
+  /moments/{momentId}/lifestyle-activities/{activityId}:
+    patch:
+      operationId: updateLifestyleActivity
+      summary: Update lifestyle activity
+      tags: ["Personal"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - $ref: '#/components/parameters/activityIdParam'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+    delete:
+      operationId: voidLifestyleActivity
+      summary: Void lifestyle activity
+      tags: ["Personal"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - $ref: '#/components/parameters/activityIdParam'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
   /moments/{momentId}/memories:
     post:
       operationId: createMemory
@@ -1870,6 +2032,45 @@ paths:
       operationId: recordObservation
       summary: Record observation
       tags: ["Personal"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - $ref: '#/components/parameters/idempotencyKeyHeader'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '409':
+          $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /moments/{momentId}/ownership-records:
+    post:
+      operationId: createOwnershipRecord
+      summary: Record ownership transfer
+      tags: ["Collaboration"]
       x-momentra-kind: command
       x-momentra-impl: IMPLEMENTED
       x-momentra-idempotency: required
@@ -2388,7 +2589,7 @@ paths:
       summary: Get poll
       tags: ["Poll"]
       x-momentra-kind: read
-      x-momentra-impl: CONTRACT_ONLY
+      x-momentra-impl: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/pollIdParam'
         - $ref: '#/components/parameters/correlationIdHeader'
@@ -2417,7 +2618,7 @@ paths:
       summary: Close poll
       tags: ["Poll"]
       x-momentra-kind: command
-      x-momentra-impl: CONTRACT_ONLY
+      x-momentra-impl: IMPLEMENTED
       x-momentra-idempotency: required
       x-momentra-occ: required
       parameters:
@@ -2457,7 +2658,7 @@ paths:
       summary: Cast poll vote
       tags: ["Poll"]
       x-momentra-kind: command
-      x-momentra-impl: CONTRACT_ONLY
+      x-momentra-impl: IMPLEMENTED
       x-momentra-idempotency: required
       parameters:
         - $ref: '#/components/parameters/pollIdParam'

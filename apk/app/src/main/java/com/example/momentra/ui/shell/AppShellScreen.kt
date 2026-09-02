@@ -67,6 +67,7 @@ import com.example.momentra.ui.shell.components.label
 import com.example.momentra.ui.shell.empty.ContextEmptyExperience
 import com.example.momentra.ui.shell.empty.GroupCreateFlow
 import com.example.momentra.ui.shell.empty.group.GroupCreatePhase
+import com.example.momentra.ui.shell.empty.group.GroupJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
 import com.example.momentra.ui.shell.empty.personal.PersonalCreateEmptyContent
 import com.example.momentra.ui.shell.empty.BusinessCreateFlow
@@ -192,9 +193,11 @@ fun AppShellScreen(
     val prefs = remember { AppPreferences(context) }
     val state by shellViewModel.state.collectAsState()
 
+    var pendingGroupJoinCode by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(state.identity?.userId) {
         val code = PendingJoinInvite.consume(prefs) ?: return@LaunchedEffect
-        shellViewModel.redeemGroupInvite(code) { }
+        pendingGroupJoinCode = code
     }
 
     var moneyQa by remember { mutableStateOf<MoneyQuickAddKind?>(null) }
@@ -350,6 +353,11 @@ fun AppShellScreen(
                     onSettings = {
                         if (state.selectedMomentId != null) showManageMoment = true
                     },
+                    onInvite = if (state.selectedContext == AppContext.GROUP) {
+                        { groupInviteSheetOpen = true }
+                    } else {
+                        null
+                    },
                 )
             }
             Row(
@@ -433,28 +441,7 @@ fun AppShellScreen(
                         preferGroupCreateFlow = false
                         shellViewModel.onMomentCreated(id, title, momentTypeCode)
                     },
-                    onJoinGroupCode = { code ->
-                        shellViewModel.redeemGroupInvite(code) { result ->
-                            result.fold(
-                                onSuccess = {
-                                    preferGroupCreateFlow = false
-                                    groupCreatePhase = GroupCreatePhase.CHOOSER
-                                    Toast.makeText(
-                                        context,
-                                        if (it.alreadyMember) "Already a member" else "Joined group",
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
-                                },
-                                onFailure = {
-                                    Toast.makeText(
-                                        context,
-                                        it.message ?: "Could not join",
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
-                                },
-                            )
-                        }
-                    },
+                    onJoinGroupCode = { code -> pendingGroupJoinCode = code },
                     preferGroupCreateFlow = preferGroupCreateFlow,
                     onPreferGroupCreateFlow = { preferGroupCreateFlow = it },
                     groupCreatePhase = groupCreatePhase,
@@ -615,10 +602,13 @@ fun AppShellScreen(
                 isWedding = isWeddingFinance,
             )
             if (state.selectedMomentId != null) {
+                val groupInviteTypeCode = state.selectedMomentTypeCode
+                    ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.momentTypeCode
+                    ?: "TRIP"
                 GroupInvitePeopleSheet(
                     momentId = state.selectedMomentId!!,
                     momentTitle = state.selectedMomentTitle ?: "Trip",
-                    momentTypeCode = state.selectedMomentTypeCode ?: "TRIP",
+                    momentTypeCode = groupInviteTypeCode,
                     visible = groupInviteSheetOpen,
                     onDismiss = { groupInviteSheetOpen = false },
                     onSaved = { shellViewModel.refreshVisibleGroupTab() },
@@ -717,26 +707,7 @@ fun AppShellScreen(
             GroupJoinQrScanner(
                 onCode = { code ->
                     showJoinQrScanner = false
-                    shellViewModel.redeemGroupInvite(code) { result ->
-                        result.fold(
-                            onSuccess = {
-                                preferGroupCreateFlow = false
-                                groupCreatePhase = GroupCreatePhase.CHOOSER
-                                Toast.makeText(
-                                    context,
-                                    if (it.alreadyMember) "Already a member" else "Joined group",
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            },
-                            onFailure = {
-                                Toast.makeText(
-                                    context,
-                                    it.message ?: "Could not join",
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            },
-                        )
-                    }
+                    pendingGroupJoinCode = code
                 },
                 onCompanyCode = { code ->
                     showJoinQrScanner = false
@@ -760,6 +731,36 @@ fun AppShellScreen(
                     }
                 },
                 onDismiss = { showJoinQrScanner = false },
+            )
+        }
+        pendingGroupJoinCode?.let { code ->
+            GroupJoinConfirmSheet(
+                code = code,
+                visible = true,
+                onDismiss = { pendingGroupJoinCode = null },
+                onJoin = {
+                    shellViewModel.redeemGroupInvite(code) { result ->
+                        result.fold(
+                            onSuccess = {
+                                pendingGroupJoinCode = null
+                                preferGroupCreateFlow = false
+                                groupCreatePhase = GroupCreatePhase.CHOOSER
+                                Toast.makeText(
+                                    context,
+                                    if (it.alreadyMember) "Already a member" else "Joined group",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            },
+                            onFailure = {
+                                Toast.makeText(
+                                    context,
+                                    it.message ?: "Could not join",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            },
+                        )
+                    }
+                },
             )
         }
         if (state.selectedMomentId != null && state.selectedContext == AppContext.BUSINESS) {
@@ -1366,6 +1367,9 @@ private fun ShellDestinationContent(
                                     onAddExpense = onAddExpense,
                                     onViewSplits = onViewSplits,
                                     onOpenFinance = onOpenGroupFinance,
+                                    onOpenMemory = onAddMemory,
+                                    onOpenChat = onAddUpdate,
+                                    onOpenItinerary = onAddPlanning,
                                 )
                             }
                         }
@@ -1500,6 +1504,7 @@ private fun ShellDestinationContent(
                                     momentId = selectedMomentId,
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = groupTabRefreshToken,
+                                    onOpenQuickAdd = onAddMemory,
                                 )
                             }
                         }

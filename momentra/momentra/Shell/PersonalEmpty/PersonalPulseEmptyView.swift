@@ -9,20 +9,35 @@ struct PersonalPulseEmptyView: View {
     private let blueDeep = PersonalEmptyTokens.blueDeep
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 28) {
-                hero
-                startJourneyRow
-                futurePulsePreview
-                operationalSignals
-                whatMomentraLearns
+        List {
+            Section { hero }
+                .listRowInsets(EdgeInsets(top: 28, leading: 20, bottom: 0, trailing: 20))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            Section { startJourneyRow }
+                .listRowInsets(EdgeInsets(top: 28, leading: 20, bottom: 0, trailing: 20))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            Section { futurePulsePreview }
+                .listRowInsets(EdgeInsets(top: 28, leading: 20, bottom: 0, trailing: 20))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            Section { operationalSignals }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            Section { whatMomentraLearns }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            Section {
                 PersonalQuoteBar(text: "\"Start your journey to build a system that grows with you.\"")
                 PersonalHistorySection(title: "Recent moments", history: history)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 28)
-            .padding(.bottom, 34)
+            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 34, trailing: 20))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .background(
             LinearGradient(
                 colors: [Color(hex: "#1A1726"), Color(hex: "#0F0D15")],
@@ -37,12 +52,12 @@ struct PersonalPulseEmptyView: View {
     private var hero: some View {
         VStack(spacing: 14) {
             Text("Your Personal Operating System")
-                .font(.system(size: 28, weight: .heavy))
+                .font(.plusJakarta(size: 28, weight: .heavy))
                 .foregroundStyle(PersonalEmptyTokens.text)
                 .multilineTextAlignment(.center)
                 .shadow(color: PersonalEmptyTokens.purple.opacity(0.3), radius: 6)
             Text("Life moves through commitments, money, energy, experiences, and relationships.")
-                .font(.system(size: 15))
+                .font(.plusJakarta(size: 15))
                 .foregroundStyle(PersonalEmptyTokens.muted)
                 .multilineTextAlignment(.center)
                 .lineSpacing(6)
@@ -58,10 +73,10 @@ struct PersonalPulseEmptyView: View {
                     .frame(width: 4, height: 48)
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Start Your Journey")
-                        .font(.system(size: 19, weight: .bold))
+                        .font(.plusJakarta(size: 19, weight: .bold))
                         .foregroundStyle(PersonalEmptyTokens.text)
                     Text("Activate your personal operating system.")
-                        .font(.system(size: 14))
+                        .font(.plusJakarta(size: 14))
                         .foregroundStyle(PersonalEmptyTokens.secondary)
                 }
                 Spacer(minLength: 8)
@@ -115,7 +130,7 @@ struct PersonalPulseEmptyView: View {
                         }
                         .frame(height: 6)
                         Text("68% analyzed")
-                            .font(.system(size: 11))
+                            .font(.plusJakarta(size: 11))
                             .foregroundStyle(Color(hex: "#E5E7EB").opacity(0.75))
                     }
                 }
@@ -156,7 +171,7 @@ struct PersonalPulseEmptyView: View {
             .clipShape(RoundedRectangle(cornerRadius: 20))
 
             Text("Your future pulse will form here.")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.plusJakarta(size: 17, weight: .semibold))
                 .foregroundStyle(PersonalEmptyTokens.muted)
                 .multilineTextAlignment(.center)
 
@@ -177,11 +192,11 @@ struct PersonalPulseEmptyView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(title)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.plusJakarta(size: 12, weight: .bold))
                     .foregroundStyle(Color(hex: "#E5E7EB").opacity(0.9))
                 Spacer()
                 Text(chip)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.plusJakarta(size: 11, weight: .bold))
                     .foregroundStyle(chipColor)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
@@ -201,7 +216,7 @@ struct PersonalPulseEmptyView: View {
     private var operationalSignals: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("OPERATIONAL SIGNALS")
-                .font(.system(size: 12, weight: .bold))
+                .font(.plusJakarta(size: 12, weight: .bold))
                 .tracking(1.4)
                 .foregroundStyle(PersonalEmptyTokens.purple)
 
@@ -224,11 +239,11 @@ struct PersonalPulseEmptyView: View {
         VStack(spacing: 8) {
             PersonalIconCircle(glyph: glyph, accent: accent, deep: deep, size: 32)
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.plusJakarta(size: 11, weight: .semibold))
                 .foregroundStyle(PersonalEmptyTokens.text)
             HStack(spacing: 4) {
                 Text("-")
-                    .font(.system(size: 10))
+                    .font(.plusJakarta(size: 10))
                     .foregroundStyle(PersonalEmptyTokens.subtle)
                 Circle()
                     .fill(accent)
@@ -252,7 +267,7 @@ struct PersonalPulseEmptyView: View {
                     size: 36
                 )
                 Text("WHAT MOMENTRA LEARNS")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.plusJakarta(size: 12, weight: .bold))
                     .tracking(1.4)
                     .foregroundStyle(PersonalEmptyTokens.secondary)
             }
@@ -270,7 +285,7 @@ struct PersonalPulseEmptyView: View {
             }
 
             Text("Start your journey to build a system that grows with you.")
-                .font(.system(size: 13))
+                .font(.plusJakarta(size: 13))
                 .foregroundStyle(PersonalEmptyTokens.muted)
         }
         .padding(20)
@@ -294,10 +309,10 @@ struct PersonalPulseEmptyView: View {
         VStack(spacing: 8) {
             PersonalIconCircle(glyph: glyph, accent: accent, deep: deep, size: 32)
             Text(number)
-                .font(.system(size: 9, weight: .semibold))
+                .font(.plusJakarta(size: 9, weight: .semibold))
                 .foregroundStyle(PersonalEmptyTokens.text)
             Text(label)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.plusJakarta(size: 10, weight: .semibold))
                 .foregroundStyle(PersonalEmptyTokens.text)
         }
         .padding(12)

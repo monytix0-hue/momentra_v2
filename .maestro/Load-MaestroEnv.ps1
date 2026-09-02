@@ -1,5 +1,6 @@
 # Dot-source from run-android.ps1 / run-qa-android.ps1
 # Maestro CLI does not inherit shell env for ${VAR} in flows — pass -e KEY=VALUE.
+# IMPORTANT: never name a local array $args (PowerShell automatic variable).
 
 function Import-MaestroEnvFile {
   param(
@@ -24,14 +25,14 @@ function Get-MaestroEnvCliArgs {
     [Parameter(Mandatory = $true)][string]$EnvFile,
     [string]$RunId = ""
   )
-  $args = @()
+  $cliArgs = [System.Collections.Generic.List[string]]::new()
   if (-not (Test-Path $EnvFile)) {
     if ($RunId) {
       Set-Item -Path Env:MAESTRO_RUN_ID -Value $RunId
-      $args += '-e'
-      $args += "MAESTRO_RUN_ID=$RunId"
+      $cliArgs.Add('-e')
+      $cliArgs.Add("MAESTRO_RUN_ID=$RunId")
     }
-    return $args
+    return ,$cliArgs.ToArray()
   }
   Get-Content $EnvFile | ForEach-Object {
     $line = $_.Trim()
@@ -41,14 +42,14 @@ function Get-MaestroEnvCliArgs {
       $val = $Matches[2].Trim().Trim("'").Trim('"')
       if ($key -eq 'MAESTRO_RUN_ID') { return }
       Set-Item -Path "Env:$key" -Value $val -ErrorAction SilentlyContinue
-      $args += '-e'
-      $args += "${key}=${val}"
+      $cliArgs.Add('-e')
+      $cliArgs.Add("${key}=${val}")
     }
   }
   if ($RunId) {
     Set-Item -Path Env:MAESTRO_RUN_ID -Value $RunId
-    $args += '-e'
-    $args += "MAESTRO_RUN_ID=$RunId"
+    $cliArgs.Add('-e')
+    $cliArgs.Add("MAESTRO_RUN_ID=$RunId")
   }
-  return $args
+  return ,$cliArgs.ToArray()
 }

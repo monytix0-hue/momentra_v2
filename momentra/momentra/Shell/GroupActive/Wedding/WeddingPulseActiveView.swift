@@ -14,6 +14,7 @@ struct WeddingPulseActiveView: View {
     @State private var pulse: APIClient.GroupPulsePayload?
     @State private var finance: APIClient.GroupFinancePayload?
     @State private var activities: [APIClient.ActivityItemPayload] = []
+    @State private var insights: [AnalyticsInsightItemPayload] = []
     @State private var title: String?
     @State private var loading = true
     @State private var error: String?
@@ -30,6 +31,7 @@ struct WeddingPulseActiveView: View {
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
+    @ViewBuilder
     private var content: some View {
         let total = finance?.totals?.first
         let currency = total?.currencyCode ?? "INR"
@@ -42,7 +44,10 @@ struct WeddingPulseActiveView: View {
         let attentionCount = pulse?.payload?.attentionCount ?? 0
         let openTasks = pulse?.payload?.openTaskCount ?? 0
         let positions = finance?.positions ?? []
-        return ScrollView {
+        NativeDashboardScaffold(background: WeddingActiveTheme.bg) {
+
+            NativeListSection {
+
             VStack(alignment: .leading, spacing: 14) {
                 if let error {
                     Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
@@ -52,7 +57,7 @@ struct WeddingPulseActiveView: View {
                     Text("Wedding")
                         .font(.plusJakarta(size: 10, weight: .bold))
                         .foregroundStyle(WeddingActiveTheme.darkText)
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, 8)
                         .padding(.vertical, 5)
                         .background(Color.white.opacity(0.95))
                         .clipShape(Capsule())
@@ -176,9 +181,7 @@ struct WeddingPulseActiveView: View {
                                                 ? Color(hex: "#4ADE80")
                                                 : Color(hex: "#FF7A3D")
                                         )
-                                }
-                                .padding(.vertical, 8)
-                            }
+                                }}
                         }
                     }
                 }
@@ -230,38 +233,21 @@ struct WeddingPulseActiveView: View {
                                 Text(item.occurredAt)
                                     .font(.plusJakarta(size: 11))
                                     .foregroundStyle(WeddingActiveTheme.secondary)
-                            }
-                            .padding(.vertical, 6)
-                        }
+                            }}
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("💡 Insights")
-                            .font(.plusJakarta(size: 18, weight: .heavy))
-                            .foregroundStyle(WeddingActiveTheme.darkText)
-                        Spacer()
-                        Text("Soon")
-                            .font(.plusJakarta(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color(hex: "#ED4A99"))
-                            .clipShape(Capsule())
-                    }
-                    Text("AI wedding insights are not live yet — nothing is invented.")
-                        .font(.plusJakarta(size: 12))
-                        .foregroundStyle(WeddingActiveTheme.darkText.opacity(0.85))
-                }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(WeddingActiveTheme.heroGradient)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
+                GroupPulseInsightsHeroCard(
+                    headerTitle: "💡 Insights",
+                    insights: insights,
+                    gradient: WeddingActiveTheme.heroGradient,
+                    titleColor: WeddingActiveTheme.darkText,
+                    bodyColor: WeddingActiveTheme.darkText.opacity(0.85)
+                )
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .padding(.bottom, 56)
+
+            }
+
         }
     }
 
@@ -281,6 +267,7 @@ struct WeddingPulseActiveView: View {
             async let pulseResult = APIClient.shared.getGroupPulse(momentId: momentId)
             async let financeResult = APIClient.shared.getGroupFinance(momentId: momentId)
             async let activityResult = APIClient.shared.listGroupActivity(momentId: momentId, limit: 5)
+            async let insightsResult = APIClient.shared.listAnalyticsInsights(scopeType: "MOMENT", scopeId: momentId)
             let loadedPulse = try await pulseResult
             let finFacet = try await financeResult
             let loadedActivity = try await activityResult
@@ -289,6 +276,7 @@ struct WeddingPulseActiveView: View {
             pulse = loadedPulse
             finance = loadedFinance
             activities = loadedActivity
+            insights = (try? await insightsResult)?.items ?? []
             GroupTabDataCache.putPulse(momentId, .init(
                 title: loadedPulse.title,
                 pulse: loadedPulse,

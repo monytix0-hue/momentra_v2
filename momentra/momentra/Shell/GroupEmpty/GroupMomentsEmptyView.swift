@@ -13,8 +13,8 @@ struct GroupMomentsEmptyView: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
+        NativeDashboardScaffold(background: GroupEmptyTokens.bg) {
+            NativeListSection(insets: EdgeInsets()) {
                 GroupEmptyFigmaHeroExport(
                     imageName: "group_moments_hero",
                     aspectRatio: 402 / 520,
@@ -22,7 +22,9 @@ struct GroupMomentsEmptyView: View {
                     action: onStartCta
                 )
                 .groupEmptyAppear()
+            }
 
+            NativeListSection(insets: EdgeInsets(top: 4, leading: 24, bottom: 4, trailing: 24)) {
                 VStack(alignment: .leading, spacing: 16) {
                     GroupEmptyChapterLabel(text: "Chapter 02 / Type Selection")
                     Text("Moment Types")
@@ -30,10 +32,11 @@ struct GroupMomentsEmptyView: View {
                         .foregroundStyle(GroupEmptyTokens.text)
                     GroupEmptyMomentTypeGrid()
                 }
-                .padding(.horizontal, 24)
                 .padding(.vertical, 40)
                 .groupEmptyAppear(delay: 0.09)
+            }
 
+            NativeListSection(insets: EdgeInsets(top: 4, leading: 24, bottom: 48, trailing: 24)) {
                 VStack(alignment: .leading, spacing: 16) {
                     GroupEmptyChapterLabel(text: "Chapter 03 / How It Works")
                     Text("Your journey, mapped.")
@@ -55,8 +58,6 @@ struct GroupMomentsEmptyView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, 16)
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 48)
                 .groupEmptyAppear(delay: 0.18)
             }
         }

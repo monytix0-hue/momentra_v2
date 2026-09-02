@@ -25,19 +25,25 @@ struct PersonalCreateEmptyView: View {
     }
 
     private var chooser: some View {
-        ScrollView {
-            VStack(spacing: 32) {
+        List {
+            Section {
                 VStack(spacing: 8) {
                     Text("Create a Moment")
-                        .font(.system(size: 22, weight: .heavy))
+                        .font(.plusJakarta(size: 22, weight: .heavy))
                         .foregroundStyle(PersonalEmptyTokens.text)
+                        .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
                     Text("Choose a life system to begin")
-                        .font(.system(size: 13))
+                        .font(.plusJakarta(size: 13))
                         .foregroundStyle(PersonalEmptyTokens.subtle)
+                        .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
                 }
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
+            Section {
                 VStack(spacing: 12) {
                     HStack(spacing: 12) {
                         lifeCard(
@@ -70,18 +76,23 @@ struct PersonalCreateEmptyView: View {
                             .relationships,
                             subtitle: "Care & shared moments",
                             glyph: "♡",
-                            accent: Color(hex: "#E91E63"),
-                            deep: Color(hex: "#BE185D"),
+                            accent: PersonalEmptyTokens.pink,
+                            deep: PersonalEmptyTokens.pinkDeep,
                             thumb: "personal_create_thumb_relationships"
                         )
                     }
                 }
+            }
+            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
+            Section {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(spacing: 8) {
                         Text("⚡").foregroundStyle(PersonalEmptyTokens.purple)
                         Text("Quick Start")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.plusJakarta(size: 14, weight: .bold))
                             .foregroundStyle(PersonalEmptyTokens.text)
                     }
                     quickRow("☀️", "Morning check-in", "How are you feeling today?", "Log", PersonalEmptyTokens.purple, .lifeOperations)
@@ -90,7 +101,12 @@ struct PersonalCreateEmptyView: View {
                     Divider().overlay(Color.white.opacity(0.04))
                     quickRow("🤝", "Log connection", "Capture a shared moment", "Start", PersonalEmptyTokens.amber, .relationships)
                 }
+            }
+            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
+            Section {
                 HStack(alignment: .top, spacing: 8) {
                     Text("✦")
                         .font(.system(size: 12, weight: .bold))
@@ -106,8 +122,9 @@ struct PersonalCreateEmptyView: View {
                             in: Circle()
                         )
                     Text("Tip: Start with what's on your mind right now.\nMomentra adapts to you.")
-                        .font(.system(size: 15).italic())
+                        .font(.plusJakarta(size: 15).italic())
                         .foregroundStyle(PersonalEmptyTokens.secondary)
+                        .lineSpacing(5)
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -115,27 +132,14 @@ struct PersonalCreateEmptyView: View {
                 .overlay(RoundedRectangle(cornerRadius: 20).stroke(PersonalEmptyTokens.purple, lineWidth: 1))
                 .clipShape(RoundedRectangle(cornerRadius: 20))
 
-                if !history.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Past moments")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(PersonalEmptyTokens.text)
-                        ForEach(history) { moment in
-                            Text(moment.title)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(PersonalEmptyTokens.text)
-                                .padding(14)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.white.opacity(0.06))
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                        }
-                    }
-                }
+                PersonalHistorySection(history: history)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 24)
-            .padding(.bottom, 34)
+            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 34, trailing: 20))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .background(PersonalEmptyTokens.bg.ignoresSafeArea())
         .personalAppear()
         .trackScreen(AnalyticsScreens.personalCreate)
@@ -160,7 +164,7 @@ struct PersonalCreateEmptyView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
                         Text(glyph)
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.plusJakarta(size: 14, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 32, height: 32)
                             .background(
@@ -168,14 +172,14 @@ struct PersonalCreateEmptyView: View {
                                 in: Circle()
                             )
                         Text(system.label)
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.plusJakarta(size: 14, weight: .bold))
                             .foregroundStyle(PersonalEmptyTokens.text)
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     Text(subtitle)
-                        .font(.system(size: 11))
+                        .font(.plusJakarta(size: 11))
                         .foregroundStyle(PersonalEmptyTokens.subtle)
                         .lineLimit(1)
                         .fixedSize(horizontal: false, vertical: true)
@@ -209,17 +213,17 @@ struct PersonalCreateEmptyView: View {
                     Text(emoji).font(.system(size: 18))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.plusJakarta(size: 14, weight: .semibold))
                             .foregroundStyle(PersonalEmptyTokens.text)
                         Text(subtitle)
-                            .font(.system(size: 11))
+                            .font(.plusJakarta(size: 11))
                             .foregroundStyle(PersonalEmptyTokens.subtle)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer()
                 Text(cta)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.plusJakarta(size: 12, weight: .bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)

@@ -21,23 +21,19 @@ struct ExperienceGapQuickAddSheet: View {
                     onClose()
                 }
         } else {
-            ZStack(alignment: .top) {
-                Color(hex: "#1C1A24").ignoresSafeArea()
-                VStack(spacing: 0) {
-                    Capsule()
-                        .fill(Color(hex: "#625E70"))
-                        .frame(width: 48, height: 4)
-                        .padding(.top, 12)
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            sheetBody
-                        }
+            NativeSheetScaffold(
+                title: kind.label,
+                onClose: onClose,
+                background: Color(hex: "#1C1A24")
+            ) {
+                ScrollView {
+                    sheetBody
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
-                        .padding(.bottom, 28)
-                    }
                 }
             }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -51,7 +47,7 @@ struct ExperienceGapQuickAddSheet: View {
         case .budget:
             WeddingBudgetBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .participant:
-            ExperienceParticipantBody(theme: theme, accent: accent)
+            ExperienceParticipantBody(momentId: momentId, theme: theme, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .vendor:
             WeddingVendorBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .planning:
@@ -65,7 +61,7 @@ struct ExperienceGapQuickAddSheet: View {
         case .update:
             WeddingUpdateBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .settle:
-            WeddingSettleBody()
+            WeddingSettleBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .booking:
             EmptyView()
         }
@@ -73,7 +69,10 @@ struct ExperienceGapQuickAddSheet: View {
 }
 
 private struct ExperienceParticipantBody: View {
+    var momentId: String?
     let theme: ExperienceActiveTheme
+    var onDismiss: () -> Void
+    var onSaved: () -> Void
     var accent: SheetAccent
 
     @State private var name = ""
@@ -82,6 +81,12 @@ private struct ExperienceParticipantBody: View {
     @State private var rsvp = "Pending"
     @State private var plusOne = false
     @State private var notes = ""
+    @State private var busy = false
+    @State private var error: String?
+
+    private var canSave: Bool {
+        momentId != nil && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !busy
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -133,12 +138,51 @@ private struct ExperienceParticipantBody: View {
                 SheetField(value: $notes, placeholder: "Optional notes", minHeight: 42)
             }
 
-            PrimaryCta(label: "Add Participant", enabled: false, accent: accent, lightLabel: true) {}
+            if let error {
+                Text(error)
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(Color(hex: "#F87171"))
+            }
+
+            PrimaryCta(
+                label: busy ? "Saving…" : "Add Participant",
+                enabled: canSave,
+                accent: accent,
+                loading: busy,
+                lightLabel: true
+            ) {
+                Task { await save() }
+            }
         }
         .onAppear {
             if role.isEmpty {
                 role = theme.participantRoles.first ?? "Guest"
             }
         }
+    }
+
+    private func save() async {
+        guard let momentId else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        busy = true
+        error = nil
+        let contactTrim = contact.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = contactTrim.contains("@") ? contactTrim : nil
+        let phone = email == nil && !contactTrim.isEmpty ? contactTrim : nil
+        do {
+            _ = try await APIClient.shared.addGroupParticipant(
+                momentId: momentId,
+                displayName: trimmed,
+                roleCode: "PARTICIPANT",
+                email: email,
+                phone: phone
+            )
+            onSaved()
+            onDismiss()
+        } catch {
+            self.error = error.localizedDescription
+        }
+        busy = false
     }
 }

@@ -14,34 +14,34 @@ struct BusinessCreateEmptyView: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                BusinessEmptyPill(label: "CREATE")
-                BusinessEmptyHeadline(
-                    title: "Your Command Center",
-                    bodyText: "Invoices, expenses, vendors, projects - every business action in one place."
-                )
+        NativeDashboardScaffold(background: BusinessSheetTheme.bg) {
+            NativeListSection(insets: EdgeInsets(top: 24, leading: 24, bottom: 40, trailing: 24)) {
+                VStack(spacing: 24) {
+                    BusinessEmptyPill(label: "CREATE")
+                    BusinessEmptyHeadline(
+                        title: "Your Command Center",
+                        bodyText: "Invoices, expenses, vendors, projects - every business action in one place."
+                    )
 
-                VStack(spacing: 12) {
-                    ForEach(0..<3, id: \.self) { row in
-                        HStack(spacing: 12) {
-                            tileView(tiles[row * 2])
-                            tileView(tiles[row * 2 + 1])
+                    VStack(spacing: 12) {
+                        ForEach(0..<3, id: \.self) { row in
+                            HStack(spacing: 12) {
+                                tileView(tiles[row * 2])
+                                tileView(tiles[row * 2 + 1])
+                            }
                         }
                     }
+
+                    Text("From solo founders to scaling teams")
+                        .font(.system(size: 12))
+                        .foregroundStyle(BusinessEmptyTokens.textMuted)
+                        .multilineTextAlignment(.center)
+
+                    BusinessEmptyCTA(label: "First Action →", action: onStartCta)
                 }
-
-                Text("From solo founders to scaling teams")
-                    .font(.system(size: 12))
-                    .foregroundStyle(BusinessEmptyTokens.textMuted)
-                    .multilineTextAlignment(.center)
-
-                BusinessEmptyCTA(label: "First Action →", action: onStartCta)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 24)
-            .padding(.bottom, 40)
         }
+        .background(BusinessSheetTheme.bg.ignoresSafeArea())
         .businessEmptyAppear()
     }
 

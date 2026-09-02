@@ -49,8 +49,8 @@ struct GroupLifeEmptyView: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
+        NativeDashboardScaffold(background: GroupEmptyTokens.bg) {
+            NativeListSection(insets: EdgeInsets()) {
                 GroupEmptyFigmaHeroExport(
                     imageName: "group_life_hero",
                     aspectRatio: 402 / 351,
@@ -58,7 +58,9 @@ struct GroupLifeEmptyView: View {
                     action: onStartCta
                 )
                 .groupEmptyAppear()
+            }
 
+            NativeListSection(insets: EdgeInsets(top: 4, leading: 24, bottom: 4, trailing: 24)) {
                 VStack(alignment: .leading, spacing: 16) {
                     GroupEmptyChapterLabel(text: "Chapter 02 / Lifeline Dimensions")
                     Text("Activate Your Dimensions")
@@ -75,10 +77,11 @@ struct GroupLifeEmptyView: View {
                     }
                     dimensionCard(dimensions[4], action: onStartCta)
                 }
-                .padding(.horizontal, 24)
                 .padding(.vertical, 32)
                 .groupEmptyAppear(delay: 0.08)
+            }
 
+            NativeListSection(insets: EdgeInsets(top: 4, leading: 24, bottom: 4, trailing: 24)) {
                 VStack(alignment: .leading, spacing: 12) {
                     GroupEmptyChapterLabel(text: "Chapter 03 / System Secrets")
                     Text("Intelligence Unlocks")
@@ -94,9 +97,10 @@ struct GroupLifeEmptyView: View {
                         .foregroundStyle(GroupEmptyTokens.secondary)
                         .padding(.top, 8)
                 }
-                .padding(.horizontal, 24)
                 .padding(.bottom, 24)
+            }
 
+            NativeListSection(insets: EdgeInsets(top: 4, leading: 24, bottom: 48, trailing: 24)) {
                 VStack(alignment: .leading, spacing: 12) {
                     GroupEmptyChapterLabel(text: "Chapter 04 / Philosophy")
                     Text("Why These Matter")
@@ -129,8 +133,6 @@ struct GroupLifeEmptyView: View {
                     .padding(.top, 12)
                     .accessibilityLabel("Explore Group Types")
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 48)
             }
         }
         .background(GroupEmptyTokens.bg.ignoresSafeArea())

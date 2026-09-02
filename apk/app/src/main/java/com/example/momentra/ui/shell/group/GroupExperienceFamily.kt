@@ -30,6 +30,8 @@ fun groupExperienceFamilyFor(momentTypeCode: String?): GroupExperienceFamily {
         code.contains("FAMILY_HOUSEHOLD") -> GroupExperienceFamily.FAMILY_HOUSEHOLD
         code.contains("CO_LIVING") -> GroupExperienceFamily.CO_LIVING
         code.contains("COMMUNITY_LIVING") -> GroupExperienceFamily.CUSTOM_LIVING
+        code.contains("SHARED_LIVING") -> GroupExperienceFamily.FLATMATES
+        code.contains("SHARED_RENTAL") -> GroupExperienceFamily.FLATMATES
         code == "CUSTOM" -> GroupExperienceFamily.CUSTOM_LIVING
         else -> GroupExperienceFamily.SHARED_GENERIC
     }
@@ -55,3 +57,9 @@ fun GroupExperienceFamily.isThemedLiving(): Boolean =
         this == GroupExperienceFamily.FAMILY_HOUSEHOLD ||
         this == GroupExperienceFamily.CO_LIVING ||
         this == GroupExperienceFamily.CUSTOM_LIVING
+
+fun GroupExperienceFamily.invitePeopleSubtitle(): String = when {
+    isThemedLiving() -> "Share a link or add someone to this household"
+    isThemedPurchase() -> "Share a link or add someone to this purchase"
+    else -> "Share a link or add someone to this trip"
+}

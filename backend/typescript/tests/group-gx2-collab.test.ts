@@ -106,6 +106,43 @@ describe('GX2-C Group collaboration', () => {
       .set('Idempotency-Key', `gx2-poll-${randomUUID()}`)
       .send({ question: 'Dinner venue?', options: ['Italian', 'Thai'] });
     assert.equal(poll.status, 201, JSON.stringify(poll.body));
+    const pollId = poll.body.data.pollId as string;
+
+    const pollDetail = await request(app)
+      .get(`/v1/polls/${pollId}`)
+      .set('X-Dev-Firebase-Uid', memberUid);
+    assert.equal(pollDetail.status, 200, JSON.stringify(pollDetail.body));
+    assert.equal(pollDetail.body.data.status, 'OPEN');
+    assert.equal(pollDetail.body.data.options.length, 2);
+    const optionId = pollDetail.body.data.options[0].pollOptionId as string;
+
+    const vote = await request(app)
+      .post(`/v1/polls/${pollId}/votes`)
+      .set('X-Dev-Firebase-Uid', memberUid)
+      .set('Idempotency-Key', `gx2-vote-${randomUUID()}`)
+      .send({ pollOptionId: optionId });
+    assert.equal(vote.status, 201, JSON.stringify(vote.body));
+
+    const voteRow = await getPool().query(
+      `SELECT 1 FROM shared.poll_vote WHERE poll_id = $1 AND voter_user_id = $2`,
+      [pollId, userIdFor(memberUid)]
+    );
+    assert.equal(voteRow.rows.length, 1);
+
+    const close = await request(app)
+      .post(`/v1/polls/${pollId}/close`)
+      .set('X-Dev-Firebase-Uid', organizerUid)
+      .set('Idempotency-Key', `gx2-close-${randomUUID()}`)
+      .send({});
+    assert.equal(close.status, 200, JSON.stringify(close.body));
+    assert.equal(close.body.data.status, 'CLOSED');
+
+    const postCloseVote = await request(app)
+      .post(`/v1/polls/${pollId}/votes`)
+      .set('X-Dev-Firebase-Uid', organizerUid)
+      .set('Idempotency-Key', `gx2-vote2-${randomUUID()}`)
+      .send({ pollOptionId: optionId });
+    assert.equal(postCloseVote.status, 409, JSON.stringify(postCloseVote.body));
 
     const update = await request(app)
       .post(`/v1/moments/${momentId}/updates`)
@@ -230,6 +267,43 @@ describe('GX2-C Group collaboration', () => {
       .set('X-Dev-Firebase-Uid', giftMem);
     assert.equal(listed.status, 200, JSON.stringify(listed.body));
     assert.ok(listed.body.data.items.length >= 1);
+
+    const delivery = await request(app)
+      .post(`/v1/moments/${giftId}/delivery-handovers`)
+      .set('X-Dev-Firebase-Uid', giftOrg)
+      .set('Idempotency-Key', `gx2-dh-${randomUUID()}`)
+      .send({
+        recipientName: 'Recipient',
+        handoverType: 'DELIVERY',
+        scheduledAt: '2026-03-21',
+        address: 'Mom house, Sector 15',
+        note: 'Gift wrap requested',
+      });
+    assert.equal(delivery.status, 201, JSON.stringify(delivery.body));
+
+    const deliveries = await request(app)
+      .get(`/v1/group/moments/${giftId}/delivery-handovers`)
+      .set('X-Dev-Firebase-Uid', giftMem);
+    assert.equal(deliveries.status, 200, JSON.stringify(deliveries.body));
+    assert.ok(deliveries.body.data.items.length >= 1);
+
+    const ownership = await request(app)
+      .post(`/v1/moments/${giftId}/ownership-records`)
+      .set('X-Dev-Firebase-Uid', giftOrg)
+      .set('Idempotency-Key', `gx2-own-${randomUUID()}`)
+      .send({
+        assetLabel: 'Coffee machine',
+        fromOwnerName: 'Group pool',
+        ownershipShare: 1,
+        effectiveAt: '2026-03-22',
+      });
+    assert.equal(ownership.status, 201, JSON.stringify(ownership.body));
+
+    const ownershipList = await request(app)
+      .get(`/v1/group/moments/${giftId}/ownership-records`)
+      .set('X-Dev-Firebase-Uid', giftMem);
+    assert.equal(ownershipList.status, 200, JSON.stringify(ownershipList.body));
+    assert.ok(ownershipList.body.data.items.length >= 1);
 
     const flatOrg = `gx2-fo-${randomUUID()}`;
     const flatMem = `gx2-fm-${randomUUID()}`;

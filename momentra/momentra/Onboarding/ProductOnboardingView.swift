@@ -141,8 +141,9 @@ struct ProductOnboardingView: View {
                 .foregroundStyle(MomentraBrandTokens.textOnDark.opacity(0.58))
                 .position(x: geo.size.width - s(24) - s(20), y: s(43) + s(12))
                 .accessibilityIdentifier("onboarding.skip")
-
-                // Bottom nav — top 746
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .safeAreaInset(edge: .bottom) {
                 VStack(spacing: s(16)) {
                     HStack(spacing: s(8)) {
                         ForEach(0..<productPages.count, id: \.self) { i in
@@ -181,10 +182,9 @@ struct ProductOnboardingView: View {
                     }
                     .accessibilityLabel(current.cta)
                 }
-                .frame(width: s(362), height: s(88))
-                .position(x: geo.size.width / 2, y: s(746) + s(44))
+                .padding(.bottom, s(24))
+                .frame(maxWidth: .infinity)
             }
-            .frame(width: geo.size.width, height: geo.size.height)
         }
         .preferredColorScheme(.dark)
         .id(current.analyticsScreen)

@@ -1,5 +1,6 @@
 package com.example.momentra.ui.shell.business.ops
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,9 +18,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.BusinessMemoryPayloadDto
@@ -39,6 +42,7 @@ import com.example.momentra.ui.shell.business.ops.components.OpsPlaybookSection
 import com.example.momentra.ui.shell.business.ops.components.OpsScopeDropdown
 import com.example.momentra.ui.shell.business.ops.components.OpsWisdomQuoteSection
 import com.example.momentra.ui.theme.PlusJakartaSans
+import kotlinx.coroutines.launch
 
 private val Scopes = listOf("All", "Budget", "Vendors", "Approvals", "Issues")
 
@@ -53,10 +57,14 @@ fun OpsMemoryActiveContent(
     modifier: Modifier = Modifier,
 ) {
     val theme = BusinessActiveTheme.BusinessOperations
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(true) }
     var payload by remember { mutableStateOf<BusinessMemoryPayloadDto?>(null) }
-    var scope by remember { mutableStateOf("All") }
+    var scopeFilter by remember { mutableStateOf("All") }
     var error by remember { mutableStateOf<String?>(null) }
+    var shareBusy by remember { mutableStateOf(false) }
+    var shareMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -82,10 +90,10 @@ fun OpsMemoryActiveContent(
     }
 
     val items = payload?.items.orEmpty()
-    val filtered = remember(items, scope) {
-        if (scope == "All") items
+    val filtered = remember(items, scopeFilter) {
+        if (scopeFilter == "All") items
         else {
-            val q = scope.lowercase()
+            val q = scopeFilter.lowercase()
             items.filter { item ->
                 val title = item["title"]?.toString().orEmpty().lowercase()
                 val body = item["body"]?.toString().orEmpty().lowercase()
@@ -122,13 +130,16 @@ fun OpsMemoryActiveContent(
         error?.let {
             Text(it, color = OpsColors.Red, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         }
+        shareMessage?.let {
+            Text(it, color = theme.secondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
+        }
 
         OpsScopeDropdown(label = "Operations", theme = theme)
 
         OpsFilterChipRow(
             chips = Scopes,
-            selected = scope,
-            onSelect = { scope = it },
+            selected = scopeFilter,
+            onSelect = { scopeFilter = it },
             theme = theme,
         )
 
@@ -184,9 +195,33 @@ fun OpsMemoryActiveContent(
                 modifier = Modifier.weight(1f),
             )
             OpsOutlineButton(
-                label = "Share with Team",
-                enabled = false,
-                onClick = {},
+                label = if (shareBusy) "Sharing…" else "Share with Team",
+                enabled = !momentId.isNullOrBlank() && !shareBusy,
+                onClick = {
+                    val id = momentId ?: return@OpsOutlineButton
+                    shareBusy = true
+                    shareMessage = null
+                    coroutineScope.launch {
+                        repository.createShareLink(id).fold(
+                            onSuccess = { link ->
+                                shareBusy = false
+                                val url = link.shareUrl.orEmpty()
+                                if (url.isNotBlank()) {
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, url)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, "Share with team"))
+                                }
+                                shareMessage = link.note ?: "Share link created"
+                            },
+                            onFailure = {
+                                shareBusy = false
+                                shareMessage = it.message ?: "Share unavailable"
+                            },
+                        )
+                    }
+                },
                 theme = theme,
                 modifier = Modifier.weight(1f),
             )

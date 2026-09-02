@@ -98,8 +98,8 @@ struct TeamOpsMomentsActiveView: View {
     }
 
     private var approvalsRatio: CGFloat? {
-        guard let k = kpis, k.issueCount > 0 else { return nil }
-        return 1 - CGFloat(k.highPriorityIssues) / CGFloat(max(k.issueCount, 1))
+        guard let k = kpis, (k.issueCount ?? 0) > 0 else { return nil }
+        return 1 - CGFloat(k.highPriorityIssues ?? 0) / CGFloat(max(k.issueCount ?? 0, 1))
     }
 
     var body: some View {
@@ -107,7 +107,10 @@ struct TeamOpsMomentsActiveView: View {
             if loading && activities.isEmpty && timelineItems.isEmpty {
                 ProgressView().tint(theme.accent)
             } else {
-                ScrollView {
+                NativeDashboardScaffold(background: theme.bg) {
+
+                    NativeListSection {
+
                     VStack(alignment: .leading, spacing: 16) {
                         if let error {
                             Text(error).font(.caption).foregroundStyle(TeamOpsColors.red)
@@ -134,9 +137,9 @@ struct TeamOpsMomentsActiveView: View {
                         highlightsBlock
                         ctaCard
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
-                    .padding(.bottom, 56)
+
+                    }
+
                 }
             }
         }

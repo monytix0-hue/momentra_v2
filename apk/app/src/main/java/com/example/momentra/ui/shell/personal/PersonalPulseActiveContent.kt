@@ -159,17 +159,8 @@ fun PersonalPulseActiveContent(
         error?.let {
             Text(it, color = PulseRed, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         }
-        if (!momentTitle.isNullOrBlank()) {
-            Text(
-                momentTitle,
-                color = PulseMuted,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = PlusJakartaSans,
-            )
-        }
 
-        // Family hero — Life Ops / Future / Lifestyle / Relationships (Figma)
+        // Family hero
         val heroValues = when (family) {
             PersonalPulseFamily.LIFE_OPERATIONS -> listOf(pressure, recovery, rhythm, attention)
             PersonalPulseFamily.FUTURE_BUILDING -> listOf(vision, growth, momentum, discipline)

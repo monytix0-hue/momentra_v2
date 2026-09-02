@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
-import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
+import { insertAudit, insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
 
 const OBS_TYPES = ['RECOVERY', 'MOOD', 'RHYTHM', 'WELLBEING'] as const;
@@ -632,6 +632,66 @@ export async function updateLifestyleActivity(
     activityId,
     lifestyleContext: existing.rows[0].lifestyle_context,
     title: nextTitle,
+  };
+}
+
+export async function voidLifestyleActivity(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  activityId: string
+): Promise<{ activityId: string; lifestyleContext: string; title: string; status: string }> {
+  await assertPersonalMoment(client, ctx, momentId);
+  const existing = await client.query<{
+    lifestyle_activity_id: string;
+    lifestyle_context: string;
+    title: string;
+    status: string;
+  }>(
+    `SELECT lifestyle_activity_id, lifestyle_context, title, status
+     FROM personal.lifestyle_activity
+     WHERE lifestyle_activity_id = $1 AND moment_id = $2 AND user_id = $3`,
+    [activityId, momentId, ctx.userId]
+  );
+  if (!existing.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Lifestyle activity not found.', 404);
+  }
+  if (existing.rows[0].status === 'CANCELLED') {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Lifestyle activity already cancelled.', 400);
+  }
+
+  await client.query(
+    `UPDATE personal.lifestyle_activity SET status = 'CANCELLED', updated_at = now()
+     WHERE lifestyle_activity_id = $1`,
+    [activityId]
+  );
+
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'LifestyleActivityVoided',
+    domainCode: 'PERSONAL',
+    aggregateType: 'LIFESTYLE_ACTIVITY',
+    aggregateId: activityId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: { activityId, momentId },
+  });
+  await insertAudit(client, ctx, 'LIFESTYLE_ACTIVITY_VOID', 'LIFESTYLE_ACTIVITY', activityId, domainEventId, {
+    activityId,
+  });
+
+  await client.query(
+    `UPDATE projection.recent_activity SET
+       activity_payload = COALESCE(activity_payload, '{}'::jsonb) || '{"status":"VOIDED"}'::jsonb,
+       projection_version = projection_version + 1
+     WHERE user_id = $1 AND scope_id = $2 AND activity_payload->>'activityId' = $3`,
+    [ctx.userId, momentId, activityId]
+  );
+
+  return {
+    activityId,
+    lifestyleContext: existing.rows[0].lifestyle_context,
+    title: existing.rows[0].title,
+    status: 'CANCELLED',
   };
 }
 

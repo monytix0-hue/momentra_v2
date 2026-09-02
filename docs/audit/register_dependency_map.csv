@@ -1,0 +1,9 @@
+Dependency Layer,Must Close Before,Why
+SP-001 API contract truth,"SP-002, PER-002, GRP-006/007, BUS API rows",Implementation cannot be certified against drifting contracts.
+SP-003/004 authorization/governance,Group/Business governed commands; Company Life,Scope and role correctness must exist before E2E sign-off.
+SP-005/006 migrations + canonical ownership,All domain writers,Do not wire clients to non-existent or noncanonical persistence.
+SP-008 events/workers,SP-009/010 projections/refresh; domain integration,Projection freshness depends on reliable event propagation.
+SP-011 metric catalogue,"Personal D07, Group analytics, Business Pulse/Life",UI values must be server-authoritative and testable.
+SP-013 parity,Domain mobile E2E,Both launch clients must call same frozen contracts.
+Domain command closure,Domain projection/Life closure,Read models cannot be trusted until writes land canonically.
+Projection + refresh closure,SP-014 / domain certification,"Visible product behavior is the final proof, not API success alone."

@@ -28,38 +28,35 @@ struct PersonalLifeActiveView: View {
             if loading && life == nil {
                 ProgressView().tint(purple).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
-                    VStack(spacing: 0) {
+                NativeDashboardScaffold(background: bg) {
+                    NativeListSection(insets: EdgeInsets()) {
                         chipRow
-                        VStack(spacing: 16) {
-                            if (life?.dataQuality ?? "FIGMA_SEEDED").uppercased() == "FIGMA_SEEDED" {
-                                Text("Life sections are provisional (API_GAP). Only active area count is live. Seeded scores are layout reference — not production metrics.")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(amber)
-                                    .padding(12)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(card)
-                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(amber.opacity(0.35), lineWidth: 1))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                            }
-                            if let error {
-                                Text(error).font(.system(size: 12)).foregroundStyle(red)
-                            }
-                            healthSummary
-                            driftCard
-                            leverageCard
-                            balanceSection
-                            emotionalTrendCard
-                            dominantEmotionCard
-                            happyDriversCard
-                            journeyCard
-                            aiInsightsCard
-                            Spacer().frame(height: 24)
+                    }
+                    NativeListSection {
+                        if life?.sectionQuality?.values.contains("API_GAP") == true {
+                            Text("Some Life sections are not available yet. Core areas and journey data are live when present.")
+                                .font(.plusJakarta(size: 11))
+                                .foregroundStyle(amber)
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(card)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(amber.opacity(0.35), lineWidth: 1))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        .padding(16)
+                        if let error {
+                            Text(error).font(.plusJakarta(size: 12)).foregroundStyle(red)
+                        }
+                        healthSummary
+                        driftCard
+                        leverageCard
+                        balanceSection
+                        emotionalTrendCard
+                        dominantEmotionCard
+                        happyDriversCard
+                        journeyCard
+                        aiInsightsCard
                     }
                 }
-                .background(bg)
             }
         }
         .task(id: refreshToken) { await load() }
@@ -96,7 +93,7 @@ struct PersonalLifeActiveView: View {
                     chip("Lifestyle", color: amber)
                     Spacer(minLength: 8)
                     Text("⚙")
-                        .font(.system(size: 12))
+                        .font(.plusJakarta(size: 12))
                         .foregroundStyle(Color(red: 0.5, green: 0.5, blue: 0.58))
                         .frame(width: 32, height: 32)
                         .background(cardAlt)
@@ -116,7 +113,7 @@ struct PersonalLifeActiveView: View {
         return HStack(spacing: 6) {
             Circle().fill(color).frame(width: 6, height: 6)
             Text(label)
-                .font(.system(size: active ? 12 : 11, weight: active ? .semibold : .medium))
+                .font(.plusJakarta(size: active ? 12 : 11, weight: active ? .semibold : .medium))
                 .foregroundStyle(active ? Color.white : dim)
         }
         .padding(.horizontal, active ? 12 : 10)
@@ -137,22 +134,22 @@ struct PersonalLifeActiveView: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("PERSONAL LIFE HEALTH")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.plusJakarta(size: 11, weight: .semibold))
                         .foregroundStyle(dim)
                     HStack(alignment: .bottom, spacing: 2) {
                         Text("\(life?.score ?? 82)")
-                            .font(.system(size: 48, weight: .bold))
+                            .font(.plusJakarta(size: 48, weight: .bold))
                             .foregroundStyle(text)
                         Text("/\(life?.scoreMax ?? 100)")
-                            .font(.system(size: 16))
+                            .font(.plusJakarta(size: 16))
                             .foregroundStyle(muted)
                             .padding(.bottom, 10)
                     }
                     Text(life?.statusLabel ?? "Stable and Growing")
-                        .font(.system(size: 14))
+                        .font(.plusJakarta(size: 14))
                         .foregroundStyle(text)
                     Text(life?.trendLabel ?? "▲ +6 this month")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.plusJakarta(size: 12, weight: .semibold))
                         .foregroundStyle(green)
                 }
                 Spacer()
@@ -160,7 +157,7 @@ struct PersonalLifeActiveView: View {
             }
             if let insight = life?.insight, !insight.isEmpty {
                 Text("\"\(insight)\"")
-                    .font(.system(size: 13))
+                    .font(.plusJakarta(size: 13))
                     .foregroundStyle(muted)
             }
             let areas = life?.areaScores ?? []
@@ -169,7 +166,7 @@ struct PersonalLifeActiveView: View {
                     HStack(spacing: 8) {
                         Circle().fill(Color(hex: area.color)).frame(width: 8, height: 8)
                         Text("\(area.label): \(area.score)")
-                            .font(.system(size: 12))
+                            .font(.plusJakarta(size: 12))
                             .foregroundStyle(text)
                     }
                     .padding(10)
@@ -207,7 +204,7 @@ struct PersonalLifeActiveView: View {
                     .padding(CGFloat(i) * 12)
             }
             Text("\(score)")
-                .font(.system(size: 18, weight: .bold))
+                .font(.plusJakarta(size: 18, weight: .bold))
                 .foregroundStyle(text)
         }
         .frame(width: 110, height: 110)
@@ -218,16 +215,16 @@ struct PersonalLifeActiveView: View {
         if let drift = life?.drift {
             VStack(alignment: .leading, spacing: 12) {
                 Text(drift.title)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.plusJakarta(size: 11, weight: .bold))
                     .foregroundStyle(red)
                 Text(drift.headline)
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.plusJakarta(size: 18, weight: .bold))
                     .foregroundStyle(text)
                 Text(drift.body)
-                    .font(.system(size: 13))
+                    .font(.plusJakarta(size: 13))
                     .foregroundStyle(muted)
                 Text(drift.ctaLabel)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.plusJakarta(size: 13, weight: .semibold))
                     .foregroundStyle(red)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -250,21 +247,21 @@ struct PersonalLifeActiveView: View {
                 HStack(spacing: 6) {
                     Text("🎯")
                     Text(lev.title)
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.plusJakarta(size: 11, weight: .bold))
                         .foregroundStyle(green)
                 }
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(lev.actionTitle)
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.plusJakarta(size: 18, weight: .bold))
                             .foregroundStyle(text)
                         Text(lev.actionBody)
-                            .font(.system(size: 12))
+                            .font(.plusJakarta(size: 12))
                             .foregroundStyle(muted)
                     }
                     Spacer()
                     Text(lev.ctaLabel)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.plusJakarta(size: 12, weight: .semibold))
                         .foregroundStyle(green)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
@@ -275,14 +272,14 @@ struct PersonalLifeActiveView: View {
                 }
                 Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
                 Text("EXPECTED IMPACT")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.plusJakarta(size: 10, weight: .semibold))
                     .foregroundStyle(dim)
                 HStack {
                     ForEach(lev.impacts ?? [], id: \.label) { impact in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(impact.label).font(.system(size: 11)).foregroundStyle(dim)
+                            Text(impact.label).font(.plusJakarta(size: 11)).foregroundStyle(dim)
                             Text(impact.delta)
-                                .font(.system(size: 16, weight: .bold))
+                                .font(.plusJakarta(size: 16, weight: .bold))
                                 .foregroundStyle(impact.tone == "up" ? green : impact.tone == "down" ? red : muted)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -302,7 +299,7 @@ struct PersonalLifeActiveView: View {
         if !axes.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Life Balance Model")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.plusJakarta(size: 14, weight: .semibold))
                     .foregroundStyle(text)
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     ForEach(axes, id: \.code) { axis in
@@ -318,11 +315,11 @@ struct PersonalLifeActiveView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text(axis.label)
-                                    .font(.system(size: 10, weight: .bold))
+                                    .font(.plusJakarta(size: 10, weight: .bold))
                                     .foregroundStyle(dim)
                                 Spacer()
                                 Text(axis.badge)
-                                    .font(.system(size: 8, weight: .bold))
+                                    .font(.plusJakarta(size: 8, weight: .bold))
                                     .foregroundStyle(badgeColor)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
@@ -330,7 +327,7 @@ struct PersonalLifeActiveView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 6))
                             }
                             Text("\(axis.score)")
-                                .font(.system(size: 24, weight: .bold))
+                                .font(.plusJakarta(size: 24, weight: .bold))
                                 .foregroundStyle(text)
                         }
                         .padding(14)
@@ -349,10 +346,10 @@ struct PersonalLifeActiveView: View {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Emotional Trend")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.plusJakarta(size: 14, weight: .semibold))
                         .foregroundStyle(text)
                     Text(trend.subtitle)
-                        .font(.system(size: 12))
+                        .font(.plusJakarta(size: 12))
                         .foregroundStyle(dim)
                 }
                 EmotionalTrendChartView(series: trend.series ?? [])
@@ -361,7 +358,7 @@ struct PersonalLifeActiveView: View {
                     ForEach(trend.series ?? [], id: \.code) { s in
                         HStack(spacing: 6) {
                             Circle().fill(Color(hex: s.color)).frame(width: 6, height: 6)
-                            Text(s.label).font(.system(size: 11)).foregroundStyle(muted)
+                            Text(s.label).font(.plusJakarta(size: 11)).foregroundStyle(muted)
                         }
                     }
                 }
@@ -378,19 +375,19 @@ struct PersonalLifeActiveView: View {
         if let dom = life?.dominantEmotion {
             VStack(alignment: .leading, spacing: 12) {
                 Text(dom.title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.plusJakarta(size: 14, weight: .semibold))
                     .foregroundStyle(text)
                 HStack(spacing: 16) {
                     DominantDonutView(segments: dom.segments ?? [])
                         .frame(width: 80, height: 80)
                     VStack(alignment: .leading, spacing: 8) {
                         Text(dom.headline)
-                            .font(.system(size: 13))
+                            .font(.plusJakarta(size: 13))
                             .foregroundStyle(text)
                         HStack(spacing: 10) {
                             ForEach(Array((dom.segments ?? []).filter { $0.label != "Connection" && $0.label != "Other" }.prefix(3)), id: \.label) { seg in
                                 Text("\(seg.label) (\(seg.percent)%)")
-                                    .font(.system(size: 11))
+                                    .font(.plusJakarta(size: 11))
                                     .foregroundStyle(dim)
                             }
                         }
@@ -410,20 +407,20 @@ struct PersonalLifeActiveView: View {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(happy.title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.plusJakarta(size: 14, weight: .semibold))
                         .foregroundStyle(text)
                     Text(happy.subtitle)
-                        .font(.system(size: 12))
+                        .font(.plusJakarta(size: 12))
                         .foregroundStyle(dim)
                 }
                 ForEach(happy.items ?? [], id: \.self) { item in
                     HStack(spacing: 10) {
                         Text("✨")
-                            .font(.system(size: 10))
+                            .font(.plusJakarta(size: 10))
                             .frame(width: 22, height: 22)
                             .background(purple.opacity(0.15))
                             .clipShape(RoundedRectangle(cornerRadius: 8))
-                        Text(item).font(.system(size: 13)).foregroundStyle(text)
+                        Text(item).font(.plusJakarta(size: 13)).foregroundStyle(text)
                     }
                     .padding(.vertical, 4)
                 }
@@ -441,10 +438,10 @@ struct PersonalLifeActiveView: View {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(journey.title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.plusJakarta(size: 14, weight: .semibold))
                         .foregroundStyle(text)
                     Text(journey.subtitle)
-                        .font(.system(size: 12))
+                        .font(.plusJakarta(size: 12))
                         .foregroundStyle(dim)
                 }
                 ForEach(Array((journey.items ?? []).enumerated()), id: \.offset) { _, item in
@@ -454,13 +451,13 @@ struct PersonalLifeActiveView: View {
                             .background(cardAlt)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(item.title).font(.system(size: 13)).foregroundStyle(text)
-                            Text(item.whenLabel ?? "").font(.system(size: 11)).foregroundStyle(dim)
+                            Text(item.title).font(.plusJakarta(size: 13)).foregroundStyle(text)
+                            Text(item.whenLabel ?? "").font(.plusJakarta(size: 11)).foregroundStyle(dim)
                         }
                         Spacer()
                         let tone: Color = item.tone == "up" ? green : item.tone == "down" ? red : muted
                         Text(item.value)
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.plusJakarta(size: 12, weight: .semibold))
                             .foregroundStyle(tone)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
@@ -483,14 +480,14 @@ struct PersonalLifeActiveView: View {
                 HStack(spacing: 6) {
                     Text("✨")
                     Text(ai.title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.plusJakarta(size: 15, weight: .semibold))
                         .foregroundStyle(text)
                 }
                 Text(ai.lead)
-                    .font(.system(size: 13))
+                    .font(.plusJakarta(size: 13))
                     .foregroundStyle(text)
                 Text(ai.body)
-                    .font(.system(size: 12))
+                    .font(.plusJakarta(size: 12))
                     .foregroundStyle(muted)
             }
             .padding(20)

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		875C21A13046D03600035BC8 /* MomentraAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 87703F912302E064E0031B6D7 /* MomentraAPI */; };
 		87703F802302E064E0031B6D7 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 87703F852302E064E0031B6D7 /* FirebaseAuth */; };
 		87703F812302E064E0031B6D7 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 87703F862302E064E0031B6D7 /* FirebaseCore */; };
 		87703F822302E064E0031B6D7 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 87703F872302E064E0031B6D7 /* GoogleSignIn */; };
@@ -59,6 +60,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				875C21A13046D03600035BC8 /* MomentraAPI in Frameworks */,
 				87703F802302E064E0031B6D7 /* FirebaseAuth in Frameworks */,
 				87703F812302E064E0031B6D7 /* FirebaseCore in Frameworks */,
 				87703F882302E064E0031B6D7 /* FirebaseAnalytics in Frameworks */,
@@ -128,6 +130,7 @@
 				87703F862302E064E0031B6D7 /* FirebaseCore */,
 				87703F892302E064E0031B6D7 /* FirebaseAnalytics */,
 				87703F872302E064E0031B6D7 /* GoogleSignIn */,
+				87703F912302E064E0031B6D7 /* MomentraAPI */,
 			);
 			productName = momentra;
 			productReference = 87703F53302E064C0031B6D7 /* momentra.app */;
@@ -214,6 +217,7 @@
 			packageReferences = (
 				87703F832302E064E0031B6D7 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				87703F842302E064E0031B6D7 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				87703F902302E064E0031B6D7 /* XCLocalSwiftPackageReference "OpenAPI" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 87703F54302E064C0031B6D7 /* Products */;
@@ -694,6 +698,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		87703F902302E064E0031B6D7 /* XCLocalSwiftPackageReference "OpenAPI" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = OpenAPI;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		87703F832302E064E0031B6D7 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -733,6 +744,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 87703F832302E064E0031B6D7 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseAnalytics;
+		};
+		87703F912302E064E0031B6D7 /* MomentraAPI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 87703F902302E064E0031B6D7 /* XCLocalSwiftPackageReference "OpenAPI" */;
+			productName = MomentraAPI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

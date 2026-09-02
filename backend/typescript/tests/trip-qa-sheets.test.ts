@@ -116,6 +116,38 @@ describe('Trip Quick Add sheets backends', () => {
     assert.equal(mint.body.data.status, 'ACTIVE');
   });
 
+  it('mintInvite with momentId binds invite to Shared Living (Flatmates)', async () => {
+    const title = `Living Sheets ${randomUUID().slice(0, 8)}`;
+    const mintPending = await request(app)
+      .post('/v1/group/invites')
+      .set('X-Dev-Firebase-Uid', orgUid)
+      .set('Idempotency-Key', `living-mint-${randomUUID()}`)
+      .send({ title, momentTypeCode: 'FLATMATES' });
+    assert.equal(mintPending.status, 201, JSON.stringify(mintPending.body));
+
+    const created = await request(app)
+      .post('/v1/moments')
+      .set('X-Dev-Firebase-Uid', orgUid)
+      .set('Idempotency-Key', `living-moment-${randomUUID()}`)
+      .send({
+        domainCode: 'GROUP',
+        momentTypeCode: 'FLATMATES',
+        title,
+        inviteCode: mintPending.body.data.inviteCode,
+      });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    const momentId = created.body.data.momentId as string;
+
+    const bound = await request(app)
+      .post('/v1/group/invites')
+      .set('X-Dev-Firebase-Uid', orgUid)
+      .set('Idempotency-Key', `living-bound-${randomUUID()}`)
+      .send({ title, momentTypeCode: 'FLATMATES', momentId });
+    assert.equal(bound.status, 201, JSON.stringify(bound.body));
+    assert.equal(bound.body.data.momentId, momentId);
+    assert.equal(bound.body.data.status, 'ACTIVE');
+  });
+
   it('createMemory + attach media after completed upload', async () => {
     const { momentId } = await createTrip(orgUid);
     const mem = await request(app)

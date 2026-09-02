@@ -14,23 +14,19 @@ struct WeddingGapQuickAddSheet: View {
     var onSaved: () -> Void = {}
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color(hex: "#1C1A24").ignoresSafeArea()
-            VStack(spacing: 0) {
-                Capsule()
-                    .fill(Color(hex: "#625E70"))
-                    .frame(width: 48, height: 4)
-                    .padding(.top, 12)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        sheetBody
-                    }
+        NativeSheetScaffold(
+            title: kind.label,
+            onClose: onClose,
+            background: Color(hex: "#1C1A24")
+        ) {
+            ScrollView {
+                sheetBody
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
-                    .padding(.bottom, 28)
-                }
             }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 
     @ViewBuilder
@@ -39,7 +35,7 @@ struct WeddingGapQuickAddSheet: View {
         case .expense: WeddingExpenseBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .contribution: WeddingContributionBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .budget: WeddingBudgetBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
-        case .participant: WeddingParticipantBody()
+        case .participant: WeddingParticipantBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .vendor: WeddingVendorBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .planning: WeddingPlanningBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .attendance: WeddingAttendanceBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
@@ -899,14 +895,24 @@ struct WeddingBudgetBody: View {
 // MARK: - 4. PARTICIPANT
 
 private struct WeddingParticipantBody: View {
+    var momentId: String?
+    var onDismiss: () -> Void = {}
+    var onSaved: () -> Void = {}
+
     @State private var name = ""
     @State private var contact = ""
     @State private var affiliation = "Bride's Side"
     @State private var rsvp = "Pending"
     @State private var plusOne = false
     @State private var notes = ""
+    @State private var submitting = false
+    @State private var error: String?
 
     private let accent = softPinkAccent
+
+    private var canSave: Bool {
+        momentId != nil && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !submitting
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -953,7 +959,47 @@ private struct WeddingParticipantBody: View {
                 SheetField(value: $notes, placeholder: "Optional notes", minHeight: 42)
             }
 
-            PrimaryCta(label: "Add Participant", enabled: false, accent: accent, lightLabel: true) {}
+            if let error {
+                Text(error)
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(Color(hex: "#F87171"))
+            }
+
+            PrimaryCta(
+                label: submitting ? "Saving…" : "Add Participant",
+                enabled: canSave,
+                accent: accent,
+                loading: submitting,
+                lightLabel: true
+            ) {
+                Task { await save() }
+            }
+        }
+    }
+
+    private func save() async {
+        guard let momentId else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        submitting = true
+        error = nil
+        let contactTrim = contact.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = contactTrim.contains("@") ? contactTrim : nil
+        let phone = email == nil && !contactTrim.isEmpty ? contactTrim : nil
+        do {
+            _ = try await APIClient.shared.addGroupParticipant(
+                momentId: momentId,
+                displayName: trimmed,
+                roleCode: "PARTICIPANT",
+                email: email,
+                phone: phone
+            )
+            submitting = false
+            onSaved()
+            onDismiss()
+        } catch {
+            submitting = false
+            self.error = error.localizedDescription
         }
     }
 }

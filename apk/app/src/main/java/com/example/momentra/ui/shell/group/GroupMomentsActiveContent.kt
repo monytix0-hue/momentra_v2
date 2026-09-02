@@ -35,6 +35,7 @@ import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupLifeBookingDto
 import com.example.momentra.data.api.GroupLifePlanningItemDto
 import com.example.momentra.data.api.GroupLifeUpdateDto
+import com.example.momentra.data.api.GroupPollItemDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -59,6 +60,8 @@ fun GroupMomentsActiveContent(
     var planningItems by remember { mutableStateOf<List<GroupLifePlanningItemDto>>(emptyList()) }
     var bookings by remember { mutableStateOf<List<GroupLifeBookingDto>>(emptyList()) }
     var updates by remember { mutableStateOf<List<GroupLifeUpdateDto>>(emptyList()) }
+    var polls by remember { mutableStateOf<List<GroupPollItemDto>>(emptyList()) }
+    var selectedPollId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -68,6 +71,7 @@ fun GroupMomentsActiveContent(
             planningItems = emptyList()
             bookings = emptyList()
             updates = emptyList()
+            polls = emptyList()
             return@LaunchedEffect
         }
         error = null
@@ -91,10 +95,12 @@ fun GroupMomentsActiveContent(
         val plans = repository.listPlanningItems(momentId).getOrNull()?.items
         val books = repository.listBookings(momentId).getOrNull()?.items
         val upds = repository.listUpdates(momentId).getOrNull()?.items
-        if (plans != null || books != null || upds != null) {
+        val pollList = repository.listPolls(momentId).getOrNull()?.items
+        if (plans != null || books != null || upds != null || pollList != null) {
             planningItems = plans.orEmpty()
             bookings = books.orEmpty()
             updates = upds.orEmpty()
+            polls = pollList.orEmpty()
         } else {
             repository.getLife(momentId).onSuccess { facet ->
                 val life = facet.payload
@@ -209,6 +215,25 @@ fun GroupMomentsActiveContent(
             }
         }
 
+        GroupSectionCard(title = "Polls") {
+            if (polls.isEmpty()) {
+                GroupEmptySection(
+                    message = "No polls yet",
+                    detail = "Create a poll from Quick Add to decide together.",
+                )
+            } else {
+                polls.forEachIndexed { index, item ->
+                    MomentsListRow(
+                        title = item.question ?: item.pollId.orEmpty(),
+                        meta = item.status,
+                        accent = itineraryAccents[(index + 3) % itineraryAccents.size],
+                        glyph = "📊",
+                        onClick = item.pollId?.let { pollId -> ({ selectedPollId = pollId }) },
+                    )
+                }
+            }
+        }
+
         GroupSectionCard(title = "Updates") {
             if (updates.isEmpty()) {
                 GroupEmptySection(
@@ -244,6 +269,16 @@ fun GroupMomentsActiveContent(
 
         MomentsQuickAddCta(onClick = onCreateMoment)
     }
+
+    selectedPollId?.let { pollId ->
+        PollDetailSheet(
+            pollId = pollId,
+            visible = true,
+            onDismiss = { selectedPollId = null },
+            onSaved = { /* parent refreshToken handles reload */ },
+            repository = repository,
+        )
+    }
 }
 
 @Composable
@@ -273,6 +308,7 @@ private fun MomentsListRow(
     meta: String?,
     accent: Color,
     glyph: String,
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -280,6 +316,7 @@ private fun MomentsListRow(
             .clip(RoundedCornerShape(14.dp))
             .background(Color(0xFF181716))
             .border(1.dp, GroupActiveTheme.Border, RoundedCornerShape(14.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,

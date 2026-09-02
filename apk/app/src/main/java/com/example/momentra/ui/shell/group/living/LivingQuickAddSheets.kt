@@ -110,7 +110,7 @@ fun LivingGapQuickAddSheet(
                 LivingQuickAddKind.MAINTENANCE ->
                     LivingMaintenanceSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 LivingQuickAddKind.RULE ->
-                    LivingHouseRuleSheetBody(accent)
+                    LivingHouseRuleSheetBody(momentId, repository, onDismiss, onSaved, accent)
             }
         }
     }
@@ -356,11 +356,18 @@ private fun LivingMaintenanceSheetBody(
 }
 
 @Composable
-private fun LivingHouseRuleSheetBody(accent: SheetAccent) {
+private fun LivingHouseRuleSheetBody(
+    momentId: String?,
+    repository: GroupSliceRepository,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit,
+    accent: SheetAccent,
+) {
     var title by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("Common") }
     var description by remember { mutableStateOf("") }
-    var effectiveFrom by remember { mutableStateOf("") }
+    var submitting by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     SheetHeader(
         R.drawable.ic_qa_book,
@@ -373,26 +380,33 @@ private fun LivingHouseRuleSheetBody(accent: SheetAccent) {
         SheetField(title, { title = it }, "Rule title", minHeight = 42)
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FieldLabel("Category")
-        ChipRow(
-            listOf("Noise", "Cleaning", "Guests", "Kitchen", "Bathroom", "Common"),
-            category,
-            accent,
-        ) { category = it }
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("Description")
         SheetField(description, { description = it }, "Rule details", minHeight = 72)
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FieldLabel("Effective from")
-        SheetField(effectiveFrom, { effectiveFrom = it }, "YYYY-MM-DD", minHeight = 42)
-    }
-    Text(
-        "House rule API is not live yet — form is ready, save stays disabled.",
-        color = EqMuted,
-        fontSize = 12.sp,
-        fontFamily = PlusJakartaSans,
+    error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
+    PrimaryCta(
+        label = if (submitting) "Saving…" else "Add Rule",
+        enabled = !momentId.isNullOrBlank() && title.isNotBlank() && description.isNotBlank() && !submitting,
+        loading = submitting,
+        accent = accent,
+        lightLabel = true,
+        onClick = {
+            val id = momentId ?: return@PrimaryCta
+            scope.launch {
+                submitting = true
+                error = null
+                repository.createLivingRule(id, title.trim(), description.trim()).fold(
+                    onSuccess = {
+                        submitting = false
+                        onSaved()
+                        onDismiss()
+                    },
+                    onFailure = {
+                        submitting = false
+                        error = it.message
+                    },
+                )
+            }
+        },
     )
-    PrimaryCta("Add Rule", enabled = false, accent = accent, lightLabel = true, onClick = {})
 }

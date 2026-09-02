@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-09-01T00:00:00Z",
+  "note": "Integration-test harness evidence for R2 P0-4 minimum; full Maestro device runs tracked per journey.",
+  "journeys": [
+    {"id": "P1", "domain": "personal", "status": "PASS", "evidence": "tests/personal-three-layer-join.test.ts"},
+    {"id": "P2", "domain": "personal", "status": "PASS", "evidence": "tests/personal-s2-slice.test.ts"},
+    {"id": "P3", "domain": "personal", "status": "PASS", "evidence": "tests/personal-s1-slice.test.ts"},
+    {"id": "P4", "domain": "personal", "status": "PASS", "evidence": "tests/personal-family-precision-contracts.test.ts"},
+    {"id": "G01", "domain": "group", "status": "PASS", "evidence": "tests/group-gx2-collab.test.ts"},
+    {"id": "G02", "domain": "group", "status": "PASS", "evidence": "tests/group-s3-finance.test.ts"},
+    {"id": "G03", "domain": "group", "status": "PASS", "evidence": "tests/group-invite.test.ts"},
+    {"id": "G04", "domain": "group", "status": "PASS", "evidence": "tests/group-budget-create.test.ts"},
+    {"id": "G05", "domain": "group", "status": "PASS", "evidence": "tests/trip-qa-sheets.test.ts"},
+    {"id": "G06", "domain": "group", "status": "PENDING"},
+    {"id": "G07", "domain": "group", "status": "PENDING"},
+    {"id": "G08", "domain": "group", "status": "PENDING"},
+    {"id": "G09", "domain": "group", "status": "PENDING"},
+    {"id": "G10", "domain": "group", "status": "PENDING"},
+    {"id": "G11", "domain": "group", "status": "PENDING"},
+    {"id": "G12", "domain": "group", "status": "PENDING"},
+    {"id": "B00", "domain": "business", "status": "PASS", "evidence": "tests/business-ops-three-layer-join.test.ts"},
+    {"id": "B01", "domain": "business", "status": "PASS", "evidence": "tests/business-s4-finance.test.ts"},
+    {"id": "B02", "domain": "business", "status": "PASS", "evidence": "tests/business-company-life.test.ts"},
+    {"id": "B03", "domain": "business", "status": "PASS", "evidence": "tests/financial-account-create.test.ts"}
+  ]
+}

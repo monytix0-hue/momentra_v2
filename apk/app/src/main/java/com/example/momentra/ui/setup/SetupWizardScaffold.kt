@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -29,32 +30,28 @@ fun SetupWizardScaffold(
     // Dialog hosts sometimes report 0 insets; keep a gesture-nav floor so Activate stays tappable.
     val footerBottomPad = if (navBottom > 0.dp) navBottom else 28.dp
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(backgroundColor),
-    ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-        ) {
-            Column(
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = backgroundColor,
+        bottomBar = {
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(bottom = 8.dp),
+                    .fillMaxWidth()
+                    .background(backgroundColor)
+                    .padding(bottom = footerBottomPad),
             ) {
-                content()
+                footer()
             }
         }
-        Box(
+    ) { innerPadding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .background(backgroundColor)
-                .padding(bottom = footerBottomPad),
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 8.dp),
         ) {
-            footer()
+            content()
         }
     }
 }

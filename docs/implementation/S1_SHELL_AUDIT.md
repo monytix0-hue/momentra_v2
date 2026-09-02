@@ -3,7 +3,7 @@
 **Date:** 2026-08-26  
 **Scope:** Existing iOS + Android global app shell before S1 chrome/theme work  
 **Figma root:** `TzLvwVwlPbeVB8ug1zB3GM` / node `169:487`  
-**Chrome seeds:** TopBar `763:12896`, ContextSwitcher `763:12897`, BottomNav `501:6367`  
+**Chrome seeds:** TopBar Personal `763:12256` / Group `772:11972` / Business setup `1522:12255` / Business activated `692:34971`; ContextSwitcher `763:12897`; BottomNav `501:6367`  
 **Rule:** Prefer REUSE/REFACTOR. No production chrome edits before this document.
 
 ---
@@ -150,7 +150,7 @@ iOS: nested `@ViewBuilder` switches in `AppShellView` + `ContextEmptyExperienceV
 
 | Node | Component | Phase 4 | Audit note |
 |------|-----------|---------|------------|
-| 763:12896 | TopBar | MATCHED | Wire Life360 + Profile stubs |
+| 763:12256 / 772:11972 / 1522:12255 / 692:34971 | TopBar variants | MATCHED | Labeled actions + Refer stub; company chip when selected |
 | chip | Company | MATCHED | Extract CompanySwitcher |
 | 763:12897 | Context | MATCHED | Must become bootstrap-driven |
 | Moment switcher | Moment | PARTIAL | Theme + visibility policy |

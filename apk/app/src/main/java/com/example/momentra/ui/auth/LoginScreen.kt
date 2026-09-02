@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,6 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,12 +26,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.momentra.analytics.AnalyticsScreens
 import com.example.momentra.analytics.AnalyticsWidgets
 import com.example.momentra.analytics.TrackScreen
@@ -107,14 +110,16 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            Row(
+            TabRow(
+                selectedTabIndex = mode.ordinal,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        color = Color.White.copy(alpha = 0.08f),
-                        shape = RoundedCornerShape(100.dp),
-                    )
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
                     .padding(4.dp),
+                containerColor = Color.Transparent,
+                indicator = {},
+                divider = {},
             ) {
                 AuthMode.entries.forEach { option ->
                     val selected = mode == option
@@ -123,12 +128,25 @@ fun LoginScreen(
                         AuthMode.Register -> "Register"
                         AuthMode.Phone -> "Phone"
                     }
-                    Text(
-                        text = label,
-                        color = MomentraBrandColors.TextOnDark,
-                        textAlign = TextAlign.Center,
+                    Tab(
+                        selected = selected,
+                        onClick = {
+                            mode = option
+                            authViewModel.clearError()
+                            val widget = when (option) {
+                                AuthMode.SignIn -> AnalyticsWidgets.LOGIN_TAB_SIGN_IN
+                                AuthMode.Register -> AnalyticsWidgets.LOGIN_TAB_REGISTER
+                                AuthMode.Phone -> AnalyticsWidgets.LOGIN_TAB_PHONE
+                            }
+                            trackWidget(AnalyticsScreens.LOGIN, widget, "tap")
+                            if (option != AuthMode.Phone) {
+                                authViewModel.resetPhoneFlow()
+                                smsCode = ""
+                            }
+                            if (option == AuthMode.SignIn) confirmPassword = ""
+                        },
                         modifier = Modifier
-                            .weight(1f)
+                            .clip(RoundedCornerShape(100.dp))
                             .background(
                                 color = if (selected) {
                                     MomentraBrandColors.Indigo500
@@ -136,23 +154,14 @@ fun LoginScreen(
                                     Color.Transparent
                                 },
                                 shape = RoundedCornerShape(100.dp),
+                            ),
+                        text = {
+                            Text(
+                                text = label,
+                                color = MomentraBrandColors.TextOnDark,
+                                fontSize = 13.sp,
                             )
-                            .clickable {
-                                mode = option
-                                authViewModel.clearError()
-                                val widget = when (option) {
-                                    AuthMode.SignIn -> AnalyticsWidgets.LOGIN_TAB_SIGN_IN
-                                    AuthMode.Register -> AnalyticsWidgets.LOGIN_TAB_REGISTER
-                                    AuthMode.Phone -> AnalyticsWidgets.LOGIN_TAB_PHONE
-                                }
-                                trackWidget(AnalyticsScreens.LOGIN, widget, "tap")
-                                if (option != AuthMode.Phone) {
-                                    authViewModel.resetPhoneFlow()
-                                    smsCode = ""
-                                }
-                                if (option == AuthMode.SignIn) confirmPassword = ""
-                            }
-                            .padding(vertical = 10.dp),
+                        },
                     )
                 }
             }

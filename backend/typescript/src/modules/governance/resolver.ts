@@ -200,3 +200,48 @@ export async function resolveCapabilityForMomentType(
   );
   return r.rows[0]?.ok === true;
 }
+
+/**
+ * Invite link mint + manual participant add for GROUP moments.
+ * Shared Living types use RESIDENT_MANAGE in the catalog; Trip/Experience use PARTICIPANT_MANAGE.
+ * Accept either when the moment belongs to SHARED_LIVING.
+ */
+export async function assertGroupPeopleManageAllowed(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string
+): Promise<void> {
+  const familyRow = await client.query<{ category_code: string }>(
+    `SELECT mc.code AS category_code
+     FROM core.moment m
+     JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+     JOIN core.moment_category mc ON mc.moment_category_id = mt.moment_category_id
+     WHERE m.moment_id = $1`,
+    [momentId]
+  );
+  const family = familyRow.rows[0]?.category_code;
+  if (family === 'SHARED_LIVING') {
+    const resident = await authorize(client, ctx, {
+      actionCode: 'RESIDENT_MANAGE',
+      resourceType: 'RESIDENT',
+      momentId,
+    });
+    if (resident.allowed) return;
+    const participant = await authorize(client, ctx, {
+      actionCode: 'PARTICIPANT_MANAGE',
+      resourceType: 'PARTICIPANT',
+      momentId,
+    });
+    if (participant.allowed) return;
+    throw new AppError(
+      ErrorCode.GOVERNANCE_DENIED,
+      participant.reason ?? resident.reason ?? 'Not permitted for this moment scope.',
+      403
+    );
+  }
+  await assertGovernanceAllowed(client, ctx, {
+    actionCode: 'PARTICIPANT_MANAGE',
+    resourceType: 'PARTICIPANT',
+    momentId,
+  });
+}

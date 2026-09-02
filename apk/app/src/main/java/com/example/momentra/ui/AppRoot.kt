@@ -17,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +32,7 @@ import com.example.momentra.analytics.TrackScreen
 import com.example.momentra.analytics.trackWidget
 import com.example.momentra.data.local.AppPreferences
 import com.example.momentra.data.local.PendingJoinInvite
+import com.example.momentra.data.device.DeviceRegistrar
 import com.example.momentra.data.repository.MeRepository
 import com.example.momentra.data.security.AppLockSession
 import com.example.momentra.data.security.AppLockStore
@@ -47,6 +49,7 @@ import com.example.momentra.ui.shell.AppShellViewModel
 import com.example.momentra.ui.splash.SplashScreen
 import com.example.momentra.ui.theme.MomentraBrandColors
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppRoot() {
@@ -81,10 +84,15 @@ fun AppRoot() {
     var showSplash by remember { mutableStateOf(true) }
     var splashAnimationDone by remember { mutableStateOf(false) }
     val hadSessionOnLaunch = remember { FirebaseAuth.getInstance().currentUser != null }
+    val scope = rememberCoroutineScope()
 
     val notifPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* local preference only; send worker remains STUB */ }
+    ) { granted ->
+        if (granted) {
+            scope.launch { DeviceRegistrar.register(context.applicationContext) }
+        }
+    }
 
     LaunchedEffect(Unit) {
         prefs.getPendingJoinCode()?.let { PendingJoinInvite.hydrate(it) }
@@ -99,6 +107,8 @@ fun AppRoot() {
             ) == PackageManager.PERMISSION_GRANTED
             if (!granted) {
                 notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                scope.launch { DeviceRegistrar.register(context.applicationContext) }
             }
         }
     }

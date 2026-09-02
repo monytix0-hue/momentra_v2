@@ -34,10 +34,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import com.example.momentra.ui.shell.maestro.MaestroIds
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -230,6 +232,7 @@ fun ProductOnboardingScreen(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = dy(43f), end = dx(24f))
+                    .testTag(MaestroIds.ONBOARDING_SKIP)
                     .semantics {
                         role = Role.Button
                         contentDescription = "Skip"

@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct AppShellView: View {
     let identity: ShellIdentity
@@ -36,144 +35,42 @@ struct AppShellView: View {
     @State private var recentActivityOpen = false
     @State private var newMomentOpen = false
     @State private var groupCreatePhase: GroupCreatePhase = .chooser
-    @State private var topChromeExpanded = true
     @State private var showManageMoment = false
     @State private var editSetupTarget: EditMomentSetupTarget? = nil
     @State private var showJoinQrScanner = false
+    @State private var showReferComingSoon = false
+    @State private var pendingGroupJoin: PendingGroupJoin?
+    @State private var companyMenuOpen = false
 
     var body: some View {
-        TabView(selection: tabSelection) {
-            ForEach(BottomDestination.allCases) { destination in
-                shellPage
-                    .tag(destination)
-                    .tabItem {
-                        Label {
-                            Text(destination.label)
-                        } icon: {
-                            if destination == .create {
-                                Image(systemName: "plus.circle.fill")
-                                    .renderingMode(.template)
-                            } else {
-                                Image(destination.tabAssetName)
-                                    .renderingMode(.template)
-                            }
-                        }
-                    }
-                    .accessibilityIdentifier({
-                        switch destination {
-                        case .pulse: return "bottom.pulse"
-                        case .moments: return "bottom.moments"
-                        case .create: return "bottom.quickadd"
-                        case .life: return "bottom.life"
-                        case .memory: return "bottom.memory"
-                        }
-                    }())
-            }
-        }
-        .tint(momentAccent)
-        .accessibilityIdentifier("bottom.nav")
-        .onAppear {
-            model.bindIdentity(identity)
-            applyNativeTabBarAppearance(accent: momentAccent)
-            if let pending = JoinInviteStore.shared.consume() {
-                redeemJoinCode(pending)
-            }
-        }
-        .onChange(of: identity.userId) { _, _ in
-            model.bindIdentity(identity)
-        }
-        .onChange(of: model.selectedContext) { _, _ in
-            newMomentOpen = false
-            groupCreatePhase = .chooser
-            applyNativeTabBarAppearance(accent: momentAccent)
-        }
-        .onChange(of: model.selectedMomentTypeCode) { _, _ in
-            applyNativeTabBarAppearance(accent: momentAccent)
-        }
-        .onChange(of: model.bottomDestination) { _, destination in
-            newMomentOpen = false
-            if destination == .create, model.selectedContext == .group {
-                // Keep phase when advancing from Pulse type cards; reset only when tapping Create tab from chooser path is handled by openNewMoment / tab setter.
-            }
-        }
-    }
-
-    private var tabSelection: Binding<BottomDestination> {
-        Binding(
-            get: { model.bottomDestination },
-            set: { next in
-                if next == .create, model.selectedContext == .group, model.bottomDestination != .create {
-                    groupCreatePhase = .chooser
+        shellPage
+            .onAppear {
+                model.bindIdentity(identity)
+                if let pending = JoinInviteStore.shared.consume() {
+                    pendingGroupJoin = PendingGroupJoin(id: pending)
                 }
-                model.selectBottomDestination(next)
             }
-        )
+            .onChange(of: identity.userId) { _, _ in
+                model.bindIdentity(identity)
+            }
+            .onChange(of: model.selectedContext) { _, _ in
+                newMomentOpen = false
+                groupCreatePhase = .chooser
+            }
+            .onChange(of: model.bottomDestination) { _, destination in
+                newMomentOpen = false
+                if destination == .create, model.selectedContext == .group {
+                    // Keep phase when advancing from Pulse type cards; reset only when tapping Create tab from chooser path is handled by openNewMoment / tab setter.
+                }
+            }
     }
 
     private var shellPage: some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                if topChromeExpanded {
-                    MomentraTopBar(
-                        context: model.selectedContext,
-                        displayName: identity.displayName,
-                        companies: model.companies,
-                        selectedCompany: model.selectedCompany,
-                        companyMenuOpen: $model.companyMenuOpen,
-                        onCompanySelected: model.selectCompany,
-                        onQrScan: (model.selectedContext == .group || model.selectedContext == .business)
-                            ? { showJoinQrScanner = true }
-                            : nil,
-                        onLife360: { model.openLife360(true) },
-                        onNewMoment: openNewMoment,
-                        onAvatar: { model.openProfile(true) }
-                    )
-                    ContextSwitcherView(
-                        selected: model.selectedContext,
-                        supportedContexts: model.supportedContexts,
-                        onSelect: model.selectContext
-                    )
-                } else {
-                    CompactShellChrome(
-                        onExpand: { withAnimation { topChromeExpanded = true } },
-                        onNewMoment: openNewMoment,
-                        onAvatar: { model.openProfile(true) }
-                    )
-                }
-                if !newMomentOpen && model.showMomentSwitcher {
-                    MomentSwitcherView(
-                        selectedTitle: model.selectedMomentTitle,
-                        selectedMomentId: model.selectedMomentId,
-                        activeMoments: model.moments.filter(\.isActiveStatus).map { ($0.momentId, $0.title) },
-                        isEmpty: model.contextContent == .empty,
-                        isLoading: model.contextContent == .loading,
-                        accent: MomentThemes.resolve(context: model.selectedContext, momentTypeCode: model.selectedMomentTypeCode).primary,
-                        onSelectMoment: model.selectMoment,
-                        onSettings: {
-                            guard model.selectedMomentId != nil else { return }
-                            showManageMoment = true
-                        }
-                    )
-                }
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        topChromeExpanded.toggle()
-                    }
-                } label: {
-                    Image(systemName: topChromeExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.45))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 2)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(topChromeExpanded ? "Collapse top bar" : "Expand top bar")
-            }
-            .background(Color(hex: "#0C0F15"))
-
-            destinationBodyWithFab
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
+        NativeShellTabView(
+            selection: bottomTabSelection,
+            accent: momentAccent,
+            content: { tabNavigationRoot }
+        )
         .background(Color(hex: "#14121B").ignoresSafeArea())
         .fullScreenCover(isPresented: $showManageMoment) {
             if let momentId = model.selectedMomentId {
@@ -292,10 +189,13 @@ struct AppShellView: View {
         }
         .sheet(isPresented: $groupInviteSheetPresented) {
             if let momentId = model.selectedMomentId {
+                let inviteTypeCode = model.selectedMomentTypeCode
+                    ?? model.moments.first(where: { $0.momentId == momentId })?.momentTypeCode
+                    ?? "TRIP"
                 GroupInvitePeopleSheet(
                     momentId: momentId,
                     momentTitle: model.selectedMomentTitle ?? "Trip",
-                    momentTypeCode: model.selectedMomentTypeCode ?? "TRIP",
+                    momentTypeCode: inviteTypeCode,
                     isPresented: $groupInviteSheetPresented,
                     onSaved: { model.refreshVisibleGroupTab() }
                 )
@@ -313,6 +213,21 @@ struct AppShellView: View {
                     onSaved: { model.refreshVisibleGroupTab() }
                 )
             }
+        }
+        .sheet(item: $pendingGroupJoin) { pending in
+            GroupJoinConfirmSheet(
+                code: pending.code,
+                onClose: { pendingGroupJoin = nil },
+                onJoin: {
+                    let code = pending.code
+                    Task {
+                        await model.redeemJoinCode(code, using: createModel)
+                        pendingGroupJoin = nil
+                        newMomentOpen = false
+                        groupCreatePhase = .chooser
+                    }
+                }
+            )
         }
         .sheet(item: $weddingGapQa) { kind in
             WeddingGapQuickAddSheet(
@@ -365,6 +280,11 @@ struct AppShellView: View {
                 },
                 onDismiss: { showJoinQrScanner = false }
             )
+        }
+        .alert("Referrals coming soon", isPresented: $showReferComingSoon) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Invite sharing will be available in a future release.")
         }
         .fullScreenCover(isPresented: $groupFinancePresented) {
             if let momentId = model.selectedMomentId {
@@ -456,9 +376,9 @@ struct AppShellView: View {
                             businessExpenseSheetPresented = true
                         }
                     case .revenue:
-                        businessRevenueSheetPresented = true
+                        if code.contains("RUNWAY") { businessRevenueSheetPresented = true }
                     case .invoice:
-                        businessInvoiceSheetPresented = true
+                        if code.contains("RUNWAY") { businessInvoiceSheetPresented = true }
                     default:
                         businessGapQa = kind
                     }
@@ -473,11 +393,13 @@ struct AppShellView: View {
                 },
                 onRevenue: {
                     businessQuickAddPresented = false
-                    businessRevenueSheetPresented = true
+                    let code = (model.selectedMomentTypeCode ?? "").uppercased()
+                    if code.contains("RUNWAY") { businessRevenueSheetPresented = true }
                 },
                 onInvoice: {
                     businessQuickAddPresented = false
-                    businessInvoiceSheetPresented = true
+                    let code = (model.selectedMomentTypeCode ?? "").uppercased()
+                    if code.contains("RUNWAY") { businessInvoiceSheetPresented = true }
                 },
                 onMembers: {
                     businessQuickAddPresented = false
@@ -521,8 +443,14 @@ struct AppShellView: View {
                         onClose: { businessGapQa = nil },
                         onSaved: { model.refreshVisibleBusinessTab() },
                         onExpense: { businessExpenseSheetPresented = true },
-                        onRevenue: { businessRevenueSheetPresented = true },
-                        onInvoice: { businessInvoiceSheetPresented = true }
+                        onRevenue: {
+                            let code = (model.selectedMomentTypeCode ?? "").uppercased()
+                            if code.contains("RUNWAY") { businessRevenueSheetPresented = true }
+                        },
+                        onInvoice: {
+                            let code = (model.selectedMomentTypeCode ?? "").uppercased()
+                            if code.contains("RUNWAY") { businessInvoiceSheetPresented = true }
+                        }
                     )
                 }
             }
@@ -645,11 +573,7 @@ struct AppShellView: View {
     }
 
     private func redeemJoinCode(_ code: String) {
-        Task {
-            await model.redeemJoinCode(code, using: createModel)
-            newMomentOpen = false
-            groupCreatePhase = .chooser
-        }
+        pendingGroupJoin = PendingGroupJoin(id: code)
     }
 
     private func redeemCompanyInviteCode(_ code: String) {
@@ -692,6 +616,19 @@ struct AppShellView: View {
         }
     }
 
+    private var bottomTabSelection: Binding<BottomDestination> {
+        Binding(
+            get: { model.bottomDestination },
+            set: { next in
+                newMomentOpen = false
+                if next == .create, model.selectedContext == .group, model.bottomDestination != .create {
+                    groupCreatePhase = .chooser
+                }
+                model.selectBottomDestination(next)
+            }
+        )
+    }
+
     private var showPersonalExpenseFab: Bool {
         model.selectedContext == .personal &&
         model.selectedMomentId != nil &&
@@ -699,16 +636,119 @@ struct AppShellView: View {
         [.pulse, .moments, .life, .memory].contains(model.bottomDestination)
     }
 
+    private var shellNavigationTitle: String {
+        if newMomentOpen { return "New Moment" }
+        if model.bottomDestination == .create { return "" }
+        return "\(model.selectedContext.label) · \(model.bottomDestination.label)"
+    }
+
+    private var momentSwitcherIsEmpty: Bool {
+        model.moments.filter(\.isActiveStatus).isEmpty
+    }
+
+    private var momentSwitcherIsLoading: Bool {
+        switch model.contextContent {
+        case .loading, .idle:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var activeMomentPairs: [(String, String)] {
+        model.moments.filter(\.isActiveStatus).map { ($0.momentId, $0.title) }
+    }
+
     @ViewBuilder
-    private var destinationBodyWithFab: some View {
-        ZStack(alignment: .bottomTrailing) {
-            destinationBody
-            if showPersonalExpenseFab {
-                PersonalExpenseFab { moneyQa = .masterExpense }
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 72 + 16)
+    private var tabNavigationRoot: some View {
+        NavigationStack {
+            destinationBodyWithFab
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar(.hidden, for: .navigationBar)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    shellTopChrome
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var shellTopChrome: some View {
+        if model.bottomDestination == .create {
+            EmptyView()
+        } else {
+            shellTopChromeContent
+        }
+    }
+
+    private var shellTopChromeContent: some View {
+        VStack(spacing: 0) {
+            MomentraTopBar(
+                context: model.selectedContext,
+                displayName: identity.displayName,
+                companies: model.companies,
+                selectedCompany: model.selectedCompany,
+                companyMenuOpen: $companyMenuOpen,
+                onCompanySelected: model.selectCompany,
+                onQrScan: (model.selectedContext == .group || model.selectedContext == .business)
+                    ? { showJoinQrScanner = true }
+                    : nil,
+                onLife360: { model.openLife360(true) },
+                onNewMoment: openNewMoment,
+                onRefer: { showReferComingSoon = true },
+                onAvatar: { model.openProfile(true) }
+            )
+
+            if !shellNavigationTitle.isEmpty {
+                Text(shellNavigationTitle)
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(MomentraBrandTokens.textOnDark)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 8)
+            }
+
+            if model.bottomDestination != .create {
+                ShellContextInset(
+                    selected: model.selectedContext,
+                    supportedContexts: model.supportedContexts,
+                    onSelect: model.selectContext
+                )
+            }
+            if shouldShowMomentSwitcher && !newMomentOpen {
+                MomentSwitcherView(
+                    selectedTitle: model.selectedMomentTitle,
+                    selectedMomentId: model.selectedMomentId,
+                    activeMoments: activeMomentPairs,
+                    isEmpty: momentSwitcherIsEmpty,
+                    isLoading: momentSwitcherIsLoading,
+                    accent: momentAccent,
+                    onSelectMoment: model.selectMoment,
+                    onSettings: {
+                        guard model.selectedMomentId != nil else { return }
+                        showManageMoment = true
+                    },
+                    onInvite: model.selectedContext == .group ? { groupInviteSheetPresented = true } : nil
+                )
             }
         }
+        .background(GlobalTheme.topBarBackground)
+    }
+
+    @ViewBuilder
+    private var destinationBodyWithFab: some View {
+        destinationBody
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if showPersonalExpenseFab {
+                    HStack {
+                        Spacer()
+                        PersonalExpenseFab { moneyQa = .masterExpense }
+                    }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 8)
+                }
+            }
     }
 
     @ViewBuilder
@@ -887,7 +927,10 @@ struct AppShellView: View {
                             momentId: model.selectedMomentId,
                             onAddExpense: { groupExpenseSheetPresented = true },
                             onViewSplits: { groupSplitsPresented = true },
-                            onOpenFinance: { groupFinancePresented = true }
+                            onOpenFinance: { groupFinancePresented = true },
+                            onOpenMemory: { groupCollabKind = .memory },
+                            onOpenChat: { groupCollabKind = .update },
+                            onOpenItinerary: { groupCollabKind = .planning }
                         )
                     }
                 } else if model.selectedContext == .group, model.bottomDestination == .moments {
@@ -1003,7 +1046,8 @@ struct AppShellView: View {
                         GroupMemoryActiveView(
                             refreshToken: model.groupTabRefreshToken,
                             momentId: model.selectedMomentId,
-                            momentTitle: model.selectedMomentTitle
+                            momentTitle: model.selectedMomentTitle,
+                            onOpenQuickAdd: { groupCollabKind = .memory }
                         )
                     }
                 } else if model.selectedContext == .group, model.bottomDestination == .create {
@@ -1126,32 +1170,28 @@ struct AppShellView: View {
                         refreshToken: model.personalTabRefreshToken,
                         momentId: model.selectedMomentId,
                         momentTitle: model.selectedMomentTitle,
-                        onOpenQuickAdd: { model.selectBottomDestination(.create) },
-                        onAddExpense: { moneyQa = .masterExpense }
+                        onOpenQuickAdd: { model.selectBottomDestination(.create) }
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .moments, isLifestyle {
                     PersonalLifestyleMomentsActiveView(
                         refreshToken: model.personalTabRefreshToken,
                         momentId: model.selectedMomentId,
                         momentTitle: model.selectedMomentTitle,
-                        onOpenQuickAdd: { model.selectBottomDestination(.create) },
-                        onAddExpense: { moneyQa = .masterExpense }
+                        onOpenQuickAdd: { model.selectBottomDestination(.create) }
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .moments, isRelationships {
                     PersonalRelationshipsMomentsActiveView(
                         refreshToken: model.personalTabRefreshToken,
                         momentId: model.selectedMomentId,
                         momentTitle: model.selectedMomentTitle,
-                        onOpenQuickAdd: { model.selectBottomDestination(.create) },
-                        onAddExpense: { moneyQa = .masterExpense }
+                        onOpenQuickAdd: { model.selectBottomDestination(.create) }
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .moments, isLifeOps {
                     PersonalLifeOpsMomentsActiveView(
                         refreshToken: model.personalTabRefreshToken,
                         momentId: model.selectedMomentId,
                         momentTitle: model.selectedMomentTitle,
-                        onOpenQuickAdd: { model.selectBottomDestination(.create) },
-                        onAddExpense: { moneyQa = .masterExpense }
+                        onOpenQuickAdd: { model.selectBottomDestination(.create) }
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .memory, isFutureBuilding {
                     PersonalFutureMemoryActiveView(
@@ -1240,8 +1280,8 @@ struct AppShellView: View {
                     if code.contains("RUNWAY") {
                         RunwayMomentsActiveView(
                             refreshToken: model.businessTabRefreshToken,
-                            momentId: model.selectedMomentId,
                             momentTitle: model.selectedMomentTitle,
+                            momentId: model.selectedMomentId,
                             onLogExpense: { businessGapQa = .expense },
                             onOpenQuickAdd: { businessQuickAddPresented = true }
                         )
@@ -1256,8 +1296,8 @@ struct AppShellView: View {
                     } else if code.contains("TEAM_OPERATIONS") {
                         TeamOpsMomentsActiveView(
                             refreshToken: model.businessTabRefreshToken,
-                            momentId: model.selectedMomentId,
                             momentTitle: model.selectedMomentTitle,
+                            momentId: model.selectedMomentId,
                             onLogWin: { businessGapQa = .teamUpdate },
                             onOpenQuickAdd: { businessQuickAddPresented = true }
                         )
@@ -1331,9 +1371,9 @@ struct AppShellView: View {
                                     case .expense, .spendEntry:
                                         businessExpenseSheetPresented = true
                                     case .revenue:
-                                        businessRevenueSheetPresented = true
+                                        if code.contains("RUNWAY") { businessRevenueSheetPresented = true }
                                     case .invoice:
-                                        businessInvoiceSheetPresented = true
+                                        if code.contains("RUNWAY") { businessInvoiceSheetPresented = true }
                                     default:
                                         businessGapQa = kind
                                     }
@@ -1341,8 +1381,14 @@ struct AppShellView: View {
                             },
                             onNewMoment: { newMomentOpen = true },
                             onExpense: { businessExpenseSheetPresented = true },
-                            onRevenue: { businessRevenueSheetPresented = true },
-                            onInvoice: { businessInvoiceSheetPresented = true },
+                            onRevenue: {
+                                let code = (model.selectedMomentTypeCode ?? "").uppercased()
+                                if code.contains("RUNWAY") { businessRevenueSheetPresented = true }
+                            },
+                            onInvoice: {
+                                let code = (model.selectedMomentTypeCode ?? "").uppercased()
+                                if code.contains("RUNWAY") { businessInvoiceSheetPresented = true }
+                            },
                             onMembers: { businessMembersSheetPresented = true }
                         )
                     } else {
@@ -1477,28 +1523,5 @@ struct AppShellView: View {
             }
         }
         .padding(24)
-    }
-
-    private func applyNativeTabBarAppearance(accent: Color) {
-        let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(Color(hex: "#0C0F15"))
-
-        let uiAccent = UIColor(accent)
-        let muted = UIColor(Color(hex: "#C9C4D8"))
-
-        let item = UITabBarItemAppearance()
-        item.normal.iconColor = muted
-        item.normal.titleTextAttributes = [.foregroundColor: muted]
-        item.selected.iconColor = uiAccent
-        item.selected.titleTextAttributes = [.foregroundColor: uiAccent]
-        appearance.stackedLayoutAppearance = item
-        appearance.inlineLayoutAppearance = item
-        appearance.compactInlineLayoutAppearance = item
-
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
-        UITabBar.appearance().tintColor = uiAccent
-        UITabBar.appearance().unselectedItemTintColor = muted
     }
 }

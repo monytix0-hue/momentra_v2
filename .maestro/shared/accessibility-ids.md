@@ -89,7 +89,12 @@ iOS: matching `accessibilityIdentifier`.
 |----|---------|
 | `group.expense.amount` | Amount |
 | `group.expense.payer` | Paid by |
-| `group.expense.split` | Split strategy |
+| `group.expense.split` | Split strategy container |
+| `group.expense.split.equal` | EQUAL strategy chip |
+| `group.expense.split.percentage` | PERCENTAGE strategy chip |
+| `group.expense.split.exact` | EXACT strategy chip |
+| `group.expense.split.shares` | SHARES strategy chip |
+| `group.expense.split.value.{participantId}` | Per-participant split value |
 | `group.expense.note` | Description |
 | `group.expense.submit` | Save |
 | `group.invite.create` | Mint invite CTA |
@@ -104,11 +109,12 @@ iOS: matching `accessibilityIdentifier`.
 | `business.expense.category` | Category |
 | `business.expense.note` | Description |
 | `business.expense.submit` | Save |
-| `business.revenue.amount` | Revenue amount *(wire when sheet exists)* |
-| `business.revenue.submit` | Revenue save *(wire when sheet exists)* |
-| `business.invoice.customer` | Invoice customer *(wire when sheet exists)* |
-| `business.invoice.line.add` | Add line *(wire when sheet exists)* |
-| `business.invoice.submit` | Invoice save *(wire when sheet exists)* |
+| `business.revenue.amount` | Revenue amount (Runway) |
+| `business.revenue.submit` | Revenue save (Runway) |
+| `business.invoice.customer` | Invoice customer (Runway) |
+| `business.invoice.amount` | Invoice amount (Runway) |
+| `business.invoice.line.add` | Add line *(optional)* |
+| `business.invoice.submit` | Invoice save (Runway) |
 | `business.approval.approve` | Approve *(wire when sheet exists)* |
 | `business.approval.reject` | Reject *(wire when sheet exists)* |
 
@@ -117,6 +123,7 @@ iOS: matching `accessibilityIdentifier`.
 | ID | Surface |
 |----|---------|
 | `qa.tile.expense` | Expense |
+| `qa.tile.income` | Income (Life Ops money; Android hub) |
 | `qa.tile.recovery` | Recovery |
 | `qa.tile.mood` | Mood |
 | `qa.tile.attention` | Attention |

@@ -35,12 +35,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.R
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.theme.MomentraBrandColors
 import com.example.momentra.ui.theme.ShellTokens
@@ -58,6 +60,7 @@ fun MomentSwitcher(
     isLoading: Boolean,
     onSelectMoment: (String) -> Unit = {},
     onSettings: () -> Unit = {},
+    onInvite: (() -> Unit)? = null,
     accent: Color = MomentraBrandColors.Cta,
     modifier: Modifier = Modifier,
 ) {
@@ -120,6 +123,18 @@ fun MomentSwitcher(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (onInvite != null) {
+                    Icon(
+                        painterResource(R.drawable.ic_group_qa_userplus),
+                        contentDescription = "Invite people",
+                        tint = accent.copy(alpha = if (canOpenSettings) 1f else 0.4f),
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clickable(enabled = canOpenSettings, onClick = onInvite)
+                            .padding(6.dp)
+                            .testTag(MaestroIds.MOMENT_SWITCHER_INVITE),
+                    )
+                }
                 Icon(
                     Icons.Outlined.Settings,
                     contentDescription = "Moment settings",

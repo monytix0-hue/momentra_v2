@@ -1,0 +1,6 @@
+Surface,ApiRoute,Generator,ProjectionTable,PersistenceStatus,RegisterGapId
+personal_pulse,GET /v1/personal/pulse,inline SQL,projection.personal_pulse,BYPASSED,PER-009
+personal_life,GET /v1/personal/life,inline + LifeSectionQuality,projection.personal_life,PARTIAL,PER-009
+group_pulse,GET /v1/group/moments/{id}/pulse,inline SQL,projection.group_pulse,INLINE,GRP-008
+company_life,GET /v1/business/moments/{id}/life,thin proxy,N/A,API_GAP,BUS-017
+life360,GET /v1/life360,hardcoded empty,projection.life360,DEFERRED,SP-018

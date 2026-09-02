@@ -20,7 +20,8 @@ export JAVA_HOME="${JAVA_HOME:-$HOME/.jdks/jdk-21.0.12.1+1/Contents/Home}"
 export PATH="/usr/local/bin:/opt/homebrew/bin:$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH"
 export MAESTRO_CLI_NO_ANALYTICS="${MAESTRO_CLI_NO_ANALYTICS:-true}"
 export MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED=true
-export MAESTRO_DRIVER_STARTUP_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-180000}"
+# iOS XCTest driver often needs > default on cold sim / physical device (ms).
+export MAESTRO_DRIVER_STARTUP_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-300000}"
 
 DERIVED_ROOT="${DERIVED_ROOT:-$HOME/Library/Developer/Xcode/DerivedData/momentra-afcfwpbbsgmhvbgkxqovavvbmkno}"
 APPLE_TEAM_ID="${APPLE_TEAM_ID:-TY9S2C44WR}"
@@ -122,9 +123,9 @@ watch_maestro_driver_port() {
   while true; do
     local port=""
     local f
-    for f in "$report_dir"/.maestro/tests/*/maestro.log "$HOME/.maestro/tests"/*/maestro.log; do
+    for f in "$report_dir"/.maestro/tests/*/maestro.log "$HOME/.maestro/tests"/*/maestro.log "$HOME/.maestro/tests"/*/xctest_runner_*.log; do
       [[ -f "$f" ]] || continue
-      port="$(grep -Eo 'using port [0-9]+|TEST_RUNNER_PORT=[0-9]+' "$f" 2>/dev/null | grep -Eo '[0-9]+$' | tail -1 || true)"
+      port="$(grep -Eo 'starting server 127\.0\.0\.1:[0-9]+|using port [0-9]+|TEST_RUNNER_PORT=[0-9]+|Failed to connect to /127\.0\.0\.1:[0-9]+' "$f" 2>/dev/null | grep -Eo '[0-9]+$' | tail -1 || true)"
       [[ -n "$port" ]] && break
     done
     if [[ -n "$port" && "$port" != "$active" ]]; then
@@ -192,7 +193,10 @@ mkdir -p "$REPORT_DIR"
 DEVICE_FLOW_TMP=""
 if [[ "$TARGET" == "device" && -f "$FLOW" ]] && grep -q '00_launch_clear.yaml' "$FLOW"; then
   DEVICE_FLOW_TMP="$(mktemp /tmp/maestro_device_flow.XXXXXX.yaml)"
-  sed 's/00_launch_clear\.yaml/00_launch_device.yaml/g' "$FLOW" >"$DEVICE_FLOW_TMP"
+  # Absolute path required: Maestro resolves runFlow relative to the temp file's dir (/tmp).
+  local_device_launch="$ROOT/.maestro/flows/00_launch_device.yaml"
+  [[ -f "$local_device_launch" ]] || { echo "Missing $local_device_launch"; exit 1; }
+  sed "s|00_launch_clear\\.yaml|${local_device_launch}|g" "$FLOW" >"$DEVICE_FLOW_TMP"
   echo "==> Device run: using 00_launch_device.yaml (clearKeychain unsupported on physical iOS)"
   FLOW="$DEVICE_FLOW_TMP"
 fi
@@ -215,6 +219,16 @@ if [[ "$TARGET" == "device" ]]; then
       build | tail -40)
   fi
   install_on_device "$DERIVED" "$UDID"
+  echo "==> Launching app on device (Maestro launchApp is unimplemented on physical iOS)"
+  if ! xcrun devicectl device process launch \
+      --device "$UDID" \
+      --terminate-existing \
+      resolvingpoint.momentra; then
+    echo "WARN: devicectl launch failed — unlock phone, trust Developer App certificate:"
+    echo "      Settings → General → VPN & Device Management → Developer App → Trust"
+  fi
+  # Give SpringBoard a beat before XCTest attaches.
+  sleep 2
   watch_maestro_driver_port "$UDID" "$REPORT_DIR" &
   IPROXY_WATCH_PID=$!
   disown "$IPROXY_WATCH_PID" 2>/dev/null || true

@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
-import { assertGovernanceAllowed } from '../governance/resolver';
+import { assertGovernanceAllowed, assertGroupPeopleManageAllowed } from '../governance/resolver';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
 
@@ -63,7 +63,7 @@ export async function addParticipant(
   momentId: string,
   body: z.infer<typeof participantSchema>
 ): Promise<{ participantId: string; momentId: string }> {
-  await assertGovernanceAllowed(client, ctx, { actionCode: 'PARTICIPANT_MANAGE', resourceType: 'PARTICIPANT', momentId });
+  await assertGroupPeopleManageAllowed(client, ctx, momentId);
 
   if (body.userId || !body.displayName) {
     const targetUserId = body.userId ?? ctx.userId;
@@ -148,6 +148,185 @@ export async function createPoll(
   });
 
   return { pollId, momentId, question: body.question };
+}
+
+export const votePollSchema = z
+  .object({
+    pollOptionId: z.string().uuid(),
+  })
+  .strict();
+
+export async function getPollById(
+  client: PoolClient,
+  ctx: RequestContext,
+  pollId: string
+): Promise<{
+  pollId: string;
+  momentId: string;
+  question: string;
+  status: string;
+  pollType: string;
+  closesAt: string | null;
+  createdAt: string;
+  options: Array<{
+    pollOptionId: string;
+    text: string;
+    sortOrder: number;
+    voteCount: number;
+    votedByMe: boolean;
+  }>;
+}> {
+  const poll = await client.query<{
+    poll_id: string;
+    moment_id: string;
+    question: string;
+    status: string;
+    poll_type: string;
+    closes_at: Date | null;
+    created_at: Date;
+  }>(
+    `SELECT poll_id, moment_id, question, status, poll_type, closes_at, created_at
+     FROM shared.poll WHERE poll_id = $1`,
+    [pollId]
+  );
+  if (!poll.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Poll not found', 404);
+  }
+  const row = poll.rows[0];
+  await assertMomentAccess(client, ctx, row.moment_id);
+
+  const opts = await client.query<{
+    poll_option_id: string;
+    option_text: string;
+    sort_order: number;
+  }>(
+    `SELECT poll_option_id, option_text, sort_order
+     FROM shared.poll_option WHERE poll_id = $1 ORDER BY sort_order ASC`,
+    [pollId]
+  );
+
+  const voteCounts = await client.query<{ poll_option_id: string; n: string }>(
+    `SELECT poll_option_id, COUNT(*)::text AS n
+     FROM shared.poll_vote WHERE poll_id = $1 GROUP BY poll_option_id`,
+    [pollId]
+  );
+  const countMap = new Map(voteCounts.rows.map((v) => [v.poll_option_id, Number(v.n)]));
+
+  const myVotes = await client.query<{ poll_option_id: string }>(
+    `SELECT poll_option_id FROM shared.poll_vote WHERE poll_id = $1 AND voter_user_id = $2`,
+    [pollId, ctx.userId]
+  );
+  const mySet = new Set(myVotes.rows.map((v) => v.poll_option_id));
+
+  return {
+    pollId: row.poll_id,
+    momentId: row.moment_id,
+    question: row.question,
+    status: row.status,
+    pollType: row.poll_type,
+    closesAt: row.closes_at?.toISOString() ?? null,
+    createdAt: row.created_at.toISOString(),
+    options: opts.rows.map((o) => ({
+      pollOptionId: o.poll_option_id,
+      text: o.option_text,
+      sortOrder: o.sort_order,
+      voteCount: countMap.get(o.poll_option_id) ?? 0,
+      votedByMe: mySet.has(o.poll_option_id),
+    })),
+  };
+}
+
+export async function votePoll(
+  client: PoolClient,
+  ctx: RequestContext,
+  pollId: string,
+  body: z.infer<typeof votePollSchema>
+): Promise<{ pollId: string; pollOptionId: string; momentId: string }> {
+  const poll = await client.query<{ moment_id: string; status: string; closes_at: Date | null }>(
+    `SELECT moment_id, status, closes_at FROM shared.poll WHERE poll_id = $1`,
+    [pollId]
+  );
+  if (!poll.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Poll not found', 404);
+  }
+  const { moment_id: momentId, status, closes_at: closesAt } = poll.rows[0];
+  await assertGovernanceAllowed(client, ctx, { actionCode: 'POLL_VOTE', resourceType: 'POLL', momentId });
+  await assertMomentAccess(client, ctx, momentId);
+
+  if (status !== 'OPEN') {
+    throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Poll is closed', 409);
+  }
+  if (closesAt && closesAt.getTime() <= Date.now()) {
+    throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Poll voting period has ended', 409);
+  }
+
+  const option = await client.query<{ poll_option_id: string }>(
+    `SELECT poll_option_id FROM shared.poll_option WHERE poll_option_id = $1 AND poll_id = $2`,
+    [body.pollOptionId, pollId]
+  );
+  if (!option.rows[0]) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Invalid poll option', 400);
+  }
+
+  await client.query(
+    `INSERT INTO shared.poll_vote (poll_id, poll_option_id, moment_id, voter_user_id)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (poll_option_id, voter_user_id) DO NOTHING`,
+    [pollId, body.pollOptionId, momentId, ctx.userId]
+  );
+
+  await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'PollVoted',
+    domainCode: 'GROUP',
+    aggregateType: 'POLL',
+    aggregateId: pollId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: { pollId, pollOptionId: body.pollOptionId, momentId },
+  });
+
+  return { pollId, pollOptionId: body.pollOptionId, momentId };
+}
+
+export async function closePoll(
+  client: PoolClient,
+  ctx: RequestContext,
+  pollId: string
+): Promise<{ pollId: string; momentId: string; status: string }> {
+  const poll = await client.query<{ moment_id: string; status: string }>(
+    `SELECT moment_id, status FROM shared.poll WHERE poll_id = $1`,
+    [pollId]
+  );
+  if (!poll.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Poll not found', 404);
+  }
+  const { moment_id: momentId, status } = poll.rows[0];
+  await assertGovernanceAllowed(client, ctx, { actionCode: 'POLL_CLOSE', resourceType: 'POLL', momentId });
+  await assertMomentAccess(client, ctx, momentId);
+
+  if (status === 'CLOSED') {
+    return { pollId, momentId, status: 'CLOSED' };
+  }
+  if (status !== 'OPEN') {
+    throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Poll cannot be closed', 409);
+  }
+
+  await client.query(
+    `UPDATE shared.poll SET status = 'CLOSED', updated_at = now() WHERE poll_id = $1`,
+    [pollId]
+  );
+
+  await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'PollClosed',
+    domainCode: 'GROUP',
+    aggregateType: 'POLL',
+    aggregateId: pollId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: { pollId, momentId },
+  });
+
+  return { pollId, momentId, status: 'CLOSED' };
 }
 
 export async function createPlanningItem(
@@ -417,4 +596,134 @@ export async function createMaintenanceRecord(
     [momentId, body.sharedAssetId ?? null, body.title, body.description ?? null]
   );
   return { maintenanceRecordId: r.rows[0]!.maintenance_record_id, momentId };
+}
+
+async function resolveParticipantByDisplayName(
+  client: PoolClient,
+  momentId: string,
+  displayName?: string
+): Promise<string | null> {
+  const name = displayName?.trim();
+  if (!name) return null;
+  const r = await client.query<{ participant_id: string }>(
+    `SELECT mp.participant_id
+     FROM collaboration.moment_participant mp
+     LEFT JOIN core.user_profile up ON up.user_id = mp.user_id
+     LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
+     WHERE mp.moment_id = $1 AND mp.status = 'ACTIVE'
+       AND LOWER(TRIM(COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName', ''))) = LOWER($2)
+     LIMIT 1`,
+    [momentId, name]
+  );
+  return r.rows[0]?.participant_id ?? null;
+}
+
+async function actorParticipantId(
+  client: PoolClient,
+  momentId: string,
+  userId: string
+): Promise<string | null> {
+  const r = await client.query<{ participant_id: string }>(
+    `SELECT participant_id FROM collaboration.moment_participant
+     WHERE moment_id = $1 AND user_id = $2 AND status = 'ACTIVE' LIMIT 1`,
+    [momentId, userId]
+  );
+  return r.rows[0]?.participant_id ?? null;
+}
+
+function normalizeScheduledAt(raw?: string): string | null {
+  if (!raw?.trim()) return null;
+  const t = raw.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    return `${t}T12:00:00.000Z`;
+  }
+  return t;
+}
+
+export async function createDeliveryHandover(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  body: {
+    recipientName?: string;
+    handoverType?: 'DELIVERY' | 'HANDOVER' | 'PICKUP';
+    scheduledAt?: string;
+    address?: string;
+    note?: string;
+    purchaseItemId?: string;
+  }
+): Promise<{ deliveryHandoverId: string; momentId: string }> {
+  await assertGovernanceAllowed(client, ctx, {
+    actionCode: 'PURCHASE_ITEM_CREATE',
+    resourceType: 'DELIVERY_HANDOVER',
+    momentId,
+  });
+  const participantId = await resolveParticipantByDisplayName(client, momentId, body.recipientName);
+  const noteParts = [
+    body.recipientName ? `Recipient: ${body.recipientName}` : null,
+    body.address ? `Address: ${body.address}` : null,
+    body.note?.trim() || null,
+  ].filter(Boolean);
+  const r = await client.query<{ delivery_handover_id: string }>(
+    `INSERT INTO collaboration.delivery_handover (
+       moment_id, purchase_item_id, participant_id, handover_type, scheduled_at, status, note
+     ) VALUES ($1, $2, $3, $4, $5::timestamptz, 'PLANNED', $6)
+     RETURNING delivery_handover_id`,
+    [
+      momentId,
+      body.purchaseItemId ?? null,
+      participantId,
+      body.handoverType ?? 'DELIVERY',
+      normalizeScheduledAt(body.scheduledAt),
+      noteParts.length ? noteParts.join('\n') : null,
+    ]
+  );
+  return { deliveryHandoverId: r.rows[0]!.delivery_handover_id, momentId };
+}
+
+export async function createOwnershipRecord(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  body: {
+    purchaseItemId?: string;
+    toParticipantName?: string;
+    fromOwnerName?: string;
+    ownershipShare?: number;
+    ownershipNote?: string;
+    effectiveAt?: string;
+  }
+): Promise<{ ownershipRecordId: string; momentId: string }> {
+  await assertGovernanceAllowed(client, ctx, {
+    actionCode: 'PURCHASE_ITEM_CREATE',
+    resourceType: 'OWNERSHIP_RECORD',
+    momentId,
+  });
+  let participantId = await resolveParticipantByDisplayName(client, momentId, body.toParticipantName);
+  if (!participantId) {
+    participantId = await actorParticipantId(client, momentId, ctx.userId);
+  }
+  if (!participantId) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Could not resolve owner participant for transfer.', 400);
+  }
+  const noteParts = [
+    body.fromOwnerName ? `From: ${body.fromOwnerName}` : null,
+    body.toParticipantName ? `To: ${body.toParticipantName}` : null,
+    body.effectiveAt ? `Effective: ${body.effectiveAt}` : null,
+    body.ownershipNote?.trim() || null,
+  ].filter(Boolean);
+  const r = await client.query<{ ownership_record_id: string }>(
+    `INSERT INTO collaboration.ownership_record (
+       moment_id, purchase_item_id, participant_id, ownership_share, ownership_note, status
+     ) VALUES ($1, $2, $3, $4, $5, 'ACTIVE')
+     RETURNING ownership_record_id`,
+    [
+      momentId,
+      body.purchaseItemId ?? null,
+      participantId,
+      body.ownershipShare ?? null,
+      noteParts.length ? noteParts.join('\n') : null,
+    ]
+  );
+  return { ownershipRecordId: r.rows[0]!.ownership_record_id, momentId };
 }

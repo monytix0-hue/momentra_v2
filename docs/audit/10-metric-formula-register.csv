@@ -1,0 +1,5 @@
+MetricCode,Surface,SourceFields,GoldenTestStatus,RegisterGapId
+personal_pulse_v1,GET /v1/personal/pulse,analytics.metric_*,PARTIAL,PER-008
+group_life_v1,GET /v1/group/moments/{id}/life,life-v1-provisional,PASS_TEST,GRP-002
+team_capacity_utilization_v1,GET /v1/business/moments/{id}/capacity,not bound,METRIC_GAP,BUS-006
+business_life_health_v1,Company Life,proxy/thin,METRIC_GAP,BUS-019

@@ -75,7 +75,7 @@ data class WeddingHubTile(
 )
 
 private val weddingHubTiles = listOf(
-    WeddingHubTile(WeddingQuickAddKind.PARTICIPANT, "Participant", "👤", Color(0xFFFA7387), Color(0xFFE01C4D), live = false),
+    WeddingHubTile(WeddingQuickAddKind.PARTICIPANT, "Participant", "👤", Color(0xFFFA7387), Color(0xFFE01C4D), live = true),
     WeddingHubTile(WeddingQuickAddKind.PLANNING, "Planning Item", "📋", Color(0xFFF573B5), Color(0xFFDB2675), live = true),
     WeddingHubTile(WeddingQuickAddKind.EXPENSE, "Expense", "💳", Color(0xFFBF26D4), Color(0xFF871A8F), live = true),
     WeddingHubTile(WeddingQuickAddKind.BUDGET, "Budget", "🪙", Color(0xFFFC7085), Color(0xFFE83359), live = true),

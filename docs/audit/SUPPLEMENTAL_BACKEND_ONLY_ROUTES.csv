@@ -1,0 +1,14 @@
+Method,Path,InRouter,Android,iOS,AndroidRepoCalls,iOSRepoCalls,ClientStatus
+GET,/v1/personal/attention,True,True,True,,,BOTH_API
+GET,/v1/personal/setups,True,True,True,,,BOTH_API
+POST,/v1/personal/setups/{systemCode}/activate,True,True,True,,,BOTH_API
+GET,/v1/business/setups,True,True,True,,,BOTH_API
+GET,/v1/finance/expense-categories,True,True,True,,,BOTH_API
+GET,/v1/group/moments/{momentId}/living-rules,True,True,True,,,BOTH_API
+POST,/v1/moments/{momentId}/living-rules,True,True,True,apk/app/src/main/java/com/example/momentra/data/repository/GroupSliceRepository.kt,,BOTH_API
+POST,/v1/moments/{momentId}/goals,True,True,True,,,BOTH_API
+POST,/v1/moments/{momentId}/tasks,True,True,True,,,BOTH_API
+POST,/v1/ai/action-proposals/{actionProposalId}/execute,True,True,True,,,BOTH_API
+GET,/v1/polls/{pollId},True,True,True,apk/app/src/main/java/com/example/momentra/data/repository/GroupSliceRepository.kt,,BOTH_API
+POST,/v1/polls/{pollId}/votes,True,True,True,apk/app/src/main/java/com/example/momentra/data/repository/GroupSliceRepository.kt,,BOTH_API
+POST,/v1/polls/{pollId}/close,True,True,True,apk/app/src/main/java/com/example/momentra/data/repository/GroupSliceRepository.kt,,BOTH_API

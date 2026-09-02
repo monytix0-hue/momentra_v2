@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +49,8 @@ import com.example.momentra.ui.shell.group.wedding.WeddingBudgetSheetBody
 import com.example.momentra.ui.shell.group.wedding.WeddingContributionSheetBody
 import com.example.momentra.ui.shell.group.wedding.WeddingExpenseSheetBody
 import com.example.momentra.ui.shell.group.wedding.WeddingMemorySheetBody
+import com.example.momentra.ui.theme.PlusJakartaSans
+import kotlinx.coroutines.launch
 import com.example.momentra.ui.shell.group.wedding.WeddingPlanningSheetBody
 import com.example.momentra.ui.shell.group.wedding.WeddingPollSheetBody
 import com.example.momentra.ui.shell.group.wedding.WeddingSettleSheetBody
@@ -119,7 +122,7 @@ fun ExperienceGapQuickAddSheet(
                 ExperienceQuickAddKind.BUDGET ->
                     WeddingBudgetSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 ExperienceQuickAddKind.PARTICIPANT ->
-                    ExperienceParticipantSheetBody(theme, accent)
+                    ExperienceParticipantSheetBody(momentId, repository, onDismiss, onSaved, theme, accent)
                 ExperienceQuickAddKind.VENDOR ->
                     WeddingVendorSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 ExperienceQuickAddKind.PLANNING ->
@@ -133,7 +136,7 @@ fun ExperienceGapQuickAddSheet(
                 ExperienceQuickAddKind.UPDATE ->
                     WeddingUpdateSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 ExperienceQuickAddKind.SETTLE ->
-                    WeddingSettleSheetBody()
+                    WeddingSettleSheetBody(momentId, onDismiss, onSaved)
                 ExperienceQuickAddKind.BOOKING -> Unit
             }
         }
@@ -141,13 +144,23 @@ fun ExperienceGapQuickAddSheet(
 }
 
 @Composable
-private fun ExperienceParticipantSheetBody(theme: ExperienceActiveTheme, accent: SheetAccent) {
+private fun ExperienceParticipantSheetBody(
+    momentId: String?,
+    repository: GroupSliceRepository,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit,
+    theme: ExperienceActiveTheme,
+    accent: SheetAccent,
+) {
     var name by remember { mutableStateOf("") }
     var contact by remember { mutableStateOf("") }
     var role by remember { mutableStateOf(theme.participantRoles.first()) }
     var rsvp by remember { mutableStateOf("Pending") }
     var plusOne by remember { mutableStateOf(false) }
     var notes by remember { mutableStateOf("") }
+    var submitting by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     SheetHeader(
         R.drawable.ic_qa_users,
@@ -171,38 +184,43 @@ private fun ExperienceParticipantSheetBody(theme: ExperienceActiveTheme, accent:
         FieldLabel("RSVP Status")
         ChipRow(listOf("Confirmed", "Pending", "Declined"), rsvp, accent) { rsvp = it }
     }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { plusOne = !plusOne }
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column {
-            Text("Plus One Allowed", color = EqText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
-            Text("Include guest's spouse or partner", color = EqMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
-        }
-        Box(
-            modifier = Modifier
-                .width(40.dp)
-                .height(22.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(if (plusOne) accent.accent else EqBorder),
-            contentAlignment = if (plusOne) Alignment.CenterEnd else Alignment.CenterStart,
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(2.dp)
-                    .size(18.dp)
-                    .clip(CircleShape)
-                    .background(EqText),
-            )
-        }
-    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("Dietary Preferences / Notes")
         SheetField(notes, { notes = it }, "Optional notes", minHeight = 42)
     }
-    PrimaryCta("Add Participant", enabled = false, accent = accent, lightLabel = true, onClick = {})
+    error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
+    PrimaryCta(
+        label = if (submitting) "Saving…" else "Add Participant",
+        enabled = !momentId.isNullOrBlank() && name.isNotBlank() && !submitting,
+        loading = submitting,
+        accent = accent,
+        lightLabel = true,
+        onClick = {
+            val id = momentId ?: return@PrimaryCta
+            scope.launch {
+                submitting = true
+                error = null
+                val trimmedContact = contact.trim()
+                val email = if (trimmedContact.contains("@")) trimmedContact else null
+                val phone = if (email == null && trimmedContact.isNotBlank()) trimmedContact else null
+                repository.addParticipant(
+                    id,
+                    name.trim(),
+                    roleCode = "PARTICIPANT",
+                    email = email,
+                    phone = phone,
+                ).fold(
+                    onSuccess = {
+                        submitting = false
+                        onSaved()
+                        onDismiss()
+                    },
+                    onFailure = {
+                        submitting = false
+                        error = it.message
+                    },
+                )
+            }
+        },
+    )
 }

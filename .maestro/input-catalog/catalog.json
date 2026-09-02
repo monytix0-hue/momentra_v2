@@ -1,0 +1,4823 @@
+{
+  "schemaVersion": 1,
+  "gate": "S9-QA-A",
+  "generatedAt": "2026-09-02T07:15:56.850Z",
+  "description": "Canonical Quick Add capability catalog. Scenarios (1100×3) live in Excel (S9-QA-B), not here.",
+  "verificationChain": [
+    "ui_tile",
+    "writable_fields",
+    "api_persistence",
+    "expected_calculation",
+    "post_write_surfaces"
+  ],
+  "statusTaxonomy": [
+    "ACTIVE",
+    "CAPABILITY_GAP",
+    "LOCAL_ONLY",
+    "DEFERRED",
+    "BROKEN"
+  ],
+  "moments": [
+    {
+      "id": "P1",
+      "context": "PERSONAL",
+      "family": "LIFE_OPERATIONS",
+      "label": "Life Operations",
+      "momentTypeCode": "LIFE_RHYTHM"
+    },
+    {
+      "id": "P2",
+      "context": "PERSONAL",
+      "family": "FUTURE_BUILDING",
+      "label": "Future Building",
+      "momentTypeCode": "FUTURE_GOAL"
+    },
+    {
+      "id": "P3",
+      "context": "PERSONAL",
+      "family": "LIFESTYLE",
+      "label": "Lifestyle",
+      "momentTypeCode": "LIFESTYLE"
+    },
+    {
+      "id": "P4",
+      "context": "PERSONAL",
+      "family": "RELATIONSHIPS",
+      "label": "Relationships",
+      "momentTypeCode": "RELATIONSHIP_CONNECTION"
+    },
+    {
+      "id": "G01",
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "label": "Trip",
+      "momentTypeCode": "TRIP"
+    },
+    {
+      "id": "G02",
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "label": "Wedding",
+      "momentTypeCode": "WEDDING"
+    },
+    {
+      "id": "G03",
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "label": "House Party",
+      "momentTypeCode": "HOUSE_PARTY"
+    },
+    {
+      "id": "G04",
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "label": "Office Outing",
+      "momentTypeCode": "OFFICE_OUTING"
+    },
+    {
+      "id": "G05",
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "label": "Gift Pool",
+      "momentTypeCode": "GIFT_POOL"
+    },
+    {
+      "id": "G06",
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "label": "Group Purchase",
+      "momentTypeCode": "GROUP_PURCHASE"
+    },
+    {
+      "id": "G07",
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "label": "Shared Asset",
+      "momentTypeCode": "SHARED_ASSET"
+    },
+    {
+      "id": "G08",
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "label": "Custom Purchase",
+      "momentTypeCode": "COMMUNITY_PURCHASE"
+    },
+    {
+      "id": "G09",
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "label": "Flatmates",
+      "momentTypeCode": "FLATMATES"
+    },
+    {
+      "id": "G10",
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "label": "Family Household",
+      "momentTypeCode": "FAMILY_HOUSEHOLD"
+    },
+    {
+      "id": "G11",
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "label": "Co-living",
+      "momentTypeCode": "CO_LIVING"
+    },
+    {
+      "id": "G12",
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "label": "Custom Living",
+      "momentTypeCode": "COMMUNITY_LIVING"
+    },
+    {
+      "id": "B01",
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "label": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS"
+    },
+    {
+      "id": "B02",
+      "context": "BUSINESS",
+      "family": "BUSINESS_RUNWAY",
+      "label": "Business Runway",
+      "momentTypeCode": "BUSINESS_RUNWAY"
+    },
+    {
+      "id": "B03",
+      "context": "BUSINESS",
+      "family": "BUSINESS_OPERATIONS",
+      "label": "Business Operations",
+      "momentTypeCode": "BUSINESS_OPERATIONS"
+    }
+  ],
+  "summary": {
+    "byStatus": {
+      "ACTIVE": 97,
+      "DEFERRED": 5,
+      "BROKEN": 1,
+      "CAPABILITY_GAP": 4
+    },
+    "byContext": {
+      "PERSONAL": 23,
+      "GROUP": 50,
+      "BUSINESS": 34
+    },
+    "total": 107
+  },
+  "labelDrift": [
+    {
+      "id": "P1:Income",
+      "android": "Income",
+      "ios": "Expense",
+      "note": "Both map to money write; prefer qa.tile.income / text guards"
+    },
+    {
+      "id": "P3:Expression",
+      "android": "Create",
+      "ios": "Create",
+      "note": "Matrix Expression; hub Create; Maestro qa.tile.expression"
+    },
+    {
+      "id": "Living:Rule",
+      "android": "House Rule",
+      "ios": "Rule",
+      "note": "DEFERRED both platforms"
+    },
+    {
+      "id": "G02:Settle",
+      "android": "missing from Wedding hub",
+      "ios": "present",
+      "note": "BROKEN on Android until hub parity"
+    }
+  ],
+  "foundationBlockersFixed": [
+    "MQA-A-001: ProductOnboardingScreen Skip now has testTag onboarding.skip",
+    "iOS appId: resolvingpoint.momentra aligned in ios/02_personal flows",
+    "Group split Maestro IDs: group.expense.split.{equal|percentage|exact|shares}",
+    "Business Runway revenue/invoice amount+submit IDs wired"
+  ],
+  "quickAdds": [
+    {
+      "context": "PERSONAL",
+      "family": "LIFE_OPERATIONS",
+      "momentId": "P1",
+      "momentLabel": "Life Operations",
+      "momentTypeCode": "LIFE_RHYTHM",
+      "quickAdd": "Income",
+      "hubLabelAndroid": "Income",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.income",
+      "screenId": "PER-LO-S14",
+      "requiredFields": [
+        {
+          "id": "personal.income.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "personal.income.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.income.category",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "personal.income.account",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "personal.income.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/income",
+      "dbWrite": "finance.income",
+      "calculationType": "personal_balance",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "personal_finance"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Label drift: Android Income / iOS Expense registry; both money writes",
+      "id": "P1:Income"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "LIFE_OPERATIONS",
+      "momentId": "P1",
+      "momentLabel": "Life Operations",
+      "momentTypeCode": "LIFE_RHYTHM",
+      "quickAdd": "Recovery",
+      "hubLabelAndroid": "Recovery",
+      "hubLabelIos": "Recovery",
+      "tileMaestroId": "qa.tile.recovery",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.lifeops.recovery.note",
+          "required": true,
+          "role": "note"
+        },
+        {
+          "id": "personal.lifeops.recovery.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/observations",
+      "dbWrite": "personal.life_operation_observation + recovery_observation_detail",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "LIFE_OBSERVATION_RECORD / typed Recovery",
+      "id": "P1:Recovery"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "LIFE_OPERATIONS",
+      "momentId": "P1",
+      "momentLabel": "Life Operations",
+      "momentTypeCode": "LIFE_RHYTHM",
+      "quickAdd": "Mood",
+      "hubLabelAndroid": "Mood",
+      "hubLabelIos": "Mood",
+      "tileMaestroId": "qa.tile.mood",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.lifeops.mood.note",
+          "required": true,
+          "role": "note"
+        },
+        {
+          "id": "personal.lifeops.mood.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/observations",
+      "dbWrite": "personal.life_operation_observation + mood_observation_detail",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "P1:Mood"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "LIFE_OPERATIONS",
+      "momentId": "P1",
+      "momentLabel": "Life Operations",
+      "momentTypeCode": "LIFE_RHYTHM",
+      "quickAdd": "Attention",
+      "hubLabelAndroid": "Attention",
+      "hubLabelIos": "Attention",
+      "tileMaestroId": "qa.tile.attention",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.lifeops.attention.note",
+          "required": true,
+          "role": "note"
+        },
+        {
+          "id": "personal.lifeops.attention.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/attention-captures",
+      "dbWrite": "personal.attention_capture",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "ATTENTION_CAPTURE precision path",
+      "id": "P1:Attention"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "LIFE_OPERATIONS",
+      "momentId": "P1",
+      "momentLabel": "Life Operations",
+      "momentTypeCode": "LIFE_RHYTHM",
+      "quickAdd": "Transfer",
+      "hubLabelAndroid": "Transfer",
+      "hubLabelIos": "Transfer",
+      "tileMaestroId": "qa.tile.transfer",
+      "screenId": "PER-LO-S15",
+      "requiredFields": [
+        {
+          "id": "personal.money.transfer.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "personal.money.transfer.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.money.transfer.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/movements",
+      "dbWrite": "finance.movement",
+      "calculationType": "personal_balance",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "personal_finance"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "MOVEMENT_RECORD",
+      "id": "P1:Transfer"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "LIFE_OPERATIONS",
+      "momentId": "P1",
+      "momentLabel": "Life Operations",
+      "momentTypeCode": "LIFE_RHYTHM",
+      "quickAdd": "Savings",
+      "hubLabelAndroid": "Savings",
+      "hubLabelIos": "Savings",
+      "tileMaestroId": "qa.tile.savings",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.money.savings.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "personal.money.savings.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.money.savings.account",
+          "required": false,
+          "role": "selector"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/movements",
+      "dbWrite": "finance.movement",
+      "calculationType": "personal_balance",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "personal_finance"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "P1:Savings"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "LIFE_OPERATIONS",
+      "momentId": "P1",
+      "momentLabel": "Life Operations",
+      "momentTypeCode": "LIFE_RHYTHM",
+      "quickAdd": "Adjust",
+      "hubLabelAndroid": "Adjust",
+      "hubLabelIos": "Adjust",
+      "tileMaestroId": "qa.tile.adjust",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.lifeops.adjust.note",
+          "required": true,
+          "role": "note"
+        },
+        {
+          "id": "personal.lifeops.adjust.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/life-ops-adjustments",
+      "dbWrite": "personal.life_ops_adjustment",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "LIFE_OPS_ADJUST",
+      "id": "P1:Adjust"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "LIFE_OPERATIONS",
+      "momentId": "P1",
+      "momentLabel": "Life Operations",
+      "momentTypeCode": "LIFE_RHYTHM",
+      "quickAdd": "Reflect",
+      "hubLabelAndroid": "Reflect",
+      "hubLabelIos": "Reflect",
+      "tileMaestroId": "qa.tile.reflect",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [],
+      "backendRoute": null,
+      "dbWrite": null,
+      "calculationType": "none",
+      "expectedProjections": [],
+      "androidSupported": false,
+      "iosSupported": false,
+      "status": "DEFERRED",
+      "notes": "Tile present but tappable=false on both platforms",
+      "id": "P1:Reflect"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "FUTURE_BUILDING",
+      "momentId": "P2",
+      "momentLabel": "Future Building",
+      "momentTypeCode": "FUTURE_GOAL",
+      "quickAdd": "Milestone",
+      "hubLabelAndroid": "Milestone",
+      "hubLabelIos": "Milestone",
+      "tileMaestroId": "qa.tile.milestone",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.future.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.future.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.future.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "personal.future.date",
+          "required": false,
+          "role": "date"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/future-items",
+      "dbWrite": "personal.future_item",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Field Maestro IDs to be wired per sheet in S9-QA-D if missing",
+      "id": "P2:Milestone"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "FUTURE_BUILDING",
+      "momentId": "P2",
+      "momentLabel": "Future Building",
+      "momentTypeCode": "FUTURE_GOAL",
+      "quickAdd": "Opportunity",
+      "hubLabelAndroid": "Opportunity",
+      "hubLabelIos": "Opportunity",
+      "tileMaestroId": "qa.tile.opportunity",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.future.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.future.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.future.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "personal.future.date",
+          "required": false,
+          "role": "date"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/future-items",
+      "dbWrite": "personal.future_item",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Field Maestro IDs to be wired per sheet in S9-QA-D if missing",
+      "id": "P2:Opportunity"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "FUTURE_BUILDING",
+      "momentId": "P2",
+      "momentLabel": "Future Building",
+      "momentTypeCode": "FUTURE_GOAL",
+      "quickAdd": "Pivot",
+      "hubLabelAndroid": "Pivot",
+      "hubLabelIos": "Pivot",
+      "tileMaestroId": "qa.tile.pivot",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.future.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.future.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.future.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "personal.future.date",
+          "required": false,
+          "role": "date"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/future-items",
+      "dbWrite": "personal.future_item",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Field Maestro IDs to be wired per sheet in S9-QA-D if missing",
+      "id": "P2:Pivot"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "FUTURE_BUILDING",
+      "momentId": "P2",
+      "momentLabel": "Future Building",
+      "momentTypeCode": "FUTURE_GOAL",
+      "quickAdd": "Progress",
+      "hubLabelAndroid": "Progress",
+      "hubLabelIos": "Progress",
+      "tileMaestroId": "qa.tile.progress",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.future.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.future.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.future.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "personal.future.date",
+          "required": false,
+          "role": "date"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/future-items",
+      "dbWrite": "personal.future_item",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Field Maestro IDs to be wired per sheet in S9-QA-D if missing",
+      "id": "P2:Progress"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "FUTURE_BUILDING",
+      "momentId": "P2",
+      "momentLabel": "Future Building",
+      "momentTypeCode": "FUTURE_GOAL",
+      "quickAdd": "Learning",
+      "hubLabelAndroid": "Learning",
+      "hubLabelIos": "Learning",
+      "tileMaestroId": "qa.tile.learning",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.future.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.future.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.future.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "personal.future.date",
+          "required": false,
+          "role": "date"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/future-items",
+      "dbWrite": "personal.future_item",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Field Maestro IDs to be wired per sheet in S9-QA-D if missing",
+      "id": "P2:Learning"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "LIFESTYLE",
+      "momentId": "P3",
+      "momentLabel": "Lifestyle",
+      "momentTypeCode": "LIFESTYLE",
+      "quickAdd": "Experience",
+      "hubLabelAndroid": "Experience",
+      "hubLabelIos": "Experience",
+      "tileMaestroId": "qa.tile.experience",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.lifestyle.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.lifestyle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.lifestyle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/lifestyle-activities",
+      "dbWrite": "personal.lifestyle_activity",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "P3:Experience"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "LIFESTYLE",
+      "momentId": "P3",
+      "momentLabel": "Lifestyle",
+      "momentTypeCode": "LIFESTYLE",
+      "quickAdd": "Wellbeing",
+      "hubLabelAndroid": "Wellbeing",
+      "hubLabelIos": "Wellbeing",
+      "tileMaestroId": "qa.tile.wellbeing",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.lifestyle.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.lifestyle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.lifestyle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/lifestyle-activities",
+      "dbWrite": "personal.lifestyle_activity",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "P3:Wellbeing"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "LIFESTYLE",
+      "momentId": "P3",
+      "momentLabel": "Lifestyle",
+      "momentTypeCode": "LIFESTYLE",
+      "quickAdd": "Discovery",
+      "hubLabelAndroid": "Discovery",
+      "hubLabelIos": "Discovery",
+      "tileMaestroId": "qa.tile.discovery",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.lifestyle.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.lifestyle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.lifestyle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/lifestyle-activities",
+      "dbWrite": "personal.lifestyle_activity",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "P3:Discovery"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "LIFESTYLE",
+      "momentId": "P3",
+      "momentLabel": "Lifestyle",
+      "momentTypeCode": "LIFESTYLE",
+      "quickAdd": "Expression",
+      "hubLabelAndroid": "Create",
+      "hubLabelIos": "Create",
+      "tileMaestroId": "qa.tile.expression",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.lifestyle.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.lifestyle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.lifestyle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/lifestyle-activities",
+      "dbWrite": "personal.lifestyle_activity",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Hub label Create; catalog quickAdd Expression",
+      "id": "P3:Expression"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "LIFESTYLE",
+      "momentId": "P3",
+      "momentLabel": "Lifestyle",
+      "momentTypeCode": "LIFESTYLE",
+      "quickAdd": "Adjust",
+      "hubLabelAndroid": "Adjust",
+      "hubLabelIos": "Adjust",
+      "tileMaestroId": "qa.tile.adjust",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.lifestyle.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.lifestyle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.lifestyle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/lifestyle-activities",
+      "dbWrite": "personal.lifestyle_activity",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "P3:Adjust"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "RELATIONSHIPS",
+      "momentId": "P4",
+      "momentLabel": "Relationships",
+      "momentTypeCode": "RELATIONSHIP_CONNECTION",
+      "quickAdd": "Connection",
+      "hubLabelAndroid": "Connection",
+      "hubLabelIos": "Connection",
+      "tileMaestroId": "qa.tile.connection",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.relationship.display_name",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.relationship.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.relationship.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/relationship-activities",
+      "dbWrite": "personal.relationship_activity",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "P4:Connection"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "RELATIONSHIPS",
+      "momentId": "P4",
+      "momentLabel": "Relationships",
+      "momentTypeCode": "RELATIONSHIP_CONNECTION",
+      "quickAdd": "Support",
+      "hubLabelAndroid": "Support",
+      "hubLabelIos": "Support",
+      "tileMaestroId": "qa.tile.support",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.relationship.display_name",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.relationship.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.relationship.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/relationship-activities",
+      "dbWrite": "personal.relationship_activity",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "P4:Support"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "RELATIONSHIPS",
+      "momentId": "P4",
+      "momentLabel": "Relationships",
+      "momentTypeCode": "RELATIONSHIP_CONNECTION",
+      "quickAdd": "Shared Exp",
+      "hubLabelAndroid": "Shared Exp",
+      "hubLabelIos": "Shared Exp",
+      "tileMaestroId": "qa.tile.shared_exp",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.relationship.display_name",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.relationship.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.relationship.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/relationship-activities",
+      "dbWrite": "personal.relationship_activity",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "P4:Shared Exp"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "RELATIONSHIPS",
+      "momentId": "P4",
+      "momentLabel": "Relationships",
+      "momentTypeCode": "RELATIONSHIP_CONNECTION",
+      "quickAdd": "Investment",
+      "hubLabelAndroid": "Investment",
+      "hubLabelIos": "Investment",
+      "tileMaestroId": "qa.tile.investment",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.relationship.display_name",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.relationship.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.relationship.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/relationship-activities",
+      "dbWrite": "personal.relationship_activity",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "P4:Investment"
+    },
+    {
+      "context": "PERSONAL",
+      "family": "RELATIONSHIPS",
+      "momentId": "P4",
+      "momentLabel": "Relationships",
+      "momentTypeCode": "RELATIONSHIP_CONNECTION",
+      "quickAdd": "Adjust",
+      "hubLabelAndroid": "Adjust",
+      "hubLabelIos": "Adjust",
+      "tileMaestroId": "qa.tile.adjust",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "personal.relationship.display_name",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "personal.relationship.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "personal.relationship.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/relationship-activities",
+      "dbWrite": "personal.relationship_activity",
+      "calculationType": "none",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "life"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "P4:Adjust"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G01",
+      "momentLabel": "Trip",
+      "momentTypeCode": "TRIP",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Expense",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.expense.split",
+          "required": true,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.expense.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "group.expense.payer",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "group.expense.split.equal",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.percentage",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.exact",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.shares",
+          "required": false,
+          "role": "split"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/group-expenses",
+      "dbWrite": "finance.expense + finance.expense_split + finance.expense_share",
+      "calculationType": "group_split",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Split strategies EQUAL|PERCENTAGE|EXACT|SHARES; platform datasets diverge in S9-QA-B",
+      "id": "G01:Expense"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G01",
+      "momentLabel": "Trip",
+      "momentTypeCode": "TRIP",
+      "quickAdd": "Contribute",
+      "hubLabelAndroid": "Contribution",
+      "hubLabelIos": "Contribution",
+      "tileMaestroId": "qa.tile.contribute",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.contribute.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.contribute.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.contribute.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/contributions",
+      "dbWrite": "finance.contribution",
+      "calculationType": "group_contribution",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "G01:Contribute"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G01",
+      "momentLabel": "Trip",
+      "momentTypeCode": "TRIP",
+      "quickAdd": "Settle",
+      "hubLabelAndroid": "Settle",
+      "hubLabelIos": "Settle",
+      "tileMaestroId": "qa.tile.settle",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.settle.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.settle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.settle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/settlements",
+      "dbWrite": "finance.settlement",
+      "calculationType": "group_settlement",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "V047 settlements LIVE",
+      "id": "G01:Settle"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G01",
+      "momentLabel": "Trip",
+      "momentTypeCode": "TRIP",
+      "quickAdd": "People",
+      "hubLabelAndroid": "Invite",
+      "hubLabelIos": "Invite",
+      "tileMaestroId": "qa.tile.people",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [
+        {
+          "id": "group.invite.create",
+          "required": false,
+          "role": "other"
+        }
+      ],
+      "backendRoute": "POST /v1/group/invites",
+      "dbWrite": "collaboration.moment_participant",
+      "calculationType": "none",
+      "expectedProjections": [
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Invite/participant manage; full invite redeem covered in isolation class",
+      "id": "G01:People"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G02",
+      "momentLabel": "Wedding",
+      "momentTypeCode": "WEDDING",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Expense",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.expense.split",
+          "required": true,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.expense.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "group.expense.payer",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "group.expense.split.equal",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.percentage",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.exact",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.shares",
+          "required": false,
+          "role": "split"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/group-expenses",
+      "dbWrite": "finance.expense + finance.expense_split + finance.expense_share",
+      "calculationType": "group_split",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Split strategies EQUAL|PERCENTAGE|EXACT|SHARES; platform datasets diverge in S9-QA-B",
+      "id": "G02:Expense"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G02",
+      "momentLabel": "Wedding",
+      "momentTypeCode": "WEDDING",
+      "quickAdd": "Contribute",
+      "hubLabelAndroid": "Contribution",
+      "hubLabelIos": "Contribution",
+      "tileMaestroId": "qa.tile.contribute",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.contribute.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.contribute.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.contribute.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/contributions",
+      "dbWrite": "finance.contribution",
+      "calculationType": "group_contribution",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "G02:Contribute"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G02",
+      "momentLabel": "Wedding",
+      "momentTypeCode": "WEDDING",
+      "quickAdd": "Settle",
+      "hubLabelAndroid": "Settle",
+      "hubLabelIos": "Settle",
+      "tileMaestroId": "qa.tile.settle",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.settle.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.settle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.settle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/settlements",
+      "dbWrite": "finance.settlement",
+      "calculationType": "group_settlement",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": false,
+      "iosSupported": true,
+      "status": "BROKEN",
+      "notes": "Android Wedding hub missing Settle tile (iOS has it) — classify BROKEN until hub parity",
+      "id": "G02:Settle"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G02",
+      "momentLabel": "Wedding",
+      "momentTypeCode": "WEDDING",
+      "quickAdd": "People",
+      "hubLabelAndroid": "Participant",
+      "hubLabelIos": "Participant",
+      "tileMaestroId": "qa.tile.people",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [
+        {
+          "id": "group.invite.create",
+          "required": false,
+          "role": "other"
+        }
+      ],
+      "backendRoute": "POST /v1/group/invites",
+      "dbWrite": "collaboration.moment_participant",
+      "calculationType": "none",
+      "expectedProjections": [
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Invite/participant manage; full invite redeem covered in isolation class",
+      "id": "G02:People"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G03",
+      "momentLabel": "House Party",
+      "momentTypeCode": "HOUSE_PARTY",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Expense",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.expense.split",
+          "required": true,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.expense.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "group.expense.payer",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "group.expense.split.equal",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.percentage",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.exact",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.shares",
+          "required": false,
+          "role": "split"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/group-expenses",
+      "dbWrite": "finance.expense + finance.expense_split + finance.expense_share",
+      "calculationType": "group_split",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Split strategies EQUAL|PERCENTAGE|EXACT|SHARES; platform datasets diverge in S9-QA-B",
+      "id": "G03:Expense"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G03",
+      "momentLabel": "House Party",
+      "momentTypeCode": "HOUSE_PARTY",
+      "quickAdd": "Contribute",
+      "hubLabelAndroid": "Contribution",
+      "hubLabelIos": "Contribution",
+      "tileMaestroId": "qa.tile.contribute",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.contribute.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.contribute.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.contribute.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/contributions",
+      "dbWrite": "finance.contribution",
+      "calculationType": "group_contribution",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "G03:Contribute"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G03",
+      "momentLabel": "House Party",
+      "momentTypeCode": "HOUSE_PARTY",
+      "quickAdd": "Settle",
+      "hubLabelAndroid": "Settle",
+      "hubLabelIos": "Settle",
+      "tileMaestroId": "qa.tile.settle",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.settle.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.settle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.settle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/settlements",
+      "dbWrite": "finance.settlement",
+      "calculationType": "group_settlement",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "V047 settlements LIVE",
+      "id": "G03:Settle"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G03",
+      "momentLabel": "House Party",
+      "momentTypeCode": "HOUSE_PARTY",
+      "quickAdd": "People",
+      "hubLabelAndroid": "Participant",
+      "hubLabelIos": "Participant",
+      "tileMaestroId": "qa.tile.people",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [
+        {
+          "id": "group.invite.create",
+          "required": false,
+          "role": "other"
+        }
+      ],
+      "backendRoute": "POST /v1/group/invites",
+      "dbWrite": "collaboration.moment_participant",
+      "calculationType": "none",
+      "expectedProjections": [
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Invite/participant manage; full invite redeem covered in isolation class",
+      "id": "G03:People"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G04",
+      "momentLabel": "Office Outing",
+      "momentTypeCode": "OFFICE_OUTING",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Expense",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.expense.split",
+          "required": true,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.expense.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "group.expense.payer",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "group.expense.split.equal",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.percentage",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.exact",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.shares",
+          "required": false,
+          "role": "split"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/group-expenses",
+      "dbWrite": "finance.expense + finance.expense_split + finance.expense_share",
+      "calculationType": "group_split",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Split strategies EQUAL|PERCENTAGE|EXACT|SHARES; platform datasets diverge in S9-QA-B",
+      "id": "G04:Expense"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G04",
+      "momentLabel": "Office Outing",
+      "momentTypeCode": "OFFICE_OUTING",
+      "quickAdd": "Contribute",
+      "hubLabelAndroid": "Contribution",
+      "hubLabelIos": "Contribution",
+      "tileMaestroId": "qa.tile.contribute",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.contribute.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.contribute.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.contribute.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/contributions",
+      "dbWrite": "finance.contribution",
+      "calculationType": "group_contribution",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "G04:Contribute"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G04",
+      "momentLabel": "Office Outing",
+      "momentTypeCode": "OFFICE_OUTING",
+      "quickAdd": "Settle",
+      "hubLabelAndroid": "Settle",
+      "hubLabelIos": "Settle",
+      "tileMaestroId": "qa.tile.settle",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.settle.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.settle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.settle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/settlements",
+      "dbWrite": "finance.settlement",
+      "calculationType": "group_settlement",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "V047 settlements LIVE",
+      "id": "G04:Settle"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_EXPERIENCE",
+      "momentId": "G04",
+      "momentLabel": "Office Outing",
+      "momentTypeCode": "OFFICE_OUTING",
+      "quickAdd": "People",
+      "hubLabelAndroid": "Participant",
+      "hubLabelIos": "Participant",
+      "tileMaestroId": "qa.tile.people",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [
+        {
+          "id": "group.invite.create",
+          "required": false,
+          "role": "other"
+        }
+      ],
+      "backendRoute": "POST /v1/group/invites",
+      "dbWrite": "collaboration.moment_participant",
+      "calculationType": "none",
+      "expectedProjections": [
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Invite/participant manage; full invite redeem covered in isolation class",
+      "id": "G04:People"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G05",
+      "momentLabel": "Gift Pool",
+      "momentTypeCode": "GIFT_POOL",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Expense",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.expense.split",
+          "required": true,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.expense.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "group.expense.payer",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "group.expense.split.equal",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.percentage",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.exact",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.shares",
+          "required": false,
+          "role": "split"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/group-expenses",
+      "dbWrite": "finance.expense + finance.expense_split + finance.expense_share",
+      "calculationType": "group_split",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Split strategies EQUAL|PERCENTAGE|EXACT|SHARES; platform datasets diverge in S9-QA-B",
+      "id": "G05:Expense"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G05",
+      "momentLabel": "Gift Pool",
+      "momentTypeCode": "GIFT_POOL",
+      "quickAdd": "Contribute",
+      "hubLabelAndroid": "Contribution",
+      "hubLabelIos": "Contribution",
+      "tileMaestroId": "qa.tile.contribute",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.contribute.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.contribute.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.contribute.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/contributions",
+      "dbWrite": "finance.contribution",
+      "calculationType": "group_contribution",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "G05:Contribute"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G05",
+      "momentLabel": "Gift Pool",
+      "momentTypeCode": "GIFT_POOL",
+      "quickAdd": "Settle",
+      "hubLabelAndroid": "Settle",
+      "hubLabelIos": "Settle",
+      "tileMaestroId": "qa.tile.settle",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.settle.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.settle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.settle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/settlements",
+      "dbWrite": "finance.settlement",
+      "calculationType": "group_settlement",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "V047 settlements LIVE",
+      "id": "G05:Settle"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G05",
+      "momentLabel": "Gift Pool",
+      "momentTypeCode": "GIFT_POOL",
+      "quickAdd": "People",
+      "hubLabelAndroid": "Participant",
+      "hubLabelIos": "Participant",
+      "tileMaestroId": "qa.tile.people",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [
+        {
+          "id": "group.invite.create",
+          "required": false,
+          "role": "other"
+        }
+      ],
+      "backendRoute": "POST /v1/group/invites",
+      "dbWrite": "collaboration.moment_participant",
+      "calculationType": "none",
+      "expectedProjections": [
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Invite/participant manage; full invite redeem covered in isolation class",
+      "id": "G05:People"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G06",
+      "momentLabel": "Group Purchase",
+      "momentTypeCode": "GROUP_PURCHASE",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Expense",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.expense.split",
+          "required": true,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.expense.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "group.expense.payer",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "group.expense.split.equal",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.percentage",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.exact",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.shares",
+          "required": false,
+          "role": "split"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/group-expenses",
+      "dbWrite": "finance.expense + finance.expense_split + finance.expense_share",
+      "calculationType": "group_split",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Split strategies EQUAL|PERCENTAGE|EXACT|SHARES; platform datasets diverge in S9-QA-B",
+      "id": "G06:Expense"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G06",
+      "momentLabel": "Group Purchase",
+      "momentTypeCode": "GROUP_PURCHASE",
+      "quickAdd": "Contribute",
+      "hubLabelAndroid": "Contribution",
+      "hubLabelIos": "Contribution",
+      "tileMaestroId": "qa.tile.contribute",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.contribute.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.contribute.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.contribute.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/contributions",
+      "dbWrite": "finance.contribution",
+      "calculationType": "group_contribution",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "G06:Contribute"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G06",
+      "momentLabel": "Group Purchase",
+      "momentTypeCode": "GROUP_PURCHASE",
+      "quickAdd": "Settle",
+      "hubLabelAndroid": "Settle",
+      "hubLabelIos": "Settle",
+      "tileMaestroId": "qa.tile.settle",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.settle.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.settle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.settle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/settlements",
+      "dbWrite": "finance.settlement",
+      "calculationType": "group_settlement",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "V047 settlements LIVE",
+      "id": "G06:Settle"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G06",
+      "momentLabel": "Group Purchase",
+      "momentTypeCode": "GROUP_PURCHASE",
+      "quickAdd": "People",
+      "hubLabelAndroid": "Participant",
+      "hubLabelIos": "Participant",
+      "tileMaestroId": "qa.tile.people",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [
+        {
+          "id": "group.invite.create",
+          "required": false,
+          "role": "other"
+        }
+      ],
+      "backendRoute": "POST /v1/group/invites",
+      "dbWrite": "collaboration.moment_participant",
+      "calculationType": "none",
+      "expectedProjections": [
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Invite/participant manage; full invite redeem covered in isolation class",
+      "id": "G06:People"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G07",
+      "momentLabel": "Shared Asset",
+      "momentTypeCode": "SHARED_ASSET",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Expense",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.expense.split",
+          "required": true,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.expense.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "group.expense.payer",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "group.expense.split.equal",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.percentage",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.exact",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.shares",
+          "required": false,
+          "role": "split"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/group-expenses",
+      "dbWrite": "finance.expense + finance.expense_split + finance.expense_share",
+      "calculationType": "group_split",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Split strategies EQUAL|PERCENTAGE|EXACT|SHARES; platform datasets diverge in S9-QA-B",
+      "id": "G07:Expense"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G07",
+      "momentLabel": "Shared Asset",
+      "momentTypeCode": "SHARED_ASSET",
+      "quickAdd": "Contribute",
+      "hubLabelAndroid": "Contribution",
+      "hubLabelIos": "Contribution",
+      "tileMaestroId": "qa.tile.contribute",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.contribute.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.contribute.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.contribute.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/contributions",
+      "dbWrite": "finance.contribution",
+      "calculationType": "group_contribution",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "G07:Contribute"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G07",
+      "momentLabel": "Shared Asset",
+      "momentTypeCode": "SHARED_ASSET",
+      "quickAdd": "Settle",
+      "hubLabelAndroid": "Settle",
+      "hubLabelIos": "Settle",
+      "tileMaestroId": "qa.tile.settle",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.settle.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.settle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.settle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/settlements",
+      "dbWrite": "finance.settlement",
+      "calculationType": "group_settlement",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "V047 settlements LIVE",
+      "id": "G07:Settle"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G07",
+      "momentLabel": "Shared Asset",
+      "momentTypeCode": "SHARED_ASSET",
+      "quickAdd": "People",
+      "hubLabelAndroid": "Participant",
+      "hubLabelIos": "Participant",
+      "tileMaestroId": "qa.tile.people",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [
+        {
+          "id": "group.invite.create",
+          "required": false,
+          "role": "other"
+        }
+      ],
+      "backendRoute": "POST /v1/group/invites",
+      "dbWrite": "collaboration.moment_participant",
+      "calculationType": "none",
+      "expectedProjections": [
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Invite/participant manage; full invite redeem covered in isolation class",
+      "id": "G07:People"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G08",
+      "momentLabel": "Custom Purchase",
+      "momentTypeCode": "COMMUNITY_PURCHASE",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Expense",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.expense.split",
+          "required": true,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.expense.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "group.expense.payer",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "group.expense.split.equal",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.percentage",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.exact",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.shares",
+          "required": false,
+          "role": "split"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/group-expenses",
+      "dbWrite": "finance.expense + finance.expense_split + finance.expense_share",
+      "calculationType": "group_split",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Split strategies EQUAL|PERCENTAGE|EXACT|SHARES; platform datasets diverge in S9-QA-B",
+      "id": "G08:Expense"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G08",
+      "momentLabel": "Custom Purchase",
+      "momentTypeCode": "COMMUNITY_PURCHASE",
+      "quickAdd": "Contribute",
+      "hubLabelAndroid": "Contribution",
+      "hubLabelIos": "Contribution",
+      "tileMaestroId": "qa.tile.contribute",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.contribute.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.contribute.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.contribute.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/contributions",
+      "dbWrite": "finance.contribution",
+      "calculationType": "group_contribution",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "G08:Contribute"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G08",
+      "momentLabel": "Custom Purchase",
+      "momentTypeCode": "COMMUNITY_PURCHASE",
+      "quickAdd": "Settle",
+      "hubLabelAndroid": "Settle",
+      "hubLabelIos": "Settle",
+      "tileMaestroId": "qa.tile.settle",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.settle.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.settle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.settle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/settlements",
+      "dbWrite": "finance.settlement",
+      "calculationType": "group_settlement",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "V047 settlements LIVE",
+      "id": "G08:Settle"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_PURCHASE",
+      "momentId": "G08",
+      "momentLabel": "Custom Purchase",
+      "momentTypeCode": "COMMUNITY_PURCHASE",
+      "quickAdd": "People",
+      "hubLabelAndroid": "Participant",
+      "hubLabelIos": "Participant",
+      "tileMaestroId": "qa.tile.people",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [
+        {
+          "id": "group.invite.create",
+          "required": false,
+          "role": "other"
+        }
+      ],
+      "backendRoute": "POST /v1/group/invites",
+      "dbWrite": "collaboration.moment_participant",
+      "calculationType": "none",
+      "expectedProjections": [
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Invite/participant manage; full invite redeem covered in isolation class",
+      "id": "G08:People"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G09",
+      "momentLabel": "Flatmates",
+      "momentTypeCode": "FLATMATES",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Expense",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.expense.split",
+          "required": true,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.expense.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "group.expense.payer",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "group.expense.split.equal",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.percentage",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.exact",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.shares",
+          "required": false,
+          "role": "split"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/group-expenses",
+      "dbWrite": "finance.expense + finance.expense_split + finance.expense_share",
+      "calculationType": "group_split",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Split strategies EQUAL|PERCENTAGE|EXACT|SHARES; platform datasets diverge in S9-QA-B",
+      "id": "G09:Expense"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G09",
+      "momentLabel": "Flatmates",
+      "momentTypeCode": "FLATMATES",
+      "quickAdd": "Contribute",
+      "hubLabelAndroid": "Contribution",
+      "hubLabelIos": "Contribution",
+      "tileMaestroId": "qa.tile.contribute",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.contribute.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.contribute.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.contribute.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/contributions",
+      "dbWrite": "finance.contribution",
+      "calculationType": "group_contribution",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "G09:Contribute"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G09",
+      "momentLabel": "Flatmates",
+      "momentTypeCode": "FLATMATES",
+      "quickAdd": "Settle",
+      "hubLabelAndroid": "Settle",
+      "hubLabelIos": "Settle",
+      "tileMaestroId": "qa.tile.settle",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.settle.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.settle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.settle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/settlements",
+      "dbWrite": "finance.settlement",
+      "calculationType": "group_settlement",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "V047 settlements LIVE",
+      "id": "G09:Settle"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G09",
+      "momentLabel": "Flatmates",
+      "momentTypeCode": "FLATMATES",
+      "quickAdd": "People",
+      "hubLabelAndroid": "Participant",
+      "hubLabelIos": "Participant",
+      "tileMaestroId": "qa.tile.people",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [
+        {
+          "id": "group.invite.create",
+          "required": false,
+          "role": "other"
+        }
+      ],
+      "backendRoute": "POST /v1/group/invites",
+      "dbWrite": "collaboration.moment_participant",
+      "calculationType": "none",
+      "expectedProjections": [
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Invite/participant manage; full invite redeem covered in isolation class",
+      "id": "G09:People"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G09",
+      "momentLabel": "Flatmates",
+      "momentTypeCode": "FLATMATES",
+      "quickAdd": "Rule",
+      "hubLabelAndroid": "House Rule",
+      "hubLabelIos": "Rule",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [],
+      "backendRoute": null,
+      "dbWrite": null,
+      "calculationType": "none",
+      "expectedProjections": [],
+      "androidSupported": false,
+      "iosSupported": false,
+      "status": "DEFERRED",
+      "notes": "isLive=false; label drift House Rule vs Rule",
+      "id": "G09:Rule"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G10",
+      "momentLabel": "Family Household",
+      "momentTypeCode": "FAMILY_HOUSEHOLD",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Expense",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.expense.split",
+          "required": true,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.expense.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "group.expense.payer",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "group.expense.split.equal",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.percentage",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.exact",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.shares",
+          "required": false,
+          "role": "split"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/group-expenses",
+      "dbWrite": "finance.expense + finance.expense_split + finance.expense_share",
+      "calculationType": "group_split",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Split strategies EQUAL|PERCENTAGE|EXACT|SHARES; platform datasets diverge in S9-QA-B",
+      "id": "G10:Expense"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G10",
+      "momentLabel": "Family Household",
+      "momentTypeCode": "FAMILY_HOUSEHOLD",
+      "quickAdd": "Settle",
+      "hubLabelAndroid": "Settle",
+      "hubLabelIos": "Settle",
+      "tileMaestroId": "qa.tile.settle",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.settle.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.settle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.settle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/settlements",
+      "dbWrite": "finance.settlement",
+      "calculationType": "group_settlement",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "V047 settlements LIVE",
+      "id": "G10:Settle"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G10",
+      "momentLabel": "Family Household",
+      "momentTypeCode": "FAMILY_HOUSEHOLD",
+      "quickAdd": "People",
+      "hubLabelAndroid": "Participant",
+      "hubLabelIos": "Participant",
+      "tileMaestroId": "qa.tile.people",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [
+        {
+          "id": "group.invite.create",
+          "required": false,
+          "role": "other"
+        }
+      ],
+      "backendRoute": "POST /v1/group/invites",
+      "dbWrite": "collaboration.moment_participant",
+      "calculationType": "none",
+      "expectedProjections": [
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Invite/participant manage; full invite redeem covered in isolation class",
+      "id": "G10:People"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G10",
+      "momentLabel": "Family Household",
+      "momentTypeCode": "FAMILY_HOUSEHOLD",
+      "quickAdd": "Rule",
+      "hubLabelAndroid": "House Rule",
+      "hubLabelIos": "Rule",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [],
+      "backendRoute": null,
+      "dbWrite": null,
+      "calculationType": "none",
+      "expectedProjections": [],
+      "androidSupported": false,
+      "iosSupported": false,
+      "status": "DEFERRED",
+      "notes": "isLive=false; label drift House Rule vs Rule",
+      "id": "G10:Rule"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G11",
+      "momentLabel": "Co-living",
+      "momentTypeCode": "CO_LIVING",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Expense",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.expense.split",
+          "required": true,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.expense.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "group.expense.payer",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "group.expense.split.equal",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.percentage",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.exact",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.shares",
+          "required": false,
+          "role": "split"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/group-expenses",
+      "dbWrite": "finance.expense + finance.expense_split + finance.expense_share",
+      "calculationType": "group_split",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Split strategies EQUAL|PERCENTAGE|EXACT|SHARES; platform datasets diverge in S9-QA-B",
+      "id": "G11:Expense"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G11",
+      "momentLabel": "Co-living",
+      "momentTypeCode": "CO_LIVING",
+      "quickAdd": "Contribute",
+      "hubLabelAndroid": "Contribution",
+      "hubLabelIos": "Contribution",
+      "tileMaestroId": "qa.tile.contribute",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.contribute.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.contribute.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.contribute.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/contributions",
+      "dbWrite": "finance.contribution",
+      "calculationType": "group_contribution",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "G11:Contribute"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G11",
+      "momentLabel": "Co-living",
+      "momentTypeCode": "CO_LIVING",
+      "quickAdd": "Settle",
+      "hubLabelAndroid": "Settle",
+      "hubLabelIos": "Settle",
+      "tileMaestroId": "qa.tile.settle",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.settle.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.settle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.settle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/settlements",
+      "dbWrite": "finance.settlement",
+      "calculationType": "group_settlement",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "V047 settlements LIVE",
+      "id": "G11:Settle"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G11",
+      "momentLabel": "Co-living",
+      "momentTypeCode": "CO_LIVING",
+      "quickAdd": "People",
+      "hubLabelAndroid": "Participant",
+      "hubLabelIos": "Participant",
+      "tileMaestroId": "qa.tile.people",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [
+        {
+          "id": "group.invite.create",
+          "required": false,
+          "role": "other"
+        }
+      ],
+      "backendRoute": "POST /v1/group/invites",
+      "dbWrite": "collaboration.moment_participant",
+      "calculationType": "none",
+      "expectedProjections": [
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Invite/participant manage; full invite redeem covered in isolation class",
+      "id": "G11:People"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G11",
+      "momentLabel": "Co-living",
+      "momentTypeCode": "CO_LIVING",
+      "quickAdd": "Rule",
+      "hubLabelAndroid": "House Rule",
+      "hubLabelIos": "Rule",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [],
+      "backendRoute": null,
+      "dbWrite": null,
+      "calculationType": "none",
+      "expectedProjections": [],
+      "androidSupported": false,
+      "iosSupported": false,
+      "status": "DEFERRED",
+      "notes": "isLive=false; label drift House Rule vs Rule",
+      "id": "G11:Rule"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G12",
+      "momentLabel": "Custom Living",
+      "momentTypeCode": "COMMUNITY_LIVING",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Expense",
+      "hubLabelIos": "Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.expense.split",
+          "required": true,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.expense.note",
+          "required": false,
+          "role": "note"
+        },
+        {
+          "id": "group.expense.payer",
+          "required": false,
+          "role": "selector"
+        },
+        {
+          "id": "group.expense.split.equal",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.percentage",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.exact",
+          "required": false,
+          "role": "split"
+        },
+        {
+          "id": "group.expense.split.shares",
+          "required": false,
+          "role": "split"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/group-expenses",
+      "dbWrite": "finance.expense + finance.expense_split + finance.expense_share",
+      "calculationType": "group_split",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Split strategies EQUAL|PERCENTAGE|EXACT|SHARES; platform datasets diverge in S9-QA-B",
+      "id": "G12:Expense"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G12",
+      "momentLabel": "Custom Living",
+      "momentTypeCode": "COMMUNITY_LIVING",
+      "quickAdd": "Settle",
+      "hubLabelAndroid": "Settle",
+      "hubLabelIos": "Settle",
+      "tileMaestroId": "qa.tile.settle",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "group.settle.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "group.settle.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "group.settle.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/settlements",
+      "dbWrite": "finance.settlement",
+      "calculationType": "group_settlement",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "group_finance_snapshot"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "V047 settlements LIVE",
+      "id": "G12:Settle"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G12",
+      "momentLabel": "Custom Living",
+      "momentTypeCode": "COMMUNITY_LIVING",
+      "quickAdd": "People",
+      "hubLabelAndroid": "Participant",
+      "hubLabelIos": "Participant",
+      "tileMaestroId": "qa.tile.people",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [
+        {
+          "id": "group.invite.create",
+          "required": false,
+          "role": "other"
+        }
+      ],
+      "backendRoute": "POST /v1/group/invites",
+      "dbWrite": "collaboration.moment_participant",
+      "calculationType": "none",
+      "expectedProjections": [
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Invite/participant manage; full invite redeem covered in isolation class",
+      "id": "G12:People"
+    },
+    {
+      "context": "GROUP",
+      "family": "SHARED_LIVING",
+      "momentId": "G12",
+      "momentLabel": "Custom Living",
+      "momentTypeCode": "COMMUNITY_LIVING",
+      "quickAdd": "Rule",
+      "hubLabelAndroid": "House Rule",
+      "hubLabelIos": "Rule",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [],
+      "backendRoute": null,
+      "dbWrite": null,
+      "calculationType": "none",
+      "expectedProjections": [],
+      "androidSupported": false,
+      "iosSupported": false,
+      "status": "DEFERRED",
+      "notes": "isLive=false; label drift House Rule vs Rule",
+      "id": "G12:Rule"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Team Update",
+      "hubLabelAndroid": "Team Update",
+      "hubLabelIos": "Team Update",
+      "tileMaestroId": null,
+      "screenId": "B-BT06",
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "business.ops.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/business-updates",
+      "dbWrite": "business.business_update",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_memory"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Team Ops Action Center; per-tile Maestro IDs incomplete — wire in S9-QA-D",
+      "id": "B01:Team Update"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Decision",
+      "hubLabelAndroid": "Decision",
+      "hubLabelIos": "Decision",
+      "tileMaestroId": null,
+      "screenId": "B-BT06",
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "business.ops.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/decisions",
+      "dbWrite": "business.decision",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_memory"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Team Ops Action Center; per-tile Maestro IDs incomplete — wire in S9-QA-D",
+      "id": "B01:Decision"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Blocker",
+      "hubLabelAndroid": "Blocker",
+      "hubLabelIos": "Blocker",
+      "tileMaestroId": null,
+      "screenId": "B-BT06",
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "business.ops.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/issues",
+      "dbWrite": "business.issue",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_memory"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Team Ops Action Center; per-tile Maestro IDs incomplete — wire in S9-QA-D",
+      "id": "B01:Blocker"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Meeting",
+      "hubLabelAndroid": "Meeting",
+      "hubLabelIos": "Meeting",
+      "tileMaestroId": null,
+      "screenId": "B-BT06",
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "business.ops.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/meeting-records",
+      "dbWrite": "business.meeting_record",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_memory"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Team Ops Action Center; per-tile Maestro IDs incomplete — wire in S9-QA-D",
+      "id": "B01:Meeting"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Recognition",
+      "hubLabelAndroid": "Recognition",
+      "hubLabelIos": "Recognition",
+      "tileMaestroId": null,
+      "screenId": "B-BT06",
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "business.ops.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/recognitions",
+      "dbWrite": "business.recognition",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_memory"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Team Ops Action Center; per-tile Maestro IDs incomplete — wire in S9-QA-D",
+      "id": "B01:Recognition"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Approval",
+      "hubLabelAndroid": "Approval",
+      "hubLabelIos": "Approval",
+      "tileMaestroId": null,
+      "screenId": "B-BT06",
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "business.ops.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/approval-requests",
+      "dbWrite": "governance.approval_request",
+      "calculationType": "approval",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_memory"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Team Ops Action Center; per-tile Maestro IDs incomplete — wire in S9-QA-D",
+      "id": "B01:Approval"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Milestone",
+      "hubLabelAndroid": "Milestone",
+      "hubLabelIos": "Milestone",
+      "tileMaestroId": null,
+      "screenId": "B-BT06",
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "business.ops.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/milestones",
+      "dbWrite": "work.milestone",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_memory"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Team Ops Action Center; per-tile Maestro IDs incomplete — wire in S9-QA-D",
+      "id": "B01:Milestone"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Retrospective",
+      "hubLabelAndroid": "Retrospective",
+      "hubLabelIos": "Retrospective",
+      "tileMaestroId": null,
+      "screenId": "B-BT06",
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "business.ops.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/retrospectives",
+      "dbWrite": "business.retrospective",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_memory"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Team Ops Action Center; per-tile Maestro IDs incomplete — wire in S9-QA-D",
+      "id": "B01:Retrospective"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Risk",
+      "hubLabelAndroid": "Risk",
+      "hubLabelIos": "Risk",
+      "tileMaestroId": null,
+      "screenId": "B-BT06",
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "business.ops.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/risks",
+      "dbWrite": "business.risk",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_memory"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Team Ops Action Center; per-tile Maestro IDs incomplete — wire in S9-QA-D",
+      "id": "B01:Risk"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Activity Log",
+      "hubLabelAndroid": "Activity Log",
+      "hubLabelIos": "Activity Log",
+      "tileMaestroId": null,
+      "screenId": "B-BT06",
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "business.ops.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/activity-log-entries",
+      "dbWrite": "business.activity_log_entry",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_memory"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Team Ops Action Center; per-tile Maestro IDs incomplete — wire in S9-QA-D",
+      "id": "B01:Activity Log"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Poll",
+      "hubLabelAndroid": "Poll",
+      "hubLabelIos": "Poll",
+      "tileMaestroId": null,
+      "screenId": "B-BT06",
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "business.ops.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/polls",
+      "dbWrite": "governance.poll",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_memory"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Team Ops Action Center; per-tile Maestro IDs incomplete — wire in S9-QA-D",
+      "id": "B01:Poll"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Memory",
+      "hubLabelAndroid": "Memory",
+      "hubLabelIos": "Memory",
+      "tileMaestroId": null,
+      "screenId": "B-BT06",
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [
+        {
+          "id": "business.ops.note",
+          "required": false,
+          "role": "note"
+        }
+      ],
+      "backendRoute": "POST /v1/moments/:id/business-memory",
+      "dbWrite": "memory.memory",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_memory"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Team Ops Action Center; per-tile Maestro IDs incomplete — wire in S9-QA-D",
+      "id": "B01:Memory"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Revenue",
+      "hubLabelAndroid": "Revenue",
+      "hubLabelIos": "Revenue",
+      "tileMaestroId": "qa.tile.revenue",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/revenues",
+      "dbWrite": "finance.revenue",
+      "calculationType": "business_finance",
+      "expectedProjections": [],
+      "androidSupported": false,
+      "iosSupported": false,
+      "status": "CAPABILITY_GAP",
+      "notes": "V019 maps Revenue/Invoice to BUSINESS_RUNWAY only; not on B01 hub",
+      "id": "B01:Revenue"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "TEAM_OPERATIONS",
+      "momentId": "B01",
+      "momentLabel": "Team Operations",
+      "momentTypeCode": "TEAM_OPERATIONS",
+      "quickAdd": "Invoice",
+      "hubLabelAndroid": "Invoice",
+      "hubLabelIos": "Invoice",
+      "tileMaestroId": "qa.tile.invoice",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/invoices",
+      "dbWrite": "finance.invoice",
+      "calculationType": "business_finance",
+      "expectedProjections": [],
+      "androidSupported": false,
+      "iosSupported": false,
+      "status": "CAPABILITY_GAP",
+      "notes": "V019 maps Revenue/Invoice to BUSINESS_RUNWAY only; not on B01 hub",
+      "id": "B01:Invoice"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_RUNWAY",
+      "momentId": "B02",
+      "momentLabel": "Business Runway",
+      "momentTypeCode": "BUSINESS_RUNWAY",
+      "quickAdd": "Revenue",
+      "hubLabelAndroid": "Log Revenue",
+      "hubLabelIos": "Log Revenue",
+      "tileMaestroId": "qa.tile.revenue",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.revenue.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "business.revenue.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/revenues",
+      "dbWrite": "finance.revenue",
+      "calculationType": "business_finance",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_finance"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "B02:Revenue"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_RUNWAY",
+      "momentId": "B02",
+      "momentLabel": "Business Runway",
+      "momentTypeCode": "BUSINESS_RUNWAY",
+      "quickAdd": "Expense",
+      "hubLabelAndroid": "Log Expense",
+      "hubLabelIos": "Log Expense",
+      "tileMaestroId": "qa.tile.expense",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "business.expense.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/business-expenses",
+      "dbWrite": "finance.expense",
+      "calculationType": "business_finance",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_finance"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "B02:Expense"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_RUNWAY",
+      "momentId": "B02",
+      "momentLabel": "Business Runway",
+      "momentTypeCode": "BUSINESS_RUNWAY",
+      "quickAdd": "Invoice",
+      "hubLabelAndroid": "Invoice",
+      "hubLabelIos": "Invoice",
+      "tileMaestroId": "qa.tile.invoice",
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.invoice.customer",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.invoice.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "business.invoice.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/invoices",
+      "dbWrite": "finance.invoice",
+      "calculationType": "business_finance",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_finance"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "B02:Invoice"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_RUNWAY",
+      "momentId": "B02",
+      "momentLabel": "Business Runway",
+      "momentTypeCode": "BUSINESS_RUNWAY",
+      "quickAdd": "Tax Entry",
+      "hubLabelAndroid": "Tax Entry",
+      "hubLabelIos": "Tax Entry",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.tax.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "business.tax.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/tax-obligations",
+      "dbWrite": "finance.tax_obligation",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_finance"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "B02:Tax Entry"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_RUNWAY",
+      "momentId": "B02",
+      "momentLabel": "Business Runway",
+      "momentTypeCode": "BUSINESS_RUNWAY",
+      "quickAdd": "Investor Update",
+      "hubLabelAndroid": "Investor Update",
+      "hubLabelIos": "Investor Update",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/business-updates",
+      "dbWrite": "business.business_update",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_finance"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "B02:Investor Update"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_RUNWAY",
+      "momentId": "B02",
+      "momentLabel": "Business Runway",
+      "momentTypeCode": "BUSINESS_RUNWAY",
+      "quickAdd": "Budget Alert",
+      "hubLabelAndroid": "Budget Alert",
+      "hubLabelIos": "Budget Alert",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/business-updates",
+      "dbWrite": "business.business_update",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_finance"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "B02:Budget Alert"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_RUNWAY",
+      "momentId": "B02",
+      "momentLabel": "Business Runway",
+      "momentTypeCode": "BUSINESS_RUNWAY",
+      "quickAdd": "Forecast",
+      "hubLabelAndroid": "Forecast",
+      "hubLabelIos": "Forecast",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/forecasts",
+      "dbWrite": "business.forecast",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_finance"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "B02:Forecast"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_RUNWAY",
+      "momentId": "B02",
+      "momentLabel": "Business Runway",
+      "momentTypeCode": "BUSINESS_RUNWAY",
+      "quickAdd": "General Update",
+      "hubLabelAndroid": "General Update",
+      "hubLabelIos": "General Update",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/business-updates",
+      "dbWrite": "business.business_update",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_finance"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "B02:General Update"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_RUNWAY",
+      "momentId": "B02",
+      "momentLabel": "Business Runway",
+      "momentTypeCode": "BUSINESS_RUNWAY",
+      "quickAdd": "Memory",
+      "hubLabelAndroid": "Memory",
+      "hubLabelIos": "Memory",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/business-memory",
+      "dbWrite": "memory.memory",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity",
+        "business_finance"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "",
+      "id": "B02:Memory"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_OPERATIONS",
+      "momentId": "B03",
+      "momentLabel": "Business Operations",
+      "momentTypeCode": "BUSINESS_OPERATIONS",
+      "quickAdd": "Spend Entry",
+      "hubLabelAndroid": "Log Spend Entry",
+      "hubLabelIos": "Log Spend Entry",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.expense.amount",
+          "required": true,
+          "role": "amount"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/business-expenses",
+      "dbWrite": "finance.expense",
+      "calculationType": "business_finance",
+      "expectedProjections": [
+        "pulse",
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Ops hub; Revenue/Invoice intentionally absent (Runway-only)",
+      "id": "B03:Spend Entry"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_OPERATIONS",
+      "momentId": "B03",
+      "momentLabel": "Business Operations",
+      "momentTypeCode": "BUSINESS_OPERATIONS",
+      "quickAdd": "Vendor",
+      "hubLabelAndroid": "Vendor",
+      "hubLabelIos": "Vendor",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/vendors",
+      "dbWrite": "business.vendor",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Ops hub; Revenue/Invoice intentionally absent (Runway-only)",
+      "id": "B03:Vendor"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_OPERATIONS",
+      "momentId": "B03",
+      "momentLabel": "Business Operations",
+      "momentTypeCode": "BUSINESS_OPERATIONS",
+      "quickAdd": "Approval",
+      "hubLabelAndroid": "Approval",
+      "hubLabelIos": "Approval",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/approval-requests",
+      "dbWrite": "governance.approval_request",
+      "calculationType": "approval",
+      "expectedProjections": [
+        "pulse",
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Ops hub; Revenue/Invoice intentionally absent (Runway-only)",
+      "id": "B03:Approval"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_OPERATIONS",
+      "momentId": "B03",
+      "momentLabel": "Business Operations",
+      "momentTypeCode": "BUSINESS_OPERATIONS",
+      "quickAdd": "Issue",
+      "hubLabelAndroid": "Issue",
+      "hubLabelIos": "Issue",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/issues",
+      "dbWrite": "business.issue",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Ops hub; Revenue/Invoice intentionally absent (Runway-only)",
+      "id": "B03:Issue"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_OPERATIONS",
+      "momentId": "B03",
+      "momentLabel": "Business Operations",
+      "momentTypeCode": "BUSINESS_OPERATIONS",
+      "quickAdd": "Improvement",
+      "hubLabelAndroid": "Improvement",
+      "hubLabelIos": "Improvement",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/issues",
+      "dbWrite": "business.issue",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Ops hub; Revenue/Invoice intentionally absent (Runway-only)",
+      "id": "B03:Improvement"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_OPERATIONS",
+      "momentId": "B03",
+      "momentLabel": "Business Operations",
+      "momentTypeCode": "BUSINESS_OPERATIONS",
+      "quickAdd": "Budget Review",
+      "hubLabelAndroid": "Budget Review",
+      "hubLabelIos": "Budget Review",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/business-updates",
+      "dbWrite": "business.business_update",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Ops hub; Revenue/Invoice intentionally absent (Runway-only)",
+      "id": "B03:Budget Review"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_OPERATIONS",
+      "momentId": "B03",
+      "momentLabel": "Business Operations",
+      "momentTypeCode": "BUSINESS_OPERATIONS",
+      "quickAdd": "SLA",
+      "hubLabelAndroid": "SLA",
+      "hubLabelIos": "SLA",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/slas",
+      "dbWrite": "business.sla",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Ops hub; Revenue/Invoice intentionally absent (Runway-only)",
+      "id": "B03:SLA"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_OPERATIONS",
+      "momentId": "B03",
+      "momentLabel": "Business Operations",
+      "momentTypeCode": "BUSINESS_OPERATIONS",
+      "quickAdd": "General Update",
+      "hubLabelAndroid": "General Update",
+      "hubLabelIos": "General Update",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/business-updates",
+      "dbWrite": "business.business_update",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Ops hub; Revenue/Invoice intentionally absent (Runway-only)",
+      "id": "B03:General Update"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_OPERATIONS",
+      "momentId": "B03",
+      "momentLabel": "Business Operations",
+      "momentTypeCode": "BUSINESS_OPERATIONS",
+      "quickAdd": "Memory",
+      "hubLabelAndroid": "Memory",
+      "hubLabelIos": "Memory",
+      "tileMaestroId": null,
+      "screenId": null,
+      "requiredFields": [
+        {
+          "id": "business.ops.title",
+          "required": true,
+          "role": "text"
+        },
+        {
+          "id": "business.ops.submit",
+          "required": true,
+          "role": "submit"
+        }
+      ],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/business-memory",
+      "dbWrite": "memory.memory",
+      "calculationType": "business_ops",
+      "expectedProjections": [
+        "pulse",
+        "activity"
+      ],
+      "androidSupported": true,
+      "iosSupported": true,
+      "status": "ACTIVE",
+      "notes": "Ops hub; Revenue/Invoice intentionally absent (Runway-only)",
+      "id": "B03:Memory"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_OPERATIONS",
+      "momentId": "B03",
+      "momentLabel": "Business Operations",
+      "momentTypeCode": "BUSINESS_OPERATIONS",
+      "quickAdd": "Revenue",
+      "hubLabelAndroid": "Revenue",
+      "hubLabelIos": "Revenue",
+      "tileMaestroId": "qa.tile.revenue",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/revenues",
+      "dbWrite": "finance.revenue",
+      "calculationType": "business_finance",
+      "expectedProjections": [],
+      "androidSupported": false,
+      "iosSupported": false,
+      "status": "CAPABILITY_GAP",
+      "notes": "Not on B03 hub; Runway-gated",
+      "id": "B03:Revenue"
+    },
+    {
+      "context": "BUSINESS",
+      "family": "BUSINESS_OPERATIONS",
+      "momentId": "B03",
+      "momentLabel": "Business Operations",
+      "momentTypeCode": "BUSINESS_OPERATIONS",
+      "quickAdd": "Invoice",
+      "hubLabelAndroid": "Invoice",
+      "hubLabelIos": "Invoice",
+      "tileMaestroId": "qa.tile.invoice",
+      "screenId": null,
+      "requiredFields": [],
+      "optionalFields": [],
+      "backendRoute": "POST /v1/moments/:id/invoices",
+      "dbWrite": "finance.invoice",
+      "calculationType": "business_finance",
+      "expectedProjections": [],
+      "androidSupported": false,
+      "iosSupported": false,
+      "status": "CAPABILITY_GAP",
+      "notes": "Not on B03 hub; Runway-gated",
+      "id": "B03:Invoice"
+    }
+  ]
+}

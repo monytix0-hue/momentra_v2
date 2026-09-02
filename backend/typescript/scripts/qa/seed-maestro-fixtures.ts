@@ -22,6 +22,7 @@ import {
   defaultQaEmail,
   defaultQaPassword,
   type QaFixtureAlias,
+  type QaPlatformFixtureAlias,
 } from './qa-env-guard';
 
 // Must run after config dotenv (override:true can clear parent env).
@@ -346,6 +347,89 @@ async function main(): Promise<void> {
     envUpdates.push(`QA_MULTI_GROUP_INVITE_CODE=${multiInviteCode}`);
   }
 
+  // --- S9-QA-C: platform-isolated accounts (empty inventory; Maestro creates moments) ---
+  const platformSummary: Record<string, unknown> = {};
+  for (const platform of ['android', 'ios'] as const) {
+    const prefix = platform === 'android' ? 'APK' : 'IOS';
+    const tag = platform === 'android' ? 'APK' : 'IOS';
+    const personalAlias = `QA_${prefix}_PERSONAL` as QaPlatformFixtureAlias;
+    const ownerAlias = `QA_${prefix}_GROUP_OWNER` as QaPlatformFixtureAlias;
+    const memberAlias = `QA_${prefix}_GROUP_MEMBER` as QaPlatformFixtureAlias;
+    const outsiderAlias = `QA_${prefix}_GROUP_OUTSIDER` as QaPlatformFixtureAlias;
+    const bizOwnerAlias = `QA_${prefix}_BUSINESS_OWNER` as QaPlatformFixtureAlias;
+    const bizMemberAlias = `QA_${prefix}_BUSINESS_MEMBER` as QaPlatformFixtureAlias;
+    const bizOutAlias = `QA_${prefix}_BUSINESS_OUTSIDER` as QaPlatformFixtureAlias;
+
+    const pPersonal = identities.get(personalAlias)!;
+    const pOwner = identities.get(ownerAlias)!;
+    const pMember = identities.get(memberAlias)!;
+    const pOut = identities.get(outsiderAlias)!;
+    const pBizOwner = identities.get(bizOwnerAlias)!;
+    const pBizMember = identities.get(bizMemberAlias)!;
+    const pBizOut = identities.get(bizOutAlias)!;
+
+    // Platform accounts intentionally start empty for Personal (Maestro creates P1–P4).
+    // Group: mint invite + 3-member-capable group with NO expenses.
+    const mint = await post(app, '/v1/group/invites', authHeaders(pOwner.firebaseUid), {
+      title: `QA ${tag} Group A`,
+      momentTypeCode: groupMomentType,
+    });
+    const inviteCode = (mint?.data?.inviteCode || mint?.data?.code) as string;
+    const groupMoment = await post(app, '/v1/moments', authHeaders(pOwner.firebaseUid), {
+      domainCode: 'GROUP',
+      momentTypeCode: groupMomentType,
+      title: `QA ${tag} Group A`,
+      inviteCode,
+    });
+    const groupMomentId = groupMoment?.data?.momentId as string;
+    await post(app, `/v1/group/invites/${inviteCode}/redeem`, authHeaders(pMember.firebaseUid), {});
+
+    const mintOut = await post(app, '/v1/group/invites', authHeaders(pOut.firebaseUid), {
+      title: `QA ${tag} Group B`,
+      momentTypeCode: groupMomentType,
+    });
+    const inviteOut = (mintOut?.data?.inviteCode || mintOut?.data?.code) as string;
+    await post(app, '/v1/moments', authHeaders(pOut.firebaseUid), {
+      domainCode: 'GROUP',
+      momentTypeCode: groupMomentType,
+      title: `QA ${tag} Group B`,
+      inviteCode: inviteOut,
+    });
+
+    const company = await post(app, '/v1/companies', authHeaders(pBizOwner.firebaseUid), {
+      displayName: `QA ${tag} Company A`,
+      legalName: `QA ${tag} Company A Legal`,
+    });
+    const companyId = company?.data?.companyId as string;
+    await post(app, `/v1/companies/${companyId}/members`, authHeaders(pBizOwner.firebaseUid), {
+      userId: pBizMember.userId,
+      membershipType: 'MEMBER',
+    });
+    // No business moments seeded — Maestro creates B01–B03 during certification.
+
+    const companyOut = await post(app, '/v1/companies', authHeaders(pBizOut.firebaseUid), {
+      displayName: `QA ${tag} Company B`,
+      legalName: `QA ${tag} Company B Legal`,
+    });
+
+    envUpdates.push(`QA_${prefix}_GROUP_A_INVITE_CODE=${inviteCode}`);
+    envUpdates.push(`QA_${prefix}_GROUP_A_MOMENT_ID=${groupMomentId || ''}`);
+    envUpdates.push(`QA_${prefix}_GROUP_B_INVITE_CODE=${inviteOut || ''}`);
+    envUpdates.push(`QA_${prefix}_COMPANY_A_ID=${companyId || ''}`);
+    envUpdates.push(`QA_${prefix}_COMPANY_B_ID=${companyOut?.data?.companyId || ''}`);
+
+    // Warm personal profile only (no moments) — Maestro creates P1–P4 during cert.
+    void pPersonal;
+
+    platformSummary[platform] = {
+      personalEmail: pPersonal.email,
+      groupA: { momentId: groupMomentId, inviteCode },
+      groupB: { inviteCode: inviteOut },
+      companyAId: companyId,
+      companyBId: companyOut?.data?.companyId,
+    };
+  }
+
   // Merge into .env.maestro.local without wiping unknown keys
   const existing = existsSync(envLocal) ? readFileSync(envLocal, 'utf8') : '';
   const map = new Map<string, string>();
@@ -376,6 +460,7 @@ async function main(): Promise<void> {
     companyAId,
     companyBId,
     businessMomentA: bizMomentA?.data?.momentId,
+    platformIsolated: platformSummary,
     envLocalUpdated: envLocal,
   };
   console.log(JSON.stringify(summary, null, 2));

@@ -1,0 +1,228 @@
+Domain,MomentId,WidgetOrScreen,Capability,WidgetType,Android,iOS,ApiDeclared,Classification,ApiRoute,FigmaNode,Notes,AuditResult,RegisterGapId
+PERSONAL,P1,Income,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/income,482:18697,Life Ops money QA; precision finance path,PASS,PER-002
+PERSONAL,P1,Recovery,LIFE_OBSERVATION_RECORD,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/observations,,Life Ops precision V042–V045 typed Recovery detail,PASS,PER-002
+PERSONAL,P1,Mood,LIFE_OBSERVATION_RECORD,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/observations,,Life Ops precision typed Mood detail,PASS,PER-002
+PERSONAL,P1,Attention,ATTENTION_CAPTURE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/attention-captures,,Life Ops precision attention-captures (not generic observation),PASS,PER-002
+PERSONAL,P1,Transfer,MOVEMENT_RECORD,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/movements,520:29924,,PASS,PER-002
+PERSONAL,P1,Savings,MOVEMENT_RECORD,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/movements,520:30019,,PASS,PER-002
+PERSONAL,P1,Adjust,LIFE_OPS_ADJUST,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/life-ops-adjustments,,Life Ops precision life-ops-adjustments,PASS,PER-002
+PERSONAL,P1,Reflect,LIFE_OBSERVATION_RECORD,DESIGN_ONLY,N,N,N,DEFERRED,,,Tile present but disabled on both platforms,GAP,PER-002
+PERSONAL,P2,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/expenses,,PX-1 Future precision LIVE (V046); shared expense writer,PASS,PER-002
+PERSONAL,P2,Milestone,MILESTONE_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/future-items,,PX-1 future-precision LIVE; kind=MILESTONE; axis refresh from canonical counts,PASS,PER-002
+PERSONAL,P2,Opportunity,OPPORTUNITY_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/future-items,,PX-1 future-precision LIVE; enriched opportunityType,PASS,PER-002
+PERSONAL,P2,Pivot,PIVOT_RECORD,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/future-items,,PX-1 future-precision LIVE; enriched pivotReason,PASS,PER-002
+PERSONAL,P2,Progress,PROGRESS_RECORD,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/future-items,,PX-1 future-precision LIVE; progressType GOAL|MILESTONE|GENERAL,PASS,PER-002
+PERSONAL,P2,Learning,LEARNING_ACTIVITY_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/future-items,,PX-1 future-precision LIVE; enriched providerName,PASS,PER-002
+PERSONAL,P3,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/expenses,,PX-2 Lifestyle precision LIVE (V046),PASS,PER-002
+PERSONAL,P3,Experience,LIFESTYLE_ACTIVITY_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/lifestyle-activities,,PX-2 lifestyle-precision LIVE; context=EXPERIENCE; vitality from counts,PASS,PER-002
+PERSONAL,P3,Wellbeing,LIFESTYLE_ACTIVITY_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/lifestyle-activities,,PX-2 lifestyle-precision LIVE; context=WELLBEING,PASS,PER-002
+PERSONAL,P3,Discovery,LIFESTYLE_ACTIVITY_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/lifestyle-activities,,PX-2 lifestyle-precision LIVE; context=DISCOVERY,PASS,PER-002
+PERSONAL,P3,Expression,LIFESTYLE_ACTIVITY_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/lifestyle-activities,,PX-2 lifestyle-precision LIVE; context=CREATION,PASS,PER-002
+PERSONAL,P3,Adjust,LIFESTYLE_ACTIVITY_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/lifestyle-activities,,PX-2 lifestyle-precision LIVE; context=LIFESTYLE,PASS,PER-002
+PERSONAL,P4,Connection,RELATIONSHIP_ACTIVITY_RECORD,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/relationship-activities,1006:8274,PX-3 relationships-precision LIVE; bond axes from activity_type counts (no fixed-72),PASS,PER-002
+PERSONAL,P4,Support,RELATIONSHIP_ACTIVITY_RECORD,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/relationship-activities,1006:8274,PX-3 relationships-precision LIVE,PASS,PER-002
+PERSONAL,P4,Shared Exp,RELATIONSHIP_ACTIVITY_RECORD,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/relationship-activities,1006:8274,PX-3 relationships-precision LIVE,PASS,PER-002
+PERSONAL,P4,Investment,RELATIONSHIP_ACTIVITY_RECORD,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/relationship-activities,1006:8274,PX-3 relationships-precision LIVE; investmentValue/unitCode,PASS,PER-002
+PERSONAL,P4,Adjust,RELATIONSHIP_ACTIVITY_RECORD,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/relationship-activities,1006:8274,PX-3 relationships-precision LIVE; INTERACTION adjust,PASS,PER-002
+GROUP,G01,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/group-expenses,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G01,Contribute,CONTRIBUTION_RECORD,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/contributions,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G01,Settle,SETTLEMENT_RECORD,ACTIONABLE,Y,Y,Y,IMPLEMENTED,POST /v1/moments/:id/settlements,,QH-W LIVE. Shared GroupSettlementSheet for G01–G12 (+ Wedding hub). Lifecycle: outstanding before → write → row → outstanding after → audit → event → outbox → projection → Activity → Pulse/finance. Idempotency + cross-Moment rejection certified.; FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G01,People,PARTICIPANT_MANAGE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/group/invites,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G02,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/group-expenses,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G02,Contribute,CONTRIBUTION_RECORD,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/contributions,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G02,Settle,SETTLEMENT_RECORD,ACTIONABLE,Y,Y,Y,IMPLEMENTED,POST /v1/moments/:id/settlements,,QH-W LIVE. Shared GroupSettlementSheet for G01–G12 (+ Wedding hub). Lifecycle: outstanding before → write → row → outstanding after → audit → event → outbox → projection → Activity → Pulse/finance. Idempotency + cross-Moment rejection certified.; FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G02,People,PARTICIPANT_MANAGE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/group/invites,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G03,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/group-expenses,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G03,Contribute,CONTRIBUTION_RECORD,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/contributions,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G03,Settle,SETTLEMENT_RECORD,ACTIONABLE,Y,Y,Y,IMPLEMENTED,POST /v1/moments/:id/settlements,,QH-W LIVE. Shared GroupSettlementSheet for G01–G12 (+ Wedding hub). Lifecycle: outstanding before → write → row → outstanding after → audit → event → outbox → projection → Activity → Pulse/finance. Idempotency + cross-Moment rejection certified.; FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G03,People,PARTICIPANT_MANAGE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/group/invites,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G04,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/group-expenses,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G04,Contribute,CONTRIBUTION_RECORD,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/contributions,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G04,Settle,SETTLEMENT_RECORD,ACTIONABLE,Y,Y,Y,IMPLEMENTED,POST /v1/moments/:id/settlements,,QH-W LIVE. Shared GroupSettlementSheet for G01–G12 (+ Wedding hub). Lifecycle: outstanding before → write → row → outstanding after → audit → event → outbox → projection → Activity → Pulse/finance. Idempotency + cross-Moment rejection certified.; FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G04,People,PARTICIPANT_MANAGE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/group/invites,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G05,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/group-expenses,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G05,Contribute,CONTRIBUTION_RECORD,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/contributions,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G05,Settle,SETTLEMENT_RECORD,ACTIONABLE,Y,Y,Y,IMPLEMENTED,POST /v1/moments/:id/settlements,,QH-W LIVE. Shared GroupSettlementSheet for G01–G12 (+ Wedding hub). Lifecycle: outstanding before → write → row → outstanding after → audit → event → outbox → projection → Activity → Pulse/finance. Idempotency + cross-Moment rejection certified.; FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G05,People,PARTICIPANT_MANAGE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/group/invites,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G06,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/group-expenses,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G06,Contribute,CONTRIBUTION_RECORD,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/contributions,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G06,Settle,SETTLEMENT_RECORD,ACTIONABLE,Y,Y,Y,IMPLEMENTED,POST /v1/moments/:id/settlements,,QH-W LIVE. Shared GroupSettlementSheet for G01–G12 (+ Wedding hub). Lifecycle: outstanding before → write → row → outstanding after → audit → event → outbox → projection → Activity → Pulse/finance. Idempotency + cross-Moment rejection certified.; FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G06,People,PARTICIPANT_MANAGE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/group/invites,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G07,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/group-expenses,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G07,Contribute,CONTRIBUTION_RECORD,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/contributions,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G07,Settle,SETTLEMENT_RECORD,ACTIONABLE,Y,Y,Y,IMPLEMENTED,POST /v1/moments/:id/settlements,,QH-W LIVE. Shared GroupSettlementSheet for G01–G12 (+ Wedding hub). Lifecycle: outstanding before → write → row → outstanding after → audit → event → outbox → projection → Activity → Pulse/finance. Idempotency + cross-Moment rejection certified.; FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G07,People,PARTICIPANT_MANAGE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/group/invites,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G08,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/group-expenses,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G08,Contribute,CONTRIBUTION_RECORD,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/contributions,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G08,Settle,SETTLEMENT_RECORD,ACTIONABLE,Y,Y,Y,IMPLEMENTED,POST /v1/moments/:id/settlements,,QH-W LIVE. Shared GroupSettlementSheet for G01–G12 (+ Wedding hub). Lifecycle: outstanding before → write → row → outstanding after → audit → event → outbox → projection → Activity → Pulse/finance. Idempotency + cross-Moment rejection certified.; FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G08,People,PARTICIPANT_MANAGE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/group/invites,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G09,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/group-expenses,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G09,Contribute,CONTRIBUTION_RECORD,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/contributions,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G09,Settle,SETTLEMENT_RECORD,ACTIONABLE,Y,Y,Y,IMPLEMENTED,POST /v1/moments/:id/settlements,,QH-W LIVE. Shared GroupSettlementSheet for G01–G12 (+ Wedding hub). Lifecycle: outstanding before → write → row → outstanding after → audit → event → outbox → projection → Activity → Pulse/finance. Idempotency + cross-Moment rejection certified.; FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G09,People,PARTICIPANT_MANAGE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/group/invites,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G10,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/group-expenses,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G10,Contribute,CONTRIBUTION_RECORD,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/contributions,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G10,Settle,SETTLEMENT_RECORD,ACTIONABLE,Y,Y,Y,IMPLEMENTED,POST /v1/moments/:id/settlements,,QH-W LIVE. Shared GroupSettlementSheet for G01–G12 (+ Wedding hub). Lifecycle: outstanding before → write → row → outstanding after → audit → event → outbox → projection → Activity → Pulse/finance. Idempotency + cross-Moment rejection certified.; FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G10,People,PARTICIPANT_MANAGE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/group/invites,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G11,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/group-expenses,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G11,Contribute,CONTRIBUTION_RECORD,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/contributions,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G11,Settle,SETTLEMENT_RECORD,ACTIONABLE,Y,Y,Y,IMPLEMENTED,POST /v1/moments/:id/settlements,,QH-W LIVE. Shared GroupSettlementSheet for G01–G12 (+ Wedding hub). Lifecycle: outstanding before → write → row → outstanding after → audit → event → outbox → projection → Activity → Pulse/finance. Idempotency + cross-Moment rejection certified.; FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G11,People,PARTICIPANT_MANAGE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/group/invites,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G12,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/group-expenses,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G12,Contribute,CONTRIBUTION_RECORD,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/moments/:id/contributions,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G12,Settle,SETTLEMENT_RECORD,ACTIONABLE,Y,Y,Y,IMPLEMENTED,POST /v1/moments/:id/settlements,,QH-W LIVE. Shared GroupSettlementSheet for G01–G12 (+ Wedding hub). Lifecycle: outstanding before → write → row → outstanding after → audit → event → outbox → projection → Activity → Pulse/finance. Idempotency + cross-Moment rejection certified.; FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+GROUP,G12,People,PARTICIPANT_MANAGE,ACTIONABLE,Y,Y,Y,FAMILY_UI_REUSED,POST /v1/group/invites,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype tile set shares family hub,PASS,GRP-004
+BUSINESS,B01,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/business-expenses,,,PASS,BUS-014
+BUSINESS,B01,Revenue,REVENUE_RECORD,ACTIONABLE,N,Y,Y,CAPABILITY_GAP,POST /v1/moments/:id/revenues,,Revenue primarily mapped to BUSINESS_RUNWAY in V019,GAP,BUS-014
+BUSINESS,B01,Invoice,INVOICE_CREATE,ACTIONABLE,N,Y,Y,CAPABILITY_GAP,POST /v1/moments/:id/invoices,,Invoice primarily mapped to BUSINESS_RUNWAY in V019,GAP,BUS-014
+BUSINESS,B01,People,MEMBER_MANAGE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,GET /v1/companies/:id/members,,Read-only members list; invite flow deferred,PASS,BUS-014
+BUSINESS,B02,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/business-expenses,,,PASS,BUS-014
+BUSINESS,B02,Revenue,REVENUE_RECORD,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/revenues,,V019 default on BUSINESS_RUNWAY,PASS,BUS-014
+BUSINESS,B02,Invoice,INVOICE_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/invoices,,V019 default on BUSINESS_RUNWAY,PASS,BUS-014
+BUSINESS,B02,People,MEMBER_MANAGE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,GET /v1/companies/:id/members,,Read-only members list; invite flow deferred,PASS,BUS-014
+BUSINESS,B03,Expense,EXPENSE_CREATE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,POST /v1/moments/:id/business-expenses,,,PASS,BUS-014
+BUSINESS,B03,Revenue,REVENUE_RECORD,ACTIONABLE,N,Y,Y,CAPABILITY_GAP,POST /v1/moments/:id/revenues,,Revenue primarily mapped to BUSINESS_RUNWAY in V019,GAP,BUS-014
+BUSINESS,B03,Invoice,INVOICE_CREATE,ACTIONABLE,N,Y,Y,CAPABILITY_GAP,POST /v1/moments/:id/invoices,,Invoice primarily mapped to BUSINESS_RUNWAY in V019,GAP,BUS-014
+BUSINESS,B03,People,MEMBER_MANAGE,ACTIONABLE,Y,Y,Y,PASS_CANDIDATE,GET /v1/companies/:id/members,,Read-only members list; invite flow deferred,PASS,BUS-014
+PERSONAL,P1,Empty,,SCREEN,Y,Y,,PASS_CANDIDATE,,353:6809,,PASS,
+PERSONAL,P1,Setup,,SCREEN,Y,Y,,PASS_CANDIDATE,,353:6809,,PASS,
+PERSONAL,P1,Pulse,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P1,Moments,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P1,Life,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P1,Memory,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P1,Activity,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P2,Empty,,SCREEN,Y,Y,,PASS_CANDIDATE,,353:6905,,PASS,
+PERSONAL,P2,Setup,,SCREEN,Y,Y,,PASS_CANDIDATE,,353:6905,,PASS,
+PERSONAL,P2,Pulse,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P2,Moments,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P2,Life,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P2,Memory,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P2,Activity,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P3,Empty,,SCREEN,Y,Y,,PASS_CANDIDATE,,353:7075,,PASS,
+PERSONAL,P3,Setup,,SCREEN,Y,Y,,PASS_CANDIDATE,,353:7075,,PASS,
+PERSONAL,P3,Pulse,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P3,Moments,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P3,Life,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P3,Memory,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P3,Activity,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P4,Empty,,SCREEN,Y,Y,,PASS_CANDIDATE,,353:7217,,PASS,
+PERSONAL,P4,Setup,,SCREEN,Y,Y,,PASS_CANDIDATE,,353:7217,,PASS,
+PERSONAL,P4,Pulse,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P4,Moments,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P4,Life,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P4,Memory,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+PERSONAL,P4,Activity,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+GROUP,G01,Empty,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9761,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G01,Setup,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9761,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G01,Pulse,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G01,Moments,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G01,Life,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G01,Memory,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G01,Activity,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G02,Empty,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9761,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G02,Setup,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9761,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G02,Pulse,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G02,Moments,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G02,Life,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G02,Memory,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G02,Activity,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G03,Empty,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9761,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G03,Setup,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9761,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G03,Pulse,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G03,Moments,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G03,Life,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G03,Memory,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G03,Activity,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G04,Empty,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9761,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G04,Setup,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9761,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G04,Pulse,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G04,Moments,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G04,Life,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G04,Memory,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G04,Activity,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupExperienceSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G05,Empty,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9919,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G05,Setup,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9919,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G05,Pulse,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G05,Moments,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G05,Life,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G05,Memory,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G05,Activity,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G06,Empty,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9919,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G06,Setup,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9919,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G06,Pulse,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G06,Moments,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G06,Life,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G06,Memory,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G06,Activity,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G07,Empty,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9919,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G07,Setup,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9919,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G07,Pulse,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G07,Moments,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G07,Life,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G07,Memory,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G07,Activity,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G08,Empty,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9919,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G08,Setup,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,575:9919,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G08,Pulse,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G08,Moments,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G08,Life,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G08,Memory,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G08,Activity,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupPurchaseSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G09,Empty,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,634:13345,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G09,Setup,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,634:13345,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G09,Pulse,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G09,Moments,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G09,Life,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G09,Memory,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G09,Activity,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G10,Empty,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,634:13345,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G10,Setup,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,634:13345,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G10,Pulse,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G10,Moments,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G10,Life,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G10,Memory,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G10,Activity,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G11,Empty,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,634:13345,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G11,Setup,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,634:13345,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G11,Pulse,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G11,Moments,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G11,Life,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G11,Memory,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G11,Activity,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G12,Empty,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,634:13345,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G12,Setup,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,634:13345,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G12,Pulse,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G12,Moments,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G12,Life,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G12,Memory,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+GROUP,G12,Activity,,SCREEN,Y,Y,,FAMILY_UI_REUSED,,,FAMILY_UI_REUSED:GroupLivingSetup; FIGMA_UNIQUE subtype — mark EQUIVALENT or PARTIAL after visual compare,PASS,
+BUSINESS,B00,Empty,,SCREEN,Y,Y,,PASS_CANDIDATE,,649:20260,,PASS,
+BUSINESS,B00,CreateCompany,,SCREEN,Y,Y,,PASS_CANDIDATE,,649:20260,,PASS,
+BUSINESS,B00,Identity,,SCREEN,Y,Y,,PASS_CANDIDATE,,649:20260,,PASS,
+BUSINESS,B00,Location,,SCREEN,Y,Y,,PASS_CANDIDATE,,649:20260,,PASS,
+BUSINESS,B00,Membership,,SCREEN,Y,Y,,PASS_CANDIDATE,,649:20260,,PASS,
+BUSINESS,B00,CompanySwitcher,,SCREEN,Y,Y,,PASS_CANDIDATE,,649:20260,,PASS,
+BUSINESS,B00,Restored,,SCREEN,Y,Y,,PASS_CANDIDATE,,649:20260,,PASS,
+BUSINESS,B01,Empty,,SCREEN,Y,Y,,PASS_CANDIDATE,,692:34736,,PASS,
+BUSINESS,B01,Setup,,SCREEN,Y,Y,,PASS_CANDIDATE,,692:34736,,PASS,
+BUSINESS,B01,Pulse,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B01,Moments,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B01,Life,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B01,Memory,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B01,Activity,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B02,Empty,,SCREEN,Y,Y,,PASS_CANDIDATE,,692:36690,,PASS,
+BUSINESS,B02,Setup,,SCREEN,Y,Y,,PASS_CANDIDATE,,692:36690,,PASS,
+BUSINESS,B02,Pulse,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B02,Moments,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B02,Life,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B02,Memory,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B02,Activity,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B03,Empty,,SCREEN,Y,Y,,PASS_CANDIDATE,,692:37188,,PASS,
+BUSINESS,B03,Setup,,SCREEN,Y,Y,,PASS_CANDIDATE,,692:37188,,PASS,
+BUSINESS,B03,Pulse,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B03,Moments,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B03,Life,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B03,Memory,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B03,Activity,,SCREEN,Y,Y,,PASS_CANDIDATE,,,,PASS,
+BUSINESS,B-VENDOR,Vendor Operations,,SCREEN,N,N,,DEFERRED,,1124:0,Inventory only — not in implemented certification scope,GAP,
+BUSINESS,B-MULTILOC,Multi-location Dashboard,,SCREEN,N,N,,DEFERRED,,692:33733,Inventory only — not in implemented certification scope,GAP,

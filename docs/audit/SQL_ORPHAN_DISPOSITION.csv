@@ -1,0 +1,21 @@
+Table,Disposition,Rationale
+analytics.attention_item,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+analytics.metric_dependency,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+analytics.metric_input_definition,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+analytics.threshold_definition,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+business.events_operations_context,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+business.team_membership,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+business.vendor_operations_context,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+collaboration.community_coordination_context,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+collaboration.coordination_item,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+collaboration.shared_goal_context,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+finance.budget_revision,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+finance.expense_split,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+finance.financial_account_preference,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+finance.invoice_payment,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+finance.recurring_financial_instruction,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+memory.learning_evidence,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+memory.playbook_evidence,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+memory.playbook_version,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+work.assignment,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2
+work.task_dependency,DEFERRED_V2,No live router reference; retained for analytics/AI phase-2

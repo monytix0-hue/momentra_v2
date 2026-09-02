@@ -20,18 +20,17 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -42,6 +41,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import com.example.momentra.R
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.setup.SetupDateTimeUtils
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -171,7 +173,7 @@ fun GroupCollabSheet(
 }
 
 @Composable
-private fun SheetTitle(title: String, subtitle: String, accent: Color, glyph: String = "✦") {
+private fun SheetTitle(title: String, subtitle: String, accent: Color, iconRes: Int) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -184,54 +186,17 @@ private fun SheetTitle(title: String, subtitle: String, accent: Color, glyph: St
                 .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Text(glyph, fontSize = 16.sp)
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp),
+            )
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, color = TripSheet.Text, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
             Text(subtitle, color = TripSheet.Muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         }
-    }
-}
-
-@Composable
-private fun FieldLabel(text: String) {
-    Text(
-        text.uppercase(Locale.US),
-        color = TripSheet.Muted,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        fontFamily = PlusJakartaSans,
-    )
-}
-
-@Composable
-private fun SheetField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    singleLine: Boolean = true,
-    minHeight: Int = 44,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = minHeight.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(TripSheet.Field)
-            .border(1.dp, TripSheet.Border, RoundedCornerShape(8.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        if (value.isEmpty()) {
-            Text(placeholder, color = TripSheet.Muted.copy(alpha = 0.7f), fontSize = 14.sp, fontFamily = PlusJakartaSans)
-        }
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            singleLine = singleLine,
-            textStyle = TextStyle(color = TripSheet.Text, fontSize = 14.sp, fontFamily = PlusJakartaSans),
-            cursorBrush = SolidColor(TripSheet.Purple),
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }
 
@@ -368,45 +333,84 @@ private fun PlanningBody(
     var date by remember { mutableStateOf("") }
     var time by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+    var priority by remember { mutableStateOf("Medium") }
+    var template by remember { mutableStateOf("Restaurant") }
+    var participants by remember { mutableStateOf<List<com.example.momentra.data.api.GroupParticipantDto>>(emptyList()) }
+    var assignedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    SheetTitle("Add Plan", "Schedule an activity for your trip", TripSheet.Teal, "📍")
+    LaunchedEffect(momentId) {
+        repository.getParticipants(momentId).fold(
+            onSuccess = { dto ->
+                participants = dto.participants
+                assignedIds = dto.participants.map { it.participantId }.toSet()
+            },
+            onFailure = { /* best-effort */ },
+        )
+    }
+
+    TripSheetHeaderRow("Add Plan", "Schedule an activity for your trip", R.drawable.ic_group_qa_calendar, TripFormTokens.Teal)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FieldLabel("Plan Title")
-        SheetField(title, { title = it }, "Dolphin Watching & Sunset Cruise")
+        TripFieldLabel("Plan Title")
+        TripSheetField(title, { title = it }, "Dolphin Watching & Sunset Cruise")
     }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            FieldLabel("Date")
-            DatePickField(date, { date = it }, "Pick date")
+            TripFieldLabel("Date")
+            TripDatePickField(date, { date = it })
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            FieldLabel("Time")
-            TimePickField(time, { time = it }, "Pick time")
+            TripFieldLabel("Time")
+            TripTimePickField(time, { time = it })
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FieldLabel("Location")
-        SheetField(location, { location = it }, "Coco Beach, Nerul")
+        TripFieldLabel("Location")
+        TripSheetField(location, { location = it }, "Coco Beach, Nerul")
+    }
+    if (participants.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            TripFieldLabel("Assign To")
+            TripParticipantPicker(
+                participants = participants,
+                selectedIds = assignedIds,
+                onToggle = { id ->
+                    assignedIds = if (assignedIds.contains(id)) assignedIds - id else assignedIds + id
+                },
+                accent = TripFormTokens.Teal,
+            )
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        TripFieldLabel("Priority")
+        TripSegmentedControl(listOf("Low", "Medium", "High"), priority, { priority = it }, TripFormTokens.Teal)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        TripFieldLabel("Quick Templates")
+        TripChipRow(listOf("Restaurant", "Activity", "Travel", "Meeting"), template, {
+            template = it
+            if (title.isBlank()) title = it
+        }, TripFormTokens.Teal)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        TripFieldLabel("Add Notes")
+        TripSheetField(notes, { notes = it }, "Carry sunglasses and camera…", singleLine = false, minHeight = 80)
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
-    PrimaryCta(
+    TripPrimaryCta(
         label = "Add Plan",
         enabled = title.isNotBlank(),
         loading = submitting,
-        gradient = listOf(TripSheet.Teal, Color(0xFF0F766E)),
+        footer = "Added to group itinerary",
+        gradient = listOf(TripFormTokens.Teal, Color(0xFF0F766E)),
         onClick = {
             scope.launch {
                 submitting = true
                 error = null
-                // Location stays local-only — not submitted into title or API fields.
-                repository.createPlanningItem(
-                    momentId = momentId,
-                    title = title.trim(),
-                    dueAt = tripDateTimeToIso(date, time),
-                ).fold(
+                repository.createPlanningItem(momentId = momentId, title = title.trim(), dueAt = tripDateTimeToIso(date, time)).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )
@@ -422,30 +426,83 @@ private fun BookingBody(
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
 ) {
+    var bookingType by remember { mutableStateOf("Hotel") }
     var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf("") }
-    var time by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf("") }
+    var cost by remember { mutableStateOf("") }
+    var startDate by remember { mutableStateOf("") }
+    var endDate by remember { mutableStateOf("") }
+    var confirmed by remember { mutableStateOf(true) }
+    var participants by remember { mutableStateOf<List<com.example.momentra.data.api.GroupParticipantDto>>(emptyList()) }
+    var bookedById by remember { mutableStateOf<String?>(null) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    SheetTitle("Add Booking", "Reserve stays, rides, or tickets", TripSheet.Orange, "🏨")
+    LaunchedEffect(momentId) {
+        repository.getParticipants(momentId).fold(
+            onSuccess = { dto ->
+                participants = dto.participants
+                bookedById = dto.participants.firstOrNull()?.participantId
+            },
+            onFailure = { /* best-effort */ },
+        )
+    }
+
+    TripSheetHeaderRow("Add Booking", "Attach reservations to your Kyoto timeline", R.drawable.ic_group_qa_ticket, TripSheet.Orange)
+    TripChipRow(listOf("Hotel", "Flight", "Transport", "Activity", "Restaurant"), bookingType, { bookingType = it }, TripSheet.Orange)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FieldLabel("Booking Title")
-        SheetField(title, { title = it }, "Hotel / Flight / Activity")
+        TripFieldLabel("Booking Name")
+        TripSheetField(title, { title = it }, "MIMARU Kyoto Stay")
     }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            FieldLabel("Date")
-            DatePickField(date, { date = it }, "Pick date")
+            TripFieldLabel("Confirmation #")
+            TripSheetField(confirmation, { confirmation = it }, "MMR-98402X")
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            FieldLabel("Time")
-            TimePickField(time, { time = it }, "Pick time")
+            TripFieldLabel("Cost (₹)")
+            TripSheetField(cost, { cost = it }, "42,500")
         }
     }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        TripFieldLabel("Date Range (Check-In / Check-Out)")
+        TripDatePickField(startDate, { startDate = it }, "Check-in")
+        if (startDate.isNotBlank()) {
+            TripDatePickField(endDate, { endDate = it }, "Check-out")
+        }
+    }
+  if (participants.isNotEmpty()) {
+        val bookedName = participants.firstOrNull { it.participantId == bookedById }?.displayName ?: "You"
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            TripFieldLabel("Booked By")
+            Text(bookedName, color = TripSheet.Text, fontSize = 14.sp, fontFamily = PlusJakartaSans,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(TripSheet.Field)
+                    .border(1.dp, TripSheet.Border, RoundedCornerShape(10.dp))
+                    .clickable {
+                        val idx = participants.indexOfFirst { it.participantId == bookedById }
+                        val next = participants[(idx + 1) % participants.size]
+                        bookedById = next.participantId
+                    }
+                    .padding(12.dp))
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column {
+            Text("Status: Confirmed", color = TripSheet.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+            Text("Mark booking immediately as secured", color = TripSheet.Muted, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+        }
+        Switch(checked = confirmed, onCheckedChange = { confirmed = it }, colors = SwitchDefaults.colors(checkedTrackColor = TripSheet.Orange))
+    }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
-    PrimaryCta(
+    TripPrimaryCta(
         label = "Add Booking",
         enabled = title.isNotBlank(),
         loading = submitting,
@@ -454,11 +511,7 @@ private fun BookingBody(
             scope.launch {
                 submitting = true
                 error = null
-                repository.createBooking(
-                    momentId = momentId,
-                    title = title.trim(),
-                    bookedAt = tripDateTimeToIso(date, time),
-                ).fold(
+                repository.createBooking(momentId = momentId, title = title.trim(), bookedAt = tripDateTimeToIso(startDate, null)).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )
@@ -484,15 +537,15 @@ private fun PollBody(
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    SheetTitle("Create Poll", "Vote on activities with your travel group", TripSheet.Purple, "📊")
+    TripSheetHeaderRow("Create Poll", "Vote on activities with your travel group", R.drawable.ic_group_qa_vote, TripSheet.Purple)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FieldLabel("Poll Question")
-        SheetField(question, { question = it }, "Where should we eat on Day 2?")
+        TripFieldLabel("Poll Question")
+        TripSheetField(question, { question = it }, "Where should we eat on Day 2?")
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FieldLabel("Options")
+        TripFieldLabel("Options")
         options.forEachIndexed { index, value ->
-            SheetField(value, { options[index] = it }, "Option ${index + 1}")
+            TripSheetField(value, { options[index] = it }, "Option ${index + 1}")
         }
         Text(
             "+ Add Option",
@@ -508,14 +561,14 @@ private fun PollBody(
     ToggleRow("Anonymous Voting", "Hide voters' names in results", anonymous, TripSheet.Purple) { anonymous = it }
     ToggleRow("Allow Multiple Choice", "Co-travelers can select multiple options", multi, TripSheet.Purple) { multi = it }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FieldLabel("Poll Deadline")
+        TripFieldLabel("Poll Deadline")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            Box(modifier = Modifier.weight(1f)) { DatePickField(deadlineDate, { deadlineDate = it }, "Date") }
-            Box(modifier = Modifier.weight(1f)) { TimePickField(deadlineTime, { deadlineTime = it }, "Set Time") }
+            Box(modifier = Modifier.weight(1f)) { TripDatePickField(deadlineDate, { deadlineDate = it }, "Date") }
+            Box(modifier = Modifier.weight(1f)) { TripTimePickField(deadlineTime, { deadlineTime = it }, "Set Time") }
         }
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
-    PrimaryCta(
+    TripPrimaryCta(
         label = "Create Poll",
         enabled = question.isNotBlank() && options.count { it.isNotBlank() } >= 2,
         loading = submitting,
@@ -571,6 +624,10 @@ private fun MemoryBody(
     val context = LocalContext.current
     var type by remember { mutableStateOf("Photo") }
     var caption by remember { mutableStateOf("") }
+    var location by remember { mutableStateOf("") }
+    var mood by remember { mutableStateOf("🍁") }
+    var participants by remember { mutableStateOf<List<com.example.momentra.data.api.GroupParticipantDto>>(emptyList()) }
+    var taggedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var photoBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var showSourcePicker by remember { mutableStateOf(false) }
@@ -578,6 +635,16 @@ private fun MemoryBody(
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(momentId) {
+        repository.getParticipants(momentId).fold(
+            onSuccess = { dto ->
+                participants = dto.participants
+                taggedIds = dto.participants.take(3).map { it.participantId }.toSet()
+            },
+            onFailure = { /* best-effort */ },
+        )
+    }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia(),
@@ -628,25 +695,8 @@ private fun MemoryBody(
         }
     }
 
-    SheetTitle("Capture Memory", "Save a snippet of your trip for the shared journal", TripSheet.Coral, "📷")
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("Photo", "Milestone", "Lesson", "Reflection").forEach { chip ->
-            val selected = type == chip
-            Text(
-                chip,
-                color = if (selected) Color.White else TripSheet.Muted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = PlusJakartaSans,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(if (selected) TripSheet.Coral else TripSheet.Field)
-                    .border(1.dp, if (selected) TripSheet.Coral else TripSheet.Border, RoundedCornerShape(999.dp))
-                    .clickable { type = chip }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-            )
-        }
-    }
+    TripSheetHeaderRow("Capture Memory", "Save a snippet of your trip for the shared journal", R.drawable.ic_group_qa_camera, TripFormTokens.Pink)
+    TripChipRow(listOf("Photo", "Milestone", "Lesson", "Reflection"), type, { type = it }, TripFormTokens.Pink)
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -677,15 +727,31 @@ private fun MemoryBody(
         )
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FieldLabel("Caption")
-        SheetField(caption, { caption = it }, "What made this special?", singleLine = false, minHeight = 88)
+        TripFieldLabel("Caption")
+        TripSheetField(caption, { caption = it }, "Incredible golden autumn leaves at Kiyomizudera!", singleLine = false, minHeight = 88)
+    }
+    if (participants.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            TripFieldLabel("Tag People")
+            TripParticipantPicker(participants, taggedIds, { id ->
+                taggedIds = if (taggedIds.contains(id)) taggedIds - id else taggedIds + id
+            }, TripFormTokens.Pink)
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        TripFieldLabel("Location")
+        TripSheetField(location, { location = it }, "Kiyomizu-dera Temple, Kyoto")
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        TripFieldLabel("Mood")
+        TripChipRow(listOf("🍁", "✨", "📸", "🍜", "🏯", "🙌"), mood, { mood = it }, TripFormTokens.Pink)
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
-    PrimaryCta(
+    TripPrimaryCta(
         label = "Save Memory",
         enabled = caption.isNotBlank() || photoUri != null,
         loading = submitting,
-        gradient = listOf(TripSheet.Coral, Color(0xFFE8744F)),
+        gradient = listOf(TripFormTokens.Pink, Color(0xFFF472B6)),
         onClick = {
             scope.launch {
                 submitting = true
@@ -773,22 +839,48 @@ private fun UpdateBody(
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
 ) {
+    var updateType by remember { mutableStateOf("Announcement") }
     var message by remember { mutableStateOf("") }
+    var priority by remember { mutableStateOf("Normal") }
+    var notifyAll by remember { mutableStateOf(true) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    SheetTitle("Post Update", "Share a status with your travel group", TripSheet.Blue, "✏️")
+    TripSheetHeaderRow("Post Update", "Share a status with your travel group", R.drawable.ic_group_qa_megaphone, TripFormTokens.Blue)
+    TripChipRow(listOf("Announcement", "Status", "Question", "Reminder"), updateType, { updateType = it }, TripFormTokens.Blue)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FieldLabel("Update")
-        SheetField(message, { message = it }, "What's happening?", singleLine = false, minHeight = 100)
+        TripFieldLabel("Update Message")
+        TripSheetField(message, { message = it }, "Road closure on our route…", singleLine = false, minHeight = 100)
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            TripFieldLabel("Attach Media")
+            Text("📷  🔗", color = TripSheet.Text, modifier = Modifier.padding(8.dp))
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            TripFieldLabel("Priority")
+            TripSegmentedControl(listOf("Normal", "Urgent"), priority, { priority = it }, Color(0xFFEF4444))
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column {
+            Text("Notify all members", color = TripSheet.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+            Text("Sends push notifications instantly", color = TripSheet.Muted, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+        }
+        Switch(checked = notifyAll, onCheckedChange = { notifyAll = it }, colors = SwitchDefaults.colors(checkedTrackColor = TripFormTokens.Blue))
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
-    PrimaryCta(
+    TripPrimaryCta(
         label = "Post Update",
         enabled = message.isNotBlank(),
         loading = submitting,
-        gradient = listOf(TripSheet.Blue, Color(0xFF1D4ED8)),
+        footer = "Visible in group feed",
+        gradient = listOf(TripFormTokens.Blue, Color(0xFF1D4ED8)),
         onClick = {
             scope.launch {
                 submitting = true
@@ -815,14 +907,14 @@ private fun PurchaseBody(
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    SheetTitle("Add purchase item", "Track something the group is buying", TripSheet.Orange, "🛒")
+    SheetTitle("Add purchase item", "Track something the group is buying", TripSheet.Orange, R.drawable.ic_group_qa_chartbar)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FieldLabel("Label")
-        SheetField(label, { label = it }, "Item name")
+        TripFieldLabel("Label")
+        TripSheetField(label, { label = it }, "Item name")
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FieldLabel("Amount (optional)")
-        SheetField(amount, { amount = it }, "0.00")
+        TripFieldLabel("Amount (optional)")
+        TripSheetField(amount, { amount = it }, "0.00")
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
     PrimaryCta(
@@ -856,14 +948,14 @@ private fun ResidentBody(
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    SheetTitle("Add resident", "Add someone to the household roster", TripSheet.Blue, "🏠")
+    SheetTitle("Add resident", "Add someone to the household roster", TripSheet.Blue, R.drawable.ic_group_qa_userplus)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FieldLabel("Name")
-        SheetField(name, { name = it }, "Display name")
+        TripFieldLabel("Name")
+        TripSheetField(name, { name = it }, "Display name")
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FieldLabel("Role (optional)")
-        SheetField(role, { role = it }, "Roommate / Owner")
+        TripFieldLabel("Role (optional)")
+        TripSheetField(role, { role = it }, "Roommate / Owner")
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
     PrimaryCta(

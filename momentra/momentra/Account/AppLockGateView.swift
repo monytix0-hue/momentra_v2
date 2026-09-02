@@ -9,19 +9,37 @@ struct AppLockGateView: View {
     @State private var error: String?
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("App Locked")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(Color.white)
-            Text("Enter your local PIN to continue.")
-                .foregroundStyle(Color.white.opacity(0.7))
-            SecureField("PIN", text: $pin)
-                .keyboardType(.numberPad)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal, 24)
-            if let error {
-                Text(error).foregroundStyle(.red).font(.caption)
+        Form {
+            Section {
+                Text("App Locked")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .listRowBackground(Color.clear)
+                Text("Enter your local PIN to continue.")
+                    .foregroundStyle(Color.white.opacity(0.7))
+                    .listRowBackground(Color.clear)
+                SecureField("PIN", text: $pin)
+                    .keyboardType(.numberPad)
+                    .listRowBackground(Color.clear)
+                if let error {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                        .listRowBackground(Color.clear)
+                }
             }
+            if AppLockStore.biometricsEnabled {
+                Section {
+                    Button("Use biometrics") {
+                        authenticateBiometrics()
+                    }
+                    .foregroundStyle(Color.white.opacity(0.85))
+                    .listRowBackground(Color.clear)
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .safeAreaInset(edge: .bottom) {
             Button("Unlock") {
                 if AppLockStore.verifyPin(pin) {
                     AppLockSession.unlocked = true
@@ -33,13 +51,7 @@ struct AppLockGateView: View {
             }
             .buttonStyle(BrandPrimaryButtonStyle())
             .padding(.horizontal, 24)
-
-            if AppLockStore.biometricsEnabled {
-                Button("Use biometrics") {
-                    authenticateBiometrics()
-                }
-                .foregroundStyle(Color.white.opacity(0.85))
-            }
+            .padding(.bottom, 16)
         }
         .brandAuthScreen()
         .onAppear {

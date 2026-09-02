@@ -1,0 +1,6 @@
+Entity,Transition,Route,Implementation,AuditResult,RegisterGapId
+Moment,active->archived,POST /archive,IMPLEMENTED,PASS,SP-012
+Poll,open->vote,POST /polls/{id}/votes,NOT_MOUNTED,API_GAP,GRP-001
+Poll,open->closed,POST /polls/{id}/close,NOT_MOUNTED,API_GAP,GRP-001
+Settlement,create,POST /settlements,capability gated 501,PARTIAL,GRP-007
+Approval,pending->decided,POST /approvals/{id}/decide,IMPLEMENTED,PASS,SP-012

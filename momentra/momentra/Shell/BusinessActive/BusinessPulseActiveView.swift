@@ -26,8 +26,8 @@ struct BusinessPulseActiveView: View {
             if loading && pulse == nil {
                 ProgressView().tint(theme.accent)
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
+                List {
+                    Section {
                         if let error {
                             Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
                         }
@@ -43,6 +43,15 @@ struct BusinessPulseActiveView: View {
                         } else {
                             totalsCard
                         }
+                    }
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .safeAreaInset(edge: .bottom) {
+                    VStack(spacing: 8) {
                         Button(action: onAddExpense) {
                             HStack {
                                 Image(systemName: "plus.circle.fill")
@@ -68,7 +77,8 @@ struct BusinessPulseActiveView: View {
                         .buttonStyle(.plain)
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(.bottom, 8)
+                    .background(theme.bg)
                 }
             }
         }

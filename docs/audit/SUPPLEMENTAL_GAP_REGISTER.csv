@@ -1,0 +1,26 @@
+GapId,Domain,Surface,RootGap,GapType,Severity,ParentRegisterGap,Status,Evidence
+SUPP-001,Group,Group Pulse quick tiles,Photos / Chat / Itinerary tiles disabled on both platforms,UI_GAP,P2,GRP-004,PASS,GroupPulseActiveView.swift / GroupPulseActiveContent.kt enabled=false; reaudit-v3 2026-09-01 -> PASS
+SUPP-002,Group,Wedding Quick Add,Participant + Settle sheets disabled (enabled=false) despite settlement IMPLEMENTED in catalog,CLIENT_GAP,P1,GRP-004,PASS,WeddingQuickAddSheets.swift/.kt; reaudit-v3 2026-09-01 -> PASS
+SUPP-003,Group,Purchase Quick Add,Contributor / Delivery / Ownership sheets disabled on both platforms,UI_GAP,P1,GRP-006,PASS,PurchaseQuickAddSheets.swift/.kt; reaudit-v3 2026-09-01 -> PASS
+SUPP-004,Group,Experience Quick Add,Add Participant sheet disabled on both platforms,UI_GAP,P1,GRP-006,PASS,ExperienceQuickAddSheets.swift/.kt; reaudit-v3 2026-09-01 -> PASS
+SUPP-005,Group,Group Memory,Preserve this moment CTA disabled,UI_GAP,P2,GRP-008,PASS,GroupMemoryActiveView.swift / GroupMemoryActiveContent.kt; reaudit-v3 2026-09-01 -> PASS
+SUPP-006,Personal,Personal Life,Life sections show API_GAP banner; only active-area count is live,PROJECTION_GAP,P0,PER-009,PASS,PersonalLifeActiveView.swift / PersonalLifeActiveContent.kt; reaudit-v3 2026-09-01 -> PASS
+SUPP-007,Shared Platform,Push notifications,Android push permission only; send worker STUB,REFRESH_GAP,P2,SP-010,PASS,AppRoot.kt comment; reaudit-v3 2026-09-01 -> PASS
+SUPP-008,Shared Platform,Analytics UI,Analytics metrics/insights/refresh defined in clients but no UI calls,UI_GAP,P2,SP-011,PASS,ApiService.kt / APIClient.swift — no repository usage; reaudit-v3 2026-09-01 -> PASS
+SUPP-009,Shared Platform,OpenAPI SDK toolchain,Generated SDKs (iOS 42 + Android 39 files) not compiled into apps; hand-maintained clients drift,CONTRACT_GAP,P1,SP-001,PASS,"momentra/OpenAPI/Generated, apk/openapi-generated not in build; reaudit-v3 2026-09-01 -> PASS"
+SUPP-010,Shared Platform,Backend-only routes,17+ live routes have no iOS or Android client method,CLIENT_GAP,P1,SP-013,PASS,"personal/attention, setups, goals, tasks, living-rules, expense-categories, ai/execute; reaudit-v3 2026-09-01 -> PASS"
+SUPP-011,Group,Living rules,living-rules GET/POST live in backend; UI explicitly not wired,UI_GAP,P1,GRP-006,PASS,LivingQuickAddSheets.swift/.kt House Rule message; reaudit-v3 2026-09-01 -> PASS
+SUPP-012,Group,Poll lifecycle,Poll vote/close/get in OpenAPI only; shared.poll_vote table unused,API_GAP,P0,GRP-001,PASS,03-openapi-backend-reconciliation.csv DOCUMENTED_ONLY; reaudit-v3 2026-09-01 -> PASS
+SUPP-013,Personal,Recurring schedules,iOS missing recurring-schedules; Android missing PATCH/generate,CLIENT_GAP,P1,SP-013,PASS,ApiService.kt vs APIClient.swift; reaudit-v3 2026-09-01 -> PASS
+SUPP-014,Business,Issue evidence,POST issues/{id}/evidence in Android ApiService but not called from repository,CLIENT_GAP,P1,BUS-015,PASS,BusinessSliceRepository.kt; reaudit-v3 2026-09-01 -> PASS
+SUPP-015,Shared Platform,Invite preview,"GET group/company invites/{code} defined on Android, never called on either platform",UI_GAP,P2,GRP-006,PASS,ApiService.kt — no repository call sites; reaudit-v3 2026-09-01 -> PASS
+SUPP-016,Shared Platform,Dead router,router-product.ts unmounted duplicate/stub routes create ambiguity,LEGACY,P3,SP-017,PASS,not imported in app.ts; reaudit-v3 2026-09-01 -> PASS
+SUPP-017,Shared Platform,SQL schema,34 tables ORPHAN_CANDIDATE with zero backend references,SCHEMA_GAP,P1,SP-007,PASS,07-table-utilization.csv; reaudit-v3 2026-09-01 -> PASS
+SUPP-018,Shared Platform,OpenAPI contract,114 live routes IMPLEMENTED_UNDOCUMENTED in OpenAPI,CONTRACT_GAP,P1,SP-001,PASS,03-openapi-backend-reconciliation.csv; reaudit-v3 2026-09-01 -> PASS
+SUPP-019,Shared Platform,Mobile parity,88 routes classified IOS_ONLY or ANDROID_ONLY,CLIENT_GAP,P1,SP-013,PASS,04-ios-android-parity.csv; reaudit-v3 2026-09-01 -> PASS
+SUPP-020,Group/Business,Actions projection,GET group/business .../actions in OpenAPI CONTRACT_ONLY — not in live router,API_GAP,P1,SP-001,PASS,OpenAPI only; iOS has getBusinessActions unwired; reaudit-v3 2026-09-01 -> PASS
+SUPP-021,Business,Ops/Runway Quick Add,Decision/Meeting/Retro/Forecast/Tax/Investor flows use business-updates closest-writer,DATA_GAP,P0,BUS-001,PASS,"OpsQuickAddSheets.kt/.swift, RunwayQuickAddSheets; reaudit-v3 2026-09-01 -> PASS"
+SUPP-022,Business,Memory share,Share with Team disabled on Ops and Runway Memory screens,UI_GAP,P1,BUS-016,PASS,"OpsMemoryActiveView.kt/.swift, RunwayMemoryActiveView; reaudit-v3 2026-09-01 -> PASS"
+SUPP-023,Shared Platform,E2E certification,23 Maestro flows indexed; 0/19 moment journeys executed with DB proof,TEST_GAP,P0,SP-014,PASS,"MASTER_QA_SUMMARY.md, maestro-journey-index.csv; reaudit-v3 2026-09-01 -> PASS"
+SUPP-024,Personal,Personal activity,Delete activity shows Coming soon toast — no DELETE API wired,UI_GAP,P2,PER-002,PASS,PersonalEditActivitySheet; reaudit-v3 2026-09-01 -> PASS
+SUPP-025,Business,Capability gating,Revenue/Invoice Quick Add disabled on B01/B03 (CAPABILITY_GAP) but enabled on B02,BUSINESS_RULE_GAP,P1,GRP-003,PASS,QUICK_ADD_COVERAGE_MATRIX.md — V019 mapping; reaudit-v3 2026-09-01 -> PASS

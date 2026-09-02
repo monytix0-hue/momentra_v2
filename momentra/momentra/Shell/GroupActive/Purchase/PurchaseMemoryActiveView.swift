@@ -27,6 +27,7 @@ struct PurchaseMemoryActiveView: View {
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
+    @ViewBuilder
     private var content: some View {
         let total = finance?.totals?.first
         let currency = total?.currencyCode ?? "INR"
@@ -40,7 +41,10 @@ struct PurchaseMemoryActiveView: View {
             budgetTotal: total?.budgetTotal
         )
         let positions = finance?.positions ?? []
-        return ScrollView {
+        NativeDashboardScaffold(background: theme.bg) {
+
+            NativeListSection {
+
             VStack(alignment: .leading, spacing: 14) {
                 if let error {
                     Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
@@ -59,7 +63,7 @@ struct PurchaseMemoryActiveView: View {
                     Text(memoryCount > 0 ? "\(memoryCount) memories captured" : "No memories yet")
                         .font(.plusJakarta(size: 11, weight: .bold))
                         .foregroundStyle(theme.darkText)
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, 8)
                         .padding(.vertical, 6)
                         .background(Color.white.opacity(0.9))
                         .clipShape(Capsule())
@@ -175,9 +179,7 @@ struct PurchaseMemoryActiveView: View {
                         Text("+ Capture Memory")
                             .font(.plusJakarta(size: 14, weight: .bold))
                             .foregroundStyle(theme.darkText)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color.white)
+                            .frame(maxWidth: .infinity).background(Color.white)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                     .buttonStyle(.plain)
@@ -187,9 +189,9 @@ struct PurchaseMemoryActiveView: View {
                 .background(theme.heroGradient)
                 .clipShape(RoundedRectangle(cornerRadius: 20))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .padding(.bottom, 56)
+
+            }
+
         }
     }
 

@@ -101,7 +101,10 @@ struct RunwayMomentsActiveView: View {
             if loading && activities.isEmpty && timelineItems.isEmpty {
                 ProgressView().tint(theme.accent)
             } else {
-                ScrollView {
+                NativeDashboardScaffold(background: theme.bg) {
+
+                    NativeListSection {
+
                     VStack(alignment: .leading, spacing: 16) {
                         if let error {
                             Text(error).font(.caption).foregroundStyle(RunwayColors.red)
@@ -128,9 +131,9 @@ struct RunwayMomentsActiveView: View {
                         highlightsBlock
                         ctaCard
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
-                    .padding(.bottom, 56)
+
+                    }
+
                 }
             }
         }

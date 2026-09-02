@@ -2,6 +2,9 @@ package com.example.momentra.data.repository
 
 import com.example.momentra.data.api.AddParticipantBody
 import com.example.momentra.data.api.AddResidentBody
+import com.example.momentra.data.api.AnalyticsInsightItemDto
+import com.example.momentra.data.api.AnalyticsMetricItemDto
+import com.example.momentra.data.api.AnalyticsRefreshBody
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.ApiService
 import com.example.momentra.data.api.AttachMemoryMediaBody
@@ -11,8 +14,11 @@ import com.example.momentra.data.api.CreateGroupExpenseResultDto
 import com.example.momentra.data.api.CreateMemoryBody
 import com.example.momentra.data.api.CreatePlanningItemBody
 import com.example.momentra.data.api.CreatePollBody
+import com.example.momentra.data.api.CreateDeliveryHandoverBody
+import com.example.momentra.data.api.CreateOwnershipRecordBody
 import com.example.momentra.data.api.CreatePurchaseItemBody
 import com.example.momentra.data.api.CreateSharedAssetBody
+import com.example.momentra.data.api.CreateLivingRuleBody
 import com.example.momentra.data.api.CreateMaintenanceRecordBody
 import com.example.momentra.data.api.CreateGroupVendorBody
 import com.example.momentra.data.api.CreateSettlementBody
@@ -24,6 +30,8 @@ import com.example.momentra.data.api.GroupLifePayloadDto
 import com.example.momentra.data.api.GroupMemoryPayloadDto
 import com.example.momentra.data.api.GroupParticipantsDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
+import com.example.momentra.data.api.GroupInviteDto
+import com.example.momentra.data.api.CompanyInviteDto
 import com.example.momentra.data.api.MediaUploadCompleteBody
 import com.example.momentra.data.api.MediaUploadIntentBody
 import com.example.momentra.data.api.MintGroupInviteBody
@@ -34,6 +42,7 @@ import com.example.momentra.data.api.RecordAttendanceBody
 import com.example.momentra.data.api.RecordContributionBody
 import com.example.momentra.data.api.RecordContributionResultDto
 import com.example.momentra.data.api.RedeemGroupInviteResultDto
+import com.example.momentra.data.api.VotePollBody
 import com.example.momentra.data.api.mapHttpFailure
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -115,6 +124,31 @@ class GroupSliceRepository(
         api.getGroupParticipants(momentId).data
     }.recoverCatching { e -> throw mapError(e) }
 
+    suspend fun listAnalyticsInsights(
+        scopeType: String = "MOMENT",
+        scopeId: String,
+    ): Result<List<AnalyticsInsightItemDto>> = runCatching {
+        api.listAnalyticsInsights(scopeType = scopeType, scopeId = scopeId).data.items
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listAnalyticsMetrics(
+        scopeType: String = "MOMENT",
+        scopeId: String,
+    ): Result<List<AnalyticsMetricItemDto>> = runCatching {
+        api.listAnalyticsMetrics(scopeType = scopeType, scopeId = scopeId).data.items
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun refreshAnalytics(
+        context: String = "GROUP_PULSE",
+        momentId: String,
+    ): Result<Unit> = runCatching {
+        api.refreshAnalytics(
+            idempotencyKey = UUID.randomUUID().toString(),
+            body = AnalyticsRefreshBody(context = context, momentId = momentId),
+        )
+        Unit
+    }.recoverCatching { e -> throw mapError(e) }
+
     suspend fun createGroupExpense(
         momentId: String,
         body: CreateGroupExpenseBody,
@@ -177,6 +211,14 @@ class GroupSliceRepository(
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 
+    suspend fun previewGroupInvite(code: String): Result<GroupInviteDto> = runCatching {
+        api.getGroupInvite(code).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun previewCompanyInvite(code: String): Result<CompanyInviteDto> = runCatching {
+        api.getCompanyInvite(code).data
+    }.recoverCatching { e -> throw mapError(e) }
+
     suspend fun mintCompanyInvite(
         companyId: String,
         membershipType: String = "MEMBER",
@@ -231,6 +273,10 @@ class GroupSliceRepository(
 
     suspend fun listPolls(momentId: String) = runCatching {
         api.listPolls(momentId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun getPoll(pollId: String) = runCatching {
+        api.getPoll(pollId).data
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun listMemories(momentId: String) = runCatching {
@@ -385,6 +431,52 @@ class GroupSliceRepository(
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 
+    suspend fun createDeliveryHandover(
+        momentId: String,
+        recipientName: String? = null,
+        handoverType: String? = null,
+        scheduledAt: String? = null,
+        address: String? = null,
+        note: String? = null,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ) = runCatching {
+        api.createDeliveryHandover(
+            momentId,
+            idempotencyKey,
+            CreateDeliveryHandoverBody(
+                recipientName = recipientName,
+                handoverType = handoverType,
+                scheduledAt = scheduledAt,
+                address = address,
+                note = note,
+            ),
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun createOwnershipRecord(
+        momentId: String,
+        assetLabel: String? = null,
+        fromOwnerName: String? = null,
+        toParticipantName: String? = null,
+        ownershipShare: Double? = null,
+        ownershipNote: String? = null,
+        effectiveAt: String? = null,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ) = runCatching {
+        api.createOwnershipRecord(
+            momentId,
+            idempotencyKey,
+            CreateOwnershipRecordBody(
+                assetLabel = assetLabel,
+                fromOwnerName = fromOwnerName,
+                toParticipantName = toParticipantName,
+                ownershipShare = ownershipShare,
+                ownershipNote = ownershipNote,
+                effectiveAt = effectiveAt,
+            ),
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
     suspend fun addResident(
         momentId: String,
         name: String,
@@ -392,6 +484,34 @@ class GroupSliceRepository(
         idempotencyKey: String = UUID.randomUUID().toString(),
     ) = runCatching {
         api.addResident(momentId, idempotencyKey, AddResidentBody(name = name, roleCode = roleCode)).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun createLivingRule(
+        momentId: String,
+        title: String,
+        ruleText: String,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ) = runCatching {
+        api.createLivingRule(
+            momentId,
+            idempotencyKey,
+            CreateLivingRuleBody(title = title, ruleText = ruleText),
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun votePoll(
+        pollId: String,
+        pollOptionId: String,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ) = runCatching {
+        api.votePoll(pollId, idempotencyKey, VotePollBody(pollOptionId)).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun closePoll(
+        pollId: String,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ) = runCatching {
+        api.closePoll(pollId, idempotencyKey).data
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun createGroupVendor(

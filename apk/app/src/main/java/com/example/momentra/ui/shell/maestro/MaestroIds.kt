@@ -86,8 +86,16 @@ object MaestroIds {
     const val GROUP_EXPENSE_AMOUNT = "group.expense.amount"
     const val GROUP_EXPENSE_PAYER = "group.expense.payer"
     const val GROUP_EXPENSE_SPLIT = "group.expense.split"
+    const val GROUP_EXPENSE_SPLIT_EQUAL = "group.expense.split.equal"
+    const val GROUP_EXPENSE_SPLIT_PERCENTAGE = "group.expense.split.percentage"
+    const val GROUP_EXPENSE_SPLIT_EXACT = "group.expense.split.exact"
+    const val GROUP_EXPENSE_SPLIT_SHARES = "group.expense.split.shares"
+    const val GROUP_EXPENSE_SPLIT_VALUE = "group.expense.split.value"
     const val GROUP_EXPENSE_NOTE = "group.expense.note"
     const val GROUP_EXPENSE_SUBMIT = "group.expense.submit"
+
+    fun groupExpenseSplitStrategy(strategy: String): String =
+        "group.expense.split.${strategy.lowercase()}"
 
     const val GROUP_INVITE_CREATE = "group.invite.create"
     const val GROUP_INVITE_CODE = "group.invite.code"
@@ -102,6 +110,7 @@ object MaestroIds {
     const val BUSINESS_REVENUE_SUBMIT = "business.revenue.submit"
 
     const val BUSINESS_INVOICE_CUSTOMER = "business.invoice.customer"
+    const val BUSINESS_INVOICE_AMOUNT = "business.invoice.amount"
     const val BUSINESS_INVOICE_LINE_ADD = "business.invoice.line.add"
     const val BUSINESS_INVOICE_SUBMIT = "business.invoice.submit"
 

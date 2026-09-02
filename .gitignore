@@ -18,6 +18,7 @@ ui-debug.log
 **/.env
 **/.env.*
 !**/.env.example
+!**/.env.maestro.example
 **/local.properties
 **/*.keystore
 **/*.jks

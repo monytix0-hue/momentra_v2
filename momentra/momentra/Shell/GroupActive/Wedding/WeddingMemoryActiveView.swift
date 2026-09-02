@@ -26,6 +26,7 @@ struct WeddingMemoryActiveView: View {
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
+    @ViewBuilder
     private var content: some View {
         let total = finance?.totals?.first
         let currency = total?.currencyCode ?? "INR"
@@ -39,7 +40,10 @@ struct WeddingMemoryActiveView: View {
             budgetTotal: total?.budgetTotal
         )
         let positions = finance?.positions ?? []
-        return ScrollView {
+        NativeDashboardScaffold(background: WeddingActiveTheme.bg) {
+
+            NativeListSection {
+
             VStack(alignment: .leading, spacing: 14) {
                 if let error {
                     Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
@@ -59,7 +63,7 @@ struct WeddingMemoryActiveView: View {
                         Text(memoryCount > 0 ? "\(memoryCount) memories captured" : "No memories yet")
                             .font(.plusJakarta(size: 11, weight: .bold))
                             .foregroundStyle(WeddingActiveTheme.darkText)
-                            .padding(.horizontal, 10)
+                            .padding(.horizontal, 8)
                             .padding(.vertical, 6)
                             .background(Color.white.opacity(0.9))
                             .clipShape(Capsule())
@@ -174,9 +178,9 @@ struct WeddingMemoryActiveView: View {
                     action: onOpenQuickAdd
                 )
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .padding(.bottom, 56)
+
+            }
+
         }
     }
 

@@ -16,23 +16,19 @@ struct BusinessGapQuickAddSheet: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color(hex: "#161B26").ignoresSafeArea()
-            VStack(spacing: 0) {
-                Capsule()
-                    .fill(Color(hex: "#475569"))
-                    .frame(width: 48, height: 4)
-                    .padding(.top, 12)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        sheetBody
-                    }
+        NativeSheetScaffold(
+            title: kind.label,
+            onClose: onClose,
+            background: Color(hex: "#161B26")
+        ) {
+            ScrollView {
+                sheetBody
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
-                    .padding(.bottom, 28)
-                }
             }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 
     @ViewBuilder

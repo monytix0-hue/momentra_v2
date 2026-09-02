@@ -1,0 +1,55 @@
+{
+  "generatedAt": "2026-09-02T08:14:13.793Z",
+  "gate": "S9-QA-J offline math",
+  "platforms": {
+    "android": {
+      "groupRows": 1147,
+      "methodCounts": {
+        "EQUAL": 292,
+        "PERCENTAGE": 282,
+        "EXACT": 292,
+        "SHARES": 281
+      },
+      "splitInvariantFails": 0,
+      "personalSign": {
+        "label": "personal",
+        "checked": 1116,
+        "fail": 0,
+        "transferNeutral": 153
+      },
+      "businessSign": {
+        "label": "business",
+        "checked": 1166,
+        "fail": 0,
+        "transferNeutral": 56
+      },
+      "ok": true
+    },
+    "ios": {
+      "groupRows": 1147,
+      "methodCounts": {
+        "EQUAL": 292,
+        "PERCENTAGE": 282,
+        "EXACT": 292,
+        "SHARES": 281
+      },
+      "splitInvariantFails": 0,
+      "personalSign": {
+        "label": "personal",
+        "checked": 1116,
+        "fail": 0,
+        "transferNeutral": 153
+      },
+      "businessSign": {
+        "label": "business",
+        "checked": 1166,
+        "fail": 0,
+        "transferNeutral": 56
+      },
+      "ok": true
+    }
+  },
+  "ok": true,
+  "totalFails": 0,
+  "crossDeviceSyncNote": "Run shared Group/Business workspace on one APK + one iOS account only after per-platform PASS (isolated accounts remain default)."
+}

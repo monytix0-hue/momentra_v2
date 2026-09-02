@@ -165,7 +165,12 @@ fun PersonalMasterExpenseSheet(
                     .padding(16.dp),
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                    Text("ℹ️", fontSize = 18.sp)
+                    MeIcon(
+                        icon = PersonalMasterExpenseIcons.Chrome.Info.vector,
+                        contentDescription = null,
+                        tint = T.Accent,
+                        size = 18.dp,
+                    )
                     Text(
                         "This entry can update Life operations, Lifestyle and Relationships.",
                         color = T.Text,
@@ -189,7 +194,12 @@ fun PersonalMasterExpenseSheet(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("✏️", fontSize = 18.sp, color = T.Accent)
+                    MeIcon(
+                        icon = PersonalMasterExpenseIcons.Chrome.Edit.vector,
+                        contentDescription = null,
+                        tint = T.Accent,
+                        size = 18.dp,
+                    )
                     BasicTextField(
                         value = purpose,
                         onValueChange = { purpose = it },
@@ -237,7 +247,12 @@ fun PersonalMasterExpenseSheet(
                             .background(T.Accent),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("💰", fontSize = 18.sp)
+                        MeIcon(
+                            icon = PersonalMasterExpenseIcons.Chrome.Amount.vector,
+                            contentDescription = null,
+                            tint = T.Text,
+                            size = 18.dp,
+                        )
                     }
                     BasicTextField(
                         value = amount,
@@ -277,7 +292,8 @@ fun PersonalMasterExpenseSheet(
             MeSectionLabel("Paid From")
             MeRowCard(
                 icon = accounts.firstOrNull { it.financialAccountId == selectedAccountId }
-                    ?.let { PersonalFinancialAccountUi.emojiForType(it.accountType) } ?: "🏦",
+                    ?.let { PersonalFinancialAccountUi.nativeIconForType(it.accountType) }
+                    ?: PersonalFinancialAccountUi.nativeIconForType("BANK"),
                 label = accounts.firstOrNull { it.financialAccountId == selectedAccountId }?.accountName
                     ?: paidFrom,
                 onChange = { showAccountPicker = true },
@@ -286,7 +302,7 @@ fun PersonalMasterExpenseSheet(
             MeSectionLabel("When")
             Box {
                 MeRowCard(
-                    icon = "📅",
+                    icon = PersonalMasterExpenseIcons.Chrome.Calendar.vector,
                     label = formatWhenLabel(whenCode),
                     onChange = { showWhenMenu = true },
                 )
@@ -349,7 +365,12 @@ fun PersonalMasterExpenseSheet(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                            Text("✏️", fontSize = 18.sp, color = T.Accent)
+                            MeIcon(
+                        icon = PersonalMasterExpenseIcons.Chrome.Edit.vector,
+                        contentDescription = null,
+                        tint = T.Accent,
+                        size = 18.dp,
+                    )
                             BasicTextField(
                                 value = notes,
                                 onValueChange = { if (it.length <= 200) notes = it },
@@ -526,7 +547,12 @@ private fun MeHeader(onDismiss: () -> Unit, onClearAll: () -> Unit) {
                         .clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("‹", color = T.Accent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    MeIcon(
+                        icon = PersonalMasterExpenseIcons.Chrome.Back.vector,
+                        contentDescription = "Back",
+                        tint = T.Accent,
+                        size = 22.dp,
+                    )
                 }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -539,7 +565,12 @@ private fun MeHeader(onDismiss: () -> Unit, onClearAll: () -> Unit) {
                             .border(1.dp, T.Accent, RoundedCornerShape(8.dp))
                             .padding(8.dp),
                     ) {
-                        Text("💳", fontSize = 16.sp)
+                        MeIcon(
+                            icon = PersonalMasterExpenseIcons.Chrome.Header.vector,
+                            contentDescription = null,
+                            tint = T.Accent,
+                            size = 16.dp,
+                        )
                     }
                     Text(
                         "Master Expense",
@@ -584,7 +615,7 @@ private fun MeSectionLabel(text: String) {
 }
 
 @Composable
-private fun MeRowCard(icon: String, label: String, onChange: () -> Unit) {
+private fun MeRowCard(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onChange: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -600,7 +631,7 @@ private fun MeRowCard(icon: String, label: String, onChange: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f),
         ) {
-            Text(icon, fontSize = 20.sp)
+            MeIcon(icon = icon, contentDescription = null, tint = T.Accent, size = 20.dp)
             Text(
                 label,
                 color = T.TextMain,
@@ -659,7 +690,12 @@ private fun CategoryGrid(selectedCode: String, onSelect: (String) -> Unit) {
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Text(cat.emoji, fontSize = 24.sp)
+                            MeIcon(
+                                icon = PersonalMasterExpenseIcons.categoryIcon(cat.code),
+                                contentDescription = cat.label,
+                                tint = T.Text,
+                                size = 24.dp,
+                            )
                             Text(
                                 cat.label,
                                 color = T.Text,
@@ -715,7 +751,12 @@ private fun MoreDetailsSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("📁", fontSize = 16.sp)
+                MeIcon(
+                    icon = PersonalMasterExpenseIcons.Chrome.Folder.vector,
+                    contentDescription = null,
+                    tint = T.Accent,
+                    size = 16.dp,
+                )
                 Text(
                     "More details",
                     color = T.TextMain,
@@ -724,7 +765,16 @@ private fun MoreDetailsSection(
                     fontFamily = PlusJakartaSans,
                 )
             }
-            Text(if (expanded) "▲" else "▼", color = T.Muted, fontSize = 12.sp)
+            MeIcon(
+                icon = if (expanded) {
+                    PersonalMasterExpenseIcons.Chrome.ExpandUp.vector
+                } else {
+                    PersonalMasterExpenseIcons.Chrome.ExpandDown.vector
+                },
+                contentDescription = if (expanded) "Collapse" else "Expand",
+                tint = T.Muted,
+                size = 12.dp,
+            )
         }
 
         if (expanded) {

@@ -17,10 +17,8 @@ enum PurchaseQuickAddKind: String, Identifiable, CaseIterable {
 
     var isLive: Bool {
         switch self {
-        case .contribution, .expense, .budget, .vendor, .poll, .update, .memory, .purchaseItem:
+        case .contribution, .expense, .budget, .vendor, .poll, .update, .memory, .purchaseItem, .contributor, .delivery, .ownership:
             return true
-        case .contributor, .delivery, .ownership:
-            return false
         }
     }
 

@@ -30,8 +30,8 @@ struct BusinessQuickAddHub: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+        List {
+            Section {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Quick Add")
@@ -60,7 +60,12 @@ struct BusinessQuickAddHub: View {
                         ForEach(theme.filterChips, id: \.self) { chip($0, selected: false) }
                     }
                 }
+            }
+            .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 4, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
+            Section {
                 HStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(theme.hubHeroTitle)
@@ -82,7 +87,12 @@ struct BusinessQuickAddHub: View {
                 .background(theme.heroGradient)
                 .overlay(RoundedRectangle(cornerRadius: 20).stroke(theme.border))
                 .clipShape(RoundedRectangle(cornerRadius: 20))
+            }
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
+            Section {
                 HStack(spacing: 10) {
                     Image("TeamOpsQaSearch")
                         .resizable()
@@ -99,7 +109,11 @@ struct BusinessQuickAddHub: View {
 
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(tiles) { kind in
-                        let capOk = BusinessActionRegistry.isKindEnabled(kind, capabilities: capabilityCodes)
+                        let capOk = BusinessActionRegistry.isKindEnabled(
+                            kind,
+                            capabilities: capabilityCodes,
+                            momentTypeCode: momentTypeCode
+                        )
                         let momentOk = hasActiveMoment || kind == .memory
                         Button { handle(kind) } label: {
                             let tall = kind == .activityLog || kind == .poll || kind == .memory
@@ -159,19 +173,25 @@ struct BusinessQuickAddHub: View {
                         .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
-
-                Button(action: onNewMoment) {
-                    Text("Create another Business Moment")
-                        .font(.plusJakarta(size: 13, weight: .semibold))
-                        .foregroundStyle(theme.accent)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
             }
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 16, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .safeAreaInset(edge: .bottom) {
+            Button(action: onNewMoment) {
+                Text("Create another Business Moment")
+                    .font(.plusJakarta(size: 13, weight: .semibold))
+                    .foregroundStyle(theme.accent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+            }
+            .buttonStyle(.plain)
             .padding(.horizontal, 16)
-            .padding(.vertical, 16)
-            .padding(.bottom, 28)
+            .padding(.bottom, 8)
+            .background(theme.bg)
         }
         .background(theme.bg.ignoresSafeArea())
     }

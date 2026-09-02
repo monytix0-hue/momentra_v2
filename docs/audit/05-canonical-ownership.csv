@@ -1,0 +1,11 @@
+Fact,CanonicalTable,ApiRoute,Service,AuditResult,RegisterGapId
+Expense,finance.expense + domain context,POST /v1/moments/{id}/expenses,finance/expense service,PASS,SP-006
+Group expense,finance.expense + finance.group_expense_context,POST /v1/moments/{id}/group-expenses,finance/group-expense,PASS,SP-006
+Settlement,finance.settlement + finance.settlement_allocation,POST /v1/moments/{id}/settlements,finance/group-expense,PARTIAL,GRP-007
+Business update (generic),business.business_update,POST /v1/moments/{id}/business-updates,closest-writer,DATA_GAP,BUS-001
+Recognition,business.business_update (fallback),POST /v1/moments/{id}/recognitions,closest-writer risk,DATA_GAP,BUS-002
+Milestone,work.milestone,POST /v1/moments/{id}/milestones,work/service,PARTIAL,BUS-003
+Tax obligation,finance.expense TAX category,POST /v1/moments/{id}/tax-obligations,generic path,DATA_GAP,BUS-009
+Investor update,business.business_update,POST /v1/moments/{id}/investor-updates,generic path,DATA_GAP,BUS-010
+Forecast,business.business_update,POST /v1/moments/{id}/forecast-scenarios,generic path,DATA_GAP,BUS-012
+Poll vote,shared.poll_vote,POST /v1/polls/{id}/votes,NOT_MOUNTED,API_GAP,GRP-001

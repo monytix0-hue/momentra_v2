@@ -5,6 +5,7 @@ struct GroupMemoryActiveView: View {
     let refreshToken: UInt64
     let momentId: String?
     let momentTitle: String?
+    var onOpenQuickAdd: () -> Void = {}
 
     @State private var memory: APIClient.GroupMemoryPayload?
     @State private var finance: APIClient.GroupFinancePayload?
@@ -24,7 +25,10 @@ struct GroupMemoryActiveView: View {
             if loading && memory == nil && pulse == nil {
                 ProgressView().tint(GroupActiveTheme.brand)
             } else {
-                ScrollView {
+                NativeDashboardScaffold(background: GroupActiveTheme.bg) {
+
+                    NativeListSection {
+
                     let items = memory?.payload?.items ?? []
                     let peopleCount = pulse?.payload?.participantCount ?? 0
                     let memoryCount = max(items.count, memory?.payload?.memoryCount ?? 0)
@@ -112,18 +116,20 @@ struct GroupMemoryActiveView: View {
                             Text("Preserve this moment")
                                 .font(.plusJakarta(size: 16, weight: .heavy))
                                 .foregroundStyle(.white)
-                            Text("Capture a shared memory from Quick Add when ready.")
+                            Text("Capture a photo, caption, or milestone for the group timeline.")
                                 .font(.plusJakarta(size: 12))
                                 .foregroundStyle(.white.opacity(0.85))
-                            GroupCtaButton(label: "Preserve this moment", enabled: false, action: {})
+                            GroupCtaButton(label: "Preserve this moment", enabled: true, action: onOpenQuickAdd)
                         }
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(LinearGradient(colors: [GroupActiveTheme.brand, GroupActiveTheme.accentOrange], startPoint: .leading, endPoint: .trailing))
                         .clipShape(RoundedRectangle(cornerRadius: 18))
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                
+
+                    }
+
                 }
             }
         }

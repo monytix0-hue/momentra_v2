@@ -9,6 +9,8 @@ struct CompanyJoinCodeSheet: View {
     @State private var error: String?
     @State private var submitting = false
     @State private var showScanner = false
+    @State private var preview: CompanyInvite?
+    @State private var previewLoading = false
     @StateObject private var createModel = MomentCreateModel()
 
     private let bg = Color(hex: "#161B26")
@@ -68,6 +70,23 @@ struct CompanyJoinCodeSheet: View {
                             .foregroundStyle(Color(hex: "#F87171"))
                     }
 
+                    if previewLoading {
+                        ProgressView().tint(accent)
+                    } else if let preview, CompanyJoinLink.parseTyped(code) != nil {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(preview.title)
+                                .font(.plusJakarta(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                            Text("Company invite · \(preview.status)")
+                                .font(.plusJakarta(size: 12))
+                                .foregroundStyle(Color(hex: "#9E9AA8"))
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(field)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+
                     Button(action: submit) {
                         Text(submitting ? "Joining…" : "Join company")
                             .font(.plusJakarta(size: 15, weight: .heavy))
@@ -91,6 +110,9 @@ struct CompanyJoinCodeSheet: View {
                 Spacer()
             }
         }
+        .onChange(of: code) { _, _ in
+            Task { await loadPreview() }
+        }
         .fullScreenCover(isPresented: $showScanner) {
             GroupJoinQrScanner(
                 onCode: { _ in
@@ -105,6 +127,16 @@ struct CompanyJoinCodeSheet: View {
                 onDismiss: { showScanner = false }
             )
         }
+    }
+
+    private func loadPreview() async {
+        guard let parsed = CompanyJoinLink.parseTyped(code) else {
+            preview = nil
+            return
+        }
+        previewLoading = true
+        preview = await createModel.previewCompanyInvite(code: parsed)
+        previewLoading = false
     }
 
     private func submit() {

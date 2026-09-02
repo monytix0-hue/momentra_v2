@@ -5,16 +5,17 @@ import SwiftUI
 struct CircleComingSoonView: View {
     @State private var notifyAck = false
 
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            LinearGradient(
-                colors: [CircleComingSoonTheme.pageStart, CircleComingSoonTheme.pageEnd],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+    private var pageBackground: LinearGradient {
+        LinearGradient(
+            colors: [CircleComingSoonTheme.pageStart, CircleComingSoonTheme.pageEnd],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
 
-            ScrollView {
+    var body: some View {
+        NativeDashboardScaffold(background: CircleComingSoonTheme.pageStart) {
+            NativeListSection {
                 VStack(spacing: 28) {
                     CircleNetworkIllustration()
                         .frame(height: 220)
@@ -142,31 +143,6 @@ struct CircleComingSoonView: View {
                         .frame(height: 8)
                     }
 
-                    Button {
-                        notifyAck = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "bell.fill")
-                            Text("Notify Me When Ready")
-                                .font(.system(size: 16, weight: .bold))
-                            Spacer()
-                            Image(systemName: "arrow.right")
-                        }
-                        .foregroundStyle(CircleComingSoonTheme.pageStart)
-                        .padding(.horizontal, 24)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(
-                            LinearGradient(
-                                colors: [CircleComingSoonTheme.accent, CircleComingSoonTheme.accentEnd],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                    }
-                    .accessibilityLabel("Notify me when Circle is ready")
-
                     HStack(alignment: .top, spacing: 16) {
                         ZStack {
                             Circle()
@@ -187,13 +163,36 @@ struct CircleComingSoonView: View {
                             .stroke(CircleComingSoonTheme.accent.opacity(0.3), lineWidth: 1)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 20))
-
-                    Spacer(minLength: 24)
                 }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 24)
             }
         }
+        .nativeStickyFooter(background: CircleComingSoonTheme.pageStart) {
+            Button {
+                notifyAck = true
+            } label: {
+                HStack {
+                    Image(systemName: "bell.fill")
+                    Text("Notify Me When Ready")
+                        .font(.system(size: 16, weight: .bold))
+                    Spacer()
+                    Image(systemName: "arrow.right")
+                }
+                .foregroundStyle(CircleComingSoonTheme.pageStart)
+                .padding(.horizontal, 24)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(
+                    LinearGradient(
+                        colors: [CircleComingSoonTheme.accent, CircleComingSoonTheme.accentEnd],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+            .accessibilityLabel("Notify me when Circle is ready")
+        }
+        .background(pageBackground.ignoresSafeArea())
         .accessibilityIdentifier("circle.coming_soon")
         .alert("You're on the list", isPresented: $notifyAck) {
             Button("OK", role: .cancel) {}

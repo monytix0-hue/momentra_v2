@@ -1,8 +1,9 @@
 appId: resolvingpoint.momentra
 ---
-# Physical iOS: Maestro 2.9 does not implement clearKeychain/clearState on real devices.
-# run-ios.sh reinstalls the .app before each run for a clean install.
-- launchApp
+# Physical iOS: Maestro 2.9 DeviceControlIOSDevice.launch() is still TODO
+# ("Not yet implemented"). run-ios.sh launches the app with:
+#   xcrun devicectl device process launch --terminate-existing …
+# before this flow. Do not use launchApp / clearState / clearKeychain here.
 - extendedWaitUntil:
     visible: "Skip"
     timeout: 45000

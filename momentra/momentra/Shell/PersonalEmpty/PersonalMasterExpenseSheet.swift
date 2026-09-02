@@ -81,22 +81,28 @@ struct PersonalMasterExpenseSheet: View {
     private var meHeader: some View {
         HStack {
             Button(action: onClose) {
-                Text("‹")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(PersonalMasterExpenseTheme.accent)
-                    .frame(width: 36, height: 36)
-                    .background(PersonalMasterExpenseTheme.surfaceSolid.opacity(0.7))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(PersonalMasterExpenseTheme.border))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                MeIcon(
+                    symbol: PersonalMasterExpenseIcons.Chrome.back.rawValue,
+                    tint: PersonalMasterExpenseTheme.accent,
+                    size: 22,
+                    accessibilityLabel: "Back"
+                )
+                .frame(width: 36, height: 36)
+                .background(PersonalMasterExpenseTheme.surfaceSolid.opacity(0.7))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(PersonalMasterExpenseTheme.border))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
             .buttonStyle(.plain)
             HStack(spacing: 8) {
-                Text("💳")
-                    .font(.system(size: 16))
-                    .padding(8)
-                    .background(PersonalMasterExpenseTheme.accent.opacity(0.08))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(PersonalMasterExpenseTheme.accent))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                MeIcon(
+                    symbol: PersonalMasterExpenseIcons.Chrome.header.rawValue,
+                    tint: PersonalMasterExpenseTheme.accent,
+                    size: 16
+                )
+                .padding(8)
+                .background(PersonalMasterExpenseTheme.accent.opacity(0.08))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(PersonalMasterExpenseTheme.accent))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
                 Text("Master Expense")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.white)
@@ -134,7 +140,11 @@ struct PersonalMasterExpenseSheet: View {
 
     private var smartBanner: some View {
         HStack(alignment: .top, spacing: 12) {
-            Text("ℹ️").font(.system(size: 18))
+            MeIcon(
+                symbol: PersonalMasterExpenseIcons.Chrome.info.rawValue,
+                tint: PersonalMasterExpenseTheme.accent,
+                size: 18
+            )
             Text("This entry can update Life operations, Lifestyle and Relationships.")
                 .font(.system(size: 14))
                 .foregroundStyle(.white)
@@ -151,7 +161,11 @@ struct PersonalMasterExpenseSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("What did you spend on?")
             HStack(spacing: 10) {
-                Text("✏️").font(.system(size: 18)).foregroundStyle(PersonalMasterExpenseTheme.accent)
+                MeIcon(
+                    symbol: PersonalMasterExpenseIcons.Chrome.edit.rawValue,
+                    tint: PersonalMasterExpenseTheme.accent,
+                    size: 18
+                )
                 TextField("Dinner with friends", text: $purpose)
                     .foregroundStyle(PersonalMasterExpenseTheme.textMain)
                     .font(.system(size: 15, weight: .medium))
@@ -167,11 +181,14 @@ struct PersonalMasterExpenseSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("Amount")
             HStack(spacing: 12) {
-                Text("💰")
-                    .font(.system(size: 18))
-                    .frame(width: 32, height: 32)
-                    .background(PersonalMasterExpenseTheme.accent)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                MeIcon(
+                    symbol: PersonalMasterExpenseIcons.Chrome.amount.rawValue,
+                    tint: .white,
+                    size: 18
+                )
+                .frame(width: 32, height: 32)
+                .background(PersonalMasterExpenseTheme.accent)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
                 TextField("0.00", text: $amount)
                     .font(.system(size: 40, weight: .heavy))
                     .foregroundStyle(.white)
@@ -207,7 +224,12 @@ struct PersonalMasterExpenseSheet: View {
             categoryCode = cat.code
         } label: {
             VStack(spacing: 4) {
-                Text(cat.emoji).font(.system(size: 24))
+                MeIcon(
+                    symbol: PersonalMasterExpenseIcons.categorySymbol(code: cat.code),
+                    tint: .white,
+                    size: 24,
+                    accessibilityLabel: cat.label
+                )
                 Text(cat.label)
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white)
@@ -228,7 +250,9 @@ struct PersonalMasterExpenseSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("Paid From")
             rowCard(
-                icon: accounts.first(where: { $0.financialAccountId == selectedAccountId }).map { accountEmoji($0) } ?? "🏦",
+                symbol: accounts.first(where: { $0.financialAccountId == selectedAccountId }).map {
+                    PersonalFinancialAccountUi.nativeSymbolForType($0.accountType)
+                } ?? PersonalFinancialAccountUi.nativeSymbolForType("BANK"),
                 label: accounts.first(where: { $0.financialAccountId == selectedAccountId })?.accountName ?? paidFrom,
                 onChange: { showAccountPicker = true }
             )
@@ -238,7 +262,11 @@ struct PersonalMasterExpenseSheet: View {
     private var whenSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("When")
-            rowCard(icon: "📅", label: formatWhenLabel(whenCode), onChange: { showWhenPicker = true })
+            rowCard(
+                symbol: PersonalMasterExpenseIcons.Chrome.calendar.rawValue,
+                label: formatWhenLabel(whenCode),
+                onChange: { showWhenPicker = true }
+            )
         }
     }
 
@@ -247,13 +275,23 @@ struct PersonalMasterExpenseSheet: View {
             Button { showDetails.toggle() } label: {
                 HStack {
                     HStack(spacing: 8) {
-                        Text("📁")
+                        MeIcon(
+                            symbol: PersonalMasterExpenseIcons.Chrome.folder.rawValue,
+                            tint: PersonalMasterExpenseTheme.accent,
+                            size: 16
+                        )
                         Text("More details")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(PersonalMasterExpenseTheme.textMain)
                     }
                     Spacer()
-                    Text(showDetails ? "▲" : "▼").foregroundStyle(PersonalMasterExpenseTheme.muted)
+                    MeIcon(
+                        symbol: showDetails
+                            ? PersonalMasterExpenseIcons.Chrome.expandUp.rawValue
+                            : PersonalMasterExpenseIcons.Chrome.expandDown.rawValue,
+                        tint: PersonalMasterExpenseTheme.muted,
+                        size: 12
+                    )
                 }
             }
             .buttonStyle(.plain)
@@ -333,7 +371,11 @@ struct PersonalMasterExpenseSheet: View {
             sectionLabel("Notes")
             VStack(alignment: .trailing, spacing: 8) {
                 HStack(alignment: .top, spacing: 10) {
-                    Text("✏️").font(.system(size: 18)).foregroundStyle(PersonalMasterExpenseTheme.accent)
+                    MeIcon(
+                        symbol: PersonalMasterExpenseIcons.Chrome.edit.rawValue,
+                        tint: PersonalMasterExpenseTheme.accent,
+                        size: 18
+                    )
                     TextField("Add any additional notes...", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
                         .foregroundStyle(PersonalMasterExpenseTheme.textMain)
@@ -396,10 +438,10 @@ struct PersonalMasterExpenseSheet: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func rowCard(icon: String, label: String, onChange: @escaping () -> Void) -> some View {
+    private func rowCard(symbol: String, label: String, onChange: @escaping () -> Void) -> some View {
         HStack {
             HStack(spacing: 12) {
-                Text(icon).font(.system(size: 20))
+                MeIcon(symbol: symbol, tint: PersonalMasterExpenseTheme.accent, size: 20)
                 Text(label)
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(PersonalMasterExpenseTheme.textMain)
@@ -503,15 +545,6 @@ struct PersonalMasterExpenseSheet: View {
             .background(PersonalMasterExpenseTheme.categoryUnselected)
             .overlay(Capsule().stroke(PersonalMasterExpenseTheme.categoryBorder))
             .clipShape(Capsule())
-        }
-    }
-
-    private func accountEmoji(_ account: APIClient.FinancialAccount) -> String {
-        switch account.accountType.uppercased() {
-        case "CASH": return "💵"
-        case "CREDIT": return "💳"
-        case "SAVINGS": return "🏦"
-        default: return "🏦"
         }
     }
 

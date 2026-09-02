@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "gate": "S9-QA-B",
+  "description": "Maps Momentra_*_3500 ledger rows (category Quick_Add + Semantic_Type) onto S9-QA-A capability catalog hub tiles and Maestro field IDs.",
+  "momentMap": {
+    "Life Operations": { "momentId": "P1", "momentTypeCode": "LIFE_RHYTHM", "context": "PERSONAL" },
+    "Future Building": { "momentId": "P2", "momentTypeCode": "FUTURE_GOAL", "context": "PERSONAL" },
+    "Lifestyle": { "momentId": "P3", "momentTypeCode": "LIFESTYLE", "context": "PERSONAL" },
+    "Relationships": { "momentId": "P4", "momentTypeCode": "RELATIONSHIP_CONNECTION", "context": "PERSONAL" },
+    "Trip": { "momentId": "G01", "momentTypeCode": "TRIP", "context": "GROUP" },
+    "Wedding": { "momentId": "G02", "momentTypeCode": "WEDDING", "context": "GROUP" },
+    "House Party": { "momentId": "G03", "momentTypeCode": "HOUSE_PARTY", "context": "GROUP" },
+    "Office Outing": { "momentId": "G04", "momentTypeCode": "OFFICE_OUTING", "context": "GROUP" },
+    "Gift Pool": { "momentId": "G05", "momentTypeCode": "GIFT_POOL", "context": "GROUP" },
+    "Purchase": { "momentId": "G06", "momentTypeCode": "GROUP_PURCHASE", "context": "GROUP", "catalogLabel": "Group Purchase" },
+    "Group Purchase": { "momentId": "G06", "momentTypeCode": "GROUP_PURCHASE", "context": "GROUP" },
+    "Assets": { "momentId": "G07", "momentTypeCode": "SHARED_ASSET", "context": "GROUP", "catalogLabel": "Shared Asset" },
+    "Shared Asset": { "momentId": "G07", "momentTypeCode": "SHARED_ASSET", "context": "GROUP" },
+    "Custom Purchase": { "momentId": "G08", "momentTypeCode": "COMMUNITY_PURCHASE", "context": "GROUP" },
+    "Flatmates": { "momentId": "G09", "momentTypeCode": "FLATMATES", "context": "GROUP" },
+    "Family Household": { "momentId": "G10", "momentTypeCode": "FAMILY_HOUSEHOLD", "context": "GROUP" },
+    "Shared Living": { "momentId": "G11", "momentTypeCode": "CO_LIVING", "context": "GROUP", "catalogLabel": "Co-living" },
+    "Co-living": { "momentId": "G11", "momentTypeCode": "CO_LIVING", "context": "GROUP" },
+    "Custom Living": { "momentId": "G12", "momentTypeCode": "COMMUNITY_LIVING", "context": "GROUP" },
+    "Team Operations": { "momentId": "B01", "momentTypeCode": "TEAM_OPERATIONS", "context": "BUSINESS" },
+    "Business Runway": { "momentId": "B02", "momentTypeCode": "BUSINESS_RUNWAY", "context": "BUSINESS" },
+    "Business Operations": { "momentId": "B03", "momentTypeCode": "BUSINESS_OPERATIONS", "context": "BUSINESS" }
+  },
+  "semanticToHub": {
+    "PERSONAL": {
+      "Expense": {
+        "P1": { "catalogQuickAdd": "Income", "tileMaestroId": "qa.tile.income", "categoryField": "personal.income.category", "notes": "Ledger category → money form; Android hub Income / iOS Expense label drift" },
+        "P2": { "catalogQuickAdd": "Milestone", "tileMaestroId": "qa.tile.milestone", "categoryField": null, "notes": "No Expense hub on P2; Education expenses use Milestone as ACTIVE proxy until money tile restored — REVIEW" },
+        "P3": { "catalogQuickAdd": "Experience", "tileMaestroId": "qa.tile.experience", "categoryField": null, "notes": "No Expense hub on P3; lifestyle spend uses Experience proxy — REVIEW" },
+        "P4": { "catalogQuickAdd": "Shared Exp", "tileMaestroId": "qa.tile.shared_exp", "categoryField": null, "notes": "Relationship spend categories use Shared Exp proxy — REVIEW" }
+      },
+      "Income": {
+        "P1": { "catalogQuickAdd": "Income", "tileMaestroId": "qa.tile.income", "categoryField": "personal.income.category", "notes": "" }
+      },
+      "Transfer": {
+        "P1": { "catalogQuickAdd": "Transfer", "tileMaestroId": "qa.tile.transfer", "categoryField": null, "notes": "" },
+        "P2": { "catalogQuickAdd": "Progress", "tileMaestroId": "qa.tile.progress", "categoryField": null, "notes": "Future Transfer/Savings/Goal Contribution → Progress proxy until P2 money hub exists — REVIEW" }
+      },
+      "Investment": {
+        "P2": { "catalogQuickAdd": "Opportunity", "tileMaestroId": "qa.tile.opportunity", "categoryField": null, "notes": "Future Investments → Opportunity proxy — REVIEW" },
+        "P4": { "catalogQuickAdd": "Investment", "tileMaestroId": "qa.tile.investment", "categoryField": null, "notes": "" }
+      },
+      "Contribution": {
+        "P2": { "catalogQuickAdd": "Progress", "tileMaestroId": "qa.tile.progress", "categoryField": null, "notes": "Goal Contribution → Progress proxy — REVIEW" }
+      }
+    },
+    "GROUP": {
+      "Expense": {
+        "*": { "catalogQuickAdd": "Expense", "tileMaestroId": "qa.tile.expense", "categoryField": "group.expense.category", "notes": "Ledger Quick_Add is expense category; Split_Method drives group.expense.split.*" }
+      },
+      "Contribution": {
+        "*": { "catalogQuickAdd": "Contribute", "tileMaestroId": "qa.tile.contribute", "categoryField": null, "notes": "" }
+      },
+      "Income": {
+        "*": { "catalogQuickAdd": "Contribute", "tileMaestroId": "qa.tile.contribute", "categoryField": null, "notes": "Group income-like → Contribute" }
+      }
+    },
+    "BUSINESS": {
+      "Expense": {
+        "B01": { "catalogQuickAdd": "Team Update", "tileMaestroId": null, "categoryField": null, "notes": "Team Ops hub has no Expense; Team meal/travel etc. use Team Update until Spend path wired — prefer B03 Spend for ops expenses" },
+        "B02": { "catalogQuickAdd": "Expense", "tileMaestroId": "qa.tile.expense", "categoryField": "business.expense.category", "notes": "Runway Log Expense" },
+        "B03": { "catalogQuickAdd": "Spend Entry", "tileMaestroId": null, "categoryField": "business.expense.category", "notes": "Ops Log Spend Entry; amount ID business.expense.amount" }
+      },
+      "Income": {
+        "B02": { "catalogQuickAdd": "Revenue", "tileMaestroId": "qa.tile.revenue", "categoryField": null, "notes": "Funding/Investment/Loan/Revenue → Runway Revenue" },
+        "B01": { "catalogQuickAdd": "Revenue", "tileMaestroId": "qa.tile.revenue", "categoryField": null, "notes": "CAPABILITY_GAP on B01 — skip or force B02" },
+        "B03": { "catalogQuickAdd": "Revenue", "tileMaestroId": "qa.tile.revenue", "categoryField": null, "notes": "CAPABILITY_GAP on B03 — skip or force B02" }
+      },
+      "Transfer": {
+        "B02": { "catalogQuickAdd": "Expense", "tileMaestroId": "qa.tile.expense", "categoryField": null, "notes": "Reserve transfer → Runway expense/movement proxy — REVIEW" }
+      }
+    }
+  },
+  "splitMethodMap": {
+    "EQUAL": "group.expense.split.equal",
+    "PERCENTAGE": "group.expense.split.percentage",
+    "EXACT": "group.expense.split.exact",
+    "SHARES": "group.expense.split.shares"
+  },
+  "overrides": [
+    {
+      "when": { "momentId": "G12", "semantic": "Contribution" },
+      "joinStatus": "SKIP_CAPABILITY_GAP",
+      "catalogQuickAdd": "Contribute",
+      "notes": "Custom Living hub has no Contribution tile (same as Family Household)"
+    },
+    {
+      "when": { "momentId": "G10", "semantic": "Contribution" },
+      "joinStatus": "SKIP_CAPABILITY_GAP",
+      "catalogQuickAdd": "Contribute",
+      "notes": "Family Household hub has no Contribution tile"
+    }
+  ],
+  "fieldDefaults": {
+    "PERSONAL": {
+      "Expense": {
+        "amountId": "personal.income.amount",
+        "noteId": "personal.income.note",
+        "submitId": "personal.income.submit"
+      },
+      "Income": {
+        "amountId": "personal.income.amount",
+        "noteId": "personal.income.note",
+        "submitId": "personal.income.submit"
+      },
+      "Transfer": {
+        "amountId": "personal.money.transfer.amount",
+        "noteId": "personal.money.transfer.note",
+        "submitId": "personal.money.transfer.submit"
+      }
+    },
+    "GROUP": {
+      "Expense": {
+        "amountId": "group.expense.amount",
+        "noteId": "group.expense.note",
+        "submitId": "group.expense.submit",
+        "splitContainerId": "group.expense.split"
+      },
+      "Contribution": {
+        "amountId": "group.contribute.amount",
+        "noteId": "group.contribute.note",
+        "submitId": "group.contribute.submit"
+      }
+    },
+    "BUSINESS": {
+      "Expense": {
+        "amountId": "business.expense.amount",
+        "noteId": "business.expense.note",
+        "submitId": "business.expense.submit"
+      },
+      "Income": {
+        "amountId": "business.revenue.amount",
+        "noteId": null,
+        "submitId": "business.revenue.submit"
+      }
+    }
+  },
+  "pilotBatches": ["B01", "B02", "B03"],
+  "pilotRowFilter": "Run_Batch in (B01,B02,B03) → 150 rows per platform (50×3 interleaved modes approx)",
+  "loadBands": [
+    "BASELINE_1_500",
+    "RAMP_501_1500",
+    "RAMP_1501_2500",
+    "HIGH_2501_3000",
+    "STRESS_3001_3500"
+  ],
+  "knownGaps": [
+    "Ledger Quick_Add is a category label, not a hub tile — join uses Semantic_Type + Moment",
+    "P2/P3/P4 Expense categories lack dedicated money hub tiles — marked REVIEW proxies",
+    "B01 Income rows are CAPABILITY_GAP (Revenue Runway-only)",
+    "G02 Settle not in this ledger (finance Expense/Contribution only)",
+    "Non-finance hub tiles (Recovery, Mood, Decision, etc.) not covered by 3500 pack — remain catalog ACTIVE for separate scenarios"
+  ]
+}

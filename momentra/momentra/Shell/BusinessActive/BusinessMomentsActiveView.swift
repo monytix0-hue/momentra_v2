@@ -21,7 +21,10 @@ struct BusinessMomentsActiveView: View {
                 ProgressView().tint(theme.accent)
             } else {
                 ZStack(alignment: .bottomTrailing) {
-                    ScrollView {
+                    NativeDashboardScaffold(background: theme.bg) {
+
+                        NativeListSection {
+
                         VStack(alignment: .leading, spacing: 12) {
                             if let error {
                                 Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
@@ -45,7 +48,7 @@ struct BusinessMomentsActiveView: View {
                                     Button("Open Action Center", action: onOpenQuickAdd)
                                         .font(.plusJakarta(size: 14, weight: .heavy))
                                         .foregroundStyle(.white)
-                                        .padding(.horizontal, 16)
+                                        .padding(.horizontal, 12)
                                         .padding(.vertical, 10)
                                         .background(theme.accent)
                                         .clipShape(Capsule())
@@ -60,9 +63,9 @@ struct BusinessMomentsActiveView: View {
                                 ForEach(activities) { activityRow($0) }
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .padding(.bottom, 56)
+
+                        }
+
                     }
                     Button(action: onOpenQuickAdd) {
                         Image(systemName: "plus")

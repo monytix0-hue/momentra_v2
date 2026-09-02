@@ -67,7 +67,13 @@ fun BusinessQuickAddKind.registryDestination(): BusinessActionRegistry.Destinati
 }
 
 /** Unmapped kinds (update/memory/chrome) stay available when moment is active. */
-fun BusinessQuickAddKind.isCapabilityEnabled(capabilities: List<String>): Boolean {
+fun BusinessQuickAddKind.isCapabilityEnabled(
+    capabilities: List<String>,
+    momentTypeCode: String? = null,
+): Boolean {
     val dest = registryDestination() ?: return true
+    if (dest == BusinessActionRegistry.Destination.REVENUE || dest == BusinessActionRegistry.Destination.INVOICE) {
+        if (!BusinessActionRegistry.isRunwayFinanceEnabled(momentTypeCode)) return false
+    }
     return BusinessActionRegistry.isDestinationEnabled(capabilities, dest)
 }

@@ -162,6 +162,8 @@ describe('Personal three-layer join proof', () => {
     const life = await request(app).get('/v1/personal/life').set('X-Dev-Firebase-Uid', uid);
     assert.equal(life.status, 200);
     assert.equal(life.body.data.dataQuality, 'REAL');
+    assert.equal(life.body.data.sectionQuality?.drift, 'EMPTY_SUPPORTED');
+    assert.equal(life.body.data.sectionQuality?.leverage, 'EMPTY_SUPPORTED');
     assert.ok(life.body.data.activeAreaCount >= 1);
   });
 
@@ -220,6 +222,45 @@ describe('Personal three-layer join proof', () => {
       .get(`/v1/personal/moments/${momentId}/lifestyle-runtime-summary`)
       .set('X-Dev-Firebase-Uid', uid);
     assert.equal(runtime.status, 200, JSON.stringify(runtime.body));
+  });
+
+  it('Lifestyle: DELETE voids activity and hides from activity projection', async () => {
+    const uid = `pj-ls-del-${randomUUID().slice(0, 8)}`;
+    await ensureUser(userIdFor(uid), `${uid}@pj.local`);
+    const typeCode = await personalType('LIFESTYLE');
+    const momentId = await createPersonalMoment(uid, typeCode, 'LIFESTYLE', 'PJ Lifestyle Delete');
+
+    const write = await request(app)
+      .post(`/v1/moments/${momentId}/lifestyle-activities`)
+      .set('X-Dev-Firebase-Uid', uid)
+      .set('Idempotency-Key', `pj-ls-del-${randomUUID()}`)
+      .send({ lifestyleContext: 'WELLBEING', title: 'PJ yoga session', wellbeingRating: 7 });
+    assert.equal(write.status, 201, JSON.stringify(write.body));
+    const activityId = write.body.data.activityId as string;
+    assert.ok(activityId);
+
+    const del = await request(app)
+      .delete(`/v1/moments/${momentId}/lifestyle-activities/${activityId}`)
+      .set('X-Dev-Firebase-Uid', uid);
+    assert.equal(del.status, 200, JSON.stringify(del.body));
+    assert.equal(del.body.data.status, 'CANCELLED');
+
+    const row = await getPool().query<{ status: string }>(
+      `SELECT status FROM personal.lifestyle_activity WHERE lifestyle_activity_id = $1`,
+      [activityId]
+    );
+    assert.equal(row.rows[0]?.status, 'CANCELLED');
+
+    const activity = await request(app)
+      .get('/v1/personal/activity')
+      .set('X-Dev-Firebase-Uid', uid);
+    assert.equal(activity.status, 200);
+    const items = activity.body.data?.items ?? [];
+    const visible = items.filter(
+      (i: { activityPayload?: { activityId?: string; status?: string } }) =>
+        i.activityPayload?.activityId === activityId && i.activityPayload?.status !== 'VOIDED'
+    );
+    assert.equal(visible.length, 0);
   });
 
   it('Relationships: activity write → SQL → pulse/activity + bond', async () => {

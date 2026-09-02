@@ -109,7 +109,7 @@ fun PurchaseGapQuickAddSheet(
                 PurchaseQuickAddKind.BUDGET ->
                     WeddingBudgetSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 PurchaseQuickAddKind.CONTRIBUTOR ->
-                    PurchaseContributorSheetBody(theme, accent)
+                    PurchaseContributorSheetBody(momentId, repository, onDismiss, onSaved, theme, accent)
                 PurchaseQuickAddKind.VENDOR ->
                     WeddingVendorSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 PurchaseQuickAddKind.POLL ->
@@ -121,20 +121,30 @@ fun PurchaseGapQuickAddSheet(
                 PurchaseQuickAddKind.PURCHASE_ITEM ->
                     PurchaseItemSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 PurchaseQuickAddKind.DELIVERY ->
-                    PurchaseDeliverySheetBody(accent)
+                    PurchaseDeliverySheetBody(momentId, repository, onDismiss, onSaved, accent)
                 PurchaseQuickAddKind.OWNERSHIP ->
-                    PurchaseOwnershipSheetBody(accent)
+                    PurchaseOwnershipSheetBody(momentId, repository, onDismiss, onSaved, accent)
             }
         }
     }
 }
 
 @Composable
-private fun PurchaseContributorSheetBody(theme: PurchaseActiveTheme, accent: SheetAccent) {
+private fun PurchaseContributorSheetBody(
+    momentId: String?,
+    repository: GroupSliceRepository,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit,
+    theme: PurchaseActiveTheme,
+    accent: SheetAccent,
+) {
     var name by remember { mutableStateOf("") }
     var contact by remember { mutableStateOf("") }
     var role by remember { mutableStateOf(theme.participantRoles.first()) }
     var notes by remember { mutableStateOf("") }
+    var submitting by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     SheetHeader(
         R.drawable.ic_qa_users,
@@ -158,7 +168,41 @@ private fun PurchaseContributorSheetBody(theme: PurchaseActiveTheme, accent: She
         FieldLabel("Notes")
         SheetField(notes, { notes = it }, "Optional notes", minHeight = 42)
     }
-    PrimaryCta("Add Contributor", enabled = false, accent = accent, lightLabel = true, onClick = {})
+    error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
+    PrimaryCta(
+        label = if (submitting) "Saving…" else "Add Contributor",
+        enabled = !momentId.isNullOrBlank() && name.isNotBlank() && !submitting,
+        loading = submitting,
+        accent = accent,
+        lightLabel = true,
+        onClick = {
+            val id = momentId ?: return@PrimaryCta
+            scope.launch {
+                submitting = true
+                error = null
+                val trimmedContact = contact.trim()
+                val email = if (trimmedContact.contains("@")) trimmedContact else null
+                val phone = if (email == null && trimmedContact.isNotBlank()) trimmedContact else null
+                repository.addParticipant(
+                    id,
+                    name.trim(),
+                    roleCode = "CONTRIBUTOR",
+                    email = email,
+                    phone = phone,
+                ).fold(
+                    onSuccess = {
+                        submitting = false
+                        onSaved()
+                        onDismiss()
+                    },
+                    onFailure = {
+                        submitting = false
+                        error = it.message
+                    },
+                )
+            }
+        },
+    )
 }
 
 @Composable
@@ -218,11 +262,21 @@ private fun PurchaseItemSheetBody(
 }
 
 @Composable
-private fun PurchaseDeliverySheetBody(accent: SheetAccent) {
+private fun PurchaseDeliverySheetBody(
+    momentId: String?,
+    repository: GroupSliceRepository,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit,
+    accent: SheetAccent,
+) {
+    var recipient by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var window by remember { mutableStateOf("Flexible") }
     var carrier by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
+    var submitting by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     SheetHeader(
         R.drawable.ic_qa_book,
@@ -230,6 +284,10 @@ private fun PurchaseDeliverySheetBody(accent: SheetAccent) {
         "Plan how the purchase reaches the group",
         accent = accent,
     )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel("Recipient")
+        SheetField(recipient, { recipient = it }, "Who receives it?", minHeight = 42)
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("Delivery address")
         SheetField(address, { address = it }, "Street, city", minHeight = 42)
@@ -246,22 +304,66 @@ private fun PurchaseDeliverySheetBody(accent: SheetAccent) {
         FieldLabel("Notes")
         SheetField(notes, { notes = it }, "Optional notes", minHeight = 42)
     }
-    Text(
-        "Delivery tracking API is not live yet — form is ready, save stays disabled.",
-        color = EqMuted,
-        fontSize = 12.sp,
-        fontFamily = PlusJakartaSans,
+    error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
+    PrimaryCta(
+        label = if (submitting) "Saving…" else "Save Delivery",
+        enabled = !momentId.isNullOrBlank() && address.isNotBlank() && !submitting,
+        loading = submitting,
+        accent = accent,
+        lightLabel = true,
+        onClick = {
+            val id = momentId ?: return@PrimaryCta
+            scope.launch {
+                submitting = true
+                error = null
+                val handoverType = when {
+                    carrier.contains("pickup", ignoreCase = true) -> "PICKUP"
+                    carrier.contains("hand", ignoreCase = true) -> "HANDOVER"
+                    else -> "DELIVERY"
+                }
+                val note = listOfNotNull(
+                    if (window.isNotBlank()) "Window: $window" else null,
+                    notes.trim().takeIf { it.isNotBlank() },
+                ).joinToString("\n").ifBlank { null }
+                repository.createDeliveryHandover(
+                    id,
+                    recipientName = recipient.trim().ifBlank { null },
+                    handoverType = handoverType,
+                    address = address.trim(),
+                    note = note,
+                ).fold(
+                    onSuccess = {
+                        submitting = false
+                        onSaved()
+                        onDismiss()
+                    },
+                    onFailure = {
+                        submitting = false
+                        error = it.message
+                    },
+                )
+            }
+        },
     )
-    PrimaryCta("Save Delivery", enabled = false, accent = accent, lightLabel = true, onClick = {})
 }
 
 @Composable
-private fun PurchaseOwnershipSheetBody(accent: SheetAccent) {
+private fun PurchaseOwnershipSheetBody(
+    momentId: String?,
+    repository: GroupSliceRepository,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit,
+    accent: SheetAccent,
+) {
+    var assetLabel by remember { mutableStateOf("") }
     var fromOwner by remember { mutableStateOf("") }
     var toOwner by remember { mutableStateOf("") }
     var share by remember { mutableStateOf("") }
     var effective by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
+    var submitting by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     SheetHeader(
         R.drawable.ic_qa_sliders,
@@ -269,6 +371,10 @@ private fun PurchaseOwnershipSheetBody(accent: SheetAccent) {
         "Record a share or ownership change",
         accent = accent,
     )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel("Asset / item")
+        SheetField(assetLabel, { assetLabel = it }, "What is being transferred?", minHeight = 42)
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("From")
         SheetField(fromOwner, { fromOwner = it }, "Current owner", minHeight = 42)
@@ -285,37 +391,43 @@ private fun PurchaseOwnershipSheetBody(accent: SheetAccent) {
         FieldLabel("Effective date")
         SheetField(effective, { effective = it }, "YYYY-MM-DD", minHeight = 42)
     }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text("Confirm transfer", color = EqText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
-            Text("Ownership API is not live yet", color = EqMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
-        }
-        Box(
-            modifier = Modifier
-                .width(40.dp)
-                .height(22.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(EqBorder),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(2.dp)
-                    .size(18.dp)
-                    .clip(CircleShape)
-                    .background(EqText),
-            )
-        }
-    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("Notes")
         SheetField(notes, { notes = it }, "Optional notes", minHeight = 42)
     }
-    PrimaryCta("Transfer Ownership", enabled = false, accent = accent, lightLabel = true, onClick = {})
+    error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
+    PrimaryCta(
+        label = if (submitting) "Saving…" else "Transfer Ownership",
+        enabled = !momentId.isNullOrBlank() && toOwner.isNotBlank() && !submitting,
+        loading = submitting,
+        accent = accent,
+        lightLabel = true,
+        onClick = {
+            val id = momentId ?: return@PrimaryCta
+            scope.launch {
+                submitting = true
+                error = null
+                val shareVal = share.trim().toDoubleOrNull()?.let { if (it > 1) it / 100.0 else it }
+                repository.createOwnershipRecord(
+                    id,
+                    assetLabel = assetLabel.trim().ifBlank { null },
+                    fromOwnerName = fromOwner.trim().ifBlank { null },
+                    toParticipantName = toOwner.trim(),
+                    ownershipShare = shareVal,
+                    ownershipNote = notes.trim().ifBlank { null },
+                    effectiveAt = effective.trim().ifBlank { null },
+                ).fold(
+                    onSuccess = {
+                        submitting = false
+                        onSaved()
+                        onDismiss()
+                    },
+                    onFailure = {
+                        submitting = false
+                        error = it.message
+                    },
+                )
+            }
+        },
+    )
 }

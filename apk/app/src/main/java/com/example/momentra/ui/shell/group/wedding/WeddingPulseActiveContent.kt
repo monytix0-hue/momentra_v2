@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ActivityItemDto
+import com.example.momentra.data.api.AnalyticsInsightItemDto
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupFinancePositionDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
@@ -38,6 +39,7 @@ import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.group.GroupActiveLoading
 import com.example.momentra.ui.shell.group.GroupFinanceFormat
+import com.example.momentra.ui.shell.group.GroupPulseInsightsHeroCard
 import com.example.momentra.ui.shell.group.GroupProgressBar
 import com.example.momentra.ui.shell.group.GroupProgressRing
 import com.example.momentra.ui.shell.group.GroupTabDataCache
@@ -68,6 +70,7 @@ fun WeddingPulseActiveContent(
     var pulse by remember { mutableStateOf<GroupPulsePayloadDto?>(null) }
     var finance by remember { mutableStateOf<GroupFinancePayloadDto?>(null) }
     var activity by remember { mutableStateOf<List<ActivityItemDto>>(emptyList()) }
+    var insights by remember { mutableStateOf<List<AnalyticsInsightItemDto>>(emptyList()) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -86,6 +89,7 @@ fun WeddingPulseActiveContent(
             pulse = cached.pulse
             finance = cached.finance
             activity = cached.activities
+            insights = cached.insights
             loading = false
         } ?: run { loading = true }
         loadGroupPulseTab(repository, momentId).fold(
@@ -94,6 +98,7 @@ fun WeddingPulseActiveContent(
                 pulse = data.pulse
                 finance = data.finance
                 activity = data.activities
+                insights = data.insights
                 loading = false
             },
             onFailure = { e ->
@@ -408,35 +413,11 @@ fun WeddingPulseActiveContent(
                 }
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(WeddingActiveTheme.AccentSolid)
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("🧠  Wedding Insights", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
-                    Text(
-                        "Soon",
-                        color = WeddingActiveTheme.DarkText,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = PlusJakartaSans,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color.White.copy(alpha = 0.9f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                }
-                Text(
-                    "AI wedding insights are not live yet — nothing is invented.",
-                    color = Color.White.copy(alpha = 0.9f),
-                    fontSize = 12.sp,
-                    fontFamily = PlusJakartaSans,
-                )
-            }
+            GroupPulseInsightsHeroCard(
+                headerTitle = "🧠 Wedding Insights",
+                insights = insights,
+                gradient = WeddingActiveTheme.HeroGradient,
+            )
         }
     }
 }

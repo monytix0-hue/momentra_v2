@@ -21,46 +21,44 @@ struct OpsQuickAddSheet: View {
     var onSaved: () -> Void = {}
 
     var body: some View {
-        ZStack(alignment: .top) {
-            OpsSheetTokens.sheetBg.ignoresSafeArea()
-            VStack(spacing: 0) {
-                Capsule()
-                    .fill(OpsSheetTokens.handle)
-                    .frame(width: 48, height: 4)
-                    .padding(.top, 12)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        switch kind {
-                        case .spendEntry, .expense:
-                            OpsSpendForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .updateVendor:
-                            OpsVendorForm(companyId: companyId, onClose: onClose, onSaved: onSaved)
-                        case .requestApproval:
-                            OpsApprovalForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .reportIssue:
-                            OpsIssueForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .logImprovement:
-                            OpsImprovementForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .budgetReview:
-                            OpsBudgetReviewForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .slaCheck:
-                            OpsSlaForm(companyId: companyId, onClose: onClose, onSaved: onSaved)
-                        case .generalUpdate:
-                            OpsGeneralUpdateForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
-                        case .memory:
-                            OpsMemoryForm(momentId: momentId, momentTitle: momentTitle, onClose: onClose, onSaved: onSaved)
-                        default:
-                            Text("Unsupported Ops command")
-                                .font(.plusJakarta(size: 14))
-                                .foregroundStyle(OpsSheetTokens.muted)
-                        }
+        NativeSheetScaffold(
+            title: kind.label,
+            onClose: onClose,
+            background: OpsSheetTokens.sheetBg
+        ) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    switch kind {
+                    case .spendEntry, .expense:
+                        OpsSpendForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .updateVendor:
+                        OpsVendorForm(companyId: companyId, onClose: onClose, onSaved: onSaved)
+                    case .requestApproval:
+                        OpsApprovalForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .reportIssue:
+                        OpsIssueForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .logImprovement:
+                        OpsImprovementForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .budgetReview:
+                        OpsBudgetReviewForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .slaCheck:
+                        OpsSlaForm(companyId: companyId, onClose: onClose, onSaved: onSaved)
+                    case .generalUpdate:
+                        OpsGeneralUpdateForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
+                    case .memory:
+                        OpsMemoryForm(momentId: momentId, momentTitle: momentTitle, onClose: onClose, onSaved: onSaved)
+                    default:
+                        Text("Unsupported Ops command")
+                            .font(.plusJakarta(size: 14))
+                            .foregroundStyle(OpsSheetTokens.muted)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 28)
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
             }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 }
 

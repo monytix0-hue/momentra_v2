@@ -1710,6 +1710,25 @@ v1Router.patch('/moments/:momentId/lifestyle-activities/:activityId', async (req
   }
 });
 
+v1Router.delete('/moments/:momentId/lifestyle-activities/:activityId', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      personalService.voidLifestyleActivity(
+        client,
+        ctx,
+        param(req.params.momentId),
+        param(req.params.activityId)
+      )
+    );
+    const hints = ['personal.activity', 'personal.pulse'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
 v1Router.get('/moments/:momentId/expenses/:expenseId', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
@@ -2847,6 +2866,66 @@ v1Router.post('/moments/:momentId/polls', requireIdempotencyKey, async (req, res
   }
 });
 
+v1Router.get('/polls/:pollId', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) => groupCollab.getPollCommand(client, ctx, param(req.params.pollId)));
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/polls/:pollId/votes', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(collaborationService.votePollSchema, req.body);
+    const result = await runCommand({
+      operationCode: 'POLL_VOTE',
+      idempotencyKey: req.idempotencyKey!,
+      body,
+      ctx,
+      resourceType: 'POLL',
+      execute: async (client, b) => {
+        const r = await groupCollab.votePollCommand(
+          client,
+          ctx,
+          param(req.params.pollId),
+          b as z.infer<typeof collaborationService.votePollSchema>
+        );
+        return { result: r, resourceId: r.pollId };
+      },
+    });
+    const hints = ['group.activity', 'group.pulse', 'business.pulse'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.status(201).json(commandEnvelope(result, ctx.correlationId, { projectionHints: toProjectionHints([...hints], 'refresh') }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/polls/:pollId/close', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const result = await runCommand({
+      operationCode: 'POLL_CLOSE',
+      idempotencyKey: req.idempotencyKey!,
+      body: {},
+      ctx,
+      resourceType: 'POLL',
+      execute: async (client) => {
+        const r = await groupCollab.closePollCommand(client, ctx, param(req.params.pollId));
+        return { result: r, resourceId: r.pollId };
+      },
+    });
+    const hints = ['group.activity', 'group.pulse', 'business.pulse'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.status(200).json(commandEnvelope(result, ctx.correlationId, { projectionHints: toProjectionHints([...hints], 'refresh') }));
+  } catch (e) {
+    next(e);
+  }
+});
+
 v1Router.get('/group/moments/:momentId/updates', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
@@ -2913,6 +2992,82 @@ v1Router.post('/moments/:momentId/purchase-items', requireIdempotencyKey, async 
           b as z.infer<typeof groupCollab.purchaseItemSchema>
         );
         return { result: r, resourceId: r.purchaseItemId };
+      },
+    });
+    const hints = ['group.activity', 'group.pulse'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.status(201).json(commandEnvelope(result, ctx.correlationId, { projectionHints: toProjectionHints([...hints], 'refresh') }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/group/moments/:momentId/delivery-handovers', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) => groupCollab.listDeliveryHandovers(client, ctx, param(req.params.momentId)));
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/moments/:momentId/delivery-handovers', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(groupCollab.deliveryHandoverSchema, req.body);
+    const result = await runCommand({
+      operationCode: 'DELIVERY_HANDOVER_CREATE',
+      idempotencyKey: req.idempotencyKey!,
+      body,
+      ctx,
+      resourceType: 'DELIVERY_HANDOVER',
+      execute: async (client, b) => {
+        const r = await groupCollab.addDeliveryHandoverCommand(
+          client,
+          ctx,
+          param(req.params.momentId),
+          b as z.infer<typeof groupCollab.deliveryHandoverSchema>
+        );
+        return { result: r, resourceId: r.deliveryHandoverId };
+      },
+    });
+    const hints = ['group.activity', 'group.pulse'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.status(201).json(commandEnvelope(result, ctx.correlationId, { projectionHints: toProjectionHints([...hints], 'refresh') }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/group/moments/:momentId/ownership-records', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) => groupCollab.listOwnershipRecords(client, ctx, param(req.params.momentId)));
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/moments/:momentId/ownership-records', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(groupCollab.ownershipRecordSchema, req.body);
+    const result = await runCommand({
+      operationCode: 'OWNERSHIP_RECORD_CREATE',
+      idempotencyKey: req.idempotencyKey!,
+      body,
+      ctx,
+      resourceType: 'OWNERSHIP_RECORD',
+      execute: async (client, b) => {
+        const r = await groupCollab.addOwnershipRecordCommand(
+          client,
+          ctx,
+          param(req.params.momentId),
+          b as z.infer<typeof groupCollab.ownershipRecordSchema>
+        );
+        return { result: r, resourceId: r.ownershipRecordId };
       },
     });
     const hints = ['group.activity', 'group.pulse'] as const;

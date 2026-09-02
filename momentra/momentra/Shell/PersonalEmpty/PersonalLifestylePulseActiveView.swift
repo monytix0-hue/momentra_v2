@@ -30,8 +30,8 @@ struct PersonalLifestylePulseActiveView: View {
             if loading && pulse == nil {
                 ProgressView().tint(teal).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
-                    VStack(spacing: 12) {
+                List {
+                    Section {
                         if let error { Text(error).font(.system(size: 12)).foregroundStyle(.red) }
                         if let momentTitle, !momentTitle.isEmpty {
                             Text(momentTitle).font(.system(size: 11, weight: .semibold)).foregroundStyle(muted)
@@ -43,11 +43,13 @@ struct PersonalLifestylePulseActiveView: View {
                         spendCard
                         protectCard
                         quickAddRow
-                        Spacer().frame(height: 24)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
                 .background(bg)
             }
         }

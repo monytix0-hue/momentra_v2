@@ -323,19 +323,6 @@ fun PersonalLifeOpsMomentsActiveContent(
                 }
             }
         }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 16.dp)
-                .size(52.dp)
-                .clip(CircleShape)
-                .background(Purple)
-                .clickable(enabled = momentId != null, onClick = onAddExpense),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("₹+", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
-        }
     }
 }
 

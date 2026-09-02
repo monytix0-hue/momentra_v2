@@ -7,14 +7,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +59,7 @@ data class MomentraTopBarConfig(
     val referAvailable: Boolean = true,
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MomentraTopBar(
     config: MomentraTopBarConfig,
@@ -77,112 +80,111 @@ fun MomentraTopBar(
     val actionBg = Color(0xFF1C233D)
     val labelMuted = Color(0xFFABA3BA)
 
-    Row(
+    TopAppBar(
         modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .background(GlobalTheme.topBarBackground)
-            .padding(horizontal = 16.dp, vertical = 4.dp)
             .testTag(MaestroIds.TOPBAR),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.weight(1f, fill = false),
-        ) {
-            MomentraWordmark(
-                showTagline = true,
-                titleSizeSp = 16f,
-                taglineSizeSp = 5.5f,
-                alignStart = true,
-            )
-            if (showCompanyChip) {
-                CompanySwitcher(
-                    companies = config.companies,
-                    selected = config.selectedCompany,
-                    menuOpen = config.companyMenuOpen,
-                    onToggle = onCompanyMenuToggle,
-                    onSelected = onCompanySelected,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                MomentraWordmark(
+                    showTagline = true,
+                    titleSizeSp = 16f,
+                    taglineSizeSp = 5.5f,
+                    alignStart = true,
+                )
+                if (showCompanyChip) {
+                    CompanySwitcher(
+                        companies = config.companies,
+                        selected = config.selectedCompany,
+                        menuOpen = config.companyMenuOpen,
+                        onToggle = onCompanyMenuToggle,
+                        onSelected = onCompanySelected,
+                    )
+                }
+            }
+        },
+        actions = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(end = 8.dp)
+            ) {
+                if (showQr) {
+                    LabeledTopBarAction(
+                        label = "QR",
+                        background = actionBg,
+                        onClick = onQrScan,
+                        contentDescription = "Scan QR to join",
+                        testTag = MaestroIds.TOPBAR_QR,
+                        labelColor = Color.White.copy(alpha = 0.86f),
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_shell_qr),
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
+                }
+                if (config.life360Available) {
+                    LabeledTopBarAction(
+                        label = "360",
+                        background = GlobalSurfaceTheme.life360.action,
+                        onClick = onLife360,
+                        contentDescription = "Open Life360",
+                        testTag = MaestroIds.TOPBAR_LIFE360,
+                        labelColor = Color.White.copy(alpha = 0.86f),
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_shell_radar),
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
+                }
+                if (config.globalCreateAvailable) {
+                    LabeledTopBarAction(
+                        label = createLabel,
+                        background = GlobalTheme.createMomentCta,
+                        onClick = onNewMoment,
+                        contentDescription = if (showCompanyChip) "Open moments" else "Create moment",
+                        testTag = MaestroIds.TOPBAR_NEW_MOMENT,
+                        labelColor = Color.White.copy(alpha = 0.92f),
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_shell_plus),
+                            contentDescription = null,
+                            modifier = Modifier.size(10.dp),
+                        )
+                    }
+                }
+                if (config.referAvailable) {
+                    LabeledTopBarAction(
+                        label = "Refer",
+                        background = actionBg,
+                        onClick = onRefer,
+                        contentDescription = "Refer a friend",
+                        testTag = MaestroIds.TOPBAR_REFER,
+                        labelColor = labelMuted,
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_shell_gift),
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
+                }
+                AvatarChip(
+                    initials = initialsOf(config.displayName),
+                    onClick = onAvatar,
                 )
             }
-        }
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (showQr) {
-                LabeledTopBarAction(
-                    label = "QR",
-                    background = actionBg,
-                    onClick = onQrScan,
-                    contentDescription = "Scan QR to join",
-                    testTag = MaestroIds.TOPBAR_QR,
-                    labelColor = Color.White.copy(alpha = 0.86f),
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_shell_qr),
-                        contentDescription = null,
-                        modifier = Modifier.size(12.dp),
-                    )
-                }
-            }
-            if (config.life360Available) {
-                LabeledTopBarAction(
-                    label = "360",
-                    background = GlobalSurfaceTheme.life360.action,
-                    onClick = onLife360,
-                    contentDescription = "Open Life360",
-                    testTag = MaestroIds.TOPBAR_LIFE360,
-                    labelColor = Color.White.copy(alpha = 0.86f),
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_shell_radar),
-                        contentDescription = null,
-                        modifier = Modifier.size(12.dp),
-                    )
-                }
-            }
-            if (config.globalCreateAvailable) {
-                LabeledTopBarAction(
-                    label = createLabel,
-                    background = GlobalTheme.createMomentCta,
-                    onClick = onNewMoment,
-                    contentDescription = if (showCompanyChip) "Open moments" else "Create moment",
-                    testTag = MaestroIds.TOPBAR_NEW_MOMENT,
-                    labelColor = Color.White.copy(alpha = 0.92f),
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_shell_plus),
-                        contentDescription = null,
-                        modifier = Modifier.size(10.dp),
-                    )
-                }
-            }
-            if (config.referAvailable) {
-                LabeledTopBarAction(
-                    label = "Refer",
-                    background = actionBg,
-                    onClick = onRefer,
-                    contentDescription = "Refer a friend",
-                    testTag = MaestroIds.TOPBAR_REFER,
-                    labelColor = labelMuted,
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_shell_gift),
-                        contentDescription = null,
-                        modifier = Modifier.size(12.dp),
-                    )
-                }
-            }
-            AvatarChip(
-                initials = initialsOf(config.displayName),
-                onClick = onAvatar,
-            )
-        }
-    }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = GlobalTheme.topBarBackground,
+        )
+    )
 }
 
 @Composable

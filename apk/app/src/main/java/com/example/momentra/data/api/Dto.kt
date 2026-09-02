@@ -41,7 +41,7 @@ data class PersonalLifeDto(
     @SerializedName("userId") val userId: String,
     @SerializedName("activeAreaCount") val activeAreaCount: Int = 0,
     /** FIGMA_SEEDED | REAL — never treat seeded sections as production PASS (S2 G3). */
-    @SerializedName("dataQuality") val dataQuality: String = "FIGMA_SEEDED",
+    @SerializedName("dataQuality") val dataQuality: String = "REAL",
     @SerializedName("sectionQuality") val sectionQuality: Map<String, String> = emptyMap(),
     val score: Int = 0,
     @SerializedName("scoreMax") val scoreMax: Int = 100,
@@ -694,6 +694,164 @@ data class PersonalMemoryDto(
     val items: List<Map<String, Any?>> = emptyList(),
 )
 
+data class PersonalAttentionItemDto(
+    @SerializedName("attentionCaptureId") val attentionCaptureId: String,
+    @SerializedName("momentId") val momentId: String,
+    @SerializedName("categoryCode") val categoryCode: String,
+    @SerializedName("intensityCode") val intensityCode: String,
+    @SerializedName("timeBlockCode") val timeBlockCode: String,
+    @SerializedName("energyRemaining") val energyRemaining: Int? = null,
+    @SerializedName("observedAt") val observedAt: String,
+    val note: String? = null,
+)
+
+data class PersonalAttentionDto(
+    @SerializedName("userId") val userId: String,
+    val items: List<PersonalAttentionItemDto> = emptyList(),
+)
+
+data class PersonalSetupCatalogItemDto(
+    @SerializedName("systemCode") val systemCode: String,
+    val title: String,
+    val subtitle: String,
+    @SerializedName("figmaNodeId") val figmaNodeId: String? = null,
+    @SerializedName("defaultMomentTypeCode") val defaultMomentTypeCode: String,
+    @SerializedName("activateLabel") val activateLabel: String? = null,
+    @SerializedName("defaultTitle") val defaultTitle: String? = null,
+)
+
+data class PersonalSetupItemDto(
+    @SerializedName("setupId") val setupId: String,
+    @SerializedName("systemCode") val systemCode: String,
+    val title: String,
+    @SerializedName("momentId") val momentId: String,
+    val status: String,
+    val preferences: Map<String, Any?> = emptyMap(),
+    @SerializedName("createdAt") val createdAt: String,
+)
+
+data class PersonalSetupsDto(
+    val catalog: List<PersonalSetupCatalogItemDto> = emptyList(),
+    val items: List<PersonalSetupItemDto> = emptyList(),
+)
+
+data class ActivatePersonalSetupBody(
+    val title: String? = null,
+    @SerializedName("momentTypeCode") val momentTypeCode: String? = null,
+    val preferences: Map<String, @JvmSuppressWildcards Any>? = null,
+    val timezone: String = "UTC",
+)
+
+data class ActivatePersonalSetupResultDto(
+    @SerializedName("setupId") val setupId: String,
+    @SerializedName("systemCode") val systemCode: String,
+    @SerializedName("momentId") val momentId: String,
+    @SerializedName("momentTypeCode") val momentTypeCode: String,
+    val title: String,
+    val status: String,
+    val version: Int,
+)
+
+data class BusinessSetupCatalogItemDto(
+    @SerializedName("familyCode") val familyCode: String,
+    val title: String,
+    val subtitle: String? = null,
+    @SerializedName("defaultMomentTypeCode") val defaultMomentTypeCode: String? = null,
+    @SerializedName("activateLabel") val activateLabel: String? = null,
+    @SerializedName("defaultTitle") val defaultTitle: String? = null,
+)
+
+data class BusinessSetupItemDto(
+    @SerializedName("setupId") val setupId: String,
+    @SerializedName("familyCode") val familyCode: String,
+    val title: String,
+    @SerializedName("momentId") val momentId: String,
+    @SerializedName("companyId") val companyId: String,
+    val status: String,
+    val preferences: Map<String, Any?> = emptyMap(),
+    @SerializedName("createdAt") val createdAt: String,
+)
+
+data class BusinessSetupsDto(
+    val catalog: List<BusinessSetupCatalogItemDto> = emptyList(),
+    val mine: List<BusinessSetupItemDto> = emptyList(),
+)
+
+data class ExpenseSubcategoryDto(
+    @SerializedName("subcategoryCode") val subcategoryCode: String,
+    val label: String,
+    @SerializedName("sortOrder") val sortOrder: Int,
+)
+
+data class ExpenseCategoryDto(
+    @SerializedName("categoryCode") val categoryCode: String,
+    val label: String,
+    @SerializedName("sortOrder") val sortOrder: Int,
+    val subcategories: List<ExpenseSubcategoryDto> = emptyList(),
+)
+
+data class ExpenseCategoriesDto(
+    val categories: List<ExpenseCategoryDto> = emptyList(),
+)
+
+data class CreateGoalBody(
+    val title: String,
+    val description: String? = null,
+    @SerializedName("targetAt") val targetAt: String? = null,
+    @SerializedName("expectedVersion") val expectedVersion: Int? = null,
+)
+
+data class CreateGoalResultDto(
+    @SerializedName("goalId") val goalId: String,
+    @SerializedName("momentId") val momentId: String,
+    val title: String,
+    val version: Int,
+)
+
+data class CreateTaskBody(
+    val title: String,
+    val description: String? = null,
+    @SerializedName("goalId") val goalId: String? = null,
+    @SerializedName("milestoneId") val milestoneId: String? = null,
+    @SerializedName("dueAt") val dueAt: String? = null,
+    @SerializedName("expectedVersion") val expectedVersion: Int? = null,
+)
+
+data class CreateTaskResultDto(
+    @SerializedName("taskId") val taskId: String,
+    @SerializedName("momentId") val momentId: String,
+    val title: String,
+    val version: Int,
+)
+
+data class ExecuteActionProposalResultDto(
+    val status: String,
+    @SerializedName("executedResourceId") val executedResourceId: String? = null,
+)
+
+data class ActivateBusinessSetupBody(
+    @SerializedName("companyId") val companyId: String,
+    val title: String? = null,
+    @SerializedName("momentTypeCode") val momentTypeCode: String? = null,
+    val preferences: Map<String, @JvmSuppressWildcards Any>? = null,
+    val timezone: String = "UTC",
+)
+
+data class ActivateBusinessSetupResultDto(
+    @SerializedName("setupId") val setupId: String,
+    @SerializedName("familyCode") val familyCode: String,
+    @SerializedName("momentId") val momentId: String,
+    @SerializedName("companyId") val companyId: String,
+    @SerializedName("momentTypeCode") val momentTypeCode: String,
+    val title: String,
+    val status: String,
+    val version: Int,
+)
+
+data class BusinessActionsDto(
+    val items: List<Map<String, Any?>> = emptyList(),
+)
+
 data class CreateRelationshipActivityBody(
     @SerializedName("activityKind") val activityKind: String,
     @SerializedName("displayName") val displayName: String,
@@ -726,6 +884,13 @@ data class CreateLifestyleActivityResultDto(
     @SerializedName("activityId") val activityId: String,
     @SerializedName("lifestyleContext") val lifestyleContext: String,
     val title: String,
+)
+
+data class VoidLifestyleActivityResultDto(
+    @SerializedName("activityId") val activityId: String,
+    @SerializedName("lifestyleContext") val lifestyleContext: String,
+    val title: String,
+    val status: String,
 )
 
 data class UpdateLifestyleActivityBody(
@@ -857,6 +1022,18 @@ data class CreateRecurringScheduleBody(
     @SerializedName("intervalCount") val intervalCount: Int = 1,
     @SerializedName("startDate") val startDate: String,
     @SerializedName("endDate") val endDate: String? = null,
+)
+
+data class UpdateRecurringScheduleBody(
+    val status: String? = null,
+    @SerializedName("endDate") val endDate: String? = null,
+    @SerializedName("templatePayload") val templatePayload: Map<String, Any?>? = null,
+)
+
+data class GenerateRecurringInstanceResultDto(
+    @SerializedName("expenseId") val expenseId: String? = null,
+    @SerializedName("incomeId") val incomeId: String? = null,
+    @SerializedName("occurrenceDate") val occurrenceDate: String,
 )
 
 data class ActivityItemDto(
@@ -1088,6 +1265,40 @@ data class CreatePollBody(
     @SerializedName("closesAt") val closesAt: String? = null,
     @SerializedName("pollType") val pollType: String? = null,
 )
+
+data class GroupPollOptionDto(
+    @SerializedName("pollOptionId") val pollOptionId: String? = null,
+    val text: String? = null,
+    @SerializedName("sortOrder") val sortOrder: Int? = null,
+    @SerializedName("voteCount") val voteCount: Int? = null,
+    @SerializedName("votedByMe") val votedByMe: Boolean? = null,
+)
+
+data class GroupPollItemDto(
+    @SerializedName("pollId") val pollId: String? = null,
+    val question: String? = null,
+    val status: String? = null,
+    @SerializedName("closesAt") val closesAt: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
+    val options: List<GroupPollOptionDto> = emptyList(),
+)
+
+data class GroupPollsDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<GroupPollItemDto> = emptyList(),
+)
+
+data class GroupPollDetailDto(
+    @SerializedName("pollId") val pollId: String? = null,
+    @SerializedName("momentId") val momentId: String? = null,
+    val question: String? = null,
+    val status: String? = null,
+    @SerializedName("pollType") val pollType: String? = null,
+    @SerializedName("closesAt") val closesAt: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
+    val options: List<GroupPollOptionDto> = emptyList(),
+)
+
 data class PostUpdateBody(val message: String)
 data class CreateMemoryBody(val title: String, @SerializedName("capturedAt") val capturedAt: String? = null)
 data class CreateGroupVendorBody(
@@ -1126,6 +1337,31 @@ data class CreatePurchaseItemBody(
     val label: String,
     val amount: String? = null,
     @SerializedName("customTypeLabel") val customTypeLabel: String? = null,
+)
+
+data class CreateDeliveryHandoverBody(
+    @SerializedName("recipientName") val recipientName: String? = null,
+    @SerializedName("handoverType") val handoverType: String? = null,
+    @SerializedName("scheduledAt") val scheduledAt: String? = null,
+    val address: String? = null,
+    val note: String? = null,
+    @SerializedName("purchaseItemId") val purchaseItemId: String? = null,
+)
+
+data class CreateOwnershipRecordBody(
+    @SerializedName("purchaseItemId") val purchaseItemId: String? = null,
+    @SerializedName("toParticipantName") val toParticipantName: String? = null,
+    @SerializedName("fromOwnerName") val fromOwnerName: String? = null,
+    @SerializedName("ownershipShare") val ownershipShare: Double? = null,
+    @SerializedName("ownershipNote") val ownershipNote: String? = null,
+    @SerializedName("effectiveAt") val effectiveAt: String? = null,
+    @SerializedName("assetLabel") val assetLabel: String? = null,
+)
+
+data class VotePollBody(@SerializedName("pollOptionId") val pollOptionId: String)
+data class CreateLivingRuleBody(
+    val title: String,
+    @SerializedName("ruleText") val ruleText: String,
 )
 data class AddResidentBody(val name: String, @SerializedName("roleCode") val roleCode: String? = null)
 

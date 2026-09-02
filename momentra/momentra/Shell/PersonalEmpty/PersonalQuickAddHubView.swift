@@ -33,6 +33,7 @@ struct PersonalQuickAddHubView: View {
 
     private var heroTitle: String {
         switch family {
+        case .futureBuilding: return "Build your future"
         case .relationships: return "Nurture your bonds"
         case .lifestyle: return "Curate your lifestyle"
         default: return "Design your focus"
@@ -42,7 +43,7 @@ struct PersonalQuickAddHubView: View {
     private var blurb: String {
         switch family {
         case .futureBuilding:
-            return "Quickly record milestones, opportunities, pivots, and progress."
+            return "Track milestones, opportunities, pivots, goals and investments."
         case .lifestyle:
             return "Track experiences, wellbeing, discoveries, expressions and adjustments."
         case .relationships:
@@ -102,9 +103,32 @@ struct PersonalQuickAddHubView: View {
         return actions.filter { $0.label.lowercased().contains(q) }
     }
 
+    private var gridGap: CGFloat { useWideTiles ? 12 : 10 }
+
+    /// APK `PersonalQuickAddHub.kt` row builder — 3+3+2 for LifeOps; 3+remainder for other wide families.
+    private var actionRows: [[PersonalActionTile]] {
+        let isSearchBlank = search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if isLifeOps && isSearchBlank {
+            return [
+                Array(filteredActions.prefix(3)),
+                Array(filteredActions.dropFirst(3).prefix(3)),
+                Array(filteredActions.dropFirst(6).prefix(2)),
+            ]
+        }
+        if useWideTiles && isSearchBlank {
+            return [
+                Array(filteredActions.prefix(3)),
+                Array(filteredActions.dropFirst(3)),
+            ]
+        }
+        return stride(from: 0, to: filteredActions.count, by: 3).map {
+            Array(filteredActions[$0..<min($0 + 3, filteredActions.count)])
+        }
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(spacing: 14) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Quick Add")
@@ -116,9 +140,7 @@ struct PersonalQuickAddHubView: View {
                     }
                     Spacer()
                     Button(action: onClose) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color(hex: "#E5E0EE"))
+                        PersonalQaIcons.close(size: 12)
                             .frame(width: 32, height: 32)
                             .background(Color(hex: "#201E28"))
                             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(hex: "#938EA1"), lineWidth: 1))
@@ -171,11 +193,10 @@ struct PersonalQuickAddHubView: View {
                     )
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 22))
-                .shadow(color: heroShadowColor.opacity(0.1), radius: 12, y: 4)
+                .shadow(color: heroShadowColor.opacity(0.1), radius: 24, y: 8)
 
                 HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 13, weight: .semibold))
+                    PersonalQaIcons.search(size: 15)
                         .foregroundStyle(isRelationships ? Color(hex: "#14B8A6") : Color(hex: "#C9C4D8"))
                     TextField(searchPlaceholder, text: $search)
                         .font(.plusJakarta(size: 13))
@@ -186,39 +207,10 @@ struct PersonalQuickAddHubView: View {
                 .padding(.vertical, useWideTiles ? 11 : 10)
                 .background(Color(hex: "#201E28"))
                 .clipShape(RoundedRectangle(cornerRadius: useWideTiles ? 14 : 12))
+                .shadow(color: Color(hex: "#6C4EF2").opacity(0.14), radius: 10, y: 4)
 
-                if useWideTiles && search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    if isLifeOps {
-                        let row1 = Array(filteredActions.prefix(3))
-                        let row2 = Array(filteredActions.dropFirst(3).prefix(3))
-                        let row3 = Array(filteredActions.dropFirst(6).prefix(2))
-                        HStack(spacing: 12) { ForEach(Array(row1.enumerated()), id: \.offset) { _, action in actionCard(action) } }
-                        HStack(spacing: 12) { ForEach(Array(row2.enumerated()), id: \.offset) { _, action in actionCard(action) } }
-                        HStack(spacing: 12) { ForEach(Array(row3.enumerated()), id: \.offset) { _, action in actionCard(action) } }
-                    } else {
-                        // Figma `1006:8274`: 3 + 2 equal-width rows
-                        let row1 = Array(filteredActions.prefix(3))
-                        let row2 = Array(filteredActions.dropFirst(3))
-                        HStack(spacing: 12) {
-                            ForEach(Array(row1.enumerated()), id: \.offset) { _, action in
-                                actionCard(action)
-                            }
-                        }
-                        HStack(spacing: 12) {
-                            ForEach(Array(row2.enumerated()), id: \.offset) { _, action in
-                                actionCard(action)
-                            }
-                        }
-                    }
-                } else {
-                    LazyVGrid(
-                        columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
-                        spacing: useWideTiles ? 12 : 10
-                    ) {
-                        ForEach(Array(filteredActions.enumerated()), id: \.offset) { _, action in
-                            actionCard(action)
-                        }
-                    }
+                ForEach(Array(actionRows.enumerated()), id: \.offset) { _, row in
+                    actionRow(row)
                 }
 
                 if !hasActiveMoment {
@@ -226,11 +218,29 @@ struct PersonalQuickAddHubView: View {
                         .font(.plusJakarta(size: 11))
                         .foregroundStyle(Color(hex: "#C9C4D8"))
                 }
+
+                Spacer(minLength: 12)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
         }
         .background(Color(hex: "#14121B"))
+    }
+
+    @ViewBuilder
+    private func actionRow(_ row: [PersonalActionTile]) -> some View {
+        let isSearchBlank = search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let fillEmptySlots = !(useWideTiles && row.count == 2 && isSearchBlank)
+        HStack(spacing: gridGap) {
+            ForEach(Array(row.enumerated()), id: \.offset) { _, action in
+                actionCard(action)
+            }
+            if fillEmptySlots {
+                ForEach(0..<(3 - row.count), id: \.self) { _ in
+                    Color.clear.frame(maxWidth: .infinity)
+                }
+            }
+        }
     }
 
     private func hubChip(
@@ -249,19 +259,22 @@ struct PersonalQuickAddHubView: View {
             return Color(hex: "#938EA1")
         }()
         return Text(label)
-            .font(.system(size: 12, weight: .semibold))
+            .font(.plusJakarta(size: selected ? 11 : 12, weight: selected ? .bold : .semibold))
             .foregroundStyle(selected ? .white : Color(hex: "#C9C4D8"))
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(bg)
             .overlay(Capsule().stroke(border, lineWidth: 1))
             .clipShape(Capsule())
+            .shadow(color: selected ? chipAccent.opacity(0.35) : .clear, radius: 8, y: 2)
     }
 
+    @ViewBuilder
     private func actionCard(_ action: PersonalActionTile) -> some View {
+        let isVisuallyActive = action.tappable ? action.enabledWhenMomentActive : true
         Button {
             switch action.label {
-            case "Income": onIncome()
+            case "Expense", "Income": onIncome()
             case "Recovery": onRecovery()
             case "Mood": onMood()
             case "Attention": onAttention()
@@ -289,14 +302,14 @@ struct PersonalQuickAddHubView: View {
             default: break
             }
         } label: {
-            VStack(spacing: 8) {
-                Image(systemName: action.icon)
-                    .font(.system(size: isRelationships ? 18 : 18, weight: .semibold))
-                    .foregroundStyle(.white.opacity(action.enabledWhenMomentActive ? 1 : 0.55))
+            VStack(spacing: 10) {
+                PersonalQaIcons.tileIcon(asset: action.icon, size: 28)
+                    .opacity(isVisuallyActive ? 1 : 0.55)
                 Text(action.label)
-                    .font(.system(size: useWideTiles ? 14 : 12, weight: .bold))
-                    .foregroundStyle(.white.opacity(action.enabledWhenMomentActive ? 1 : 0.55))
+                    .font(.plusJakarta(size: useWideTiles ? 14 : 12, weight: .bold))
+                    .foregroundStyle(.white.opacity(isVisuallyActive ? 1 : 0.55))
             }
+            .padding(16)
             .frame(maxWidth: .infinity)
             .frame(height: useWideTiles ? 104 : 88)
             .background(LinearGradient(colors: action.colors, startPoint: .leading, endPoint: .trailing))
@@ -305,18 +318,17 @@ struct PersonalQuickAddHubView: View {
                     .stroke(Color.white.opacity(0.12), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: useWideTiles ? 16 : 14))
+            .shadow(color: Color(hex: "#6C4EF2").opacity(0.14), radius: 10, y: 4)
         }
         .buttonStyle(.plain)
-        .disabled(!action.enabledWhenMomentActive)
+        .disabled(!action.tappable || !action.enabledWhenMomentActive)
         .accessibilityIdentifier(qaTileId(for: action.label))
     }
 
     private func qaTileId(for label: String) -> String {
         switch label {
-        case "Income": return "qa.tile.income"
-        case "Transfer": return "qa.tile.transfer"
-        case "Savings": return "qa.tile.savings"
         case "Expense": return "qa.tile.expense"
+        case "Income": return "qa.tile.income"
         case "Experience": return "qa.tile.experience"
         case "Wellbeing": return "qa.tile.wellbeing"
         case "Discovery": return "qa.tile.discovery"

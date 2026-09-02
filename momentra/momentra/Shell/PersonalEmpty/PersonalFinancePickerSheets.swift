@@ -191,6 +191,23 @@ enum PersonalFinancialAccountUi {
         }
     }
 
+    static func nativeSymbolForType(_ accountType: String) -> String {
+        switch accountType.uppercased() {
+        case "CASH": return "banknote.fill"
+        case "CARD", "CREDIT", "CREDIT_CARD": return "creditcard.fill"
+        case "WALLET": return "wallet.pass.fill"
+        default: return "building.columns.fill"
+        }
+    }
+
+    static func nativeSymbolForLabel(_ label: String) -> String {
+        switch label {
+        case "Cash": return "banknote.fill"
+        case "Credit": return "creditcard.fill"
+        default: return "building.columns.fill"
+        }
+    }
+
     static func apiTypeForLabel(_ label: String) -> String {
         typeOptions.first(where: { $0.label == label })?.api ?? "BANK"
     }

@@ -35,7 +35,10 @@ struct GroupLifeActiveView: View {
             if loading && life == nil {
                 ProgressView().tint(teal)
             } else {
-                ScrollView {
+                NativeDashboardScaffold(background: bg) {
+
+                    NativeListSection {
+
                     VStack(alignment: .leading, spacing: 16) {
                         if let error {
                             Text(error)
@@ -145,9 +148,9 @@ struct GroupLifeActiveView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .padding(.bottom, 56)
+
+                    }
+
                 }
             }
         }

@@ -6,23 +6,22 @@ struct PersonalLifeEmptyView: View {
     var history: [MomentSummary] = []
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                hero
-                howItWorks
-                fourPillars
-                whatYoullDiscover
-                socialProof
-                PersonalGradientCta(title: "✨ Start Building Your Life Graph", onTap: onStartCta)
-                Text("Takes less than a minute to begin")
-                    .font(.system(size: 11))
-                    .foregroundStyle(PersonalEmptyTokens.subtle)
-                    .frame(maxWidth: .infinity)
-                PersonalHistorySection(history: history)
+        NativeDashboardScaffold(background: PersonalEmptyTokens.bg) {
+            NativeListSection(insets: EdgeInsets(top: 28, leading: 20, bottom: 34, trailing: 20)) {
+                VStack(spacing: 24) {
+                    hero
+                    howItWorks
+                    fourPillars
+                    whatYoullDiscover
+                    socialProof
+                    PersonalGradientCta(title: "✨ Start Building Your Life Graph", onTap: onStartCta)
+                    Text("Takes less than a minute to begin")
+                        .font(.system(size: 11))
+                        .foregroundStyle(PersonalEmptyTokens.subtle)
+                        .frame(maxWidth: .infinity)
+                    PersonalHistorySection(history: history)
+                }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 28)
-            .padding(.bottom, 34)
         }
         .background(PersonalEmptyTokens.bg.ignoresSafeArea())
         .personalAppear()

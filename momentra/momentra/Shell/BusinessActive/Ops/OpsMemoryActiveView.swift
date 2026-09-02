@@ -11,6 +11,8 @@ struct OpsMemoryActiveView: View {
     @State private var scope = "All"
     @State private var loading = true
     @State private var error: String?
+    @State private var shareBusy = false
+    @State private var shareMessage: String?
 
     private let theme = BusinessActiveTheme.businessOperations
     private let scopes = ["All", "Budget", "Vendors", "Approvals", "Issues"]
@@ -63,10 +65,16 @@ struct OpsMemoryActiveView: View {
             if loading && memory == nil {
                 ProgressView().tint(theme.accent)
             } else {
-                ScrollView {
+                NativeDashboardScaffold(background: theme.bg) {
+
+                    NativeListSection {
+
                     VStack(alignment: .leading, spacing: 16) {
                         if let error {
                             Text(error).font(.caption).foregroundStyle(OpsColors.red)
+                        }
+                        if let shareMessage {
+                            Text(shareMessage).font(.caption).foregroundStyle(theme.secondary)
                         }
 
                         OpsScopeDropdown(label: "Operations", theme: theme)
@@ -104,12 +112,17 @@ struct OpsMemoryActiveView: View {
 
                         HStack(spacing: 10) {
                             OpsGradientPrimaryButton(label: "Record a Learning", enabled: momentId != nil, action: onRecordLearning)
-                            OpsOutlineButton(label: "Share with Team", enabled: false, action: {}, theme: theme)
+                            OpsOutlineButton(
+                                label: shareBusy ? "Sharing…" : "Share with Team",
+                                enabled: momentId != nil && !shareBusy,
+                                action: shareWithTeam,
+                                theme: theme
+                            )
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
-                    .padding(.bottom, 24)
+
+                    }
+
                 }
             }
         }
@@ -280,4 +293,38 @@ struct OpsMemoryActiveView: View {
         }
         loading = false
     }
+
+    private func shareWithTeam() {
+        guard let momentId else { return }
+        shareBusy = true
+        shareMessage = nil
+        Task {
+            defer { shareBusy = false }
+            do {
+                let link = try await APIClient.shared.createBusinessShareLink(momentId: momentId)
+                if let url = link.shareUrl, !url.isEmpty {
+                    #if canImport(UIKit)
+                    await MainActor.run {
+                        let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+                        UIApplication.shared.firstKeyWindow?.rootViewController?.present(activity, animated: true)
+                    }
+                    #endif
+                }
+                shareMessage = link.note ?? "Share link created"
+            } catch {
+                shareMessage = error.localizedDescription
+            }
+        }
+    }
 }
+
+#if canImport(UIKit)
+private extension UIApplication {
+    var firstKeyWindow: UIWindow? {
+        connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow }
+    }
+}
+#endif

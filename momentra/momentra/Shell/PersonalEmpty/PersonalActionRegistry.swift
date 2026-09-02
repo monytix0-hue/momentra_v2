@@ -20,10 +20,13 @@ struct PersonalActionTile: Identifiable {
     var id: String { "\(code.rawValue)-\(label)" }
     let code: PersonalActionCode
     let label: String
+    /// Asset catalog name under `PersonalEmpty` (e.g. `QaWallet`).
     let icon: String
     let colors: [Color]
-    /// Hub enables when moment is active and expense/movement capability allows money quick-add.
+    /// Hub enables when moment is active and capability allows this tile.
     let enabledWhenMomentActive: Bool
+    /// When false the tile stays visible but non-tappable (e.g. Reflect).
+    let tappable: Bool
 }
 
 enum PersonalActionRegistry {
@@ -60,6 +63,11 @@ enum PersonalActionRegistry {
         return enabled.contains(target)
     }
 
+    static func isMoneyQuickAddEnabled(_ capabilities: [String]?) -> Bool {
+        isDestinationEnabled(capabilities, destination: .expense)
+            || isDestinationEnabled(capabilities, destination: .movement)
+    }
+
     /// Unique V019 codes available for a personal moment family (hub still expands to labeled tiles).
     static func defaultCodes(for family: PersonalPulseFamily) -> [PersonalActionCode] {
         switch family {
@@ -80,10 +88,7 @@ enum PersonalActionRegistry {
         }
     }
 
-    /// Builds hub tiles for a family.
-    /// - `nil` capabilityCodes → family default V019 codes (catalog / tests)
-    /// - empty array → fail closed (no tiles)
-    /// - non-empty → destination-level enablement
+    /// Builds hub tiles for a family — always returns the full catalog; greys tiles when capability/moment inactive.
     static func tiles(
         for family: PersonalPulseFamily,
         hasActiveMoment: Bool,
@@ -91,16 +96,36 @@ enum PersonalActionRegistry {
     ) -> [PersonalActionTile] {
         let effectiveCaps = capabilityCodes ?? defaultCodes(for: family).map(\.rawValue)
         let catalog = catalogTiles(for: family)
-        return catalog.compactMap { tile in
-            let dest = destination(for: tile.code)
-            if !isDestinationEnabled(effectiveCaps, destination: dest) { return nil }
+        return catalog.map { tile in
+            let enabled = isTileEnabled(
+                tile,
+                hasActiveMoment: hasActiveMoment,
+                capabilityCodes: effectiveCaps
+            )
             return PersonalActionTile(
                 code: tile.code,
                 label: tile.label,
                 icon: tile.icon,
                 colors: tile.colors,
-                enabledWhenMomentActive: tile.enabledWhenMomentActive && hasActiveMoment
+                enabledWhenMomentActive: enabled,
+                tappable: tile.tappable
             )
+        }
+    }
+
+    private static func isTileEnabled(
+        _ tile: PersonalActionTile,
+        hasActiveMoment: Bool,
+        capabilityCodes: [String]
+    ) -> Bool {
+        guard hasActiveMoment, tile.tappable else { return false }
+        guard !capabilityCodes.isEmpty else { return false }
+
+        switch tile.label {
+        case "Expense", "Transfer", "Savings":
+            return isMoneyQuickAddEnabled(capabilityCodes)
+        default:
+            return isDestinationEnabled(capabilityCodes, destination: destination(for: tile.code))
         }
     }
 
@@ -109,38 +134,38 @@ enum PersonalActionRegistry {
         switch family {
         case .futureBuilding:
             return [
-                tile(.milestoneCreate, "Milestone", "scope", "#8B5CF6", "#6C4EF2"),
-                tile(.opportunityCreate, "Opportunity", "waveform.path.ecg", "#3B82F6", "#1D4ED8"),
-                tile(.pivotRecord, "Pivot", "arrow.triangle.2.circlepath", "#06B6D4", "#0891B2"),
-                tile(.progressRecord, "Progress", "chart.line.uptrend.xyaxis", "#10B981", "#047857"),
-                tile(.learningActivityCreate, "Learning", "book", "#6366F1", "#4338CA"),
+                tile(.milestoneCreate, "Milestone", "QaTarget", "#8B5CF6", "#6C4EF2"),
+                tile(.opportunityCreate, "Opportunity", "QaActivity", "#3B82F6", "#1D4ED8"),
+                tile(.pivotRecord, "Pivot", "QaRefresh", "#06B6D4", "#0891B2"),
+                tile(.progressRecord, "Progress", "QaTrending", "#10B981", "#047857"),
+                tile(.learningActivityCreate, "Learning", "QaBook", "#6366F1", "#4338CA"),
             ]
         case .lifestyle:
             return [
-                tile(.lifestyleActivityCreate, "Experience", "wallet.pass", "#EC4899", "#BE185D"),
-                tile(.lifestyleActivityCreate, "Wellbeing", "waveform.path.ecg", "#A78BFA", "#7C3AED"),
-                tile(.lifestyleActivityCreate, "Discovery", "face.smiling", "#F472B6", "#C026D3"),
-                tile(.lifestyleActivityCreate, "Create", "scope", "#FB7185", "#F43F5E"),
-                tile(.lifestyleActivityCreate, "Adjust", "arrow.triangle.2.circlepath", "#6366F1", "#4338CA"),
+                tile(.lifestyleActivityCreate, "Experience", "QaWallet", "#EC4899", "#BE185D"),
+                tile(.lifestyleActivityCreate, "Wellbeing", "QaActivity", "#A78BFA", "#7C3AED"),
+                tile(.lifestyleActivityCreate, "Discovery", "QaSmile", "#F472B6", "#C026D3"),
+                tile(.lifestyleActivityCreate, "Create", "QaTarget", "#FB7185", "#F43F5E"),
+                tile(.lifestyleActivityCreate, "Adjust", "QaRefresh", "#6366F1", "#4338CA"),
             ]
         case .relationships:
             return [
-                tile(.relationshipActivityRecord, "Connection", "person.2", "#E12A9E", "#BE1882"),
-                tile(.relationshipActivityRecord, "Support", "heart", "#C8238C", "#A51473"),
-                tile(.relationshipActivityRecord, "Shared Exp", "camera", "#EB3CAA", "#C82891"),
-                tile(.relationshipActivityRecord, "Investment", "chart.line.uptrend.xyaxis", "#F578C8", "#E12A9E"),
-                tile(.relationshipActivityRecord, "Adjust", "slider.horizontal.3", "#F064B9", "#D23296"),
+                tile(.relationshipActivityRecord, "Connection", "QaUsers", "#E12A9E", "#BE1882"),
+                tile(.relationshipActivityRecord, "Support", "QaHeart", "#C8238C", "#A51473"),
+                tile(.relationshipActivityRecord, "Shared Exp", "QaCamera", "#EB3CAA", "#C82891"),
+                tile(.relationshipActivityRecord, "Investment", "QaTrending", "#F578C8", "#E12A9E"),
+                tile(.relationshipActivityRecord, "Adjust", "QaSliders", "#F064B9", "#D23296"),
             ]
         case .lifeOperations:
             return [
-                tile(.expenseCreate, "Income", "chart.line.uptrend.xyaxis", "#10B981", "#047857"),
-                tile(.lifeObservationRecord, "Recovery", "waveform.path.ecg", "#3B82F6", "#1D4ED8"),
-                tile(.lifeObservationRecord, "Mood", "face.smiling", "#06B6D4", "#0891B2"),
-                tile(.lifeObservationRecord, "Attention", "scope", "#A78BFA", "#7C3AED"),
-                tile(.movementRecord, "Transfer", "arrow.triangle.2.circlepath", "#1E40AF", "#0B2A8A"),
-                tile(.movementRecord, "Savings", "chart.line.uptrend.xyaxis", "#10B981", "#047857"),
-                tile(.lifeObservationRecord, "Adjust", "slider.horizontal.3", "#D946EF", "#86198F"),
-                tile(.lifeObservationRecord, "Reflect", "book", "#6366F1", "#4338CA", enabled: false),
+                tile(.expenseCreate, "Expense", "QaWallet", "#8B5CF6", "#6C4EF2"),
+                tile(.lifeObservationRecord, "Recovery", "QaActivity", "#3B82F6", "#1D4ED8"),
+                tile(.lifeObservationRecord, "Mood", "QaSmile", "#06B6D4", "#0891B2"),
+                tile(.lifeObservationRecord, "Attention", "QaTarget", "#A78BFA", "#7C3AED"),
+                tile(.movementRecord, "Transfer", "QaRefresh", "#1E40AF", "#0B2A8A"),
+                tile(.movementRecord, "Savings", "QaTrending", "#10B981", "#047857"),
+                tile(.lifeObservationRecord, "Adjust", "QaSliders", "#D946EF", "#86198F"),
+                tile(.lifeObservationRecord, "Reflect", "QaBook", "#6366F1", "#4338CA", tappable: false),
             ]
         }
     }
@@ -151,14 +176,15 @@ enum PersonalActionRegistry {
         _ icon: String,
         _ start: String,
         _ end: String,
-        enabled: Bool = true
+        tappable: Bool = true
     ) -> PersonalActionTile {
         PersonalActionTile(
             code: code,
             label: label,
             icon: icon,
             colors: [Color(hex: start), Color(hex: end)],
-            enabledWhenMomentActive: enabled
+            enabledWhenMomentActive: tappable,
+            tappable: tappable
         )
     }
 }

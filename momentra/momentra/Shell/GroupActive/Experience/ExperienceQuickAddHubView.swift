@@ -23,8 +23,8 @@ struct ExperienceQuickAddHubView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+        List {
+            Section {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Quick Add")
@@ -47,12 +47,19 @@ struct ExperienceQuickAddHubView: View {
                     .buttonStyle(.plain)
                 }
 
-                HStack(spacing: 8) {
-                    contextChip(momentTitle ?? theme.typeLabel, solid: true, tint: theme.accent)
-                    contextChip("Shared Experience", solid: false, tint: theme.tealChip)
-                    contextChip("Planning Stage", solid: false, tint: theme.purpleChip)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        contextChip(momentTitle ?? theme.typeLabel, solid: true, tint: theme.accent)
+                        contextChip("Shared Experience", solid: false, tint: theme.tealChip)
+                        contextChip("Planning Stage", solid: false, tint: theme.purpleChip)
+                    }
                 }
+            }
+            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
+            Section {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Bring your experience to life")
@@ -79,7 +86,12 @@ struct ExperienceQuickAddHubView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(theme.heroGradient)
                 .clipShape(RoundedRectangle(cornerRadius: 20))
+            }
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
+            Section {
                 HStack(spacing: 10) {
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
@@ -127,17 +139,24 @@ struct ExperienceQuickAddHubView: View {
                         .opacity(hasActiveMoment ? 1 : 0.45)
                     }
                 }
-
-                if !hasActiveMoment {
-                    Button("Create a new moment", action: onNewMoment)
-                        .font(.plusJakarta(size: 14, weight: .semibold))
-                        .foregroundStyle(theme.accentLight)
-                        .padding(.top, 8)
-                }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .padding(.bottom, 56)
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .safeAreaInset(edge: .bottom) {
+            if !hasActiveMoment {
+                Button("Create a new moment", action: onNewMoment)
+                    .font(.plusJakarta(size: 14, weight: .semibold))
+                    .foregroundStyle(theme.accentLight)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+                    .background(theme.bg)
+            }
         }
         .background(theme.bg)
     }

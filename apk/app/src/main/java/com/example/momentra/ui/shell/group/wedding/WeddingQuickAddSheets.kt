@@ -73,6 +73,7 @@ import com.example.momentra.R
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupExpenseSplitBuilder
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.group.GroupSettlementSheet
 import com.example.momentra.ui.setup.SetupDateTimeUtils
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
@@ -162,14 +163,14 @@ fun WeddingGapQuickAddSheet(
                 WeddingQuickAddKind.EXPENSE -> WeddingExpenseSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.CONTRIBUTION -> WeddingContributionSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.BUDGET -> WeddingBudgetSheetBody(momentId, repository, onDismiss, onSaved)
-                WeddingQuickAddKind.PARTICIPANT -> WeddingParticipantSheetBody()
+                WeddingQuickAddKind.PARTICIPANT -> WeddingParticipantSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.VENDOR -> WeddingVendorSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.PLANNING -> WeddingPlanningSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.ATTENDANCE -> WeddingAttendanceSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.POLL -> WeddingPollSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.MEMORY -> WeddingMemorySheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.UPDATE -> WeddingUpdateSheetBody(momentId, repository, onDismiss, onSaved)
-                WeddingQuickAddKind.SETTLE -> WeddingSettleSheetBody()
+                WeddingQuickAddKind.SETTLE -> WeddingSettleSheetBody(momentId, onDismiss, onSaved)
             }
         }
     }
@@ -917,13 +918,22 @@ internal fun WeddingBudgetSheetBody(momentId: String?, repository: GroupSliceRep
 }
 
 @Composable
-internal fun WeddingParticipantSheetBody(accent: SheetAccent = SoftPinkAccent) {
+internal fun WeddingParticipantSheetBody(
+    momentId: String?,
+    repository: GroupSliceRepository,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit,
+    accent: SheetAccent = SoftPinkAccent,
+) {
     var name by remember { mutableStateOf("") }
     var contact by remember { mutableStateOf("") }
     var affiliation by remember { mutableStateOf("Bride's Side") }
     var rsvp by remember { mutableStateOf("Pending") }
     var plusOne by remember { mutableStateOf(false) }
     var notes by remember { mutableStateOf("") }
+    var submitting by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     SheetHeader(
         R.drawable.ic_qa_users,
@@ -980,7 +990,41 @@ internal fun WeddingParticipantSheetBody(accent: SheetAccent = SoftPinkAccent) {
         FieldLabel("Dietary Preferences / Notes")
         SheetField(notes, { notes = it }, "Optional notes", minHeight = 42)
     }
-    PrimaryCta("Add Participant", enabled = false, accent = accent, lightLabel = true, onClick = {})
+    error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
+    PrimaryCta(
+        label = if (submitting) "Saving…" else "Add Participant",
+        enabled = !momentId.isNullOrBlank() && name.isNotBlank() && !submitting,
+        loading = submitting,
+        accent = accent,
+        lightLabel = true,
+        onClick = {
+            val id = momentId ?: return@PrimaryCta
+            scope.launch {
+                submitting = true
+                error = null
+                val trimmedContact = contact.trim()
+                val email = if (trimmedContact.contains("@")) trimmedContact else null
+                val phone = if (email == null && trimmedContact.isNotBlank()) trimmedContact else null
+                repository.addParticipant(
+                    id,
+                    name.trim(),
+                    roleCode = "PARTICIPANT",
+                    email = email,
+                    phone = phone,
+                ).fold(
+                    onSuccess = {
+                        submitting = false
+                        onSaved()
+                        onDismiss()
+                    },
+                    onFailure = {
+                        submitting = false
+                        error = it.message
+                    },
+                )
+            }
+        },
+    )
 }
 
 @Composable
@@ -1567,13 +1611,35 @@ internal fun WeddingUpdateSheetBody(momentId: String?, repository: GroupSliceRep
 }
 
 @Composable
-internal fun WeddingSettleSheetBody() {
+internal fun WeddingSettleSheetBody(
+    momentId: String? = null,
+    onDismiss: () -> Unit = {},
+    onSaved: () -> Unit = {},
+) {
+    var presentSettlement by remember { mutableStateOf(false) }
     SheetHeader(R.drawable.ic_money_wallet, "Settle Up", "Record settlements between wedding party")
     Text(
-        "Settlements are not available yet for Group Wedding.",
+        "Ledger settlement records payments against open balances. Payment rails are not processed.",
         color = Wq.Muted,
         fontSize = 13.sp,
         fontFamily = PlusJakartaSans,
     )
-    PrimaryCta("Settle Up", enabled = false, onClick = {})
+    PrimaryCta(
+        label = "Settle Up",
+        enabled = !momentId.isNullOrBlank(),
+        onClick = { presentSettlement = true },
+    )
+    if (!momentId.isNullOrBlank()) {
+        GroupSettlementSheet(
+            momentId = momentId,
+            visible = presentSettlement,
+            onDismiss = { presentSettlement = false },
+            onSaved = {
+                presentSettlement = false
+                onSaved()
+                onDismiss()
+            },
+            momentTypeCode = "WEDDING",
+        )
+    }
 }

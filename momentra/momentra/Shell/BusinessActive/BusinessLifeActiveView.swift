@@ -82,69 +82,69 @@ struct BusinessLifeActiveView: View {
             if loading && life == nil {
                 ProgressView().tint(CompanyLifeColors.indigo)
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        if let error {
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(CompanyLifeColors.red)
-                        }
-                        if let actionMessage {
-                            Text(actionMessage)
-                                .font(.caption)
-                                .foregroundStyle(CompanyLifeColors.indigo)
-                        }
-                        if let momentTitle, !momentTitle.isEmpty {
-                            Text(momentTitle)
-                                .font(.plusJakarta(size: 12, weight: .semibold))
-                                .foregroundStyle(CompanyLifeColors.secondary)
-                        }
+                NativeDashboardScaffold(background: CompanyLifeColors.bg) {
+                    NativeListSection {
+                        VStack(alignment: .leading, spacing: 24) {
+                            if let error {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundStyle(CompanyLifeColors.red)
+                            }
+                            if let actionMessage {
+                                Text(actionMessage)
+                                    .font(.caption)
+                                    .foregroundStyle(CompanyLifeColors.indigo)
+                            }
+                            if let momentTitle, !momentTitle.isEmpty {
+                                Text(momentTitle)
+                                    .font(.plusJakarta(size: 12, weight: .semibold))
+                                    .foregroundStyle(CompanyLifeColors.secondary)
+                            }
 
-                        CompanyLifeFilterChips(selected: $filter)
+                            CompanyLifeFilterChips(selected: $filter)
 
-                        CompanyLifeHealthHeader(
-                            score: score,
-                            narrative: narrative,
-                            subtitle: subtitle,
-                            activeModules: "\(kpis?.activeModuleCount ?? 0) MODULE\((kpis?.activeModuleCount ?? 0) == 1 ? "" : "S")",
-                            totalMoments: "\(kpis?.activeMomentCount ?? 0) MOMENT\((kpis?.activeMomentCount ?? 0) == 1 ? "" : "S")",
-                            avgRunway: {
-                                if let m = kpis?.runwayMonths?.trimmingCharacters(in: .whitespacesAndNewlines),
-                                   !m.isEmpty {
-                                    return "\(m) MONTHS"
-                                }
-                                return "—"
-                            }()
-                        )
-
-                        CompanyLifeModuleCards(
-                            team: inner?.modules?.teamOperations,
-                            runway: inner?.modules?.runway,
-                            ops: inner?.modules?.businessOperations,
-                            vendor: inner?.modules?.vendorOperations
-                        )
-
-                        CompanyLifeSignalsSection(signals: signals)
-                        CompanyLifeActivitySection(items: activity)
-                        CompanyLifeJourneySection(steps: journey)
-                        CompanyLifeTrendsSection(trends: inner?.trends)
-
-                        VStack(spacing: 12) {
-                            CompanyLifeGradientButton(
-                                label: "View Detailed Report",
-                                enabled: momentId != nil && !(momentId?.isEmpty ?? true),
-                                action: loadReport
+                            CompanyLifeHealthHeader(
+                                score: score,
+                                narrative: narrative,
+                                subtitle: subtitle,
+                                activeModules: "\(kpis?.activeModuleCount ?? 0) MODULE\((kpis?.activeModuleCount ?? 0) == 1 ? "" : "S")",
+                                totalMoments: "\(kpis?.activeMomentCount ?? 0) MOMENT\((kpis?.activeMomentCount ?? 0) == 1 ? "" : "S")",
+                                avgRunway: {
+                                    if let m = kpis?.runwayMonths?.trimmingCharacters(in: .whitespacesAndNewlines),
+                                       !m.isEmpty {
+                                        return "\(m) MONTHS"
+                                    }
+                                    return "—"
+                                }()
                             )
-                            CompanyLifeOutlineButton(
-                                label: shareBusy ? "Sharing…" : "Share with Team",
-                                enabled: momentId != nil && !(momentId?.isEmpty ?? true) && !shareBusy,
-                                action: shareDashboard
+
+                            CompanyLifeModuleCards(
+                                team: inner?.modules?.teamOperations,
+                                runway: inner?.modules?.runway,
+                                ops: inner?.modules?.businessOperations,
+                                vendor: inner?.modules?.vendorOperations
                             )
+
+                            CompanyLifeSignalsSection(signals: signals)
+                            CompanyLifeActivitySection(items: activity)
+                            CompanyLifeJourneySection(steps: journey)
+                            CompanyLifeTrendsSection(trends: inner?.trends)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .padding(.bottom, 56)
+                }
+                .nativeStickyFooter(background: CompanyLifeColors.bg) {
+                    VStack(spacing: 12) {
+                        CompanyLifeGradientButton(
+                            label: "View Detailed Report",
+                            enabled: momentId != nil && !(momentId?.isEmpty ?? true),
+                            action: loadReport
+                        )
+                        CompanyLifeOutlineButton(
+                            label: shareBusy ? "Sharing…" : "Share with Team",
+                            enabled: momentId != nil && !(momentId?.isEmpty ?? true) && !shareBusy,
+                            action: shareDashboard
+                        )
+                    }
                 }
             }
         }

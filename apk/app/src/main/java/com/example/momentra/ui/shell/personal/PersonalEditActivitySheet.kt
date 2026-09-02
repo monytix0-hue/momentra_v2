@@ -1,6 +1,5 @@
 package com.example.momentra.ui.shell.personal
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,7 +35,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -77,10 +75,10 @@ fun PersonalEditActivitySheet(
     momentId: String,
     onClose: () -> Unit,
     onSaved: () -> Unit,
+    onDeleted: () -> Unit = {},
     repository: PersonalSliceRepository = remember { PersonalSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     val payload = item.activityPayload
     val isExpense = payload?.expenseId != null
     val activityId = payload?.activityId
@@ -96,6 +94,7 @@ fun PersonalEditActivitySheet(
     var selectedTags by remember(item) { mutableStateOf(setOf<String>()) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val whenLabel = remember(item) { formatEditOccurredAt(item.occurredAt) }
 
@@ -345,8 +344,8 @@ fun PersonalEditActivitySheet(
                 .clip(RoundedCornerShape(14.dp))
                 .background(EditRed.copy(alpha = 0.12f))
                 .border(1.dp, EditRed.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-                .clickable {
-                    Toast.makeText(context, "Delete coming soon", Toast.LENGTH_SHORT).show()
+                .clickable(enabled = !submitting && activityId != null) {
+                    showDeleteConfirm = true
                 }
                 .padding(vertical = 14.dp),
             contentAlignment = Alignment.Center,
@@ -358,6 +357,45 @@ fun PersonalEditActivitySheet(
                 fontWeight = FontWeight.ExtraBold,
                 fontFamily = PlusJakartaSans,
             )
+        }
+
+        if (showDeleteConfirm) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(EditField)
+                        .clickable { showDeleteConfirm = false }
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text("Cancel", color = EditMuted, fontFamily = PlusJakartaSans) }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(EditRed)
+                        .clickable {
+                            val id = activityId ?: return@clickable
+                            submitting = true
+                            scope.launch {
+                                repository.voidLifestyleActivity(momentId, id).fold(
+                                    onSuccess = {
+                                        submitting = false
+                                        onDeleted()
+                                    },
+                                    onFailure = { e ->
+                                        submitting = false
+                                        error = e.message ?: "Could not delete"
+                                        showDeleteConfirm = false
+                                    },
+                                )
+                            }
+                        }
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans) }
+            }
         }
 
         Spacer(Modifier.height(12.dp))

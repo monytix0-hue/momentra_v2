@@ -44,8 +44,8 @@ struct GroupMemoryEmptyView: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
+        NativeDashboardScaffold(background: GroupEmptyTokens.bg) {
+            NativeListSection(insets: EdgeInsets()) {
                 GroupEmptyFigmaHeroExport(
                     imageName: "group_memory_hero",
                     aspectRatio: 402 / 550,
@@ -53,7 +53,9 @@ struct GroupMemoryEmptyView: View {
                     action: onStartCta
                 )
                 .groupEmptyAppear()
+            }
 
+            NativeListSection(insets: EdgeInsets(top: 4, leading: 24, bottom: 40, trailing: 24)) {
                 VStack(alignment: .leading, spacing: 12) {
                     GroupEmptyChapterLabel(text: "Chapter 02 / Preservation")
                     Text("What We Learn")
@@ -78,7 +80,6 @@ struct GroupMemoryEmptyView: View {
                     }
                     .padding(.top, 24)
                 }
-                .padding(.horizontal, 24)
                 .padding(.vertical, 40)
                 .groupEmptyAppear(delay: 0.12)
             }

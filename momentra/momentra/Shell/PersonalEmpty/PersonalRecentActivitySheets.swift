@@ -65,7 +65,11 @@ struct PersonalRecentActivityFlow: View {
                                 onChanged()
                                 Task { await load() }
                             },
-                            onDeleteUnavailable: { editing = nil }
+                            onDeleted: {
+                                editing = nil
+                                onChanged()
+                                Task { await load() }
+                            }
                         )
                         .presentationDetents([.large])
                     }
@@ -242,7 +246,7 @@ struct PersonalEditActivitySheet: View {
     let item: APIClient.ActivityItemPayload
     var onClose: () -> Void
     var onSaved: () -> Void
-    var onDeleteUnavailable: () -> Void
+    var onDeleted: () -> Void
 
     @State private var name: String
     @State private var amount: String
@@ -252,6 +256,7 @@ struct PersonalEditActivitySheet: View {
     @State private var selectedTag: String
     @State private var submitting = false
     @State private var error: String?
+    @State private var showDeleteConfirm = false
 
     private let tags = ["Essential", "Planned", "Impulse", "Budget", "Weekly"]
     private let categories = ["Errands", "Food", "Transport", "Housing", "Wellness", "Social", "Other"]
@@ -266,13 +271,13 @@ struct PersonalEditActivitySheet: View {
         item: APIClient.ActivityItemPayload,
         onClose: @escaping () -> Void,
         onSaved: @escaping () -> Void,
-        onDeleteUnavailable: @escaping () -> Void
+        onDeleted: @escaping () -> Void
     ) {
         self.momentId = momentId
         self.item = item
         self.onClose = onClose
         self.onSaved = onSaved
-        self.onDeleteUnavailable = onDeleteUnavailable
+        self.onDeleted = onDeleted
         _name = State(initialValue: item.title)
         let rawAmount = item.activityPayload?.amount ?? ""
         _amount = State(initialValue: rawAmount.isEmpty ? "" : rawAmount)
@@ -339,12 +344,29 @@ struct PersonalEditActivitySheet: View {
                 .disabled(submitting || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || momentId == nil)
                 .opacity(submitting ? 0.6 : 1)
 
-                Button(action: onDeleteUnavailable) {
-                    Text("Delete Activity")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(hex: "#F87171"))
+                if showDeleteConfirm {
+                    HStack(spacing: 12) {
+                        Button("Cancel") { showDeleteConfirm = false }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color(hex: "#201E28"))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        Button("Delete") { voidActivity() }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color(hex: "#F87171"))
+                            .foregroundStyle(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                } else {
+                    Button { showDeleteConfirm = true } label: {
+                        Text("Delete Activity")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color(hex: "#F87171"))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(submitting || item.activityPayload?.activityId == nil)
                 }
-                .buttonStyle(.plain)
             }
             .padding(16)
             .padding(.bottom, 24)
@@ -393,6 +415,27 @@ struct PersonalEditActivitySheet: View {
                 await MainActor.run {
                     submitting = false
                     self.error = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func voidActivity() {
+        guard let momentId, let activityId = item.activityPayload?.activityId, !submitting else { return }
+        submitting = true
+        error = nil
+        Task {
+            do {
+                _ = try await APIClient.shared.voidLifestyleActivity(momentId: momentId, activityId: activityId)
+                await MainActor.run {
+                    submitting = false
+                    onDeleted()
+                }
+            } catch {
+                await MainActor.run {
+                    submitting = false
+                    self.error = error.localizedDescription
+                    showDeleteConfirm = false
                 }
             }
         }

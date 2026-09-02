@@ -9,17 +9,13 @@ struct Life360ComingSoonView: View {
     private var theme: GlobalSurfaceTheme.Life360 { GlobalSurfaceTheme.life360 }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            theme.comingSoonBackground.ignoresSafeArea()
-
+        NativeSheetScaffold(
+            title: "Life 360",
+            onClose: onClose,
+            background: theme.comingSoonBackground
+        ) {
             ScrollView {
                 VStack(alignment: .center, spacing: 24) {
-                    HStack {
-                        Spacer()
-                        Button("Close", action: onClose)
-                            .foregroundStyle(theme.textSecondary)
-                    }
-
                     VStack(spacing: 12) {
                         Text("COMING SOON")
                             .font(.system(size: 12, weight: .heavy))
@@ -112,31 +108,6 @@ struct Life360ComingSoonView: View {
                         .frame(height: 8)
                     }
 
-                    Button {
-                        notifyAck = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "bell.fill")
-                            Text("Notify Me When Ready")
-                                .font(.system(size: 16, weight: .bold))
-                            Spacer()
-                            Image(systemName: "arrow.right")
-                        }
-                        .foregroundStyle(theme.comingSoonBackground)
-                        .padding(.horizontal, 24)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(
-                            LinearGradient(
-                                colors: [theme.gold, theme.goldEnd],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                    }
-                    .accessibilityLabel("Notify me when Life 360 is ready")
-
                     HStack(alignment: .top, spacing: 16) {
                         ZStack {
                             Circle()
@@ -157,12 +128,38 @@ struct Life360ComingSoonView: View {
                             .stroke(theme.gold.opacity(0.3), lineWidth: 1)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 20))
-
-                    Spacer(minLength: 24)
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 20)
             }
+        } footer: {
+            Button {
+                notifyAck = true
+            } label: {
+                HStack {
+                    Image(systemName: "bell.fill")
+                    Text("Notify Me When Ready")
+                        .font(.system(size: 16, weight: .bold))
+                    Spacer()
+                    Image(systemName: "arrow.right")
+                }
+                .foregroundStyle(theme.comingSoonBackground)
+                .padding(.horizontal, 24)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(
+                    LinearGradient(
+                        colors: [theme.gold, theme.goldEnd],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+            .accessibilityLabel("Notify me when Life 360 is ready")
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+            .background(theme.comingSoonBackground)
         }
         .accessibilityIdentifier("life360.coming_soon")
         .alert("You're on the list", isPresented: $notifyAck) {

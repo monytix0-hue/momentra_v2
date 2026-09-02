@@ -27,68 +27,71 @@ struct LoginView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
+        Form {
+            Section {
                 MomentraWordmark()
-                    .padding(.bottom, BrandSpacing.xl - 4)
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
+            }
 
+            Section {
                 Picker("", selection: $mode) {
                     ForEach(AuthMode.allCases, id: \.self) { m in
                         Text(m.rawValue).tag(m)
                     }
                 }
                 .pickerStyle(.segmented)
-                .padding(.horizontal, BrandSpacing.screenHorizontal)
+                .listRowBackground(Color.clear)
                 .accessibilityIdentifier("login_mode_picker")
+            }
 
-                if mode == .phone {
-                    phoneFields
-                } else {
-                    emailFields
+            if mode == .phone {
+                phoneFormSection
+            } else {
+                emailFormSection
+            }
+
+            #if os(iOS)
+            Section {
+                SignInWithAppleButton(.continue) { request in
+                    trackWidget(screenName: AnalyticsScreens.login, widgetName: AnalyticsWidgets.loginBtnApple)
+                    viewModel.prepareAppleSignInRequest(request)
+                } onCompletion: { result in
+                    viewModel.handleAppleSignInCompletion(result)
                 }
+                .signInWithAppleButtonStyle(.white)
+                .frame(height: BrandSpacing.appleButtonHeight)
+                .clipShape(Capsule())
+                .disabled(viewModel.isLoading)
+                .listRowBackground(Color.clear)
+                .accessibilityIdentifier("login.apple")
 
-                orDivider.padding(.vertical, 22)
-
-                #if os(iOS)
-                VStack(spacing: 12) {
-                    SignInWithAppleButton(.continue) { request in
-                        trackWidget(screenName: AnalyticsScreens.login, widgetName: AnalyticsWidgets.loginBtnApple)
-                        viewModel.prepareAppleSignInRequest(request)
-                    } onCompletion: { result in
-                        viewModel.handleAppleSignInCompletion(result)
-                    }
-                    .signInWithAppleButtonStyle(.white)
-                    .frame(height: BrandSpacing.appleButtonHeight)
-                    .clipShape(Capsule())
-                    .disabled(viewModel.isLoading)
-                    .accessibilityIdentifier("login.apple")
-
-                    Button {
-                        trackWidget(screenName: AnalyticsScreens.login, widgetName: AnalyticsWidgets.loginBtnGoogle)
-                        viewModel.signInWithGoogle()
-                    } label: {
-                        Label("Continue with Google", systemImage: "g.circle.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(BrandSecondaryButtonStyle())
-                    .disabled(viewModel.isLoading)
-                    .accessibilityIdentifier("login.google")
+                Button {
+                    trackWidget(screenName: AnalyticsScreens.login, widgetName: AnalyticsWidgets.loginBtnGoogle)
+                    viewModel.signInWithGoogle()
+                } label: {
+                    Label("Continue with Google", systemImage: "g.circle.fill")
+                        .frame(maxWidth: .infinity)
                 }
-                .padding(.horizontal, BrandSpacing.screenHorizontal)
-                #endif
+                .buttonStyle(BrandSecondaryButtonStyle())
+                .disabled(viewModel.isLoading)
+                .listRowBackground(Color.clear)
+                .accessibilityIdentifier("login.google")
+            }
+            #endif
 
-                if let error = viewModel.error {
+            if let error = viewModel.error {
+                Section {
                     Text(error)
                         .font(.system(size: 13))
                         .foregroundStyle(MomentraBrandTokens.ember300)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, BrandSpacing.screenHorizontal)
-                        .padding(.top, 16)
+                        .listRowBackground(Color.clear)
                         .accessibilityIdentifier("login.error")
                 }
             }
-            .padding(.vertical, 24)
         }
+        .scrollContentBackground(.hidden)
         .id(loginScreen)
         .trackScreen(loginScreen)
         .brandAuthScreen()
@@ -109,37 +112,32 @@ struct LoginView: View {
         }
     }
 
-    private var emailFields: some View {
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
-                labeledField(title: "Email") {
-                    TextField("you@example.com", text: $email)
-                        .textContentType(.username)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                        .autocorrectionDisabled()
-                        .brandTextField()
-                        .accessibilityIdentifier("login.email")
-                }
+    @ViewBuilder
+    private var emailFormSection: some View {
+        Section {
+            TextField("you@example.com", text: $email)
+                .textContentType(.username)
+                .textInputAutocapitalization(.never)
+                .keyboardType(.emailAddress)
+                .autocorrectionDisabled()
+                .brandTextField()
+                .accessibilityIdentifier("login.email")
 
-                labeledField(title: "Password") {
-                    SecureField("Password", text: $password)
-                        .textContentType(mode == .signIn ? .password : .newPassword)
-                        .brandTextField()
-                        .accessibilityIdentifier("login.password")
-                }
+            SecureField("Password", text: $password)
+                .textContentType(mode == .signIn ? .password : .newPassword)
+                .brandTextField()
+                .accessibilityIdentifier("login.password")
 
-                if mode == .register {
-                    labeledField(title: "Confirm password") {
-                        SecureField("Confirm password", text: $confirmPassword)
-                            .textContentType(.newPassword)
-                            .brandTextField()
-                    }
-                }
+            if mode == .register {
+                SecureField("Confirm password", text: $confirmPassword)
+                    .textContentType(.newPassword)
+                    .brandTextField()
             }
-            .padding(.horizontal, BrandSpacing.screenHorizontal)
-            .padding(.top, 22)
+        } header: {
+            Text(mode == .signIn ? "Sign in with email" : "Create account")
+        }
 
+        Section {
             Button {
                 trackWidget(screenName: loginScreen, widgetName: AnalyticsWidgets.loginBtnEmailSubmit)
                 submitEmailAuth()
@@ -156,9 +154,8 @@ struct LoginView: View {
             }
             .buttonStyle(BrandPrimaryButtonStyle())
             .disabled(viewModel.isLoading)
+            .listRowBackground(Color.clear)
             .accessibilityIdentifier("login.submit")
-            .padding(.horizontal, BrandSpacing.screenHorizontal)
-            .padding(.top, 20)
 
             if mode == .signIn {
                 Button("Forgot password?") {
@@ -167,32 +164,33 @@ struct LoginView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(MomentraBrandTokens.textOnDark.opacity(0.75))
                 .frame(maxWidth: .infinity)
-                .padding(.top, 12)
                 .disabled(viewModel.isLoading)
+                .listRowBackground(Color.clear)
                 .accessibilityIdentifier("login.forgot")
             }
         }
     }
 
-    private var phoneFields: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            labeledField(title: "Phone") {
-                TextField("+919876543210", text: $phone)
-                    .keyboardType(.phonePad)
-                    .textContentType(.telephoneNumber)
-                    .brandTextField()
-                    .disabled(viewModel.phoneCodeSent)
-            }
+    @ViewBuilder
+    private var phoneFormSection: some View {
+        Section {
+            TextField("+919876543210", text: $phone)
+                .keyboardType(.phonePad)
+                .textContentType(.telephoneNumber)
+                .brandTextField()
+                .disabled(viewModel.phoneCodeSent)
 
             if viewModel.phoneCodeSent {
-                labeledField(title: "SMS code") {
-                    TextField("6-digit code", text: $smsCode)
-                        .keyboardType(.numberPad)
-                        .textContentType(.oneTimeCode)
-                        .brandTextField()
-                }
+                TextField("6-digit code", text: $smsCode)
+                    .keyboardType(.numberPad)
+                    .textContentType(.oneTimeCode)
+                    .brandTextField()
             }
+        } header: {
+            Text("Phone sign in")
+        }
 
+        Section {
             Button {
                 trackWidget(
                     screenName: AnalyticsScreens.loginPhone,
@@ -214,6 +212,7 @@ struct LoginView: View {
             }
             .buttonStyle(BrandPrimaryButtonStyle())
             .disabled(viewModel.isLoading)
+            .listRowBackground(Color.clear)
 
             if viewModel.phoneCodeSent {
                 Button("Use a different number") {
@@ -224,10 +223,9 @@ struct LoginView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(MomentraBrandTokens.textOnDark.opacity(0.75))
                 .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
             }
         }
-        .padding(.horizontal, BrandSpacing.screenHorizontal)
-        .padding(.top, 22)
     }
 
     private func submitPhoneAuth() {

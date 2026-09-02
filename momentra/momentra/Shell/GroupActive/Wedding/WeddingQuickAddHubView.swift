@@ -17,7 +17,7 @@ enum WeddingQuickAddKind: String, Identifiable, CaseIterable {
 
     var isLive: Bool {
         switch self {
-        case .expense, .budget, .contribution, .settle, .planning, .poll, .update, .memory: return true
+        case .expense, .budget, .contribution, .settle, .planning, .poll, .update, .memory, .participant: return true
         default: return false
         }
     }
@@ -94,8 +94,8 @@ struct WeddingQuickAddHubView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+        List {
+            Section {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Quick Add")
@@ -118,12 +118,19 @@ struct WeddingQuickAddHubView: View {
                     .buttonStyle(.plain)
                 }
 
-                HStack(spacing: 8) {
-                    contextChip(momentTitle ?? "Wedding", solid: true, tint: WeddingActiveTheme.peachChip)
-                    contextChip("Shared Experience", solid: false, tint: WeddingActiveTheme.tealChip)
-                    contextChip("Planning Stage", solid: false, tint: WeddingActiveTheme.purpleChip)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        contextChip(momentTitle ?? "Wedding", solid: true, tint: WeddingActiveTheme.peachChip)
+                        contextChip("Shared Experience", solid: false, tint: WeddingActiveTheme.tealChip)
+                        contextChip("Planning Stage", solid: false, tint: WeddingActiveTheme.purpleChip)
+                    }
                 }
+            }
+            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
+            Section {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Bring your experience to life")
@@ -157,7 +164,12 @@ struct WeddingQuickAddHubView: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 22))
                 .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color(hex: "#FFB598").opacity(0.3)))
+            }
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
+            Section {
                 HStack(spacing: 10) {
                     HStack {
                         TextField("Search actions...", text: $search)
@@ -190,18 +202,25 @@ struct WeddingQuickAddHubView: View {
                         tileCard(tile)
                     }
                 }
-
-                Button(action: onNewMoment) {
-                    Text("Create another Group Moment")
-                        .font(.plusJakarta(size: 13, weight: .semibold))
-                        .foregroundStyle(WeddingActiveTheme.accentLight)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.plain)
             }
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .safeAreaInset(edge: .bottom) {
+            Button(action: onNewMoment) {
+                Text("Create another Group Moment")
+                    .font(.plusJakarta(size: 13, weight: .semibold))
+                    .foregroundStyle(WeddingActiveTheme.accentLight)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.bottom, 8)
+            .background(Color(hex: "#09090A"))
         }
         .background(Color(hex: "#09090A"))
         .fullScreenCover(isPresented: $showScanner) {

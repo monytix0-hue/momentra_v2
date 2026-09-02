@@ -32,6 +32,7 @@ struct LivingMomentsActiveView: View {
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
+    @ViewBuilder
     private var content: some View {
         let budgetTotal = finance?.totals?.first?.budgetTotal
         let contributionTotal = finance?.totals?.first?.contributionTotal
@@ -52,7 +53,11 @@ struct LivingMomentsActiveView: View {
         let g1 = gradients.indices.contains(1) ? gradients[1] : [theme.accentLight, theme.accent]
         let g2 = gradients.indices.contains(2) ? gradients[2] : [theme.accent, theme.accentSolid]
 
-        return ScrollView {
+        NativeDashboardScaffold(background: theme.bg) {
+
+
+            NativeListSection {
+
             VStack(alignment: .leading, spacing: 14) {
                 if let error {
                     Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
@@ -251,9 +256,7 @@ struct LivingMomentsActiveView: View {
                         Text("+ Open Quick Add")
                             .font(.plusJakarta(size: 14, weight: .bold))
                             .foregroundStyle(theme.darkText)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color.white)
+                            .frame(maxWidth: .infinity).background(Color.white)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                     .buttonStyle(.plain)
@@ -263,9 +266,11 @@ struct LivingMomentsActiveView: View {
                 .background(theme.heroGradient)
                 .clipShape(RoundedRectangle(cornerRadius: 20))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .padding(.bottom, 56)
+
+
+            }
+
+
         }
     }
 

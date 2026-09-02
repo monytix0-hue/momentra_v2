@@ -1,0 +1,82 @@
+Platform,File,Line,Pattern,Snippet,ParentGap,Surface
+iOS,momentra/momentra/Shell/AppShellModel.swift,237,coming_soon,// S6: Circle Coming Soon — empty (not deferred); no Circle API fetch.,SP-013,AppShellModel
+iOS,momentra/momentra/Shell/AppShellView.swift,343,coming_soon,".alert(""Referrals coming soon"", isPresented: $showReferComingSoon) {",SP-013,AppShellView
+iOS,momentra/momentra/Shell/ShellMeGateway.swift,113,coming_soon,/// S5: Life360 entry is always available as Coming Soon — do not call GET /v1/life360.,SP-013,ShellMeGateway
+iOS,momentra/momentra/Shell/BusinessCreateMomentView.swift,323,coming_soon,"Text(""Coming Soon"")",SP-013,BusinessCreateMomentView
+iOS,momentra/momentra/Shell/PersonalEmpty/PersonalFutureMomentsActiveView.swift,450,coming_soon,"Text(""Coming Soon"")",SP-013,PersonalFutureMomentsActiveView
+iOS,momentra/momentra/Shell/PersonalEmpty/PersonalLifestyleMomentsActiveView.swift,247,coming_soon,"Text(""Coming Soon"")",SP-013,PersonalLifestyleMomentsActiveView
+iOS,momentra/momentra/Shell/PersonalEmpty/PersonalRelationshipsMomentsActiveView.swift,244,coming_soon,"Text(""Coming Soon"")",SP-013,PersonalRelationshipsMomentsActiveView
+iOS,momentra/momentra/Shell/PersonalEmpty/PersonalLifeOpsMomentsActiveView.swift,393,coming_soon,"Text(""Coming Soon"")",SP-013,PersonalLifeOpsMomentsActiveView
+iOS,momentra/momentra/Shell/PersonalEmpty/PersonalLifeOpsMemoryActiveView.swift,460,coming_soon,"Text(""Coming Soon"")",SP-013,PersonalLifeOpsMemoryActiveView
+iOS,momentra/momentra/Shell/PersonalEmpty/PersonalRelationshipsPulseActiveView.swift,376,coming_soon,"Text(""Coming Soon"").font(.system(size: 12, weight: .bold)).foregroundStyle(pink)",SP-013,PersonalRelationshipsPulseActiveView
+iOS,momentra/momentra/Shell/PersonalEmpty/PersonalPulseActiveView.swift,586,coming_soon,"Text(""Coming Soon"")",SP-013,PersonalPulseActiveView
+iOS,momentra/momentra/Shell/PersonalEmpty/PersonalFinancePickerSheets.swift,284,coming_soon,"Text(""Balance tracking coming soon."")",SP-013,PersonalFinancePickerSheets
+iOS,momentra/momentra/Shell/PersonalEmpty/PersonalFutureMemoryActiveView.swift,409,coming_soon,"Text(""Coming Soon"")",SP-013,PersonalFutureMemoryActiveView
+iOS,momentra/momentra/Shell/PersonalEmpty/PersonalRelationshipsMemoryActiveView.swift,179,coming_soon,"Text(""Coming Soon"")",SP-013,PersonalRelationshipsMemoryActiveView
+iOS,momentra/momentra/Shell/PersonalEmpty/PersonalLifestyleMemoryActiveView.swift,179,coming_soon,"Text(""Coming Soon"")",SP-013,PersonalLifestyleMemoryActiveView
+iOS,momentra/momentra/Shell/PersonalEmpty/PersonalActionRegistry.swift,143,swift_disabled,"tile(.lifeObservationRecord, ""Reflect"", ""book"", ""#6366F1"", ""#4338CA"", enabled: false),",PER-002,Personal action tiles
+iOS,momentra/momentra/Shell/GroupEmpty/GroupEmptyComponents.swift,173,coming_soon,"Text(""Coming Soon"")",SP-013,GroupEmptyComponents
+iOS,momentra/momentra/Shell/GroupActive/GroupActiveTheme.swift,138,coming_soon,"Text(""Coming Soon"")",SP-013,GroupActiveTheme
+iOS,momentra/momentra/Shell/GroupActive/GroupLifeActiveView.swift,107,coming_soon,"honestEmpty(""Sparklines need month-over-month history (coming soon)."")",SP-013,GroupLifeActiveView
+iOS,momentra/momentra/Shell/GroupActive/GroupPulseActiveView.swift,86,swift_disabled,"GroupQuickChip(label: ""\(openTasks) tasks"", enabled: false, action: {})",GRP-004,Group Pulse quick tiles
+iOS,momentra/momentra/Shell/GroupActive/GroupPulseActiveView.swift,87,swift_disabled,"GroupQuickChip(label: ""\(participantCount) people"", enabled: false, action: {})",GRP-004,Group Pulse quick tiles
+iOS,momentra/momentra/Shell/GroupActive/GroupPulseActiveView.swift,88,swift_disabled,"GroupQuickChip(label: ""\(expenseCount) expenses"", enabled: false, action: {})",GRP-004,Group Pulse quick tiles
+iOS,momentra/momentra/Shell/GroupActive/GroupPulseActiveView.swift,98,coming_soon,"detail: ""Group health scoring is coming soon — no invented numbers.""",GRP-004,Group Pulse quick tiles
+iOS,momentra/momentra/Shell/GroupActive/GroupPulseActiveView.swift,102,coming_soon,"GroupProgressRing(percent: 0, centerLabel: ""—"", centerSub: ""Coming soon"")",GRP-004,Group Pulse quick tiles
+iOS,momentra/momentra/Shell/GroupActive/GroupMemoryActiveView.swift,110,coming_soon,"GroupEmptySection(message: ""Insights coming soon"", detail: ""AI memory intelligence for groups is on the roadmap."")",GRP-008,Group Memory
+iOS,momentra/momentra/Shell/GroupActive/Experience/ExperienceMemoryActiveView.swift,159,coming_soon,"message: ""Insights coming soon"",",SP-013,ExperienceMemoryActiveView
+iOS,momentra/momentra/Shell/GroupActive/Living/LivingMemoryActiveView.swift,162,coming_soon,"message: ""Insights coming soon"",",SP-013,LivingMemoryActiveView
+iOS,momentra/momentra/Shell/GroupActive/Wedding/WeddingPulseActiveView.swift,95,coming_soon,"detail: ""Health scoring is coming soon — no invented numbers.""",SP-013,WeddingPulseActiveView
+iOS,momentra/momentra/Shell/GroupActive/Wedding/WeddingMemoryActiveView.swift,163,coming_soon,"message: ""Insights coming soon"",",SP-013,WeddingMemoryActiveView
+iOS,momentra/momentra/Shell/GroupActive/Purchase/PurchaseMemoryActiveView.swift,162,coming_soon,"message: ""Insights coming soon"",",SP-013,PurchaseMemoryActiveView
+iOS,momentra/momentra/Shell/BusinessActive/BusinessQuickAddSheets.swift,117,coming_soon,"Text(""API not wired for this Action Center command yet — Coming soon."")",BUS-001,Business Action Center
+iOS,momentra/momentra/Shell/BusinessActive/BusinessQuickAddSheets.swift,117,not_wired,"Text(""API not wired for this Action Center command yet — Coming soon."")",BUS-001,Business Action Center
+iOS,momentra/momentra/Shell/BusinessActive/BusinessQuickAddSheets.swift,117,api_not_wired,"Text(""API not wired for this Action Center command yet — Coming soon."")",BUS-001,Business Action Center
+iOS,momentra/momentra/Shell/BusinessActive/BusinessQuickAddSheets.swift,120,coming_soon,"Text(""Coming soon"")",BUS-001,Business Action Center
+iOS,momentra/momentra/Shell/Components/Life360ComingSoonView.swift,3,coming_soon,/// Figma `1075:7637` Life 360 Coming Soon — static local UI only.,SP-013,Life360ComingSoonView
+iOS,momentra/momentra/Shell/Components/Life360ComingSoonView.swift,24,coming_soon,"Text(""COMING SOON"")",SP-013,Life360ComingSoonView
+iOS,momentra/momentra/Shell/Circle/CircleComingSoonView.swift,3,coming_soon,/// Figma `1075:7556` Circle Coming Soon — static local UI in Circle context.,SP-013,CircleComingSoonView
+iOS,momentra/momentra/Shell/Circle/CircleComingSoonView.swift,24,coming_soon,"Text(""COMING SOON"")",SP-013,CircleComingSoonView
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/AppShellScreen.kt,319,coming_soon,"""Referrals coming soon"",",SP-013,AppShellScreen
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/AppShellScreen.kt,1132,coming_soon,// Legacy slot — Circle now uses Empty + Coming Soon; keep panel for any residual Deferred.,SP-013,AppShellScreen
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/AppShellViewModel.kt,265,coming_soon,// S6: Circle Coming Soon — Empty (not Deferred); no Circle API fetch.,SP-013,AppShellViewModel
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/personal/PersonalFinancePickerSheets.kt,480,coming_soon,"""Balance tracking coming soon."",",SP-013,PersonalFinancePickerSheets
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/personal/PersonalFutureMomentsActiveContent.kt,535,coming_soon,"Text(""Coming Soon"", color = PurpleSoft, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSan",SP-013,PersonalFutureMomentsActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/personal/PersonalRelationshipsPulseActiveContent.kt,573,coming_soon,"Text(""Coming Soon"", color = RelPink, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)",SP-013,PersonalRelationshipsPulseActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/personal/PersonalPulseActiveContent.kt,635,coming_soon,// AI Insights — Figma Coming Soon,SP-013,PersonalPulseActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/personal/PersonalPulseActiveContent.kt,661,coming_soon,"""Coming Soon"",",SP-013,PersonalPulseActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/personal/PersonalLifeOpsMemoryActiveContent.kt,502,coming_soon,"Text(""Coming Soon"", color = PurpleSoft, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSan",SP-013,PersonalLifeOpsMemoryActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/personal/PersonalLifeOpsMomentsActiveContent.kt,487,coming_soon,"Text(""Coming Soon"", color = PurpleSoft, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSan",SP-013,PersonalLifeOpsMomentsActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/personal/PersonalFutureMemoryActiveContent.kt,461,coming_soon,"Text(""Coming Soon"", color = PurpleSoft, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSan",SP-013,PersonalFutureMemoryActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/empty/BusinessCreateMomentContent.kt,366,coming_soon,"text = ""Coming Soon"",",SP-013,BusinessCreateMomentContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/empty/group/GroupEmptyShared.kt,343,coming_soon,"""Coming Soon"",",SP-013,GroupEmptyShared
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/GroupPulseActiveContent.kt,227,kotlin_disabled,"GroupQuickChip(label = ""$openTasks tasks"", enabled = false, onClick = {})",GRP-004,Group Pulse quick tiles
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/GroupPulseActiveContent.kt,228,kotlin_disabled,"GroupQuickChip(label = ""$participantCount people"", enabled = false, onClick = {})",GRP-004,Group Pulse quick tiles
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/GroupPulseActiveContent.kt,229,kotlin_disabled,"GroupQuickChip(label = ""$expenseCount expenses"", enabled = false, onClick = {})",GRP-004,Group Pulse quick tiles
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/GroupPulseActiveContent.kt,240,coming_soon,"detail = ""Group health scoring is coming soon — no invented numbers."",",GRP-004,Group Pulse quick tiles
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/GroupPulseActiveContent.kt,243,coming_soon,"GroupProgressRing(percent = 0, centerLabel = ""—"", centerSub = ""Coming soon"")",GRP-004,Group Pulse quick tiles
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/GroupLifeActiveContent.kt,249,coming_soon,"HonestEmptyCard(""Sparklines need month-over-month history (coming soon)."")",SP-013,GroupLifeActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/GroupActiveTheme.kt,205,coming_soon,"""Coming Soon"",",SP-013,GroupActiveTheme
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/GroupMemoryActiveContent.kt,222,coming_soon,"message = ""Insights coming soon"",",GRP-008,Group Memory
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/experience/ExperienceMemoryActiveContent.kt,212,coming_soon,"ExperienceEmptyBlock(theme, ""Insights coming soon"", ""AI memory intelligence for groups is on the roadmap — no invented c",SP-013,ExperienceMemoryActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/living/LivingMemoryActiveContent.kt,217,coming_soon,"LivingEmptyBlock(theme, ""Insights coming soon"", ""AI memory intelligence for groups is on the roadmap — no invented copy.",SP-013,LivingMemoryActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/wedding/WeddingPulseActiveContent.kt,222,coming_soon,"detail = ""Health scoring is coming soon — no invented numbers."",",SP-013,WeddingPulseActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/wedding/WeddingMemoryActiveContent.kt,272,coming_soon,"message = ""Insights coming soon"",",SP-013,WeddingMemoryActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/group/purchase/PurchaseMemoryActiveContent.kt,213,coming_soon,"PurchaseEmptyBlock(theme, ""Insights coming soon"", ""AI memory intelligence for groups is on the roadmap — no invented cop",SP-013,PurchaseMemoryActiveContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/business/BusinessQuickAddSheets.kt,47,coming_soon,/** Business Quick Add sheets — theme accent; GAP kinds use disabled Coming soon CTA. */,BUS-001,Business Action Center
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/business/BusinessQuickAddSheets.kt,213,coming_soon,"""API not wired for this Action Center command yet — Coming soon."",",BUS-001,Business Action Center
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/business/BusinessQuickAddSheets.kt,213,not_wired,"""API not wired for this Action Center command yet — Coming soon."",",BUS-001,Business Action Center
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/business/BusinessQuickAddSheets.kt,213,api_not_wired,"""API not wired for this Action Center command yet — Coming soon."",",BUS-001,Business Action Center
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/business/BusinessQuickAddSheets.kt,227,coming_soon,"""Coming soon"",",BUS-001,Business Action Center
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/components/ShellLaunchers.kt,109,coming_soon,"ShellMessageState(title = ""Coming soon"", body = ""This surface is not available yet."")",SP-013,ShellLaunchers
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/components/Life360ComingSoon.kt,59,coming_soon,* Figma `1075:7637` Life 360 Coming Soon — static local UI only.,SP-013,Life360ComingSoon
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/components/Life360ComingSoon.kt,73,coming_soon,".semantics { contentDescription = ""Life360 Coming Soon"" },",SP-013,Life360ComingSoon
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/components/Life360ComingSoon.kt,103,coming_soon,"text = ""COMING SOON"",",SP-013,Life360ComingSoon
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/circle/CircleComingSoonContent.kt,59,coming_soon,* Figma `1075:7556` Circle Coming Soon — static local UI in Circle context.,SP-013,CircleComingSoonContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/circle/CircleComingSoonContent.kt,77,coming_soon,".semantics { contentDescription = ""Circle Coming Soon"" },",SP-013,CircleComingSoonContent
+Android,apk/app/src/main/java/com/example/momentra/ui/shell/circle/CircleComingSoonContent.kt,104,coming_soon,"text = ""COMING SOON"",",SP-013,CircleComingSoonContent
+Android,apk/app/src/main/java/com/example/momentra/ui/theme/shell/MomentraShellTheme.kt,33,coming_soon,"/** Figma `1075:7556` Circle Coming Soon — pink, not Personal purple. */",SP-013,MomentraShellTheme
+Android,apk/app/src/main/java/com/example/momentra/ui/theme/shell/MomentraShellTheme.kt,44,coming_soon,/** Cross-context global surface — NOT a selectable AppContext. Figma Coming Soon `1075:7637`. */,SP-013,MomentraShellTheme
+Android,apk/app/src/main/java/com/example/momentra/ui/theme/shell/MomentraShellTheme.kt,50,coming_soon,/** Coming Soon page background — Figma `#14121B`. */,SP-013,MomentraShellTheme
+Android,apk/app/src/main/java/com/example/momentra/ui/theme/shell/MomentraShellTheme.kt,63,coming_soon,/** Circle context Coming Soon surface — Figma `1075:7556`. */,SP-013,MomentraShellTheme
+Android,apk/app/src/main/java/com/example/momentra/ui/account/AccountHubSheet.kt,171,kotlin_disabled,pinEnabled = false,SP-013,AccountHubSheet

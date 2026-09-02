@@ -6,19 +6,18 @@ struct PersonalMemoryEmptyView: View {
     var history: [MomentSummary] = []
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                hero
-                howMemoryWorks
-                modulesAwaiting
-                whatYoullUnlock
-                ctaBlock
-                PersonalQuoteBar(text: "\"After 2 weeks, Memory showed me patterns I'd been blind to for years.\" - Alex, 28")
-                PersonalHistorySection(history: history)
+        NativeDashboardScaffold(background: PersonalEmptyTokens.bg) {
+            NativeListSection(insets: EdgeInsets(top: 28, leading: 20, bottom: 34, trailing: 20)) {
+                VStack(spacing: 24) {
+                    hero
+                    howMemoryWorks
+                    modulesAwaiting
+                    whatYoullUnlock
+                    ctaBlock
+                    PersonalQuoteBar(text: "\"After 2 weeks, Memory showed me patterns I'd been blind to for years.\" - Alex, 28")
+                    PersonalHistorySection(history: history)
+                }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 28)
-            .padding(.bottom, 34)
         }
         .background(PersonalEmptyTokens.bg.ignoresSafeArea())
         .personalAppear()

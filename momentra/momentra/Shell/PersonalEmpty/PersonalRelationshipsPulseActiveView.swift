@@ -34,7 +34,10 @@ struct PersonalRelationshipsPulseActiveView: View {
             if loading && activities.isEmpty && bondScore == nil {
                 ProgressView().tint(pink).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
+                NativeDashboardScaffold(background: bg) {
+
+                    NativeListSection {
+
                     VStack(spacing: 12) {
                         if let error { Text(error).font(.system(size: 12)).foregroundStyle(.red) }
                         if let momentTitle, !momentTitle.isEmpty {
@@ -55,8 +58,10 @@ struct PersonalRelationshipsPulseActiveView: View {
                         launcher
                         Spacer().frame(height: 24)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                
+
+                    }
+
                 }
                 .background(bg)
             }

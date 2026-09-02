@@ -19,10 +19,13 @@ struct BusinessExpenseSheet: View {
     private let categories = ["PURCHASE", "OPS", "SOFTWARE", "TRAVEL", "OTHER"]
 
     var body: some View {
-        NavigationStack {
+        NativeSheetScaffold(
+            title: "Log business expense",
+            onClose: { isPresented = false },
+            background: Color(hex: "#14121B")
+        ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    header
                     formCard
                     if let pendingApprovalId {
                         approvalCard(pendingApprovalId)
@@ -32,40 +35,17 @@ struct BusinessExpenseSheet: View {
                             .font(.caption)
                             .foregroundStyle(Color(hex: "#F87171"))
                     }
-                    saveButton
                 }
                 .padding(16)
             }
-            .background(Color(hex: "#14121B"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { isPresented = false }
-                        .foregroundStyle(accent)
-                }
-            }
+        } footer: {
+            saveButton
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .background(Color(hex: "#14121B"))
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-    }
-
-    private var header: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "creditcard")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(accent)
-                .frame(width: 40, height: 40)
-                .background(Color.white.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Log business expense")
-                    .font(.system(size: 18, weight: .heavy))
-                    .foregroundStyle(Color(hex: "#E5E0EE"))
-                Text("Posted to company finance for this Moment.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color(hex: "#C9C4D8"))
-            }
-        }
     }
 
     private var formCard: some View {

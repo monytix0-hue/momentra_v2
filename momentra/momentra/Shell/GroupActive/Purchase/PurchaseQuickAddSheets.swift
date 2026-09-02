@@ -13,23 +13,19 @@ struct PurchaseGapQuickAddSheet: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color(hex: "#1C1A24").ignoresSafeArea()
-            VStack(spacing: 0) {
-                Capsule()
-                    .fill(Color(hex: "#625E70"))
-                    .frame(width: 48, height: 4)
-                    .padding(.top, 12)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        sheetBody
-                    }
+        NativeSheetScaffold(
+            title: kind.label,
+            onClose: onClose,
+            background: Color(hex: "#1C1A24")
+        ) {
+            ScrollView {
+                sheetBody
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
-                    .padding(.bottom, 28)
-                }
             }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 
     @ViewBuilder
@@ -50,13 +46,13 @@ struct PurchaseGapQuickAddSheet: View {
         case .vendor:
             WeddingVendorBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .contributor:
-            PurchaseParticipantBody(theme: theme, accent: accent)
+            PurchaseParticipantBody(momentId: momentId, theme: theme, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .purchaseItem:
             PurchaseItemBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .delivery:
-            PurchaseDeliveryBody(theme: theme, accent: accent)
+            PurchaseDeliveryBody(momentId: momentId, theme: theme, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .ownership:
-            PurchaseOwnershipBody(theme: theme, accent: accent)
+            PurchaseOwnershipBody(momentId: momentId, theme: theme, onDismiss: onClose, onSaved: onSaved, accent: accent)
         }
     }
 }
@@ -64,13 +60,22 @@ struct PurchaseGapQuickAddSheet: View {
 // MARK: - Contributor (gap invite UI)
 
 private struct PurchaseParticipantBody: View {
+    var momentId: String?
     let theme: PurchaseActiveTheme
+    var onDismiss: () -> Void
+    var onSaved: () -> Void
     var accent: SheetAccent
 
     @State private var name = ""
     @State private var contact = ""
     @State private var role = ""
     @State private var notes = ""
+    @State private var busy = false
+    @State private var error: String?
+
+    private var canSave: Bool {
+        momentId != nil && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !busy
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -101,13 +106,52 @@ private struct PurchaseParticipantBody: View {
                 SheetField(value: $notes, placeholder: "Optional notes", minHeight: 42)
             }
 
-            PrimaryCta(label: "Add Contributor", enabled: false, accent: accent, lightLabel: true) {}
+            if let error {
+                Text(error)
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(Color(hex: "#F87171"))
+            }
+
+            PrimaryCta(
+                label: busy ? "Saving…" : "Add Contributor",
+                enabled: canSave,
+                accent: accent,
+                loading: busy,
+                lightLabel: true
+            ) {
+                Task { await save() }
+            }
         }
         .onAppear {
             if role.isEmpty {
                 role = theme.participantRoles.first ?? "Contributor"
             }
         }
+    }
+
+    private func save() async {
+        guard let momentId else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        busy = true
+        error = nil
+        let contactTrim = contact.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = contactTrim.contains("@") ? contactTrim : nil
+        let phone = email == nil && !contactTrim.isEmpty ? contactTrim : nil
+        do {
+            _ = try await APIClient.shared.addGroupParticipant(
+                momentId: momentId,
+                displayName: trimmed,
+                roleCode: "CONTRIBUTOR",
+                email: email,
+                phone: phone
+            )
+            onSaved()
+            onDismiss()
+        } catch {
+            self.error = error.localizedDescription
+        }
+        busy = false
     }
 }
 
@@ -190,7 +234,10 @@ private struct PurchaseItemBody: View {
 // MARK: - Delivery / Handover (gap)
 
 private struct PurchaseDeliveryBody: View {
+    var momentId: String?
     let theme: PurchaseActiveTheme
+    var onDismiss: () -> Void
+    var onSaved: () -> Void
     var accent: SheetAccent
 
     @State private var recipient = ""
@@ -198,8 +245,14 @@ private struct PurchaseDeliveryBody: View {
     @State private var address = ""
     @State private var notes = ""
     @State private var dueDate = ""
+    @State private var submitting = false
+    @State private var error: String?
 
     private let methods = ["Hand delivery", "Courier", "Pickup", "Digital"]
+
+    private var canSave: Bool {
+        momentId != nil && !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !submitting
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -235,19 +288,59 @@ private struct PurchaseDeliveryBody: View {
                 SheetField(value: $notes, placeholder: "Tracking, gift wrap, instructions…", singleLine: false, minHeight: 64)
             }
 
-            Text("Delivery API is not live yet — form is ready, save stays disabled.")
-                .font(.plusJakarta(size: 12))
-                .foregroundStyle(Color(hex: "#9E9AA8"))
+            if let error {
+                Text(error)
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(Color(hex: "#F87171"))
+            }
 
-            PrimaryCta(label: "Save Delivery Plan", enabled: false, accent: accent, lightLabel: true) {}
+            PrimaryCta(
+                label: submitting ? "Saving…" : "Save Delivery Plan",
+                enabled: canSave,
+                accent: accent,
+                loading: submitting,
+                lightLabel: true
+            ) {
+                Task { await save() }
+            }
+        }
+    }
+
+    private func save() async {
+        guard let momentId else { return }
+        submitting = true
+        error = nil
+        let handoverType: String = switch method {
+        case "Hand delivery": "HANDOVER"
+        case "Pickup": "PICKUP"
+        default: "DELIVERY"
+        }
+        do {
+            _ = try await APIClient.shared.createDeliveryHandover(
+                momentId: momentId,
+                recipientName: recipient.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : recipient.trimmingCharacters(in: .whitespacesAndNewlines),
+                handoverType: handoverType,
+                scheduledAt: dueDate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : dueDate.trimmingCharacters(in: .whitespacesAndNewlines),
+                address: address.trimmingCharacters(in: .whitespacesAndNewlines),
+                note: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+            submitting = false
+            onSaved()
+            onDismiss()
+        } catch {
+            submitting = false
+            self.error = error.localizedDescription
         }
     }
 }
 
-// MARK: - Transfer Ownership (gap)
+// MARK: - Transfer Ownership
 
 private struct PurchaseOwnershipBody: View {
+    var momentId: String?
     let theme: PurchaseActiveTheme
+    var onDismiss: () -> Void
+    var onSaved: () -> Void
     var accent: SheetAccent
 
     @State private var assetLabel = ""
@@ -255,6 +348,12 @@ private struct PurchaseOwnershipBody: View {
     @State private var toOwner = ""
     @State private var transferDate = ""
     @State private var notes = ""
+    @State private var submitting = false
+    @State private var error: String?
+
+    private var canSave: Bool {
+        momentId != nil && !toOwner.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !submitting
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -290,11 +389,43 @@ private struct PurchaseOwnershipBody: View {
                 SheetField(value: $notes, placeholder: "Terms, documents, conditions…", singleLine: false, minHeight: 64)
             }
 
-            Text("Ownership API is not live yet — form is ready, save stays disabled.")
-                .font(.plusJakarta(size: 12))
-                .foregroundStyle(Color(hex: "#9E9AA8"))
+            if let error {
+                Text(error)
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(Color(hex: "#F87171"))
+            }
 
-            PrimaryCta(label: "Record Transfer", enabled: false, accent: accent, lightLabel: true) {}
+            PrimaryCta(
+                label: submitting ? "Saving…" : "Record Transfer",
+                enabled: canSave,
+                accent: accent,
+                loading: submitting,
+                lightLabel: true
+            ) {
+                Task { await save() }
+            }
+        }
+    }
+
+    private func save() async {
+        guard let momentId else { return }
+        submitting = true
+        error = nil
+        do {
+            _ = try await APIClient.shared.createOwnershipRecord(
+                momentId: momentId,
+                assetLabel: assetLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : assetLabel.trimmingCharacters(in: .whitespacesAndNewlines),
+                fromOwnerName: fromOwner.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : fromOwner.trimmingCharacters(in: .whitespacesAndNewlines),
+                toParticipantName: toOwner.trimmingCharacters(in: .whitespacesAndNewlines),
+                ownershipNote: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes.trimmingCharacters(in: .whitespacesAndNewlines),
+                effectiveAt: transferDate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : transferDate.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+            submitting = false
+            onSaved()
+            onDismiss()
+        } catch {
+            submitting = false
+            self.error = error.localizedDescription
         }
     }
 }

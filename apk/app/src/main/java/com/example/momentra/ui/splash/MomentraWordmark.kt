@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -14,7 +13,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -43,6 +44,11 @@ fun MomentraWordmark(
                 fontSize = titleSizeSp.sp,
                 fontWeight = FontWeight.Medium,
                 letterSpacing = (-0.5).sp,
+                style = TextStyle(
+                    platformStyle = PlatformTextStyle(
+                        includeFontPadding = false
+                    )
+                )
             )
             Spacer(Modifier.width(2.dp))
             Box(
@@ -54,13 +60,17 @@ fun MomentraWordmark(
         }
 
         if (showTagline) {
-            Spacer(Modifier.height(4.dp))
             Text(
                 "TOGETHER · FORWARD",
                 fontSize = taglineSizeSp.sp,
                 fontWeight = FontWeight.Normal,
                 letterSpacing = 2.sp,
                 color = MomentraBrandColors.TextOnDark.copy(alpha = 0.38f),
+                style = TextStyle(
+                    platformStyle = PlatformTextStyle(
+                        includeFontPadding = false
+                    )
+                )
             )
         }
     }

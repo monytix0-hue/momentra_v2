@@ -24,4 +24,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "momentra"
 include(":app")
+include(":openapi-generated")
+project(":openapi-generated").projectDir = file("openapi-generated")
  

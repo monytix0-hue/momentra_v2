@@ -6,19 +6,18 @@ struct PersonalMomentsEmptyView: View {
     var history: [MomentSummary] = []
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 32) {
-                hero
-                journeyTimeline
-                testimonial
-                whatAwaitsYou
-                milestones
-                ctaSection
-                PersonalHistorySection(history: history)
+        NativeDashboardScaffold(background: Color.clear) {
+            NativeListSection(insets: EdgeInsets(top: 24, leading: 20, bottom: 34, trailing: 20)) {
+                VStack(spacing: 32) {
+                    hero
+                    journeyTimeline
+                    testimonial
+                    whatAwaitsYou
+                    milestones
+                    ctaSection
+                    PersonalHistorySection(history: history)
+                }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 24)
-            .padding(.bottom, 34)
         }
         .background(
             LinearGradient(
@@ -34,11 +33,11 @@ struct PersonalMomentsEmptyView: View {
     private var hero: some View {
         VStack(spacing: 12) {
             Text("Your Story Starts Here")
-                .font(.system(size: 26, weight: .heavy))
+                .font(.plusJakarta(size: 26, weight: .heavy))
                 .foregroundStyle(PersonalEmptyTokens.text)
                 .multilineTextAlignment(.center)
             Text("Every moment you capture becomes part of your personal narrative.")
-                .font(.system(size: 14))
+                .font(.plusJakarta(size: 14))
                 .foregroundStyle(PersonalEmptyTokens.muted)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
@@ -113,15 +112,15 @@ struct PersonalMomentsEmptyView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: highlighted ? 12 : 8) {
             Text(title)
-                .font(.system(size: 14, weight: .bold))
+                .font(.plusJakarta(size: 14, weight: .bold))
                 .foregroundStyle(PersonalEmptyTokens.text)
             Text(subtitle)
-                .font(.system(size: 12))
+                .font(.plusJakarta(size: 12))
                 .foregroundStyle(PersonalEmptyTokens.muted)
             if showCapture {
                 Button(action: onCreateMoment) {
                     Text("Capture Now →")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.plusJakarta(size: 11, weight: .bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -146,17 +145,17 @@ struct PersonalMomentsEmptyView: View {
     private var testimonial: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("\"")
-                .font(.system(size: 18))
+                .font(.plusJakarta(size: 18))
                 .foregroundStyle(.white)
                 .frame(width: 32, height: 32)
                 .background(PersonalEmptyTokens.purple, in: RoundedRectangle(cornerRadius: 16))
             Text("After 30 days, I noticed patterns I never saw before. Momentra helped me understand my energy cycles and relationship dynamics.")
-                .font(.system(size: 13).italic())
+                .font(.plusJakarta(size: 13).italic())
                 .foregroundStyle(PersonalEmptyTokens.text)
                 .lineSpacing(4)
             HStack(spacing: 8) {
                 Text("- Santosh, using Momentra for 3 months")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.plusJakarta(size: 12, weight: .semibold))
                     .foregroundStyle(PersonalEmptyTokens.muted)
                 HStack(spacing: 2) {
                     ForEach(0..<5, id: \.self) { _ in
@@ -179,10 +178,10 @@ struct PersonalMomentsEmptyView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Text("What awaits you")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.plusJakarta(size: 16, weight: .bold))
                     .foregroundStyle(PersonalEmptyTokens.text)
                 Text("✦")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.plusJakarta(size: 16, weight: .bold))
                     .foregroundStyle(PersonalEmptyTokens.deepIndigo)
             }
 
@@ -197,16 +196,16 @@ struct PersonalMomentsEmptyView: View {
     private func previewCard(_ emoji: String, _ title: String, _ subtitle: String, _ accent: Color) -> some View {
         VStack(spacing: 8) {
             Text(emoji)
-                .font(.system(size: 16))
+                .font(.plusJakarta(size: 16))
                 .frame(width: 32, height: 32)
                 .background(accent.opacity(0.15), in: Circle())
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.plusJakarta(size: 12, weight: .semibold))
                 .foregroundStyle(PersonalEmptyTokens.text)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Text(subtitle)
-                .font(.system(size: 10))
+                .font(.plusJakarta(size: 10))
                 .foregroundStyle(PersonalEmptyTokens.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -216,7 +215,7 @@ struct PersonalMomentsEmptyView: View {
                     .scaledToFit()
                     .frame(width: 10, height: 10)
                 Text("Unlock with first moment")
-                    .font(.system(size: 8))
+                    .font(.plusJakarta(size: 8))
                     .foregroundStyle(PersonalEmptyTokens.subtle)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -238,10 +237,10 @@ struct PersonalMomentsEmptyView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Text("Milestones to unlock")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.plusJakarta(size: 16, weight: .bold))
                     .foregroundStyle(PersonalEmptyTokens.text)
                 Text("✦")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.plusJakarta(size: 16, weight: .bold))
                     .foregroundStyle(PersonalEmptyTokens.orangeDeep)
             }
 
@@ -264,7 +263,7 @@ struct PersonalMomentsEmptyView: View {
         VStack(spacing: 8) {
             PersonalIconCircle(glyph: glyph, accent: accent, deep: deep, size: 44)
             Text(label)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.plusJakarta(size: 10, weight: .semibold))
                 .foregroundStyle(dimmed ? PersonalEmptyTokens.subtle : PersonalEmptyTokens.text)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
@@ -278,7 +277,7 @@ struct PersonalMomentsEmptyView: View {
         VStack(spacing: 8) {
             PersonalGradientCta(title: "✨ Create Your First Moment", onTap: onCreateMoment)
             Text("It only takes 30 seconds")
-                .font(.system(size: 11))
+                .font(.plusJakarta(size: 11))
                 .foregroundStyle(PersonalEmptyTokens.subtle)
         }
     }

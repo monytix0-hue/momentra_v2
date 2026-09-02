@@ -6,13 +6,19 @@ struct PersonalExpenseFab: View {
 
     var body: some View {
         Button(action: onClick) {
-            Text("₹+")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 56, height: 56)
-                .background(PersonalMasterExpenseTheme.accent)
-                .clipShape(Circle())
-                .shadow(color: PersonalMasterExpenseTheme.accent.opacity(0.4), radius: 8, x: 0, y: 6)
+            ZStack {
+                Image(systemName: "indianrupeesign.circle.fill")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(.white)
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+                    .offset(x: 10, y: -10)
+            }
+            .frame(width: 56, height: 56)
+            .background(PersonalMasterExpenseTheme.accent)
+            .clipShape(Circle())
+            .shadow(color: PersonalMasterExpenseTheme.accent.opacity(0.4), radius: 8, x: 0, y: 6)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Add expense")

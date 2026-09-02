@@ -84,7 +84,10 @@ struct RunwayPulseActiveView: View {
             if loading && pulse == nil {
                 ProgressView().tint(theme.accent)
             } else {
-                ScrollView {
+                NativeDashboardScaffold(background: theme.bg) {
+
+                    NativeListSection {
+
                     VStack(alignment: .leading, spacing: 24) {
                         if let error {
                             Text(error).font(.caption).foregroundStyle(RunwayColors.red)
@@ -94,11 +97,13 @@ struct RunwayPulseActiveView: View {
                         needsAttentionSection
                         recentActivitySection
                         RunwayIntelligenceSection(theme: theme)
-                        ctaRow
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
-                    .padding(.bottom, 24)
+
+                    }
+
+                }
+                .nativeStickyFooter(background: theme.bg) {
+                    ctaRow
                 }
             }
         }

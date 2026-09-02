@@ -13,17 +13,14 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -37,15 +34,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalDensity
+import com.example.momentra.ui.shell.empty.group.generateInviteQrBitmap
+import com.example.momentra.ui.shell.empty.group.shareInviteLink
+import com.example.momentra.ui.shell.empty.group.shareInviteQr
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.R
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.empty.group.GroupInviteLink
@@ -53,7 +53,7 @@ import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-/** Trip Quick Add — invite link + add participant (Figma 575:15497 chrome). */
+/** Trip Quick Add — invite link + add participant (Figma 581:13699 / TripSheetFormComponents chrome). */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun GroupInvitePeopleSheet(
@@ -91,6 +91,7 @@ fun GroupInvitePeopleSheet(
     }
 
     LaunchedEffect(momentId, momentTitle, momentTypeCode) {
+        inviteCode = null
         minting = true
         mintError = null
         repository.mintInviteForMoment(
@@ -112,6 +113,12 @@ fun GroupInvitePeopleSheet(
 
     val displayPath = inviteCode?.let { GroupInviteLink.displayPath(it) }
     val copyText = inviteCode?.let { GroupInviteLink.copyText(it) }
+    val qrPayload = inviteCode?.let { GroupInviteLink.qrPayload(it) }
+    val qrSizePx = with(LocalDensity.current) { 144.dp.roundToPx() }
+    val qrBitmap = remember(qrPayload, qrSizePx) {
+        qrPayload?.let { generateInviteQrBitmap(it, qrSizePx) }?.asImageBitmap()
+    }
+    val inviteSubtitle = groupExperienceFamilyFor(momentTypeCode).invitePeopleSubtitle()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -136,166 +143,77 @@ fun GroupInvitePeopleSheet(
                 .padding(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(TripSheet.Orange.copy(alpha = 0.18f))
-                        .border(1.dp, TripSheet.Orange.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("👥", fontSize = 16.sp)
+            TripSheetHeaderRow(
+                title = "Invite People",
+                subtitle = inviteSubtitle,
+                iconRes = R.drawable.ic_group_qa_userplus,
+                accent = TripSheetTokens.Accent,
+            )
+
+            TripInviteShareSection(
+                minting = minting,
+                displayPath = displayPath,
+                mintError = mintError,
+                copied = copied,
+                copyText = copyText,
+                qrBitmap = qrBitmap,
+                onCopy = {
+                    val text = copyText ?: return@TripInviteShareSection
+                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("invite", text))
+                    copied = true
+                },
+                onShareLink = {
+                    val text = copyText ?: return@TripInviteShareSection
+                    shareInviteLink(context, text)
+                },
+                onShareQr = {
+                    val text = copyText ?: return@TripInviteShareSection
+                    val bitmap = qrPayload?.let { generateInviteQrBitmap(it, 512) } ?: return@TripInviteShareSection
+                    shareInviteQr(context, bitmap, text)
+                },
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TripFieldLabel("Name")
+                    TripSheetField(name, { name = it }, "Aarav Mehta")
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        "Invite people",
-                        color = TripSheet.Text,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontFamily = PlusJakartaSans,
-                    )
-                    Text(
-                        "Share a link or add someone to this trip",
-                        color = TripSheet.Muted,
-                        fontSize = 12.sp,
-                        fontFamily = PlusJakartaSans,
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TripFieldLabel("Email/Phone")
+                    TripSheetField(
+                        value = email,
+                        onValueChange = { email = it },
+                        placeholder = "aarav@email.com",
+                        keyboardType = KeyboardType.Email,
                     )
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    "INVITE LINK",
-                    color = TripSheet.Muted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSans,
-                )
-                when {
-                    minting -> {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(TripSheet.Field)
-                                .border(1.dp, TripSheet.Border, RoundedCornerShape(8.dp))
-                                .padding(horizontal = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            CircularProgressIndicator(
-                                color = TripSheet.Purple,
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                            )
-                            Text(
-                                "Minting invite…",
-                                color = TripSheet.Muted,
-                                fontSize = 13.sp,
-                                fontFamily = PlusJakartaSans,
-                            )
-                        }
-                    }
-                    displayPath != null -> {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(TripSheet.Field)
-                                .border(1.dp, TripSheet.Border, RoundedCornerShape(8.dp))
-                                .clickable {
-                                    val text = copyText ?: return@clickable
-                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    cm.setPrimaryClip(ClipData.newPlainText("invite", text))
-                                    copied = true
-                                }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                displayPath,
-                                color = TripSheet.Text,
-                                fontSize = 13.sp,
-                                fontFamily = PlusJakartaSans,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Text(
-                                if (copied) "Copied" else "Copy",
-                                color = TripSheet.Purple,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = PlusJakartaSans,
-                            )
-                        }
-                    }
-                    else -> {
-                        Text(
-                            mintError ?: "Invite unavailable",
-                            color = Color(0xFFF87171),
-                            fontSize = 12.sp,
-                            fontFamily = PlusJakartaSans,
-                        )
-                    }
-                }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    "NAME",
-                    color = TripSheet.Muted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSans,
-                )
-                InviteField(name, { name = it }, "Display name")
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    "EMAIL (OPTIONAL)",
-                    color = TripSheet.Muted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSans,
-                )
-                InviteField(email, { email = it }, "name@email.com")
-            }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "ROLE",
-                    color = TripSheet.Muted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSans,
-                )
+                TripFieldLabel("Assigned Role")
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     listOf(
-                        "PARTICIPANT" to "Guest",
+                        "PARTICIPANT" to "Member",
                         "ORGANIZER" to "Organizer",
+                        "VIEWER" to "Viewer",
                     ).forEach { (code, label) ->
                         val selected = role == code
                         Text(
                             label,
-                            color = if (selected) Color.White else TripSheet.Muted,
+                            color = if (selected) TripSheetTokens.Text else TripSheetTokens.Muted,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             fontFamily = PlusJakartaSans,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(999.dp))
-                                .background(if (selected) TripSheet.Orange else TripSheet.Field)
+                                .background(if (selected) TripSheetTokens.Accent else TripSheetTokens.Field)
                                 .border(
                                     1.dp,
-                                    if (selected) TripSheet.Orange else TripSheet.Border,
+                                    if (selected) TripSheetTokens.Accent else TripSheetTokens.Border,
                                     RoundedCornerShape(999.dp),
                                 )
                                 .clickable { role = code }
@@ -305,135 +223,54 @@ fun GroupInvitePeopleSheet(
                 }
             }
 
+            if (participants.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TripFieldLabel("Already Invited (${participants.size})")
+                    participants.forEach { p ->
+                        TripParticipantListRow(
+                            displayName = p.displayName?.takeIf { it.isNotBlank() } ?: "Participant",
+                            status = p.status?.takeIf { it.isNotBlank() } ?: "Member",
+                            roleLabel = (p.status ?: "Pending").lowercase(Locale.US)
+                                .replaceFirstChar { it.titlecase(Locale.US) },
+                        )
+                    }
+                }
+            }
+
             formError?.let {
                 Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans)
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Brush.horizontalGradient(listOf(TripSheet.Orange, TripSheet.Peach)))
-                    .then(
-                        if (name.isNotBlank() && !submitting) {
-                            Modifier.clickable {
-                                scope.launch {
-                                    submitting = true
-                                    formError = null
-                                    repository.addParticipant(
-                                        momentId = momentId,
-                                        displayName = name.trim(),
-                                        roleCode = role,
-                                        email = email.trim().ifBlank { null },
-                                    ).fold(
-                                        onSuccess = {
-                                            submitting = false
-                                            name = ""
-                                            email = ""
-                                            refreshParticipants()
-                                            onSaved()
-                                        },
-                                        onFailure = {
-                                            submitting = false
-                                            formError = it.message
-                                        },
-                                    )
-                                }
-                            }
-                        } else {
-                            Modifier
-                        },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (submitting) {
-                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                } else {
-                    Text(
-                        "Add participant",
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = PlusJakartaSans,
-                    )
-                }
-            }
-
-            if (participants.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "ON THIS TRIP",
-                        color = TripSheet.Muted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = PlusJakartaSans,
-                    )
-                    participants.forEach { p ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(TripSheet.Field)
-                                .border(1.dp, TripSheet.Border, RoundedCornerShape(8.dp))
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                p.displayName?.takeIf { it.isNotBlank() } ?: "Participant",
-                                color = TripSheet.Text,
-                                fontSize = 14.sp,
-                                fontFamily = PlusJakartaSans,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                (p.roleCode.ifBlank { "PARTICIPANT" }).lowercase(Locale.US)
-                                    .replaceFirstChar { it.titlecase(Locale.US) },
-                                color = TripSheet.Muted,
-                                fontSize = 11.sp,
-                                fontFamily = PlusJakartaSans,
-                            )
-                        }
+            TripPrimaryCta(
+                label = "Send Invite",
+                enabled = name.isNotBlank(),
+                loading = submitting,
+                footer = "They will receive a notification",
+                onClick = {
+                    scope.launch {
+                        submitting = true
+                        formError = null
+                        repository.addParticipant(
+                            momentId = momentId,
+                            displayName = name.trim(),
+                            roleCode = role,
+                            email = email.trim().ifBlank { null },
+                        ).fold(
+                            onSuccess = {
+                                submitting = false
+                                name = ""
+                                email = ""
+                                refreshParticipants()
+                                onSaved()
+                            },
+                            onFailure = {
+                                submitting = false
+                                formError = it.message
+                            },
+                        )
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun InviteField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 44.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(TripSheet.Field)
-            .border(1.dp, TripSheet.Border, RoundedCornerShape(8.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        if (value.isEmpty()) {
-            Text(
-                placeholder,
-                color = TripSheet.Muted.copy(alpha = 0.7f),
-                fontSize = 14.sp,
-                fontFamily = PlusJakartaSans,
+                },
             )
         }
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            singleLine = true,
-            textStyle = TextStyle(color = TripSheet.Text, fontSize = 14.sp, fontFamily = PlusJakartaSans),
-            cursorBrush = SolidColor(TripSheet.Purple),
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }

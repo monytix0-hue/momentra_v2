@@ -13,23 +13,19 @@ struct LivingGapQuickAddSheet: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color(hex: "#1C1A24").ignoresSafeArea()
-            VStack(spacing: 0) {
-                Capsule()
-                    .fill(Color(hex: "#625E70"))
-                    .frame(width: 48, height: 4)
-                    .padding(.top, 12)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        sheetBody
-                    }
+        NativeSheetScaffold(
+            title: kind.label,
+            onClose: onClose,
+            background: Color(hex: "#1C1A24")
+        ) {
+            ScrollView {
+                sheetBody
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
-                    .padding(.bottom, 28)
-                }
             }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 
     @ViewBuilder
@@ -54,7 +50,7 @@ struct LivingGapQuickAddSheet: View {
         case .maintenance:
             LivingMaintenanceBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .rule:
-            LivingHouseRuleBody(theme: theme, accent: accent)
+            LivingHouseRuleBody(momentId: momentId, theme: theme, onDismiss: onClose, onSaved: onSaved, accent: accent)
         }
     }
 }
@@ -301,14 +297,26 @@ private struct LivingMaintenanceBody: View {
     }
 }
 
-// MARK: - House Rule (GAP)
+// MARK: - House Rule
 
 private struct LivingHouseRuleBody: View {
+    var momentId: String?
     let theme: LivingActiveTheme
+    var onDismiss: () -> Void
+    var onSaved: () -> Void
     var accent: SheetAccent
 
     @State private var title = ""
     @State private var ruleText = ""
+    @State private var busy = false
+    @State private var error: String?
+
+    private var canSave: Bool {
+        momentId != nil
+            && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !ruleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !busy
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -329,11 +337,38 @@ private struct LivingHouseRuleBody: View {
                 SheetField(value: $ruleText, placeholder: "Describe the house rule…", singleLine: false, minHeight: 96)
             }
 
-            Text("House Rule API is not wired in this shell yet — Coming soon.")
-                .font(.plusJakarta(size: 12))
-                .foregroundStyle(Color(hex: "#9E9AA8"))
+            if let error {
+                Text(error)
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(Color(hex: "#F87171"))
+            }
 
-            PrimaryCta(label: "Coming soon", enabled: false, accent: accent, lightLabel: true) {}
+            PrimaryCta(
+                label: busy ? "Saving…" : "Save House Rule",
+                enabled: canSave,
+                accent: accent,
+                loading: busy,
+                lightLabel: true
+            ) {
+                Task { await save() }
+            }
         }
+    }
+
+    private func save() async {
+        guard let momentId else { return }
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedRule = ruleText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty, !trimmedRule.isEmpty else { return }
+        busy = true
+        error = nil
+        do {
+            _ = try await APIClient.shared.createLivingRule(momentId: momentId, title: trimmedTitle, ruleText: trimmedRule)
+            onSaved()
+            onDismiss()
+        } catch {
+            self.error = error.localizedDescription
+        }
+        busy = false
     }
 }

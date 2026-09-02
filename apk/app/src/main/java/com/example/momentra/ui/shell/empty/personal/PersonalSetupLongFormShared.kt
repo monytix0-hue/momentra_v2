@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shadow
@@ -501,6 +502,7 @@ fun PersonalSetupActivateFooter(
                 .height(56.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .background(ctaBrush)
+                .testTag(MaestroIds.PERSONAL_SETUP_SUBMIT)
                 .clickable(enabled = !submitting, onClick = onActivate),
             contentAlignment = Alignment.Center,
         ) {

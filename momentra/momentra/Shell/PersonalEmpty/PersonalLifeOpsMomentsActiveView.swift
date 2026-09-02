@@ -6,7 +6,6 @@ struct PersonalLifeOpsMomentsActiveView: View {
     let momentId: String?
     let momentTitle: String?
     var onOpenQuickAdd: () -> Void
-    var onAddExpense: () -> Void
 
     @State private var pulse: APIClient.PersonalPulsePayload?
     @State private var activities: [APIClient.ActivityItemPayload] = []
@@ -18,8 +17,9 @@ struct PersonalLifeOpsMomentsActiveView: View {
             if loading && pulse == nil {
                 ProgressView().tint(Color(hex: "#7C5CFC"))
             } else {
-                ZStack(alignment: .bottomTrailing) {
-                    ScrollView {
+                NativeDashboardScaffold(background: Color(hex: "#14121B")) {
+                    NativeListSection {
+
                         VStack(alignment: .leading, spacing: 16) {
                             if let error {
                                 Text(error)
@@ -38,23 +38,10 @@ struct PersonalLifeOpsMomentsActiveView: View {
                             insightsCard
                             captureCta
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .padding(.bottom, 56)
-                    }
-                    Button(action: onAddExpense) {
-                        Text("₹+")
-                            .font(.system(size: 16, weight: .heavy))
-                            .foregroundStyle(.white)
-                            .frame(width: 52, height: 52)
-                            .background(Color(hex: "#7C5CFC"))
-                            .clipShape(Circle())
-                            .shadow(color: Color(hex: "#7C5CFC").opacity(0.4), radius: 10, y: 4)
-                    }
-                    .disabled(momentId == nil)
-                    .opacity(momentId == nil ? 0.45 : 1)
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 16)
+                    
+
+                        }
+
                 }
             }
         }

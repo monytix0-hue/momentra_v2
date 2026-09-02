@@ -27,6 +27,8 @@ enum GroupExperienceFamily {
         if code.contains("FAMILY_HOUSEHOLD") { return .familyHousehold }
         if code.contains("CO_LIVING") { return .coLiving }
         if code.contains("COMMUNITY_LIVING") { return .customLiving }
+        if code.contains("SHARED_LIVING") { return .flatmates }
+        if code.contains("SHARED_RENTAL") { return .flatmates }
         if code == "CUSTOM" { return .customLiving }
         return .sharedGeneric
     }
@@ -46,5 +48,11 @@ enum GroupExperienceFamily {
         case .flatmates, .familyHousehold, .coLiving, .customLiving: return true
         default: return false
         }
+    }
+
+    var invitePeopleSubtitle: String {
+        if isThemedLiving { return "Share a link or add someone to this household" }
+        if isThemedPurchase { return "Share a link or add someone to this purchase" }
+        return "Share a link or add someone to this trip"
     }
 }

@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ActivityItemDto
+import com.example.momentra.data.api.AnalyticsInsightItemDto
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupFinancePositionDto
 import com.example.momentra.data.api.GroupParticipantDto
@@ -65,6 +66,9 @@ fun GroupPulseActiveContent(
     onAddExpense: () -> Unit,
     onViewSplits: () -> Unit = onAddExpense,
     onOpenFinance: () -> Unit = onViewSplits,
+    onOpenMemory: () -> Unit = {},
+    onOpenChat: () -> Unit = {},
+    onOpenItinerary: () -> Unit = {},
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
@@ -73,6 +77,7 @@ fun GroupPulseActiveContent(
     var finance by remember { mutableStateOf<GroupFinancePayloadDto?>(null) }
     var activity by remember { mutableStateOf<List<ActivityItemDto>>(emptyList()) }
     var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
+    var insights by remember { mutableStateOf<List<AnalyticsInsightItemDto>>(emptyList()) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -92,6 +97,7 @@ fun GroupPulseActiveContent(
             pulse = cached.pulse
             finance = cached.finance
             activity = cached.activities
+            insights = cached.insights
             loading = false
         } ?: run { loading = true }
         coroutineScope {
@@ -103,6 +109,7 @@ fun GroupPulseActiveContent(
                     pulse = data.pulse
                     finance = data.finance
                     activity = data.activities
+                    insights = data.insights
                     loading = false
                 },
                 onFailure = { e ->
@@ -172,24 +179,24 @@ fun GroupPulseActiveContent(
                     label = "Photos",
                     emoji = "📸",
                     accent = Color(0xFFFBBF24),
-                    enabled = false,
-                    onClick = {},
+                    enabled = true,
+                    onClick = onOpenMemory,
                     modifier = Modifier.weight(1f),
                 )
                 TripQuickTile(
                     label = "Chat",
                     emoji = "💬",
                     accent = Color(0xFFA855F7),
-                    enabled = false,
-                    onClick = {},
+                    enabled = true,
+                    onClick = onOpenChat,
                     modifier = Modifier.weight(1f),
                 )
                 TripQuickTile(
                     label = "Itinerary",
                     emoji = "🗺️",
                     accent = Color(0xFFA16207),
-                    enabled = false,
-                    onClick = {},
+                    enabled = true,
+                    onClick = onOpenItinerary,
                     modifier = Modifier.weight(1f),
                 )
                 TripQuickTile(
@@ -419,12 +426,7 @@ fun GroupPulseActiveContent(
         }
 
         AnimatedVisibility(visible = true, enter = fadeIn()) {
-            GroupSectionCard(title = "Momentra Insights", badge = { GroupComingSoonBadge() }) {
-                GroupEmptySection(
-                    message = "AI insights for groups",
-                    detail = "Personalized trip insights are on the roadmap — nothing invented.",
-                )
-            }
+            GroupPulseInsightsSectionCard(insights = insights)
         }
 
         GroupCtaButton(label = "Add Expense", enabled = true, onClick = onAddExpense)

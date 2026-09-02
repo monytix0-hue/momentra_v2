@@ -213,7 +213,7 @@
     "idempotency": false,
     "occ": false,
     "pagination": false,
-    "implStatus": "CONTRACT_ONLY"
+    "implStatus": "IMPLEMENTED"
   },
   {
     "method": "POST",
@@ -225,7 +225,7 @@
     "idempotency": true,
     "occ": false,
     "pagination": false,
-    "implStatus": "CONTRACT_ONLY"
+    "implStatus": "IMPLEMENTED"
   },
   {
     "method": "POST",
@@ -237,7 +237,7 @@
     "idempotency": true,
     "occ": true,
     "pagination": false,
-    "implStatus": "CONTRACT_ONLY"
+    "implStatus": "IMPLEMENTED"
   },
   {
     "method": "POST",
@@ -291,6 +291,54 @@
     "method": "POST",
     "path": "/v1/moments/{momentId}/purchase-items",
     "operationId": "addPurchaseItem",
+    "domain": "Collaboration",
+    "kind": "command",
+    "auth": true,
+    "idempotency": true,
+    "occ": false,
+    "pagination": false,
+    "implStatus": "IMPLEMENTED"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/group/moments/{momentId}/delivery-handovers",
+    "operationId": "listDeliveryHandovers",
+    "domain": "Collaboration",
+    "kind": "read",
+    "auth": true,
+    "idempotency": false,
+    "occ": false,
+    "pagination": false,
+    "implStatus": "IMPLEMENTED"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/moments/{momentId}/delivery-handovers",
+    "operationId": "createDeliveryHandover",
+    "domain": "Collaboration",
+    "kind": "command",
+    "auth": true,
+    "idempotency": true,
+    "occ": false,
+    "pagination": false,
+    "implStatus": "IMPLEMENTED"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/group/moments/{momentId}/ownership-records",
+    "operationId": "listOwnershipRecords",
+    "domain": "Collaboration",
+    "kind": "read",
+    "auth": true,
+    "idempotency": false,
+    "occ": false,
+    "pagination": false,
+    "implStatus": "IMPLEMENTED"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/moments/{momentId}/ownership-records",
+    "operationId": "createOwnershipRecord",
     "domain": "Collaboration",
     "kind": "command",
     "auth": true,
@@ -355,6 +403,30 @@
     "kind": "command",
     "auth": true,
     "idempotency": true,
+    "occ": false,
+    "pagination": false,
+    "implStatus": "IMPLEMENTED"
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1/moments/{momentId}/lifestyle-activities/{activityId}",
+    "operationId": "updateLifestyleActivity",
+    "domain": "Personal",
+    "kind": "command",
+    "auth": true,
+    "idempotency": false,
+    "occ": false,
+    "pagination": false,
+    "implStatus": "IMPLEMENTED"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/moments/{momentId}/lifestyle-activities/{activityId}",
+    "operationId": "voidLifestyleActivity",
+    "domain": "Personal",
+    "kind": "command",
+    "auth": true,
+    "idempotency": false,
     "occ": false,
     "pagination": false,
     "implStatus": "IMPLEMENTED"

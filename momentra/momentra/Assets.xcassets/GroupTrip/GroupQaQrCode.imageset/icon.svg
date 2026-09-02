@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="none">
+  <path d="M0,0h2v2h-2z" fill="currentColor"/>
+  <path d="M10,0h2v2h-2z" fill="currentColor"/>
+  <path d="M0,10h2v2h-2z" fill="currentColor"/>
+  <path d="M10,10h2v2h-2z" fill="currentColor"/>
+  <path d="M0,0h2v1h-2z" fill="currentColor"/>
+  <path d="M0,0h1v2h-1z" fill="currentColor"/>
+  <path d="M10,0h2v1h-2z" fill="currentColor"/>
+  <path d="M11,0h1v2h-1z" fill="currentColor"/>
+  <path d="M0,11h2v1h-2z" fill="currentColor"/>
+  <path d="M0,10h1v2h-1z" fill="currentColor"/>
+  <path d="M10,11h2v1h-2z" fill="currentColor"/>
+  <path d="M11,10h1v2h-1z" fill="currentColor"/>
+</svg>

@@ -153,6 +153,16 @@ fun PersonalRecentActivityFlow(
                                 )
                             }
                         },
+                        onDeleted = {
+                            editing = null
+                            onChanged()
+                            scope.launch {
+                                repository.getActivity(momentId = momentId, limit = 50).fold(
+                                    onSuccess = { items = it.items },
+                                    onFailure = { },
+                                )
+                            }
+                        },
                         repository = repository,
                     )
                 }

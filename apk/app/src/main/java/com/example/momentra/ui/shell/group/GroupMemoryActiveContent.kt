@@ -49,6 +49,7 @@ fun GroupMemoryActiveContent(
     momentId: String?,
     momentTitle: String?,
     refreshToken: Long,
+    onOpenQuickAdd: () -> Unit = {},
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
@@ -239,12 +240,12 @@ fun GroupMemoryActiveContent(
                 fontFamily = PlusJakartaSans,
             )
             Text(
-                "Capture a shared memory from Quick Add when ready.",
+                "Capture a photo, caption, or milestone for the group timeline.",
                 color = Color.White.copy(alpha = 0.85f),
                 fontSize = 12.sp,
                 fontFamily = PlusJakartaSans,
             )
-            GroupCtaButton(label = "Preserve this moment", enabled = false, onClick = {})
+            GroupCtaButton(label = "Preserve this moment", enabled = true, onClick = onOpenQuickAdd)
         }
     }
 }

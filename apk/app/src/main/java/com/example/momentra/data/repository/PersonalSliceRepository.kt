@@ -35,11 +35,14 @@ import com.example.momentra.data.api.MediaUploadCompleteBody
 import com.example.momentra.data.api.MediaUploadIntentBody
 import com.example.momentra.data.api.PersonalIncomeResultDto
 import com.example.momentra.data.api.RecurringScheduleDto
+import com.example.momentra.data.api.GenerateRecurringInstanceResultDto
+import com.example.momentra.data.api.UpdateRecurringScheduleBody
 import com.example.momentra.data.api.PersonalLifeDto
 import com.example.momentra.data.api.PersonalMemoryDto
 import com.example.momentra.data.api.PersonalPulseDto
 import com.example.momentra.data.api.UpdateExpenseBody
 import com.example.momentra.data.api.UpdateLifestyleActivityBody
+import com.example.momentra.data.api.VoidLifestyleActivityResultDto
 import com.example.momentra.data.api.mapHttpFailure
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -253,6 +256,40 @@ class PersonalSliceRepository(
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 
+    suspend fun listRecurringSchedules(momentId: String): Result<List<RecurringScheduleDto>> = runCatching {
+        api.listRecurringSchedules(momentId = momentId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun updateRecurringSchedule(
+        momentId: String,
+        scheduleId: String,
+        status: String? = null,
+        endDate: String? = null,
+        templatePayload: Map<String, Any?>? = null,
+    ): Result<RecurringScheduleDto> = runCatching {
+        api.updateRecurringSchedule(
+            momentId = momentId,
+            scheduleId = scheduleId,
+            body = UpdateRecurringScheduleBody(
+                status = status,
+                endDate = endDate,
+                templatePayload = templatePayload,
+            ),
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun generateRecurringInstance(
+        momentId: String,
+        scheduleId: String,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<GenerateRecurringInstanceResultDto> = runCatching {
+        api.generateRecurringInstance(
+            momentId = momentId,
+            scheduleId = scheduleId,
+            idempotencyKey = idempotencyKey,
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
     suspend fun createMovement(
         momentId: String,
         movementType: String,
@@ -431,6 +468,13 @@ class PersonalSliceRepository(
                 wellbeingRating = wellbeingRating,
             ),
         ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun voidLifestyleActivity(
+        momentId: String,
+        activityId: String,
+    ): Result<VoidLifestyleActivityResultDto> = runCatching {
+        api.voidLifestyleActivity(momentId = momentId, activityId = activityId).data
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun updateExpense(

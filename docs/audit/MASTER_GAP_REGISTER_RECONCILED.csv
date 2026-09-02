@@ -1,0 +1,61 @@
+GapId,Domain,Severity,RegisterStatus,GapType,AuditEvidenceStatus,AuditAreas,EvidenceLocation
+SP-001,Shared Platform,P1,OPEN,CONTRACT_GAP,EVIDENCED,03,docs/audit/
+SP-002,Shared Platform,P0,OPEN,CONTRACT_GAP,OPEN,"03,11,15,16",docs/audit/
+SP-003,Shared Platform,P0,OPEN,AUTH_GAP,OPEN,11,docs/audit/
+SP-004,Shared Platform,P0,OPEN,AUTH_GAP,OPEN,"11,12",docs/audit/
+SP-005,Shared Platform,P0,OPEN,SCHEMA_GAP,TEST_GAP,06,docs/audit/
+SP-006,Shared Platform,P0,OPEN,DATA_GAP,OPEN,05,docs/audit/
+SP-007,Shared Platform,P1,OPEN,DATA_GAP,OPEN,07,docs/audit/
+SP-008,Shared Platform,P0,OPEN,WORKER_GAP,OPEN,09,docs/audit/
+SP-009,Shared Platform,P0,OPEN,PROJECTION_GAP,OPEN,08,docs/audit/
+SP-010,Shared Platform,P0,OPEN,REFRESH_GAP,OPEN,13,docs/audit/
+SP-011,Shared Platform,P0,OPEN,METRIC_GAP,OPEN,10,docs/audit/
+SP-012,Shared Platform,P1,OPEN,BUSINESS_RULE_GAP,OPEN,12,docs/audit/
+SP-013,Shared Platform,P1,OPEN,CLIENT_GAP,OPEN,04,docs/audit/
+SP-014,Shared Platform,P0,OPEN,TEST_GAP,EVIDENCED,14,docs/audit/
+SP-015,Shared Platform,P1,OPEN,PERFORMANCE_GAP,TEST_GAP,15,docs/audit/
+SP-016,Shared Platform,P1,OPEN,TEST_GAP,OPEN,16,docs/audit/
+SP-017,Shared Platform,P3,DEFERRED,LEGACY,DEFERRED,"03,07",docs/audit/
+SP-018,Shared Platform,P2,DEFERRED,DEFERRED,DEFERRED,"08,09,10",docs/audit/
+PER-001,Personal,P0,OPEN,SCHEMA_GAP,OPEN,"05,06",docs/audit/
+PER-002,Personal,P0,OPEN,API_GAP,PARTIAL_EVIDENCED,"02,03",docs/audit/
+PER-003,Personal,P1,OPEN,API_GAP,OPEN,"02,08,14",docs/audit/
+PER-004,Personal,P1,OPEN,DATA_GAP,OPEN,"01,02,05,10",docs/audit/
+PER-005,Personal,P1,OPEN,SCHEMA_GAP,OPEN,"02,05,06,08",docs/audit/
+PER-006,Personal,P1,OPEN,DATA_GAP,OPEN,"01,02,05",docs/audit/
+PER-007,Personal,P1,OPEN,BUSINESS_RULE_GAP,OPEN,"01,02,12",docs/audit/
+PER-008,Personal,P0,OPEN,METRIC_GAP,OPEN,10,docs/audit/
+PER-009,Personal,P0,OPEN,PROJECTION_GAP,OPEN,"08,13,14",docs/audit/
+PER-010,Personal,P0,OPEN,TEST_GAP,EVIDENCED,14,docs/audit/
+GRP-001,Group,P0,OPEN,SCHEMA_GAP,EVIDENCED,"05,06,12",docs/audit/
+GRP-002,Group,P0,OPEN,METRIC_GAP,OPEN,10,docs/audit/
+GRP-003,Group,P0,OPEN,BUSINESS_RULE_GAP,OPEN,"11,12",docs/audit/
+GRP-004,Group,P1,OPEN,CLIENT_GAP,OPEN,"01,02,04",docs/audit/
+GRP-005,Group,P1,OPEN,AUTH_GAP,OPEN,11,docs/audit/
+GRP-006,Group,P0,OPEN,API_GAP,PARTIAL_EVIDENCED,"02,03,05,14",docs/audit/
+GRP-007,Group,P0,OPEN,API_GAP,PARTIAL_EVIDENCED,"02,03,12,14",docs/audit/
+GRP-008,Group,P1,OPEN,PROJECTION_GAP,OPEN,"08,13",docs/audit/
+GRP-009,Group,P0,OPEN,TEST_GAP,EVIDENCED,"06,09,14",docs/audit/
+BUS-001,Business,P0,OPEN,API_GAP,OPEN,"02,03,05,09,14",docs/audit/
+BUS-002,Business,P0,OPEN,SCHEMA_GAP,OPEN,"02,03,05,06,14",docs/audit/
+BUS-003,Business,P0,OPEN,CLIENT_GAP,PARTIAL_EVIDENCED,"02,04,14",docs/audit/
+BUS-004,Business,P1,OPEN,BUSINESS_RULE_GAP,OPEN,"05,12",docs/audit/
+BUS-005,Business,P1,OPEN,AUTH_GAP,OPEN,"11,12",docs/audit/
+BUS-006,Business,P1,OPEN,METRIC_GAP,OPEN,"08,10",docs/audit/
+BUS-007,Business,P1,OPEN,API_GAP,OPEN,"02,03,08,11,14",docs/audit/
+BUS-008,Business,P1,OPEN,METRIC_GAP,OPEN,"08,10",docs/audit/
+BUS-009,Business,P0,OPEN,SCHEMA_GAP,OPEN,"02,05,06,14",docs/audit/
+BUS-010,Business,P0,OPEN,SCHEMA_GAP,OPEN,"02,05,06,14",docs/audit/
+BUS-011,Business,P0,OPEN,BUSINESS_RULE_GAP,OPEN,"05,10,12",docs/audit/
+BUS-012,Business,P0,OPEN,SCHEMA_GAP,OPEN,"02,05,06,08",docs/audit/
+BUS-013,Business,P0,OPEN,BUSINESS_RULE_GAP,OPEN,"02,05,12",docs/audit/
+BUS-014,Business,P1,OPEN,CLIENT_GAP,OPEN,"01,02,04",docs/audit/
+BUS-015,Business,P1,OPEN,API_GAP,OPEN,"02,03,05,11",docs/audit/
+BUS-016,Business,P1,OPEN,API_GAP,OPEN,"02,03,11,12",docs/audit/
+BUS-017,Business,P0,OPEN,API_GAP,OPEN,"02,03,11,14",docs/audit/
+BUS-018,Business,P0,OPEN,PROJECTION_GAP,OPEN,"08,13",docs/audit/
+BUS-019,Business,P0,OPEN,METRIC_GAP,OPEN,10,docs/audit/
+BUS-020,Business,P1,OPEN,PROJECTION_GAP,OPEN,"08,10",docs/audit/
+BUS-021,Business,P1,OPEN,API_GAP,OPEN,"02,03,11,14",docs/audit/
+BUS-022,Business,P0,OPEN,REFRESH_GAP,OPEN,"09,13,14",docs/audit/
+BUS-023,Business,P0,OPEN,TEST_GAP,EVIDENCED,"14,16",docs/audit/

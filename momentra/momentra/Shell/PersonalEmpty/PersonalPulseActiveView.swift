@@ -27,7 +27,10 @@ struct PersonalPulseActiveView: View {
             if loading && pulse == nil {
                 ProgressView().tint(Color(hex: "#7C5CFC"))
             } else {
-                ScrollView {
+                NativeDashboardScaffold(background: Color(hex: "#14121B")) {
+
+                    NativeListSection {
+
                     VStack(alignment: .leading, spacing: 10) {
                         if let error {
                             Text(error)
@@ -51,8 +54,10 @@ struct PersonalPulseActiveView: View {
                         insightsCard
                         quickActionsRow
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                
+
+                    }
+
                 }
             }
         }

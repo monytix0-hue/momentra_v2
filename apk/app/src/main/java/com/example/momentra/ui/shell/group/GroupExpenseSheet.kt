@@ -299,6 +299,7 @@ fun GroupExpenseSheet(
                         card = sheetCard,
                         border = sheetBorder,
                         text = sheetText,
+                        testTag = MaestroIds.groupExpenseSplitStrategy(strategy),
                     )
                 }
             }
@@ -362,6 +363,7 @@ fun GroupExpenseSheet(
                             border = sheetBorder,
                             text = sheetText,
                             secondary = sheetSecondary,
+                            testTag = "${MaestroIds.GROUP_EXPENSE_SPLIT_VALUE}.$id",
                             accent = sheetAccent,
                             cornerRadius = fieldRadius,
                         )
@@ -736,12 +738,14 @@ private fun ParticipantChip(
     card: Color = GeCard,
     border: Color = GeBorder,
     text: Color = GeText,
+    testTag: String? = null,
 ) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
             .background(if (selected) accent.copy(alpha = 0.2f) else card)
             .border(1.dp, if (selected) accent else border, RoundedCornerShape(20.dp))
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {

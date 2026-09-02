@@ -5,6 +5,7 @@
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import type { RequestContext } from '../../platform/request-context/context';
+import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { recordCommandSideEffects } from '../../platform/events/outbox';
 import { assertGroupMember } from './group-membership';
 import * as collaborationService from './service';
@@ -34,6 +35,29 @@ export const purchaseItemSchema = z
     label: z.string().min(1).max(500),
     amount: z.string().optional(),
     customTypeLabel: z.string().max(200).optional(),
+  })
+  .strict();
+
+export const deliveryHandoverSchema = z
+  .object({
+    recipientName: z.string().max(200).optional(),
+    handoverType: z.enum(['DELIVERY', 'HANDOVER', 'PICKUP']).optional(),
+    scheduledAt: z.string().max(64).optional(),
+    address: z.string().max(1000).optional(),
+    note: z.string().max(5000).optional(),
+    purchaseItemId: z.string().uuid().optional(),
+  })
+  .strict();
+
+export const ownershipRecordSchema = z
+  .object({
+    purchaseItemId: z.string().uuid().optional(),
+    toParticipantName: z.string().max(200).optional(),
+    fromOwnerName: z.string().max(200).optional(),
+    ownershipShare: z.number().min(0).max(1).optional(),
+    ownershipNote: z.string().max(5000).optional(),
+    effectiveAt: z.string().max(64).optional(),
+    assetLabel: z.string().max(500).optional(),
   })
   .strict();
 
@@ -242,6 +266,83 @@ export async function addPurchaseItemCommand(
   return result;
 }
 
+export async function addDeliveryHandoverCommand(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  body: z.infer<typeof deliveryHandoverSchema>
+) {
+  await assertGroupMember(client, ctx, momentId);
+  const result = await collaborationService.createDeliveryHandover(client, ctx, momentId, body);
+  await recordCommandSideEffects(client, ctx, {
+    eventName: 'DeliveryHandoverPlanned',
+    domainCode: 'GROUP',
+    aggregateType: 'DELIVERY_HANDOVER',
+    aggregateId: result.deliveryHandoverId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: { deliveryHandoverId: result.deliveryHandoverId, momentId },
+    auditActionCode: 'PURCHASE_ITEM_CREATE',
+    auditResourceType: 'DELIVERY_HANDOVER',
+    auditResourceId: result.deliveryHandoverId,
+    afterSnapshot: result,
+    activity: {
+      domainCode: 'GROUP',
+      momentId,
+      activityCode: 'GROUP_DELIVERY_PLANNED',
+      title: body.recipientName ?? 'Delivery planned',
+      payload: { deliveryHandoverId: result.deliveryHandoverId },
+    },
+  });
+  return result;
+}
+
+export async function addOwnershipRecordCommand(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  body: z.infer<typeof ownershipRecordSchema>
+) {
+  await assertGroupMember(client, ctx, momentId);
+  let purchaseItemId = body.purchaseItemId;
+  if (!purchaseItemId && body.assetLabel?.trim()) {
+    const item = await client.query<{ purchase_item_id: string }>(
+      `SELECT purchase_item_id FROM collaboration.purchase_item
+       WHERE moment_id = $1 AND title ILIKE $2 LIMIT 1`,
+      [momentId, body.assetLabel.trim()]
+    );
+    purchaseItemId = item.rows[0]?.purchase_item_id;
+  }
+  const result = await collaborationService.createOwnershipRecord(client, ctx, momentId, {
+    ...body,
+    purchaseItemId,
+    ownershipNote: [body.assetLabel ? `Asset: ${body.assetLabel}` : null, body.ownershipNote]
+      .filter(Boolean)
+      .join('\n') || undefined,
+  });
+  await recordCommandSideEffects(client, ctx, {
+    eventName: 'OwnershipRecordCreated',
+    domainCode: 'GROUP',
+    aggregateType: 'OWNERSHIP_RECORD',
+    aggregateId: result.ownershipRecordId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: { ownershipRecordId: result.ownershipRecordId, momentId },
+    auditActionCode: 'PURCHASE_ITEM_CREATE',
+    auditResourceType: 'OWNERSHIP_RECORD',
+    auditResourceId: result.ownershipRecordId,
+    afterSnapshot: result,
+    activity: {
+      domainCode: 'GROUP',
+      momentId,
+      activityCode: 'GROUP_OWNERSHIP_TRANSFERRED',
+      title: body.toParticipantName ?? body.assetLabel ?? 'Ownership transfer',
+      payload: { ownershipRecordId: result.ownershipRecordId },
+    },
+  });
+  return result;
+}
+
 export async function addResidentCommand(
   client: PoolClient,
   ctx: RequestContext,
@@ -444,6 +545,57 @@ export async function listPolls(client: PoolClient, ctx: RequestContext, momentI
   return { momentId, items };
 }
 
+export async function getPollCommand(client: PoolClient, ctx: RequestContext, pollId: string) {
+  return collaborationService.getPollById(client, ctx, pollId);
+}
+
+export async function votePollCommand(
+  client: PoolClient,
+  ctx: RequestContext,
+  pollId: string,
+  body: z.infer<typeof collaborationService.votePollSchema>
+) {
+  const domain = await client.query<{ domain_code: string; moment_id: string }>(
+    `SELECT m.domain_code, p.moment_id
+     FROM shared.poll p
+     JOIN core.moment m ON m.moment_id = p.moment_id
+     WHERE p.poll_id = $1`,
+    [pollId]
+  );
+  const momentId = domain.rows[0]?.moment_id;
+  if (!momentId) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Poll not found', 404);
+  }
+  if (domain.rows[0]?.domain_code === 'BUSINESS') {
+    const { assertCompanyMomentAccess } = await import('../business/membership');
+    await assertCompanyMomentAccess(client, ctx, momentId);
+  } else {
+    await assertGroupMember(client, ctx, momentId);
+  }
+  return collaborationService.votePoll(client, ctx, pollId, body);
+}
+
+export async function closePollCommand(client: PoolClient, ctx: RequestContext, pollId: string) {
+  const domain = await client.query<{ domain_code: string; moment_id: string }>(
+    `SELECT m.domain_code, p.moment_id
+     FROM shared.poll p
+     JOIN core.moment m ON m.moment_id = p.moment_id
+     WHERE p.poll_id = $1`,
+    [pollId]
+  );
+  const momentId = domain.rows[0]?.moment_id;
+  if (!momentId) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Poll not found', 404);
+  }
+  if (domain.rows[0]?.domain_code === 'BUSINESS') {
+    const { assertCompanyMomentAccess } = await import('../business/membership');
+    await assertCompanyMomentAccess(client, ctx, momentId);
+  } else {
+    await assertGroupMember(client, ctx, momentId);
+  }
+  return collaborationService.closePoll(client, ctx, pollId);
+}
+
 export async function listPurchaseItems(client: PoolClient, ctx: RequestContext, momentId: string) {
   await assertGroupMember(client, ctx, momentId);
   const rows = await client.query<{
@@ -466,6 +618,69 @@ export async function listPurchaseItems(client: PoolClient, ctx: RequestContext,
       label: r.title,
       amount: r.target_amount,
       status: r.status,
+    })),
+  };
+}
+
+export async function listDeliveryHandovers(client: PoolClient, ctx: RequestContext, momentId: string) {
+  await assertGroupMember(client, ctx, momentId);
+  const rows = await client.query<{
+    delivery_handover_id: string;
+    handover_type: string;
+    scheduled_at: Date | null;
+    status: string;
+    note: string | null;
+    created_at: Date;
+  }>(
+    `SELECT delivery_handover_id, handover_type, scheduled_at, status, note, created_at
+     FROM collaboration.delivery_handover
+     WHERE moment_id = $1
+     ORDER BY created_at DESC
+     LIMIT 200`,
+    [momentId]
+  );
+  return {
+    momentId,
+    items: rows.rows.map((r) => ({
+      deliveryHandoverId: r.delivery_handover_id,
+      handoverType: r.handover_type,
+      scheduledAt: r.scheduled_at?.toISOString() ?? null,
+      status: r.status,
+      note: r.note,
+      createdAt: r.created_at.toISOString(),
+    })),
+  };
+}
+
+export async function listOwnershipRecords(client: PoolClient, ctx: RequestContext, momentId: string) {
+  await assertGroupMember(client, ctx, momentId);
+  const rows = await client.query<{
+    ownership_record_id: string;
+    purchase_item_id: string | null;
+    participant_id: string | null;
+    ownership_share: string | null;
+    ownership_note: string | null;
+    status: string;
+    created_at: Date;
+  }>(
+    `SELECT ownership_record_id, purchase_item_id, participant_id, ownership_share::text,
+            ownership_note, status, created_at
+     FROM collaboration.ownership_record
+     WHERE moment_id = $1
+     ORDER BY created_at DESC
+     LIMIT 200`,
+    [momentId]
+  );
+  return {
+    momentId,
+    items: rows.rows.map((r) => ({
+      ownershipRecordId: r.ownership_record_id,
+      purchaseItemId: r.purchase_item_id,
+      participantId: r.participant_id,
+      ownershipShare: r.ownership_share,
+      ownershipNote: r.ownership_note,
+      status: r.status,
+      createdAt: r.created_at.toISOString(),
     })),
   };
 }

@@ -1,0 +1,4 @@
+Flow,ClientBehavior,RefetchRoute,Realtime,AuditResult,RegisterGapId
+Post expense write,repository refetch pulse,GET /v1/personal/pulse,NO_SSE,PARTIAL,SP-010
+SSE realtime,SseClient.kt,GET /v1/realtime/sse,NOT_INTEGRATED,REFRESH_GAP,SP-010
+Business write refresh,BusinessSliceRepository,business projections,PENDING_E2E,REFRESH_GAP,BUS-022

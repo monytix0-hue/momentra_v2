@@ -156,6 +156,7 @@ struct CinematicOnboardingView: View {
                             .foregroundStyle(MomentraBrandTokens.textOnDark.opacity(0.4))
                             .padding(.trailing, 16)
                             .padding(.top, 8)
+                            .accessibilityIdentifier("onboarding.skip")
                     }
                     Spacer()
                 }

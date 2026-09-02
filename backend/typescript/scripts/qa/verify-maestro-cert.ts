@@ -32,6 +32,7 @@ type ExpectKind =
   | 'revenue'
   | 'invoice'
   | 'approval'
+  | 'settlement'
   | 'setup'
   | 'generic';
 
@@ -84,9 +85,24 @@ async function main(): Promise<void> {
   const note = arg('--note') || (runId ? `MAESTRO-${runId}` : '');
   const momentId = arg('--moment-id');
   const siblingMomentId = arg('--sibling-moment-id');
+  const catalogId = arg('--catalog-id') || '';
   const alias = (arg('--alias') || 'QA_PERSONAL') as QaFixtureAlias;
   const amount = arg('--amount');
   const participants = Number(arg('--participants') || '0');
+
+  // Auto-map catalog_id → expect kind when provided
+  let resolvedExpect = expect;
+  if (catalogId) {
+    if (/Contribute/i.test(catalogId)) resolvedExpect = 'contribution';
+    else if (/Settle/i.test(catalogId)) resolvedExpect = 'settlement';
+    else if (/Revenue|Income/i.test(catalogId)) resolvedExpect = 'revenue';
+    else if (/Invoice/i.test(catalogId)) resolvedExpect = 'invoice';
+    else if (/G\d{2}:Expense/i.test(catalogId)) resolvedExpect = 'group-expense';
+    else if (/B\d{2}:(Expense|Spend)/i.test(catalogId)) resolvedExpect = 'business-expense';
+    else if (/P\d:Income|P\d:Expense/i.test(catalogId)) resolvedExpect = 'personal-expense';
+  }
+  // use resolvedExpect below — patch switch to use it
+  const expectKind = resolvedExpect;
 
   if (!runId && !correlationId && !note) {
     throw new Error('Pass --run-id and/or --correlation-id and/or --note');
@@ -101,7 +117,7 @@ async function main(): Promise<void> {
   // --- Canonical ---
   let canonicalSql = '';
   let canonicalParams: unknown[] = [];
-  switch (expect) {
+  switch (expectKind) {
     case 'personal-expense':
     case 'business-expense':
     case 'group-expense':
@@ -192,6 +208,15 @@ async function main(): Promise<void> {
         WHERE ($1::text IS NULL OR correlation_id = $1 OR approval_request_id::text = $1)
         ORDER BY created_at DESC LIMIT 10`;
       canonicalParams = [corr];
+      break;
+    case 'settlement':
+      canonicalSql = `
+        SELECT settlement_id AS id, moment_id, amount, created_at
+        FROM finance.settlement
+        WHERE ($1::text IS NULL OR description ILIKE '%' || $1 || '%' OR note ILIKE '%' || $1 || '%')
+          AND ($2::uuid IS NULL OR moment_id = $2)
+        ORDER BY created_at DESC LIMIT 10`;
+      canonicalParams = [notePattern, momentId || null];
       break;
     default:
       canonicalSql = `
@@ -306,9 +331,45 @@ async function main(): Promise<void> {
     checks.push({ name: 'No cross-Moment write', status: 'SKIP' });
   }
 
+  // --- Pulse / finance projection (best-effort; schema may vary) ---
+  if (momentId) {
+    let pulse = await countByCorrelation(
+      `SELECT moment_id, updated_at FROM projection.moment_finance_snapshot
+       WHERE moment_id = $1
+       ORDER BY updated_at DESC NULLS LAST LIMIT 5`,
+      [momentId]
+    );
+    if (pulse.count === 0 && pulse.rows[0] && 'error' in (pulse.rows[0] as object)) {
+      pulse = await countByCorrelation(
+        `SELECT moment_id FROM projection.recent_activity WHERE moment_id = $1 LIMIT 5`,
+        [momentId]
+      );
+    }
+    checks.push({
+      name: 'Pulse / finance projection',
+      status: pulse.count >= 1 ? 'PASS' : 'FAIL',
+      detail: { count: pulse.count, sample: pulse.rows[0] },
+    });
+  } else {
+    checks.push({ name: 'Pulse / finance projection', status: 'SKIP', detail: 'no --moment-id' });
+  }
+
+  // --- Amount match when provided ---
+  if (amount && canonical.rows[0] && 'amount' in canonical.rows[0]) {
+    const got = Number(canonical.rows[0].amount);
+    const want = Math.abs(Number(amount));
+    checks.push({
+      name: 'Calculation amount',
+      status: Math.abs(got - want) < 0.015 ? 'PASS' : 'FAIL',
+      detail: { expected: want, actual: got },
+    });
+  } else {
+    checks.push({ name: 'Calculation amount', status: 'SKIP' });
+  }
+
   // --- Group split remainder proof ---
   let splitProof: unknown = null;
-  if (expect === 'group-expense' && canonical.rows[0] && 'expense_id' in canonical.rows[0]) {
+  if (expectKind === 'group-expense' && canonical.rows[0] && 'expense_id' in canonical.rows[0]) {
     const expenseId = canonical.rows[0].expense_id;
     const shares = await pool.query(
       `SELECT participant_user_id, share_amount, share_type
@@ -361,7 +422,8 @@ async function main(): Promise<void> {
     runId,
     correlationId: corr,
     note,
-    expect,
+    expect: expectKind,
+    catalogId: catalogId || undefined,
     alias,
     email: defaultQaEmail(alias),
     checks,

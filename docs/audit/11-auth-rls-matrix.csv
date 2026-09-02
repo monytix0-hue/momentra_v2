@@ -1,0 +1,5 @@
+Case,Expected,Route,Enforcement,AuditResult,RegisterGapId
+Personal moment read,owner,GET /v1/personal/moments,authMiddleware,PENDING,SP-003
+Cross-user moment,forbidden,GET /v1/moments/{other},governance resolver,PENDING,SP-003
+Group member write,participant,POST group-expenses,groupMembership,PARTIAL_TEST,GRP-005
+RBAC role check,role_permission,governed commands,governance.role* seeded,AUTH_GAP,SP-004

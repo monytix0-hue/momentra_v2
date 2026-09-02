@@ -3,14 +3,14 @@ import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
-import { assertGovernanceAllowed } from '../governance/resolver';
+import { assertGovernanceAllowed, assertGroupPeopleManageAllowed } from '../governance/resolver';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 
 export const mintInviteSchema = z
   .object({
     title: z.string().min(1).max(500),
     momentTypeCode: z.string().min(1).max(80),
-    /** When set, bind the invite to an existing trip so redeem joins this moment. */
+    /** When set, bind the invite to an existing group moment so redeem joins this moment. */
     momentId: z.string().uuid().optional(),
   })
   .strict();
@@ -109,11 +109,7 @@ export async function mintInvite(
   let boundMomentId: string | null = null;
   let status: 'PENDING' | 'ACTIVE' = 'PENDING';
   if (body.momentId) {
-    await assertGovernanceAllowed(client, ctx, {
-      actionCode: 'PARTICIPANT_MANAGE',
-      resourceType: 'PARTICIPANT',
-      momentId: body.momentId,
-    });
+    await assertGroupPeopleManageAllowed(client, ctx, body.momentId);
     const moment = await client.query<{ moment_id: string; title: string; type_code: string }>(
       `SELECT m.moment_id, m.title, mt.code AS type_code
        FROM core.moment m

@@ -19,7 +19,10 @@ struct PersonalLifestyleMemoryActiveView: View {
             if loading && pulse == nil {
                 ProgressView().tint(accent)
             } else {
-                ScrollView {
+                NativeDashboardScaffold(background: Color(hex: "#14121B")) {
+
+                    NativeListSection {
+
                     VStack(alignment: .leading, spacing: 16) {
                         if let error {
                             Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
@@ -31,8 +34,10 @@ struct PersonalLifestyleMemoryActiveView: View {
                         growthEdge
                         insightsCard
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                
+
+                    }
+
                 }
             }
         }

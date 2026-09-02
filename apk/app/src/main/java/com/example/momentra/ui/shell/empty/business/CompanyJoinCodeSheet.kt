@@ -15,11 +15,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.MintCompanyInviteBody
+import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.repository.MeRepository
 import com.example.momentra.domain.CompanySummary
 import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
@@ -69,8 +72,29 @@ fun CompanyJoinCodeSheet(
     var error by remember { mutableStateOf<String?>(null) }
     var submitting by remember { mutableStateOf(false) }
     var showScanner by remember { mutableStateOf(false) }
+    var preview by remember { mutableStateOf<com.example.momentra.data.api.CompanyInviteDto?>(null) }
+    var previewLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val repository = remember { GroupSliceRepository() }
     val parsed = CompanyJoinLink.parseTyped(code)
+
+    LaunchedEffect(parsed) {
+        if (parsed.isNullOrBlank()) {
+            preview = null
+            return@LaunchedEffect
+        }
+        previewLoading = true
+        repository.previewCompanyInvite(parsed).fold(
+            onSuccess = {
+                preview = it
+                previewLoading = false
+            },
+            onFailure = {
+                preview = null
+                previewLoading = false
+            },
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -158,6 +182,23 @@ fun CompanyJoinCodeSheet(
             }
             error?.let {
                 Text(it, color = Red, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+            }
+            if (previewLoading) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Accent)
+                }
+            } else if (preview != null && parsed != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(FieldBg)
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(preview!!.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+                    Text("Company invite · ${preview!!.status}", color = Color(0xFF9E9AA8), fontSize = 12.sp, fontFamily = PlusJakartaSans)
+                }
             }
             Box(
                 modifier = Modifier

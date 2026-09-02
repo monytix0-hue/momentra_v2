@@ -22,7 +22,10 @@ struct BusinessMemoryActiveView: View {
             if loading && memory == nil {
                 ProgressView().tint(theme.accent)
             } else {
-                ScrollView {
+                NativeDashboardScaffold(background: theme.bg) {
+
+                    NativeListSection {
+
                     VStack(alignment: .leading, spacing: 12) {
                         if let error {
                             Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
@@ -69,8 +72,10 @@ struct BusinessMemoryActiveView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                
+
+                    }
+
                 }
             }
         }

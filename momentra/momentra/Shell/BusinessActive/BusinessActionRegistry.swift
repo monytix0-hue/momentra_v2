@@ -50,6 +50,10 @@ enum BusinessActionRegistry {
         [.expenseCreate, .revenueRecord, .invoiceCreate, .memberManage, .vendorManage, .issueCreate, .slaManage]
     }
 
+    static func isRunwayMomentType(_ momentTypeCode: String?) -> Bool {
+        (momentTypeCode ?? "").uppercased().contains("RUNWAY")
+    }
+
     /// Empty / nil capabilities fail closed (mirror Personal).
     static func isDestinationEnabled(_ capabilities: [String]?, destination target: BusinessActionDestination) -> Bool {
         guard let capabilities, !capabilities.isEmpty else {
@@ -71,8 +75,15 @@ enum BusinessActionRegistry {
     }
 
     /// Unmapped kinds (update/memory) stay available when moment is active.
-    static func isKindEnabled(_ kind: BusinessQuickAddKind, capabilities: [String]?) -> Bool {
+    static func isKindEnabled(
+        _ kind: BusinessQuickAddKind,
+        capabilities: [String]?,
+        momentTypeCode: String? = nil
+    ) -> Bool {
         guard let dest = destination(for: kind) else { return true }
+        if dest == .revenue || dest == .invoice {
+            guard isRunwayMomentType(momentTypeCode) else { return false }
+        }
         return isDestinationEnabled(capabilities, destination: dest)
     }
 

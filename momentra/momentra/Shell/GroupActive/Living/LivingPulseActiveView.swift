@@ -17,6 +17,7 @@ struct LivingPulseActiveView: View {
     @State private var activities: [APIClient.ActivityItemPayload] = []
     @State private var participants: [APIClient.GroupParticipantPayload] = []
     @State private var residents: [APIClient.GroupResidentPayload] = []
+    @State private var insights: [AnalyticsInsightItemPayload] = []
     @State private var title: String?
     @State private var loading = true
     @State private var error: String?
@@ -33,6 +34,7 @@ struct LivingPulseActiveView: View {
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
+    @ViewBuilder
     private var content: some View {
         let total = finance?.totals?.first
         let currency = total?.currencyCode ?? "INR"
@@ -58,7 +60,11 @@ struct LivingPulseActiveView: View {
         let g3 = gradients.indices.contains(3) ? gradients[3] : [theme.accentLight, theme.accent]
         let upcomingBills = LivingFinanceMath.upcomingBills(from: activities)
 
-        return ScrollView {
+        NativeDashboardScaffold(background: theme.bg) {
+
+
+            NativeListSection {
+
             VStack(alignment: .leading, spacing: 14) {
                 if let error {
                     Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
@@ -225,10 +231,20 @@ struct LivingPulseActiveView: View {
                         )
                     }
                 }
+
+                GroupPulseInsightsHeroCard(
+                    headerTitle: "🧠 \(theme.typeLabel) Insights",
+                    insights: insights,
+                    gradient: theme.pulseHeroGradient,
+                    footerLabel: "+ Open Quick Add",
+                    footerAction: onOpenQuickAdd
+                )
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .padding(.bottom, 56)
+
+
+            }
+
+
         }
     }
 
@@ -304,6 +320,7 @@ struct LivingPulseActiveView: View {
             async let activityResult = APIClient.shared.listGroupActivity(momentId: momentId, limit: 5)
             async let participantsResult = APIClient.shared.listGroupParticipants(momentId: momentId)
             async let residentsResult = APIClient.shared.listResidents(momentId: momentId)
+            async let insightsResult = APIClient.shared.listAnalyticsInsights(scopeType: "MOMENT", scopeId: momentId)
             let loadedPulse = try await pulseResult
             let finFacet = try await financeResult
             let loadedActivity = try await activityResult
@@ -316,6 +333,7 @@ struct LivingPulseActiveView: View {
             activities = loadedActivity
             participants = loadedParticipants
             residents = loadedResidents
+            insights = (try? await insightsResult)?.items ?? []
             GroupTabDataCache.putPulse(momentId, .init(
                 title: loadedPulse.title,
                 pulse: loadedPulse,

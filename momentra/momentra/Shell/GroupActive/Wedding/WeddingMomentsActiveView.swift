@@ -29,6 +29,7 @@ struct WeddingMomentsActiveView: View {
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
+    @ViewBuilder
     private var content: some View {
         let budgetTotal = finance?.totals?.first?.budgetTotal
         let currency = finance?.totals?.first?.currencyCode ?? "INR"
@@ -38,7 +39,10 @@ struct WeddingMomentsActiveView: View {
         let planningItems = listPlanning.isEmpty ? (life?.payload?.planningItems ?? []) : listPlanning
         let bookings = listBookings.isEmpty ? (life?.payload?.bookings ?? []) : listBookings
         let updates = listUpdates.isEmpty ? (life?.payload?.updates ?? []) : listUpdates
-        return ScrollView {
+        NativeDashboardScaffold(background: WeddingActiveTheme.bg) {
+
+            NativeListSection {
+
             VStack(alignment: .leading, spacing: 14) {
                 if let error {
                     Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
@@ -160,9 +164,9 @@ struct WeddingMomentsActiveView: View {
                     action: onOpenQuickAdd
                 )
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .padding(.bottom, 56)
+
+            }
+
         }
     }
 

@@ -11,8 +11,8 @@ struct GroupPulseEmptyView: View {
     @State private var showScanner = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
+        NativeDashboardScaffold(background: GroupEmptyTokens.bg) {
+            NativeListSection(insets: EdgeInsets()) {
                 GroupEmptyFigmaHeroExport(
                     imageName: "group_pulse_hero",
                     aspectRatio: 402 / 560,
@@ -20,7 +20,9 @@ struct GroupPulseEmptyView: View {
                     action: onStartCta
                 )
                 .groupEmptyAppear()
+            }
 
+            NativeListSection(insets: EdgeInsets(top: 4, leading: 24, bottom: 4, trailing: 24)) {
                 VStack(alignment: .leading, spacing: 16) {
                     GroupEmptyChapterLabel(text: "Chapter 02 / The Matrix")
                     Text("Select Your Arena")
@@ -33,10 +35,11 @@ struct GroupPulseEmptyView: View {
                     )
                     GroupEmptyScanJoinButton { showScanner = true }
                 }
-                .padding(.horizontal, 24)
                 .padding(.vertical, 32)
                 .groupEmptyAppear(delay: 0.09)
+            }
 
+            NativeListSection(insets: EdgeInsets()) {
                 VStack(alignment: .leading, spacing: 24) {
                     GroupEmptyChapterLabel(text: "Chapter 03 / Why Momentra")
                     Text("Why Groups Use Momentra")
