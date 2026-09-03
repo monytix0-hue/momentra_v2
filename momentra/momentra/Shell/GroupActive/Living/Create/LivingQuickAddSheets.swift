@@ -81,9 +81,17 @@ private struct LivingResidentBody: View {
     var accent: SheetAccent
 
     @State private var name = ""
+    @State private var contact = ""
+    @State private var room = ""
+    @State private var moveInDate = ""
+    @State private var rentShare = ""
     @State private var role = ""
+    @State private var sendInvitation = true
+    @State private var addToExpenseSplit = true
     @State private var busy = false
     @State private var error: String?
+
+    private let roomOptions = ["Unassigned", "Room 1", "Room 2", "Room 3", "Common area"]
 
     private var canSave: Bool {
         momentId != nil && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !busy
@@ -99,14 +107,79 @@ private struct LivingResidentBody: View {
             )
 
             VStack(alignment: .leading, spacing: 8) {
-                FieldLabel(text: "Resident Name")
+                FieldLabel(text: "Full Name")
                 SheetField(value: $name, placeholder: "Full name", minHeight: 42)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                FieldLabel(text: "Email or Phone")
+                SheetField(value: $contact, placeholder: "email@example.com or +91…", minHeight: 42)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                FieldLabel(text: "Room Assignment")
+                Menu {
+                    ForEach(roomOptions, id: \.self) { option in
+                        Button(option) { room = option }
+                    }
+                } label: {
+                    SheetField(
+                        value: .constant(room.isEmpty ? "" : room),
+                        placeholder: "Select room",
+                        minHeight: 42,
+                        trailing: {
+                            AnyView(
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color(hex: "#9E9AA8"))
+                            )
+                        }
+                    )
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                FieldLabel(text: "Move-in Date")
+                WeddingDatePickField(value: $moveInDate, placeholder: "Select date")
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                FieldLabel(text: "Monthly Rent Share")
+                SheetField(
+                    value: $rentShare,
+                    placeholder: "0.00",
+                    minHeight: 42,
+                    leading: {
+                        AnyView(
+                            Text("₹")
+                                .font(.plusJakarta(size: 18, weight: .bold))
+                                .foregroundStyle(accent.accent)
+                        )
+                    },
+                    keyboardType: .decimalPad
+                )
+                .onChange(of: rentShare) { _, new in
+                    rentShare = new.filter { $0.isNumber || $0 == "." }
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
                 FieldLabel(text: "Role")
                 ChipRow(options: theme.participantRoles, selected: $role, accent: accent)
             }
+
+            LivingToggleRow(
+                title: "Send Invitation",
+                subtitle: "Email/SMS joining link to this person",
+                isOn: $sendInvitation,
+                accent: accent.accent
+            )
+            LivingToggleRow(
+                title: "Add to Expense Split",
+                subtitle: "Auto-add to active shared bills",
+                isOn: $addToExpenseSplit,
+                accent: accent.accent
+            )
 
             if let error {
                 Text(error)
@@ -115,7 +188,7 @@ private struct LivingResidentBody: View {
             }
 
             PrimaryCta(
-                label: busy ? "Saving…" : "Add Resident",
+                label: busy ? "Saving…" : (sendInvitation ? "Invite Resident" : "Add Resident"),
                 enabled: canSave,
                 accent: accent,
                 loading: busy,
@@ -135,6 +208,7 @@ private struct LivingResidentBody: View {
         guard let momentId else { return }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        // contact / room / moveInDate / rentShare / toggles: SCHEMA_GAP — UI parity only
         busy = true
         error = nil
         do {
@@ -149,6 +223,30 @@ private struct LivingResidentBody: View {
             self.error = error.localizedDescription
         }
         busy = false
+    }
+}
+
+private struct LivingToggleRow: View {
+    let title: String
+    let subtitle: String
+    @Binding var isOn: Bool
+    var accent: Color
+
+    var body: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.plusJakarta(size: 14, weight: .semibold))
+                    .foregroundStyle(Color(hex: "#E5E0EE"))
+                Text(subtitle)
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(Color(hex: "#9E9AA8"))
+            }
+            Spacer()
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(accent)
+        }
     }
 }
 

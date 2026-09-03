@@ -98,6 +98,7 @@ dependencies {
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.firestore.ktx)
     implementation(libs.firebase.analytics.ktx)
+    implementation(libs.firebase.messaging.ktx)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.1")
     implementation("com.google.zxing:core:3.5.3")
     implementation("androidx.camera:camera-camera2:1.4.2")

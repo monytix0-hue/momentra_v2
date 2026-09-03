@@ -222,7 +222,12 @@ struct WeddingMemoryActiveView: View {
                 finance: loadedFinance,
                 pulse: loadedPulse
             ))
+        } catch is CancellationError {
+            // Tab/refresh cancelled an in-flight load — not an API outage.
         } catch {
+            if Task.isCancelled { return }
+            let ns = error as NSError
+            if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }
             self.error = error.localizedDescription
         }
         loading = false

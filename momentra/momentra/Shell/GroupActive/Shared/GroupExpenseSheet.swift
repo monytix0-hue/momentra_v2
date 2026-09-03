@@ -14,6 +14,7 @@ struct GroupExpenseSheet: View {
     @State private var amount = ""
     @State private var currencyCode = "INR"
     @State private var descriptionText = ""
+    @State private var expenseDate = ""
     @State private var category: String = GroupExpenseCategoryCatalog.defaultCategory(for: nil)
     @State private var participants: [APIClient.GroupParticipantPayload] = []
     @State private var paidByParticipantId: String?
@@ -26,9 +27,13 @@ struct GroupExpenseSheet: View {
     @State private var showDeleteConfirm = false
     @State private var error: String?
 
+    private let currencyOptions = ["INR", "USD", "EUR", "GBP"]
     private var isEditing: Bool { expenseId != nil }
     private var accent: Color { isWedding ? WeddingActiveTheme.accentSolid : TripSheetTokens.accent }
     private var peach: Color { isWedding ? WeddingActiveTheme.accentLight : TripSheetTokens.accentEnd }
+    private var sheetAccent: SheetAccent {
+        SheetAccent(accent: accent, accentEnd: peach, soft: accent.opacity(0.18))
+    }
     private static let livingTypeCodes: Set<String> = [
         "FAMILY_HOUSEHOLD", "FLATMATES", "CO_LIVING", "SHARED_LIVING", "COMMUNITY_LIVING",
     ]
@@ -36,15 +41,29 @@ struct GroupExpenseSheet: View {
         let code = (momentTypeCode ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         return Self.livingTypeCodes.contains(code)
     }
-    private var strategies: [String] {
-        supportsPooled
-            ? ["EQUAL", "PERCENTAGE", "EXACT", "SHARES", "POOLED"]
-            : ["EQUAL", "PERCENTAGE", "EXACT", "SHARES"]
+    private var figmaSplitLabels: [(label: String, strategy: String)] {
+        var items: [(String, String)] = [
+            ("Equal", "EQUAL"),
+            ("Custom", "EXACT"),
+            ("% Percent", "PERCENTAGE"),
+        ]
+        if supportsPooled { items.append(("Pooled", "POOLED")) }
+        return items
     }
     private var categoryOptions: [String] { GroupExpenseCategoryCatalog.categories(for: momentTypeCode) }
+    private var currencySymbol: String {
+        switch currencyCode {
+        case "USD": return "$"
+        case "EUR": return "€"
+        case "GBP": return "£"
+        default: return "₹"
+        }
+    }
     private var sheetTitle: String {
-        if isEditing { return isWedding ? "Edit Expense" : "Edit group expense" }
-        return isWedding ? "Add Expense" : "Group expense"
+        isEditing ? "Edit Expense" : "Add Expense"
+    }
+    private var people: [(id: String, name: String)] {
+        participants.map { (id: $0.participantId, name: $0.displayName ?? shortId($0.participantId)) }
     }
 
     var body: some View {
@@ -75,7 +94,7 @@ struct GroupExpenseSheet: View {
                                 .font(.caption)
                                 .foregroundStyle(Color(hex: "#F87171"))
                         }
-                        Text("Split math is calculated on the server. Settlements use POST /v1/moments/:id/settlements.")
+                        Text("All residents will be notified")
                             .font(.system(size: 11))
                             .foregroundStyle(isWedding ? Color(hex: "#C9C4D8") : TripSheetTokens.muted)
                     }
@@ -107,31 +126,143 @@ struct GroupExpenseSheet: View {
 
     private var formCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            fieldLabel("AMOUNT")
-            HStack(spacing: 10) {
-                TextField("INR", text: $currencyCode)
-                    .textInputAutocapitalization(.characters)
-                    .frame(width: 56)
-                    .foregroundStyle(Color(hex: "#C9C4D8"))
-                TextField("0.00", text: $amount)
-                    .keyboardType(.decimalPad)
-                    .font(.system(size: 26, weight: .heavy))
-                    .foregroundStyle(Color(hex: "#E5E0EE"))
-                    .accessibilityIdentifier("group.expense.amount")
+            HStack(alignment: .bottom, spacing: 6) {
+                Menu {
+                    ForEach(currencyOptions, id: \.self) { code in
+                        Button(code) { currencyCode = code }
+                    }
+                } label: {
+                    Text(currencySymbol)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(accent)
+                }
+                ZStack(alignment: .leading) {
+                    if amount.isEmpty {
+                        Text("0.00")
+                            .font(.system(size: 40, weight: .heavy))
+                            .foregroundStyle(Color(hex: "#E5E0EE").opacity(0.35))
+                    }
+                    TextField("", text: $amount)
+                        .font(.system(size: 40, weight: .heavy))
+                        .foregroundStyle(Color(hex: "#E5E0EE"))
+                        .keyboardType(.decimalPad)
+                        .accessibilityIdentifier("group.expense.amount")
+                        .onChange(of: amount) { _, new in
+                            amount = new.filter { $0.isNumber || $0 == "." }
+                        }
+                }
             }
-            .padding(12)
-            .background(Color(hex: "#201E28"))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#938EA1"), lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .frame(maxWidth: .infinity)
+
+            Menu {
+                ForEach(currencyOptions, id: \.self) { code in
+                    Button(code) { currencyCode = code }
+                }
+            } label: {
+                HStack {
+                    Text("Currency")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#C9C4D8"))
+                    Spacer()
+                    Text("\(currencySymbol)  \(currencyCode)")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#E5E0EE"))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(hex: "#C9C4D8"))
+                }
+                .padding(12)
+                .background(Color(hex: "#201E28"))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#938EA1"), lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
 
             fieldLabel("DESCRIPTION")
-            TextField("Dinner, hotel, supplies…", text: $descriptionText)
+            TextField("What was this for?", text: $descriptionText)
                 .foregroundStyle(Color(hex: "#E5E0EE"))
                 .padding(12)
                 .background(Color(hex: "#201E28"))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#938EA1"), lineWidth: 1))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .accessibilityIdentifier("group.expense.note")
+
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    fieldLabel("PAID BY")
+                    Menu {
+                        ForEach(participants) { p in
+                            Button(p.displayName ?? shortId(p.participantId)) {
+                                paidByParticipantId = p.participantId
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text(participants.first(where: { $0.participantId == paidByParticipantId })?.displayName ?? "Select")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(Color(hex: "#E5E0EE"))
+                            Spacer()
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color(hex: "#C9C4D8"))
+                        }
+                        .padding(12)
+                        .background(Color(hex: "#201E28"))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#938EA1"), lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .accessibilityIdentifier("group.expense.payer")
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    fieldLabel("DATE")
+                    WeddingDatePickField(value: $expenseDate, placeholder: "Today")
+                }
+            }
+
+            fieldLabel("SPLIT BETWEEN")
+            if participants.isEmpty {
+                Text("No participants yet")
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: "#C9C4D8"))
+            } else {
+                AvatarPick(people: people, selected: $selectedParticipantIds, accent: sheetAccent) { id in
+                    if selectedParticipantIds.contains(id) {
+                        selectedParticipantIds.remove(id)
+                    } else {
+                        selectedParticipantIds.insert(id)
+                    }
+                }
+            }
+
+            fieldLabel("SPLIT TYPE")
+            HStack(spacing: 4) {
+                ForEach(figmaSplitLabels, id: \.strategy) { item in
+                    let on = splitStrategy == item.strategy
+                    Button {
+                        splitStrategy = item.strategy
+                        seedSplitValues(for: item.strategy)
+                    } label: {
+                        Text(item.label)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(on ? .white : Color(hex: "#C9C4D8"))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(on ? accent : Color.clear)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("group.expense.split.\(item.strategy.lowercased())")
+                }
+            }
+            .padding(4)
+            .background(Color(hex: "#201E28"))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .accessibilityIdentifier("group.expense.split")
+
+            if splitStrategy == "POOLED" {
+                Text("Household spend — sums for the month. No per-member split.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(isWedding ? Color(hex: "#C9C4D8") : TripSheetTokens.muted)
+            }
 
             fieldLabel("CATEGORY")
             FlowLayout(spacing: 8) {
@@ -153,86 +284,7 @@ struct GroupExpenseSheet: View {
             }
             .accessibilityIdentifier("group.expense.category")
 
-            fieldLabel("PAID BY")
-            if loading {
-                ProgressView().tint(accent)
-            } else if participants.isEmpty {
-                Text("No participants on this Moment.")
-                    .font(.caption)
-                    .foregroundStyle(Color(hex: "#F87171"))
-            } else {
-                FlowLayout(spacing: 8) {
-                    ForEach(participants) { p in
-                        let on = paidByParticipantId == p.participantId
-                        Button {
-                            paidByParticipantId = p.participantId
-                        } label: {
-                            Text(p.displayName ?? shortId(p.participantId))
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(on ? .white : Color(hex: "#C9C4D8"))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(on ? accent : Color(hex: "#201E28"))
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-
-            fieldLabel("SPLIT TYPE")
-            FlowLayout(spacing: 8) {
-                ForEach(strategies, id: \.self) { strategy in
-                    let on = splitStrategy == strategy
-                    Button {
-                        splitStrategy = strategy
-                        seedSplitValues(for: strategy)
-                    } label: {
-                        Text(strategy == "POOLED" ? "Pooled" : strategy.capitalized)
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(on ? .white : Color(hex: "#C9C4D8"))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(on ? accent : Color(hex: "#201E28"))
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("group.expense.split.\(strategy.lowercased())")
-                }
-            }
-
-            if splitStrategy == "POOLED" {
-                Text("Household spend — sums for the month. No per-member split.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(isWedding ? Color(hex: "#C9C4D8") : TripSheetTokens.muted)
-            } else {
-            fieldLabel("SPLIT BETWEEN")
-            FlowLayout(spacing: 8) {
-                ForEach(participants) { p in
-                    let on = selectedParticipantIds.contains(p.participantId)
-                    Button {
-                        if on {
-                            selectedParticipantIds.remove(p.participantId)
-                        } else {
-                            selectedParticipantIds.insert(p.participantId)
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                            Text(p.displayName ?? shortId(p.participantId))
-                                .font(.system(size: 12, weight: .bold))
-                        }
-                        .foregroundStyle(on ? .white : Color(hex: "#C9C4D8"))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(on ? accent.opacity(0.85) : Color(hex: "#201E28"))
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            if splitStrategy != "EQUAL" && !selectedParticipantIds.isEmpty {
+            if splitStrategy != "EQUAL" && splitStrategy != "POOLED" && !selectedParticipantIds.isEmpty {
                 fieldLabel(splitValueLabel)
                 ForEach(Array(selectedParticipantIds).sorted(), id: \.self) { id in
                     HStack {
@@ -255,7 +307,6 @@ struct GroupExpenseSheet: View {
                     }
                 }
             }
-            }
         }
         .padding(12)
         .background(Color.white.opacity(0.05))
@@ -271,7 +322,7 @@ struct GroupExpenseSheet: View {
                 if submitting {
                     ProgressView().tint(.white)
                 } else {
-                    Text("Save Expense")
+                    Text(isEditing ? "Save Expense" : "Add Expense")
                         .font(.system(size: 15, weight: .heavy))
                     Image(systemName: "checkmark")
                         .font(.system(size: 13, weight: .bold))

@@ -12,6 +12,7 @@
 		87703F812302E064E0031B6D7 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 87703F862302E064E0031B6D7 /* FirebaseCore */; };
 		87703F822302E064E0031B6D7 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 87703F872302E064E0031B6D7 /* GoogleSignIn */; };
 		87703F882302E064E0031B6D7 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 87703F892302E064E0031B6D7 /* FirebaseAnalytics */; };
+		87703F8A2302E064E0031B6D7 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 87703F8B2302E064E0031B6D7 /* FirebaseMessaging */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,9 +38,22 @@
 		87703F6A302E064E0031B6D7 /* momentraUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = momentraUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A1B2C3D4302E064E0031B6D7 /* Exceptions for "momentra" folder in "momentra" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				.syncthing.AuthViewModel.swift.tmp,
+			);
+			target = 87703F52302E064C0031B6D7 /* momentra */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		87703F55302E064C0031B6D7 /* momentra */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A1B2C3D4302E064E0031B6D7 /* Exceptions for "momentra" folder in "momentra" target */,
+			);
 			path = momentra;
 			sourceTree = "<group>";
 		};
@@ -64,6 +78,7 @@
 				87703F802302E064E0031B6D7 /* FirebaseAuth in Frameworks */,
 				87703F812302E064E0031B6D7 /* FirebaseCore in Frameworks */,
 				87703F882302E064E0031B6D7 /* FirebaseAnalytics in Frameworks */,
+				87703F8A2302E064E0031B6D7 /* FirebaseMessaging in Frameworks */,
 				87703F822302E064E0031B6D7 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -129,6 +144,7 @@
 				87703F852302E064E0031B6D7 /* FirebaseAuth */,
 				87703F862302E064E0031B6D7 /* FirebaseCore */,
 				87703F892302E064E0031B6D7 /* FirebaseAnalytics */,
+				87703F8B2302E064E0031B6D7 /* FirebaseMessaging */,
 				87703F872302E064E0031B6D7 /* GoogleSignIn */,
 				87703F912302E064E0031B6D7 /* MomentraAPI */,
 			);
@@ -744,6 +760,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 87703F832302E064E0031B6D7 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseAnalytics;
+		};
+		87703F8B2302E064E0031B6D7 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 87703F832302E064E0031B6D7 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
 		};
 		87703F912302E064E0031B6D7 /* MomentraAPI */ = {
 			isa = XCSwiftPackageProductDependency;

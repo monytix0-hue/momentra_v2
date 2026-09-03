@@ -7,6 +7,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.example.momentra.analytics.BackendTelemetry
 import com.example.momentra.analytics.MomentraAnalytics
+import com.example.momentra.data.device.MomentraFirebaseMessagingService
 import com.example.momentra.observability.SentryBootstrap
 import com.example.momentra.ui.shell.maestro.QaCorrelationReceiver
 import com.google.firebase.FirebaseApp
@@ -18,6 +19,7 @@ class MomentraApp : Application() {
         installFirebaseNetworkGuard()
         SentryBootstrap.init()
         FirebaseApp.initializeApp(this)
+        MomentraFirebaseMessagingService.ensureDefaultChannel(this)
         QaCorrelationReceiver.register(this)
         BackendTelemetry.init(this)
         MomentraAnalytics.init(this)

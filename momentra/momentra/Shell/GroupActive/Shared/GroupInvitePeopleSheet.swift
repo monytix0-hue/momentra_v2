@@ -198,7 +198,7 @@ struct GroupInvitePeopleSheet: View {
         submitting = true
         formError = nil
         do {
-            let emailTrimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            var emailTrimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
             var phone: String? = nil
             if !emailTrimmed.isEmpty {
                 let looksLikePhone = emailTrimmed.contains(where: { $0.isNumber })

@@ -19,7 +19,7 @@ object GroupExpenseCategoryCatalog {
         // Shared Living
         "FLATMATES" to listOf("Rent", "Groceries", "Utilities", "Internet", "House Supplies", "Repairs", "Other"),
         "FAMILY_HOUSEHOLD" to listOf(
-            "Rent", "Groceries", "Transport", "Bills", "Utilities", "Healthcare", "School", "Other",
+            "Utilities", "Rent", "Groceries", "Internet", "Maintenance", "Other",
         ),
         "CO_LIVING" to listOf("Rent", "Groceries", "Utilities", "Maintenance", "Other"),
         "COMMUNITY_LIVING" to listOf("Custom Expense", "Custom Contribution"),

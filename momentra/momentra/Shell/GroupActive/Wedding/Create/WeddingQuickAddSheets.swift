@@ -181,7 +181,7 @@ struct SheetField: View {
     }
 }
 
-private struct WeddingDatePickField: View {
+struct WeddingDatePickField: View {
     @Binding var value: String
     var placeholder: String = "Select date"
 
@@ -321,7 +321,7 @@ struct ChipRow: View {
     }
 }
 
-private struct Segmented: View {
+struct Segmented: View {
     let options: [String]
     @Binding var selected: String
     var accent: SheetAccent = purpleAccent
@@ -400,7 +400,7 @@ private func initialsOf(_ name: String) -> String {
     return "??"
 }
 
-private struct AvatarPick: View {
+struct AvatarPick: View {
     let people: [(id: String, name: String)]
     @Binding var selected: Set<String>
     var accent: SheetAccent = purpleAccent

@@ -15,11 +15,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -37,6 +41,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,6 +49,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.GroupExpenseSplitInputDto
+import com.example.momentra.R
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupExpenseSplitBuilder
 import com.example.momentra.data.repository.GroupSliceRepository
@@ -57,8 +63,6 @@ import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.math.RoundingMode
-import com.example.momentra.ui.shell.group.wedding.create.FieldLabel
-import com.example.momentra.ui.shell.group.wedding.create.SheetField
 
 private val Teal = Color(0xFF14B8A6)
 private val Red = Color(0xFFF87171)
@@ -96,13 +100,6 @@ fun GroupExpenseSheet(
     val supportsPooled = remember(momentTypeCode) {
         livingTypes.contains((momentTypeCode ?: "").trim().uppercase())
     }
-    val strategies = remember(supportsPooled) {
-        if (supportsPooled) {
-            listOf("EQUAL", "PERCENTAGE", "EXACT", "SHARES", "POOLED")
-        } else {
-            listOf("EQUAL", "PERCENTAGE", "EXACT", "SHARES")
-        }
-    }
     var amount by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("INR") }
     var description by remember { mutableStateOf("") }
@@ -115,10 +112,30 @@ fun GroupExpenseSheet(
     /** PERCENTAGE: participantId → percent string; EXACT: amount; SHARES: weight */
     var splitValues by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var paidById by remember { mutableStateOf<String?>(null) }
+    var currencyMenuOpen by remember { mutableStateOf(false) }
+    var paidByMenuOpen by remember { mutableStateOf(false) }
+    var expenseDate by remember { mutableStateOf("") }
     var loadingParticipants by remember { mutableStateOf(true) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val currencyOptions = remember { listOf("INR", "USD", "EUR", "GBP") }
+    val currencySymbol = remember(currency) {
+        when (currency) {
+            "USD" -> "$"
+            "EUR" -> "€"
+            "GBP" -> "£"
+            else -> "₹"
+        }
+    }
+    val figmaSplitLabels = remember(supportsPooled) {
+        buildList {
+            add("Equal" to "EQUAL")
+            add("Custom" to "EXACT")
+            add("% Percent" to "PERCENTAGE")
+            if (supportsPooled) add("Pooled" to "POOLED")
+        }
+    }
 
     LaunchedEffect(momentId, visible, expenseId) {
         if (!visible) return@LaunchedEffect
@@ -248,20 +265,14 @@ fun GroupExpenseSheet(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        if (isEditing) {
-                            if (isWedding) "Edit Expense" else "Edit group expense"
-                        } else if (isWedding) {
-                            "Add Expense"
-                        } else {
-                            "Group expense"
-                        },
+                        if (isEditing) "Edit Expense" else "Add Expense",
                         color = sheetText,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.ExtraBold,
                         fontFamily = PlusJakartaSans,
                     )
                     Text(
-                        if (isWedding) "Track and split wedding costs" else "Split is computed on the server. Preview is local only.",
+                        if (isWedding) "Track and split wedding costs" else "Split costs with the group",
                         color = sheetSecondary,
                         fontSize = 12.sp,
                         fontFamily = PlusJakartaSans,
@@ -278,37 +289,105 @@ fun GroupExpenseSheet(
                 }
             }
 
-            FieldLabel("Amount", color = sheetSecondary)
-            SheetField(
-                value = amount,
-                onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
-                placeholder = "0.00",
-                keyboardType = KeyboardType.Decimal,
-                testTag = MaestroIds.GROUP_EXPENSE_AMOUNT,
-                card = sheetCard,
-                border = sheetBorder,
-                text = sheetText,
-                secondary = sheetSecondary,
-                accent = sheetAccent,
-                cornerRadius = fieldRadius,
-            )
-            FieldLabel("Currency", color = sheetSecondary)
-            SheetField(
-                value = currency,
-                onValueChange = { currency = it.uppercase().take(3) },
-                placeholder = "INR",
-                card = sheetCard,
-                border = sheetBorder,
-                text = sheetText,
-                secondary = sheetSecondary,
-                accent = sheetAccent,
-                cornerRadius = fieldRadius,
-            )
-            FieldLabel("Description (optional)", color = sheetSecondary)
+            // Figma GRP-SL-FAM-Q01: large currency amount + currency dropdown
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Box {
+                    Text(
+                        currencySymbol,
+                        color = sheetAccent,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { currencyMenuOpen = true }
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                    )
+                    DropdownMenu(
+                        expanded = currencyMenuOpen,
+                        onDismissRequest = { currencyMenuOpen = false },
+                    ) {
+                        currencyOptions.forEach { code ->
+                            DropdownMenuItem(
+                                text = { Text(code, fontFamily = PlusJakartaSans) },
+                                onClick = {
+                                    currency = code
+                                    currencyMenuOpen = false
+                                },
+                            )
+                        }
+                    }
+                }
+                BasicTextField(
+                    value = amount,
+                    onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
+                    singleLine = true,
+                    textStyle = TextStyle(
+                        color = sheetText,
+                        fontSize = 40.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = PlusJakartaSans,
+                    ),
+                    cursorBrush = SolidColor(sheetAccent),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    decorationBox = { inner ->
+                        if (amount.isEmpty()) {
+                            Text(
+                                "0.00",
+                                color = sheetText.copy(alpha = 0.35f),
+                                fontSize = 40.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontFamily = PlusJakartaSans,
+                            )
+                        }
+                        inner()
+                    },
+                    modifier = Modifier
+                        .padding(start = 6.dp)
+                        .testTag(MaestroIds.GROUP_EXPENSE_AMOUNT),
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(fieldRadius))
+                    .background(sheetCard)
+                    .border(1.dp, sheetBorder, RoundedCornerShape(fieldRadius))
+                    .clickable { currencyMenuOpen = true }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Currency", color = sheetSecondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        "$currencySymbol  $currency",
+                        color = sheetText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                    Icon(
+                        painter = painterResource(R.drawable.ic_biz_create_chevron),
+                        contentDescription = null,
+                        tint = sheetSecondary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+
+            FieldLabel("Description", color = sheetSecondary)
             SheetField(
                 value = description,
                 onValueChange = { description = it },
-                placeholder = "Dinner, groceries…",
+                placeholder = "What was this for?",
                 testTag = MaestroIds.GROUP_EXPENSE_NOTE,
                 card = sheetCard,
                 border = sheetBorder,
@@ -317,6 +396,215 @@ fun GroupExpenseSheet(
                 accent = sheetAccent,
                 cornerRadius = fieldRadius,
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FieldLabel("Paid By", color = sheetSecondary)
+                    Box(modifier = Modifier.testTag(MaestroIds.GROUP_EXPENSE_PAYER)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(fieldRadius))
+                                .background(sheetCard)
+                                .border(1.dp, sheetBorder, RoundedCornerShape(fieldRadius))
+                                .clickable { paidByMenuOpen = true }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                participants.firstOrNull { it.participantId == paidById }?.displayName
+                                    ?: "Select",
+                                color = sheetText,
+                                fontSize = 14.sp,
+                                fontFamily = PlusJakartaSans,
+                            )
+                            Icon(
+                                painter = painterResource(R.drawable.ic_biz_create_chevron),
+                                contentDescription = null,
+                                tint = sheetSecondary,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = paidByMenuOpen,
+                            onDismissRequest = { paidByMenuOpen = false },
+                        ) {
+                            participants.forEach { p ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            p.displayName ?: p.participantId.take(8),
+                                            fontFamily = PlusJakartaSans,
+                                        )
+                                    },
+                                    onClick = {
+                                        paidById = p.participantId
+                                        paidByMenuOpen = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FieldLabel("Date", color = sheetSecondary)
+                    TripDatePickField(
+                        value = expenseDate,
+                        onValueChange = { expenseDate = it },
+                        placeholder = "Today",
+                    )
+                }
+            }
+
+            FieldLabel("Split Between", color = sheetSecondary)
+            if (!loadingParticipants && participants.isEmpty()) {
+                Text(
+                    "No participants yet",
+                    color = sheetSecondary,
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            } else {
+                val avatarColors = listOf(
+                    Color(0xFFFBBF24),
+                    Color(0xFF34D399),
+                    Color(0xFF60A5FA),
+                    Color(0xFFF472B6),
+                    Color(0xFFA78BFA),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    participants.forEachIndexed { index, p ->
+                        val selected = p.participantId in selectedSplitIds
+                        val color = avatarColors[index % avatarColors.size]
+                        val name = p.displayName ?: p.participantId.take(8)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.clickable {
+                                selectedSplitIds = if (selected) {
+                                    selectedSplitIds - p.participantId
+                                } else {
+                                    selectedSplitIds + p.participantId
+                                }
+                            },
+                        ) {
+                            Box {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                        .then(
+                                            if (selected) Modifier.border(2.dp, sheetAccent, CircleShape)
+                                            else Modifier,
+                                        ),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        name.split(" ").filter { it.isNotEmpty() }.take(2)
+                                            .joinToString("") { it.first().uppercase() }
+                                            .ifBlank { "??" },
+                                        color = Color(0xFF14121B),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = PlusJakartaSans,
+                                    )
+                                }
+                                if (selected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .size(16.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(sheetAccent),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            "✓",
+                                            color = Color.White,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                name.split(" ").first(),
+                                color = if (selected) sheetText else sheetSecondary,
+                                fontSize = 11.sp,
+                                fontFamily = PlusJakartaSans,
+                            )
+                        }
+                    }
+                }
+            }
+
+            FieldLabel("Split Type", color = sheetSecondary)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(MaestroIds.GROUP_EXPENSE_SPLIT)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(sheetCard)
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                figmaSplitLabels.forEach { (label, strategy) ->
+                    val on = splitStrategy == strategy
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (on) sheetAccent else Color.Transparent)
+                            .clickable {
+                                splitStrategy = strategy
+                                when (strategy) {
+                                    "PERCENTAGE" -> if (selectedSplitIds.isNotEmpty()) {
+                                        val even = 100.0 / selectedSplitIds.size
+                                        splitValues = selectedSplitIds.associateWith {
+                                            String.format("%.2f", even)
+                                        }
+                                    }
+                                    "EXACT" -> splitValues = selectedSplitIds.associateWith { "" }
+                                    else -> splitValues = emptyMap()
+                                }
+                            }
+                            .padding(horizontal = 8.dp, vertical = 10.dp)
+                            .testTag(MaestroIds.groupExpenseSplitStrategy(strategy)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            label,
+                            color = if (on) Color.White else sheetSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                }
+            }
+
+            if (splitStrategy == "POOLED") {
+                Text(
+                    "Household spend — sums for the month. No per-member split.",
+                    color = sheetSecondary,
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
 
             FieldLabel("Category", color = sheetSecondary)
             FlowRow(
@@ -337,91 +625,7 @@ fun GroupExpenseSheet(
                 }
             }
 
-            FieldLabel("Paid by", color = sheetSecondary)
-            FlowRow(
-                modifier = Modifier.testTag(MaestroIds.GROUP_EXPENSE_PAYER),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                participants.forEach { p ->
-                    val selected = paidById == p.participantId
-                    ParticipantChip(
-                        label = p.displayName ?: p.participantId.take(8),
-                        selected = selected,
-                        onClick = { paidById = p.participantId },
-                        accent = sheetAccent,
-                        card = sheetCard,
-                        border = sheetBorder,
-                        text = sheetText,
-                    )
-                }
-            }
-
-            FieldLabel("Split strategy", color = sheetSecondary)
-            FlowRow(
-                modifier = Modifier.testTag(MaestroIds.GROUP_EXPENSE_SPLIT),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                strategies.forEach { strategy ->
-                    ParticipantChip(
-                        label = if (strategy == "POOLED") "Pooled" else strategy,
-                        selected = splitStrategy == strategy,
-                        onClick = {
-                            splitStrategy = strategy
-                            if (strategy == "PERCENTAGE" && selectedSplitIds.isNotEmpty()) {
-                                val even = (100.0 / selectedSplitIds.size)
-                                splitValues = selectedSplitIds.associateWith {
-                                    String.format("%.2f", even)
-                                }
-                            } else if (strategy == "SHARES") {
-                                splitValues = selectedSplitIds.associateWith { "1" }
-                            } else if (strategy == "EXACT") {
-                                splitValues = selectedSplitIds.associateWith { "" }
-                            } else {
-                                splitValues = emptyMap()
-                            }
-                        },
-                        accent = sheetAccent,
-                        card = sheetCard,
-                        border = sheetBorder,
-                        text = sheetText,
-                        testTag = MaestroIds.groupExpenseSplitStrategy(strategy),
-                    )
-                }
-            }
-
-            if (splitStrategy == "POOLED") {
-                Text(
-                    "Household spend — sums for the month. No per-member split.",
-                    color = sheetSecondary,
-                    fontSize = 12.sp,
-                    fontFamily = PlusJakartaSans,
-                )
-            } else {
-            FieldLabel("Split with", color = sheetSecondary)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                participants.forEach { p ->
-                    val selected = p.participantId in selectedSplitIds
-                    ParticipantChip(
-                        label = p.displayName ?: p.participantId.take(8),
-                        selected = selected,
-                        onClick = {
-                            selectedSplitIds = if (selected) {
-                                selectedSplitIds - p.participantId
-                            } else {
-                                selectedSplitIds + p.participantId
-                            }
-                        },
-                        accent = sheetAccent,
-                        card = sheetCard,
-                        border = sheetBorder,
-                        text = sheetText,
-                    )
-                }
-            }
-
-            if (splitStrategy != "EQUAL" && selectedSplitIds.isNotEmpty()) {
+            if (splitStrategy != "EQUAL" && splitStrategy != "POOLED" && selectedSplitIds.isNotEmpty()) {
                 val valueLabel = when (splitStrategy) {
                     "PERCENTAGE" -> "Percent (must sum to 100)"
                     "EXACT" -> "Exact amount per person"
@@ -465,7 +669,13 @@ fun GroupExpenseSheet(
                     }
                 }
             }
-            } // end non-POOLED split UI
+
+            Text(
+                "All residents will be notified",
+                color = sheetSecondary,
+                fontSize = 12.sp,
+                fontFamily = PlusJakartaSans,
+            )
 
             if (previewShares.isNotEmpty() && splitStrategy != "POOLED") {
                 FieldLabel(
@@ -633,7 +843,7 @@ fun GroupExpenseSheet(
                     CircularProgressIndicator(color = sheetAccent, modifier = Modifier.padding(4.dp))
                 } else {
                     Text(
-                        "Save expense",
+                        if (isEditing) "Save Expense" else "Add Expense",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
@@ -763,35 +973,6 @@ fun GroupContributionSheet(
             )
             error?.let {
                 Text(it, color = Red, fontSize = 12.sp, fontFamily = PlusJakartaSans)
-            }
-            if (isEditing && expenseId != null) {
-                Text(
-                    "Delete expense",
-                    color = Red,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                    fontFamily = PlusJakartaSans,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = !submitting) {
-                            scope.launch {
-                                submitting = true
-                                error = null
-                                repository.voidGroupExpense(momentId, expenseId).fold(
-                                    onSuccess = {
-                                        submitting = false
-                                        onDeleted()
-                                        onDismiss()
-                                    },
-                                    onFailure = {
-                                        submitting = false
-                                        error = it.message
-                                    },
-                                )
-                            }
-                        }
-                        .padding(vertical = 10.dp),
-                )
             }
             Box(
                 modifier = Modifier

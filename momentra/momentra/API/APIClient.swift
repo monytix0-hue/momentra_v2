@@ -4296,7 +4296,8 @@ final class APIClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            // Bounded GET-only network retry (one extra attempt).
+            if Self.isCancellation(error) { throw CancellationError() }
+            // Bounded GET-only network retry (one extra attempt). Skip cancellations.
             if networkAttempt < 1 {
                 return try await authorizedGet(
                     path: path,
@@ -4349,6 +4350,7 @@ final class APIClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            if Self.isCancellation(error) { throw CancellationError() }
             throw APIErrorKind.network(Self.networkFailureMessage(error))
         }
         guard let http = response as? HTTPURLResponse else {
@@ -4397,6 +4399,7 @@ final class APIClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            if Self.isCancellation(error) { throw CancellationError() }
             throw APIErrorKind.network(Self.networkFailureMessage(error))
         }
         guard let http = response as? HTTPURLResponse else {
@@ -4444,6 +4447,7 @@ final class APIClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            if Self.isCancellation(error) { throw CancellationError() }
             throw APIErrorKind.network(Self.networkFailureMessage(error))
         }
         guard let http = response as? HTTPURLResponse else {
@@ -4500,6 +4504,7 @@ final class APIClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            if Self.isCancellation(error) { throw CancellationError() }
             throw APIErrorKind.network(Self.networkFailureMessage(error))
         }
         guard let http = response as? HTTPURLResponse else {
@@ -4521,9 +4526,20 @@ final class APIClient {
         return envelope.data
     }
 
+    /// URLSession surfaces Swift concurrency cancellation as NSURLErrorCancelled (-999).
+    private static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        let ns = error as NSError
+        return ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled
+    }
+
     private static func networkFailureMessage(_ error: Error) -> String {
         let ns = error as NSError
         if ns.domain == NSURLErrorDomain {
+            // Cancelled requests are not connectivity failures (tab switch / .task refresh).
+            if ns.code == NSURLErrorCancelled {
+                return "Request cancelled"
+            }
             let detail: String = switch ns.code {
             case NSURLErrorNotConnectedToInternet: "device is offline"
             case NSURLErrorTimedOut: "request timed out"

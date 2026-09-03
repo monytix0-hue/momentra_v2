@@ -16,7 +16,7 @@ enum GroupExpenseCategoryCatalog {
         "COMMUNITY_PURCHASE": ["Custom Expense", "Custom Contribution"],
         // Shared Living
         "FLATMATES": ["Rent", "Groceries", "Utilities", "Internet", "House Supplies", "Repairs", "Other"],
-        "FAMILY_HOUSEHOLD": ["Rent", "Groceries", "Transport", "Bills", "Utilities", "Healthcare", "School", "Other"],
+        "FAMILY_HOUSEHOLD": ["Utilities", "Rent", "Groceries", "Internet", "Maintenance", "Other"],
         "CO_LIVING": ["Rent", "Groceries", "Utilities", "Maintenance", "Other"],
         "COMMUNITY_LIVING": ["Custom Expense", "Custom Contribution"],
         // DB aliases sometimes surfaced in older ledgers

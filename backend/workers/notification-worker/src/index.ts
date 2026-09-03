@@ -11,7 +11,9 @@ const POLL_MS = parseInt(process.env.NOTIFICATION_POLL_MS ?? '10000', 10);
 
 function initFirebaseAdmin(): Messaging | null {
   if (getApps().length === 0) {
-    const credJson = process.env.FIREBASE_CREDENTIALS_JSON;
+    const credJson =
+      process.env.FIREBASE_CREDENTIALS_JSON ||
+      process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     const projectId = process.env.FIREBASE_PROJECT_ID;
     if (credJson) {
       const cred = JSON.parse(credJson) as Record<string, string>;
@@ -22,6 +24,12 @@ function initFirebaseAdmin(): Messaging | null {
     } else if (projectId) {
       initializeApp({ projectId });
     } else {
+      console.warn(
+        JSON.stringify({
+          worker: 'notification-worker',
+          warning: 'Firebase Admin not configured — push disabled',
+        })
+      );
       return null;
     }
   }

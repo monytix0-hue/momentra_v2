@@ -1,12 +1,14 @@
 import FirebaseAuth
 import FirebaseCore
+import FirebaseMessaging
 import SwiftUI
 import UIKit
+import UserNotifications
 #if os(iOS)
 import GoogleSignIn
 #endif
 
-class AppDelegate: NSObject, UIApplicationDelegate {
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -14,7 +16,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         SentryBootstrap.initIfConfigured()
         FirebaseApp.configure()
         _ = MomentraAnalytics.shared
-        application.registerForRemoteNotifications()
+        PushNotifications.configure(delegate: self)
+        PushNotifications.requestPermissionAndRegister()
         return true
     }
 
@@ -30,7 +33,14 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
-        Auth.auth().setAPNSToken(deviceToken, type: .unknown)
+        PushNotifications.handleApnsToken(deviceToken)
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        NSLog("APNs registration failed: \(error.localizedDescription)")
     }
 
     func application(
@@ -42,7 +52,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             completionHandler(.noData)
             return
         }
-        completionHandler(.noData)
+        completionHandler(.newData)
     }
 
     func application(
@@ -58,6 +68,23 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         #else
         return false
         #endif
+    }
+
+    // MARK: - UNUserNotificationCenterDelegate
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound, .badge])
+    }
+
+    // MARK: - MessagingDelegate
+
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard let fcmToken, !fcmToken.isEmpty else { return }
+        Task { await PushNotifications.syncDeviceWithBackend(explicitToken: fcmToken) }
     }
 }
 
@@ -161,6 +188,12 @@ struct AuthOnlyView: View {
         .animation(.easeInOut(duration: 0.25), value: viewModel.isRestoringSession)
         .animation(.easeInOut(duration: 0.25), value: onboardingSeen)
         .animation(.easeInOut(duration: 0.25), value: consentAck)
+        .onChange(of: viewModel.isLoggedIn) { _, loggedIn in
+            if loggedIn {
+                PushNotifications.requestPermissionAndRegister()
+                Task { await PushNotifications.syncDeviceWithBackend() }
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .background:

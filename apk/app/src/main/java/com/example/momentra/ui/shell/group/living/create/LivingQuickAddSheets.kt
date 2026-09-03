@@ -1,9 +1,11 @@
 package com.example.momentra.ui.shell.group.living.create
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -12,8 +14,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -26,11 +33,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
+import com.example.momentra.ui.shell.group.shared.TripDatePickField
 import com.example.momentra.ui.shell.group.wedding.create.ChipRow
 import com.example.momentra.ui.shell.group.wedding.create.FieldLabel
 import com.example.momentra.ui.shell.group.wedding.create.PrimaryCta
@@ -141,10 +152,18 @@ private fun LivingResidentSheetBody(
     accent: SheetAccent,
 ) {
     var name by remember { mutableStateOf("") }
+    var contact by remember { mutableStateOf("") }
+    var room by remember { mutableStateOf("") }
+    var moveInDate by remember { mutableStateOf("") }
+    var rentShare by remember { mutableStateOf("") }
     var role by remember { mutableStateOf(theme.participantRoles.first()) }
+    var sendInvitation by remember { mutableStateOf(true) }
+    var addToExpenseSplit by remember { mutableStateOf(true) }
+    var roomMenuOpen by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val roomOptions = remember { listOf("Unassigned", "Room 1", "Room 2", "Room 3", "Common area") }
 
     SheetHeader(
         R.drawable.ic_qa_users,
@@ -153,22 +172,101 @@ private fun LivingResidentSheetBody(
         accent = accent,
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FieldLabel("Name")
+        FieldLabel("Full Name")
         SheetField(name, { name = it }, "Full name", minHeight = 42)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel("Email or Phone")
+        SheetField(contact, { contact = it }, "email@example.com or +91…", minHeight = 42)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel("Room Assignment")
+        Box {
+            SheetField(
+                value = room,
+                onValueChange = {},
+                placeholder = "Select room",
+                minHeight = 42,
+                trailing = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_biz_create_chevron),
+                        contentDescription = null,
+                        tint = Color(0xFF9E9AA8),
+                        modifier = Modifier.size(16.dp),
+                    )
+                },
+            )
+            // Make whole field open the menu
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable { roomMenuOpen = true },
+            )
+            DropdownMenu(
+                expanded = roomMenuOpen,
+                onDismissRequest = { roomMenuOpen = false },
+            ) {
+                roomOptions.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option, fontFamily = PlusJakartaSans) },
+                        onClick = {
+                            room = option
+                            roomMenuOpen = false
+                        },
+                    )
+                }
+            }
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel("Move-in Date")
+        TripDatePickField(
+            value = moveInDate,
+            onValueChange = { moveInDate = it },
+            placeholder = "Select date",
+        )
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel("Monthly Rent Share")
+        SheetField(
+            rentShare,
+            { rentShare = it.filter { c -> c.isDigit() || c == '.' } },
+            "0.00",
+            minHeight = 42,
+            leading = {
+                Text("₹", color = accent.accent, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+            },
+            keyboardType = KeyboardType.Decimal,
+        )
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("Role")
         ChipRow(theme.participantRoles, role, accent) { role = it }
     }
+    LivingToggleRow(
+        title = "Send Invitation",
+        subtitle = "Email/SMS joining link to this person",
+        checked = sendInvitation,
+        accent = accent.accent,
+        onChange = { sendInvitation = it },
+    )
+    LivingToggleRow(
+        title = "Add to Expense Split",
+        subtitle = "Auto-add to active shared bills",
+        checked = addToExpenseSplit,
+        accent = accent.accent,
+        onChange = { addToExpenseSplit = it },
+    )
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
     PrimaryCta(
-        label = "Add Resident",
+        label = if (sendInvitation) "Invite Resident" else "Add Resident",
         enabled = !momentId.isNullOrBlank() && name.isNotBlank() && !submitting,
         loading = submitting,
         accent = accent,
         lightLabel = true,
         onClick = {
             val id = momentId ?: return@PrimaryCta
+            // contact / room / moveInDate / rentShare / toggles: SCHEMA_GAP — UI parity only until API frozen
             scope.launch {
                 submitting = true
                 error = null
@@ -186,6 +284,31 @@ private fun LivingResidentSheetBody(
             }
         },
     )
+}
+
+@Composable
+private fun LivingToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    accent: Color,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, color = Color(0xFFE5E0EE), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+            Text(subtitle, color = EqMuted, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            colors = SwitchDefaults.colors(checkedTrackColor = accent, checkedThumbColor = Color.White),
+        )
+    }
 }
 
 @Composable

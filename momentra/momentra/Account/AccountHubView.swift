@@ -180,8 +180,8 @@ struct AccountHubView: View {
                 displayName = identity.displayName ?? ""
                 Task {
                     consents = (try? await APIClient.shared.listConsents().purposes) ?? []
+                    await PushNotifications.syncDeviceWithBackend()
                     devices = (try? await APIClient.shared.listDevices().items) ?? []
-                    _ = try? await APIClient.shared.registerDevice(deviceId: currentDeviceId)
                 }
             }
         }

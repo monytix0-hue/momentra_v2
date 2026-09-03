@@ -357,8 +357,8 @@ final class AuthViewModel: ObservableObject {
         phase = .authenticated
         error = nil
         APIClient.shared.warmAuthToken()
-        let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
-        Task { _ = try? await api.registerDevice(deviceId: deviceId) }
+        PushNotifications.requestPermissionAndRegister()
+        Task { await PushNotifications.syncDeviceWithBackend() }
     }
 
     private func recoverFromFailure(_ error: Error, method: String) {
