@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.wedding.create.ChipRow
 import com.example.momentra.ui.shell.group.wedding.create.FieldLabel
 import com.example.momentra.ui.shell.group.wedding.create.PrimaryCta
@@ -37,7 +38,6 @@ import com.example.momentra.ui.shell.group.wedding.create.SheetAccent
 import com.example.momentra.ui.shell.group.wedding.create.SheetField
 import com.example.momentra.ui.shell.group.wedding.create.SheetHeader
 import com.example.momentra.ui.shell.group.wedding.create.WeddingContributionSheetBody
-import com.example.momentra.ui.shell.group.wedding.create.WeddingExpenseSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingMemorySheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingPollSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingUpdateSheetBody
@@ -61,9 +61,25 @@ fun LivingGapQuickAddSheet(
     momentId: String?,
     onDismiss: () -> Unit,
     onSaved: () -> Unit = {},
+    momentTypeCode: String? = null,
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
+
+    if (kind == LivingQuickAddKind.EXPENSE && !momentId.isNullOrBlank()) {
+        GroupExpenseSheet(
+            momentId = momentId,
+            visible = true,
+            onDismiss = onDismiss,
+            onSaved = {
+                onSaved()
+                onDismiss()
+            },
+            momentTypeCode = momentTypeCode,
+            repository = repository,
+        )
+        return
+    }
 
     val accent = theme.toSheetAccent()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -91,8 +107,7 @@ fun LivingGapQuickAddSheet(
                     .background(EqHandle),
             )
             when (kind) {
-                LivingQuickAddKind.EXPENSE ->
-                    WeddingExpenseSheetBody(momentId, repository, onDismiss, onSaved, accent)
+                LivingQuickAddKind.EXPENSE -> Unit
                 LivingQuickAddKind.CONTRIBUTION ->
                     WeddingContributionSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 LivingQuickAddKind.POLL ->

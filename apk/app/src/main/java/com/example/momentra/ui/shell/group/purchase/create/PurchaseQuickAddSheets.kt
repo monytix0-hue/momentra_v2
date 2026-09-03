@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.wedding.create.ChipRow
 import com.example.momentra.ui.shell.group.wedding.create.FieldLabel
 import com.example.momentra.ui.shell.group.wedding.create.PrimaryCta
@@ -45,7 +46,6 @@ import com.example.momentra.ui.shell.group.wedding.create.SheetField
 import com.example.momentra.ui.shell.group.wedding.create.SheetHeader
 import com.example.momentra.ui.shell.group.wedding.create.WeddingBudgetSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingContributionSheetBody
-import com.example.momentra.ui.shell.group.wedding.create.WeddingExpenseSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingMemorySheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingPollSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingUpdateSheetBody
@@ -72,9 +72,25 @@ fun PurchaseGapQuickAddSheet(
     momentId: String?,
     onDismiss: () -> Unit,
     onSaved: () -> Unit = {},
+    momentTypeCode: String? = null,
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
+
+    if (kind == PurchaseQuickAddKind.EXPENSE && !momentId.isNullOrBlank()) {
+        GroupExpenseSheet(
+            momentId = momentId,
+            visible = true,
+            onDismiss = onDismiss,
+            onSaved = {
+                onSaved()
+                onDismiss()
+            },
+            momentTypeCode = momentTypeCode,
+            repository = repository,
+        )
+        return
+    }
 
     val accent = theme.toSheetAccent()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -102,8 +118,7 @@ fun PurchaseGapQuickAddSheet(
                     .background(EqHandle),
             )
             when (kind) {
-                PurchaseQuickAddKind.EXPENSE ->
-                    WeddingExpenseSheetBody(momentId, repository, onDismiss, onSaved, accent)
+                PurchaseQuickAddKind.EXPENSE -> Unit
                 PurchaseQuickAddKind.CONTRIBUTION ->
                     WeddingContributionSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 PurchaseQuickAddKind.BUDGET ->

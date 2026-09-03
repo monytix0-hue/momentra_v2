@@ -36,6 +36,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -203,6 +205,12 @@ fun AppShellScreen(
             if (offered.isNullOrBlank()) return@collect
             val code = PendingJoinInvite.consume(prefs) ?: return@collect
             pendingGroupJoinCode = code
+        }
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (state.selectedContext == AppContext.GROUP) {
+            shellViewModel.refreshVisibleGroupTab()
         }
     }
 
@@ -654,6 +662,7 @@ fun AppShellScreen(
                     kind = kind,
                     visible = true,
                     momentId = state.selectedMomentId,
+                    momentTypeCode = state.selectedMomentTypeCode,
                     onDismiss = { experienceGapQa = null },
                     onSaved = { shellViewModel.refreshVisibleGroupTab() },
                     onBooking = { groupCollabKind = GroupCollabKind.BOOKING },
@@ -665,6 +674,7 @@ fun AppShellScreen(
                     kind = kind,
                     visible = true,
                     momentId = state.selectedMomentId,
+                    momentTypeCode = state.selectedMomentTypeCode,
                     onDismiss = { purchaseGapQa = null },
                     onSaved = { shellViewModel.refreshVisibleGroupTab() },
                 )
@@ -675,6 +685,7 @@ fun AppShellScreen(
                     kind = kind,
                     visible = true,
                     momentId = state.selectedMomentId,
+                    momentTypeCode = state.selectedMomentTypeCode,
                     onDismiss = { livingGapQa = null },
                     onSaved = { shellViewModel.refreshVisibleGroupTab() },
                 )

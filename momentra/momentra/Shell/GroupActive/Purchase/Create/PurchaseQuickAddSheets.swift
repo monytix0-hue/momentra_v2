@@ -5,6 +5,7 @@ struct PurchaseGapQuickAddSheet: View {
     let theme: PurchaseActiveTheme
     let kind: PurchaseQuickAddKind
     var momentId: String? = nil
+    var momentTypeCode: String? = nil
     var onClose: () -> Void
     var onSaved: () -> Void = {}
 
@@ -13,26 +14,41 @@ struct PurchaseGapQuickAddSheet: View {
     }
 
     var body: some View {
-        NativeSheetScaffold(
-            title: kind.label,
-            onClose: onClose,
-            background: Color(hex: "#1C1A24")
-        ) {
-            ScrollView {
-                sheetBody
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
+        if kind == .expense, let momentId {
+            GroupExpenseSheet(
+                momentId: momentId,
+                isPresented: Binding(
+                    get: { true },
+                    set: { if !$0 { onClose() } }
+                ),
+                momentTypeCode: momentTypeCode,
+                onSaved: {
+                    onSaved()
+                    onClose()
+                }
+            )
+        } else {
+            NativeSheetScaffold(
+                title: kind.label,
+                onClose: onClose,
+                background: Color(hex: "#1C1A24")
+            ) {
+                ScrollView {
+                    sheetBody
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                }
             }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
     }
 
     @ViewBuilder
     private var sheetBody: some View {
         switch kind {
         case .expense:
-            WeddingExpenseBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
+            EmptyView()
         case .contribution:
             WeddingContributionBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .budget:

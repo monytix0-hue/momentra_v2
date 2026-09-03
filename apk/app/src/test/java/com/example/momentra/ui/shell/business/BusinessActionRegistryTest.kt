@@ -1,4 +1,4 @@
-package com.example.momentra.ui.shell.business
+package com.example.momentra.ui.shell.business.shared
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

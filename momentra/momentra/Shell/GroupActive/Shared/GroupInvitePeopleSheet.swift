@@ -133,7 +133,7 @@ struct GroupInvitePeopleSheet: View {
                 label: "Send Invite",
                 enabled: !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !submitting,
                 loading: submitting,
-                footer: "They will receive a notification",
+                footer: "Share the invite link so they can join",
                 colors: [TripForm.accent, TripSheetTokens.accentEnd],
                 onTap: { Task { await addParticipant() } }
             )
@@ -199,11 +199,21 @@ struct GroupInvitePeopleSheet: View {
         formError = nil
         do {
             let emailTrimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            var phone: String? = nil
+            if !emailTrimmed.isEmpty {
+                let looksLikePhone = emailTrimmed.contains(where: { $0.isNumber })
+                    && !emailTrimmed.contains("@")
+                if looksLikePhone {
+                    phone = emailTrimmed
+                    emailTrimmed = ""
+                }
+            }
             _ = try await APIClient.shared.addGroupParticipant(
                 momentId: momentId,
                 displayName: trimmed,
                 roleCode: role,
-                email: emailTrimmed.isEmpty ? nil : emailTrimmed
+                email: emailTrimmed.isEmpty ? nil : emailTrimmed,
+                phone: phone
             )
             name = ""
             email = ""

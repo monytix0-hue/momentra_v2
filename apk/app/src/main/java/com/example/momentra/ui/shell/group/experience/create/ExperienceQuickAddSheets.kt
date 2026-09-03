@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.wedding.create.ChipRow
 import com.example.momentra.ui.shell.group.wedding.create.FieldLabel
 import com.example.momentra.ui.shell.group.wedding.create.PrimaryCta
@@ -47,7 +48,6 @@ import com.example.momentra.ui.shell.group.wedding.create.SheetHeader
 import com.example.momentra.ui.shell.group.wedding.create.WeddingAttendanceSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingBudgetSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingContributionSheetBody
-import com.example.momentra.ui.shell.group.wedding.create.WeddingExpenseSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingMemorySheetBody
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
@@ -56,7 +56,6 @@ import com.example.momentra.ui.shell.group.wedding.create.WeddingPollSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingSettleSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingUpdateSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingVendorSheetBody
-import com.example.momentra.ui.theme.PlusJakartaSans
 
 private val EqSheet = Color(0xFF1C1A24)
 private val EqHandle = Color(0xFF625E70)
@@ -78,6 +77,7 @@ fun ExperienceGapQuickAddSheet(
     onDismiss: () -> Unit,
     onSaved: () -> Unit = {},
     onBooking: () -> Unit = {},
+    momentTypeCode: String? = null,
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
@@ -86,6 +86,20 @@ fun ExperienceGapQuickAddSheet(
             onBooking()
             onDismiss()
         }
+        return
+    }
+    if (kind == ExperienceQuickAddKind.EXPENSE && !momentId.isNullOrBlank()) {
+        GroupExpenseSheet(
+            momentId = momentId,
+            visible = true,
+            onDismiss = onDismiss,
+            onSaved = {
+                onSaved()
+                onDismiss()
+            },
+            momentTypeCode = momentTypeCode,
+            repository = repository,
+        )
         return
     }
 
@@ -115,8 +129,7 @@ fun ExperienceGapQuickAddSheet(
                     .background(EqHandle),
             )
             when (kind) {
-                ExperienceQuickAddKind.EXPENSE ->
-                    WeddingExpenseSheetBody(momentId, repository, onDismiss, onSaved, accent)
+                ExperienceQuickAddKind.EXPENSE -> Unit
                 ExperienceQuickAddKind.CONTRIBUTION ->
                     WeddingContributionSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 ExperienceQuickAddKind.BUDGET ->

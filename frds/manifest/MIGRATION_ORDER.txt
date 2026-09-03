@@ -53,3 +53,5 @@ V052__company_invite.sql
 V053__moment_status_deleted.sql
 V054__business_deployment_closure.sql
 V055__business_life_api_parity.sql
+V056__shared_living_participant_manage.sql
+V057__pooled_expense_and_user_phone.sql

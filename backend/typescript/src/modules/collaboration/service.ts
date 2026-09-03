@@ -21,7 +21,8 @@ export const pollSchema = z
   .object({
     question: z.string().min(1).max(1000),
     options: z.array(z.string().min(1).max(500)).min(2).max(20),
-    closesAt: z.string().datetime().optional(),
+    // Mobile clients send local offset ISO; Zod .datetime() defaults to Z-only.
+    closesAt: z.string().datetime({ offset: true }).optional(),
     pollType: z.enum(['SINGLE_CHOICE', 'MULTI_CHOICE', 'YES_NO']).optional(),
   })
   .strict();

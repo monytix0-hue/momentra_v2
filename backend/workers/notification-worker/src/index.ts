@@ -83,9 +83,10 @@ async function sendPushToUser(
   return sent;
 }
 
-function notificationCopy(eventName: string): { title: string; body: string } {
+function notificationCopy(eventName: string, payload?: Record<string, unknown>): { title: string; body: string } {
   switch (eventName) {
     case 'ExpenseCreated':
+    case 'GroupExpenseRecorded':
       return { title: 'New expense', body: 'An expense was recorded in your moment.' };
     case 'PollCreated':
       return { title: 'New poll', body: 'A poll needs your vote.' };
@@ -93,9 +94,30 @@ function notificationCopy(eventName: string): { title: string; body: string } {
       return { title: 'New task', body: 'A task was added to your moment.' };
     case 'DeviceRegistered':
       return { title: 'Device linked', body: 'Push notifications are enabled for this device.' };
+    case 'GroupInviteMinted':
+      return { title: 'Invite ready', body: 'A group invite link was created.' };
+    case 'GroupInviteRedeemed':
+      return {
+        title: 'Someone joined',
+        body: 'A member joined your group moment.',
+      };
     default:
       return { title: 'Momentra update', body: `Activity: ${eventName}` };
   }
+}
+
+async function momentParticipantUserIds(
+  pool: Pool,
+  momentId: string | null | undefined,
+  excludeUserId?: string
+): Promise<string[]> {
+  if (!momentId) return [];
+  const rows = await pool.query<{ user_id: string }>(
+    `SELECT user_id FROM collaboration.moment_participant
+     WHERE moment_id = $1 AND status = 'ACTIVE' AND user_id IS NOT NULL`,
+    [momentId]
+  );
+  return rows.rows.map((r) => r.user_id).filter((id) => id !== excludeUserId);
 }
 
 async function loop(): Promise<void> {
@@ -116,8 +138,10 @@ async function loop(): Promise<void> {
         domain_event_id: string;
         actor_user_id: string;
         event_name: string;
+        scope_id: string | null;
+        payload: Record<string, unknown> | null;
       }>(
-        `SELECT de.domain_event_id, de.actor_user_id, de.event_name
+        `SELECT de.domain_event_id, de.actor_user_id, de.event_name, de.scope_id, de.payload
          FROM events.domain_event de
          LEFT JOIN platform.notification_dispatch nd ON nd.domain_event_id = de.domain_event_id
          WHERE nd.domain_event_id IS NULL
@@ -127,10 +151,21 @@ async function loop(): Promise<void> {
       );
 
       for (const ev of events.rows) {
-        const copy = notificationCopy(ev.event_name);
+        const copy = notificationCopy(ev.event_name, ev.payload ?? undefined);
+        const momentId =
+          (typeof ev.payload?.momentId === 'string' ? ev.payload.momentId : null) ??
+          ev.scope_id;
+        let recipients: string[] = [ev.actor_user_id];
+        if (ev.event_name === 'GroupInviteRedeemed' || ev.event_name === 'GroupInviteMinted') {
+          // Notify other members / host — not only the actor.
+          recipients = await momentParticipantUserIds(pool, momentId, undefined);
+          if (recipients.length === 0) recipients = [ev.actor_user_id];
+        }
         let sentCount = 0;
         if (messaging) {
-          sentCount = await sendPushToUser(messaging, pool, ev.actor_user_id, copy.title, copy.body);
+          for (const userId of recipients) {
+            sentCount += await sendPushToUser(messaging, pool, userId, copy.title, copy.body);
+          }
         }
         await pool.query(
           `INSERT INTO platform.notification_dispatch (domain_event_id, user_id, event_name, sent_count)
@@ -144,6 +179,7 @@ async function loop(): Promise<void> {
             action: messaging ? 'sent_fcm' : 'skipped_no_fcm_config',
             eventName: ev.event_name,
             userId: ev.actor_user_id,
+            recipientCount: recipients.length,
             sentCount,
           })
         );

@@ -32,12 +32,17 @@ ui-debug.log
 **/DerivedData/
 **/.next/
 **/Pods/
+**/.build/
 **/.venv/
+**/venv/
+backend/venv/
 **/__pycache__/
 **/*.xcuserstate
 **/xcuserdata/
 
 # IDE / sync / temp
+.idea/
+**/.idea/
 .cursor/
 .stfolder/
 .tmp/

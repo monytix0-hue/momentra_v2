@@ -124,7 +124,7 @@ final class AppShellModel: ObservableObject {
         selectedMomentByContext[previous] = selectedMomentId
         selectedContext = context
         bottomDestination = tabByContext[context] ?? .pulse
-        selectedMomentId = selectedMomentByContext[context] ?? nil
+        selectedMomentId = selectedMomentByContext[context].flatMap { $0 }
         selectedMomentTitle = nil
         selectedMomentTypeCode = nil
         showMomentSwitcher = false
@@ -197,7 +197,7 @@ final class AppShellModel: ObservableObject {
         }
         let preferredMomentId = preserveMomentId
             ?? selectedMomentId
-            ?? selectedMomentByContext[selectedContext]
+            ?? selectedMomentByContext[selectedContext].flatMap { $0 }
         if let preserve = preserveMomentId,
            !preserve.isEmpty,
            !rawMoments.contains(where: { $0.momentId == preserve }) {

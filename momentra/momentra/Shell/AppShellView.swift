@@ -42,6 +42,7 @@ struct AppShellView: View {
     @State private var pendingGroupJoin: PendingGroupJoin?
     @State private var companyMenuOpen = false
     @State private var joinFeedbackMessage: String?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         shellPage
@@ -69,6 +70,12 @@ struct AppShellView: View {
                 newMomentOpen = false
                 if destination == .create, model.selectedContext == .group {
                     // Keep phase when advancing from Pulse type cards; reset only when tapping Create tab from chooser path is handled by openNewMoment / tab setter.
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                if model.selectedContext == .group {
+                    model.refreshVisibleGroupTab()
                 }
             }
     }
@@ -262,6 +269,7 @@ struct AppShellView: View {
                 theme: ExperienceActiveTheme.forFamily(family),
                 kind: kind,
                 momentId: model.selectedMomentId,
+                momentTypeCode: model.selectedMomentTypeCode,
                 onClose: { experienceGapQa = nil },
                 onSaved: { model.refreshVisibleGroupTab() },
                 onBooking: { groupCollabKind = .booking }
@@ -273,6 +281,7 @@ struct AppShellView: View {
                 theme: PurchaseActiveTheme.forFamily(family),
                 kind: kind,
                 momentId: model.selectedMomentId,
+                momentTypeCode: model.selectedMomentTypeCode,
                 onClose: { purchaseGapQa = nil },
                 onSaved: { model.refreshVisibleGroupTab() }
             )
@@ -283,6 +292,7 @@ struct AppShellView: View {
                 theme: LivingActiveTheme.forFamily(family),
                 kind: kind,
                 momentId: model.selectedMomentId,
+                momentTypeCode: model.selectedMomentTypeCode,
                 onClose: { livingGapQa = nil },
                 onSaved: { model.refreshVisibleGroupTab() }
             )

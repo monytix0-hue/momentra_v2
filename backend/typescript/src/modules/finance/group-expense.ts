@@ -17,7 +17,7 @@ export const createGroupExpenseSchema = z
     currencyCode: z.string().length(3).toUpperCase(),
     description: z.string().max(500).optional(),
     paidByParticipantId: z.string().uuid(),
-    splitStrategy: z.enum(['EQUAL', 'PERCENTAGE', 'EXACT', 'SHARES']),
+    splitStrategy: z.enum(['EQUAL', 'PERCENTAGE', 'EXACT', 'SHARES', 'POOLED']),
     splitInputs: z
       .array(
         z
@@ -29,9 +29,18 @@ export const createGroupExpenseSchema = z
           })
           .strict()
       )
-      .min(1),
+      .default([]),
   })
-  .strict();
+  .strict()
+  .superRefine((val, ctx) => {
+    if (val.splitStrategy !== 'POOLED' && val.splitInputs.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'splitInputs requires at least one participant for non-POOLED splits.',
+        path: ['splitInputs'],
+      });
+    }
+  });
 
 export type CreateGroupExpenseInput = z.infer<typeof createGroupExpenseSchema>;
 
@@ -129,6 +138,11 @@ export function computeGroupShares(
   amount: Decimal,
   splitInputs: CreateGroupExpenseInput['splitInputs']
 ): ComputedShare[] {
+  if (strategy === 'POOLED') {
+    // Household pool: record spend only — no per-member shares / IOUs.
+    return [];
+  }
+
   const ids = splitInputs.map((s) => s.participantId);
   if (new Set(ids).size !== ids.length) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Duplicate participantId in splitInputs.', 400);
@@ -232,13 +246,15 @@ export async function createGroupExpense(
   await assertParticipantsOnMoment(client, momentId, participantIds);
 
   const computed = computeGroupShares(body.splitStrategy, amount, body.splitInputs);
-  const shareSum = computed.reduce((acc, s) => acc.plus(s.shareAmount), new Decimal(0));
-  if (!shareSum.eq(amount)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Computed shares must equal expense amount.', 400);
-  }
-  for (const s of computed) {
-    if (s.shareAmount.lt(0)) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, 'Share amounts must not be negative.', 400);
+  if (body.splitStrategy !== 'POOLED') {
+    const shareSum = computed.reduce((acc, s) => acc.plus(s.shareAmount), new Decimal(0));
+    if (!shareSum.eq(amount)) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, 'Computed shares must equal expense amount.', 400);
+    }
+    for (const s of computed) {
+      if (s.shareAmount.lt(0)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, 'Share amounts must not be negative.', 400);
+      }
     }
   }
 
@@ -253,65 +269,69 @@ export async function createGroupExpense(
   const expenseId = expenseInsert.rows[0].expense_id;
 
   await client.query(
-    `INSERT INTO finance.group_expense_context (expense_id, moment_id, paid_by_participant_id)
-     VALUES ($1, $2, $3)`,
-    [expenseId, momentId, body.paidByParticipantId]
+    `INSERT INTO finance.group_expense_context (
+       expense_id, moment_id, paid_by_participant_id, split_strategy
+     ) VALUES ($1, $2, $3, $4)`,
+    [expenseId, momentId, body.paidByParticipantId, body.splitStrategy]
   );
 
-  // S9-G-OPT: one round-trip for all shares (was N sequential inserts).
-  const shareInsert = await client.query<{
-    expense_share_id: string;
-    participant_id: string;
-    share_amount: string;
-    share_percent: string | null;
-  }>(
-    `INSERT INTO finance.expense_share (
-       expense_id, moment_id, participant_id, share_amount, share_percent, status
-     )
-     SELECT $1::uuid, $2::uuid, x.participant_id, x.share_amount::numeric,
-            NULLIF(x.share_percent, '')::numeric, 'ALLOCATED'
-     FROM UNNEST($3::uuid[], $4::text[], $5::text[]) AS x(participant_id, share_amount, share_percent)
-     RETURNING expense_share_id, participant_id, share_amount::text, share_percent::text`,
-    [
-      expenseId,
-      momentId,
-      computed.map((s) => s.participantId),
-      computed.map((s) => s.shareAmount.toFixed(4)),
-      computed.map((s) => (s.sharePercent != null ? s.sharePercent.toFixed(6) : '')),
-    ]
-  );
+  let shareRows: GroupExpenseResult['shares'] = [];
+  let obligationRows: GroupExpenseResult['obligations'] = [];
 
-  const shareRows: GroupExpenseResult['shares'] = shareInsert.rows.map((r) => ({
-    expenseShareId: r.expense_share_id,
-    participantId: r.participant_id,
-    shareAmount: r.share_amount,
-    sharePercent: r.share_percent,
-  }));
+  if (body.splitStrategy !== 'POOLED' && computed.length > 0) {
+    const shareInsert = await client.query<{
+      expense_share_id: string;
+      participant_id: string;
+      share_amount: string;
+      share_percent: string | null;
+    }>(
+      `INSERT INTO finance.expense_share (
+         expense_id, moment_id, participant_id, share_amount, share_percent, status
+       )
+       SELECT $1::uuid, $2::uuid, x.participant_id, x.share_amount::numeric,
+              NULLIF(x.share_percent, '')::numeric, 'ALLOCATED'
+       FROM UNNEST($3::uuid[], $4::text[], $5::text[]) AS x(participant_id, share_amount, share_percent)
+       RETURNING expense_share_id, participant_id, share_amount::text, share_percent::text`,
+      [
+        expenseId,
+        momentId,
+        computed.map((s) => s.participantId),
+        computed.map((s) => s.shareAmount.toFixed(4)),
+        computed.map((s) => (s.sharePercent != null ? s.sharePercent.toFixed(6) : '')),
+      ]
+    );
 
-  // Obligations for non-payer shares in one statement.
-  const obligationInsert = await client.query<{
-    participant_obligation_id: string;
-    participant_id: string;
-    original_amount: string;
-  }>(
-    `INSERT INTO finance.participant_obligation (
-       moment_id, participant_id, source_type, source_id, currency_code,
-       original_amount, settled_amount, status, version
-     )
-     SELECT $1::uuid, es.participant_id, 'EXPENSE_SHARE', es.expense_share_id, $2,
-            es.share_amount, 0, 'OPEN', 1
-     FROM finance.expense_share es
-     WHERE es.expense_id = $3::uuid
-       AND es.participant_id <> $4::uuid
-       AND es.share_amount > 0
-     RETURNING participant_obligation_id, participant_id, original_amount::text`,
-    [momentId, body.currencyCode, expenseId, body.paidByParticipantId]
-  );
-  const obligationRows: GroupExpenseResult['obligations'] = obligationInsert.rows.map((r) => ({
-    obligationId: r.participant_obligation_id,
-    participantId: r.participant_id,
-    originalAmount: r.original_amount,
-  }));
+    shareRows = shareInsert.rows.map((r) => ({
+      expenseShareId: r.expense_share_id,
+      participantId: r.participant_id,
+      shareAmount: r.share_amount,
+      sharePercent: r.share_percent,
+    }));
+
+    const obligationInsert = await client.query<{
+      participant_obligation_id: string;
+      participant_id: string;
+      original_amount: string;
+    }>(
+      `INSERT INTO finance.participant_obligation (
+         moment_id, participant_id, source_type, source_id, currency_code,
+         original_amount, settled_amount, status, version
+       )
+       SELECT $1::uuid, es.participant_id, 'EXPENSE_SHARE', es.expense_share_id, $2,
+              es.share_amount, 0, 'OPEN', 1
+       FROM finance.expense_share es
+       WHERE es.expense_id = $3::uuid
+         AND es.participant_id <> $4::uuid
+         AND es.share_amount > 0
+       RETURNING participant_obligation_id, participant_id, original_amount::text`,
+      [momentId, body.currencyCode, expenseId, body.paidByParticipantId]
+    );
+    obligationRows = obligationInsert.rows.map((r) => ({
+      obligationId: r.participant_obligation_id,
+      participantId: r.participant_id,
+      originalAmount: r.original_amount,
+    }));
+  }
 
   const { domainEventId } = await recordCommandSideEffects(client, ctx, {
     eventName: 'GroupExpenseRecorded',
@@ -347,13 +367,18 @@ export async function createGroupExpense(
     activity: {
       domainCode: 'GROUP',
       momentId,
-      activityCode: 'GROUP_EXPENSE_RECORDED',
-      title: body.description ?? 'Group expense',
+      activityCode:
+        body.splitStrategy === 'POOLED' ? 'GROUP_POOLED_EXPENSE_RECORDED' : 'GROUP_EXPENSE_RECORDED',
+      title:
+        body.splitStrategy === 'POOLED'
+          ? body.description ?? 'Household pooled spend'
+          : body.description ?? 'Group expense',
       payload: {
         expenseId,
         amount: amount.toFixed(4),
         currencyCode: body.currencyCode,
         paidByParticipantId: body.paidByParticipantId,
+        splitStrategy: body.splitStrategy,
       },
     },
   });
@@ -378,7 +403,8 @@ export async function createGroupExpense(
     body.paidByParticipantId,
     amount,
     computed,
-    domainEventId
+    domainEventId,
+    body.splitStrategy === 'POOLED'
   );
 
   return result;
@@ -391,11 +417,21 @@ async function upsertGroupFinanceProjection(
   paidByParticipantId: string,
   amount: Decimal,
   shares: ComputedShare[],
-  sourceEventId: string
+  sourceEventId: string,
+  isPooled = false
 ): Promise<void> {
-  const outstandingDelta = shares
-    .filter((s) => s.participantId !== paidByParticipantId)
-    .reduce((acc, s) => acc.plus(s.shareAmount), new Decimal(0));
+  const outstandingDelta = isPooled
+    ? new Decimal(0)
+    : shares
+        .filter((s) => s.participantId !== paidByParticipantId)
+        .reduce((acc, s) => acc.plus(s.shareAmount), new Decimal(0));
+
+  const payloadExtras = isPooled
+    ? {
+        expenseCount: 1,
+        pooledExpenseTotal: amount.toFixed(4),
+      }
+    : { expenseCount: 1 };
 
   await client.query(
     `WITH snap AS (
@@ -410,7 +446,14 @@ async function upsertGroupFinanceProjection(
            || jsonb_build_object(
                 'expenseCount',
                 COALESCE((projection.group_finance_snapshot.snapshot_payload->>'expenseCount')::int, 0) + 1
-              ),
+              )
+           || CASE WHEN $13::boolean THEN jsonb_build_object(
+                'pooledExpenseTotal',
+                (
+                  COALESCE((projection.group_finance_snapshot.snapshot_payload->>'pooledExpenseTotal')::numeric, 0)
+                  + $3::numeric
+                )::text
+              ) ELSE '{}'::jsonb END,
          source_event_id = EXCLUDED.source_event_id,
          projection_version = projection.group_finance_snapshot.projection_version + 1,
          updated_at = now()
@@ -441,7 +484,7 @@ async function upsertGroupFinanceProjection(
       currencyCode,
       amount.toFixed(4),
       outstandingDelta.toFixed(4),
-      JSON.stringify({ expenseCount: 1 }),
+      JSON.stringify(payloadExtras),
       sourceEventId,
       shares.map((s) => s.participantId),
       shares.map((s) => (s.participantId === paidByParticipantId ? amount : new Decimal(0)).toFixed(4)),
@@ -457,10 +500,15 @@ async function upsertGroupFinanceProjection(
       ),
       shares.map((s) =>
         (s.participantId === paidByParticipantId
-          ? amount.minus(s.shareAmount)
+          ? amount.minus(
+              shares
+                .filter((x) => x.participantId !== paidByParticipantId)
+                .reduce((acc, x) => acc.plus(x.shareAmount), new Decimal(0))
+            )
           : s.shareAmount.neg()
         ).toFixed(4)
       ),
+      isPooled,
     ]
   );
 }

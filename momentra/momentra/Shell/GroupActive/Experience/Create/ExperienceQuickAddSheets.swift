@@ -5,6 +5,7 @@ struct ExperienceGapQuickAddSheet: View {
     let theme: ExperienceActiveTheme
     let kind: ExperienceQuickAddKind
     var momentId: String? = nil
+    var momentTypeCode: String? = nil
     var onClose: () -> Void
     var onSaved: () -> Void = {}
     var onBooking: () -> Void = {}
@@ -20,6 +21,19 @@ struct ExperienceGapQuickAddSheet: View {
                     onBooking()
                     onClose()
                 }
+        } else if kind == .expense, let momentId {
+            GroupExpenseSheet(
+                momentId: momentId,
+                isPresented: Binding(
+                    get: { true },
+                    set: { if !$0 { onClose() } }
+                ),
+                momentTypeCode: momentTypeCode,
+                onSaved: {
+                    onSaved()
+                    onClose()
+                }
+            )
         } else {
             NativeSheetScaffold(
                 title: kind.label,
@@ -41,7 +55,7 @@ struct ExperienceGapQuickAddSheet: View {
     private var sheetBody: some View {
         switch kind {
         case .expense:
-            WeddingExpenseBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
+            EmptyView()
         case .contribution:
             WeddingContributionBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .budget:

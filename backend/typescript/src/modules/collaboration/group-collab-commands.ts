@@ -10,17 +10,20 @@ import { recordCommandSideEffects } from '../../platform/events/outbox';
 import { assertGroupMember } from './group-membership';
 import * as collaborationService from './service';
 
+/** iOS/Android send local offset ISO (e.g. +05:30); Zod .datetime() defaults to Z-only. */
+const clientIsoDatetime = z.string().datetime({ offset: true });
+
 export const planningItemSchema = z
   .object({
     title: z.string().min(1).max(500),
-    dueAt: z.string().datetime().optional(),
+    dueAt: clientIsoDatetime.optional(),
   })
   .strict();
 
 export const bookingSchema = z
   .object({
     title: z.string().min(1).max(500),
-    bookedAt: z.string().datetime().optional(),
+    bookedAt: clientIsoDatetime.optional(),
   })
   .strict();
 
@@ -71,7 +74,7 @@ export const residentSchema = z
 export const memorySchema = z
   .object({
     title: z.string().min(1).max(500),
-    capturedAt: z.string().datetime().optional(),
+    capturedAt: clientIsoDatetime.optional(),
   })
   .strict();
 

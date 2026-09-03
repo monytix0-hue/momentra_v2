@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGovernanceAllowed, assertGroupPeopleManageAllowed } from '../governance/resolver';
-import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
+import { recordCommandSideEffects } from '../../platform/events/outbox';
 
 export const mintInviteSchema = z
   .object({
@@ -35,6 +35,119 @@ export interface RedeemInviteResult {
   momentId: string | null;
   participantId: string | null;
   alreadyMember: boolean;
+  /** ACTIVE participant user ids to notify (host + members). */
+  notifyUserIds?: string[];
+}
+
+/** Digits-only phone key; compare last 10 for national match. */
+export function normalizePhoneDigits(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length < 7) return null;
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
+function phonesMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const na = normalizePhoneDigits(a);
+  const nb = normalizePhoneDigits(b);
+  return Boolean(na && nb && na === nb);
+}
+
+/**
+ * Promote INVITED external stubs whose metadata.phone matches the redeemer into the user participant.
+ * Returns the promoted participant_id when a stub was merged; otherwise null.
+ */
+async function mergeMatchingInvitedPhoneStub(
+  client: PoolClient,
+  momentId: string,
+  userId: string
+): Promise<string | null> {
+  const profile = await client.query<{ phone: string | null; display_name: string | null }>(
+    `SELECT phone, display_name FROM core.user_profile WHERE user_id = $1`,
+    [userId]
+  );
+  const userPhone = profile.rows[0]?.phone ?? null;
+  if (!userPhone) return null;
+
+  const stubs = await client.query<{
+    participant_id: string;
+    external_party_id: string;
+    metadata: { phone?: string | null } | null;
+  }>(
+    `SELECT participant_id, external_party_id, metadata
+     FROM collaboration.moment_participant
+     WHERE moment_id = $1
+       AND status = 'INVITED'
+       AND external_party_id IS NOT NULL
+       AND user_id IS NULL
+     FOR UPDATE`,
+    [momentId]
+  );
+
+  const match = stubs.rows.find((s) => phonesMatch(s.metadata?.phone ?? null, userPhone));
+  if (!match) return null;
+
+  // Identity CHECK: exactly one of user_id / external_party_id — flip in one UPDATE.
+  const promoted = await client.query<{ participant_id: string }>(
+    `UPDATE collaboration.moment_participant
+     SET user_id = $2,
+         external_party_id = NULL,
+         status = 'ACTIVE',
+         joined_at = COALESCE(joined_at, now()),
+         invited_at = COALESCE(invited_at, now()),
+         version = version + 1,
+         updated_at = now()
+     WHERE participant_id = $1
+       AND moment_id = $3
+     RETURNING participant_id`,
+    [match.participant_id, userId, momentId]
+  );
+
+  if (promoted.rows[0] && match.external_party_id) {
+    await client.query(
+      `UPDATE core.external_party
+       SET status = 'MERGED', updated_at = now()
+       WHERE external_party_id = $1`,
+      [match.external_party_id]
+    );
+  }
+
+  return promoted.rows[0]?.participant_id ?? null;
+}
+
+async function listActiveParticipantUserIds(
+  client: PoolClient,
+  momentId: string
+): Promise<string[]> {
+  const rows = await client.query<{ user_id: string }>(
+    `SELECT user_id FROM collaboration.moment_participant
+     WHERE moment_id = $1 AND status = 'ACTIVE' AND user_id IS NOT NULL`,
+    [momentId]
+  );
+  return rows.rows.map((r) => r.user_id);
+}
+
+async function fanOutMomentActivity(
+  client: PoolClient,
+  sourceEventId: string,
+  momentId: string,
+  actorUserId: string,
+  activityCode: string,
+  title: string,
+  payload: Record<string, unknown>
+): Promise<string[]> {
+  const userIds = await listActiveParticipantUserIds(client, momentId);
+  for (const uid of userIds) {
+    await client.query(
+      `INSERT INTO projection.recent_activity (
+         user_id, source_event_id, domain_code, scope_type, scope_id,
+         activity_code, title, occurred_at, activity_payload, projection_version
+       ) VALUES ($1, $2, 'GROUP', 'MOMENT', $3::uuid, $4, $5, now(), $6::jsonb, 1)
+       ON CONFLICT (user_id, source_event_id) DO NOTHING`,
+      [uid, sourceEventId, momentId, activityCode, title, JSON.stringify(payload)]
+    );
+  }
+  return userIds;
 }
 
 const DISPLAY_ORIGIN = 'https://momentra.app';
@@ -151,17 +264,43 @@ export async function mintInvite(
   );
 
   const result = toInviteViews(inserted.rows[0]!);
-  await insertDomainEventAndOutbox(client, ctx, {
+  const { domainEventId } = await recordCommandSideEffects(client, ctx, {
     eventName: 'GroupInviteMinted',
     domainCode: 'GROUP',
     aggregateType: 'MOMENT_INVITE',
     aggregateId: result.inviteId,
+    scopeType: boundMomentId ? 'MOMENT' : 'USER',
+    scopeId: boundMomentId ?? ctx.userId,
     payload: {
       inviteCode: result.inviteCode,
       momentTypeCode: body.momentTypeCode,
       momentId: boundMomentId,
     },
+    auditActionCode: 'INVITE_MINT',
+    auditResourceType: 'MOMENT_INVITE',
+    auditResourceId: result.inviteId,
+    afterSnapshot: result,
+    activity: boundMomentId
+      ? {
+          domainCode: 'GROUP',
+          momentId: boundMomentId,
+          activityCode: 'GROUP_INVITE_SENT',
+          title: 'Invite link created',
+          payload: { inviteCode: result.inviteCode, momentId: boundMomentId },
+        }
+      : undefined,
   });
+  if (boundMomentId) {
+    await fanOutMomentActivity(
+      client,
+      domainEventId,
+      boundMomentId,
+      ctx.userId,
+      'GROUP_INVITE_SENT',
+      'Invite link created',
+      { inviteCode: result.inviteCode, momentId: boundMomentId }
+    );
+  }
   return result;
 }
 
@@ -260,6 +399,8 @@ export async function redeemInvite(
     [row.moment_id, ctx.userId]
   );
   if (existing.rows[0]) {
+    // Still try to merge phone stubs so duplicates clear on re-redeem.
+    await mergeMatchingInvitedPhoneStub(client, row.moment_id, ctx.userId);
     return {
       inviteId: row.invite_id,
       inviteCode: code,
@@ -267,26 +408,31 @@ export async function redeemInvite(
       momentId: row.moment_id,
       participantId: existing.rows[0].participant_id,
       alreadyMember: true,
+      notifyUserIds: await listActiveParticipantUserIds(client, row.moment_id),
     };
   }
 
-  const inserted = await client.query<{ participant_id: string }>(
-    `INSERT INTO collaboration.moment_participant (
-       moment_id, user_id, participant_role, status, joined_at, version
-     ) VALUES ($1, $2, 'PARTICIPANT', 'ACTIVE', now(), 1)
-     ON CONFLICT DO NOTHING
-     RETURNING participant_id`,
-    [row.moment_id, ctx.userId]
-  );
-  const participantId =
-    inserted.rows[0]?.participant_id ??
-    (
-      await client.query<{ participant_id: string }>(
-        `SELECT participant_id FROM collaboration.moment_participant WHERE moment_id = $1 AND user_id = $2 LIMIT 1`,
-        [row.moment_id, ctx.userId]
-      )
-    ).rows[0]?.participant_id ??
-    null;
+  let participantId = await mergeMatchingInvitedPhoneStub(client, row.moment_id, ctx.userId);
+
+  if (!participantId) {
+    const inserted = await client.query<{ participant_id: string }>(
+      `INSERT INTO collaboration.moment_participant (
+         moment_id, user_id, participant_role, status, joined_at, version
+       ) VALUES ($1, $2, 'PARTICIPANT', 'ACTIVE', now(), 1)
+       ON CONFLICT DO NOTHING
+       RETURNING participant_id`,
+      [row.moment_id, ctx.userId]
+    );
+    participantId =
+      inserted.rows[0]?.participant_id ??
+      (
+        await client.query<{ participant_id: string }>(
+          `SELECT participant_id FROM collaboration.moment_participant WHERE moment_id = $1 AND user_id = $2 LIMIT 1`,
+          [row.moment_id, ctx.userId]
+        )
+      ).rows[0]?.participant_id ??
+      null;
+  }
 
   await client.query(
     `INSERT INTO collaboration.moment_invite_claim (invite_id, user_id, participant_id)
@@ -295,7 +441,14 @@ export async function redeemInvite(
     [row.invite_id, ctx.userId, participantId]
   );
 
-  await insertDomainEventAndOutbox(client, ctx, {
+  const displayName = (
+    await client.query<{ display_name: string | null }>(
+      `SELECT display_name FROM core.user_profile WHERE user_id = $1`,
+      [ctx.userId]
+    )
+  ).rows[0]?.display_name;
+
+  const { domainEventId } = await recordCommandSideEffects(client, ctx, {
     eventName: 'GroupInviteRedeemed',
     domainCode: 'GROUP',
     aggregateType: 'MOMENT_INVITE',
@@ -303,7 +456,28 @@ export async function redeemInvite(
     scopeType: 'MOMENT',
     scopeId: row.moment_id,
     payload: { inviteCode: code, momentId: row.moment_id, participantId },
+    auditActionCode: 'INVITE_REDEEM',
+    auditResourceType: 'MOMENT_INVITE',
+    auditResourceId: row.invite_id,
+    afterSnapshot: { inviteCode: code, momentId: row.moment_id, participantId },
+    activity: {
+      domainCode: 'GROUP',
+      momentId: row.moment_id,
+      activityCode: 'GROUP_MEMBER_JOINED',
+      title: displayName ? `${displayName} joined` : 'Someone joined the group',
+      payload: { inviteCode: code, momentId: row.moment_id, participantId, userId: ctx.userId },
+    },
   });
+
+  const notifyUserIds = await fanOutMomentActivity(
+    client,
+    domainEventId,
+    row.moment_id,
+    ctx.userId,
+    'GROUP_MEMBER_JOINED',
+    displayName ? `${displayName} joined` : 'Someone joined the group',
+    { inviteCode: code, momentId: row.moment_id, participantId, userId: ctx.userId }
+  );
 
   return {
     inviteId: row.invite_id,
@@ -312,6 +486,7 @@ export async function redeemInvite(
     momentId: row.moment_id,
     participantId,
     alreadyMember: false,
+    notifyUserIds,
   };
 }
 
@@ -370,27 +545,81 @@ export async function bindInviteToMoment(
   );
   for (const claim of claims.rows) {
     if (claim.user_id === ctx.userId) continue;
-    const inserted = await client.query<{ participant_id: string }>(
-      `INSERT INTO collaboration.moment_participant (
-         moment_id, user_id, participant_role, status, joined_at, version
-       ) VALUES ($1, $2, 'PARTICIPANT', 'ACTIVE', now(), 1)
-       ON CONFLICT DO NOTHING
-       RETURNING participant_id`,
-      [momentId, claim.user_id]
-    );
-    const participantId =
-      inserted.rows[0]?.participant_id ??
+    let participantId: string | null =
       (
         await client.query<{ participant_id: string }>(
-          `SELECT participant_id FROM collaboration.moment_participant WHERE moment_id = $1 AND user_id = $2 LIMIT 1`,
+          `SELECT participant_id FROM collaboration.moment_participant
+           WHERE moment_id = $1 AND user_id = $2 AND status IN ('INVITED','ACTIVE')
+           LIMIT 1`,
           [momentId, claim.user_id]
         )
-      ).rows[0]?.participant_id ??
-      null;
+      ).rows[0]?.participant_id ?? null;
+
+    if (!participantId) {
+      participantId = await mergeMatchingInvitedPhoneStub(client, momentId, claim.user_id);
+    }
+
+    if (!participantId) {
+      const inserted = await client.query<{ participant_id: string }>(
+        `INSERT INTO collaboration.moment_participant (
+           moment_id, user_id, participant_role, status, joined_at, version
+         ) VALUES ($1, $2, 'PARTICIPANT', 'ACTIVE', now(), 1)
+         ON CONFLICT DO NOTHING
+         RETURNING participant_id`,
+        [momentId, claim.user_id]
+      );
+      participantId =
+        inserted.rows[0]?.participant_id ??
+        (
+          await client.query<{ participant_id: string }>(
+            `SELECT participant_id FROM collaboration.moment_participant WHERE moment_id = $1 AND user_id = $2 LIMIT 1`,
+            [momentId, claim.user_id]
+          )
+        ).rows[0]?.participant_id ??
+        null;
+    }
     if (participantId) {
       await client.query(
         `UPDATE collaboration.moment_invite_claim SET participant_id = $2 WHERE invite_claim_id = $1`,
         [claim.invite_claim_id, participantId]
+      );
+      const displayName = (
+        await client.query<{ display_name: string | null }>(
+          `SELECT display_name FROM core.user_profile WHERE user_id = $1`,
+          [claim.user_id]
+        )
+      ).rows[0]?.display_name;
+      const { domainEventId } = await recordCommandSideEffects(client, {
+        ...ctx,
+        userId: claim.user_id,
+      }, {
+        eventName: 'GroupInviteRedeemed',
+        domainCode: 'GROUP',
+        aggregateType: 'MOMENT_INVITE',
+        aggregateId: row.invite_id,
+        scopeType: 'MOMENT',
+        scopeId: momentId,
+        payload: { inviteCode, momentId, participantId, via: 'bind' },
+        auditActionCode: 'INVITE_REDEEM',
+        auditResourceType: 'MOMENT_INVITE',
+        auditResourceId: row.invite_id,
+        afterSnapshot: { inviteCode, momentId, participantId },
+        activity: {
+          domainCode: 'GROUP',
+          momentId,
+          activityCode: 'GROUP_MEMBER_JOINED',
+          title: displayName ? `${displayName} joined` : 'Someone joined the group',
+          payload: { inviteCode, momentId, participantId, userId: claim.user_id },
+        },
+      });
+      await fanOutMomentActivity(
+        client,
+        domainEventId,
+        momentId,
+        claim.user_id,
+        'GROUP_MEMBER_JOINED',
+        displayName ? `${displayName} joined` : 'Someone joined the group',
+        { inviteCode, momentId, participantId, userId: claim.user_id }
       );
     }
   }

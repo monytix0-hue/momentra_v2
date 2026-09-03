@@ -24,7 +24,18 @@ struct GroupExpenseSheet: View {
 
     private var accent: Color { isWedding ? WeddingActiveTheme.accentSolid : TripSheetTokens.accent }
     private var peach: Color { isWedding ? WeddingActiveTheme.accentLight : TripSheetTokens.accentEnd }
-    private let strategies = ["EQUAL", "PERCENTAGE", "EXACT", "SHARES"]
+    private static let livingTypeCodes: Set<String> = [
+        "FAMILY_HOUSEHOLD", "FLATMATES", "CO_LIVING", "SHARED_LIVING", "COMMUNITY_LIVING",
+    ]
+    private var supportsPooled: Bool {
+        let code = (momentTypeCode ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return Self.livingTypeCodes.contains(code)
+    }
+    private var strategies: [String] {
+        supportsPooled
+            ? ["EQUAL", "PERCENTAGE", "EXACT", "SHARES", "POOLED"]
+            : ["EQUAL", "PERCENTAGE", "EXACT", "SHARES"]
+    }
     private var categoryOptions: [String] { GroupExpenseCategoryCatalog.categories(for: momentTypeCode) }
 
     var body: some View {
@@ -144,7 +155,7 @@ struct GroupExpenseSheet: View {
                         splitStrategy = strategy
                         seedSplitValues(for: strategy)
                     } label: {
-                        Text(strategy.capitalized)
+                        Text(strategy == "POOLED" ? "Pooled" : strategy.capitalized)
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(on ? .white : Color(hex: "#C9C4D8"))
                             .padding(.horizontal, 12)
@@ -157,6 +168,11 @@ struct GroupExpenseSheet: View {
                 }
             }
 
+            if splitStrategy == "POOLED" {
+                Text("Household spend — sums for the month. No per-member split.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(isWedding ? Color(hex: "#C9C4D8") : TripSheetTokens.muted)
+            } else {
             fieldLabel("SPLIT BETWEEN")
             FlowLayout(spacing: 8) {
                 ForEach(participants) { p in
@@ -206,6 +222,7 @@ struct GroupExpenseSheet: View {
                     }
                 }
             }
+            }
         }
         .padding(12)
         .background(Color.white.opacity(0.05))
@@ -242,10 +259,9 @@ struct GroupExpenseSheet: View {
     }
 
     private var canSubmit: Bool {
-        !amount.isEmpty
-            && paidByParticipantId != nil
-            && !selectedParticipantIds.isEmpty
-            && currencyCode.count == 3
+        let amountOk = !amount.isEmpty && paidByParticipantId != nil && currencyCode.count == 3
+        if splitStrategy == "POOLED" { return amountOk }
+        return amountOk && !selectedParticipantIds.isEmpty
     }
 
     private var splitValueLabel: String {
@@ -316,6 +332,8 @@ struct GroupExpenseSheet: View {
         let ids = Array(selectedParticipantIds).sorted()
         let inputs: [APIClient.GroupSplitInput]
         switch splitStrategy {
+        case "POOLED":
+            inputs = []
         case "EQUAL":
             inputs = GroupActionRegistry.equalSplitInputs(participantIds: ids)
         case "PERCENTAGE":

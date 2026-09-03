@@ -14,11 +14,18 @@ const DEV_UID_HEADER = 'x-dev-firebase-uid';
 
 async function buildContext(
   req: Request,
-  identity: { firebaseUid: string; firebaseProjectId: string; userId: string; email?: string; displayName?: string }
+  identity: {
+    firebaseUid: string;
+    firebaseProjectId: string;
+    userId: string;
+    email?: string;
+    displayName?: string;
+    phone?: string;
+  }
 ): Promise<RequestContext> {
   // Warm path: ensureUserProfile skips DB once the profile is known in-process.
   // First bootstrap / recovery still creates the row when missing.
-  await ensureUserProfile(identity.userId, identity.email, identity.displayName);
+  await ensureUserProfile(identity.userId, identity.email, identity.displayName, identity.phone);
   return Object.freeze({
     ...identity,
     correlationId: getCorrelationId(req),

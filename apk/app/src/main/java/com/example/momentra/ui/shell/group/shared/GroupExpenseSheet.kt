@@ -87,6 +87,19 @@ fun GroupExpenseSheet(
     val categoryOptions = remember(momentTypeCode) {
         GroupExpenseCategoryCatalog.categories(momentTypeCode)
     }
+    val livingTypes = remember {
+        setOf("FAMILY_HOUSEHOLD", "FLATMATES", "CO_LIVING", "SHARED_LIVING", "COMMUNITY_LIVING")
+    }
+    val supportsPooled = remember(momentTypeCode) {
+        livingTypes.contains((momentTypeCode ?: "").trim().uppercase())
+    }
+    val strategies = remember(supportsPooled) {
+        if (supportsPooled) {
+            listOf("EQUAL", "PERCENTAGE", "EXACT", "SHARES", "POOLED")
+        } else {
+            listOf("EQUAL", "PERCENTAGE", "EXACT", "SHARES")
+        }
+    }
     var amount by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("INR") }
     var description by remember { mutableStateOf("") }
@@ -304,9 +317,9 @@ fun GroupExpenseSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                listOf("EQUAL", "PERCENTAGE", "EXACT", "SHARES").forEach { strategy ->
+                strategies.forEach { strategy ->
                     ParticipantChip(
-                        label = strategy,
+                        label = if (strategy == "POOLED") "Pooled" else strategy,
                         selected = splitStrategy == strategy,
                         onClick = {
                             splitStrategy = strategy
@@ -332,6 +345,14 @@ fun GroupExpenseSheet(
                 }
             }
 
+            if (splitStrategy == "POOLED") {
+                Text(
+                    "Household spend — sums for the month. No per-member split.",
+                    color = sheetSecondary,
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            } else {
             FieldLabel("Split with", color = sheetSecondary)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 participants.forEach { p ->
@@ -398,8 +419,9 @@ fun GroupExpenseSheet(
                     }
                 }
             }
+            } // end non-POOLED split UI
 
-            if (previewShares.isNotEmpty()) {
+            if (previewShares.isNotEmpty() && splitStrategy != "POOLED") {
                 FieldLabel(
                     when (splitStrategy) {
                         "EQUAL" -> "Equal split preview"
@@ -437,7 +459,11 @@ fun GroupExpenseSheet(
                     .testTag(MaestroIds.GROUP_EXPENSE_SUBMIT)
                     .clickable(enabled = !submitting) {
                         val payer = paidById
-                        if (payer == null || selectedSplitIds.isEmpty()) {
+                        if (payer == null) {
+                            error = "Select payer"
+                            return@clickable
+                        }
+                        if (splitStrategy != "POOLED" && selectedSplitIds.isEmpty()) {
                             error = "Select payer and at least one participant"
                             return@clickable
                         }
@@ -447,6 +473,7 @@ fun GroupExpenseSheet(
                         }
                         val ids = selectedSplitIds.sorted()
                         val inputs = when (splitStrategy) {
+                            "POOLED" -> emptyList()
                             "EQUAL" -> ids.map { GroupExpenseSplitInputDto(participantId = it) }
                             "PERCENTAGE" -> {
                                 val pctSum = ids.sumOf {

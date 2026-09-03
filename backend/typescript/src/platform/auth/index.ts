@@ -46,29 +46,48 @@ export function clearKnownUserProfiles(): void {
 export async function ensureUserProfile(
   userId: string,
   email?: string,
-  displayName?: string
+  displayName?: string,
+  phone?: string | null
 ): Promise<EnsureUserProfileResult> {
   const now = Date.now();
   const until = knownProfileUntil.get(userId);
   if (until !== undefined && until > now) {
+    if (phone) {
+      await getPool().query(
+        `UPDATE core.user_profile
+         SET phone = COALESCE(phone, $2), updated_at = now()
+         WHERE user_id = $1 AND (phone IS NULL OR phone = '')`,
+        [userId, phone]
+      );
+    }
     return 'cached';
   }
 
   const safeEmail = email ?? `${userId}@users.momentra.local`;
   try {
     const inserted = await getPool().query<{ user_id: string }>(
-      `INSERT INTO core.user_profile (user_id, email, display_name, status)
-       VALUES ($1, $2, $3, 'ACTIVE')
+      `INSERT INTO core.user_profile (user_id, email, display_name, phone, status)
+       VALUES ($1, $2, $3, $4, 'ACTIVE')
        ON CONFLICT (user_id) DO NOTHING
        RETURNING user_id`,
-      [userId, safeEmail, displayName ?? null]
+      [userId, safeEmail, displayName ?? null, phone ?? null]
     );
+    if (!inserted.rows[0] && phone) {
+      await getPool().query(
+        `UPDATE core.user_profile
+         SET phone = COALESCE(phone, $2),
+             display_name = COALESCE(display_name, $3),
+             updated_at = now()
+         WHERE user_id = $1`,
+        [userId, phone, displayName ?? null]
+      );
+    }
     knownProfileUntil.set(userId, now + KNOWN_PROFILE_TTL_MS);
     return inserted.rows[0] ? 'created' : 'existed';
   } catch (e) {
     const msg = String(e);
     if (msg.includes('uq_user_profile__email_ci')) {
-      await provisionUserProfile(userId, `${userId}@users.momentra.local`, displayName);
+      await provisionUserProfile(userId, `${userId}@users.momentra.local`, displayName, phone);
       knownProfileUntil.set(userId, now + KNOWN_PROFILE_TTL_MS);
       return 'created';
     }
@@ -79,28 +98,31 @@ export async function ensureUserProfile(
 export async function provisionUserProfile(
   userId: string,
   email?: string,
-  displayName?: string
+  displayName?: string,
+  phone?: string | null
 ): Promise<void> {
   const safeEmail = email ?? `${userId}@users.momentra.local`;
   try {
     await getPool().query(
-      `INSERT INTO core.user_profile (user_id, email, display_name, status)
-       VALUES ($1, $2, $3, 'ACTIVE')
+      `INSERT INTO core.user_profile (user_id, email, display_name, phone, status)
+       VALUES ($1, $2, $3, $4, 'ACTIVE')
        ON CONFLICT (user_id) DO UPDATE SET
          display_name = COALESCE(EXCLUDED.display_name, core.user_profile.display_name),
+         phone = COALESCE(EXCLUDED.phone, core.user_profile.phone),
          updated_at = now()`,
-      [userId, safeEmail, displayName ?? null]
+      [userId, safeEmail, displayName ?? null, phone ?? null]
     );
   } catch (e) {
     const msg = String(e);
     if (msg.includes('uq_user_profile__email_ci')) {
       await getPool().query(
-        `INSERT INTO core.user_profile (user_id, email, display_name, status)
-         VALUES ($1, $2, $3, 'ACTIVE')
+        `INSERT INTO core.user_profile (user_id, email, display_name, phone, status)
+         VALUES ($1, $2, $3, $4, 'ACTIVE')
          ON CONFLICT (user_id) DO UPDATE SET
            display_name = COALESCE(EXCLUDED.display_name, core.user_profile.display_name),
+           phone = COALESCE(EXCLUDED.phone, core.user_profile.phone),
            updated_at = now()`,
-        [userId, `${userId}@users.momentra.local`, displayName ?? null]
+        [userId, `${userId}@users.momentra.local`, displayName ?? null, phone ?? null]
       );
       return;
     }
@@ -114,15 +136,21 @@ export function resolveIdentityFromToken(decoded: DecodedIdToken): {
   userId: string;
   email?: string;
   displayName?: string;
+  phone?: string;
 } {
   const firebaseProjectId = (decoded.aud as string) || config.firebase.projectId || 'unknown';
   const firebaseUid = decoded.uid;
+  const phone =
+    typeof (decoded as { phone_number?: string }).phone_number === 'string'
+      ? (decoded as { phone_number?: string }).phone_number
+      : undefined;
   return {
     firebaseUid,
     firebaseProjectId,
     userId: firebaseUserId(firebaseProjectId, firebaseUid),
     email: decoded.email,
     displayName: decoded.name,
+    phone,
   };
 }
 

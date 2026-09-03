@@ -3487,7 +3487,11 @@ v1Router.post('/group/invites/:code/redeem', requireIdempotencyKey, async (req, 
       },
     });
     if (result.momentId) {
-      publishProjectionUpdated(ctx.userId, ['GROUP_MOMENTS'], ctx.correlationId);
+      const hints = ['GROUP_MOMENTS', 'GROUP_ACTIVITY', 'GROUP_PARTICIPANTS'];
+      const targets = new Set<string>([ctx.userId, ...(result.notifyUserIds ?? [])]);
+      for (const uid of targets) {
+        publishProjectionUpdated(uid, hints, ctx.correlationId);
+      }
     }
     res.status(200).json(commandEnvelope(result, ctx.correlationId));
   } catch (e) {

@@ -245,16 +245,21 @@ fun GroupInvitePeopleSheet(
                 label = "Send Invite",
                 enabled = name.isNotBlank(),
                 loading = submitting,
-                footer = "They will receive a notification",
+                footer = "Share the invite link so they can join",
                 onClick = {
                     scope.launch {
                         submitting = true
                         formError = null
+                        val contact = email.trim().ifBlank { null }
+                        val isPhone = contact != null &&
+                            contact.any { it.isDigit() } &&
+                            !contact.contains('@')
                         repository.addParticipant(
                             momentId = momentId,
                             displayName = name.trim(),
                             roleCode = role,
-                            email = email.trim().ifBlank { null },
+                            email = if (isPhone) null else contact,
+                            phone = if (isPhone) contact else null,
                         ).fold(
                             onSuccess = {
                                 submitting = false
