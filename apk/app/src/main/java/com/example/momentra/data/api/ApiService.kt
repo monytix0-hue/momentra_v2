@@ -468,6 +468,27 @@ interface ApiService {
         @Body body: CreateGroupExpenseBody,
     ): SuccessEnvelope<CreateGroupExpenseResultDto>
 
+    @GET("v1/moments/{momentId}/group-expenses/{expenseId}")
+    suspend fun getGroupExpense(
+        @Path("momentId") momentId: String,
+        @Path("expenseId") expenseId: String,
+    ): SuccessEnvelope<GroupExpenseDetailDto>
+
+    @PATCH("v1/moments/{momentId}/group-expenses/{expenseId}")
+    suspend fun updateGroupExpense(
+        @Path("momentId") momentId: String,
+        @Path("expenseId") expenseId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: CreateGroupExpenseBody,
+    ): SuccessEnvelope<CreateGroupExpenseResultDto>
+
+    @DELETE("v1/moments/{momentId}/group-expenses/{expenseId}")
+    suspend fun voidGroupExpense(
+        @Path("momentId") momentId: String,
+        @Path("expenseId") expenseId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+    ): SuccessEnvelope<CreateGroupExpenseResultDto>
+
     @POST("v1/moments/{momentId}/contributions")
     suspend fun recordContribution(
         @Path("momentId") momentId: String,

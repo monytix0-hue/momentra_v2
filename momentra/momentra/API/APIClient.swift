@@ -2075,6 +2075,26 @@ final class APIClient {
         let splitStrategy: String?
     }
 
+    struct GroupExpenseSharePayload: Decodable {
+        let expenseShareId: String?
+        let participantId: String
+        let shareAmount: String
+        let sharePercent: String?
+    }
+
+    struct GroupExpenseDetail: Decodable {
+        let expenseId: String
+        let momentId: String
+        let amount: String
+        let currencyCode: String
+        let status: String
+        let version: Int
+        let description: String?
+        let paidByParticipantId: String
+        let splitStrategy: String
+        let shares: [GroupExpenseSharePayload]?
+    }
+
     struct RecordContributionResult: Decodable {
         let contributionId: String
         let momentId: String
@@ -2177,6 +2197,55 @@ final class APIClient {
                 splitStrategy: splitStrategy,
                 splitInputs: splitInputs
             ),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func getGroupExpense(momentId: String, expenseId: String) async throws -> GroupExpenseDetail {
+        try await authorizedGet(path: "v1/moments/\(momentId)/group-expenses/\(expenseId)")
+    }
+
+    func updateGroupExpense(
+        momentId: String,
+        expenseId: String,
+        amount: String,
+        currencyCode: String,
+        description: String? = nil,
+        paidByParticipantId: String,
+        splitStrategy: String,
+        splitInputs: [GroupSplitInput],
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CreateGroupExpenseResult {
+        struct Body: Encodable {
+            let amount: String
+            let currencyCode: String
+            let description: String?
+            let paidByParticipantId: String
+            let splitStrategy: String
+            let splitInputs: [GroupSplitInput]
+        }
+        return try await authorizedPatch(
+            path: "v1/moments/\(momentId)/group-expenses/\(expenseId)",
+            body: Body(
+                amount: amount,
+                currencyCode: currencyCode,
+                description: description,
+                paidByParticipantId: paidByParticipantId,
+                splitStrategy: splitStrategy,
+                splitInputs: splitInputs
+            ),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func voidGroupExpense(
+        momentId: String,
+        expenseId: String,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CreateGroupExpenseResult {
+        try await authorizedDelete(
+            path: "v1/moments/\(momentId)/group-expenses/\(expenseId)",
+            body: Optional<String>.none as String?,
             idempotencyKey: idempotencyKey
         )
     }

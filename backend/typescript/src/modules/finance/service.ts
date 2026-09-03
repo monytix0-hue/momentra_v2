@@ -27,7 +27,10 @@ export const createExpenseSchema = z
     planningClassCode: z.enum(['ESSENTIAL', 'PLANNED', 'UNPLANNED']).optional(),
     note: z.string().max(2000).optional(),
     tags: z.array(z.string().min(1).max(80)).max(20).optional(),
-    effectiveAt: z.string().datetime().optional(),
+    effectiveAt: z
+      .string()
+      .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'Invalid ISO datetime' })
+      .nullish(),
     recurringScheduleId: z.string().uuid().optional(),
   })
   .strict();
@@ -44,7 +47,11 @@ export const updateExpenseSchema = z
     subcategoryCode: z.string().max(100).nullable().optional(),
     financialAccountId: z.string().uuid().nullable().optional(),
     paymentMethodCode: paymentMethodCodeSchema.nullable().optional(),
-    effectiveAt: z.string().datetime().optional(),
+    // Mobile offset ISO / Gson null — Zod .datetime() is Z-only by default.
+    effectiveAt: z
+      .string()
+      .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'Invalid ISO datetime' })
+      .nullish(),
     recurringScheduleId: z.string().uuid().nullable().optional(),
     transactionType: z.never().optional(),
   })

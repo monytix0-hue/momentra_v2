@@ -21,9 +21,12 @@ export const pollSchema = z
   .object({
     question: z.string().min(1).max(1000),
     options: z.array(z.string().min(1).max(500)).min(2).max(20),
-    // Mobile clients send local offset ISO; Zod .datetime() defaults to Z-only.
-    closesAt: z.string().datetime({ offset: true }).optional(),
-    pollType: z.enum(['SINGLE_CHOICE', 'MULTI_CHOICE', 'YES_NO']).optional(),
+    // Offset ISO / Gson null — see clientIsoDatetime notes in group-collab-commands.
+    closesAt: z
+      .string()
+      .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'Invalid ISO datetime' })
+      .nullish(),
+    pollType: z.enum(['SINGLE_CHOICE', 'MULTI_CHOICE', 'YES_NO']).nullish(),
   })
   .strict();
 
@@ -334,7 +337,7 @@ export async function createPlanningItem(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  body: { title: string; dueAt?: string }
+  body: { title: string; dueAt?: string | null }
 ): Promise<{ planningItemId: string; momentId: string }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'PLANNING_ITEM_CREATE', resourceType: 'PLANNING_ITEM', momentId });
   const r = await client.query<{ planning_item_id: string }>(
@@ -350,7 +353,7 @@ export async function createBooking(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  body: { title: string; bookedAt?: string }
+  body: { title: string; bookedAt?: string | null }
 ): Promise<{ bookingId: string; momentId: string }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'BOOKING_CREATE', resourceType: 'BOOKING', momentId });
   const r = await client.query<{ booking_id: string }>(
@@ -456,7 +459,7 @@ export async function createMemory(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  body: { title: string; capturedAt?: string }
+  body: { title: string; capturedAt?: string | null }
 ): Promise<{ memoryId: string; momentId: string }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'MEMORY_CREATE', resourceType: 'MEMORY', momentId });
   const r = await client.query<{ memory_id: string }>(

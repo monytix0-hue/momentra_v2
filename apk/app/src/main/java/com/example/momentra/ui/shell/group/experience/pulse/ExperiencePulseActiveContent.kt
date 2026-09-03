@@ -39,6 +39,7 @@ import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
+import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupPulseInsightsHeroCard
 import com.example.momentra.ui.shell.group.shared.GroupProgressBar
@@ -72,6 +73,7 @@ fun ExperiencePulseActiveContent(
     momentId: String?,
     momentTitle: String?,
     refreshToken: Long,
+    momentTypeCode: String? = null,
     onAddExpense: () -> Unit,
     onOpenQuickAdd: () -> Unit = onAddExpense,
     onViewSplits: () -> Unit = onAddExpense,
@@ -88,8 +90,10 @@ fun ExperiencePulseActiveContent(
     var insights by remember { mutableStateOf<List<AnalyticsInsightItemDto>>(emptyList()) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var editingExpenseId by remember { mutableStateOf<String?>(null) }
+    var reloadNonce by remember { mutableStateOf(0) }
 
-    LaunchedEffect(refreshToken, momentId) {
+    LaunchedEffect(refreshToken, momentId, reloadNonce) {
         if (momentId.isNullOrBlank()) {
             loading = false
             return@LaunchedEffect
@@ -339,7 +343,17 @@ fun ExperiencePulseActiveContent(
                 ExperienceEmptyBlock(theme, "No recent activity", "Expenses, plans, and updates will show here.")
             } else {
                 activities.forEach { item ->
-                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                    val expenseId = item.activityPayload?.expenseId
+                    val canEdit = !expenseId.isNullOrBlank()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (canEdit) Modifier.clickable { editingExpenseId = expenseId }
+                                else Modifier,
+                            )
+                            .padding(vertical = 6.dp),
+                    ) {
                         Text(item.title, color = theme.text, fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
                         Text(item.occurredAt, color = theme.secondary, fontSize = 11.sp, fontFamily = PlusJakartaSans)
                     }
@@ -351,6 +365,26 @@ fun ExperiencePulseActiveContent(
             headerTitle = "🧠 ${theme.insightsTitle}",
             insights = insights,
             gradient = theme.heroGradient,
+        )
+    }
+
+    val mid = momentId
+    val editId = editingExpenseId
+    if (mid != null && editId != null) {
+        GroupExpenseSheet(
+            momentId = mid,
+            visible = true,
+            onDismiss = { editingExpenseId = null },
+            onSaved = {
+                editingExpenseId = null
+                reloadNonce += 1
+            },
+            onDeleted = {
+                editingExpenseId = null
+                reloadNonce += 1
+            },
+            expenseId = editId,
+            momentTypeCode = momentTypeCode,
         )
     }
 }

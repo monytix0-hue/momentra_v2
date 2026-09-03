@@ -5,6 +5,7 @@ struct WeddingPulseActiveView: View {
     let refreshToken: UInt64
     let momentTitle: String?
     let momentId: String?
+    var momentTypeCode: String? = nil
     var onAddExpense: () -> Void = {}
     var onOpenQuickAdd: () -> Void = {}
     var onViewSplits: () -> Void = {}
@@ -18,6 +19,8 @@ struct WeddingPulseActiveView: View {
     @State private var title: String?
     @State private var loading = true
     @State private var error: String?
+    @State private var editingExpenseId: String?
+    @State private var editExpensePresented = false
 
     var body: some View {
         Group {
@@ -29,6 +32,28 @@ struct WeddingPulseActiveView: View {
         }
         .background(WeddingActiveTheme.bg)
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
+        .sheet(isPresented: $editExpensePresented) {
+            if let momentId, let editingExpenseId {
+                GroupExpenseSheet(
+                    momentId: momentId,
+                    isPresented: $editExpensePresented,
+                    expenseId: editingExpenseId,
+                    isWedding: true,
+                    momentTypeCode: momentTypeCode,
+                    onSaved: {
+                        editExpensePresented = false
+                        Task { await load() }
+                    },
+                    onDeleted: {
+                        editExpensePresented = false
+                        Task { await load() }
+                    }
+                )
+            }
+        }
+        .onChange(of: editExpensePresented) { _, open in
+            if !open { editingExpenseId = nil }
+        }
     }
 
     @ViewBuilder
@@ -226,14 +251,33 @@ struct WeddingPulseActiveView: View {
                         )
                     } else {
                         ForEach(activities) { item in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.title)
-                                    .font(.plusJakarta(size: 13, weight: .medium))
-                                    .foregroundStyle(WeddingActiveTheme.text)
-                                Text(item.occurredAt)
-                                    .font(.plusJakarta(size: 11))
-                                    .foregroundStyle(WeddingActiveTheme.secondary)
-                            }}
+                            let expenseId = item.activityPayload?.expenseId
+                            let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
+                            Button {
+                                guard let expenseId else { return }
+                                editingExpenseId = expenseId
+                                editExpensePresented = true
+                            } label: {
+                                HStack(spacing: 10) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.title)
+                                            .font(.plusJakarta(size: 13, weight: .medium))
+                                            .foregroundStyle(WeddingActiveTheme.text)
+                                        Text(item.occurredAt)
+                                            .font(.plusJakarta(size: 11))
+                                            .foregroundStyle(WeddingActiveTheme.secondary)
+                                    }
+                                    Spacer()
+                                    if canEdit {
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundStyle(WeddingActiveTheme.secondary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(!canEdit)
+                        }
                     }
                 }
 

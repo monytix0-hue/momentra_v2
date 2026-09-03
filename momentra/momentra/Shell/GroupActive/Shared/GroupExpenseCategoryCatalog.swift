@@ -45,4 +45,22 @@ enum GroupExpenseCategoryCatalog {
         if note.range(of: cat, options: .caseInsensitive) != nil { return note }
         return "\(note) | \(cat)"
     }
+
+    /// Best-effort reverse of `descriptionWithCategory` for edit forms.
+    static func parseCategoryAndNote(from description: String?, momentTypeCode: String?) -> (category: String, note: String) {
+        let cats = categories(for: momentTypeCode)
+        let raw = (description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.isEmpty { return (defaultCategory(for: momentTypeCode), "") }
+        if let sep = raw.range(of: " | ", options: .backwards) {
+            let cat = String(raw[sep.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if let match = cats.first(where: { $0.caseInsensitiveCompare(cat) == .orderedSame }) {
+                let note = String(raw[..<sep.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                return (match, note)
+            }
+        }
+        if let match = cats.first(where: { $0.caseInsensitiveCompare(raw) == .orderedSame }) {
+            return (match, "")
+        }
+        return (defaultCategory(for: momentTypeCode), raw)
+    }
 }

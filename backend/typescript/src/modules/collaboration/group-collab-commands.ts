@@ -10,20 +10,26 @@ import { recordCommandSideEffects } from '../../platform/events/outbox';
 import { assertGroupMember } from './group-membership';
 import * as collaborationService from './service';
 
-/** iOS/Android send local offset ISO (e.g. +05:30); Zod .datetime() defaults to Z-only. */
-const clientIsoDatetime = z.string().datetime({ offset: true });
+/**
+ * Mobile clients send local-offset ISO (e.g. +05:30). Zod .datetime() defaults to Z-only.
+ * Gson also encodes Kotlin null as JSON null — nullish, not optional.
+ * Use Date.parse so fractional seconds / offset variants from iOS & Android all pass.
+ */
+const clientIsoDatetime = z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
+  message: 'Invalid ISO datetime',
+});
 
 export const planningItemSchema = z
   .object({
     title: z.string().min(1).max(500),
-    dueAt: clientIsoDatetime.optional(),
+    dueAt: clientIsoDatetime.nullish(),
   })
   .strict();
 
 export const bookingSchema = z
   .object({
     title: z.string().min(1).max(500),
-    bookedAt: clientIsoDatetime.optional(),
+    bookedAt: clientIsoDatetime.nullish(),
   })
   .strict();
 
@@ -74,7 +80,7 @@ export const residentSchema = z
 export const memorySchema = z
   .object({
     title: z.string().min(1).max(500),
-    capturedAt: clientIsoDatetime.optional(),
+    capturedAt: clientIsoDatetime.nullish(),
   })
   .strict();
 

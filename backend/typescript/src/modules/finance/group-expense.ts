@@ -404,10 +404,416 @@ export async function createGroupExpense(
     amount,
     computed,
     domainEventId,
-    body.splitStrategy === 'POOLED'
+    body.splitStrategy === 'POOLED',
+    1
   );
 
   return result;
+}
+
+export async function getGroupExpense(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  expenseId: string
+): Promise<GroupExpenseResult & { description: string | null }> {
+  await assertGroupMember(client, ctx, momentId);
+
+  const row = await client.query<{
+    expense_id: string;
+    moment_id: string;
+    amount: string;
+    currency_code: string;
+    status: string;
+    version: string;
+    description: string | null;
+    paid_by_participant_id: string;
+    split_strategy: string;
+  }>(
+    `SELECT e.expense_id, e.moment_id, e.amount::text, e.currency_code, e.status, e.version::text,
+            e.description, g.paid_by_participant_id, g.split_strategy
+     FROM finance.expense e
+     INNER JOIN finance.group_expense_context g ON g.expense_id = e.expense_id
+     WHERE e.expense_id = $1::uuid AND e.moment_id = $2::uuid AND e.domain_code = 'GROUP'`,
+    [expenseId, momentId]
+  );
+  if (row.rows.length === 0) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Group expense not found.', 404);
+  }
+  const e = row.rows[0];
+
+  const shares = await client.query<{
+    expense_share_id: string;
+    participant_id: string;
+    share_amount: string;
+    share_percent: string | null;
+  }>(
+    `SELECT expense_share_id, participant_id, share_amount::text, share_percent::text
+     FROM finance.expense_share
+     WHERE expense_id = $1::uuid AND status <> 'VOIDED'
+     ORDER BY participant_id`,
+    [expenseId]
+  );
+
+  const obligations = await client.query<{
+    participant_obligation_id: string;
+    participant_id: string;
+    original_amount: string;
+  }>(
+    `SELECT participant_obligation_id, participant_id, original_amount::text
+     FROM finance.participant_obligation
+     WHERE source_type = 'EXPENSE_SHARE'
+       AND source_id IN (SELECT expense_share_id FROM finance.expense_share WHERE expense_id = $1::uuid)
+       AND status <> 'VOIDED'`,
+    [expenseId]
+  );
+
+  return {
+    expenseId: e.expense_id,
+    momentId: e.moment_id,
+    amount: e.amount,
+    currencyCode: e.currency_code,
+    status: e.status,
+    version: parseInt(e.version, 10),
+    description: e.description,
+    paidByParticipantId: e.paid_by_participant_id,
+    splitStrategy: e.split_strategy,
+    shares: shares.rows.map((r) => ({
+      expenseShareId: r.expense_share_id,
+      participantId: r.participant_id,
+      shareAmount: r.share_amount,
+      sharePercent: r.share_percent,
+    })),
+    obligations: obligations.rows.map((r) => ({
+      obligationId: r.participant_obligation_id,
+      participantId: r.participant_id,
+      originalAmount: r.original_amount,
+    })),
+  };
+}
+
+export const updateGroupExpenseSchema = createGroupExpenseSchema;
+
+export type UpdateGroupExpenseInput = CreateGroupExpenseInput;
+
+export async function updateGroupExpense(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  expenseId: string,
+  body: UpdateGroupExpenseInput
+): Promise<GroupExpenseResult> {
+  const amount = parseMoney(body.amount);
+
+  await assertFailClosedPolicies(client, 'EXPENSE_CREATE');
+  await assertGroupMember(client, ctx, momentId);
+
+  const existing = await getGroupExpense(client, ctx, momentId, expenseId);
+  if (existing.status === 'VOIDED') {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Cannot update a voided expense.', 400);
+  }
+
+  const settled = await client.query<{ c: string }>(
+    `SELECT count(*)::text AS c
+     FROM finance.participant_obligation po
+     INNER JOIN finance.expense_share es ON es.expense_share_id = po.source_id
+     WHERE es.expense_id = $1::uuid
+       AND po.source_type = 'EXPENSE_SHARE'
+       AND (po.settled_amount > 0 OR po.status NOT IN ('OPEN', 'VOIDED'))`,
+    [expenseId]
+  );
+  if (parseInt(settled.rows[0]?.c ?? '0', 10) > 0) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      'Cannot edit expense after settlements have been applied.',
+      409
+    );
+  }
+
+  const participantIds = [
+    body.paidByParticipantId,
+    ...body.splitInputs.map((s) => s.participantId),
+  ];
+  await assertParticipantsOnMoment(client, momentId, participantIds);
+
+  const computed = computeGroupShares(body.splitStrategy, amount, body.splitInputs);
+  if (body.splitStrategy !== 'POOLED') {
+    const shareSum = computed.reduce((acc, s) => acc.plus(s.shareAmount), new Decimal(0));
+    if (!shareSum.eq(amount)) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, 'Computed shares must equal expense amount.', 400);
+    }
+  }
+
+  // Reverse prior finance projection
+  const oldAmount = new Decimal(existing.amount);
+  const oldShares: ComputedShare[] = existing.shares.map((s) => ({
+    participantId: s.participantId,
+    shareAmount: new Decimal(s.shareAmount),
+    sharePercent: s.sharePercent != null ? new Decimal(s.sharePercent) : null,
+  }));
+  await upsertGroupFinanceProjection(
+    client,
+    momentId,
+    existing.currencyCode,
+    existing.paidByParticipantId,
+    oldAmount.neg(),
+    oldShares.map((s) => ({ ...s, shareAmount: s.shareAmount.neg() })),
+    ctx.correlationId,
+    existing.splitStrategy === 'POOLED',
+    0
+  );
+
+  await client.query(
+    `DELETE FROM finance.participant_obligation
+     WHERE source_type = 'EXPENSE_SHARE'
+       AND source_id IN (SELECT expense_share_id FROM finance.expense_share WHERE expense_id = $1::uuid)`,
+    [expenseId]
+  );
+  await client.query(`DELETE FROM finance.expense_share WHERE expense_id = $1::uuid`, [expenseId]);
+
+  const updated = await client.query<{ version: string }>(
+    `UPDATE finance.expense
+     SET description = $3, amount = $4, currency_code = $5, version = version + 1, updated_at = now()
+     WHERE expense_id = $1::uuid AND moment_id = $2::uuid
+     RETURNING version::text`,
+    [expenseId, momentId, body.description ?? null, amount.toFixed(4), body.currencyCode]
+  );
+  await client.query(
+    `UPDATE finance.group_expense_context
+     SET paid_by_participant_id = $2, split_strategy = $3
+     WHERE expense_id = $1::uuid`,
+    [expenseId, body.paidByParticipantId, body.splitStrategy]
+  );
+
+  let shareRows: GroupExpenseResult['shares'] = [];
+  let obligationRows: GroupExpenseResult['obligations'] = [];
+
+  if (body.splitStrategy !== 'POOLED' && computed.length > 0) {
+    const shareInsert = await client.query<{
+      expense_share_id: string;
+      participant_id: string;
+      share_amount: string;
+      share_percent: string | null;
+    }>(
+      `INSERT INTO finance.expense_share (
+         expense_id, moment_id, participant_id, share_amount, share_percent, status
+       )
+       SELECT $1::uuid, $2::uuid, x.participant_id, x.share_amount::numeric,
+              NULLIF(x.share_percent, '')::numeric, 'ALLOCATED'
+       FROM UNNEST($3::uuid[], $4::text[], $5::text[]) AS x(participant_id, share_amount, share_percent)
+       RETURNING expense_share_id, participant_id, share_amount::text, share_percent::text`,
+      [
+        expenseId,
+        momentId,
+        computed.map((s) => s.participantId),
+        computed.map((s) => s.shareAmount.toFixed(4)),
+        computed.map((s) => (s.sharePercent != null ? s.sharePercent.toFixed(6) : '')),
+      ]
+    );
+    shareRows = shareInsert.rows.map((r) => ({
+      expenseShareId: r.expense_share_id,
+      participantId: r.participant_id,
+      shareAmount: r.share_amount,
+      sharePercent: r.share_percent,
+    }));
+
+    const obligationInsert = await client.query<{
+      participant_obligation_id: string;
+      participant_id: string;
+      original_amount: string;
+    }>(
+      `INSERT INTO finance.participant_obligation (
+         moment_id, participant_id, source_type, source_id, currency_code,
+         original_amount, settled_amount, status, version
+       )
+       SELECT $1::uuid, es.participant_id, 'EXPENSE_SHARE', es.expense_share_id, $2,
+              es.share_amount, 0, 'OPEN', 1
+       FROM finance.expense_share es
+       WHERE es.expense_id = $3::uuid
+         AND es.status = 'ALLOCATED'
+         AND es.participant_id <> $4::uuid
+         AND es.share_amount > 0
+       RETURNING participant_obligation_id, participant_id, original_amount::text`,
+      [momentId, body.currencyCode, expenseId, body.paidByParticipantId]
+    );
+    obligationRows = obligationInsert.rows.map((r) => ({
+      obligationId: r.participant_obligation_id,
+      participantId: r.participant_id,
+      originalAmount: r.original_amount,
+    }));
+  }
+
+  const version = parseInt(updated.rows[0].version, 10);
+  const { domainEventId } = await recordCommandSideEffects(client, ctx, {
+    eventName: 'GroupExpenseUpdated',
+    domainCode: 'GROUP',
+    aggregateType: 'EXPENSE',
+    aggregateId: expenseId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: {
+      expenseId,
+      momentId,
+      amount: amount.toFixed(4),
+      currencyCode: body.currencyCode,
+      paidByParticipantId: body.paidByParticipantId,
+      splitStrategy: body.splitStrategy,
+    },
+    auditActionCode: 'EXPENSE_UPDATE',
+    auditResourceType: 'EXPENSE',
+    auditResourceId: expenseId,
+    afterSnapshot: {
+      expenseId,
+      momentId,
+      amount: amount.toFixed(4),
+      currencyCode: body.currencyCode,
+      status: 'POSTED',
+      version,
+      paidByParticipantId: body.paidByParticipantId,
+      splitStrategy: body.splitStrategy,
+      shares: shareRows,
+      obligations: obligationRows,
+    },
+    activity: {
+      domainCode: 'GROUP',
+      momentId,
+      activityCode:
+        body.splitStrategy === 'POOLED' ? 'GROUP_POOLED_EXPENSE_UPDATED' : 'GROUP_EXPENSE_UPDATED',
+      title:
+        body.splitStrategy === 'POOLED'
+          ? body.description ?? 'Household pooled spend updated'
+          : body.description ?? 'Group expense updated',
+      payload: {
+        expenseId,
+        amount: amount.toFixed(4),
+        currencyCode: body.currencyCode,
+        paidByParticipantId: body.paidByParticipantId,
+        splitStrategy: body.splitStrategy,
+      },
+    },
+  });
+
+  await upsertGroupFinanceProjection(
+    client,
+    momentId,
+    body.currencyCode,
+    body.paidByParticipantId,
+    amount,
+    computed,
+    domainEventId,
+    body.splitStrategy === 'POOLED',
+    0
+  );
+
+  return {
+    expenseId,
+    momentId,
+    amount: amount.toFixed(4),
+    currencyCode: body.currencyCode,
+    status: 'POSTED',
+    version,
+    paidByParticipantId: body.paidByParticipantId,
+    splitStrategy: body.splitStrategy,
+    shares: shareRows,
+    obligations: obligationRows,
+  };
+}
+
+export async function voidGroupExpense(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  expenseId: string
+): Promise<GroupExpenseResult> {
+  await assertFailClosedPolicies(client, 'EXPENSE_CREATE');
+  await assertGroupMember(client, ctx, momentId);
+
+  const existing = await getGroupExpense(client, ctx, momentId, expenseId);
+  if (existing.status === 'VOIDED') {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Expense is already voided.', 400);
+  }
+
+  const settled = await client.query<{ c: string }>(
+    `SELECT count(*)::text AS c
+     FROM finance.participant_obligation po
+     INNER JOIN finance.expense_share es ON es.expense_share_id = po.source_id
+     WHERE es.expense_id = $1::uuid
+       AND po.source_type = 'EXPENSE_SHARE'
+       AND po.settled_amount > 0`,
+    [expenseId]
+  );
+  if (parseInt(settled.rows[0]?.c ?? '0', 10) > 0) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      'Cannot void expense after settlements have been applied.',
+      409
+    );
+  }
+
+  const oldAmount = new Decimal(existing.amount);
+  const oldShares: ComputedShare[] = existing.shares.map((s) => ({
+    participantId: s.participantId,
+    shareAmount: new Decimal(s.shareAmount),
+    sharePercent: s.sharePercent != null ? new Decimal(s.sharePercent) : null,
+  }));
+  await upsertGroupFinanceProjection(
+    client,
+    momentId,
+    existing.currencyCode,
+    existing.paidByParticipantId,
+    oldAmount.neg(),
+    oldShares.map((s) => ({ ...s, shareAmount: s.shareAmount.neg() })),
+    ctx.correlationId,
+    existing.splitStrategy === 'POOLED',
+    -1
+  );
+
+  await client.query(
+    `UPDATE finance.participant_obligation SET status = 'VOIDED', updated_at = now()
+     WHERE source_type = 'EXPENSE_SHARE'
+       AND source_id IN (SELECT expense_share_id FROM finance.expense_share WHERE expense_id = $1::uuid)`,
+    [expenseId]
+  );
+  await client.query(
+    `UPDATE finance.expense_share SET status = 'VOIDED', updated_at = now() WHERE expense_id = $1::uuid`,
+    [expenseId]
+  );
+  const voided = await client.query<{ version: string }>(
+    `UPDATE finance.expense
+     SET status = 'VOIDED', reversed_at = now(), version = version + 1, updated_at = now()
+     WHERE expense_id = $1::uuid AND moment_id = $2::uuid
+     RETURNING version::text`,
+    [expenseId, momentId]
+  );
+
+  await recordCommandSideEffects(client, ctx, {
+    eventName: 'GroupExpenseVoided',
+    domainCode: 'GROUP',
+    aggregateType: 'EXPENSE',
+    aggregateId: expenseId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: { expenseId, momentId },
+    auditActionCode: 'EXPENSE_VOID',
+    auditResourceType: 'EXPENSE',
+    auditResourceId: expenseId,
+    afterSnapshot: { expenseId, status: 'VOIDED' },
+    activity: {
+      domainCode: 'GROUP',
+      momentId,
+      activityCode: 'GROUP_EXPENSE_VOIDED',
+      title: existing.description ?? 'Group expense voided',
+      payload: { expenseId, status: 'VOIDED' },
+    },
+  });
+
+  return {
+    ...existing,
+    status: 'VOIDED',
+    version: parseInt(voided.rows[0].version, 10),
+    shares: [],
+    obligations: [],
+  };
 }
 
 async function upsertGroupFinanceProjection(
@@ -418,7 +824,8 @@ async function upsertGroupFinanceProjection(
   amount: Decimal,
   shares: ComputedShare[],
   sourceEventId: string,
-  isPooled = false
+  isPooled = false,
+  expenseCountDelta = 1
 ): Promise<void> {
   const outstandingDelta = isPooled
     ? new Decimal(0)
@@ -426,12 +833,15 @@ async function upsertGroupFinanceProjection(
         .filter((s) => s.participantId !== paidByParticipantId)
         .reduce((acc, s) => acc.plus(s.shareAmount), new Decimal(0));
 
+  // For reverse (negative amount), still mark pooled adjustment when isPooled.
+  const applyPooledPayload = isPooled && !amount.eq(0);
+
   const payloadExtras = isPooled
     ? {
-        expenseCount: 1,
+        expenseCount: expenseCountDelta,
         pooledExpenseTotal: amount.toFixed(4),
       }
-    : { expenseCount: 1 };
+    : { expenseCount: expenseCountDelta };
 
   await client.query(
     `WITH snap AS (
@@ -445,7 +855,10 @@ async function upsertGroupFinanceProjection(
          snapshot_payload = COALESCE(projection.group_finance_snapshot.snapshot_payload, '{}'::jsonb)
            || jsonb_build_object(
                 'expenseCount',
-                COALESCE((projection.group_finance_snapshot.snapshot_payload->>'expenseCount')::int, 0) + 1
+                GREATEST(
+                  0,
+                  COALESCE((projection.group_finance_snapshot.snapshot_payload->>'expenseCount')::int, 0) + $14::int
+                )
               )
            || CASE WHEN $13::boolean THEN jsonb_build_object(
                 'pooledExpenseTotal',
@@ -508,7 +921,8 @@ async function upsertGroupFinanceProjection(
           : s.shareAmount.neg()
         ).toFixed(4)
       ),
-      isPooled,
+      applyPooledPayload,
+      expenseCountDelta,
     ]
   );
 }

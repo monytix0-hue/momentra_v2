@@ -70,11 +70,14 @@ fun GroupExpenseSheet(
     visible: Boolean,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
+    onDeleted: () -> Unit = onSaved,
+    expenseId: String? = null,
     isWedding: Boolean = false,
     momentTypeCode: String? = null,
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
+    val isEditing = expenseId != null
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val sheetBg = if (isWedding) WeddingActiveTheme.Bg else TripSheetTokens.Bg
     val sheetText = if (isWedding) WeddingActiveTheme.Text else TripSheetTokens.Text
@@ -117,7 +120,7 @@ fun GroupExpenseSheet(
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(momentId, visible) {
+    LaunchedEffect(momentId, visible, expenseId) {
         if (!visible) return@LaunchedEffect
         loadingParticipants = true
         error = null
@@ -128,12 +131,49 @@ fun GroupExpenseSheet(
                         it.status.equals("INVITED", ignoreCase = true)
                 }.ifEmpty { dto.participants }
                 participants = active
-                selectedSplitIds = active.map { it.participantId }.toSet()
-                paidById = active.firstOrNull()?.participantId
-                splitValues = emptyMap()
+                if (expenseId == null) {
+                    selectedSplitIds = active.map { it.participantId }.toSet()
+                    paidById = active.firstOrNull()?.participantId
+                    splitValues = emptyMap()
+                }
             },
             onFailure = { error = it.message },
         )
+        if (expenseId != null) {
+            repository.getGroupExpense(momentId, expenseId).fold(
+                onSuccess = { detail ->
+                    amount = detail.amount
+                    currency = detail.currencyCode
+                    val parsed = GroupExpenseCategoryCatalog.parseCategoryAndNote(
+                        detail.description,
+                        momentTypeCode,
+                    )
+                    category = parsed.first
+                    description = parsed.second
+                    paidById = detail.paidByParticipantId
+                    splitStrategy = detail.splitStrategy
+                    if (detail.splitStrategy == "POOLED") {
+                        selectedSplitIds = participants.map { it.participantId }.toSet()
+                        splitValues = emptyMap()
+                    } else {
+                        selectedSplitIds = detail.shares.map { it.participantId }.toSet()
+                        splitValues = when (detail.splitStrategy) {
+                            "PERCENTAGE" -> detail.shares.associate {
+                                it.participantId to (it.sharePercent ?: "")
+                            }
+                            "EXACT" -> detail.shares.associate {
+                                it.participantId to it.shareAmount
+                            }
+                            "SHARES" -> detail.shares.associate {
+                                it.participantId to (it.sharePercent ?: "1")
+                            }
+                            else -> emptyMap()
+                        }
+                    }
+                },
+                onFailure = { error = it.message },
+            )
+        }
         loadingParticipants = false
     }
 
@@ -208,7 +248,13 @@ fun GroupExpenseSheet(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        if (isWedding) "Add Expense" else "Group expense",
+                        if (isEditing) {
+                            if (isWedding) "Edit Expense" else "Edit group expense"
+                        } else if (isWedding) {
+                            "Add Expense"
+                        } else {
+                            "Group expense"
+                        },
                         color = sheetText,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -445,6 +491,36 @@ fun GroupExpenseSheet(
                 Text(it, color = Red, fontSize = 12.sp, fontFamily = PlusJakartaSans)
             }
 
+            if (isEditing && expenseId != null) {
+                Text(
+                    "Delete expense",
+                    color = Red,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !submitting) {
+                            scope.launch {
+                                submitting = true
+                                error = null
+                                repository.voidGroupExpense(momentId, expenseId).fold(
+                                    onSuccess = {
+                                        submitting = false
+                                        onDeleted()
+                                        onDismiss()
+                                    },
+                                    onFailure = {
+                                        submitting = false
+                                        error = it.message
+                                    },
+                                )
+                            }
+                        }
+                        .padding(vertical = 10.dp),
+                )
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -532,7 +608,12 @@ fun GroupExpenseSheet(
                                     userDescription = description,
                                 ),
                             )
-                            repository.createGroupExpense(momentId, body).fold(
+                            val result = if (expenseId != null) {
+                                repository.updateGroupExpense(momentId, expenseId, body)
+                            } else {
+                                repository.createGroupExpense(momentId, body)
+                            }
+                            result.fold(
                                 onSuccess = {
                                     submitting = false
                                     onSaved()
@@ -682,6 +763,35 @@ fun GroupContributionSheet(
             )
             error?.let {
                 Text(it, color = Red, fontSize = 12.sp, fontFamily = PlusJakartaSans)
+            }
+            if (isEditing && expenseId != null) {
+                Text(
+                    "Delete expense",
+                    color = Red,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !submitting) {
+                            scope.launch {
+                                submitting = true
+                                error = null
+                                repository.voidGroupExpense(momentId, expenseId).fold(
+                                    onSuccess = {
+                                        submitting = false
+                                        onDeleted()
+                                        onDismiss()
+                                    },
+                                    onFailure = {
+                                        submitting = false
+                                        error = it.message
+                                    },
+                                )
+                            }
+                        }
+                        .padding(vertical = 10.dp),
+                )
             }
             Box(
                 modifier = Modifier

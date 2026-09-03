@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,6 +39,7 @@ import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
+import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupPulseInsightsHeroCard
 import com.example.momentra.ui.shell.group.shared.GroupProgressBar
@@ -66,6 +68,7 @@ fun WeddingPulseActiveContent(
     momentId: String?,
     momentTitle: String?,
     refreshToken: Long,
+    momentTypeCode: String? = null,
     onAddExpense: () -> Unit,
     onOpenQuickAdd: () -> Unit = onAddExpense,
     onViewSplits: () -> Unit = onAddExpense,
@@ -81,8 +84,10 @@ fun WeddingPulseActiveContent(
     var insights by remember { mutableStateOf<List<AnalyticsInsightItemDto>>(emptyList()) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var editingExpenseId by remember { mutableStateOf<String?>(null) }
+    var reloadNonce by remember { mutableStateOf(0) }
 
-    LaunchedEffect(refreshToken, momentId) {
+    LaunchedEffect(refreshToken, momentId, reloadNonce) {
         if (momentId.isNullOrBlank()) {
             loading = false
             pulse = null
@@ -416,7 +421,17 @@ fun WeddingPulseActiveContent(
                     )
                 } else {
                     activity.forEach { item ->
-                        WeddingActivityRow("📌", item.title, formatOccurredAt(item.occurredAt))
+                        val expenseId = item.activityPayload?.expenseId
+                        val canEdit = !expenseId.isNullOrBlank()
+                        Box(
+                            modifier = if (canEdit) {
+                                Modifier.clickable { editingExpenseId = expenseId }
+                            } else {
+                                Modifier
+                            },
+                        ) {
+                            WeddingActivityRow("📌", item.title, formatOccurredAt(item.occurredAt))
+                        }
                     }
                 }
             }
@@ -427,6 +442,27 @@ fun WeddingPulseActiveContent(
                 gradient = WeddingActiveTheme.HeroGradient,
             )
         }
+    }
+
+    val mid = momentId
+    val editId = editingExpenseId
+    if (mid != null && editId != null) {
+        GroupExpenseSheet(
+            momentId = mid,
+            visible = true,
+            onDismiss = { editingExpenseId = null },
+            onSaved = {
+                editingExpenseId = null
+                reloadNonce += 1
+            },
+            onDeleted = {
+                editingExpenseId = null
+                reloadNonce += 1
+            },
+            expenseId = editId,
+            isWedding = true,
+            momentTypeCode = momentTypeCode,
+        )
     }
 }
 

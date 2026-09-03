@@ -11,6 +11,7 @@ import com.example.momentra.data.api.AttachMemoryMediaBody
 import com.example.momentra.data.api.CreateBookingBody
 import com.example.momentra.data.api.CreateGroupExpenseBody
 import com.example.momentra.data.api.CreateGroupExpenseResultDto
+import com.example.momentra.data.api.GroupExpenseDetailDto
 import com.example.momentra.data.api.CreateMemoryBody
 import com.example.momentra.data.api.CreatePlanningItemBody
 import com.example.momentra.data.api.CreatePollBody
@@ -158,6 +159,39 @@ class GroupSliceRepository(
             momentId = momentId,
             idempotencyKey = idempotencyKey,
             body = body,
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun getGroupExpense(
+        momentId: String,
+        expenseId: String,
+    ): Result<GroupExpenseDetailDto> = runCatching {
+        api.getGroupExpense(momentId = momentId, expenseId = expenseId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun updateGroupExpense(
+        momentId: String,
+        expenseId: String,
+        body: CreateGroupExpenseBody,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<CreateGroupExpenseResultDto> = runCatching {
+        api.updateGroupExpense(
+            momentId = momentId,
+            expenseId = expenseId,
+            idempotencyKey = idempotencyKey,
+            body = body,
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun voidGroupExpense(
+        momentId: String,
+        expenseId: String,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<CreateGroupExpenseResultDto> = runCatching {
+        api.voidGroupExpense(
+            momentId = momentId,
+            expenseId = expenseId,
+            idempotencyKey = idempotencyKey,
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 

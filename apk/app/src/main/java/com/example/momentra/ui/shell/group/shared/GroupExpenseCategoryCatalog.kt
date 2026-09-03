@@ -47,4 +47,22 @@ object GroupExpenseCategoryCatalog {
         // Maestro correlation form: "… | Category | amount" — keep category as a clear segment.
         return "$note | $cat"
     }
+
+    /** Best-effort reverse of descriptionWithCategory for edit forms. */
+    fun parseCategoryAndNote(description: String?, momentTypeCode: String?): Pair<String, String> {
+        val cats = categories(momentTypeCode)
+        val raw = description?.trim().orEmpty()
+        if (raw.isEmpty()) return defaultCategory(momentTypeCode) to ""
+        val sep = " | "
+        val idx = raw.lastIndexOf(sep)
+        if (idx >= 0) {
+            val cat = raw.substring(idx + sep.length).trim()
+            val match = cats.firstOrNull { it.equals(cat, ignoreCase = true) }
+            if (match != null) {
+                return match to raw.substring(0, idx).trim()
+            }
+        }
+        cats.firstOrNull { it.equals(raw, ignoreCase = true) }?.let { return it to "" }
+        return defaultCategory(momentTypeCode) to raw
+    }
 }

@@ -44,6 +44,7 @@ import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
+import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupPulseInsightsHeroCard
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
@@ -66,6 +67,7 @@ fun LivingPulseActiveContent(
     momentId: String?,
     momentTitle: String?,
     refreshToken: Long,
+    momentTypeCode: String? = null,
     onAddExpense: () -> Unit,
     onOpenQuickAdd: () -> Unit = onAddExpense,
     onViewSplits: () -> Unit = onAddExpense,
@@ -78,14 +80,16 @@ fun LivingPulseActiveContent(
     var pulse by remember { mutableStateOf<GroupPulsePayloadDto?>(null) }
     var finance by remember { mutableStateOf<GroupFinancePayloadDto?>(null) }
     var activities by remember { mutableStateOf<List<ActivityItemDto>>(emptyList()) }
+    var editingExpenseId by remember { mutableStateOf<String?>(null) }
     var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
     var planningItems by remember { mutableStateOf<List<GroupLifePlanningItemDto>>(emptyList()) }
     var residents by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
     var insights by remember { mutableStateOf<List<AnalyticsInsightItemDto>>(emptyList()) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var reloadNonce by remember { mutableStateOf(0) }
 
-    LaunchedEffect(refreshToken, momentId) {
+    LaunchedEffect(refreshToken, momentId, reloadNonce) {
         if (momentId.isNullOrBlank()) {
             loading = false
             return@LaunchedEffect
@@ -407,7 +411,18 @@ fun LivingPulseActiveContent(
                 LivingEmptyBlock(theme, "No recent activity", "Expenses, tasks, and updates will show here.")
             } else {
                 activities.forEach { item ->
-                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                    val expenseId = item.activityPayload?.expenseId
+                    val canEdit = !expenseId.isNullOrBlank()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .then(
+                                if (canEdit) Modifier.clickable { editingExpenseId = expenseId }
+                                else Modifier,
+                            )
+                            .padding(vertical = 6.dp),
+                    ) {
                         Text(item.title, color = theme.text, fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
                         Text(item.occurredAt, color = theme.secondary, fontSize = 11.sp, fontFamily = PlusJakartaSans)
                     }
@@ -421,6 +436,26 @@ fun LivingPulseActiveContent(
             gradient = theme.pulseHeroGradient,
             footerLabel = "+ Open Quick Add",
             onFooterClick = onOpenQuickAdd,
+        )
+    }
+
+    val mid = momentId
+    val editId = editingExpenseId
+    if (mid != null && editId != null) {
+        GroupExpenseSheet(
+            momentId = mid,
+            visible = true,
+            onDismiss = { editingExpenseId = null },
+            onSaved = {
+                editingExpenseId = null
+                reloadNonce += 1
+            },
+            onDeleted = {
+                editingExpenseId = null
+                reloadNonce += 1
+            },
+            expenseId = editId,
+            momentTypeCode = momentTypeCode,
         )
     }
 }

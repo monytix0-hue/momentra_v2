@@ -2725,6 +2725,93 @@ v1Router.post('/moments/:momentId/group-expenses', requireIdempotencyKey, async 
   }
 });
 
+v1Router.get('/moments/:momentId/group-expenses/:expenseId', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      const data = await groupExpenseService.getGroupExpense(
+        client,
+        ctx,
+        param(req.params.momentId),
+        param(req.params.expenseId)
+      );
+      res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.patch('/moments/:momentId/group-expenses/:expenseId', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(groupExpenseService.updateGroupExpenseSchema, req.body);
+    const result = await runCommand({
+      operationCode: 'GROUP_EXPENSE_CREATE',
+      idempotencyKey: req.idempotencyKey!,
+      body,
+      ctx,
+      resourceType: 'EXPENSE',
+      execute: async (client, b) => {
+        const r = await groupExpenseService.updateGroupExpense(
+          client,
+          ctx,
+          param(req.params.momentId),
+          param(req.params.expenseId),
+          b as groupExpenseService.UpdateGroupExpenseInput
+        );
+        return { result: r, resourceId: r.expenseId };
+      },
+    });
+    const hints = ['group.activity', 'group.pulse', 'group.finance'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.json(
+      commandEnvelope(result, ctx.correlationId, {
+        resourceVersion: result.version,
+        projectionHints: toProjectionHints([...hints], 'refresh'),
+      })
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.delete('/moments/:momentId/group-expenses/:expenseId', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const result = await runCommand({
+      operationCode: 'GROUP_EXPENSE_CREATE',
+      idempotencyKey: req.idempotencyKey!,
+      body: {},
+      ctx,
+      resourceType: 'EXPENSE',
+      execute: async (client) => {
+        const r = await groupExpenseService.voidGroupExpense(
+          client,
+          ctx,
+          param(req.params.momentId),
+          param(req.params.expenseId)
+        );
+        return { result: r, resourceId: r.expenseId };
+      },
+    });
+    const hints = ['group.activity', 'group.pulse', 'group.finance'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.json(
+      commandEnvelope(result, ctx.correlationId, {
+        resourceVersion: result.version,
+        projectionHints: toProjectionHints([...hints], 'refresh'),
+      })
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+
 v1Router.post('/moments/:momentId/contributions', requireIdempotencyKey, async (req, res, next) => {
   try {
     const ctx = req.requestContext!;

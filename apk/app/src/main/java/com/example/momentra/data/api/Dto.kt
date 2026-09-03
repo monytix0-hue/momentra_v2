@@ -1430,6 +1430,26 @@ data class CreateGroupExpenseResultDto(
     @SerializedName("splitStrategy") val splitStrategy: String,
 )
 
+data class GroupExpenseShareDto(
+    @SerializedName("expenseShareId") val expenseShareId: String? = null,
+    @SerializedName("participantId") val participantId: String,
+    @SerializedName("shareAmount") val shareAmount: String,
+    @SerializedName("sharePercent") val sharePercent: String? = null,
+)
+
+data class GroupExpenseDetailDto(
+    @SerializedName("expenseId") val expenseId: String,
+    @SerializedName("momentId") val momentId: String,
+    val amount: String,
+    @SerializedName("currencyCode") val currencyCode: String,
+    val status: String,
+    val version: Long,
+    val description: String? = null,
+    @SerializedName("paidByParticipantId") val paidByParticipantId: String,
+    @SerializedName("splitStrategy") val splitStrategy: String,
+    val shares: List<GroupExpenseShareDto> = emptyList(),
+)
+
 data class CreateSettlementBody(
     @SerializedName("payerParticipantId") val payerParticipantId: String,
     @SerializedName("payeeParticipantId") val payeeParticipantId: String,

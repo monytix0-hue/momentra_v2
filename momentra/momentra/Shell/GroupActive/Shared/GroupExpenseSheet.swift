@@ -1,12 +1,15 @@
 import SwiftUI
 
 /// Figma Sheet / Add Expense — payer + split strategy; EQUAL default; server-authoritative submit.
+/// Pass `expenseId` to load/edit an existing group expense (splits + paid-by).
 struct GroupExpenseSheet: View {
     let momentId: String
     @Binding var isPresented: Bool
+    var expenseId: String? = nil
     var isWedding: Bool = false
     var momentTypeCode: String? = nil
     var onSaved: () -> Void
+    var onDeleted: () -> Void = {}
 
     @State private var amount = ""
     @State private var currencyCode = "INR"
@@ -20,8 +23,10 @@ struct GroupExpenseSheet: View {
     @State private var splitValues: [String: String] = [:]
     @State private var loading = true
     @State private var submitting = false
+    @State private var showDeleteConfirm = false
     @State private var error: String?
 
+    private var isEditing: Bool { expenseId != nil }
     private var accent: Color { isWedding ? WeddingActiveTheme.accentSolid : TripSheetTokens.accent }
     private var peach: Color { isWedding ? WeddingActiveTheme.accentLight : TripSheetTokens.accentEnd }
     private static let livingTypeCodes: Set<String> = [
@@ -37,24 +42,43 @@ struct GroupExpenseSheet: View {
             : ["EQUAL", "PERCENTAGE", "EXACT", "SHARES"]
     }
     private var categoryOptions: [String] { GroupExpenseCategoryCatalog.categories(for: momentTypeCode) }
+    private var sheetTitle: String {
+        if isEditing { return isWedding ? "Edit Expense" : "Edit group expense" }
+        return isWedding ? "Add Expense" : "Group expense"
+    }
 
     var body: some View {
         NativeSheetScaffold(
-            title: isWedding ? "Add Expense" : "Group expense",
+            title: sheetTitle,
             onClose: { isPresented = false },
             background: isWedding ? Color(hex: "#14121B") : TripSheetTokens.bg
         ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    formCard
-                    if let error {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(Color(hex: "#F87171"))
+                    if loading {
+                        ProgressView().tint(accent).frame(maxWidth: .infinity).padding(.vertical, 24)
+                    } else {
+                        formCard
+                        if isEditing {
+                            Button(role: .destructive) {
+                                showDeleteConfirm = true
+                            } label: {
+                                Text("Delete expense")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                            }
+                            .accessibilityIdentifier("group.expense.delete")
+                        }
+                        if let error {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundStyle(Color(hex: "#F87171"))
+                        }
+                        Text("Split math is calculated on the server. Settlements use POST /v1/moments/:id/settlements.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(isWedding ? Color(hex: "#C9C4D8") : TripSheetTokens.muted)
                     }
-                    Text("Split math is calculated on the server. Settlements use POST /v1/moments/:id/settlements.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(isWedding ? Color(hex: "#C9C4D8") : TripSheetTokens.muted)
                 }
                 .padding(16)
             }
@@ -66,9 +90,18 @@ struct GroupExpenseSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .confirmationDialog("Delete this expense?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                Task { await deleteExpense() }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .task {
             category = GroupExpenseCategoryCatalog.defaultCategory(for: momentTypeCode)
             await loadParticipants()
+            if let expenseId {
+                await loadExpense(expenseId)
+            }
         }
     }
 
@@ -377,17 +410,85 @@ struct GroupExpenseSheet: View {
                 category: category,
                 userDescription: descriptionText
             )
-            _ = try await APIClient.shared.createGroupExpense(
-                momentId: momentId,
-                amount: amount.trimmingCharacters(in: .whitespacesAndNewlines),
-                currencyCode: currencyCode.uppercased(),
-                description: finalDescription.isEmpty ? nil : finalDescription,
-                paidByParticipantId: paidBy,
-                splitStrategy: splitStrategy,
-                splitInputs: inputs
-            )
+            if let expenseId {
+                _ = try await APIClient.shared.updateGroupExpense(
+                    momentId: momentId,
+                    expenseId: expenseId,
+                    amount: amount.trimmingCharacters(in: .whitespacesAndNewlines),
+                    currencyCode: currencyCode.uppercased(),
+                    description: finalDescription.isEmpty ? nil : finalDescription,
+                    paidByParticipantId: paidBy,
+                    splitStrategy: splitStrategy,
+                    splitInputs: inputs
+                )
+            } else {
+                _ = try await APIClient.shared.createGroupExpense(
+                    momentId: momentId,
+                    amount: amount.trimmingCharacters(in: .whitespacesAndNewlines),
+                    currencyCode: currencyCode.uppercased(),
+                    description: finalDescription.isEmpty ? nil : finalDescription,
+                    paidByParticipantId: paidBy,
+                    splitStrategy: splitStrategy,
+                    splitInputs: inputs
+                )
+            }
             isPresented = false
             onSaved()
+        } catch {
+            self.error = error.localizedDescription
+        }
+        submitting = false
+    }
+
+    private func loadExpense(_ expenseId: String) async {
+        do {
+            let detail = try await APIClient.shared.getGroupExpense(momentId: momentId, expenseId: expenseId)
+            amount = detail.amount
+            currencyCode = detail.currencyCode
+            let parsed = GroupExpenseCategoryCatalog.parseCategoryAndNote(
+                from: detail.description,
+                momentTypeCode: momentTypeCode
+            )
+            category = parsed.category
+            descriptionText = parsed.note
+            paidByParticipantId = detail.paidByParticipantId
+            splitStrategy = detail.splitStrategy
+            let shares = detail.shares ?? []
+            if detail.splitStrategy == "POOLED" {
+                selectedParticipantIds = Set(participants.map(\.participantId))
+                splitValues = [:]
+            } else {
+                selectedParticipantIds = Set(shares.map(\.participantId))
+                switch detail.splitStrategy {
+                case "PERCENTAGE":
+                    splitValues = Dictionary(uniqueKeysWithValues: shares.map {
+                        ($0.participantId, $0.sharePercent ?? "")
+                    })
+                case "EXACT":
+                    splitValues = Dictionary(uniqueKeysWithValues: shares.map {
+                        ($0.participantId, $0.shareAmount)
+                    })
+                case "SHARES":
+                    splitValues = Dictionary(uniqueKeysWithValues: shares.map {
+                        ($0.participantId, $0.sharePercent ?? "1")
+                    })
+                default:
+                    splitValues = [:]
+                }
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func deleteExpense() async {
+        guard let expenseId else { return }
+        submitting = true
+        error = nil
+        do {
+            _ = try await APIClient.shared.voidGroupExpense(momentId: momentId, expenseId: expenseId)
+            isPresented = false
+            onDeleted()
         } catch {
             self.error = error.localizedDescription
         }
