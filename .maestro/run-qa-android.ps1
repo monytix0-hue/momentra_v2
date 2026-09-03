@@ -109,7 +109,15 @@ if (-not $SkipInstall) {
     if ($LASTEXITCODE -ne 0) { throw "assembleDebug failed" }
     Pop-Location
   }
-  & $Adb -s $target install -r $apk
+  $installOut = & $Adb -s $target install -r $apk 2>&1 | Out-String
+  if ($installOut -match "INSTALL_FAILED_UPDATE_INCOMPATIBLE") {
+    Write-Host "==> Signature mismatch - uninstalling com.example.momentra and retrying install"
+    & $Adb -s $target uninstall com.example.momentra | Out-Null
+    & $Adb -s $target install $apk
+    if ($LASTEXITCODE -ne 0) { throw "adb install failed after uninstall" }
+  } elseif ($LASTEXITCODE -ne 0) {
+    throw "adb install failed: $installOut"
+  }
 }
 
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
@@ -158,6 +166,8 @@ if (-not (Test-Path $flowTarget)) {
 }
 
 Write-Host "==> Testing $flowTarget"
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 if ($Class -eq "all") {
   & $Maestro --device $target test $flowTarget @MaestroEnvArgs --format junit --output (Join-Path $reportDir "junit.xml") --debug-output $reportDir
 } elseif ($Class -in @("pilot", "input", "stress") -and (Test-Path $flowTarget -PathType Leaf)) {
@@ -167,8 +177,8 @@ if ($Class -eq "all") {
 } else {
   & $Maestro --device $target test $flowTarget @MaestroEnvArgs --include-tags $include --format junit --output (Join-Path $reportDir "junit.xml") --debug-output $reportDir
 }
-
 $maestroExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEap
 
 if ($VerifyBackend -or $Class -in @("cert", "pilot", "input", "stress")) {
   Write-Host "==> Backend verify / reports"

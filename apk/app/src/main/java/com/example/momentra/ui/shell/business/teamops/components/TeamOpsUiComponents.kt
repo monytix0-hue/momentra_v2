@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ActivityItemDto
 import com.example.momentra.data.api.BusinessTimelineItemDto
 import com.example.momentra.data.api.WorkloadDto
-import com.example.momentra.ui.shell.business.BusinessActiveTheme
+import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
 import com.example.momentra.ui.theme.PlusJakartaSans
 
 object TeamOpsColors {

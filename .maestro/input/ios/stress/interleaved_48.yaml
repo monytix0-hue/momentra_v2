@@ -70,10 +70,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -86,8 +99,18 @@ env:
 # MTR-IOS-2364 Business/Business Runway/Reserve join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Log Expense"
+    commands:
+      - tapOn: "Log Expense"
 - runFlow:
     when:
       visible: "Save"
@@ -98,7 +121,24 @@ env:
       visible: "Submit"
     commands:
       - tapOn: "Submit"
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -177,10 +217,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -193,8 +246,18 @@ env:
 # MTR-IOS-2365 Personal/Life Operations/Repairs join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -224,7 +287,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -303,10 +383,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -319,8 +412,24 @@ env:
 # MTR-IOS-2366 Group/Assets/Repair join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Repair"
 - runFlow:
     when:
       visible:
@@ -357,7 +466,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -436,10 +562,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -452,8 +591,18 @@ env:
 # MTR-IOS-2367 Business/Business Runway/Loan join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.revenue"
+    commands:
+      - tapOn:
+          id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible: "Log Revenue"
+    commands:
+      - tapOn: "Log Revenue"
 - runFlow:
     when:
       visible:
@@ -474,7 +623,24 @@ env:
           notVisible:
             id: "business.revenue.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -553,10 +719,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -569,8 +748,18 @@ env:
 # MTR-IOS-2368 Personal/Future Building/Savings join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.progress"
+    commands:
+      - tapOn:
+          id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible: "Progress"
+    commands:
+      - tapOn: "Progress"
 - runFlow:
     when:
       visible:
@@ -600,7 +789,24 @@ env:
           notVisible:
             id: "personal.money.transfer.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -679,10 +885,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -695,8 +914,24 @@ env:
 # MTR-IOS-2369 Group/Assets/Insurance join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Insurance"
 - runFlow:
     when:
       visible:
@@ -733,7 +968,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -812,10 +1064,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -828,8 +1093,18 @@ env:
 # MTR-IOS-2370 Business/Business Runway/Investment join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.revenue"
+    commands:
+      - tapOn:
+          id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible: "Log Revenue"
+    commands:
+      - tapOn: "Log Revenue"
 - runFlow:
     when:
       visible:
@@ -850,7 +1125,24 @@ env:
           notVisible:
             id: "business.revenue.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -929,10 +1221,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -945,8 +1250,18 @@ env:
 # MTR-IOS-2371 Personal/Future Building/Emergency Fund join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.progress"
+    commands:
+      - tapOn:
+          id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible: "Progress"
+    commands:
+      - tapOn: "Progress"
 - runFlow:
     when:
       visible:
@@ -976,7 +1291,24 @@ env:
           notVisible:
             id: "personal.money.transfer.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1055,10 +1387,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -1071,8 +1416,24 @@ env:
 # MTR-IOS-2372 Group/Assets/Other join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Other"
 - runFlow:
     when:
       visible:
@@ -1109,7 +1470,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1188,10 +1566,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -1206,9 +1597,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -1238,7 +1629,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1317,10 +1725,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -1333,8 +1754,18 @@ env:
 # MTR-IOS-2374 Personal/Future Building/Investments join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.opportunity"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.opportunity"
+    commands:
+      - tapOn:
+          id: "qa.tile.opportunity"
+- runFlow:
+    when:
+      visible: "Opportunity"
+    commands:
+      - tapOn: "Opportunity"
 - runFlow:
     when:
       visible: "Save"
@@ -1345,7 +1776,24 @@ env:
       visible: "Submit"
     commands:
       - tapOn: "Submit"
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1424,10 +1872,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -1440,8 +1901,24 @@ env:
 # MTR-IOS-2375 Group/Custom Purchase/Custom Expense join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Custom Expense"
 - runFlow:
     when:
       visible:
@@ -1478,7 +1955,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1557,10 +2051,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -1575,9 +2082,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -1607,7 +2114,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1686,10 +2210,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -1702,8 +2239,18 @@ env:
 # MTR-IOS-2377 Personal/Future Building/Education join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.milestone"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.milestone"
+    commands:
+      - tapOn:
+          id: "qa.tile.milestone"
+- runFlow:
+    when:
+      visible: "Milestone"
+    commands:
+      - tapOn: "Milestone"
 - runFlow:
     when:
       visible:
@@ -1733,7 +2280,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1812,10 +2376,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -1828,8 +2405,18 @@ env:
 # MTR-IOS-2378 Group/Custom Purchase/Custom Contribution join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.contribute"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.contribute"
+    commands:
+      - tapOn:
+          id: "qa.tile.contribute"
+- runFlow:
+    when:
+      visible: "Contribute"
+    commands:
+      - tapOn: "Contribute"
 - runFlow:
     when:
       visible:
@@ -1866,7 +2453,24 @@ env:
           notVisible:
             id: "group.contribute.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1945,10 +2549,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -1963,9 +2580,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -1995,7 +2612,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2074,10 +2708,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -2090,8 +2737,18 @@ env:
 # MTR-IOS-2380 Personal/Future Building/Goal Contribution join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.progress"
+    commands:
+      - tapOn:
+          id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible: "Progress"
+    commands:
+      - tapOn: "Progress"
 - runFlow:
     when:
       visible:
@@ -2121,7 +2778,24 @@ env:
           notVisible:
             id: "personal.money.transfer.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2200,10 +2874,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -2216,8 +2903,24 @@ env:
 # MTR-IOS-2381 Group/Flatmates/Rent join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Rent"
 - runFlow:
     when:
       visible:
@@ -2254,7 +2957,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2333,10 +3053,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -2351,9 +3084,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -2383,7 +3116,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2462,10 +3212,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -2478,8 +3241,18 @@ env:
 # MTR-IOS-2383 Personal/Lifestyle/Dining join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -2509,7 +3282,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2588,10 +3378,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -2604,8 +3407,24 @@ env:
 # MTR-IOS-2384 Group/Flatmates/Utilities join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Utilities"
 - runFlow:
     when:
       visible:
@@ -2642,7 +3461,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2721,10 +3557,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -2739,9 +3588,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -2771,7 +3620,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2850,10 +3716,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -2866,8 +3745,18 @@ env:
 # MTR-IOS-2386 Personal/Lifestyle/Shopping join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -2897,7 +3786,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2976,10 +3882,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -2992,8 +3911,24 @@ env:
 # MTR-IOS-2387 Group/Flatmates/Groceries join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Groceries"
 - runFlow:
     when:
       visible:
@@ -3030,7 +3965,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -3109,10 +4061,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -3127,9 +4092,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -3159,7 +4124,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -3238,10 +4220,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -3254,8 +4249,18 @@ env:
 # MTR-IOS-2389 Personal/Lifestyle/Entertainment join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -3285,7 +4290,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -3364,10 +4386,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -3380,8 +4415,24 @@ env:
 # MTR-IOS-2390 Group/Flatmates/Internet join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Internet"
 - runFlow:
     when:
       visible:
@@ -3418,7 +4469,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -3497,10 +4565,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -3515,9 +4596,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -3547,7 +4628,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -3626,10 +4724,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -3642,8 +4753,18 @@ env:
 # MTR-IOS-2392 Personal/Lifestyle/Travel join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -3673,7 +4794,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -3752,10 +4890,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -3768,8 +4919,24 @@ env:
 # MTR-IOS-2393 Group/Flatmates/House Supplies join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "House Supplies"
 - runFlow:
     when:
       visible:
@@ -3806,7 +4973,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -3885,10 +5069,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -3903,9 +5100,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -3935,7 +5132,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -4014,10 +5228,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -4030,8 +5257,18 @@ env:
 # MTR-IOS-2395 Personal/Lifestyle/Fitness join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -4061,7 +5298,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -4140,10 +5394,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -4156,8 +5423,24 @@ env:
 # MTR-IOS-2396 Group/Flatmates/Repairs join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Repairs"
 - runFlow:
     when:
       visible:
@@ -4194,7 +5477,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -4273,10 +5573,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -4323,7 +5636,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -4402,10 +5732,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -4418,8 +5761,18 @@ env:
 # MTR-IOS-2398 Personal/Lifestyle/Hobbies join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -4449,7 +5802,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -4528,10 +5898,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -4544,8 +5927,24 @@ env:
 # MTR-IOS-2399 Group/Shared Living/Rent join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Rent"
 - runFlow:
     when:
       visible:
@@ -4582,7 +5981,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -4661,10 +6077,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -4711,7 +6140,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -4790,10 +6236,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -4806,8 +6265,18 @@ env:
 # MTR-IOS-2401 Personal/Relationships/Gifts join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -4837,7 +6306,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -4916,10 +6402,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -4932,8 +6431,24 @@ env:
 # MTR-IOS-2402 Group/Shared Living/Utilities join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Utilities"
 - runFlow:
     when:
       visible:
@@ -4970,7 +6485,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -5049,10 +6581,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -5099,7 +6644,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -5178,10 +6740,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -5194,8 +6769,18 @@ env:
 # MTR-IOS-2404 Personal/Relationships/Dates join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -5225,7 +6810,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -5304,10 +6906,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -5320,8 +6935,24 @@ env:
 # MTR-IOS-2405 Group/Shared Living/Groceries join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Groceries"
 - runFlow:
     when:
       visible:
@@ -5358,7 +6989,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -5437,10 +7085,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -5487,7 +7148,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -5566,10 +7244,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -5582,8 +7273,18 @@ env:
 # MTR-IOS-2407 Personal/Relationships/Family join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -5613,7 +7314,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -5692,10 +7410,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -5708,8 +7439,24 @@ env:
 # MTR-IOS-2408 Group/Shared Living/Maintenance join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Maintenance"
 - runFlow:
     when:
       visible:
@@ -5746,7 +7493,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -5825,10 +7589,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -5875,7 +7652,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -5954,10 +7748,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -5970,8 +7777,18 @@ env:
 # MTR-IOS-2410 Personal/Relationships/Friends join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -6001,7 +7818,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -6080,10 +7914,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -6096,8 +7943,24 @@ env:
 # MTR-IOS-2411 Group/Shared Living/Other join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Other"
 - runFlow:
     when:
       visible:
@@ -6134,7 +7997,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -6213,10 +8093,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -6263,7 +8156,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -6342,10 +8252,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -6358,8 +8281,18 @@ env:
 # MTR-IOS-2413 Personal/Relationships/Celebrations join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -6389,7 +8322,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:

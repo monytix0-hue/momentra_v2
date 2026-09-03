@@ -25,11 +25,11 @@ tags: [critical, ios, personal, finance, income]
 - tapOn:
     id: "login.email"
 - eraseText
-- inputText: ${QA_PERSONAL_EMAIL}
+- inputText: ${QA_IOS_PERSONAL_EMAIL}
 - tapOn:
     id: "login.password"
 - eraseText
-- inputText: ${QA_PERSONAL_PASSWORD}
+- inputText: ${QA_IOS_PERSONAL_PASSWORD}
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:

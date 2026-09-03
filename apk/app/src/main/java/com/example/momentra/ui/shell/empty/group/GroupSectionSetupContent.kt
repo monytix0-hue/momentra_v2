@@ -631,7 +631,6 @@ private fun GroupSectionLongFormFlow(
                         .height(56.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(palette.accentGradient)
-                        .testTag(MaestroIds.GROUP_SETUP_SUBMIT)
                         .clickable(enabled = !submitting) {
                             if (name.isBlank()) return@clickable
                             val invitees = people
@@ -657,9 +656,10 @@ private fun GroupSectionLongFormFlow(
                                 onSuccess = onCreated,
                             )
                         }
+                        .testTag(MaestroIds.GROUP_SETUP_SUBMIT)
                         .semantics {
                             role = Role.Button
-                            contentDescription = variant.activateLabel
+                            contentDescription = variant.activateLabel.replace("→", "").trim()
                         },
                     contentAlignment = Alignment.Center,
                 ) {

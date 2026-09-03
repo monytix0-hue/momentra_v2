@@ -17,8 +17,9 @@ object AuthErrorMapper {
 
             upper.contains("28444") ||
                 upper.contains("DEVELOPER CONSOLE IS NOT SET UP") ||
-                upper.contains("PACKAGE CERTIFICATE HASH") ->
-                "Google Sign-In isn’t set up for this build. In Firebase → Project settings → Your apps → Android, confirm SHA-1 3E:38:EA:66:F4:BB:99:19:AE:0D:38:90:56:75:F7:B6:59:A7:4F:E3 (and SHA-256 47:0F:8C:62:24:AA:74:A1:B2:2D:C8:4E:EA:C2:24:74:87:4B:A5:54:79:B1:C3:A5:94:FD:FE:C4:BE:14:AA:E6), then download a fresh google-services.json. Also open Google Cloud → APIs & Services → Credentials and ensure an Android OAuth client exists for com.example.momentra."
+                upper.contains("PACKAGE CERTIFICATE HASH") ||
+                upper.contains("NO GOOGLE ACCOUNTS AVAILABLE") ->
+                "Google Sign-In isn’t set up for this build. In Firebase → Project settings → Your apps → Android, add SHA-1/SHA-256 from ./gradlew :app:signingReport (shared debug: FA:19:81:CA:2D:1F:C9:86:A6:EF:0A:70:FE:50:BE:7E:D5:77:C4:CF), then download a fresh google-services.json. Ensure an Android OAuth client exists for com.example.momentra."
 
             upper.contains("10.0.2.2") ||
                 (upper.contains("FAILED TO CONNECT") && upper.contains("3000")) ->

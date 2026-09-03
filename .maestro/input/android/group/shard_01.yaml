@@ -70,10 +70,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.apk.group.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -84,12 +97,14 @@ env:
     id: "context.group"
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Experience"
-    commands:
-      - tapOn: "Experience"
-      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Trips, weddings, celebrations, outings and events."
+    timeout: 30000
+- tapOn: "Trips, weddings, celebrations, outings and events."
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Set up Shared Experience"
+    timeout: 30000
 - runFlow:
     when:
       visible: "Trip"
@@ -97,23 +112,46 @@ env:
       - tapOn: "Trip"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "group.setup.submit"
+    element: "Activate Shared Experience.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "group.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate Shared Experience.*"
+- runFlow:
+    when:
+      visible:
+        id: "group.setup.submit"
+    commands:
+      - tapOn:
+          id: "group.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=G01
 # MTR-APK-0002 Group/Trip/Travel join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Travel"
 - runFlow:
     when:
       visible:
@@ -150,7 +188,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -169,8 +224,24 @@ env:
 # MTR-APK-0005 Group/Trip/Stay join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Stay"
 - runFlow:
     when:
       visible:
@@ -207,7 +278,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -226,8 +314,24 @@ env:
 # MTR-APK-0008 Group/Trip/Food join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Food"
 - runFlow:
     when:
       visible:
@@ -264,7 +368,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -283,8 +404,24 @@ env:
 # MTR-APK-0011 Group/Trip/Local Transport join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Local Transport"
 - runFlow:
     when:
       visible:
@@ -321,7 +458,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -340,8 +494,24 @@ env:
 # MTR-APK-0014 Group/Trip/Activities join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Activities"
 - runFlow:
     when:
       visible:
@@ -378,7 +548,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -397,8 +584,24 @@ env:
 # MTR-APK-0017 Group/Trip/Shopping join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Shopping"
 - runFlow:
     when:
       visible:
@@ -435,7 +638,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -454,8 +674,24 @@ env:
 # MTR-APK-0020 Group/Trip/Other join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Other"
 - runFlow:
     when:
       visible:
@@ -492,7 +728,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -510,12 +763,14 @@ env:
 
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Experience"
-    commands:
-      - tapOn: "Experience"
-      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Trips, weddings, celebrations, outings and events."
+    timeout: 30000
+- tapOn: "Trips, weddings, celebrations, outings and events."
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Set up Shared Experience"
+    timeout: 30000
 - runFlow:
     when:
       visible: "Wedding"
@@ -523,23 +778,46 @@ env:
       - tapOn: "Wedding"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "group.setup.submit"
+    element: "Activate Shared Experience.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "group.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate Shared Experience.*"
+- runFlow:
+    when:
+      visible:
+        id: "group.setup.submit"
+    commands:
+      - tapOn:
+          id: "group.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=G02
 # MTR-APK-0023 Group/Wedding/Venue join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Venue"
 - runFlow:
     when:
       visible:
@@ -576,7 +854,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -595,8 +890,24 @@ env:
 # MTR-APK-0026 Group/Wedding/Catering join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Catering"
 - runFlow:
     when:
       visible:
@@ -633,7 +944,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -652,8 +980,24 @@ env:
 # MTR-APK-0029 Group/Wedding/Decor join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Decor"
 - runFlow:
     when:
       visible:
@@ -690,7 +1034,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -709,8 +1070,24 @@ env:
 # MTR-APK-0032 Group/Wedding/Travel join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Travel"
 - runFlow:
     when:
       visible:
@@ -747,7 +1124,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -766,8 +1160,24 @@ env:
 # MTR-APK-0035 Group/Wedding/Gifts join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Gifts"
 - runFlow:
     when:
       visible:
@@ -804,7 +1214,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -823,8 +1250,24 @@ env:
 # MTR-APK-0038 Group/Wedding/Photography join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Photography"
 - runFlow:
     when:
       visible:
@@ -861,7 +1304,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -880,8 +1340,24 @@ env:
 # MTR-APK-0041 Group/Wedding/Other join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Other"
 - runFlow:
     when:
       visible:
@@ -918,7 +1394,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -936,12 +1429,14 @@ env:
 
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Experience"
-    commands:
-      - tapOn: "Experience"
-      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Trips, weddings, celebrations, outings and events."
+    timeout: 30000
+- tapOn: "Trips, weddings, celebrations, outings and events."
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Set up Shared Experience"
+    timeout: 30000
 - runFlow:
     when:
       visible: "Office"
@@ -949,23 +1444,46 @@ env:
       - tapOn: "Office"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "group.setup.submit"
+    element: "Activate Shared Experience.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "group.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate Shared Experience.*"
+- runFlow:
+    when:
+      visible:
+        id: "group.setup.submit"
+    commands:
+      - tapOn:
+          id: "group.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=G04
 # MTR-APK-0044 Group/Office Outing/Food join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Food"
 - runFlow:
     when:
       visible:
@@ -1002,7 +1520,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1021,8 +1556,24 @@ env:
 # MTR-APK-0047 Group/Office Outing/Travel join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Travel"
 - runFlow:
     when:
       visible:
@@ -1059,7 +1610,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1078,8 +1646,24 @@ env:
 # MTR-APK-0050 Group/Office Outing/Activities join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Activities"
 - runFlow:
     when:
       visible:
@@ -1116,7 +1700,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1135,8 +1736,24 @@ env:
 # MTR-APK-0053 Group/Office Outing/Venue join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Venue"
 - runFlow:
     when:
       visible:
@@ -1173,7 +1790,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1192,8 +1826,24 @@ env:
 # MTR-APK-0056 Group/Office Outing/Other join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Other"
 - runFlow:
     when:
       visible:
@@ -1230,7 +1880,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1248,12 +1915,14 @@ env:
 
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Experience"
-    commands:
-      - tapOn: "Experience"
-      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Trips, weddings, celebrations, outings and events."
+    timeout: 30000
+- tapOn: "Trips, weddings, celebrations, outings and events."
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Set up Shared Experience"
+    timeout: 30000
 - runFlow:
     when:
       visible: "Party"
@@ -1261,23 +1930,46 @@ env:
       - tapOn: "Party"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "group.setup.submit"
+    element: "Activate Shared Experience.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "group.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate Shared Experience.*"
+- runFlow:
+    when:
+      visible:
+        id: "group.setup.submit"
+    commands:
+      - tapOn:
+          id: "group.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=G03
 # MTR-APK-0059 Group/House Party/Food join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Food"
 - runFlow:
     when:
       visible:
@@ -1314,7 +2006,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1333,8 +2042,24 @@ env:
 # MTR-APK-0062 Group/House Party/Drinks join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Drinks"
 - runFlow:
     when:
       visible:
@@ -1371,7 +2096,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1390,8 +2132,24 @@ env:
 # MTR-APK-0065 Group/House Party/Decor join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Decor"
 - runFlow:
     when:
       visible:
@@ -1428,7 +2186,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1447,8 +2222,24 @@ env:
 # MTR-APK-0068 Group/House Party/Supplies join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Supplies"
 - runFlow:
     when:
       visible:
@@ -1485,7 +2276,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1504,8 +2312,24 @@ env:
 # MTR-APK-0071 Group/House Party/Other join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Other"
 - runFlow:
     when:
       visible:
@@ -1542,7 +2366,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1560,12 +2401,14 @@ env:
 
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Purchase"
-    commands:
-      - tapOn: "Purchase"
-      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Plan, fund and track something together."
+    timeout: 30000
+- tapOn: "Plan, fund and track something together."
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Set up Shared Purchase"
+    timeout: 30000
 - runFlow:
     when:
       visible: "Gift"
@@ -1573,23 +2416,40 @@ env:
       - tapOn: "Gift"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "group.setup.submit"
+    element: "Activate Purchase.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "group.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate Purchase.*"
+- runFlow:
+    when:
+      visible:
+        id: "group.setup.submit"
+    commands:
+      - tapOn:
+          id: "group.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=G05
 # MTR-APK-0074 Group/Gift Pool/Contribution join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.contribute"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.contribute"
+    commands:
+      - tapOn:
+          id: "qa.tile.contribute"
+- runFlow:
+    when:
+      visible: "Contribute"
+    commands:
+      - tapOn: "Contribute"
 - runFlow:
     when:
       visible:
@@ -1626,7 +2486,24 @@ env:
           notVisible:
             id: "group.contribute.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1645,8 +2522,24 @@ env:
 # MTR-APK-0077 Group/Gift Pool/Gift Purchase join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Gift Purchase"
 - runFlow:
     when:
       visible:
@@ -1683,7 +2576,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1702,8 +2612,24 @@ env:
 # MTR-APK-0080 Group/Gift Pool/Delivery join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Delivery"
 - runFlow:
     when:
       visible:
@@ -1740,7 +2666,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1759,8 +2702,24 @@ env:
 # MTR-APK-0083 Group/Gift Pool/Other join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Other"
 - runFlow:
     when:
       visible:
@@ -1797,7 +2756,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1815,12 +2791,14 @@ env:
 
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Purchase"
-    commands:
-      - tapOn: "Purchase"
-      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Plan, fund and track something together."
+    timeout: 30000
+- tapOn: "Plan, fund and track something together."
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Set up Shared Purchase"
+    timeout: 30000
 - runFlow:
     when:
       visible: "Purchase"
@@ -1828,23 +2806,46 @@ env:
       - tapOn: "Purchase"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "group.setup.submit"
+    element: "Activate Purchase.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "group.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate Purchase.*"
+- runFlow:
+    when:
+      visible:
+        id: "group.setup.submit"
+    commands:
+      - tapOn:
+          id: "group.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=G06
 # MTR-APK-0086 Group/Purchase/Item join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Item"
 - runFlow:
     when:
       visible:
@@ -1881,7 +2882,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1900,8 +2918,24 @@ env:
 # MTR-APK-0089 Group/Purchase/Shipping join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Shipping"
 - runFlow:
     when:
       visible:
@@ -1938,7 +2972,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1957,8 +3008,24 @@ env:
 # MTR-APK-0092 Group/Purchase/Tax join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Tax"
 - runFlow:
     when:
       visible:
@@ -1995,7 +3062,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2014,8 +3098,24 @@ env:
 # MTR-APK-0095 Group/Purchase/Other join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Other"
 - runFlow:
     when:
       visible:
@@ -2052,7 +3152,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2070,12 +3187,14 @@ env:
 
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Purchase"
-    commands:
-      - tapOn: "Purchase"
-      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Plan, fund and track something together."
+    timeout: 30000
+- tapOn: "Plan, fund and track something together."
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Set up Shared Purchase"
+    timeout: 30000
 - runFlow:
     when:
       visible: "Asset"
@@ -2083,23 +3202,46 @@ env:
       - tapOn: "Asset"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "group.setup.submit"
+    element: "Activate Purchase.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "group.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate Purchase.*"
+- runFlow:
+    when:
+      visible:
+        id: "group.setup.submit"
+    commands:
+      - tapOn:
+          id: "group.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=G07
 # MTR-APK-0098 Group/Assets/Purchase join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Purchase"
 - runFlow:
     when:
       visible:
@@ -2136,7 +3278,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2155,8 +3314,24 @@ env:
 # MTR-APK-0101 Group/Assets/Maintenance join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Maintenance"
 - runFlow:
     when:
       visible:
@@ -2193,7 +3368,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2212,8 +3404,24 @@ env:
 # MTR-APK-0104 Group/Assets/Repair join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Repair"
 - runFlow:
     when:
       visible:
@@ -2250,7 +3458,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2269,8 +3494,24 @@ env:
 # MTR-APK-0107 Group/Assets/Insurance join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Insurance"
 - runFlow:
     when:
       visible:
@@ -2307,7 +3548,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2326,8 +3584,24 @@ env:
 # MTR-APK-0110 Group/Assets/Other join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Other"
 - runFlow:
     when:
       visible:
@@ -2364,7 +3638,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2382,12 +3673,14 @@ env:
 
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Purchase"
-    commands:
-      - tapOn: "Purchase"
-      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Plan, fund and track something together."
+    timeout: 30000
+- tapOn: "Plan, fund and track something together."
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Set up Shared Purchase"
+    timeout: 30000
 - runFlow:
     when:
       visible: "Custom"
@@ -2395,23 +3688,46 @@ env:
       - tapOn: "Custom"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "group.setup.submit"
+    element: "Activate Purchase.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "group.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate Purchase.*"
+- runFlow:
+    when:
+      visible:
+        id: "group.setup.submit"
+    commands:
+      - tapOn:
+          id: "group.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=G08
 # MTR-APK-0113 Group/Custom Purchase/Custom Expense join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Custom Expense"
 - runFlow:
     when:
       visible:
@@ -2448,7 +3764,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2467,8 +3800,18 @@ env:
 # MTR-APK-0116 Group/Custom Purchase/Custom Contribution join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.contribute"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.contribute"
+    commands:
+      - tapOn:
+          id: "qa.tile.contribute"
+- runFlow:
+    when:
+      visible: "Contribute"
+    commands:
+      - tapOn: "Contribute"
 - runFlow:
     when:
       visible:
@@ -2505,7 +3848,24 @@ env:
           notVisible:
             id: "group.contribute.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2523,12 +3883,14 @@ env:
 
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Living"
-    commands:
-      - tapOn: "Living"
-      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Coordinate a home, routine or shared space."
+    timeout: 30000
+- tapOn: "Coordinate a home, routine or shared space."
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Set up Shared Living"
+    timeout: 30000
 - runFlow:
     when:
       visible: "Flatmates"
@@ -2536,23 +3898,46 @@ env:
       - tapOn: "Flatmates"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "group.setup.submit"
+    element: "Activate Living.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "group.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate Living.*"
+- runFlow:
+    when:
+      visible:
+        id: "group.setup.submit"
+    commands:
+      - tapOn:
+          id: "group.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=G09
 # MTR-APK-0119 Group/Flatmates/Rent join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Rent"
 - runFlow:
     when:
       visible:
@@ -2589,7 +3974,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2608,8 +4010,24 @@ env:
 # MTR-APK-0122 Group/Flatmates/Utilities join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Utilities"
 - runFlow:
     when:
       visible:
@@ -2646,7 +4064,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2665,8 +4100,24 @@ env:
 # MTR-APK-0125 Group/Flatmates/Groceries join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Groceries"
 - runFlow:
     when:
       visible:
@@ -2703,7 +4154,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2722,8 +4190,24 @@ env:
 # MTR-APK-0128 Group/Flatmates/Internet join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Internet"
 - runFlow:
     when:
       visible:
@@ -2760,7 +4244,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2779,8 +4280,24 @@ env:
 # MTR-APK-0131 Group/Flatmates/House Supplies join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "House Supplies"
 - runFlow:
     when:
       visible:
@@ -2817,7 +4334,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2836,8 +4370,24 @@ env:
 # MTR-APK-0134 Group/Flatmates/Repairs join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Repairs"
 - runFlow:
     when:
       visible:
@@ -2874,7 +4424,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2892,12 +4459,14 @@ env:
 
 - tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "Living"
-    commands:
-      - tapOn: "Living"
-      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Coordinate a home, routine or shared space."
+    timeout: 30000
+- tapOn: "Coordinate a home, routine or shared space."
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Set up Shared Living"
+    timeout: 30000
 - runFlow:
     when:
       visible: "Co-living"
@@ -2905,23 +4474,46 @@ env:
       - tapOn: "Co-living"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "group.setup.submit"
+    element: "Activate Living.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "group.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate Living.*"
+- runFlow:
+    when:
+      visible:
+        id: "group.setup.submit"
+    commands:
+      - tapOn:
+          id: "group.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=G11
 # MTR-APK-0137 Group/Shared Living/Rent join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Rent"
 - runFlow:
     when:
       visible:
@@ -2958,7 +4550,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2977,8 +4586,24 @@ env:
 # MTR-APK-0140 Group/Shared Living/Utilities join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Utilities"
 - runFlow:
     when:
       visible:
@@ -3015,7 +4640,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -3034,8 +4676,24 @@ env:
 # MTR-APK-0143 Group/Shared Living/Groceries join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Groceries"
 - runFlow:
     when:
       visible:
@@ -3072,7 +4730,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -3091,8 +4766,24 @@ env:
 # MTR-APK-0146 Group/Shared Living/Maintenance join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Maintenance"
 - runFlow:
     when:
       visible:
@@ -3129,7 +4820,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -3148,8 +4856,24 @@ env:
 # MTR-APK-0149 Group/Shared Living/Other join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.category"
+    commands:
+      - tapOn: "Other"
 - runFlow:
     when:
       visible:
@@ -3186,7 +4910,24 @@ env:
           notVisible:
             id: "group.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:

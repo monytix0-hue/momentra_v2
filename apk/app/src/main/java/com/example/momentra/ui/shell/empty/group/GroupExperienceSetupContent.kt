@@ -416,7 +416,6 @@ fun GroupExperienceSetupContent(
                         .height(56.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(palette.accentGradient)
-                        .testTag(MaestroIds.GROUP_SETUP_SUBMIT)
                         .clickable(enabled = !submitting) {
                             if (name.isBlank()) return@clickable
                             val startAt = SetupDateTimeUtils.isoDateToStartInstant(startDateIso)
@@ -453,6 +452,7 @@ fun GroupExperienceSetupContent(
                                 onSuccess = onCreated,
                             )
                         }
+                        .testTag(MaestroIds.GROUP_SETUP_SUBMIT)
                         .semantics {
                             role = Role.Button
                             contentDescription = "Activate Shared Experience"

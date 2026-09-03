@@ -1,7 +1,7 @@
 ﻿appId: resolvingpoint.momentra
 tags: [critical, ios, group, finance]
 ---
-- runFlow: ../00_auth/smoke_email_login.yaml
+- runFlow: ../00_auth/smoke_email_login_group.yaml
 - tapOn:
     id: "context.group"
 - takeScreenshot: ios_group_critical_entry

@@ -11,8 +11,11 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
-val apiBaseUrl = localProperties.getProperty("API_BASE_URL", "http://10.0.2.2:3000")
-val googleWebClientId = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", "")
+val apiBaseUrl = localProperties.getProperty("API_BASE_URL", "https://api.mallaapp.org")
+val googleWebClientId = localProperties.getProperty(
+        "GOOGLE_WEB_CLIENT_ID",
+        "315259659778-vhau66jfi22k27rc8lbgueo3os92knrl.apps.googleusercontent.com",
+    )
 val sentryDsn = localProperties.getProperty("SENTRY_DSN", "")
 
 android {
@@ -37,7 +40,21 @@ android {
         buildConfigField("String", "SENTRY_DSN", "\"$sentryDsn\"")
     }
 
+    // Shared debug keystore so Google Sign-In SHA fingerprints stay stable across machines
+    // (default ~/.android/debug.keystore SHA collides on package com.example.momentra).
+    signingConfigs {
+        create("momentraDebug") {
+            storeFile = rootProject.file("keystore/momentra-debug.jks")
+            storePassword = "momentra-debug"
+            keyAlias = "momentra-debug"
+            keyPassword = "momentra-debug"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("momentraDebug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -60,6 +77,9 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.firebase.auth)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
     implementation(libs.material)
     implementation(libs.androidx.activity.compose)
 

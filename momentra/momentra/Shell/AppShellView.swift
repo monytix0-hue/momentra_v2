@@ -41,11 +41,19 @@ struct AppShellView: View {
     @State private var showReferComingSoon = false
     @State private var pendingGroupJoin: PendingGroupJoin?
     @State private var companyMenuOpen = false
+    @State private var joinFeedbackMessage: String?
 
     var body: some View {
         shellPage
             .onAppear {
                 model.bindIdentity(identity)
+                if let pending = JoinInviteStore.shared.consume() {
+                    pendingGroupJoin = PendingGroupJoin(id: pending)
+                }
+            }
+            .onReceive(JoinInviteStore.shared.$pendingCode) { code in
+                guard let code, !code.isEmpty else { return }
+                guard pendingGroupJoin == nil else { return }
                 if let pending = JoinInviteStore.shared.consume() {
                     pendingGroupJoin = PendingGroupJoin(id: pending)
                 }
@@ -144,6 +152,7 @@ struct AppShellView: View {
                     momentId: momentId,
                     isPresented: $groupExpenseSheetPresented,
                     isWedding: GroupExperienceFamily.forTypeCode(model.selectedMomentTypeCode).isWedding,
+                    momentTypeCode: model.selectedMomentTypeCode,
                     onSaved: { model.refreshVisibleGroupTab() }
                 )
             }
@@ -221,10 +230,20 @@ struct AppShellView: View {
                 onJoin: {
                     let code = pending.code
                     Task {
-                        await model.redeemJoinCode(code, using: createModel)
+                        let result = await model.redeemJoinCode(code, using: createModel)
                         pendingGroupJoin = nil
                         newMomentOpen = false
                         groupCreatePhase = .chooser
+                        if let result {
+                            if result.alreadyMember == true {
+                                joinFeedbackMessage = "Already a member"
+                            } else if result.momentId == nil || result.momentId?.isEmpty == true {
+                                joinFeedbackMessage =
+                                    "Invite claimed — you’ll join when the organizer finishes creating the group."
+                            } else {
+                                joinFeedbackMessage = "Joined group"
+                            }
+                        }
                     }
                 }
             )
@@ -285,6 +304,17 @@ struct AppShellView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Invite sharing will be available in a future release.")
+        }
+        .alert(
+            "Group invite",
+            isPresented: Binding(
+                get: { joinFeedbackMessage != nil },
+                set: { if !$0 { joinFeedbackMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { joinFeedbackMessage = nil }
+        } message: {
+            Text(joinFeedbackMessage ?? "")
         }
         .fullScreenCover(isPresented: $groupFinancePresented) {
             if let momentId = model.selectedMomentId {

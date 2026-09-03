@@ -14,6 +14,20 @@ class GroupJoinLinkTest {
     }
 
     @Test
+    fun parsesHttpsInviteLanding() {
+        assertEquals("abcdhkmn", GroupJoinLink.parse("https://momentra.app/j/abcdhkmn"))
+        assertEquals("abcdhkmn", GroupJoinLink.parse("https://www.momentra.app/join/abcdhkmn"))
+        assertEquals("abcdhkmn", GroupJoinLink.parse("https://momentra-v2.web.app/j/abcdhkmn"))
+    }
+
+    @Test
+    fun inviteLinkHelpersUseHttps() {
+        assertEquals("https://momentra.app/j/abcdhkmn", GroupInviteLink.displayPath("abcdhkmn"))
+        assertEquals("https://momentra.app/j/abcdhkmn", GroupInviteLink.qrPayload("ABCDHKMN"))
+        assertEquals("https://momentra.app/j/abcdhkmn", GroupInviteLink.copyText("abcdhkmn"))
+    }
+
+    @Test
     fun rejectsJwtPayloads() {
         val jwt =
             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0In0.abc"

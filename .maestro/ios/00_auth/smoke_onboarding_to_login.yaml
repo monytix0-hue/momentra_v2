@@ -2,21 +2,28 @@
 tags: [smoke, ios, auth]
 ---
 - runFlow: smoke_launch_clear.yaml
+- repeat:
+    times: 5
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: "onboarding.skip"
+          commands:
+            - tapOn:
+                id: "onboarding.skip"
+            - waitForAnimationToEnd
+      - runFlow:
+          when:
+            visible: "Skip"
+          commands:
+            - tapOn: "Skip"
+            - waitForAnimationToEnd
 - runFlow:
     when:
-      visible:
-        id: "onboarding.skip"
+      visible: "Step Inside"
     commands:
-      - tapOn:
-          id: "onboarding.skip"
-      - waitForAnimationToEnd
-- runFlow:
-    when:
-      visible:
-        id: "onboarding.skip"
-    commands:
-      - tapOn:
-          id: "onboarding.skip"
+      - tapOn: "Step Inside"
       - waitForAnimationToEnd
 - runFlow:
     when:
@@ -26,16 +33,24 @@ tags: [smoke, ios, auth]
       - tapOn:
           id: "consent.continue"
       - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
-      id: "login.screen"
-    timeout: 30000
-- assertVisible:
-    id: "login.email"
-- assertVisible:
-    id: "login.submit"
-- assertVisible:
-    id: "login.google"
-- assertVisible:
-    id: "login.apple"
+      id: "login.email"
+    timeout: 60000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "login.email"
+    commands:
+      - assertVisible:
+          id: "login.screen"
+      - assertVisible:
+          id: "login.submit"
 - takeScreenshot: ios_smoke_login

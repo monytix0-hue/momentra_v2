@@ -16,5 +16,40 @@
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "site": "momentra-v2",
+    "public": "web/invite",
+    "ignore": [
+      "firebase.json",
+      "**/node_modules/**",
+      "**/README.md"
+    ],
+    "rewrites": [
+      { "source": "/j/**", "destination": "/join.html" },
+      { "source": "/join/**", "destination": "/join.html" },
+      { "source": "/c/**", "destination": "/join.html" },
+      { "source": "/company/**", "destination": "/join.html" }
+    ],
+    "headers": [
+      {
+        "source": "/.well-known/apple-app-site-association",
+        "headers": [
+          { "key": "Content-Type", "value": "application/json" }
+        ]
+      },
+      {
+        "source": "/apple-app-site-association",
+        "headers": [
+          { "key": "Content-Type", "value": "application/json" }
+        ]
+      },
+      {
+        "source": "/.well-known/assetlinks.json",
+        "headers": [
+          { "key": "Content-Type", "value": "application/json" }
+        ]
+      }
+    ]
   }
 }

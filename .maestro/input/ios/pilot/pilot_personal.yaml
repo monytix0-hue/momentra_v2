@@ -70,10 +70,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.personal@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -91,23 +104,40 @@ env:
       - tapOn: "Life Operations"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "personal.setup.submit"
+    element: "Activate Life Operations.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "personal.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate Life Operations.*"
+- runFlow:
+    when:
+      visible:
+        id: "personal.setup.submit"
+    commands:
+      - tapOn:
+          id: "personal.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=P1
 # MTR-IOS-0001 Personal/Life Operations/Groceries join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -137,7 +167,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -156,8 +203,18 @@ env:
 # MTR-IOS-0004 Personal/Life Operations/Rent join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -187,7 +244,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -206,8 +280,18 @@ env:
 # MTR-IOS-0007 Personal/Life Operations/Bills join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -237,7 +321,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -256,8 +357,18 @@ env:
 # MTR-IOS-0010 Personal/Life Operations/Transport join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -287,7 +398,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -306,8 +434,18 @@ env:
 # MTR-IOS-0013 Personal/Life Operations/Healthcare join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -337,7 +475,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -356,8 +511,18 @@ env:
 # MTR-IOS-0016 Personal/Life Operations/Subscriptions join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -387,7 +552,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -406,8 +588,18 @@ env:
 # MTR-IOS-0019 Personal/Life Operations/Repairs join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -437,7 +629,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -462,23 +671,40 @@ env:
       - tapOn: "Future Building"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "personal.setup.submit"
+    element: "Activate Future Building.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "personal.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate Future Building.*"
+- runFlow:
+    when:
+      visible:
+        id: "personal.setup.submit"
+    commands:
+      - tapOn:
+          id: "personal.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=P2
 # MTR-IOS-0022 Personal/Future Building/Savings join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.progress"
+    commands:
+      - tapOn:
+          id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible: "Progress"
+    commands:
+      - tapOn: "Progress"
 - runFlow:
     when:
       visible:
@@ -508,7 +734,24 @@ env:
           notVisible:
             id: "personal.money.transfer.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -527,8 +770,18 @@ env:
 # MTR-IOS-0025 Personal/Future Building/Emergency Fund join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.progress"
+    commands:
+      - tapOn:
+          id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible: "Progress"
+    commands:
+      - tapOn: "Progress"
 - runFlow:
     when:
       visible:
@@ -558,7 +811,24 @@ env:
           notVisible:
             id: "personal.money.transfer.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -577,8 +847,18 @@ env:
 # MTR-IOS-0028 Personal/Future Building/Investments join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.opportunity"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.opportunity"
+    commands:
+      - tapOn:
+          id: "qa.tile.opportunity"
+- runFlow:
+    when:
+      visible: "Opportunity"
+    commands:
+      - tapOn: "Opportunity"
 - runFlow:
     when:
       visible: "Save"
@@ -589,7 +869,24 @@ env:
       visible: "Submit"
     commands:
       - tapOn: "Submit"
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -608,8 +905,18 @@ env:
 # MTR-IOS-0031 Personal/Future Building/Education join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.milestone"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.milestone"
+    commands:
+      - tapOn:
+          id: "qa.tile.milestone"
+- runFlow:
+    when:
+      visible: "Milestone"
+    commands:
+      - tapOn: "Milestone"
 - runFlow:
     when:
       visible:
@@ -639,7 +946,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -658,8 +982,18 @@ env:
 # MTR-IOS-0034 Personal/Future Building/Goal Contribution join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.progress"
+    commands:
+      - tapOn:
+          id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible: "Progress"
+    commands:
+      - tapOn: "Progress"
 - runFlow:
     when:
       visible:
@@ -689,7 +1023,24 @@ env:
           notVisible:
             id: "personal.money.transfer.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -714,23 +1065,40 @@ env:
       - tapOn: "Lifestyle"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "personal.setup.submit"
+    element: "Activate My Lifestyle.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "personal.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate My Lifestyle.*"
+- runFlow:
+    when:
+      visible:
+        id: "personal.setup.submit"
+    commands:
+      - tapOn:
+          id: "personal.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=P3
 # MTR-IOS-0037 Personal/Lifestyle/Dining join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -760,7 +1128,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -779,8 +1164,18 @@ env:
 # MTR-IOS-0040 Personal/Lifestyle/Shopping join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -810,7 +1205,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -829,8 +1241,18 @@ env:
 # MTR-IOS-0043 Personal/Lifestyle/Entertainment join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -860,7 +1282,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -879,8 +1318,18 @@ env:
 # MTR-IOS-0046 Personal/Lifestyle/Travel join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -910,7 +1359,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -929,8 +1395,18 @@ env:
 # MTR-IOS-0049 Personal/Lifestyle/Fitness join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -960,7 +1436,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -979,8 +1472,18 @@ env:
 # MTR-IOS-0052 Personal/Lifestyle/Hobbies join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -1010,7 +1513,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1035,23 +1555,40 @@ env:
       - tapOn: "Relationships"
       - waitForAnimationToEnd
 - scrollUntilVisible:
-    element:
-      id: "personal.setup.submit"
+    element: "Activate My Relationships.*"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "personal.setup.submit"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "Activate My Relationships.*"
+- runFlow:
+    when:
+      visible:
+        id: "personal.setup.submit"
+    commands:
+      - tapOn:
+          id: "personal.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=P4
 # MTR-IOS-0055 Personal/Relationships/Gifts join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -1081,7 +1618,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1100,8 +1654,18 @@ env:
 # MTR-IOS-0058 Personal/Relationships/Dates join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -1131,7 +1695,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1150,8 +1731,18 @@ env:
 # MTR-IOS-0061 Personal/Relationships/Family join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -1181,7 +1772,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1200,8 +1808,18 @@ env:
 # MTR-IOS-0064 Personal/Relationships/Friends join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -1231,7 +1849,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1250,8 +1885,18 @@ env:
 # MTR-IOS-0067 Personal/Relationships/Celebrations join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -1281,7 +1926,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1300,8 +1962,18 @@ env:
 # MTR-IOS-0070 Personal/Life Operations/Groceries join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -1331,7 +2003,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1350,8 +2039,18 @@ env:
 # MTR-IOS-0073 Personal/Life Operations/Rent join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -1381,7 +2080,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1400,8 +2116,18 @@ env:
 # MTR-IOS-0076 Personal/Life Operations/Bills join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -1431,7 +2157,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1450,8 +2193,18 @@ env:
 # MTR-IOS-0079 Personal/Life Operations/Transport join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -1481,7 +2234,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1500,8 +2270,18 @@ env:
 # MTR-IOS-0082 Personal/Life Operations/Healthcare join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -1531,7 +2311,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1550,8 +2347,18 @@ env:
 # MTR-IOS-0085 Personal/Life Operations/Subscriptions join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -1581,7 +2388,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1600,8 +2424,18 @@ env:
 # MTR-IOS-0088 Personal/Life Operations/Repairs join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -1631,7 +2465,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1650,8 +2501,18 @@ env:
 # MTR-IOS-0091 Personal/Future Building/Savings join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.progress"
+    commands:
+      - tapOn:
+          id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible: "Progress"
+    commands:
+      - tapOn: "Progress"
 - runFlow:
     when:
       visible:
@@ -1681,7 +2542,24 @@ env:
           notVisible:
             id: "personal.money.transfer.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1700,8 +2578,18 @@ env:
 # MTR-IOS-0094 Personal/Future Building/Emergency Fund join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.progress"
+    commands:
+      - tapOn:
+          id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible: "Progress"
+    commands:
+      - tapOn: "Progress"
 - runFlow:
     when:
       visible:
@@ -1731,7 +2619,24 @@ env:
           notVisible:
             id: "personal.money.transfer.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1750,8 +2655,18 @@ env:
 # MTR-IOS-0097 Personal/Future Building/Investments join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.opportunity"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.opportunity"
+    commands:
+      - tapOn:
+          id: "qa.tile.opportunity"
+- runFlow:
+    when:
+      visible: "Opportunity"
+    commands:
+      - tapOn: "Opportunity"
 - runFlow:
     when:
       visible: "Save"
@@ -1762,7 +2677,24 @@ env:
       visible: "Submit"
     commands:
       - tapOn: "Submit"
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1781,8 +2713,18 @@ env:
 # MTR-IOS-0100 Personal/Future Building/Education join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.milestone"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.milestone"
+    commands:
+      - tapOn:
+          id: "qa.tile.milestone"
+- runFlow:
+    when:
+      visible: "Milestone"
+    commands:
+      - tapOn: "Milestone"
 - runFlow:
     when:
       visible:
@@ -1812,7 +2754,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1831,8 +2790,18 @@ env:
 # MTR-IOS-0103 Personal/Future Building/Goal Contribution join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.progress"
+    commands:
+      - tapOn:
+          id: "qa.tile.progress"
+- runFlow:
+    when:
+      visible: "Progress"
+    commands:
+      - tapOn: "Progress"
 - runFlow:
     when:
       visible:
@@ -1862,7 +2831,24 @@ env:
           notVisible:
             id: "personal.money.transfer.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1881,8 +2867,18 @@ env:
 # MTR-IOS-0106 Personal/Lifestyle/Dining join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -1912,7 +2908,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1931,8 +2944,18 @@ env:
 # MTR-IOS-0109 Personal/Lifestyle/Shopping join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -1962,7 +2985,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1981,8 +3021,18 @@ env:
 # MTR-IOS-0112 Personal/Lifestyle/Entertainment join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -2012,7 +3062,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2031,8 +3098,18 @@ env:
 # MTR-IOS-0115 Personal/Lifestyle/Travel join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -2062,7 +3139,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2081,8 +3175,18 @@ env:
 # MTR-IOS-0118 Personal/Lifestyle/Fitness join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -2112,7 +3216,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2131,8 +3252,18 @@ env:
 # MTR-IOS-0121 Personal/Lifestyle/Hobbies join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.experience"
+    commands:
+      - tapOn:
+          id: "qa.tile.experience"
+- runFlow:
+    when:
+      visible: "Experience"
+    commands:
+      - tapOn: "Experience"
 - runFlow:
     when:
       visible:
@@ -2162,7 +3293,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2181,8 +3329,18 @@ env:
 # MTR-IOS-0124 Personal/Relationships/Gifts join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -2212,7 +3370,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2231,8 +3406,18 @@ env:
 # MTR-IOS-0127 Personal/Relationships/Dates join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -2262,7 +3447,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2281,8 +3483,18 @@ env:
 # MTR-IOS-0130 Personal/Relationships/Family join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -2312,7 +3524,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2331,8 +3560,18 @@ env:
 # MTR-IOS-0133 Personal/Relationships/Friends join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -2362,7 +3601,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2381,8 +3637,18 @@ env:
 # MTR-IOS-0136 Personal/Relationships/Celebrations join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.shared_exp"
+    commands:
+      - tapOn:
+          id: "qa.tile.shared_exp"
+- runFlow:
+    when:
+      visible: "Shared Exp"
+    commands:
+      - tapOn: "Shared Exp"
 - runFlow:
     when:
       visible:
@@ -2412,7 +3678,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2431,8 +3714,18 @@ env:
 # MTR-IOS-0139 Personal/Life Operations/Groceries join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -2462,7 +3755,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2481,8 +3791,18 @@ env:
 # MTR-IOS-0142 Personal/Life Operations/Rent join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -2512,7 +3832,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2531,8 +3868,18 @@ env:
 # MTR-IOS-0145 Personal/Life Operations/Bills join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -2562,7 +3909,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2581,8 +3945,18 @@ env:
 # MTR-IOS-0148 Personal/Life Operations/Transport join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.income"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.income"
+    commands:
+      - tapOn:
+          id: "qa.tile.income"
+- runFlow:
+    when:
+      visible: "Income"
+    commands:
+      - tapOn: "Income"
 - runFlow:
     when:
       visible:
@@ -2612,7 +3986,24 @@ env:
           notVisible:
             id: "personal.income.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:

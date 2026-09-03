@@ -1,6 +1,6 @@
 {
   "gate": "S9-QA-D",
-  "generatedAt": "2026-09-02T12:35:12.944Z",
+  "generatedAt": "2026-09-03T07:37:34.071Z",
   "shardSize": 50,
   "hardGate": "S9-QA-E pilot must PASS before running input/stress shards",
   "android": {

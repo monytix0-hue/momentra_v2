@@ -70,10 +70,23 @@ env:
     id: "login.email"
 - eraseText
 - inputText: "qa.ios.business.owner@test.com"
+# Gboard first-run "Try out your stylus" coachmark covers password after wipe/cold boot.
+- runFlow:
+    when:
+      visible: "Try out your stylus"
+    commands:
+      - tapOn: "Cancel"
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+- hideKeyboard
 - tapOn:
     id: "login.password"
 - eraseText
 - inputText: "MaestroQa123"
+- hideKeyboard
 - tapOn:
     id: "login.submit"
 - extendedWaitUntil:
@@ -87,18 +100,19 @@ env:
 - tapOn:
     id: "business.setup.team_operations"
 - waitForAnimationToEnd
-- scrollUntilVisible:
-    element:
-      id: "business.setup.submit"
-    direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "business.setup.submit"
+- tapOn: "Activate Team Operations.*"
+- runFlow:
+    when:
+      visible:
+        id: "business.setup.submit"
+    commands:
+      - tapOn:
+          id: "business.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=B01
 # MTR-IOS-0003 Business/Team Operations/Payroll join=JOINED
 - tapOn:
@@ -137,7 +151,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -190,7 +221,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -243,7 +291,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -296,7 +361,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -349,7 +431,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -402,7 +501,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -455,7 +571,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -476,24 +609,35 @@ env:
 - tapOn:
     id: "business.setup.business_runway"
 - waitForAnimationToEnd
-- scrollUntilVisible:
-    element:
-      id: "business.setup.submit"
-    direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "business.setup.submit"
+- tapOn: "Activate Business Runway.*"
+- runFlow:
+    when:
+      visible:
+        id: "business.setup.submit"
+    commands:
+      - tapOn:
+          id: "business.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=B02
 # MTR-IOS-0024 Business/Business Runway/Funding join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.revenue"
+    commands:
+      - tapOn:
+          id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible: "Log Revenue"
+    commands:
+      - tapOn: "Log Revenue"
 - runFlow:
     when:
       visible:
@@ -514,7 +658,24 @@ env:
           notVisible:
             id: "business.revenue.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -533,8 +694,18 @@ env:
 # MTR-IOS-0027 Business/Business Runway/Revenue join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.revenue"
+    commands:
+      - tapOn:
+          id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible: "Log Revenue"
+    commands:
+      - tapOn: "Log Revenue"
 - runFlow:
     when:
       visible:
@@ -555,7 +726,24 @@ env:
           notVisible:
             id: "business.revenue.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -574,8 +762,18 @@ env:
 # MTR-IOS-0030 Business/Business Runway/Burn join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Log Expense"
+    commands:
+      - tapOn: "Log Expense"
 - runFlow:
     when:
       visible:
@@ -605,7 +803,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -624,8 +839,18 @@ env:
 # MTR-IOS-0033 Business/Business Runway/Reserve join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Log Expense"
+    commands:
+      - tapOn: "Log Expense"
 - runFlow:
     when:
       visible: "Save"
@@ -636,7 +861,24 @@ env:
       visible: "Submit"
     commands:
       - tapOn: "Submit"
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -655,8 +897,18 @@ env:
 # MTR-IOS-0036 Business/Business Runway/Loan join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.revenue"
+    commands:
+      - tapOn:
+          id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible: "Log Revenue"
+    commands:
+      - tapOn: "Log Revenue"
 - runFlow:
     when:
       visible:
@@ -677,7 +929,24 @@ env:
           notVisible:
             id: "business.revenue.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -696,8 +965,18 @@ env:
 # MTR-IOS-0039 Business/Business Runway/Investment join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.revenue"
+    commands:
+      - tapOn:
+          id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible: "Log Revenue"
+    commands:
+      - tapOn: "Log Revenue"
 - runFlow:
     when:
       visible:
@@ -718,7 +997,24 @@ env:
           notVisible:
             id: "business.revenue.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -739,27 +1035,28 @@ env:
 - tapOn:
     id: "business.setup.business_operations"
 - waitForAnimationToEnd
-- scrollUntilVisible:
-    element:
-      id: "business.setup.submit"
-    direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "business.setup.submit"
+- tapOn: "Activate Business Operations.*"
+- runFlow:
+    when:
+      visible:
+        id: "business.setup.submit"
+    commands:
+      - tapOn:
+          id: "business.setup.submit"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=B03
 # MTR-IOS-0042 Business/Business Operations/Software join=JOINED
 - tapOn:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -789,7 +1086,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -810,9 +1124,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -842,7 +1156,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -863,9 +1194,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -895,7 +1226,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -916,9 +1264,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -948,7 +1296,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -969,9 +1334,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -1001,7 +1366,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1022,9 +1404,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -1054,7 +1436,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1075,9 +1474,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -1107,7 +1506,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1128,9 +1544,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -1160,7 +1576,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1213,7 +1646,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1266,7 +1716,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1319,7 +1786,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1372,7 +1856,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1425,7 +1926,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1478,7 +1996,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1531,7 +2066,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1550,8 +2102,18 @@ env:
 # MTR-IOS-0087 Business/Business Runway/Funding join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.revenue"
+    commands:
+      - tapOn:
+          id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible: "Log Revenue"
+    commands:
+      - tapOn: "Log Revenue"
 - runFlow:
     when:
       visible:
@@ -1572,7 +2134,24 @@ env:
           notVisible:
             id: "business.revenue.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1591,8 +2170,18 @@ env:
 # MTR-IOS-0090 Business/Business Runway/Revenue join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.revenue"
+    commands:
+      - tapOn:
+          id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible: "Log Revenue"
+    commands:
+      - tapOn: "Log Revenue"
 - runFlow:
     when:
       visible:
@@ -1613,7 +2202,24 @@ env:
           notVisible:
             id: "business.revenue.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1632,8 +2238,18 @@ env:
 # MTR-IOS-0093 Business/Business Runway/Burn join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Log Expense"
+    commands:
+      - tapOn: "Log Expense"
 - runFlow:
     when:
       visible:
@@ -1663,7 +2279,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1682,8 +2315,18 @@ env:
 # MTR-IOS-0096 Business/Business Runway/Reserve join=JOINED_REVIEW
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.expense"
+    commands:
+      - tapOn:
+          id: "qa.tile.expense"
+- runFlow:
+    when:
+      visible: "Log Expense"
+    commands:
+      - tapOn: "Log Expense"
 - runFlow:
     when:
       visible: "Save"
@@ -1694,7 +2337,24 @@ env:
       visible: "Submit"
     commands:
       - tapOn: "Submit"
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1713,8 +2373,18 @@ env:
 # MTR-IOS-0099 Business/Business Runway/Loan join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.revenue"
+    commands:
+      - tapOn:
+          id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible: "Log Revenue"
+    commands:
+      - tapOn: "Log Revenue"
 - runFlow:
     when:
       visible:
@@ -1735,7 +2405,24 @@ env:
           notVisible:
             id: "business.revenue.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1754,8 +2441,18 @@ env:
 # MTR-IOS-0102 Business/Business Runway/Investment join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.revenue"
+    commands:
+      - tapOn:
+          id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible: "Log Revenue"
+    commands:
+      - tapOn: "Log Revenue"
 - runFlow:
     when:
       visible:
@@ -1776,7 +2473,24 @@ env:
           notVisible:
             id: "business.revenue.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1797,9 +2511,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -1829,7 +2543,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1850,9 +2581,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -1882,7 +2613,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1903,9 +2651,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -1935,7 +2683,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -1956,9 +2721,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -1988,7 +2753,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2009,9 +2791,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -2041,7 +2823,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2062,9 +2861,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -2094,7 +2893,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2115,9 +2931,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -2147,7 +2963,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2168,9 +3001,9 @@ env:
     id: "bottom.quickadd"
 - runFlow:
     when:
-      visible: "Spend Entry"
+      visible: "Log Spend Entry"
     commands:
-      - tapOn: "Spend Entry"
+      - tapOn: "Log Spend Entry"
 - runFlow:
     when:
       visible:
@@ -2200,7 +3033,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2253,7 +3103,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2306,7 +3173,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2359,7 +3243,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2412,7 +3313,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2465,7 +3383,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2518,7 +3453,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2571,7 +3523,24 @@ env:
           notVisible:
             id: "business.expense.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -2590,8 +3559,18 @@ env:
 # MTR-IOS-0150 Business/Business Runway/Funding join=JOINED
 - tapOn:
     id: "bottom.quickadd"
-- tapOn:
-    id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible:
+        id: "qa.tile.revenue"
+    commands:
+      - tapOn:
+          id: "qa.tile.revenue"
+- runFlow:
+    when:
+      visible: "Log Revenue"
+    commands:
+      - tapOn: "Log Revenue"
 - runFlow:
     when:
       visible:
@@ -2612,7 +3591,24 @@ env:
           notVisible:
             id: "business.revenue.submit"
           timeout: 45000
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:

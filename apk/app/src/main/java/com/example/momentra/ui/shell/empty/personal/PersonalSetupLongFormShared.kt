@@ -33,6 +33,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -502,8 +507,13 @@ fun PersonalSetupActivateFooter(
                 .height(56.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .background(ctaBrush)
-                .testTag(MaestroIds.PERSONAL_SETUP_SUBMIT)
-                .clickable(enabled = !submitting, onClick = onActivate),
+                .clickable(enabled = !submitting, onClick = onActivate)
+                .semantics {
+                    role = Role.Button
+                    // Maestro text matching breaks on the → glyph — keep a11y text ASCII-only.
+                    contentDescription = ctaLabel.replace("→", "").trim()
+                    testTag = MaestroIds.PERSONAL_SETUP_SUBMIT
+                },
             contentAlignment = Alignment.Center,
         ) {
             Text(

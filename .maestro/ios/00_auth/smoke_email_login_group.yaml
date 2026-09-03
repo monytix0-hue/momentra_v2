@@ -1,0 +1,28 @@
+appId: resolvingpoint.momentra
+tags: [smoke, ios, auth, group]
+---
+- runFlow: smoke_onboarding_to_login.yaml
+- runFlow:
+    when:
+      visible:
+        id: "login.email"
+    commands:
+      - tapOn:
+          id: "login.email"
+      - eraseText
+      - inputText: ${QA_IOS_GROUP_OWNER_EMAIL}
+      - tapOn:
+          id: "login.password"
+      - eraseText
+      - inputText: ${QA_IOS_GROUP_OWNER_PASSWORD}
+      - tapOn:
+          id: "login.submit"
+      - waitForAnimationToEnd
+- runFlow: dismiss_save_password.yaml
+- extendedWaitUntil:
+    visible:
+      id: "bottom.nav"
+    timeout: 90000
+- assertVisible:
+    id: "bottom.nav"
+- takeScreenshot: ios_smoke_shell_group

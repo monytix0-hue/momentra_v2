@@ -10,10 +10,9 @@ object CompanyJoinLink {
     private val SHORT = Regex("^[a-hj-np-z2-9]{8}$", RegexOption.IGNORE_CASE)
 
     fun displayPath(code: String): String =
-        "momentra.app/c/${code.trim().lowercase()}"
+        "https://momentra.app/c/${code.trim().lowercase()}"
 
-    fun qrPayload(code: String): String =
-        "momentra://c/${code.trim().lowercase()}"
+    fun qrPayload(code: String): String = displayPath(code)
 
     fun parse(raw: String?): String? {
         if (raw.isNullOrBlank()) return null

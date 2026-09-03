@@ -15,4 +15,18 @@ class AuthErrorMapperTest {
         val msg = AuthErrorMapper.userMessage("[28444] Developer console is not set up correctly.")
         assertTrue(msg.contains("SHA", ignoreCase = true))
     }
+
+    @Test
+    fun mapsSignInCancelled() {
+        val msg = AuthErrorMapper.userMessage("Sign-in cancelled.")
+        assertTrue(msg.contains("cancelled", ignoreCase = true))
+    }
+
+    @Test
+    fun mapsNoGoogleAccountsAsSetupHint() {
+        val msg = AuthErrorMapper.userMessage(
+            "No Google accounts available. Add a Google account on this device, or check that Firebase Android SHA fingerprints are configured (error 28444).",
+        )
+        assertTrue(msg.contains("SHA", ignoreCase = true))
+    }
 }

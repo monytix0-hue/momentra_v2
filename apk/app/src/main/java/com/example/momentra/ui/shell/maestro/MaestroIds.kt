@@ -32,6 +32,7 @@ object MaestroIds {
     const val CONTEXT_CIRCLE = "context.circle"
 
     const val MOMENT_SWITCHER = "moment.switcher"
+    const val MOMENT_SWITCHER_INVITE = "moment.switcher.invite"
     const val MOMENT_CREATE = "moment.create"
     const val COMPANY_SWITCHER = "company.switcher"
 

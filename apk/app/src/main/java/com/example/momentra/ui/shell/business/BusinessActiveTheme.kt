@@ -264,6 +264,15 @@ fun BusinessQuickAddKind.emoji(): String = when (this) {
     BusinessQuickAddKind.SLA_CHECK -> "⏱"
 }
 
+fun BusinessQuickAddKind.maestroTileId(): String? = when (this) {
+    BusinessQuickAddKind.REVENUE -> com.example.momentra.ui.shell.maestro.MaestroIds.QA_TILE_REVENUE
+    BusinessQuickAddKind.EXPENSE, BusinessQuickAddKind.SPEND_ENTRY ->
+        com.example.momentra.ui.shell.maestro.MaestroIds.QA_TILE_EXPENSE
+    BusinessQuickAddKind.INVOICE -> com.example.momentra.ui.shell.maestro.MaestroIds.QA_TILE_INVOICE
+    BusinessQuickAddKind.MILESTONE -> com.example.momentra.ui.shell.maestro.MaestroIds.QA_TILE_MILESTONE
+    else -> null
+}
+
 fun BusinessQuickAddKind.stripeColor(): Color = when (this) {
     BusinessQuickAddKind.TEAM_UPDATE, BusinessQuickAddKind.GENERAL_UPDATE,
     BusinessQuickAddKind.APPROVAL, BusinessQuickAddKind.ACTIVITY_LOG, BusinessQuickAddKind.SPEND_ENTRY,

@@ -6,11 +6,11 @@ enum CompanyJoinLink {
     private static let shortPattern = #"^[a-hj-np-z2-9]{8}$"#
 
     static func displayPath(code: String) -> String {
-        "momentra.app/c/\(code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+        "https://momentra.app/c/\(code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
     }
 
     static func qrPayload(code: String) -> String {
-        "momentra://c/\(code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+        displayPath(code: code)
     }
 
     static func parse(_ raw: String) -> String? {

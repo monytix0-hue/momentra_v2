@@ -230,26 +230,47 @@ function loginBlock(platform: Platform, mode: string): string {
     timeout: 90000`;
 }
 
-function setupSubmitSteps(submitId: string, momentId: string): string {
-  return `- scrollUntilVisible:
-    element:
-      id: "${submitId}"
+function setupSubmitSteps(submitId: string, activateText: string, momentId: string, opts?: { stickyFooter?: boolean }): string {
+  // Match visible CTA via regex (trailing → glyph breaks exact UTF matching).
+  const activateRegex = `${activateText}.*`;
+  const scroll = opts?.stickyFooter
+    ? ''
+    : `- scrollUntilVisible:
+    element: "${yamlEscape(activateRegex)}"
     direction: DOWN
-    timeout: 60000
-- tapOn:
-    id: "${submitId}"
+    timeout: 90000
+    visibilityPercentage: 40
+    centerElement: true
+`;
+  return `${scroll}- tapOn: "${yamlEscape(activateRegex)}"
+- runFlow:
+    when:
+      visible:
+        id: "${submitId}"
+    commands:
+      - tapOn:
+          id: "${submitId}"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "bottom.pulse"
-    timeout: 90000
+    timeout: 120000
 # moment=${momentId}`;
 }
 
-const GROUP_FAMILY_UI: Record<string, string> = {
-  'Shared Experience': 'Experience',
-  'Shared Purchase': 'Purchase',
-  'Shared Living': 'Living',
+const GROUP_FAMILY_UI: Record<string, { card: string; setupHint: string }> = {
+  'Shared Experience': {
+    card: 'Trips, weddings, celebrations, outings and events.',
+    setupHint: 'Set up Shared Experience',
+  },
+  'Shared Purchase': {
+    card: 'Plan, fund and track something together.',
+    setupHint: 'Set up Shared Purchase',
+  },
+  'Shared Living': {
+    card: 'Coordinate a home, routine or shared space.',
+    setupHint: 'Set up Shared Living',
+  },
 };
 
 /** Chip strip labels in group setup wizards (short labels, not ledger names). */
@@ -268,10 +289,29 @@ const GROUP_MOMENT_CHIP: Record<string, string> = {
   'Custom Living': 'Custom',
 };
 
+const GROUP_ACTIVATE_TEXT: Record<string, string> = {
+  'Shared Experience': 'Activate Shared Experience',
+  'Shared Purchase': 'Activate Purchase',
+  'Shared Living': 'Activate Living',
+};
+
+const PERSONAL_ACTIVATE_TEXT: Record<string, string> = {
+  'Life Operations': 'Activate Life Operations',
+  'Future Building': 'Activate Future Building',
+  Lifestyle: 'Activate My Lifestyle',
+  Relationships: 'Activate My Relationships',
+};
+
 const BUSINESS_SETUP_ID: Record<string, string> = {
   'Team Operations': 'business.setup.team_operations',
   'Business Runway': 'business.setup.business_runway',
   'Business Operations': 'business.setup.business_operations',
+};
+
+const BUSINESS_ACTIVATE_TEXT: Record<string, string> = {
+  'Team Operations': 'Activate Team Operations',
+  'Business Runway': 'Activate Business Runway',
+  'Business Operations': 'Activate Business Operations',
 };
 
 function ensureMomentSteps(row: Row): string {
@@ -279,8 +319,9 @@ function ensureMomentSteps(row: Row): string {
   const mode = row.Mode;
   const momentId = row.catalog_moment_id;
   if (mode === 'Group') {
-    const family = GROUP_FAMILY_UI[row.Family] || 'Experience';
+    const family = GROUP_FAMILY_UI[row.Family] || GROUP_FAMILY_UI['Shared Experience'];
     const chip = GROUP_MOMENT_CHIP[label];
+    const activate = GROUP_ACTIVATE_TEXT[row.Family] || 'Activate Shared Experience';
     const chipTap = chip
       ? `- runFlow:
     when:
@@ -291,24 +332,28 @@ function ensureMomentSteps(row: Row): string {
       : '';
     return `- tapOn:
     id: "topbar.new_moment"
-- runFlow:
-    when:
-      visible: "${family}"
-    commands:
-      - tapOn: "${family}"
-      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "${yamlEscape(family.card)}"
+    timeout: 30000
+- tapOn: "${yamlEscape(family.card)}"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "${yamlEscape(family.setupHint)}"
+    timeout: 30000
 ${chipTap}
-${setupSubmitSteps('group.setup.submit', momentId)}`;
+${setupSubmitSteps('group.setup.submit', activate, momentId)}`;
   }
   if (mode === 'Business') {
     const setupId = BUSINESS_SETUP_ID[label] || 'business.setup.team_operations';
+    const activate = BUSINESS_ACTIVATE_TEXT[label] || 'Activate Team Operations';
     return `- tapOn:
     id: "topbar.new_moment"
 - tapOn:
     id: "${setupId}"
 - waitForAnimationToEnd
-${setupSubmitSteps('business.setup.submit', momentId)}`;
+${setupSubmitSteps('business.setup.submit', activate, momentId, { stickyFooter: true })}`;
   }
+  const activate = PERSONAL_ACTIVATE_TEXT[label] || 'Activate Life Operations';
   return `- tapOn:
     id: "topbar.new_moment"
 - runFlow:
@@ -317,7 +362,7 @@ ${setupSubmitSteps('business.setup.submit', momentId)}`;
     commands:
       - tapOn: "${yamlEscape(label)}"
       - waitForAnimationToEnd
-${setupSubmitSteps('personal.setup.submit', momentId)}`;
+${setupSubmitSteps('personal.setup.submit', activate, momentId)}`;
 }
 
 function writeTxnSteps(row: Row): string {
@@ -325,21 +370,48 @@ function writeTxnSteps(row: Row): string {
     return `# SKIP ${row.Txn_ID} ${row.join_status}: ${row.join_notes}\n`;
   }
 
+  const catalogQa = row.catalog_quick_add || row.Quick_Add;
+  // Business Runway "Revenue" hub tile label is "Log Revenue"; ledger may still say Revenue.
+  const tileLabel =
+    row.Mode === 'Business' && catalogQa === 'Revenue'
+      ? 'Log Revenue'
+      : row.Mode === 'Business' && catalogQa === 'Expense'
+        ? 'Log Expense'
+        : row.Mode === 'Business' && catalogQa === 'Spend Entry'
+          ? 'Log Spend Entry'
+          : catalogQa;
+
   const tile = row.tile_maestro_id;
   const tileTap = tile
-    ? `- tapOn:
-    id: "${tile}"`
+    ? `- runFlow:
+    when:
+      visible:
+        id: "${tile}"
+    commands:
+      - tapOn:
+          id: "${tile}"
+- runFlow:
+    when:
+      visible: "${yamlEscape(tileLabel)}"
+    commands:
+      - tapOn: "${yamlEscape(tileLabel)}"`
     : `- runFlow:
     when:
-      visible: "${yamlEscape(row.catalog_quick_add || row.Quick_Add)}"
+      visible: "${yamlEscape(tileLabel)}"
     commands:
-      - tapOn: "${yamlEscape(row.catalog_quick_add || row.Quick_Add)}"`;
+      - tapOn: "${yamlEscape(tileLabel)}"`;
 
   const amount = row.Amount || '137.41';
   const note = row.correlation_note || row.Description;
-  const amountId = row.amount_maestro_id;
-  const noteId = row.note_maestro_id;
-  const submitId = row.submit_maestro_id;
+  // Joined CSV still maps some Runway Revenue rows to expense.* ids — prefer revenue.* when catalog says Revenue.
+  let amountId = row.amount_maestro_id;
+  let noteId = row.note_maestro_id;
+  let submitId = row.submit_maestro_id;
+  if (row.Mode === 'Business' && catalogQa === 'Revenue') {
+    amountId = 'business.revenue.amount';
+    noteId = '';
+    submitId = 'business.revenue.submit';
+  }
   const splitId = row.split_maestro_id;
 
   const fill: string[] = [];
@@ -404,7 +476,24 @@ function writeTxnSteps(row: Row): string {
     id: "bottom.quickadd"
 ${tileTap}
 ${fill.join('\n')}
-- back
+# Never unconditional back — exits the app to launcher on Android.
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - back
+- runFlow:
+    when:
+      notVisible:
+        id: "bottom.pulse"
+    commands:
+      - launchApp:
+          clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "bottom.pulse"
+    timeout: 60000
 - runFlow:
     when:
       visible:

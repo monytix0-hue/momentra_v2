@@ -178,18 +178,37 @@ final class AppShellModel: ObservableObject {
         }
     }
 
-    private func applyBootstrapInventory(_ boot: ShellBootstrap, networkRefresh: Bool) {
+    private func applyBootstrapInventory(
+        _ boot: ShellBootstrap,
+        networkRefresh: Bool,
+        preserveMomentId: String? = nil
+    ) {
         let previousMomentIds = moments.map(\.momentId)
         let previousSelection = selectedMomentId
         identity = boot.identity
         companies = boot.companies
         capabilities = boot.capabilities
-        let rawMoments: [MomentSummary]
+        var rawMoments: [MomentSummary]
         switch selectedContext {
         case .personal: rawMoments = boot.personalMoments
         case .group: rawMoments = boot.groupMoments
         case .business: rawMoments = boot.businessMoments
         case .circle: rawMoments = []
+        }
+        let preferredMomentId = preserveMomentId
+            ?? selectedMomentId
+            ?? selectedMomentByContext[selectedContext]
+        if let preserve = preserveMomentId,
+           !preserve.isEmpty,
+           !rawMoments.contains(where: { $0.momentId == preserve }) {
+            rawMoments.append(
+                MomentSummary(
+                    momentId: preserve,
+                    title: (selectedMomentTitle?.isEmpty == false) ? (selectedMomentTitle ?? "Group") : "Group",
+                    status: "ACTIVE",
+                    momentTypeCode: selectedMomentTypeCode
+                )
+            )
         }
         let healed = ShellStateInvariants.heal(
             ShellInvariantInput(
@@ -200,7 +219,7 @@ final class AppShellModel: ObservableObject {
                 selectedCompanyId: selectedCompany?.companyId ?? boot.selectedCompany?.companyId,
                 companies: boot.companies,
                 moments: rawMoments,
-                selectedMomentId: selectedMomentId ?? selectedMomentByContext[selectedContext] ?? nil,
+                selectedMomentId: preferredMomentId,
                 selectedTabByContext: tabByContext,
                 currentlySelectedContextDefault: boot.currentlySelectedContext
             )
@@ -385,21 +404,49 @@ final class AppShellModel: ObservableObject {
     }
 
     /// Redeem invite code then select the joined Moment on Pulse.
-    func redeemJoinCode(_ code: String, using createModel: MomentCreateModel) async {
-        guard let result = await createModel.redeemGroupInvite(code: code) else { return }
+    /// Returns the redeem result so UI can show PENDING vs joined messaging.
+    @discardableResult
+    func redeemJoinCode(_ code: String, using createModel: MomentCreateModel) async -> RedeemGroupInviteResult? {
+        guard let result = await createModel.redeemGroupInvite(code: code) else { return nil }
+        guard let momentId = result.momentId, !momentId.isEmpty else {
+            // PENDING claim — stay put; caller shows honest messaging.
+            return result
+        }
         if selectedContext != .group {
             selectContext(.group)
         }
-        let momentId = result.momentId
         let title = moments.first(where: { $0.momentId == momentId })?.title
             ?? selectedMomentTitle
             ?? "Group Moment"
-        if let momentId {
-            onMomentCreated(momentId: momentId, title: title)
-        } else {
-            reloadCurrentContext()
-            refreshVisibleGroupTab()
+        selectedMomentId = momentId
+        selectedMomentTitle = title
+        bottomDestination = .pulse
+        lastNonCreateDestination = .pulse
+        tabByContext[.group] = .pulse
+        selectedMomentByContext[.group] = momentId
+        if !moments.contains(where: { $0.momentId == momentId }) {
+            moments.append(MomentSummary(momentId: momentId, title: title, status: "ACTIVE"))
         }
+        momentExperience = .active
+        contextContent = .ready(detail: nil)
+
+        var appeared = false
+        for attempt in 0..<4 {
+            do {
+                let boot = try await gateway.getBootstrap()
+                bootstrap = boot
+                if boot.groupMoments.contains(where: { $0.momentId == momentId }) {
+                    appeared = true
+                }
+                applyBootstrapInventory(boot, networkRefresh: true, preserveMomentId: momentId)
+            } catch {
+                break
+            }
+            if appeared { break }
+            try? await Task.sleep(nanoseconds: UInt64(350_000_000 * (attempt + 1)))
+        }
+        refreshVisibleGroupTab()
+        return result
     }
 
     /// Redeem company invite then select the joined company in Business.

@@ -36,11 +36,14 @@ function Invoke-Shard {
   )
   $logFile = Join-Path $LogDir ("{0}.log" -f ($Label -replace '[^a-zA-Z0-9_-]', '_'))
   Write-Host "`n========== $Label ==========" -ForegroundColor Cyan
-  $args = @("-Class", $Class, "-AllowEmulator")
-  if ($Device) { $args += @("-Device", $Device) }
-  if ($Context) { $args += @("-Context", $Context) }
-  if ($Shard -gt 0) { $args += @("-Shard", $Shard) }
-  & $Runner @args *>&1 | Tee-Object -FilePath $logFile
+  $splat = @{
+    Class = $Class
+    AllowEmulator = $true
+  }
+  if ($Device) { $splat.Device = $Device }
+  if ($Context) { $splat.Context = $Context }
+  if ($Shard -gt 0) { $splat.Shard = $Shard }
+  & $Runner @splat *>&1 | Tee-Object -FilePath $logFile
   $exit = $LASTEXITCODE
   $status = if ($exit -eq 0) { "PASS" } else { "FAIL" }
   $results.Add([pscustomobject]@{ When = (Get-Date).ToString("o"); Label = $Label; Class = $Class; Context = $Context; Shard = $Shard; Exit = $exit; Status = $status; Log = $logFile })
@@ -102,10 +105,10 @@ $md += @"
 
 $failed = @($results | Where-Object { $_.Status -eq "FAIL" })
 if ($failed.Count -eq 0) {
-  $md += "_None — all shards PASS._`n"
+  $md += "_None - all shards PASS._`n"
 } else {
   foreach ($f in $failed) {
-    $md += "- **$($f.Label)** — log: ``$($f.Log)```n"
+    $md += "- **$($f.Label)** - log: ``$($f.Log)```n"
   }
 }
 

@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.momentra.domain.AppContext
 import com.example.momentra.ui.create.MomentCreateViewModel
-import com.example.momentra.ui.shell.business.BusinessActiveTheme
+import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
 import com.example.momentra.ui.shell.empty.BusinessSetupKind
 import com.example.momentra.ui.shell.empty.BusinessSetupWizardContent
 import com.example.momentra.ui.shell.empty.group.GroupExperienceSetupContent
@@ -23,11 +23,11 @@ import com.example.momentra.ui.shell.empty.group.GroupLivingSetupContent
 import com.example.momentra.ui.shell.empty.group.GroupPurchaseSetupContent
 import com.example.momentra.ui.shell.empty.personal.PersonalSetupSystem
 import com.example.momentra.ui.shell.empty.personal.PersonalSetupWizardContent
-import com.example.momentra.ui.shell.group.groupExperienceFamilyFor
-import com.example.momentra.ui.shell.group.isThemedLiving
-import com.example.momentra.ui.shell.group.isThemedPurchase
-import com.example.momentra.ui.shell.personal.PersonalPulseFamily
-import com.example.momentra.ui.shell.personal.personalPulseFamilyFor
+import com.example.momentra.ui.shell.group.shared.groupExperienceFamilyFor
+import com.example.momentra.ui.shell.group.shared.isThemedLiving
+import com.example.momentra.ui.shell.group.shared.isThemedPurchase
+import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
+import com.example.momentra.ui.shell.personal.shared.personalPulseFamilyFor
 
 @Composable
 fun EditMomentSetupHost(

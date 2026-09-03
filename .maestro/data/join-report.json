@@ -1,6 +1,6 @@
 {
   "gate": "S9-QA-B",
-  "generatedAt": "2026-09-02T08:02:54.484Z",
+  "generatedAt": "2026-09-03T07:36:27.063Z",
   "sources": {
     "androidLedger": "docs/qa/ledgers/Momentra_APK_3500_Certification_Ledger.xlsx",
     "iosLedger": "docs/qa/ledgers/Momentra_IOS_3500_Certification_Ledger.xlsx",

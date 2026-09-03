@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "315259659778-563a9jlb9v8htqkk7vo4s4stpuk1e7v9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.momentra",
+            "certificate_hash": "3e38ea66f4bb9919ae0d38905675f7b659a74fe3"
+          }
+        },
+        {
+          "client_id": "315259659778-9vbptd5pc2844ah0j9nhvma5hpeud2g9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.momentra",
+            "certificate_hash": "fa1981ca2d1fc986a6ef0a70fe50be7ed577c4cf"
+          }
+        },
+        {
           "client_id": "315259659778-vhau66jfi22k27rc8lbgueo3os92knrl.apps.googleusercontent.com",
           "client_type": 3
         }

@@ -127,6 +127,7 @@ struct MomentraTopBar: View {
         .padding(.vertical, 4)
         .frame(minHeight: 56)
         .background(GlobalTheme.topBarBackground)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("topbar.root")
     }
 
@@ -268,6 +269,7 @@ struct ContextSwitcherView: View {
         .padding(.vertical, 4)
         .frame(height: 36)
         .background(GlobalTheme.topBarBackground)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("context.switcher")
     }
 }

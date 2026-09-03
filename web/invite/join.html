@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Open Momentra</title>
+  <meta name="description" content="Open this invite in the Momentra app." />
+  <style>
+    :root {
+      --bg: #14121b;
+      --card: #1e1a28;
+      --text: #f5f3fa;
+      --muted: #9e9aa8;
+      --accent: #e8621a;
+      --accent2: #ffb598;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(1200px 600px at 20% -10%, #3a2418 0%, var(--bg) 55%);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    main {
+      width: min(420px, 100%);
+      background: var(--card);
+      border-radius: 20px;
+      padding: 28px 24px 32px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.55rem;
+      letter-spacing: -0.02em;
+    }
+    p {
+      margin: 0 0 20px;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.95rem;
+    }
+    .code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.85rem;
+      color: var(--accent2);
+      word-break: break-all;
+      margin-bottom: 20px;
+    }
+    a.btn {
+      display: block;
+      text-align: center;
+      text-decoration: none;
+      color: #14121b;
+      font-weight: 700;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+    }
+    .hint {
+      margin-top: 18px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Open in Momentra</h1>
+    <p id="blurb">This invite opens in the Momentra app. If nothing happens, tap the button below.</p>
+    <div class="code" id="pathLabel"></div>
+    <a class="btn" id="openBtn" href="#">Open Momentra</a>
+    <p class="hint">Don’t have the app yet? Install Momentra, then return to this link.</p>
+  </main>
+  <script>
+    (function () {
+      var path = location.pathname.replace(/\/+$/, "");
+      var parts = path.split("/").filter(Boolean);
+      var kind = (parts[0] || "").toLowerCase();
+      var code = (parts[1] || "").toLowerCase();
+      var schemeHost = "j";
+      var label = "Group invite";
+      if (kind === "c" || kind === "company") {
+        schemeHost = "c";
+        label = "Company invite";
+      } else if (kind === "j" || kind === "join") {
+        schemeHost = "j";
+        label = "Group invite";
+      }
+      var deep = code ? ("momentra://" + schemeHost + "/" + code) : "momentra://";
+      var https = location.href;
+      document.getElementById("pathLabel").textContent = code
+        ? (label + ": " + code)
+        : "Invite link";
+      var btn = document.getElementById("openBtn");
+      btn.href = deep;
+      // Attempt custom-scheme open (works when App Links / Universal Links did not claim the tap).
+      if (code) {
+        var iframe = document.createElement("iframe");
+        iframe.style.display = "none";
+        iframe.src = deep;
+        document.body.appendChild(iframe);
+        setTimeout(function () {
+          window.location.href = deep;
+        }, 80);
+      }
+    })();
+  </script>
+</body>
+</html>

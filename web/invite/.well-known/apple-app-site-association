@@ -1,0 +1,21 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TY9S2C44WR.resolvingpoint.momentra",
+        "paths": [
+          "/j/*",
+          "/join/*",
+          "/c/*",
+          "/company/*"
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "TY9S2C44WR.resolvingpoint.momentra"
+    ]
+  }
+}

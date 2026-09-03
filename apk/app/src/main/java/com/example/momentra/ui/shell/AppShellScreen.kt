@@ -72,109 +72,109 @@ import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
 import com.example.momentra.ui.shell.empty.personal.PersonalCreateEmptyContent
 import com.example.momentra.ui.shell.empty.BusinessCreateFlow
 import com.example.momentra.ui.shell.empty.CompanySetupContent
-import com.example.momentra.ui.shell.business.BusinessActiveTheme
-import com.example.momentra.ui.shell.business.BusinessExpenseSheet
-import com.example.momentra.ui.shell.business.BusinessGapQuickAddSheet
-import com.example.momentra.ui.shell.business.BusinessInvoiceSheet
-import com.example.momentra.ui.shell.business.BusinessLifeActiveContent
-import com.example.momentra.ui.shell.business.BusinessMembersSheet
-import com.example.momentra.ui.shell.business.BusinessMemoryActiveContent
-import com.example.momentra.ui.shell.business.BusinessMomentsActiveContent
-import com.example.momentra.ui.shell.business.BusinessPulseActiveContent
-import com.example.momentra.ui.shell.business.BusinessQuickAddHub
-import com.example.momentra.ui.shell.business.BusinessQuickAddKind
-import com.example.momentra.ui.shell.business.BusinessRevenueSheet
-import com.example.momentra.ui.shell.business.ops.OpsGapQuickAddSheet
-import com.example.momentra.ui.shell.business.ops.OpsMemoryActiveContent
-import com.example.momentra.ui.shell.business.ops.OpsMomentsActiveContent
-import com.example.momentra.ui.shell.business.ops.OpsPulseActiveContent
-import com.example.momentra.ui.shell.business.ops.OpsQuickAddSheets
-import com.example.momentra.ui.shell.business.runway.RunwayMemoryActiveContent
-import com.example.momentra.ui.shell.business.runway.RunwayMomentsActiveContent
-import com.example.momentra.ui.shell.business.runway.RunwayPulseActiveContent
-import com.example.momentra.ui.shell.business.runway.RunwayQuickAddSheet
-import com.example.momentra.ui.shell.business.teamops.TeamOpsGapQuickAddSheet
-import com.example.momentra.ui.shell.business.teamops.TeamOpsMemoryActiveContent
-import com.example.momentra.ui.shell.business.teamops.TeamOpsMomentsActiveContent
-import com.example.momentra.ui.shell.business.teamops.TeamOpsPulseActiveContent
-import com.example.momentra.ui.shell.business.teamops.TeamOpsQuickAddSheets
-import com.example.momentra.ui.shell.group.GroupBudgetSheet
-import com.example.momentra.ui.shell.group.GroupCollabKind
-import com.example.momentra.ui.shell.group.GroupCollabSheet
-import com.example.momentra.ui.shell.group.GroupContributionSheet
-import com.example.momentra.ui.shell.group.GroupInvitePeopleSheet
-import com.example.momentra.ui.shell.group.GroupSettlementSheet
-import com.example.momentra.ui.shell.group.GroupExpenseSheet
-import com.example.momentra.ui.shell.group.GroupLifeActiveContent
-import com.example.momentra.ui.shell.group.GroupLifeQuickAction
-import com.example.momentra.ui.shell.group.GroupMemoryActiveContent
-import com.example.momentra.ui.shell.group.GroupMomentsActiveContent
-import com.example.momentra.ui.shell.group.GroupParticipantsSheet
-import com.example.momentra.ui.shell.group.GroupPulseActiveContent
-import com.example.momentra.ui.shell.group.GroupQuickAddHub
-import com.example.momentra.ui.shell.group.GroupExpenseSplitsFlow
-import com.example.momentra.ui.shell.group.GroupFinanceDetailFlow
-import com.example.momentra.ui.shell.group.GroupExperienceFamily
-import com.example.momentra.ui.shell.group.groupExperienceFamilyFor
-import com.example.momentra.ui.shell.group.isThemedExperience
-import com.example.momentra.ui.shell.group.isThemedLiving
-import com.example.momentra.ui.shell.group.isThemedPurchase
-import com.example.momentra.ui.shell.group.experience.ExperienceActiveTheme
-import com.example.momentra.ui.shell.group.experience.ExperienceGapQuickAddSheet
-import com.example.momentra.ui.shell.group.experience.ExperienceMemoryActiveContent
-import com.example.momentra.ui.shell.group.experience.ExperienceMomentsActiveContent
-import com.example.momentra.ui.shell.group.experience.ExperiencePulseActiveContent
-import com.example.momentra.ui.shell.group.experience.ExperienceQuickAddHub
-import com.example.momentra.ui.shell.group.experience.ExperienceQuickAddKind
-import com.example.momentra.ui.shell.group.living.LivingActiveTheme
-import com.example.momentra.ui.shell.group.living.LivingGapQuickAddSheet
-import com.example.momentra.ui.shell.group.living.LivingMemoryActiveContent
-import com.example.momentra.ui.shell.group.living.LivingMomentsActiveContent
-import com.example.momentra.ui.shell.group.living.LivingPulseActiveContent
-import com.example.momentra.ui.shell.group.living.LivingQuickAddHub
-import com.example.momentra.ui.shell.group.living.LivingQuickAddKind
-import com.example.momentra.ui.shell.group.purchase.PurchaseActiveTheme
-import com.example.momentra.ui.shell.group.purchase.PurchaseGapQuickAddSheet
-import com.example.momentra.ui.shell.group.purchase.PurchaseMemoryActiveContent
-import com.example.momentra.ui.shell.group.purchase.PurchaseMomentsActiveContent
-import com.example.momentra.ui.shell.group.purchase.PurchasePulseActiveContent
-import com.example.momentra.ui.shell.group.purchase.PurchaseQuickAddHub
-import com.example.momentra.ui.shell.group.purchase.PurchaseQuickAddKind
-import com.example.momentra.ui.shell.group.wedding.WeddingGapQuickAddSheet
-import com.example.momentra.ui.shell.group.wedding.WeddingMemoryActiveContent
-import com.example.momentra.ui.shell.group.wedding.WeddingMomentsActiveContent
-import com.example.momentra.ui.shell.group.wedding.WeddingPulseActiveContent
-import com.example.momentra.ui.shell.group.wedding.WeddingQuickAddHub
-import com.example.momentra.ui.shell.group.wedding.WeddingQuickAddKind
-import com.example.momentra.ui.shell.personal.FutureQuickAddKind
-import com.example.momentra.ui.shell.personal.LifeOpsQuickAddKind
+import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
+import com.example.momentra.ui.shell.business.shared.BusinessExpenseSheet
+import com.example.momentra.ui.shell.business.shared.BusinessGapQuickAddSheet
+import com.example.momentra.ui.shell.business.shared.BusinessInvoiceSheet
+import com.example.momentra.ui.shell.business.life.BusinessLifeActiveContent
+import com.example.momentra.ui.shell.business.shared.BusinessMembersSheet
+import com.example.momentra.ui.shell.business.shared.BusinessMemoryActiveContent
+import com.example.momentra.ui.shell.business.shared.BusinessMomentsActiveContent
+import com.example.momentra.ui.shell.business.shared.BusinessPulseActiveContent
+import com.example.momentra.ui.shell.business.shared.BusinessQuickAddHub
+import com.example.momentra.ui.shell.business.shared.BusinessQuickAddKind
+import com.example.momentra.ui.shell.business.shared.BusinessRevenueSheet
+import com.example.momentra.ui.shell.business.ops.create.OpsGapQuickAddSheet
+import com.example.momentra.ui.shell.business.ops.memory.OpsMemoryActiveContent
+import com.example.momentra.ui.shell.business.ops.moments.OpsMomentsActiveContent
+import com.example.momentra.ui.shell.business.ops.pulse.OpsPulseActiveContent
+import com.example.momentra.ui.shell.business.ops.create.OpsQuickAddSheets
+import com.example.momentra.ui.shell.business.runway.memory.RunwayMemoryActiveContent
+import com.example.momentra.ui.shell.business.runway.moments.RunwayMomentsActiveContent
+import com.example.momentra.ui.shell.business.runway.pulse.RunwayPulseActiveContent
+import com.example.momentra.ui.shell.business.runway.create.RunwayQuickAddSheet
+import com.example.momentra.ui.shell.business.teamops.create.TeamOpsGapQuickAddSheet
+import com.example.momentra.ui.shell.business.teamops.memory.TeamOpsMemoryActiveContent
+import com.example.momentra.ui.shell.business.teamops.moments.TeamOpsMomentsActiveContent
+import com.example.momentra.ui.shell.business.teamops.pulse.TeamOpsPulseActiveContent
+import com.example.momentra.ui.shell.business.teamops.create.TeamOpsQuickAddSheets
+import com.example.momentra.ui.shell.group.shared.GroupBudgetSheet
+import com.example.momentra.ui.shell.group.shared.GroupCollabKind
+import com.example.momentra.ui.shell.group.shared.GroupCollabSheet
+import com.example.momentra.ui.shell.group.shared.GroupContributionSheet
+import com.example.momentra.ui.shell.group.shared.GroupInvitePeopleSheet
+import com.example.momentra.ui.shell.group.shared.GroupSettlementSheet
+import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
+import com.example.momentra.ui.shell.group.life.GroupLifeActiveContent
+import com.example.momentra.ui.shell.group.life.GroupLifeQuickAction
+import com.example.momentra.ui.shell.group.shared.GroupMemoryActiveContent
+import com.example.momentra.ui.shell.group.shared.GroupMomentsActiveContent
+import com.example.momentra.ui.shell.group.shared.GroupParticipantsSheet
+import com.example.momentra.ui.shell.group.shared.GroupPulseActiveContent
+import com.example.momentra.ui.shell.group.shared.GroupQuickAddHub
+import com.example.momentra.ui.shell.group.shared.GroupExpenseSplitsFlow
+import com.example.momentra.ui.shell.group.shared.GroupFinanceDetailFlow
+import com.example.momentra.ui.shell.group.shared.GroupExperienceFamily
+import com.example.momentra.ui.shell.group.shared.groupExperienceFamilyFor
+import com.example.momentra.ui.shell.group.shared.isThemedExperience
+import com.example.momentra.ui.shell.group.shared.isThemedLiving
+import com.example.momentra.ui.shell.group.shared.isThemedPurchase
+import com.example.momentra.ui.shell.group.experience.create.ExperienceActiveTheme
+import com.example.momentra.ui.shell.group.experience.create.ExperienceGapQuickAddSheet
+import com.example.momentra.ui.shell.group.experience.memory.ExperienceMemoryActiveContent
+import com.example.momentra.ui.shell.group.experience.moments.ExperienceMomentsActiveContent
+import com.example.momentra.ui.shell.group.experience.pulse.ExperiencePulseActiveContent
+import com.example.momentra.ui.shell.group.experience.create.ExperienceQuickAddHub
+import com.example.momentra.ui.shell.group.experience.create.ExperienceQuickAddKind
+import com.example.momentra.ui.shell.group.living.create.LivingActiveTheme
+import com.example.momentra.ui.shell.group.living.create.LivingGapQuickAddSheet
+import com.example.momentra.ui.shell.group.living.memory.LivingMemoryActiveContent
+import com.example.momentra.ui.shell.group.living.moments.LivingMomentsActiveContent
+import com.example.momentra.ui.shell.group.living.pulse.LivingPulseActiveContent
+import com.example.momentra.ui.shell.group.living.create.LivingQuickAddHub
+import com.example.momentra.ui.shell.group.living.create.LivingQuickAddKind
+import com.example.momentra.ui.shell.group.purchase.create.PurchaseActiveTheme
+import com.example.momentra.ui.shell.group.purchase.create.PurchaseGapQuickAddSheet
+import com.example.momentra.ui.shell.group.purchase.memory.PurchaseMemoryActiveContent
+import com.example.momentra.ui.shell.group.purchase.moments.PurchaseMomentsActiveContent
+import com.example.momentra.ui.shell.group.purchase.pulse.PurchasePulseActiveContent
+import com.example.momentra.ui.shell.group.purchase.create.PurchaseQuickAddHub
+import com.example.momentra.ui.shell.group.purchase.create.PurchaseQuickAddKind
+import com.example.momentra.ui.shell.group.wedding.create.WeddingGapQuickAddSheet
+import com.example.momentra.ui.shell.group.wedding.memory.WeddingMemoryActiveContent
+import com.example.momentra.ui.shell.group.wedding.moments.WeddingMomentsActiveContent
+import com.example.momentra.ui.shell.group.wedding.pulse.WeddingPulseActiveContent
+import com.example.momentra.ui.shell.group.wedding.create.WeddingQuickAddHub
+import com.example.momentra.ui.shell.group.wedding.create.WeddingQuickAddKind
 import com.example.momentra.ui.shell.perf.ShellPerf
-import com.example.momentra.ui.shell.personal.LifestyleQuickAddKind
-import com.example.momentra.ui.shell.personal.PersonalExpenseFab
-import com.example.momentra.ui.shell.personal.PersonalMasterExpenseSheet
-import com.example.momentra.ui.shell.personal.PersonalMoneyQuickAddSheet
-import com.example.momentra.ui.shell.personal.MoneyQuickAddKind
-import com.example.momentra.ui.shell.personal.PersonalFutureMemoryActiveContent
-import com.example.momentra.ui.shell.personal.PersonalFutureMomentsActiveContent
-import com.example.momentra.ui.shell.personal.PersonalFutureQuickAddSheet
-import com.example.momentra.ui.shell.personal.PersonalLifeActiveContent
-import com.example.momentra.ui.shell.personal.PersonalLifeOpsMemoryActiveContent
-import com.example.momentra.ui.shell.personal.PersonalLifeOpsMomentsActiveContent
-import com.example.momentra.ui.shell.personal.PersonalLifeOpsQuickAddSheet
-import com.example.momentra.ui.shell.personal.PersonalLifestyleMemoryActiveContent
-import com.example.momentra.ui.shell.personal.PersonalLifestyleMomentsActiveContent
-import com.example.momentra.ui.shell.personal.PersonalLifestyleQuickAddSheet
-import com.example.momentra.ui.shell.personal.PersonalPulseActiveContent
-import com.example.momentra.ui.shell.personal.PersonalPulseFamily
-import com.example.momentra.ui.shell.personal.PersonalQuickAddHub
-import com.example.momentra.ui.shell.personal.PersonalRecentActivityFlow
-import com.example.momentra.ui.shell.personal.PersonalRelationshipsActivityFlow
-import com.example.momentra.ui.shell.personal.PersonalRelationshipsMemoryActiveContent
-import com.example.momentra.ui.shell.personal.PersonalRelationshipsMomentsActiveContent
-import com.example.momentra.ui.shell.personal.PersonalRelationshipsPulseActiveContent
-import com.example.momentra.ui.shell.personal.PersonalRelationshipsQuickAddSheet
-import com.example.momentra.ui.shell.personal.RelationshipsQuickAddKind
-import com.example.momentra.ui.shell.personal.personalPulseFamilyFor
+import com.example.momentra.ui.shell.personal.future.create.FutureQuickAddKind
+import com.example.momentra.ui.shell.personal.future.create.PersonalFutureQuickAddSheet
+import com.example.momentra.ui.shell.personal.future.memory.PersonalFutureMemoryActiveContent
+import com.example.momentra.ui.shell.personal.future.moments.PersonalFutureMomentsActiveContent
+import com.example.momentra.ui.shell.personal.life.PersonalLifeActiveContent
+import com.example.momentra.ui.shell.personal.lifeops.create.LifeOpsQuickAddKind
+import com.example.momentra.ui.shell.personal.lifeops.create.MoneyQuickAddKind
+import com.example.momentra.ui.shell.personal.lifeops.create.PersonalLifeOpsQuickAddSheet
+import com.example.momentra.ui.shell.personal.lifeops.create.PersonalMoneyQuickAddSheet
+import com.example.momentra.ui.shell.personal.lifeops.memory.PersonalLifeOpsMemoryActiveContent
+import com.example.momentra.ui.shell.personal.lifeops.moments.PersonalLifeOpsMomentsActiveContent
+import com.example.momentra.ui.shell.personal.lifeops.pulse.PersonalPulseActiveContent
+import com.example.momentra.ui.shell.personal.lifestyle.create.PersonalLifestyleQuickAddSheet
+import com.example.momentra.ui.shell.personal.lifestyle.memory.PersonalLifestyleMemoryActiveContent
+import com.example.momentra.ui.shell.personal.lifestyle.moments.PersonalLifestyleMomentsActiveContent
+import com.example.momentra.ui.shell.personal.relationships.create.PersonalRelationshipsActivityFlow
+import com.example.momentra.ui.shell.personal.relationships.create.PersonalRelationshipsQuickAddSheet
+import com.example.momentra.ui.shell.personal.relationships.memory.PersonalRelationshipsMemoryActiveContent
+import com.example.momentra.ui.shell.personal.relationships.moments.PersonalRelationshipsMomentsActiveContent
+import com.example.momentra.ui.shell.personal.relationships.pulse.PersonalRelationshipsPulseActiveContent
+import com.example.momentra.ui.shell.personal.shared.LifestyleQuickAddKind
+import com.example.momentra.ui.shell.personal.shared.PersonalExpenseFab
+import com.example.momentra.ui.shell.personal.shared.PersonalMasterExpenseSheet
+import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
+import com.example.momentra.ui.shell.personal.shared.PersonalQuickAddHub
+import com.example.momentra.ui.shell.personal.shared.PersonalRecentActivityFlow
+import com.example.momentra.ui.shell.personal.shared.RelationshipsQuickAddKind
+import com.example.momentra.ui.shell.personal.shared.personalPulseFamilyFor
 import com.example.momentra.ui.splash.MomentraWordmark
 import com.example.momentra.ui.theme.MomentraBrandColors
 import com.example.momentra.ui.theme.ShellTokens
@@ -195,9 +195,15 @@ fun AppShellScreen(
 
     var pendingGroupJoinCode by remember { mutableStateOf<String?>(null) }
 
+    // Cold + warm: hydrate prefs, then observe pending invite while shell is open.
     LaunchedEffect(state.identity?.userId) {
-        val code = PendingJoinInvite.consume(prefs) ?: return@LaunchedEffect
-        pendingGroupJoinCode = code
+        if (state.identity?.userId == null) return@LaunchedEffect
+        prefs.getPendingJoinCode()?.let { PendingJoinInvite.hydrate(it) }
+        PendingJoinInvite.code.collect { offered ->
+            if (offered.isNullOrBlank()) return@collect
+            val code = PendingJoinInvite.consume(prefs) ?: return@collect
+            pendingGroupJoinCode = code
+        }
     }
 
     var moneyQa by remember { mutableStateOf<MoneyQuickAddKind?>(null) }
@@ -573,12 +579,15 @@ fun AppShellScreen(
                     ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.momentTypeCode,
             )
             val isWeddingFinance = groupFamily == GroupExperienceFamily.WEDDING
+            val groupExpenseTypeCode = state.selectedMomentTypeCode
+                ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.momentTypeCode
             GroupExpenseSheet(
                 momentId = state.selectedMomentId!!,
                 visible = groupExpenseSheetOpen,
                 onDismiss = { groupExpenseSheetOpen = false },
                 onSaved = { shellViewModel.refreshVisibleGroupTab() },
                 isWedding = isWeddingFinance,
+                momentTypeCode = groupExpenseTypeCode,
             )
             GroupContributionSheet(
                 momentId = state.selectedMomentId!!,
@@ -745,10 +754,20 @@ fun AppShellScreen(
                                 pendingGroupJoinCode = null
                                 preferGroupCreateFlow = false
                                 groupCreatePhase = GroupCreatePhase.CHOOSER
+                                val message = when {
+                                    it.alreadyMember -> "Already a member"
+                                    it.momentId.isNullOrBlank() ->
+                                        "Invite claimed — you’ll join when the organizer finishes creating the group."
+                                    else -> "Joined group"
+                                }
                                 Toast.makeText(
                                     context,
-                                    if (it.alreadyMember) "Already a member" else "Joined group",
-                                    Toast.LENGTH_SHORT,
+                                    message,
+                                    if (it.momentId.isNullOrBlank() && !it.alreadyMember) {
+                                        Toast.LENGTH_LONG
+                                    } else {
+                                        Toast.LENGTH_SHORT
+                                    },
                                 ).show()
                             },
                             onFailure = {

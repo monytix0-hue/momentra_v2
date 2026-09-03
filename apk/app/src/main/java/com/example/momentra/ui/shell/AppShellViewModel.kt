@@ -23,12 +23,12 @@ import com.example.momentra.ui.shell.policy.ShellInvariantInput
 import com.example.momentra.ui.shell.policy.ShellStateInvariants
 import com.example.momentra.ui.shell.policy.ShellVisibilityPolicy
 import com.example.momentra.ui.shell.perf.ShellPerf
-import com.example.momentra.ui.shell.personal.PersonalTabDataCache
-import com.example.momentra.ui.shell.personal.loadPersonalPulseTab
-import com.example.momentra.ui.shell.business.BusinessTabDataCache
-import com.example.momentra.ui.shell.business.prefetchBusinessTabs
-import com.example.momentra.ui.shell.group.GroupTabDataCache
-import com.example.momentra.ui.shell.group.prefetchGroupTabs
+import com.example.momentra.ui.shell.personal.shared.PersonalTabDataCache
+import com.example.momentra.ui.shell.personal.shared.loadPersonalPulseTab
+import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
+import com.example.momentra.ui.shell.business.shared.prefetchBusinessTabs
+import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.prefetchGroupTabs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -226,13 +226,35 @@ class AppShellViewModel(
         }
     }
 
-    private fun applyBootstrapInventory(boot: ShellBootstrap, networkRefresh: Boolean) {
+    private fun applyBootstrapInventory(
+        boot: ShellBootstrap,
+        networkRefresh: Boolean,
+        preserveMomentId: String? = null,
+    ) {
         val current = _state.value
         val rawMoments = when (current.selectedContext) {
             AppContext.PERSONAL -> boot.personalMoments
             AppContext.GROUP -> boot.groupMoments
             AppContext.BUSINESS -> boot.businessMoments
             AppContext.CIRCLE -> emptyList()
+        }
+        val preferredMomentId = preserveMomentId
+            ?: current.selectedMomentId
+            ?: current.selectedMomentByContext[current.selectedContext]
+            ?: if (current.selectedContext == AppContext.PERSONAL) preferredPersonalMomentId else null
+        // Keep an optimistic join/create selection visible until inventory catches up.
+        val momentsForHeal = if (
+            !preserveMomentId.isNullOrBlank() &&
+            rawMoments.none { it.momentId == preserveMomentId }
+        ) {
+            rawMoments + MomentSummary(
+                momentId = preserveMomentId,
+                title = current.selectedMomentTitle?.takeIf { it.isNotBlank() } ?: "Group",
+                status = "ACTIVE",
+                momentTypeCode = current.selectedMomentTypeCode,
+            )
+        } else {
+            rawMoments
         }
         val healed = ShellStateInvariants.heal(
             ShellInvariantInput(
@@ -242,10 +264,8 @@ class AppShellViewModel(
                 selectedContext = current.selectedContext,
                 selectedCompanyId = current.selectedCompany?.companyId ?: boot.selectedCompany?.companyId,
                 companies = boot.companies,
-                moments = rawMoments,
-                selectedMomentId = current.selectedMomentId
-                    ?: current.selectedMomentByContext[current.selectedContext]
-                    ?: if (current.selectedContext == AppContext.PERSONAL) preferredPersonalMomentId else null,
+                moments = momentsForHeal,
+                selectedMomentId = preferredMomentId,
                 selectedTabByContext = current.tabByContext,
                 currentlySelectedContextDefault = boot.currentlySelectedContext,
             ),
@@ -444,18 +464,51 @@ class AppShellViewModel(
                 val momentId = dto.momentId
                 if (!momentId.isNullOrBlank()) {
                     _state.update {
+                        val hasMoment = it.moments.any { m -> m.momentId == momentId }
                         it.copy(
                             selectedContext = AppContext.GROUP,
                             selectedMomentId = momentId,
+                            selectedMomentTitle = it.selectedMomentTitle?.takeIf { t -> hasMoment }
+                                ?: it.moments.firstOrNull { m -> m.momentId == momentId }?.title
+                                ?: "Group",
                             bottomDestination = BottomDestination.PULSE,
                             lastNonCreateDestination = BottomDestination.PULSE,
                             tabByContext = it.tabByContext + (AppContext.GROUP to BottomDestination.PULSE),
                             selectedMomentByContext = it.selectedMomentByContext + (AppContext.GROUP to momentId),
+                            moments = if (hasMoment) {
+                                it.moments
+                            } else {
+                                it.moments + MomentSummary(
+                                    momentId = momentId,
+                                    title = "Group",
+                                    status = "ACTIVE",
+                                )
+                            },
+                            momentExperience = MomentExperienceKind.ACTIVE,
+                            contextContent = ShellContentState.Ready(null),
                         )
                     }
+                    // Retry inventory until the joined moment appears (heal no longer clears it).
+                    var appeared = false
+                    repeat(4) { attempt ->
+                        meRepository.getBootstrap().onSuccess { boot ->
+                            bootstrap = boot
+                            if (boot.groupMoments.any { it.momentId == momentId }) {
+                                appeared = true
+                            }
+                            applyBootstrapInventory(
+                                boot,
+                                networkRefresh = true,
+                                preserveMomentId = momentId,
+                            )
+                            _state.update { it.copy(bootstrapStatus = BootstrapStatus.READY) }
+                        }
+                        if (appeared) return@repeat
+                        delay(350L * (attempt + 1))
+                    }
+                    refreshVisibleGroupTab()
                 }
-                reloadCurrentContext()
-                refreshVisibleGroupTab()
+                // PENDING claim (null momentId): stay put; UI shows honest messaging.
             }
             onResult(result)
         }

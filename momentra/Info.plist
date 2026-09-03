@@ -30,7 +30,7 @@
 		<string>remote-notification</string>
 	</array>
 	<key>MomentraAPIBaseURL</key>
-	<string>https://veggie-handmade-splashed.ngrok-free.dev/</string>
+	<string>https://api.mallaapp.org/</string>
 	<key>SENTRY_DSN</key>
 	<string></string>
 	<key>NSAppTransportSecurity</key>

@@ -592,12 +592,12 @@ fun GroupReviewCard(
                 .shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = palette.stepGlow, spotColor = palette.stepGlow)
                 .clip(RoundedCornerShape(16.dp))
                 .background(palette.accentGradient)
+                .clickable(enabled = !submitting, onClick = onActivate)
                 .testTag(MaestroIds.GROUP_SETUP_SUBMIT)
                 .semantics {
                     role = Role.Button
                     contentDescription = ctaLabel
-                }
-                .clickable(enabled = !submitting, onClick = onActivate),
+                },
             contentAlignment = Alignment.Center,
         ) {
             if (submitting) {

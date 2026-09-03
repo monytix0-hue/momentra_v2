@@ -22,6 +22,7 @@ ui-debug.log
 **/local.properties
 **/*.keystore
 **/*.jks
+!apk/keystore/momentra-debug.jks
 
 # Dependencies & build outputs
 **/node_modules/

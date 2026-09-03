@@ -80,6 +80,12 @@ struct momentraApp: App {
                             JoinInviteStore.shared.offer(code)
                         }
                     }
+                    .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                        guard let url = activity.webpageURL else { return }
+                        if let code = GroupJoinLink.parse(url) {
+                            JoinInviteStore.shared.offer(code)
+                        }
+                    }
                     #endif
 
                 if showSplash {

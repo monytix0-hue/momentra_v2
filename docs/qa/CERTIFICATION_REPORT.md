@@ -60,23 +60,97 @@ iOS device runs BLOCKED_ENVIRONMENT on Windows; Android requires USB device or -
 | 2026-09-02T08:10:35.670Z | android | pilot | pending-device | 1 | FAIL |
 | 2026-09-02T08:10:36.987Z | ios | pilot | blocked-env | 2 | BLOCKED_ENVIRONMENT |
 
+| 2026-09-02T13:00:29.200Z | android | pilot | 20260902182027 | 1 | FAIL |
+
+
+| 2026-09-02T13:10:03.808Z | android | pilot | 20260902183111 | 1 | FAIL |
+
+
+| 2026-09-02T13:27:21.491Z | android | pilot | 20260902184404 | 1 | FAIL |
+
+
+| 2026-09-02T14:11:16.202Z | android | pilot | 20260902190051 | 1 | FAIL |
+
+
+| 2026-09-02T16:10:00.740Z | android | pilot | 20260902202604 | 1 | FAIL |
+
+
+| 2026-09-02T16:33:10.366Z | android | input | 20260902214000 | 0 | PASS |
+
+
+| 2026-09-02T16:48:42.833Z | android | input | 20260902220310 | 0 | PASS |
+
+
+| 2026-09-02T17:04:16.595Z | android | input | 20260902221842 | 0 | PASS |
+
+
+| 2026-09-02T17:19:37.462Z | android | input | 20260902223416 | 0 | PASS |
+
+
+| 2026-09-02T17:35:26.992Z | android | input | 20260902224937 | 0 | PASS |
+
+
+| 2026-09-02T17:51:29.866Z | android | input | 20260902230527 | 0 | PASS |
+
+
+| 2026-09-02T18:06:52.149Z | android | input | 20260902232129 | 0 | PASS |
+
+
+| 2026-09-02T18:22:16.503Z | android | input | 20260902233652 | 0 | PASS |
+
+
+| 2026-09-02T18:37:42.455Z | android | input | 20260902235216 | 0 | PASS |
+
+
+| 2026-09-02T18:53:08.158Z | android | input | 20260903000742 | 0 | PASS |
+
+
+| 2026-09-02T19:09:13.227Z | android | input | 20260903002308 | 0 | PASS |
+
+
+| 2026-09-02T19:25:01.283Z | android | input | 20260903003913 | 0 | PASS |
+
+
+| 2026-09-02T19:40:33.743Z | android | input | 20260903005501 | 0 | PASS |
+
+
+| 2026-09-02T19:56:01.338Z | android | input | 20260903011033 | 0 | PASS |
+
+
+| 2026-09-02T20:11:33.607Z | android | input | 20260903012601 | 0 | PASS |
+
+
+| 2026-09-02T20:26:57.523Z | android | input | 20260903014133 | 0 | PASS |
+
+
+| 2026-09-02T20:43:18.656Z | android | input | 20260903015657 | 0 | PASS |
+
+
+| 2026-09-02T20:59:07.569Z | android | input | 20260903021318 | 0 | PASS |
+
+
+| 2026-09-02T21:14:40.364Z | android | input | 20260903022907 | 0 | PASS |
+
+
+| 2026-09-03T05:48:37.365Z | android | input | 20260903024440 | 0 | PASS |
+
+
 ## Join summary
 
 - Android: {"JOINED":2614,"JOINED_REVIEW":866,"SKIP_CAPABILITY_GAP":20}
 - iOS: {"JOINED":2614,"JOINED_REVIEW":866,"SKIP_CAPABILITY_GAP":20}
-- Pilot rows/platform: 150 (Personal/Group/Business + all four split methods)
+- Pilot rows/platform: 150
 
 ## Flow manifest
 
-- Android/iOS writable rows: 3480 each
-- Pilot YAML: 3/platform · Personal 24 · Group 23 · Business 24 · Stress 70
+- Generated: 2026-09-02T16:12:11.034Z
+- Android writable: 3480
+- iOS writable: 3480
 
 ## Ledger
 
 - APK: `docs/qa/ledgers/Momentra_APK_3500_Certification_Ledger.xlsx`
 - iOS: `docs/qa/ledgers/Momentra_IOS_3500_Certification_Ledger.xlsx`
-- Offline math: `docs/qa/reconciliation/OFFLINE_MATH.md` (PASS)
-- Backend checkpoints: `docs/qa/reconciliation/BACKEND_CHECKPOINTS.md` (appended by runners)
 - Reconciliation sheet: fill Actual_Results after `qa:verify` batches
 
 ## Cross-device sync (S9-QA-J)

@@ -141,9 +141,8 @@ struct ProductOnboardingView: View {
                 .foregroundStyle(MomentraBrandTokens.textOnDark.opacity(0.58))
                 .position(x: geo.size.width - s(24) - s(20), y: s(43) + s(12))
                 .accessibilityIdentifier("onboarding.skip")
-            }
-            .frame(width: geo.size.width, height: geo.size.height)
-            .safeAreaInset(edge: .bottom) {
+
+                // Page dots + CTA — Figma Y 746 (match Android); keep above home indicator
                 VStack(spacing: s(16)) {
                     HStack(spacing: s(8)) {
                         ForEach(0..<productPages.count, id: \.self) { i in
@@ -182,9 +181,16 @@ struct ProductOnboardingView: View {
                     }
                     .accessibilityLabel(current.cta)
                 }
-                .padding(.bottom, s(24))
-                .frame(maxWidth: .infinity)
+                .frame(width: s(362), height: s(88))
+                .position(
+                    x: geo.size.width / 2,
+                    y: min(
+                        s(746) + s(44),
+                        geo.size.height - max(geo.safeAreaInsets.bottom, s(24)) - s(44)
+                    )
+                )
             }
+            .frame(width: geo.size.width, height: geo.size.height)
         }
         .preferredColorScheme(.dark)
         .id(current.analyticsScreen)

@@ -304,6 +304,7 @@ private fun ActionTile(
                 ),
             )
             .border(1.dp, theme.border, RoundedCornerShape(16.dp))
+            .then(kind.maestroTileId()?.let { Modifier.testTag(it) } ?: Modifier)
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(8.dp),
     ) {
