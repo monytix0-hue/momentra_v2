@@ -25,7 +25,7 @@ enum LivingQuickAddKind: String, Identifiable, CaseIterable {
 
     var label: String {
         switch self {
-        case .resident: return "Resident"
+        case .resident: return "Invite"
         case .expense: return "Expense"
         case .contribution: return "Contribution"
         case .task: return "Task"

@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGroupMember } from '../collaboration/group-membership';
+import { listMediaForMemories } from '../memory/memory-attachments';
 import { listMetricsForScope, PHASE7_PULSE_METRIC_CODES } from '../analytics/engine';
 import {
   assembleTypedSignals,
@@ -662,8 +663,13 @@ export async function getGroupMomentProjection(
             due_at: Date | null;
             status: string;
             created_at: Date;
+            category_code: string | null;
+            location: string | null;
+            priority_code: string | null;
           }>(
-            `SELECT planning_item_id, title, due_at, status, created_at FROM collaboration.planning_item
+            `SELECT planning_item_id, title, due_at, status, created_at,
+                    category_code, location, priority_code
+             FROM collaboration.planning_item
              WHERE moment_id = $1 ORDER BY COALESCE(due_at, created_at) ASC LIMIT 50`,
             [momentId]
           ),
@@ -677,8 +683,13 @@ export async function getGroupMomentProjection(
              WHERE moment_id = $1 ORDER BY COALESCE(start_at, booked_at, created_at) ASC LIMIT 50`,
             [momentId]
           ),
-          client.query<{ group_update_id: string; body: string; created_at: Date }>(
-            `SELECT group_update_id, body, created_at FROM collaboration.group_update
+          client.query<{
+            group_update_id: string;
+            body: string;
+            created_at: Date;
+            urgency_code: string;
+          }>(
+            `SELECT group_update_id, body, created_at, urgency_code FROM collaboration.group_update
              WHERE moment_id = $1 ORDER BY created_at DESC LIMIT 20`,
             [momentId]
           ),
@@ -877,6 +888,10 @@ export async function getGroupMomentProjection(
             title: r.title,
             dueAt: r.due_at?.toISOString() ?? null,
             status: r.status,
+            categoryCode: r.category_code,
+            location: r.location,
+            priorityCode: r.priority_code,
+            createdAt: r.created_at.toISOString(),
           })),
           bookings: bookings.rows.map((r) => ({
             bookingId: r.booking_id,
@@ -887,6 +902,7 @@ export async function getGroupMomentProjection(
             updateId: r.group_update_id,
             message: r.body,
             createdAt: r.created_at.toISOString(),
+            urgencyCode: r.urgency_code ?? 'NORMAL',
           })),
           financeHint: finance
             ? {
@@ -908,11 +924,20 @@ export async function getGroupMomentProjection(
        LIMIT 100`,
       [momentId]
     );
-    const items = memories.rows.map((r) => ({
-      memoryId: r.memory_id,
-      title: r.title,
-      occurredAt: r.occurred_at?.toISOString() ?? null,
-    }));
+    const mediaByMemory = await listMediaForMemories(
+      client,
+      memories.rows.map((r) => r.memory_id)
+    );
+    const items = memories.rows.map((r) => {
+      const media = mediaByMemory.get(r.memory_id) ?? [];
+      return {
+        memoryId: r.memory_id,
+        title: r.title,
+        occurredAt: r.occurred_at?.toISOString() ?? null,
+        media,
+        mediaCount: media.length,
+      };
+    });
     return {
       momentId,
       facet,

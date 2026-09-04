@@ -366,14 +366,31 @@ export async function createPlanningItem(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  body: { title: string; dueAt?: string | null }
+  body: {
+    title: string;
+    dueAt?: string | null;
+    categoryCode?: string | null;
+    location?: string | null;
+    priorityCode?: string | null;
+    description?: string | null;
+  }
 ): Promise<{ planningItemId: string; momentId: string }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'PLANNING_ITEM_CREATE', resourceType: 'PLANNING_ITEM', momentId });
   const r = await client.query<{ planning_item_id: string }>(
-    `INSERT INTO collaboration.planning_item (moment_id, title, due_at, status)
-     VALUES ($1, $2, $3::timestamptz, 'OPEN')
+    `INSERT INTO collaboration.planning_item (
+       moment_id, title, description, due_at, status, category_code, location, priority_code
+     )
+     VALUES ($1, $2, $3, $4::timestamptz, 'OPEN', $5, $6, $7)
      RETURNING planning_item_id`,
-    [momentId, body.title, body.dueAt ?? null]
+    [
+      momentId,
+      body.title,
+      body.description ?? null,
+      body.dueAt ?? null,
+      body.categoryCode ?? null,
+      body.location ?? null,
+      body.priorityCode ?? null,
+    ]
   );
   return { planningItemId: r.rows[0]!.planning_item_id, momentId };
 }
@@ -429,20 +446,27 @@ export async function postUpdate(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  body: { message: string }
-): Promise<{ updateId: string; momentId: string; authorUserId: string }> {
+  body: { message: string; notifyMembers?: boolean; urgencyCode?: string }
+): Promise<{ updateId: string; momentId: string; authorUserId: string; notifyMembers: boolean; urgencyCode: string }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'UPDATE_CREATE', resourceType: 'UPDATE', momentId });
   const participant = await client.query<{ participant_id: string }>(
     `SELECT participant_id FROM collaboration.moment_participant WHERE moment_id = $1 AND user_id = $2 LIMIT 1`,
     [momentId, ctx.userId]
   );
+  const urgency = body.urgencyCode === 'URGENT' ? 'URGENT' : 'NORMAL';
   const r = await client.query<{ group_update_id: string }>(
-    `INSERT INTO collaboration.group_update (moment_id, participant_id, body, status)
-     VALUES ($1, $2, $3, 'PUBLISHED')
+    `INSERT INTO collaboration.group_update (moment_id, participant_id, body, status, urgency_code)
+     VALUES ($1, $2, $3, 'PUBLISHED', $4)
      RETURNING group_update_id`,
-    [momentId, participant.rows[0]?.participant_id ?? null, body.message]
+    [momentId, participant.rows[0]?.participant_id ?? null, body.message, urgency]
   );
-  return { updateId: r.rows[0]!.group_update_id, momentId, authorUserId: ctx.userId };
+  return {
+    updateId: r.rows[0]!.group_update_id,
+    momentId,
+    authorUserId: ctx.userId,
+    notifyMembers: body.notifyMembers !== false,
+    urgencyCode: urgency,
+  };
 }
 
 export async function addPurchaseItem(

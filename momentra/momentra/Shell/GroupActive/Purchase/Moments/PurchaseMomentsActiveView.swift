@@ -6,13 +6,18 @@ struct PurchaseMomentsActiveView: View {
     let refreshToken: UInt64
     let momentId: String?
     let momentTitle: String?
+    var momentTypeCode: String? = nil
     var onOpenQuickAdd: () -> Void = {}
 
     @State private var pulse: APIClient.GroupPulsePayload?
     @State private var finance: APIClient.GroupFinancePayload?
     @State private var life: APIClient.GroupLifePayload?
-    @State private var listPlanning: [APIClient.GroupLifePayload.LifeInner.PlanningItem] = []
-    @State private var listUpdates: [APIClient.GroupLifePayload.LifeInner.UpdateItem] = []
+    @State private var listPlanning: [GroupPlanningItem] = []
+    @State private var listUpdates: [GroupUpdateItem] = []
+    @State private var listPolls: [APIClient.GroupPollItemPayload] = []
+    @State private var listMemoryItems: [GroupMemoryItem] = []
+    @State private var selectedPollId: String?
+    @State private var scheduleOpen = false
     @State private var purchaseItems: [APIClient.GroupPurchaseItemPayload] = []
     @State private var title: String?
     @State private var loading = true
@@ -28,6 +33,37 @@ struct PurchaseMomentsActiveView: View {
         }
         .background(theme.bg)
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
+        .sheet(isPresented: $scheduleOpen) {
+            PlanningScheduleSheet(
+                items: allPlanningItems,
+                momentTypeCode: momentTypeCode,
+                accent: theme.accent,
+                surface: theme.card,
+                field: theme.bg,
+                border: theme.border,
+                text: theme.text,
+                muted: theme.secondary,
+                onDismiss: { scheduleOpen = false }
+            )
+        }
+        .sheet(item: Binding(
+            get: { selectedPollId.map { PollSheetItem(id: $0) } },
+            set: { selectedPollId = $0?.id }
+        )) { item in
+            PollDetailSheet(
+                pollId: item.id,
+                onDismiss: { selectedPollId = nil },
+                onSaved: { Task { await load() } }
+            )
+        }
+    }
+
+    private struct PollSheetItem: Identifiable {
+        let id: String
+    }
+
+    private var allPlanningItems: [GroupPlanningItem] {
+        listPlanning.isEmpty ? (life?.payload?.planningItems ?? []) : listPlanning
     }
 
     @ViewBuilder
@@ -38,7 +74,7 @@ struct PurchaseMomentsActiveView: View {
         let peopleCount = pulse?.payload?.participantCount ?? 0
         let openTasks = pulse?.payload?.openTaskCount ?? life?.payload?.openTaskCount ?? 0
         let displayTitle = momentTitle ?? title ?? "\(theme.typeLabel) Moments"
-        let planningItems = listPlanning.isEmpty ? (life?.payload?.planningItems ?? []) : listPlanning
+        let recentPlans = recentOpenPlanningItems(allPlanningItems)
         let updates = listUpdates.isEmpty ? (life?.payload?.updates ?? []) : listUpdates
         let funded = PurchaseFinanceMath.fundedPercent(
             contributionTotal: contributionTotal,
@@ -132,29 +168,56 @@ struct PurchaseMomentsActiveView: View {
                 }
 
                 PurchaseSectionCard(theme: theme, title: "Planning") {
-                    if planningItems.isEmpty {
+                    MomentsPlanningHeader(
+                        title: "Recent plans",
+                        text: theme.text,
+                        muted: theme.secondary,
+                        accent: theme.accent,
+                        onOpenSchedule: { scheduleOpen = true }
+                    )
+                    if recentPlans.isEmpty {
                         PurchaseEmptyBlock(
                             theme: theme,
                             message: "No planning items yet",
                             detail: "Add a planning item when ready — nothing is invented."
                         )
                     } else {
-                        ForEach(planningItems.indices, id: \.self) { i in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(planningItems[i].title ?? planningItems[i].planningItemId ?? "")
+                        ForEach(Array(recentPlans.enumerated()), id: \.offset) { _, item in
+                            MomentsPlanningRecentRow(
+                                item: item,
+                                momentTypeCode: momentTypeCode,
+                                text: theme.text,
+                                muted: theme.secondary,
+                                accent: theme.accent,
+                                field: theme.bg,
+                                border: theme.border
+                            )
+                        }
+                    }
+                }
+
+                PurchaseSectionCard(theme: theme, title: "Polls") {
+                    if listPolls.isEmpty {
+                        PurchaseEmptyBlock(
+                            theme: theme,
+                            message: "No polls yet",
+                            detail: "Create a poll from Quick Add to decide together."
+                        )
+                    } else {
+                        ForEach(listPolls) { item in
+                            Button {
+                                if let id = item.pollId { selectedPollId = id }
+                            } label: {
+                                Text(item.question ?? item.pollId ?? "Poll")
                                     .font(.plusJakarta(size: 13, weight: .semibold))
                                     .foregroundStyle(theme.text)
-                                if let due = planningItems[i].dueAt, !due.isEmpty {
-                                    Text(due)
-                                        .font(.plusJakarta(size: 11))
-                                        .foregroundStyle(theme.secondary)
-                                }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(12)
+                                    .background(theme.bg)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.border))
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
-                            .background(theme.bg)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.border))
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -167,19 +230,27 @@ struct PurchaseMomentsActiveView: View {
                             detail: "Share a status update from Quick Add."
                         )
                     } else {
-                        ForEach(updates.prefix(8).indices, id: \.self) { i in
-                            Text(updates[i].message ?? updates[i].updateId ?? "")
-                                .font(.plusJakarta(size: 13))
-                                .foregroundStyle(theme.text)
+                        ForEach(Array(updates.prefix(8).enumerated()), id: \.offset) { _, item in
+                            MomentsUrgentUpdateRow(
+                                item: item,
+                                text: theme.text,
+                                muted: theme.secondary,
+                                field: theme.bg,
+                                border: theme.border
+                            )
                         }
                     }
                 }
 
                 PurchaseSectionCard(theme: theme, title: "Shared Gallery") {
-                    PurchaseEmptyBlock(
-                        theme: theme,
-                        message: "Gallery empty",
-                        detail: "Shared media will appear when group media API is live."
+                    MemoryPhotoGalleryStrip(
+                        items: listMemoryItems,
+                        emptyMessage: "Gallery empty",
+                        emptyDetail: "Add a memory with a photo from Quick Add.",
+                        text: theme.text,
+                        muted: theme.secondary,
+                        field: theme.card,
+                        border: theme.border
                     )
                 }
 
@@ -229,7 +300,9 @@ struct PurchaseMomentsActiveView: View {
             async let lifeResult = APIClient.shared.getGroupLife(momentId: momentId)
             async let plansResult = APIClient.shared.listPlanningItems(momentId: momentId)
             async let updatesResult = APIClient.shared.listGroupUpdates(momentId: momentId)
+            async let pollsResult = APIClient.shared.listPolls(momentId: momentId)
             async let purchaseResult = APIClient.shared.listPurchaseItems(momentId: momentId)
+            async let memoriesResult = APIClient.shared.listGroupMemories(momentId: momentId)
             let loadedPulse = try await pulseResult
             let finFacet = try await financeResult
             let loadedLife = try await lifeResult
@@ -240,7 +313,13 @@ struct PurchaseMomentsActiveView: View {
             life = loadedLife
             listPlanning = (try? await plansResult)?.items ?? loadedLife.payload?.planningItems ?? []
             listUpdates = (try? await updatesResult)?.items ?? loadedLife.payload?.updates ?? []
+            listPolls = (try? await pollsResult)?.items ?? []
             purchaseItems = (try? await purchaseResult)?.items ?? []
+            if let mems = try? await memoriesResult {
+                listMemoryItems = mems.items
+            } else {
+                listMemoryItems = (try? await APIClient.shared.getGroupMemory(momentId: momentId))?.payload?.items ?? []
+            }
             GroupTabDataCache.putPulse(momentId, .init(
                 title: loadedPulse.title,
                 pulse: loadedPulse,

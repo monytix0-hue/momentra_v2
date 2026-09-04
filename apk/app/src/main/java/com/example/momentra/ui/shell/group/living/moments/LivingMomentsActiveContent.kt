@@ -27,12 +27,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupLifePayloadDto
+import com.example.momentra.data.api.GroupLifePlanningItemDto
+import com.example.momentra.data.api.GroupMemoryItemDto
+import com.example.momentra.data.api.GroupPollItemDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
+import com.example.momentra.ui.shell.group.shared.MomentsPlanningHeader
+import com.example.momentra.ui.shell.group.shared.MomentsPlanningRecentRow
+import com.example.momentra.ui.shell.group.shared.MomentsUrgentUpdateRow
+import com.example.momentra.ui.shell.group.shared.PlanningScheduleSheet
+import com.example.momentra.ui.shell.group.shared.PollDetailSheet
 import com.example.momentra.ui.shell.group.shared.loadGroupPulseTab
+import com.example.momentra.ui.shell.group.shared.recentOpenPlanningItems
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.shell.group.living.create.LivingActiveTheme
 import com.example.momentra.ui.shell.group.living.create.LivingEmptyBlock
@@ -46,6 +56,7 @@ fun LivingMomentsActiveContent(
     momentId: String?,
     momentTitle: String?,
     refreshToken: Long,
+    momentTypeCode: String? = null,
     onOpenQuickAdd: () -> Unit = {},
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
     modifier: Modifier = Modifier,
@@ -54,9 +65,14 @@ fun LivingMomentsActiveContent(
     var pulse by remember { mutableStateOf<GroupPulsePayloadDto?>(null) }
     var finance by remember { mutableStateOf<GroupFinancePayloadDto?>(null) }
     var life by remember { mutableStateOf<GroupLifePayloadDto?>(null) }
+    var planningItems by remember { mutableStateOf<List<GroupLifePlanningItemDto>>(emptyList()) }
+    var polls by remember { mutableStateOf<List<GroupPollItemDto>>(emptyList()) }
+    var selectedPollId by remember { mutableStateOf<String?>(null) }
+    var scheduleOpen by remember { mutableStateOf(false) }
     var residents by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
     var assets by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
     var maintenance by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
+    var memoryItems by remember { mutableStateOf<List<GroupMemoryItemDto>>(emptyList()) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -88,9 +104,16 @@ fun LivingMomentsActiveContent(
             life = facet.payload
             GroupTabDataCache.putLife(momentId, facet.payload)
         }
+        planningItems = repository.listPlanningItems(momentId).getOrNull()?.items
+            ?: life?.planningItems.orEmpty()
+        polls = repository.listPolls(momentId).getOrNull()?.items.orEmpty()
         repository.listResidents(momentId).onSuccess { residents = it.items }
         repository.listSharedAssets(momentId).onSuccess { assets = it.items }
         repository.listMaintenanceRecords(momentId).onSuccess { maintenance = it.items }
+        repository.listMemories(momentId).onSuccess { memoryItems = it.items }
+            .onFailure {
+                repository.getMemory(momentId).onSuccess { memoryItems = it.payload?.items.orEmpty() }
+            }
     }
 
     if (loading && pulse == null && finance == null) {
@@ -104,7 +127,8 @@ fun LivingMomentsActiveContent(
     val peopleCount = residents.size.takeIf { it > 0 } ?: pulse?.participantCount ?: 0
     val openTasks = pulse?.openTaskCount ?: life?.openTaskCount ?: 0
     val displayTitle = momentTitle ?: title ?: "${theme.typeLabel} Moments"
-    val planningItems = life?.planningItems.orEmpty()
+    val allPlans = if (planningItems.isNotEmpty()) planningItems else life?.planningItems.orEmpty()
+    val recentPlans = recentOpenPlanningItems(allPlans)
     val updates = life?.updates.orEmpty()
 
     Column(
@@ -149,11 +173,49 @@ fun LivingMomentsActiveContent(
         }
 
         LivingSectionCard(theme, "Planning & Tasks") {
-            if (planningItems.isEmpty()) {
+            MomentsPlanningHeader(
+                title = "Recent plans",
+                text = theme.text,
+                muted = theme.secondary,
+                accent = theme.accent,
+                onOpenSchedule = { scheduleOpen = true },
+            )
+            if (recentPlans.isEmpty()) {
                 LivingEmptyBlock(theme, "No tasks yet", "Add a task from Quick Add — nothing is invented.")
             } else {
-                planningItems.forEach { item ->
-                    LivingListRow(theme, item.title ?: item.planningItemId.orEmpty())
+                recentPlans.forEach { item ->
+                    MomentsPlanningRecentRow(
+                        item = item,
+                        momentTypeCode = momentTypeCode,
+                        text = theme.text,
+                        muted = theme.secondary,
+                        accent = theme.accent,
+                        field = theme.bg,
+                        border = theme.border,
+                    )
+                }
+            }
+        }
+
+        LivingSectionCard(theme, "Polls") {
+            if (polls.isEmpty()) {
+                LivingEmptyBlock(theme, "No polls yet", "Create a poll from Quick Add to decide together.")
+            } else {
+                polls.forEach { item ->
+                    Text(
+                        item.question ?: item.pollId.orEmpty(),
+                        color = theme.text,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(theme.bg)
+                            .border(1.dp, theme.border, RoundedCornerShape(12.dp))
+                            .clickable { item.pollId?.let { selectedPollId = it } }
+                            .padding(12.dp),
+                    )
                 }
             }
         }
@@ -162,10 +224,28 @@ fun LivingMomentsActiveContent(
             if (updates.isEmpty()) {
                 LivingEmptyBlock(theme, "No updates yet", "Share a status update from Quick Add.")
             } else {
-                updates.take(8).forEach {
-                    Text(it.message ?: it.updateId.orEmpty(), color = theme.text, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+                updates.take(8).forEach { item ->
+                    MomentsUrgentUpdateRow(
+                        item = item,
+                        text = theme.text,
+                        muted = theme.secondary,
+                        field = theme.bg,
+                        border = theme.border,
+                    )
                 }
             }
+        }
+
+        LivingSectionCard(theme, "Shared Gallery") {
+            MemoryPhotoGalleryStrip(
+                items = memoryItems,
+                emptyMessage = "No photos yet",
+                emptyDetail = "Add a memory with a photo from Quick Add.",
+                text = theme.text,
+                muted = theme.secondary,
+                field = theme.bg,
+                border = theme.border,
+            )
         }
 
         LivingSectionCard(theme, "Residents") {
@@ -235,6 +315,28 @@ fun LivingMomentsActiveContent(
                     .padding(vertical = 14.dp),
             )
         }
+    }
+
+    PlanningScheduleSheet(
+        items = allPlans,
+        visible = scheduleOpen,
+        onDismiss = { scheduleOpen = false },
+        momentTypeCode = momentTypeCode,
+        accent = theme.accent,
+        surface = theme.card,
+        field = theme.bg,
+        border = theme.border,
+        text = theme.text,
+        muted = theme.secondary,
+    )
+    selectedPollId?.let { pollId ->
+        PollDetailSheet(
+            pollId = pollId,
+            visible = true,
+            onDismiss = { selectedPollId = null },
+            onSaved = {},
+            repository = repository,
+        )
     }
 }
 

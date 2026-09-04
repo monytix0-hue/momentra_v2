@@ -17,14 +17,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,10 +45,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.R
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.repository.MomentLifecycleRepository
 import com.example.momentra.domain.AppContext
@@ -474,7 +474,7 @@ private fun LeaveRow(title: String, subtitle: String, enabled: Boolean, onClick:
                 .padding(horizontal = 10.dp, vertical = 6.dp),
         ) {
             Icon(
-                Icons.AutoMirrored.Filled.Logout,
+                painter = painterResource(R.drawable.ic_leave_log_out),
                 contentDescription = null,
                 tint = if (enabled) Red else TextMuted,
                 modifier = Modifier.size(13.dp),
@@ -567,7 +567,12 @@ private fun LeaveConfirmPane(
                 .border(1.dp, Color(0x33EF4444), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.AutoMirrored.Filled.Logout, null, tint = Red, modifier = Modifier.size(22.dp))
+            Icon(
+                painter = painterResource(R.drawable.ic_leave_log_out),
+                contentDescription = null,
+                tint = Red,
+                modifier = Modifier.size(22.dp),
+            )
         }
         Spacer(Modifier.height(12.dp))
         Text(
@@ -598,7 +603,12 @@ private fun LeaveConfirmPane(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Icon(Icons.Filled.Warning, null, tint = Red, modifier = Modifier.size(14.dp))
+            Icon(
+                painter = painterResource(R.drawable.ic_alert_triangle),
+                contentDescription = null,
+                tint = Red,
+                modifier = Modifier.size(14.dp),
+            )
             Text(
                 "This will permanently remove you from all shared content.",
                 color = Red,

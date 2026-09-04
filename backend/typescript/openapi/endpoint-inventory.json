@@ -36,6 +36,54 @@
     "implStatus": "IMPLEMENTED"
   },
   {
+    "method": "GET",
+    "path": "/v1/me/notification-preferences",
+    "operationId": "getMyNotificationPreferences",
+    "domain": "Notifications",
+    "kind": "read",
+    "auth": true,
+    "idempotency": false,
+    "occ": false,
+    "pagination": false,
+    "implStatus": "IMPLEMENTED"
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1/me/notification-preferences",
+    "operationId": "patchMyNotificationPreferences",
+    "domain": "Notifications",
+    "kind": "command",
+    "auth": true,
+    "idempotency": false,
+    "occ": false,
+    "pagination": false,
+    "implStatus": "IMPLEMENTED"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/moments/{momentId}/notification-preferences",
+    "operationId": "getMomentNotificationPreferences",
+    "domain": "Notifications",
+    "kind": "read",
+    "auth": true,
+    "idempotency": false,
+    "occ": false,
+    "pagination": false,
+    "implStatus": "IMPLEMENTED"
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1/moments/{momentId}/notification-preferences",
+    "operationId": "patchMomentNotificationPreferences",
+    "domain": "Notifications",
+    "kind": "command",
+    "auth": true,
+    "idempotency": false,
+    "occ": false,
+    "pagination": false,
+    "implStatus": "IMPLEMENTED"
+  },
+  {
     "method": "POST",
     "path": "/v1/moments",
     "operationId": "createMoment",

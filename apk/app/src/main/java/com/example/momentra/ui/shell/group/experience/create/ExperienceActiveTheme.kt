@@ -173,7 +173,7 @@ enum class ExperienceQuickAddKind {
 }
 
 fun ExperienceQuickAddKind.label(): String = when (this) {
-    ExperienceQuickAddKind.PARTICIPANT -> "Participant"
+    ExperienceQuickAddKind.PARTICIPANT -> "Invite"
     ExperienceQuickAddKind.PLANNING -> "Planning Item"
     ExperienceQuickAddKind.EXPENSE -> "Expense"
     ExperienceQuickAddKind.BUDGET -> "Budget"

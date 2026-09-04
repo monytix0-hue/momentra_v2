@@ -26,7 +26,7 @@ enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
 
     var label: String {
         switch self {
-        case .participant: return "Participant"
+        case .participant: return "Invite"
         case .planning: return "Planning Item"
         case .expense: return "Expense"
         case .budget: return "Budget"

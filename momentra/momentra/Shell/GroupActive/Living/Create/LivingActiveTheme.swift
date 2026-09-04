@@ -79,7 +79,7 @@ struct LivingActiveTheme {
         ],
         includesContribution: true,
         quickChips: [
-            ("👤", "Resident", .resident),
+            ("👤", "Invite", .resident),
             ("💳", "Expense", .expense),
             ("✅", "Task", .task),
             ("📷", "Memory", .memory),
@@ -121,7 +121,7 @@ struct LivingActiveTheme {
         ],
         includesContribution: true,
         quickChips: [
-            ("👤", "Resident", .resident),
+            ("👤", "Invite", .resident),
             ("💳", "Expense", .expense),
             ("✅", "Task", .task),
             ("📷", "Memory", .memory),
@@ -163,7 +163,7 @@ struct LivingActiveTheme {
         ],
         includesContribution: false,
         quickChips: [
-            ("👤", "Resident", .resident),
+            ("👤", "Invite", .resident),
             ("💳", "Expense", .expense),
             ("✅", "Task", .task),
             ("📷", "Memory", .memory),
@@ -205,7 +205,7 @@ struct LivingActiveTheme {
         ],
         includesContribution: false,
         quickChips: [
-            ("👤", "Resident", .resident),
+            ("👤", "Invite", .resident),
             ("💳", "Expense", .expense),
             ("✅", "Task", .task),
             ("📷", "Memory", .memory),

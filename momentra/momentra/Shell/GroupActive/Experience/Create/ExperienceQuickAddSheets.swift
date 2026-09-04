@@ -65,7 +65,7 @@ struct ExperienceGapQuickAddSheet: View {
         case .vendor:
             WeddingVendorBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .planning:
-            WeddingPlanningBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
+            WeddingPlanningBody(momentId: momentId, momentTypeCode: momentTypeCode, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .attendance:
             WeddingAttendanceBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .poll:

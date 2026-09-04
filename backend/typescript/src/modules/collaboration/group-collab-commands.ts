@@ -9,6 +9,7 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { recordCommandSideEffects } from '../../platform/events/outbox';
 import { assertGroupMember } from './group-membership';
 import * as collaborationService from './service';
+import { listMediaForMemories } from '../memory/memory-attachments';
 
 /**
  * Mobile clients send local-offset ISO (e.g. +05:30). Zod .datetime() defaults to Z-only.
@@ -23,6 +24,10 @@ export const planningItemSchema = z
   .object({
     title: z.string().min(1).max(500),
     dueAt: clientIsoDatetime.nullish(),
+    categoryCode: z.string().min(1).max(64).nullish(),
+    location: z.string().max(500).nullish(),
+    priorityCode: z.enum(['LOW', 'MEDIUM', 'HIGH']).nullish(),
+    description: z.string().max(5000).nullish(),
   })
   .strict();
 
@@ -36,6 +41,8 @@ export const bookingSchema = z
 export const updateSchema = z
   .object({
     message: z.string().min(1).max(5000),
+    notifyMembers: z.boolean().optional().default(true),
+    urgencyCode: z.enum(['NORMAL', 'URGENT']).optional().default('NORMAL'),
   })
   .strict();
 
@@ -228,7 +235,11 @@ export async function postUpdateCommand(
     aggregateId: result.updateId,
     scopeType: 'MOMENT',
     scopeId: momentId,
-    payload: { updateId: result.updateId, momentId },
+    payload: {
+      updateId: result.updateId,
+      momentId,
+      notifyMembers: result.notifyMembers,
+    },
     auditActionCode: 'UPDATE_CREATE',
     auditResourceType: 'UPDATE',
     auditResourceId: result.updateId,
@@ -238,7 +249,7 @@ export async function postUpdateCommand(
       momentId,
       activityCode: 'GROUP_UPDATE_POSTED',
       title: body.message.slice(0, 120),
-      payload: { updateId: result.updateId },
+      payload: { updateId: result.updateId, notifyMembers: result.notifyMembers },
     },
   });
   return result;
@@ -436,8 +447,13 @@ export async function listPlanningItems(client: PoolClient, ctx: RequestContext,
     due_at: Date | null;
     status: string;
     created_at: Date;
+    category_code: string | null;
+    location: string | null;
+    priority_code: string | null;
+    description: string | null;
   }>(
-    `SELECT planning_item_id, title, due_at, status, created_at
+    `SELECT planning_item_id, title, due_at, status, created_at,
+            category_code, location, priority_code, description
      FROM collaboration.planning_item
      WHERE moment_id = $1
      ORDER BY COALESCE(due_at, created_at) ASC
@@ -452,6 +468,10 @@ export async function listPlanningItems(client: PoolClient, ctx: RequestContext,
       dueAt: r.due_at?.toISOString() ?? null,
       status: r.status,
       createdAt: r.created_at.toISOString(),
+      categoryCode: r.category_code,
+      location: r.location,
+      priorityCode: r.priority_code,
+      description: r.description,
     })),
     openCount: rows.rows.filter((r) => r.status === 'OPEN' || r.status === 'IN_PROGRESS').length,
   };
@@ -495,8 +515,9 @@ export async function listUpdates(client: PoolClient, ctx: RequestContext, momen
     status: string;
     created_at: Date;
     participant_id: string | null;
+    urgency_code: string;
   }>(
-    `SELECT group_update_id, body, status, created_at, participant_id
+    `SELECT group_update_id, body, status, created_at, participant_id, urgency_code
      FROM collaboration.group_update
      WHERE moment_id = $1
      ORDER BY created_at DESC
@@ -511,6 +532,7 @@ export async function listUpdates(client: PoolClient, ctx: RequestContext, momen
       status: r.status,
       createdAt: r.created_at.toISOString(),
       participantId: r.participant_id,
+      urgencyCode: r.urgency_code ?? 'NORMAL',
     })),
   };
 }
@@ -735,14 +757,23 @@ export async function listMemories(client: PoolClient, ctx: RequestContext, mome
      LIMIT 100`,
     [momentId]
   );
+  const mediaByMemory = await listMediaForMemories(
+    client,
+    rows.rows.map((r) => r.memory_id)
+  );
   return {
     momentId,
-    items: rows.rows.map((r) => ({
-      memoryId: r.memory_id,
-      title: r.title,
-      occurredAt: r.occurred_at?.toISOString() ?? null,
-      status: r.status,
-    })),
+    items: rows.rows.map((r) => {
+      const media = mediaByMemory.get(r.memory_id) ?? [];
+      return {
+        memoryId: r.memory_id,
+        title: r.title,
+        occurredAt: r.occurred_at?.toISOString() ?? null,
+        status: r.status,
+        media,
+        mediaCount: media.length,
+      };
+    }),
     memoryCount: rows.rows.length,
   };
 }

@@ -35,6 +35,7 @@ import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupLifeBookingDto
 import com.example.momentra.data.api.GroupLifePlanningItemDto
 import com.example.momentra.data.api.GroupLifeUpdateDto
+import com.example.momentra.data.api.GroupMemoryItemDto
 import com.example.momentra.data.api.GroupPollItemDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
@@ -49,6 +50,7 @@ fun GroupMomentsActiveContent(
     momentId: String?,
     momentTitle: String?,
     refreshToken: Long,
+    momentTypeCode: String? = null,
     onCreateMoment: () -> Unit = {},
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
     modifier: Modifier = Modifier,
@@ -61,7 +63,9 @@ fun GroupMomentsActiveContent(
     var bookings by remember { mutableStateOf<List<GroupLifeBookingDto>>(emptyList()) }
     var updates by remember { mutableStateOf<List<GroupLifeUpdateDto>>(emptyList()) }
     var polls by remember { mutableStateOf<List<GroupPollItemDto>>(emptyList()) }
+    var memoryItems by remember { mutableStateOf<List<GroupMemoryItemDto>>(emptyList()) }
     var selectedPollId by remember { mutableStateOf<String?>(null) }
+    var scheduleOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -72,6 +76,7 @@ fun GroupMomentsActiveContent(
             bookings = emptyList()
             updates = emptyList()
             polls = emptyList()
+            memoryItems = emptyList()
             return@LaunchedEffect
         }
         error = null
@@ -109,6 +114,10 @@ fun GroupMomentsActiveContent(
                 updates = life?.updates.orEmpty()
             }
         }
+        repository.listMemories(momentId).onSuccess { memoryItems = it.items }
+            .onFailure {
+                repository.getMemory(momentId).onSuccess { memoryItems = it.payload?.items.orEmpty() }
+            }
     }
 
     if (loading && pulse == null) {
@@ -120,6 +129,7 @@ fun GroupMomentsActiveContent(
     val currency = finance?.totals?.firstOrNull()?.currencyCode ?: "INR"
     val peopleCount = pulse?.participantCount ?: 0
     val plansCount = pulse?.openTaskCount ?: planningItems.size
+    val recentPlans = recentOpenPlanningItems(planningItems)
     val itineraryAccents = listOf(
         Color(0xFF14B8A6),
         Color(0xFFB45309),
@@ -180,18 +190,28 @@ fun GroupMomentsActiveContent(
         }
 
         GroupSectionCard(title = "Itinerary") {
-            if (planningItems.isEmpty()) {
+            MomentsPlanningHeader(
+                title = "Recent plans",
+                text = GroupActiveTheme.Text,
+                muted = GroupActiveTheme.Secondary,
+                accent = Color(0xFF14B8A6),
+                onOpenSchedule = { scheduleOpen = true },
+            )
+            if (recentPlans.isEmpty()) {
                 GroupEmptySection(
                     message = "No itinerary days yet",
                     detail = "Add a planning item from Quick Add — nothing is invented.",
                 )
             } else {
-                planningItems.forEachIndexed { index, item ->
-                    MomentsListRow(
-                        title = item.title ?: item.planningItemId.orEmpty(),
-                        meta = formatTripInstant(item.dueAt) ?: item.status,
-                        accent = itineraryAccents[index % itineraryAccents.size],
-                        glyph = "📍",
+                recentPlans.forEach { item ->
+                    MomentsPlanningRecentRow(
+                        item = item,
+                        momentTypeCode = momentTypeCode,
+                        text = GroupActiveTheme.Text,
+                        muted = GroupActiveTheme.Secondary,
+                        accent = Color(0xFF14B8A6),
+                        field = GroupActiveTheme.Card,
+                        border = GroupActiveTheme.Border,
                     )
                 }
             }
@@ -241,34 +261,45 @@ fun GroupMomentsActiveContent(
                     detail = "Share a status update from Quick Add.",
                 )
             } else {
-                updates.take(8).forEachIndexed { index, item ->
-                    MomentsListRow(
-                        title = item.message ?: item.updateId.orEmpty(),
-                        meta = formatTripInstant(item.createdAt),
-                        accent = itineraryAccents[(index + 2) % itineraryAccents.size],
-                        glyph = "✏️",
+                updates.take(8).forEach { item ->
+                    MomentsUrgentUpdateRow(
+                        item = item,
+                        text = GroupActiveTheme.Text,
+                        muted = GroupActiveTheme.Secondary,
+                        field = GroupActiveTheme.Card,
+                        border = GroupActiveTheme.Border,
                     )
                 }
             }
         }
 
-        GroupSectionCard(
-            title = "Shared Gallery",
-            badge = {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    GroupComingSoonBadge()
-                    GroupApiGapBadge()
-                }
-            },
-        ) {
-            GroupEmptySection(
-                message = "Gallery empty",
-                detail = "Shared media will appear here when group media API is live.",
+        GroupSectionCard(title = "Shared Gallery") {
+            MemoryPhotoGalleryStrip(
+                items = memoryItems,
+                emptyMessage = "No photos yet",
+                emptyDetail = "Add a memory with a photo from Quick Add.",
+                text = GroupActiveTheme.Text,
+                muted = GroupActiveTheme.Secondary,
+                field = GroupActiveTheme.Card,
+                border = GroupActiveTheme.Border,
             )
         }
 
         MomentsQuickAddCta(onClick = onCreateMoment)
     }
+
+    PlanningScheduleSheet(
+        items = planningItems,
+        visible = scheduleOpen,
+        onDismiss = { scheduleOpen = false },
+        momentTypeCode = momentTypeCode,
+        accent = Color(0xFF14B8A6),
+        surface = GroupActiveTheme.Bg,
+        field = GroupActiveTheme.Card,
+        border = GroupActiveTheme.Border,
+        text = GroupActiveTheme.Text,
+        muted = GroupActiveTheme.Secondary,
+    )
 
     selectedPollId?.let { pollId ->
         PollDetailSheet(

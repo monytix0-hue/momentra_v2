@@ -133,6 +133,7 @@ fun GroupCollabSheet(
     visible: Boolean,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
+    momentTypeCode: String? = null,
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
@@ -161,7 +162,7 @@ fun GroupCollabSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             when (kind) {
-                GroupCollabKind.PLANNING -> PlanningBody(momentId, repository, onDismiss, onSaved)
+                GroupCollabKind.PLANNING -> PlanningBody(momentId, repository, onDismiss, onSaved, momentTypeCode)
                 GroupCollabKind.BOOKING -> BookingBody(momentId, repository, onDismiss, onSaved)
                 GroupCollabKind.POLL -> PollBody(momentId, repository, onDismiss, onSaved)
                 GroupCollabKind.UPDATE -> UpdateBody(momentId, repository, onDismiss, onSaved)
@@ -329,14 +330,16 @@ private fun PlanningBody(
     repository: GroupSliceRepository,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
+    momentTypeCode: String? = null,
 ) {
+    val categoryLabels = remember(momentTypeCode) { GroupPlanningCategoryCatalog.labels(momentTypeCode) }
+    var category by remember(momentTypeCode) { mutableStateOf(GroupPlanningCategoryCatalog.defaultLabel(momentTypeCode)) }
     var title by remember { mutableStateOf("") }
     var date by remember { mutableStateOf("") }
     var time by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf("Medium") }
-    var template by remember { mutableStateOf("Restaurant") }
     var participants by remember { mutableStateOf<List<com.example.momentra.data.api.GroupParticipantDto>>(emptyList()) }
     var assignedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var submitting by remember { mutableStateOf(false) }
@@ -354,6 +357,10 @@ private fun PlanningBody(
     }
 
     TripSheetHeaderRow("Add Plan", "Schedule an activity for your trip", R.drawable.ic_group_qa_calendar, TripFormTokens.Teal)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        TripFieldLabel("Category")
+        TripChipRow(categoryLabels, category, { category = it }, TripFormTokens.Teal)
+    }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         TripFieldLabel("Plan Title")
         TripSheetField(title, { title = it }, "Dolphin Watching & Sunset Cruise")
@@ -390,20 +397,13 @@ private fun PlanningBody(
         TripSegmentedControl(listOf("Low", "Medium", "High"), priority, { priority = it }, TripFormTokens.Teal)
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        TripFieldLabel("Quick Templates")
-        TripChipRow(listOf("Restaurant", "Activity", "Travel", "Meeting"), template, {
-            template = it
-            if (title.isBlank()) title = it
-        }, TripFormTokens.Teal)
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         TripFieldLabel("Add Notes")
         TripSheetField(notes, { notes = it }, "Carry sunglasses and camera…", singleLine = false, minHeight = 80)
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
     TripPrimaryCta(
         label = "Add Plan",
-        enabled = title.isNotBlank(),
+        enabled = title.isNotBlank() && category.isNotBlank(),
         loading = submitting,
         footer = "Added to group itinerary",
         gradient = listOf(TripFormTokens.Teal, Color(0xFF0F766E)),
@@ -411,7 +411,15 @@ private fun PlanningBody(
             scope.launch {
                 submitting = true
                 error = null
-                repository.createPlanningItem(momentId = momentId, title = title.trim(), dueAt = tripDateTimeToIso(date, time)).fold(
+                repository.createPlanningItem(
+                    momentId = momentId,
+                    title = title.trim(),
+                    dueAt = tripDateTimeToIso(date, time),
+                    categoryCode = GroupPlanningCategoryCatalog.codeForLabel(category),
+                    location = location.trim().ifBlank { null },
+                    priorityCode = GroupPlanningCategoryCatalog.priorityCode(priority),
+                    description = notes.trim().ifBlank { null },
+                ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )
@@ -886,7 +894,12 @@ private fun UpdateBody(
             scope.launch {
                 submitting = true
                 error = null
-                repository.postUpdate(momentId, message.trim()).fold(
+                repository.postUpdate(
+                    momentId,
+                    message.trim(),
+                    notifyMembers = notifyAll,
+                    urgencyCode = GroupPlanningCategoryCatalog.urgencyCode(priority),
+                ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )

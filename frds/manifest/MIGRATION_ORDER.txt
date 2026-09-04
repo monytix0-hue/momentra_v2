@@ -66,3 +66,5 @@ V065__lean_analytics_cohort_marts.sql
 V066__lean_analytics_kpi_mart.sql
 V067__lean_analytics_indexes.sql
 V068__lean_analytics_views_group_kpis.sql
+V069__notification_prefs_and_dispatch.sql
+V070__planning_category_and_update_urgency.sql

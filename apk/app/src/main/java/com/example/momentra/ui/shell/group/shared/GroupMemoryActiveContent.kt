@@ -150,16 +150,16 @@ fun GroupMemoryActiveContent(
             GroupEmptySection(message = "No milestones yet", detail = "Milestone capture is not live for groups.")
         }
 
-        GroupSectionCard(
-            title = "Gallery",
-            badge = {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    GroupComingSoonBadge()
-                    GroupApiGapBadge()
-                }
-            },
-        ) {
-            GroupEmptySection(message = "No photos yet", detail = "Shared gallery requires group media API.")
+        GroupSectionCard(title = "Gallery") {
+            MemoryPhotoGalleryStrip(
+                items = items,
+                emptyMessage = "No photos yet",
+                emptyDetail = "Add a memory with a photo from Quick Add.",
+                text = GroupActiveTheme.Text,
+                muted = GroupActiveTheme.Secondary,
+                field = GroupActiveTheme.Card,
+                border = GroupActiveTheme.Border,
+            )
         }
 
         GroupSectionCard(title = "People Impact") {
@@ -314,6 +314,7 @@ private fun MemoryTimelineRow(
     accent: Color,
     glyph: String,
 ) {
+    val thumbUrl = item.primaryDownloadUrl()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -331,14 +332,24 @@ private fun MemoryTimelineRow(
                 .clip(RoundedCornerShape(100.dp))
                 .background(accent),
         )
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(accent.copy(alpha = 0.18f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(glyph, fontSize = 16.sp)
+        if (thumbUrl != null) {
+            RemoteMemoryImage(
+                url = thumbUrl,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(accent.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(glyph, fontSize = 16.sp)
+            }
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(

@@ -1244,6 +1244,63 @@ paths:
           $ref: './schemas/responses.yaml#/Error404'
         '500':
           $ref: './schemas/responses.yaml#/Error500'
+  /me/notification-preferences:
+    get:
+      operationId: getMyNotificationPreferences
+      summary: Get global push notification preferences
+      tags: ["Notifications"]
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ProjectionEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+    patch:
+      operationId: patchMyNotificationPreferences
+      summary: Update global push notification preferences
+      tags: ["Notifications"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
   /media/uploads:
     post:
       operationId: createMediaUpload
@@ -2025,6 +2082,69 @@ paths:
           $ref: './schemas/responses.yaml#/Error404'
         '409':
           $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /moments/{momentId}/notification-preferences:
+    get:
+      operationId: getMomentNotificationPreferences
+      summary: Get moment push notification preferences
+      tags: ["Notifications"]
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ProjectionEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+    patch:
+      operationId: patchMomentNotificationPreferences
+      summary: Update moment push notification preferences
+      tags: ["Notifications"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
         '500':
           $ref: './schemas/responses.yaml#/Error500'
   /moments/{momentId}/observations:

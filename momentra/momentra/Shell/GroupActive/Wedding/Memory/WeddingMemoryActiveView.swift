@@ -89,25 +89,40 @@ struct WeddingMemoryActiveView: View {
                         )
                     } else {
                         ForEach(items) { item in
-                            Text(item.title ?? "Memory")
-                                .font(.plusJakarta(size: 13))
-                                .foregroundStyle(WeddingActiveTheme.text)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(12)
-                                .background(WeddingActiveTheme.accentSoft)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(WeddingActiveTheme.accent.opacity(0.35))
-                                )
+                            HStack(spacing: 10) {
+                                if let thumb = item.primaryDownloadUrl, !thumb.isEmpty {
+                                    MemoryMediaThumb(
+                                        urlString: thumb,
+                                        size: 40,
+                                        border: WeddingActiveTheme.accent.opacity(0.35),
+                                        field: WeddingActiveTheme.accentSoft
+                                    )
+                                }
+                                Text(item.title ?? "Memory")
+                                    .font(.plusJakarta(size: 13))
+                                    .foregroundStyle(WeddingActiveTheme.text)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(12)
+                            .background(WeddingActiveTheme.accentSoft)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(WeddingActiveTheme.accent.opacity(0.35))
+                            )
                         }
                     }
                 }
 
                 WeddingSectionCard(title: "Memory Gallery") {
-                    WeddingEmptyBlock(
-                        message: "No photos yet",
-                        detail: "Shared gallery requires group media API."
+                    MemoryPhotoGalleryStrip(
+                        items: items,
+                        emptyMessage: "No photos yet",
+                        emptyDetail: "Add a memory with a photo from Quick Add.",
+                        text: WeddingActiveTheme.text,
+                        muted: WeddingActiveTheme.secondary,
+                        field: WeddingActiveTheme.card,
+                        border: WeddingActiveTheme.border
                     )
                 }
 

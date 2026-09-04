@@ -75,11 +75,16 @@ import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupExpenseSplitBuilder
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.group.shared.GroupExpenseCategoryCatalog
+import com.example.momentra.ui.shell.group.shared.GroupPlanningCategoryCatalog
 import com.example.momentra.ui.shell.group.shared.GroupSettlementSheet
+import com.example.momentra.ui.shell.group.shared.tripDateTimeToIso
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.setup.SetupDateTimeUtils
 import com.example.momentra.ui.theme.PlusJakartaSans
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -168,7 +173,7 @@ fun WeddingGapQuickAddSheet(
                 WeddingQuickAddKind.BUDGET -> WeddingBudgetSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.PARTICIPANT -> WeddingParticipantSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.VENDOR -> WeddingVendorSheetBody(momentId, repository, onDismiss, onSaved)
-                WeddingQuickAddKind.PLANNING -> WeddingPlanningSheetBody(momentId, repository, onDismiss, onSaved)
+                WeddingQuickAddKind.PLANNING -> WeddingPlanningSheetBody(momentId, repository, onDismiss, onSaved, momentTypeCode = "WEDDING")
                 WeddingQuickAddKind.ATTENDANCE -> WeddingAttendanceSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.POLL -> WeddingPollSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.MEMORY -> WeddingMemorySheetBody(momentId, repository, onDismiss, onSaved)
@@ -1134,7 +1139,16 @@ internal fun WeddingVendorSheetBody(momentId: String?, repository: GroupSliceRep
 }
 
 @Composable
-internal fun WeddingPlanningSheetBody(momentId: String?, repository: GroupSliceRepository, onDismiss: () -> Unit, onSaved: () -> Unit, accent: SheetAccent = PurpleAccent) {
+internal fun WeddingPlanningSheetBody(
+    momentId: String?,
+    repository: GroupSliceRepository,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit,
+    accent: SheetAccent = PurpleAccent,
+    momentTypeCode: String? = "WEDDING",
+) {
+    val categoryLabels = remember(momentTypeCode) { GroupPlanningCategoryCatalog.labels(momentTypeCode) }
+    var category by remember(momentTypeCode) { mutableStateOf(GroupPlanningCategoryCatalog.defaultLabel(momentTypeCode)) }
     var title by remember { mutableStateOf("") }
     var date by remember { mutableStateOf("") }
     var time by remember { mutableStateOf("") }
@@ -1169,6 +1183,10 @@ internal fun WeddingPlanningSheetBody(momentId: String?, repository: GroupSliceR
     }
 
     SheetHeader(R.drawable.ges_icon_calendar, "Add Planning Item", accent = accent)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel("Category")
+        ChipRow(categoryLabels, category, accent) { category = it }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("Plan Title")
         SheetField(title, { title = it }, "Plan title")
@@ -1206,7 +1224,7 @@ internal fun WeddingPlanningSheetBody(momentId: String?, repository: GroupSliceR
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
     PrimaryCta(
         label = "Add Planning Item",
-        enabled = live && title.isNotBlank(),
+        enabled = live && title.isNotBlank() && category.isNotBlank(),
         accent = accent,
         loading = submitting,
         footer = "Everyone will be notified",
@@ -1214,7 +1232,14 @@ internal fun WeddingPlanningSheetBody(momentId: String?, repository: GroupSliceR
             scope.launch {
                 submitting = true
                 error = null
-                repository.createPlanningItem(momentId!!, title.trim()).fold(
+                repository.createPlanningItem(
+                    momentId = momentId!!,
+                    title = title.trim(),
+                    dueAt = tripDateTimeToIso(date, time),
+                    categoryCode = GroupPlanningCategoryCatalog.codeForLabel(category),
+                    location = location.trim().ifBlank { null },
+                    priorityCode = GroupPlanningCategoryCatalog.priorityCode(priority),
+                ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )
@@ -1520,8 +1545,37 @@ internal fun WeddingMemorySheetBody(momentId: String?, repository: GroupSliceRep
             scope.launch {
                 submitting = true
                 error = null
-                repository.createMemory(momentId!!, title.trim()).fold(
-                    onSuccess = { submitting = false; onSaved(); onDismiss() },
+                val create = repository.createMemory(momentId!!, title.trim())
+                create.fold(
+                    onSuccess = { created ->
+                        val memoryId = created.memoryId
+                        val uri = photoUri
+                        if (memoryId != null && uri != null) {
+                            val bytes = withContext(Dispatchers.IO) {
+                                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                    ?: photoBitmap?.let { bmp ->
+                                        ByteArrayOutputStream().use { out ->
+                                            bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                                            out.toByteArray()
+                                        }
+                                    }
+                            }
+                            if (bytes != null) {
+                                repository.uploadAndAttachMemoryMedia(momentId, memoryId, bytes).fold(
+                                    onSuccess = { submitting = false; onSaved(); onDismiss() },
+                                    onFailure = { submitting = false; error = it.message },
+                                )
+                            } else {
+                                submitting = false
+                                onSaved()
+                                onDismiss()
+                            }
+                        } else {
+                            submitting = false
+                            onSaved()
+                            onDismiss()
+                        }
+                    },
                     onFailure = { submitting = false; error = it.message },
                 )
             }
@@ -1613,7 +1667,12 @@ internal fun WeddingUpdateSheetBody(momentId: String?, repository: GroupSliceRep
             scope.launch {
                 submitting = true
                 error = null
-                repository.postUpdate(momentId!!, update.trim()).fold(
+                repository.postUpdate(
+                    momentId!!,
+                    update.trim(),
+                    notifyMembers = notify,
+                    urgencyCode = if (urgent) "URGENT" else "NORMAL",
+                ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )

@@ -22,11 +22,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -44,6 +46,7 @@ import com.example.momentra.ui.setup.SetupDateTimeUtils
 import com.example.momentra.ui.setup.SetupTitleField
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.theme.PlusJakartaSans
+import kotlinx.coroutines.launch
 
 /** Figma 575:9919 — Shared Purchase setup (4 variants). */
 @Composable
@@ -144,6 +147,7 @@ private fun GroupSectionLongFormFlow(
     var ownership by remember(selectedCode) { mutableStateOf("Shared equally") }
     var targetDateIso by remember(selectedCode) { mutableStateOf<String?>(null) }
     var amount by remember(selectedCode) { mutableStateOf("₹25,000") }
+    var amountCustom by remember(selectedCode) { mutableStateOf("") }
     var currency by remember(selectedCode) { mutableStateOf("INR") }
     var ownershipSplit by remember(selectedCode) { mutableStateOf("Equal") }
     var paymentPlan by remember(selectedCode) { mutableStateOf("Monthly") }
@@ -168,8 +172,11 @@ private fun GroupSectionLongFormFlow(
     var houseReview by remember(selectedCode) { mutableStateOf("Every month") }
     var people by remember(selectedCode) { mutableStateOf(defaultGroupPeople(selectedCode)) }
     var peopleEdited by remember(selectedCode) { mutableStateOf(false) }
-    var showAddPeople by remember { mutableStateOf(false) }
     var issuedInvite by remember { mutableStateOf<GroupInviteDto?>(null) }
+    var mintingInvite by remember { mutableStateOf(false) }
+    var inviteError by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val palette = selected.palette
     val accent = palette.accent
@@ -191,18 +198,49 @@ private fun GroupSectionLongFormFlow(
         "Your shared living space is ready"
     }
 
-    LaunchedEffect(selectedCode) {
-        onSetupTypeChanged(selectedCode)
-        issuedInvite = null
-    }
-
-    LaunchedEffect(showAddPeople, selectedCode) {
-        if (!showAddPeople) return@LaunchedEffect
-        issuedInvite = createViewModel.mintGroupInvite(
+    suspend fun ensureInvite(): GroupInviteDto? {
+        issuedInvite?.let { return it }
+        mintingInvite = true
+        inviteError = null
+        val minted = createViewModel.mintGroupInvite(
             title = name.trim().ifBlank { selected.defaultName },
             momentTypeCode = selectedCode,
             section = variant.section,
         )
+        mintingInvite = false
+        if (minted == null) {
+            inviteError = "Couldn’t create invite link. Try again."
+            return null
+        }
+        issuedInvite = minted
+        return minted
+    }
+
+    fun shareQr() {
+        scope.launch {
+            val invite = ensureInvite() ?: return@launch
+            val url = GroupInviteLink.qrPayload(invite.inviteCode)
+            val bitmap = generateInviteQrBitmap(url, 512)
+            shareInviteQr(context, bitmap, url)
+        }
+    }
+
+    fun shareWhatsApp() {
+        scope.launch {
+            val invite = ensureInvite() ?: return@launch
+            val url = GroupInviteLink.copyText(invite.inviteCode)
+            sendInviteWhatsApp(
+                context,
+                phone = null,
+                message = inviteMessage(name.trim().ifBlank { selected.defaultName }, url),
+            )
+        }
+    }
+
+    LaunchedEffect(selectedCode) {
+        onSetupTypeChanged(selectedCode)
+        issuedInvite = null
+        inviteError = null
     }
 
     Box(modifier.fillMaxSize()) {
@@ -324,11 +362,18 @@ private fun GroupSectionLongFormFlow(
                         label = "Expected amount",
                         hint = "Estimated total",
                         value = amount,
-                        options = listOf("₹25,000", "₹50,000", "₹1,00,000"),
+                        options = GroupBudgetUtils.PURCHASE_AMOUNT_OPTIONS,
                         onValueChange = { amount = it },
                         editableGlyph = true,
                         testTag = MaestroIds.setupDropdown("amount"),
                     )
+                    if (amount == GroupBudgetUtils.CUSTOM_OPTION) {
+                        GroupBudgetCustomField(
+                            value = amountCustom,
+                            onValueChange = { amountCustom = it },
+                            currencyCode = currency,
+                        )
+                    }
                     GroupLongFormGroupTitle("Money")
                     GroupLongFormPrefRow(
                         label = "Currency",
@@ -381,7 +426,11 @@ private fun GroupSectionLongFormFlow(
                     GroupPeopleCard(
                         people = people,
                         palette = palette,
-                        onInvite = { showAddPeople = true },
+                        onShareQr = ::shareQr,
+                        onWhatsApp = ::shareWhatsApp,
+                        shareEnabled = true,
+                        mintingInvite = mintingInvite,
+                        inviteError = inviteError,
                         onRemove = { person ->
                             peopleEdited = true
                             people = people.filterNot {
@@ -487,11 +536,18 @@ private fun GroupSectionLongFormFlow(
                         label = "Monthly budget",
                         hint = "Shared household spending",
                         value = amount,
-                        options = listOf("₹25,000", "₹40,000", "₹60,000"),
+                        options = GroupBudgetUtils.LIVING_BUDGET_OPTIONS,
                         onValueChange = { amount = it },
                         editableGlyph = true,
                         testTag = MaestroIds.setupDropdown("budget"),
                     )
+                    if (amount == GroupBudgetUtils.CUSTOM_OPTION) {
+                        GroupBudgetCustomField(
+                            value = amountCustom,
+                            onValueChange = { amountCustom = it },
+                            currencyCode = currency,
+                        )
+                    }
                     GroupLongFormPrefRow(
                         label = "Rent split",
                         hint = "How rent is divided",
@@ -551,7 +607,11 @@ private fun GroupSectionLongFormFlow(
                     GroupPeopleCard(
                         people = people,
                         palette = palette,
-                        onInvite = { showAddPeople = true },
+                        onShareQr = ::shareQr,
+                        onWhatsApp = ::shareWhatsApp,
+                        shareEnabled = true,
+                        mintingInvite = mintingInvite,
+                        inviteError = inviteError,
                         onRemove = { person ->
                             peopleEdited = true
                             people = people.filterNot {
@@ -617,7 +677,7 @@ private fun GroupSectionLongFormFlow(
                     )
                     SectionSummaryLine(
                         if (family == GroupLongFormFamily.PURCHASE) "Amount" else "Budget",
-                        amount,
+                        GroupBudgetUtils.summaryLabel(amount, amountCustom),
                     )
                     SectionSummaryLine("Members", buildMemberSummary(people))
                 }
@@ -686,21 +746,6 @@ private fun GroupSectionLongFormFlow(
                     fontFamily = PlusJakartaSans,
                 )
             }
-        }
-
-        if (showAddPeople) {
-            GroupAddPeopleSheet(
-                palette = palette,
-                experienceTitle = name,
-                typeCode = selectedCode,
-                existingNames = people.map { it.name },
-                issuedInviteCode = issuedInvite?.inviteCode,
-                onAddPerson = { added ->
-                    peopleEdited = true
-                    people = people + added
-                },
-                onDismiss = { showAddPeople = false },
-            )
         }
     }
 }

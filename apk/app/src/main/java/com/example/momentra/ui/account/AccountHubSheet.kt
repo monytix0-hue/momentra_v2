@@ -58,6 +58,7 @@ fun AccountHubSheet(
     var displayName by remember { mutableStateOf(identity.displayName.orEmpty()) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
     var hideBalances by remember { mutableStateOf(securityPrefs.hideBalances()) }
+    var pushEnabled by remember { mutableStateOf(securityPrefs.notificationsEnabledLocal()) }
     var biometrics by remember { mutableStateOf(lockStore.biometricsEnabled()) }
     var pinEnabled by remember { mutableStateOf(lockStore.isPinEnabled()) }
     var pinInput by remember { mutableStateOf("") }
@@ -70,6 +71,10 @@ fun AccountHubSheet(
         DeviceRegistrar.register(context)
         devices = accountRepo.listDevices().getOrDefault(emptyList())
         consents = accountRepo.listConsents().getOrDefault(emptyList())
+        accountRepo.getNotificationPreferences().onSuccess {
+            pushEnabled = it.pushNotificationsEnabled
+            securityPrefs.setNotificationsEnabledLocal(it.pushNotificationsEnabled)
+        }
     }
 
     Column(
@@ -210,6 +215,25 @@ fun AccountHubSheet(
 
             "prefs" -> {
                 Text(text = "Preferences", fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Push notifications")
+                    Switch(
+                        checked = pushEnabled,
+                        onCheckedChange = { enabled ->
+                            pushEnabled = enabled
+                            securityPrefs.setNotificationsEnabledLocal(enabled)
+                            scope.launch {
+                                accountRepo.patchNotificationPreferences(enabled)
+                                    .onSuccess { statusMsg = if (enabled) "Push enabled" else "Push muted" }
+                                    .onFailure { statusMsg = it.message ?: "Save failed" }
+                            }
+                        },
+                    )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,

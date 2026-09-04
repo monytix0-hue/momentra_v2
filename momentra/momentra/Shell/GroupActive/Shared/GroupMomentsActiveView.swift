@@ -5,20 +5,23 @@ struct GroupMomentsActiveView: View {
     let refreshToken: UInt64
     let momentId: String?
     let momentTitle: String?
+    var momentTypeCode: String? = nil
     var onCreateMoment: () -> Void = {}
 
     @State private var pulse: APIClient.GroupPulsePayload?
     @State private var finance: APIClient.GroupFinancePayload?
     @State private var life: APIClient.GroupLifePayload?
-    @State private var listPlanning: [APIClient.GroupLifePayload.LifeInner.PlanningItem] = []
+    @State private var listPlanning: [GroupPlanningItem] = []
     @State private var listBookings: [APIClient.GroupLifePayload.LifeInner.BookingItem] = []
-    @State private var listUpdates: [APIClient.GroupLifePayload.LifeInner.UpdateItem] = []
+    @State private var listUpdates: [GroupUpdateItem] = []
     @State private var listPolls: [APIClient.GroupPollItemPayload] = []
+    @State private var listMemoryItems: [GroupMemoryItem] = []
     @State private var selectedPollId: String?
+    @State private var scheduleOpen = false
     @State private var loading = true
     @State private var error: String?
 
-    private var planningItems: [APIClient.GroupLifePayload.LifeInner.PlanningItem] {
+    private var planningItems: [GroupPlanningItem] {
         listPlanning.isEmpty ? (life?.payload?.planningItems ?? []) : listPlanning
     }
 
@@ -26,7 +29,7 @@ struct GroupMomentsActiveView: View {
         listBookings.isEmpty ? (life?.payload?.bookings ?? []) : listBookings
     }
 
-    private var updates: [APIClient.GroupLifePayload.LifeInner.UpdateItem] {
+    private var updates: [GroupUpdateItem] {
         listUpdates.isEmpty ? (life?.payload?.updates ?? []) : listUpdates
     }
 
@@ -75,15 +78,26 @@ struct GroupMomentsActiveView: View {
                             }
                         }
                         GroupSectionCard(title: "Itinerary") {
-                            if planningItems.isEmpty {
+                            let recentPlans = recentOpenPlanningItems(planningItems)
+                            MomentsPlanningHeader(
+                                title: "Recent plans",
+                                text: GroupActiveTheme.text,
+                                muted: GroupActiveTheme.secondary,
+                                accent: Color(hex: "#14B8A6"),
+                                onOpenSchedule: { scheduleOpen = true }
+                            )
+                            if recentPlans.isEmpty {
                                 GroupEmptySection(message: "No itinerary days yet", detail: "Add a planning item from Quick Add — nothing is invented.")
                             } else {
-                                ForEach(Array(planningItems.enumerated()), id: \.offset) { index, item in
-                                    momentsRow(
-                                        title: item.title ?? item.planningItemId ?? "Plan",
-                                        meta: formatTripInstant(item.dueAt) ?? item.status,
-                                        accent: accents[index % accents.count],
-                                        glyph: "📍"
+                                ForEach(Array(recentPlans.enumerated()), id: \.offset) { _, item in
+                                    MomentsPlanningRecentRow(
+                                        item: item,
+                                        momentTypeCode: momentTypeCode,
+                                        text: GroupActiveTheme.text,
+                                        muted: GroupActiveTheme.secondary,
+                                        accent: Color(hex: "#14B8A6"),
+                                        field: GroupActiveTheme.card,
+                                        border: GroupActiveTheme.border
                                     )
                                 }
                             }
@@ -125,23 +139,27 @@ struct GroupMomentsActiveView: View {
                             if updates.isEmpty {
                                 GroupEmptySection(message: "No updates yet", detail: "Share a status update from Quick Add.")
                             } else {
-                                ForEach(Array(updates.prefix(8).enumerated()), id: \.offset) { index, item in
-                                    momentsRow(
-                                        title: item.message ?? item.updateId ?? "Update",
-                                        meta: formatTripInstant(item.createdAt),
-                                        accent: accents[(index + 2) % accents.count],
-                                        glyph: "✏️"
+                                ForEach(Array(updates.prefix(8).enumerated()), id: \.offset) { _, item in
+                                    MomentsUrgentUpdateRow(
+                                        item: item,
+                                        text: GroupActiveTheme.text,
+                                        muted: GroupActiveTheme.secondary,
+                                        field: GroupActiveTheme.card,
+                                        border: GroupActiveTheme.border
                                     )
                                 }
                             }
                         }
-                        GroupSectionCard(title: "Shared Gallery", badge: {
-                            HStack(spacing: 6) {
-                                GroupComingSoonBadge()
-                                GroupApiGapBadge()
-                            }
-                        }) {
-                            GroupEmptySection(message: "Gallery empty", detail: "Shared media will appear here when group media API is live.")
+                        GroupSectionCard(title: "Shared Gallery") {
+                            MemoryPhotoGalleryStrip(
+                                items: listMemoryItems,
+                                emptyMessage: "Gallery empty",
+                                emptyDetail: "Add a memory with a photo from Quick Add.",
+                                text: GroupActiveTheme.text,
+                                muted: GroupActiveTheme.secondary,
+                                field: GroupActiveTheme.card,
+                                border: GroupActiveTheme.border
+                            )
                         }
                         momentsQuickAddCta
                     }
@@ -154,6 +172,19 @@ struct GroupMomentsActiveView: View {
         }
         .background(GroupActiveTheme.bg)
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
+        .sheet(isPresented: $scheduleOpen) {
+            PlanningScheduleSheet(
+                items: planningItems,
+                momentTypeCode: momentTypeCode,
+                accent: Color(hex: "#14B8A6"),
+                surface: GroupActiveTheme.bg,
+                field: GroupActiveTheme.card,
+                border: GroupActiveTheme.border,
+                text: GroupActiveTheme.text,
+                muted: GroupActiveTheme.secondary,
+                onDismiss: { scheduleOpen = false }
+            )
+        }
         .sheet(item: Binding(
             get: { selectedPollId.map { PollSheetItem(id: $0) } },
             set: { selectedPollId = $0?.id }
@@ -236,19 +267,6 @@ struct GroupMomentsActiveView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    private func formatTripInstant(_ raw: String?) -> String? {
-        guard let raw, !raw.isEmpty else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) {
-            let out = DateFormatter()
-            out.locale = Locale(identifier: "en_US")
-            out.dateFormat = "MMM d · h:mm a"
-            return out.string(from: date)
-        }
-        return String(raw.prefix(16)).replacingOccurrences(of: "T", with: " ")
-    }
-
     private func load() async {
         guard let momentId else { loading = false; return }
         error = nil
@@ -267,6 +285,7 @@ struct GroupMomentsActiveView: View {
             async let bookingsResult = APIClient.shared.listBookings(momentId: momentId)
             async let updatesResult = APIClient.shared.listGroupUpdates(momentId: momentId)
             async let pollsResult = APIClient.shared.listPolls(momentId: momentId)
+            async let memoriesResult = APIClient.shared.listGroupMemories(momentId: momentId)
             let loadedPulse = try await pulseResult
             let finFacet = try await financeResult
             let loadedLife = try await lifeResult
@@ -278,6 +297,15 @@ struct GroupMomentsActiveView: View {
             listBookings = (try? await bookingsResult)?.items ?? loadedLife.payload?.bookings ?? []
             listUpdates = (try? await updatesResult)?.items ?? loadedLife.payload?.updates ?? []
             listPolls = (try? await pollsResult)?.items ?? []
+            if let listed = try? await memoriesResult {
+                listMemoryItems = listed.items
+            } else if let cached = GroupTabDataCache.peekMemory(momentId)?.memory?.payload?.items {
+                listMemoryItems = cached
+            } else if let facet = try? await APIClient.shared.getGroupMemory(momentId: momentId) {
+                listMemoryItems = facet.payload?.items ?? []
+            } else {
+                listMemoryItems = []
+            }
             GroupTabDataCache.putPulse(momentId, .init(
                 title: loadedPulse.title,
                 pulse: loadedPulse,

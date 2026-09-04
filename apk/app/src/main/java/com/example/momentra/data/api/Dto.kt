@@ -212,6 +212,24 @@ data class BootstrapMomentDto(
 data class BootstrapPreferencesDto(
     val timezone: String? = null,
     val locale: String? = null,
+    @SerializedName("pushNotificationsEnabled") val pushNotificationsEnabled: Boolean? = null,
+)
+
+data class GlobalNotificationPrefsDto(
+    @SerializedName("pushNotificationsEnabled") val pushNotificationsEnabled: Boolean,
+)
+
+data class PatchGlobalNotificationPrefsBody(
+    @SerializedName("pushNotificationsEnabled") val pushNotificationsEnabled: Boolean,
+)
+
+data class MomentNotificationPrefsDto(
+    @SerializedName("momentId") val momentId: String,
+    @SerializedName("notifyOnChanges") val notifyOnChanges: Boolean,
+)
+
+data class PatchMomentNotificationPrefsBody(
+    @SerializedName("notifyOnChanges") val notifyOnChanges: Boolean,
 )
 
 data class RegisterDeviceBody(
@@ -1113,6 +1131,11 @@ data class GroupLifePlanningItemDto(
     val title: String? = null,
     @SerializedName("dueAt") val dueAt: String? = null,
     val status: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
+    @SerializedName("categoryCode") val categoryCode: String? = null,
+    val location: String? = null,
+    @SerializedName("priorityCode") val priorityCode: String? = null,
+    val description: String? = null,
 )
 
 data class GroupLifeBookingDto(
@@ -1125,6 +1148,7 @@ data class GroupLifeUpdateDto(
     @SerializedName("updateId") val updateId: String? = null,
     val message: String? = null,
     @SerializedName("createdAt") val createdAt: String? = null,
+    @SerializedName("urgencyCode") val urgencyCode: String? = null,
 )
 
 data class GroupLifeDomainMetricDto(
@@ -1203,10 +1227,21 @@ data class GroupLifePayloadDto(
     val updates: List<GroupLifeUpdateDto> = emptyList(),
 )
 
+data class GroupMemoryMediaDto(
+    @SerializedName("uploadId") val uploadId: String? = null,
+    @SerializedName("contentType") val contentType: String? = null,
+    val status: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
+    @SerializedName("downloadUrl") val downloadUrl: String? = null,
+)
+
 data class GroupMemoryItemDto(
     @SerializedName("memoryId") val memoryId: String? = null,
     val title: String? = null,
     @SerializedName("occurredAt") val occurredAt: String? = null,
+    val status: String? = null,
+    val media: List<GroupMemoryMediaDto> = emptyList(),
+    @SerializedName("mediaCount") val mediaCount: Int = 0,
 )
 
 data class GroupMemoryPayloadDto(
@@ -1257,7 +1292,14 @@ data class GroupMaintenanceRecordsDto(
     val items: List<Map<String, Any?>> = emptyList(),
 )
 
-data class CreatePlanningItemBody(val title: String, @SerializedName("dueAt") val dueAt: String? = null)
+data class CreatePlanningItemBody(
+    val title: String,
+    @SerializedName("dueAt") val dueAt: String? = null,
+    @SerializedName("categoryCode") val categoryCode: String? = null,
+    val location: String? = null,
+    @SerializedName("priorityCode") val priorityCode: String? = null,
+    val description: String? = null,
+)
 data class CreateBookingBody(val title: String, @SerializedName("bookedAt") val bookedAt: String? = null)
 data class CreatePollBody(
     val question: String,
@@ -1299,7 +1341,11 @@ data class GroupPollDetailDto(
     val options: List<GroupPollOptionDto> = emptyList(),
 )
 
-data class PostUpdateBody(val message: String)
+data class PostUpdateBody(
+    val message: String,
+    @SerializedName("notifyMembers") val notifyMembers: Boolean? = true,
+    @SerializedName("urgencyCode") val urgencyCode: String? = "NORMAL",
+)
 data class CreateMemoryBody(val title: String, @SerializedName("capturedAt") val capturedAt: String? = null)
 data class CreateGroupVendorBody(
     @SerializedName("vendorName") val vendorName: String,
@@ -1417,6 +1463,22 @@ data class LeaveCompanyResultDto(
     @SerializedName("companyId") val companyId: String,
     val status: String = "LEFT",
     @SerializedName("transferredToUserId") val transferredToUserId: String? = null,
+)
+
+data class UpdateGroupParticipantRoleBody(
+    @SerializedName("roleCode") val roleCode: String,
+)
+
+data class UpdateGroupParticipantRoleResultDto(
+    @SerializedName("momentId") val momentId: String,
+    @SerializedName("participantId") val participantId: String,
+    @SerializedName("roleCode") val roleCode: String,
+)
+
+data class RemoveGroupParticipantResultDto(
+    @SerializedName("momentId") val momentId: String,
+    @SerializedName("participantId") val participantId: String,
+    val status: String = "REMOVED",
 )
 
 data class GroupExpenseSplitInputDto(

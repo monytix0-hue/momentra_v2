@@ -129,7 +129,7 @@ enum GroupActionRegistry {
             tile("invite", .participantManage, "Invite", "Add people", "GroupQaUserPlus", "#FFB598", "#E8621A", .invite),
             tile("settle", .settlementRecord, "Settle", "Pay down balances", "GroupQaWallet", "#059669", "#10B981", .settlement),
             tile("purchase", .purchaseItemCreate, "Purchase item", "Track a buy", "GroupQaChartBar", "#F59E0B", "#D97706", .purchaseItem),
-            tile("resident", .residentManage, "Resident", "Add a housemate", "GroupQaUserPlus", "#6366F1", "#4338CA", .resident),
+            tile("resident", .residentManage, "Invite", "Add people", "GroupQaUserPlus", "#6366F1", "#4338CA", .resident),
         ]
     }
 

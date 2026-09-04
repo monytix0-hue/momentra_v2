@@ -50,6 +50,7 @@ import com.example.momentra.ui.shell.group.wedding.create.SheetField
 import com.example.momentra.ui.shell.group.wedding.create.SheetHeader
 import com.example.momentra.ui.shell.group.wedding.create.WeddingContributionSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingMemorySheetBody
+import com.example.momentra.ui.shell.group.wedding.create.WeddingPlanningSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingPollSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingUpdateSheetBody
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -130,7 +131,14 @@ fun LivingGapQuickAddSheet(
                 LivingQuickAddKind.RESIDENT ->
                     LivingResidentSheetBody(theme, momentId, repository, onDismiss, onSaved, accent)
                 LivingQuickAddKind.TASK ->
-                    LivingTaskSheetBody(momentId, repository, onDismiss, onSaved, accent)
+                    WeddingPlanningSheetBody(
+                        momentId,
+                        repository,
+                        onDismiss,
+                        onSaved,
+                        accent,
+                        momentTypeCode = momentTypeCode,
+                    )
                 LivingQuickAddKind.ASSET ->
                     LivingAssetSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 LivingQuickAddKind.MAINTENANCE ->
@@ -309,62 +317,6 @@ private fun LivingToggleRow(
             colors = SwitchDefaults.colors(checkedTrackColor = accent, checkedThumbColor = Color.White),
         )
     }
-}
-
-@Composable
-private fun LivingTaskSheetBody(
-    momentId: String?,
-    repository: GroupSliceRepository,
-    onDismiss: () -> Unit,
-    onSaved: () -> Unit,
-    accent: SheetAccent,
-) {
-    var title by remember { mutableStateOf("") }
-    var dueAt by remember { mutableStateOf("") }
-    var submitting by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-
-    SheetHeader(
-        R.drawable.ges_icon_calendar,
-        "Add Task",
-        "Track a household chore or to-do",
-        accent = accent,
-    )
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FieldLabel("Task title")
-        SheetField(title, { title = it }, "e.g. Clean kitchen", minHeight = 42)
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FieldLabel("Due date (optional)")
-        SheetField(dueAt, { dueAt = it }, "YYYY-MM-DD", minHeight = 42)
-    }
-    error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
-    PrimaryCta(
-        label = "Save Task",
-        enabled = !momentId.isNullOrBlank() && title.isNotBlank() && !submitting,
-        loading = submitting,
-        accent = accent,
-        lightLabel = true,
-        onClick = {
-            val id = momentId ?: return@PrimaryCta
-            scope.launch {
-                submitting = true
-                error = null
-                repository.createPlanningItem(id, title.trim(), dueAt.trim().ifBlank { null }).fold(
-                    onSuccess = {
-                        submitting = false
-                        onSaved()
-                        onDismiss()
-                    },
-                    onFailure = {
-                        submitting = false
-                        error = it.message
-                    },
-                )
-            }
-        },
-    )
 }
 
 @Composable

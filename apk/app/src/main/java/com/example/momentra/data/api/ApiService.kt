@@ -52,6 +52,25 @@ interface ApiService {
     @DELETE("v1/me/devices/{deviceId}")
     suspend fun revokeDevice(@Path("deviceId") deviceId: String): SuccessEnvelope<RevokeDeviceResultDto>
 
+    @GET("v1/me/notification-preferences")
+    suspend fun getMyNotificationPreferences(): SuccessEnvelope<GlobalNotificationPrefsDto>
+
+    @PATCH("v1/me/notification-preferences")
+    suspend fun patchMyNotificationPreferences(
+        @Body body: PatchGlobalNotificationPrefsBody,
+    ): SuccessEnvelope<GlobalNotificationPrefsDto>
+
+    @GET("v1/moments/{momentId}/notification-preferences")
+    suspend fun getMomentNotificationPreferences(
+        @Path("momentId") momentId: String,
+    ): SuccessEnvelope<MomentNotificationPrefsDto>
+
+    @PATCH("v1/moments/{momentId}/notification-preferences")
+    suspend fun patchMomentNotificationPreferences(
+        @Path("momentId") momentId: String,
+        @Body body: PatchMomentNotificationPrefsBody,
+    ): SuccessEnvelope<MomentNotificationPrefsDto>
+
     @GET("v1/analytics/metrics")
     suspend fun listAnalyticsMetrics(
         @Query("scopeType") scopeType: String? = null,
@@ -467,6 +486,22 @@ interface ApiService {
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: LeaveMomentBody,
     ): SuccessEnvelope<LeaveCompanyResultDto>
+
+    @PATCH("v1/group/moments/{momentId}/participants/{participantId}")
+    suspend fun updateGroupParticipantRole(
+        @Path("momentId") momentId: String,
+        @Path("participantId") participantId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: UpdateGroupParticipantRoleBody,
+    ): SuccessEnvelope<UpdateGroupParticipantRoleResultDto>
+
+    @POST("v1/group/moments/{momentId}/participants/{participantId}/remove")
+    suspend fun removeGroupParticipant(
+        @Path("momentId") momentId: String,
+        @Path("participantId") participantId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any?> = emptyMap(),
+    ): SuccessEnvelope<RemoveGroupParticipantResultDto>
 
     @PATCH("v1/group/moments/{momentId}/budget")
     suspend fun patchGroupBudget(

@@ -17,12 +17,17 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,18 +44,14 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.empty.group.GroupInviteLink
-import com.example.momentra.ui.shell.empty.group.InviteSendChooserDialog
-import com.example.momentra.ui.shell.empty.group.PendingInviteSend
 import com.example.momentra.ui.shell.empty.group.generateInviteQrBitmap
 import com.example.momentra.ui.shell.empty.group.inviteMessage
-import com.example.momentra.ui.shell.empty.group.looksLikeInvitePhone
 import com.example.momentra.ui.shell.empty.group.sendInviteSms
 import com.example.momentra.ui.shell.empty.group.sendInviteWhatsApp
 import com.example.momentra.ui.shell.empty.group.shareInviteLink
@@ -59,7 +60,27 @@ import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-/** Trip Quick Add — invite link + add participant (Figma 581:13699 / TripSheetFormComponents chrome). */
+private val MANAGE_ROLE_OPTIONS = listOf(
+    "PARTICIPANT" to "Member",
+    "ORGANIZER" to "Organizer",
+    "OBSERVER" to "Viewer",
+)
+
+private fun displayRoleLabel(roleCode: String?): String = when (roleCode?.uppercase(Locale.US)) {
+    "ORGANIZER", "CO_ORGANIZER" -> "Organizer"
+    "OBSERVER", "VIEWER" -> "Viewer"
+    "RESIDENT" -> "Resident"
+    "CONTRIBUTOR" -> "Contributor"
+    else -> "Member"
+}
+
+private fun uiRoleCode(roleCode: String?): String = when (roleCode?.uppercase(Locale.US)) {
+    "ORGANIZER", "CO_ORGANIZER" -> "ORGANIZER"
+    "OBSERVER", "VIEWER" -> "OBSERVER"
+    else -> "PARTICIPANT"
+}
+
+/** Invite link/QR + active members manage (organizer role edit / remove). */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun GroupInvitePeopleSheet(
@@ -69,6 +90,7 @@ fun GroupInvitePeopleSheet(
     visible: Boolean,
     onDismiss: () -> Unit,
     onSaved: () -> Unit = {},
+    currentUserId: String? = null,
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
@@ -80,13 +102,10 @@ fun GroupInvitePeopleSheet(
     var minting by remember { mutableStateOf(true) }
     var mintError by remember { mutableStateOf<String?>(null) }
     var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
-    var name by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var role by remember { mutableStateOf("PARTICIPANT") }
-    var submitting by remember { mutableStateOf(false) }
-    var formError by remember { mutableStateOf<String?>(null) }
+    var actionError by remember { mutableStateOf<String?>(null) }
+    var busyParticipantId by remember { mutableStateOf<String?>(null) }
+    var removeTarget by remember { mutableStateOf<GroupParticipantDto?>(null) }
     var copied by remember { mutableStateOf(false) }
-    var pendingSend by remember { mutableStateOf<PendingInviteSend?>(null) }
 
     fun refreshParticipants() {
         scope.launch {
@@ -125,7 +144,12 @@ fun GroupInvitePeopleSheet(
     val qrBitmap = remember(qrPayload, qrSizePx) {
         qrPayload?.let { generateInviteQrBitmap(it, qrSizePx) }?.asImageBitmap()
     }
-    val inviteSubtitle = groupExperienceFamilyFor(momentTypeCode).invitePeopleSubtitle()
+    val activeMembers = participants.filter { it.status.equals("ACTIVE", ignoreCase = true) }
+    val viewerIsOrganizer = activeMembers.any { p ->
+        p.userId != null &&
+            p.userId == currentUserId &&
+            p.roleCode.uppercase(Locale.US) in setOf("ORGANIZER", "CO_ORGANIZER")
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -152,7 +176,7 @@ fun GroupInvitePeopleSheet(
         ) {
             TripSheetHeaderRow(
                 title = "Invite People",
-                subtitle = inviteSubtitle,
+                subtitle = "Share a link or QR so people can join",
                 iconRes = R.drawable.ic_group_qa_userplus,
                 accent = TripSheetTokens.Accent,
             )
@@ -189,127 +213,202 @@ fun GroupInvitePeopleSheet(
                 },
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TripFieldLabel("Name")
-                    TripSheetField(name, { name = it }, "Aarav Mehta")
-                }
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TripFieldLabel("Email/Phone")
-                    TripSheetField(
-                        value = email,
-                        onValueChange = { email = it },
-                        placeholder = "aarav@email.com",
-                        keyboardType = KeyboardType.Email,
-                    )
-                }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TripFieldLabel("Assigned Role")
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    listOf(
-                        "PARTICIPANT" to "Member",
-                        "ORGANIZER" to "Organizer",
-                        "VIEWER" to "Viewer",
-                    ).forEach { (code, label) ->
-                        val selected = role == code
-                        Text(
-                            label,
-                            color = if (selected) TripSheetTokens.Text else TripSheetTokens.Muted,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = PlusJakartaSans,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(if (selected) TripSheetTokens.Accent else TripSheetTokens.Field)
-                                .border(
-                                    1.dp,
-                                    if (selected) TripSheetTokens.Accent else TripSheetTokens.Border,
-                                    RoundedCornerShape(999.dp),
-                                )
-                                .clickable { role = code }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                        )
-                    }
-                }
-            }
-
-            if (participants.isNotEmpty()) {
+            if (activeMembers.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TripFieldLabel("Already Invited (${participants.size})")
-                    participants.forEach { p ->
-                        TripParticipantListRow(
-                            displayName = p.displayName?.takeIf { it.isNotBlank() } ?: "Participant",
-                            status = p.status?.takeIf { it.isNotBlank() } ?: "Member",
-                            roleLabel = (p.status ?: "Pending").lowercase(Locale.US)
-                                .replaceFirstChar { it.titlecase(Locale.US) },
+                    TripFieldLabel("Active members (${activeMembers.size})")
+                    activeMembers.forEach { p ->
+                        InviteActiveMemberRow(
+                            participant = p,
+                            viewerIsOrganizer = viewerIsOrganizer,
+                            busy = busyParticipantId == p.participantId,
+                            onRoleChange = { nextRole ->
+                                scope.launch {
+                                    busyParticipantId = p.participantId
+                                    actionError = null
+                                    repository.updateParticipantRole(
+                                        momentId = momentId,
+                                        participantId = p.participantId,
+                                        roleCode = nextRole,
+                                    ).fold(
+                                        onSuccess = {
+                                            busyParticipantId = null
+                                            refreshParticipants()
+                                            onSaved()
+                                        },
+                                        onFailure = {
+                                            busyParticipantId = null
+                                            actionError = it.message
+                                        },
+                                    )
+                                }
+                            },
+                            onRemove = { removeTarget = p },
                         )
                     }
                 }
             }
 
-            formError?.let {
+            actionError?.let {
                 Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans)
             }
 
-            TripPrimaryCta(
-                label = "Send Invite",
-                enabled = name.isNotBlank(),
-                loading = submitting,
-                footer = "Share via Messages or WhatsApp so they can join",
-                onClick = {
-                    scope.launch {
-                        submitting = true
-                        formError = null
-                        val contact = email.trim().ifBlank { null }
-                        val isPhone = looksLikeInvitePhone(contact)
-                        repository.addParticipant(
-                            momentId = momentId,
-                            displayName = name.trim(),
-                            roleCode = role,
-                            email = if (isPhone) null else contact,
-                            phone = if (isPhone) contact else null,
-                        ).fold(
-                            onSuccess = {
-                                submitting = false
-                                val link = copyText
-                                if (isPhone && link != null) {
-                                    pendingSend = PendingInviteSend(
-                                        phone = contact,
-                                        message = inviteMessage(momentTitle, link),
-                                    )
-                                }
-                                name = ""
-                                email = ""
-                                refreshParticipants()
-                                onSaved()
-                            },
-                            onFailure = {
-                                submitting = false
-                                formError = it.message
-                            },
-                        )
-                    }
-                },
+            Text(
+                "Share via Messages or WhatsApp so they can join",
+                color = TripSheetTokens.Muted,
+                fontSize = 12.sp,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
 
-    InviteSendChooserDialog(
-        pending = pendingSend,
-        accent = TripSheetTokens.Accent,
-        onMessages = { pending ->
-            sendInviteSms(context, pending.phone, pending.message)
-            pendingSend = null
-        },
-        onWhatsApp = { pending ->
-            sendInviteWhatsApp(context, pending.phone, pending.message)
-            pendingSend = null
-        },
-        onDismiss = { pendingSend = null },
-    )
+    removeTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { removeTarget = null },
+            title = { Text("Remove member?", fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "Remove ${target.displayName?.takeIf { it.isNotBlank() } ?: "this member"} from the group?",
+                    fontFamily = PlusJakartaSans,
+                    fontSize = 14.sp,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val p = target
+                        removeTarget = null
+                        scope.launch {
+                            busyParticipantId = p.participantId
+                            actionError = null
+                            repository.removeParticipant(momentId, p.participantId).fold(
+                                onSuccess = {
+                                    busyParticipantId = null
+                                    refreshParticipants()
+                                    onSaved()
+                                },
+                                onFailure = {
+                                    busyParticipantId = null
+                                    actionError = it.message
+                                },
+                            )
+                        }
+                    },
+                ) {
+                    Text("Remove", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { removeTarget = null }) {
+                    Text("Cancel", color = TripSheetTokens.Muted)
+                }
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun InviteActiveMemberRow(
+    participant: GroupParticipantDto,
+    viewerIsOrganizer: Boolean,
+    busy: Boolean,
+    onRoleChange: (String) -> Unit,
+    onRemove: () -> Unit,
+) {
+    val name = participant.displayName?.takeIf { it.isNotBlank() } ?: "Member"
+    val selectedUiRole = uiRoleCode(participant.roleCode)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(TripSheetTokens.Field)
+            .border(1.dp, TripSheetTokens.Border, RoundedCornerShape(8.dp))
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(TripSheetTokens.Accent.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                    color = TripSheetTokens.Accent,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(name, color = TripSheetTokens.Text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+                Text(
+                    displayRoleLabel(participant.roleCode),
+                    color = TripSheetTokens.Muted,
+                    fontSize = 11.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+            Text(
+                "Active",
+                color = TripFormTokens.Green,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(TripFormTokens.Green.copy(alpha = 0.12f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            if (viewerIsOrganizer) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = "Remove",
+                    tint = if (busy) TripSheetTokens.Muted else Color(0xFFEF4444),
+                    modifier = Modifier
+                        .size(18.dp)
+                        .then(if (busy) Modifier else Modifier.clickable(onClick = onRemove)),
+                )
+            }
+        }
+        if (viewerIsOrganizer) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                MANAGE_ROLE_OPTIONS.forEach { (code, label) ->
+                    val selected = selectedUiRole == code
+                    Text(
+                        label,
+                        color = if (selected) TripSheetTokens.Text else TripSheetTokens.Muted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(if (selected) TripSheetTokens.Accent else TripSheetTokens.Bg)
+                            .border(
+                                1.dp,
+                                if (selected) TripSheetTokens.Accent else TripSheetTokens.Border,
+                                RoundedCornerShape(999.dp),
+                            )
+                            .then(
+                                if (!busy && !selected) {
+                                    Modifier.clickable { onRoleChange(code) }
+                                } else {
+                                    Modifier
+                                },
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+    }
 }

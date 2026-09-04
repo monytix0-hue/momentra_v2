@@ -482,20 +482,32 @@ fun AppShellScreen(
                     onAddUpdate = { groupCollabKind = GroupCollabKind.UPDATE },
                     onAddMemory = { groupCollabKind = GroupCollabKind.MEMORY },
                     onAddPurchaseItem = { groupCollabKind = GroupCollabKind.PURCHASE_ITEM },
-                    onAddResident = { groupCollabKind = GroupCollabKind.RESIDENT },
+                    onAddResident = { groupInviteSheetOpen = true },
                     onViewSplits = { groupSplitsOpen = true },
                     onOpenGroupFinance = { groupFinanceOpen = true },
                     onWeddingQuickAdd = { kind ->
                         weddingGapQa = kind
                     },
                     onExperienceQuickAdd = { kind ->
-                        experienceGapQa = kind
+                        if (kind == ExperienceQuickAddKind.PARTICIPANT) {
+                            groupInviteSheetOpen = true
+                        } else {
+                            experienceGapQa = kind
+                        }
                     },
                     onPurchaseQuickAdd = { kind ->
-                        purchaseGapQa = kind
+                        if (kind == PurchaseQuickAddKind.CONTRIBUTOR) {
+                            groupInviteSheetOpen = true
+                        } else {
+                            purchaseGapQa = kind
+                        }
                     },
                     onLivingQuickAdd = { kind ->
-                        livingGapQa = kind
+                        if (kind == LivingQuickAddKind.RESIDENT) {
+                            groupInviteSheetOpen = true
+                        } else {
+                            livingGapQa = kind
+                        }
                     },
                     onBusinessQuickAdd = { kind ->
                         val typeCode = state.selectedMomentTypeCode
@@ -629,6 +641,7 @@ fun AppShellScreen(
                     visible = groupInviteSheetOpen,
                     onDismiss = { groupInviteSheetOpen = false },
                     onSaved = { shellViewModel.refreshVisibleGroupTab() },
+                    currentUserId = identity.userId,
                 )
             }
             GroupBudgetSheet(
@@ -645,6 +658,7 @@ fun AppShellScreen(
                     visible = true,
                     onDismiss = { groupCollabKind = null },
                     onSaved = { shellViewModel.refreshVisibleGroupTab() },
+                    momentTypeCode = state.selectedMomentTypeCode,
                 )
             }
             weddingGapQa?.let { kind ->
@@ -1429,6 +1443,7 @@ private fun ShellDestinationContent(
                                     momentId = selectedMomentId,
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = groupTabRefreshToken,
+                                    momentTypeCode = selectedMomentTypeCode,
                                     onOpenQuickAdd = onOpenQuickAdd,
                                 )
                             } else if (isPurchase) {
@@ -1437,6 +1452,7 @@ private fun ShellDestinationContent(
                                     momentId = selectedMomentId,
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = groupTabRefreshToken,
+                                    momentTypeCode = selectedMomentTypeCode,
                                     onOpenQuickAdd = onOpenQuickAdd,
                                 )
                             } else if (isLiving) {
@@ -1445,6 +1461,7 @@ private fun ShellDestinationContent(
                                     momentId = selectedMomentId,
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = groupTabRefreshToken,
+                                    momentTypeCode = selectedMomentTypeCode,
                                     onOpenQuickAdd = onOpenQuickAdd,
                                 )
                             } else {
@@ -1452,6 +1469,7 @@ private fun ShellDestinationContent(
                                     momentId = selectedMomentId,
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = groupTabRefreshToken,
+                                    momentTypeCode = selectedMomentTypeCode,
                                     onCreateMoment = onOpenGroupCreateTab,
                                 )
                             }
@@ -1492,7 +1510,7 @@ private fun ShellDestinationContent(
                                                 isPurchase && purchaseTheme.includesVendor ->
                                                     onPurchaseQuickAdd(PurchaseQuickAddKind.VENDOR)
                                                 isPurchase -> onPurchaseQuickAdd(PurchaseQuickAddKind.CONTRIBUTION)
-                                                isLiving -> onLivingQuickAdd(LivingQuickAddKind.RESIDENT)
+                                                isLiving -> onAddInvite()
                                                 else -> onAddBooking()
                                             }
                                         }

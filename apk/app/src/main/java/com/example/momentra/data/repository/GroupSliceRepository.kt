@@ -38,6 +38,9 @@ import com.example.momentra.data.api.MediaUploadIntentBody
 import com.example.momentra.data.api.MintGroupInviteBody
 import com.example.momentra.data.api.PatchGroupBudgetBody
 import com.example.momentra.data.api.PatchGroupBudgetResultDto
+import com.example.momentra.data.api.RemoveGroupParticipantResultDto
+import com.example.momentra.data.api.UpdateGroupParticipantRoleBody
+import com.example.momentra.data.api.UpdateGroupParticipantRoleResultDto
 import com.example.momentra.data.api.PostUpdateBody
 import com.example.momentra.data.api.RecordAttendanceBody
 import com.example.momentra.data.api.RecordContributionBody
@@ -123,6 +126,30 @@ class GroupSliceRepository(
 
     suspend fun getParticipants(momentId: String): Result<GroupParticipantsDto> = runCatching {
         api.getGroupParticipants(momentId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun updateParticipantRole(
+        momentId: String,
+        participantId: String,
+        roleCode: String,
+    ): Result<UpdateGroupParticipantRoleResultDto> = runCatching {
+        api.updateGroupParticipantRole(
+            momentId = momentId,
+            participantId = participantId,
+            idempotencyKey = UUID.randomUUID().toString(),
+            body = UpdateGroupParticipantRoleBody(roleCode = roleCode),
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun removeParticipant(
+        momentId: String,
+        participantId: String,
+    ): Result<RemoveGroupParticipantResultDto> = runCatching {
+        api.removeGroupParticipant(
+            momentId = momentId,
+            participantId = participantId,
+            idempotencyKey = UUID.randomUUID().toString(),
+        ).data
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun listAnalyticsInsights(
@@ -321,12 +348,23 @@ class GroupSliceRepository(
         momentId: String,
         title: String,
         dueAt: String? = null,
+        categoryCode: String? = null,
+        location: String? = null,
+        priorityCode: String? = null,
+        description: String? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ) = runCatching {
         api.createPlanningItem(
             momentId,
             idempotencyKey,
-            CreatePlanningItemBody(title = title, dueAt = dueAt),
+            CreatePlanningItemBody(
+                title = title,
+                dueAt = dueAt,
+                categoryCode = categoryCode,
+                location = location,
+                priorityCode = priorityCode,
+                description = description,
+            ),
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 
@@ -366,9 +404,15 @@ class GroupSliceRepository(
     suspend fun postUpdate(
         momentId: String,
         message: String,
+        notifyMembers: Boolean = true,
+        urgencyCode: String = "NORMAL",
         idempotencyKey: String = UUID.randomUUID().toString(),
     ) = runCatching {
-        api.postUpdate(momentId, idempotencyKey, PostUpdateBody(message = message)).data
+        api.postUpdate(
+            momentId,
+            idempotencyKey,
+            PostUpdateBody(message = message, notifyMembers = notifyMembers, urgencyCode = urgencyCode),
+        ).data
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun createMemory(

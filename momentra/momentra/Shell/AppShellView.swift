@@ -220,6 +220,7 @@ struct AppShellView: View {
                     momentId: momentId,
                     momentTitle: model.selectedMomentTitle ?? "Trip",
                     momentTypeCode: inviteTypeCode,
+                    currentUserId: identity.userId,
                     isPresented: $groupInviteSheetPresented,
                     onSaved: { model.refreshVisibleGroupTab() }
                 )
@@ -230,6 +231,7 @@ struct AppShellView: View {
                 GroupCollabSheet(
                     kind: kind,
                     momentId: momentId,
+                    momentTypeCode: model.selectedMomentTypeCode,
                     isPresented: Binding(
                         get: { groupCollabKind != nil },
                         set: { if !$0 { groupCollabKind = nil } }
@@ -944,7 +946,13 @@ struct AppShellView: View {
                             onOpenQuickAdd: { model.selectBottomDestination(.create) },
                             onViewSplits: { groupSplitsPresented = true },
                             onOpenFinance: { groupFinancePresented = true },
-                            onQuickAddKind: { kind in experienceGapQa = kind }
+                            onQuickAddKind: { kind in
+                                if kind == .participant {
+                                    groupInviteSheetPresented = true
+                                } else {
+                                    experienceGapQa = kind
+                                }
+                            }
                         )
                     } else if isPurchase {
                         PurchasePulseActiveView(
@@ -957,7 +965,13 @@ struct AppShellView: View {
                             onOpenQuickAdd: { model.selectBottomDestination(.create) },
                             onViewSplits: { groupSplitsPresented = true },
                             onOpenFinance: { groupFinancePresented = true },
-                            onQuickAddKind: { kind in purchaseGapQa = kind }
+                            onQuickAddKind: { kind in
+                                if kind == .contributor {
+                                    groupInviteSheetPresented = true
+                                } else {
+                                    purchaseGapQa = kind
+                                }
+                            }
                         )
                     } else if isLiving {
                         LivingPulseActiveView(
@@ -970,7 +984,13 @@ struct AppShellView: View {
                             onOpenQuickAdd: { model.selectBottomDestination(.create) },
                             onViewSplits: { groupSplitsPresented = true },
                             onOpenFinance: { groupFinancePresented = true },
-                            onQuickAddKind: { kind in livingGapQa = kind }
+                            onQuickAddKind: { kind in
+                                if kind == .resident {
+                                    groupInviteSheetPresented = true
+                                } else {
+                                    livingGapQa = kind
+                                }
+                            }
                         )
                     } else {
                         GroupPulseActiveView(
@@ -999,6 +1019,7 @@ struct AppShellView: View {
                             refreshToken: model.groupTabRefreshToken,
                             momentId: model.selectedMomentId,
                             momentTitle: model.selectedMomentTitle,
+                            momentTypeCode: groupTypeCode,
                             onOpenQuickAdd: { model.selectBottomDestination(.create) }
                         )
                     } else if isPurchase {
@@ -1007,6 +1028,7 @@ struct AppShellView: View {
                             refreshToken: model.groupTabRefreshToken,
                             momentId: model.selectedMomentId,
                             momentTitle: model.selectedMomentTitle,
+                            momentTypeCode: groupTypeCode,
                             onOpenQuickAdd: { model.selectBottomDestination(.create) }
                         )
                     } else if isLiving {
@@ -1015,6 +1037,7 @@ struct AppShellView: View {
                             refreshToken: model.groupTabRefreshToken,
                             momentId: model.selectedMomentId,
                             momentTitle: model.selectedMomentTitle,
+                            momentTypeCode: groupTypeCode,
                             onOpenQuickAdd: { model.selectBottomDestination(.create) }
                         )
                     } else {
@@ -1022,6 +1045,7 @@ struct AppShellView: View {
                             refreshToken: model.groupTabRefreshToken,
                             momentId: model.selectedMomentId,
                             momentTitle: model.selectedMomentTitle,
+                            momentTypeCode: groupTypeCode,
                             onCreateMoment: {
                                 groupCreatePhase = .chooser
                                 newMomentOpen = true
@@ -1051,7 +1075,7 @@ struct AppShellView: View {
                                 if isWedding { weddingGapQa = .vendor }
                                 else if isExperience { experienceGapQa = experienceTheme.includesVendor ? .vendor : .booking }
                                 else if isPurchase { purchaseGapQa = purchaseTheme.includesVendor ? .vendor : .contribution }
-                                else if isLiving { livingGapQa = .resident }
+                                else if isLiving { groupInviteSheetPresented = true }
                                 else { groupCollabKind = .booking }
                             case .community:
                                 if isWedding { weddingGapQa = .update }
@@ -1125,7 +1149,13 @@ struct AppShellView: View {
                             hasActiveMoment: model.selectedMomentId != nil,
                             capabilityCodes: model.capabilities,
                             onClose: { model.exitCreateDestination() },
-                            onTile: { kind in experienceGapQa = kind },
+                            onTile: { kind in
+                                if kind == .participant {
+                                    groupInviteSheetPresented = true
+                                } else {
+                                    experienceGapQa = kind
+                                }
+                            },
                             onNewMoment: {
                                 groupCreatePhase = .chooser
                                 newMomentOpen = true
@@ -1139,7 +1169,13 @@ struct AppShellView: View {
                             hasActiveMoment: model.selectedMomentId != nil,
                             capabilityCodes: model.capabilities,
                             onClose: { model.exitCreateDestination() },
-                            onTile: { kind in purchaseGapQa = kind },
+                            onTile: { kind in
+                                if kind == .contributor {
+                                    groupInviteSheetPresented = true
+                                } else {
+                                    purchaseGapQa = kind
+                                }
+                            },
                             onNewMoment: {
                                 groupCreatePhase = .chooser
                                 newMomentOpen = true
@@ -1153,7 +1189,13 @@ struct AppShellView: View {
                             hasActiveMoment: model.selectedMomentId != nil,
                             capabilityCodes: model.capabilities,
                             onClose: { model.exitCreateDestination() },
-                            onTile: { kind in livingGapQa = kind },
+                            onTile: { kind in
+                                if kind == .resident {
+                                    groupInviteSheetPresented = true
+                                } else {
+                                    livingGapQa = kind
+                                }
+                            },
                             onNewMoment: {
                                 groupCreatePhase = .chooser
                                 newMomentOpen = true
@@ -1179,7 +1221,7 @@ struct AppShellView: View {
                             onUpdate: { groupCollabKind = .update },
                             onMemory: { groupCollabKind = .memory },
                             onPurchaseItem: { groupCollabKind = .purchaseItem },
-                            onResident: { groupCollabKind = .resident },
+                            onResident: { groupInviteSheetPresented = true },
                             onNewMoment: {
                                 groupCreatePhase = .chooser
                                 newMomentOpen = true

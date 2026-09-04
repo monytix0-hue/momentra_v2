@@ -139,7 +139,14 @@ fun ExperienceGapQuickAddSheet(
                 ExperienceQuickAddKind.VENDOR ->
                     WeddingVendorSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 ExperienceQuickAddKind.PLANNING ->
-                    WeddingPlanningSheetBody(momentId, repository, onDismiss, onSaved, accent)
+                    WeddingPlanningSheetBody(
+                        momentId,
+                        repository,
+                        onDismiss,
+                        onSaved,
+                        accent,
+                        momentTypeCode = momentTypeCode,
+                    )
                 ExperienceQuickAddKind.ATTENDANCE ->
                     WeddingAttendanceSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 ExperienceQuickAddKind.POLL ->

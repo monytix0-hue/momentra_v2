@@ -24,7 +24,7 @@ enum PurchaseQuickAddKind: String, Identifiable, CaseIterable {
 
     var label: String {
         switch self {
-        case .contributor: return "Contributor"
+        case .contributor: return "Invite"
         case .contribution: return "Contribution"
         case .expense: return "Expense"
         case .budget: return "Budget"
@@ -71,10 +71,7 @@ enum PurchaseQuickAddKind: String, Identifiable, CaseIterable {
     }
 
     static func hubTiles(theme: PurchaseActiveTheme) -> [PurchaseQuickAddKind] {
-        var tiles: [PurchaseQuickAddKind] = []
-        if theme.includesContributor {
-            tiles.append(.contributor)
-        }
+        var tiles: [PurchaseQuickAddKind] = [.contributor]
         tiles.append(contentsOf: [.contribution, .purchaseItem, .expense, .poll])
         if theme.includesBudget {
             tiles.append(.budget)

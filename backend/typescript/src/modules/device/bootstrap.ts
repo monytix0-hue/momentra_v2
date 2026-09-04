@@ -45,6 +45,7 @@ export interface MeBootstrap {
   preferences: {
     timezone: string;
     locale: string | null;
+    pushNotificationsEnabled: boolean;
   };
   featureFlags: Record<string, boolean | string | number>;
 }
@@ -148,8 +149,9 @@ export async function getMeBootstrap(_client: PoolClient | null, ctx: RequestCon
               timezone: string;
               locale: string | null;
               status: string;
+              push_notifications_enabled: boolean;
             }>(
-              `SELECT email, display_name, timezone, locale, status
+              `SELECT email, display_name, timezone, locale, status, push_notifications_enabled
              FROM core.user_profile WHERE user_id = $1`,
               [ctx.userId]
             )
@@ -180,6 +182,7 @@ export async function getMeBootstrap(_client: PoolClient | null, ctx: RequestCon
       timezone: string;
       locale: string | null;
       status: string;
+      push_notifications_enabled: boolean;
     }>;
   };
   const personalPage = wave[1] as Awaited<ReturnType<typeof projectionService.listPersonalMoments>>;
@@ -198,8 +201,9 @@ export async function getMeBootstrap(_client: PoolClient | null, ctx: RequestCon
       timezone: string;
       locale: string | null;
       status: string;
+      push_notifications_enabled: boolean;
     }>(
-      `SELECT email, display_name, timezone, locale, status
+      `SELECT email, display_name, timezone, locale, status, push_notifications_enabled
        FROM core.user_profile WHERE user_id = $1`,
       [ctx.userId]
     );
@@ -263,6 +267,7 @@ export async function getMeBootstrap(_client: PoolClient | null, ctx: RequestCon
     preferences: {
       timezone: p?.timezone ?? 'UTC',
       locale: p?.locale ?? null,
+      pushNotificationsEnabled: p?.push_notifications_enabled ?? true,
     },
     featureFlags: featureFlagsFromEnv(),
   };

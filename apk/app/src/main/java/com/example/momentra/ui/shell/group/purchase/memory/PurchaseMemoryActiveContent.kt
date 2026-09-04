@@ -36,6 +36,7 @@ import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupProgressBar
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
 import com.example.momentra.ui.shell.group.shared.loadGroupMemoryTab
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.shell.group.purchase.create.PurchaseActiveTheme
@@ -163,7 +164,15 @@ fun PurchaseMemoryActiveContent(
         }
 
         PurchaseSectionCard(theme, "Memory Gallery") {
-            PurchaseEmptyBlock(theme, "No photos yet", "Shared gallery requires group media API.")
+            MemoryPhotoGalleryStrip(
+                items = items,
+                emptyMessage = "No photos yet",
+                emptyDetail = "Add a memory with a photo from Quick Add.",
+                text = theme.text,
+                muted = theme.secondary,
+                field = theme.bg,
+                border = theme.border,
+            )
         }
 
         PurchaseSectionCard(theme, "People Impact") {

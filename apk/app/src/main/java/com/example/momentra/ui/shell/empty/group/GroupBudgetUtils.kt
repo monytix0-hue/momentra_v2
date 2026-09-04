@@ -7,6 +7,8 @@ import java.util.Locale
 object GroupBudgetUtils {
     const val CUSTOM_OPTION = "Custom…"
     val PRESET_OPTIONS = listOf("₹80,000", "₹50,000", "₹1,20,000", "₹25,000", CUSTOM_OPTION)
+    val PURCHASE_AMOUNT_OPTIONS = listOf("₹25,000", "₹50,000", "₹1,00,000", CUSTOM_OPTION)
+    val LIVING_BUDGET_OPTIONS = listOf("₹25,000", "₹40,000", "₹60,000", CUSTOM_OPTION)
 
     /** Parses display strings like `₹1,20,000` into API decimal `120000`. */
     fun parseDisplayToApiAmount(display: String): String? {

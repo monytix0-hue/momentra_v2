@@ -22,10 +22,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -38,7 +40,9 @@ import com.example.momentra.R
 import com.example.momentra.data.api.CreateMomentParticipantBody
 import com.example.momentra.data.api.GroupInviteDto
 import com.example.momentra.data.api.GroupSetupBlockDto
+import kotlinx.coroutines.launch
 import com.example.momentra.domain.CreateMomentOutcome
+import com.example.momentra.data.repository.AccountRepository
 import com.example.momentra.ui.create.MomentCreateViewModel
 import com.example.momentra.ui.setup.SetupDateTimeUtils
 import com.example.momentra.ui.setup.SetupDateRangeField
@@ -89,23 +93,65 @@ fun GroupExperienceSetupContent(
     var updateCadence by remember(selectedCode) { mutableStateOf("Every week") }
     var people by remember(selectedCode) { mutableStateOf(defaultGroupPeople(selectedCode)) }
     var peopleEdited by remember(selectedCode) { mutableStateOf(false) }
-    var showAddPeople by remember { mutableStateOf(false) }
     var issuedInvite by remember { mutableStateOf<GroupInviteDto?>(null) }
+    var mintingInvite by remember { mutableStateOf(false) }
+    var inviteError by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val accountRepo = remember { AccountRepository() }
+
+    LaunchedEffect(editingMomentId) {
+        val mid = editingMomentId ?: return@LaunchedEffect
+        accountRepo.getMomentNotificationPreferences(mid)
+            .onSuccess { notifyChanges = it.notifyOnChanges }
+    }
 
     val palette = selected.palette
     val accent = palette.accent
-    LaunchedEffect(selectedCode) {
-        onSetupTypeChanged(selectedCode)
-        issuedInvite = null
-    }
 
-    LaunchedEffect(showAddPeople, selectedCode) {
-        if (!showAddPeople) return@LaunchedEffect
-        issuedInvite = createViewModel.mintGroupInvite(
+    suspend fun ensureInvite(): GroupInviteDto? {
+        issuedInvite?.let { return it }
+        mintingInvite = true
+        inviteError = null
+        val minted = createViewModel.mintGroupInvite(
             title = name.trim().ifBlank { selected.defaultName },
             momentTypeCode = selectedCode,
             section = "experience",
         )
+        mintingInvite = false
+        if (minted == null) {
+            inviteError = "Couldn’t create invite link. Try again."
+            return null
+        }
+        issuedInvite = minted
+        return minted
+    }
+
+    fun shareQr() {
+        scope.launch {
+            val invite = ensureInvite() ?: return@launch
+            val url = GroupInviteLink.qrPayload(invite.inviteCode)
+            val bitmap = generateInviteQrBitmap(url, 512)
+            shareInviteQr(context, bitmap, url)
+        }
+    }
+
+    fun shareWhatsApp() {
+        scope.launch {
+            val invite = ensureInvite() ?: return@launch
+            val url = GroupInviteLink.copyText(invite.inviteCode)
+            sendInviteWhatsApp(
+                context,
+                phone = null,
+                message = inviteMessage(name.trim().ifBlank { selected.defaultName }, url),
+            )
+        }
+    }
+
+    LaunchedEffect(selectedCode) {
+        onSetupTypeChanged(selectedCode)
+        issuedInvite = null
+        inviteError = null
     }
 
     Box(modifier.fillMaxSize()) {
@@ -306,7 +352,11 @@ fun GroupExperienceSetupContent(
                 GroupPeopleCard(
                     people = people,
                     palette = palette,
-                    onInvite = { showAddPeople = true },
+                    onShareQr = ::shareQr,
+                    onWhatsApp = ::shareWhatsApp,
+                    shareEnabled = true,
+                    mintingInvite = mintingInvite,
+                    inviteError = inviteError,
                     onRemove = { person ->
                         peopleEdited = true
                         people = people.filterNot {
@@ -449,7 +499,15 @@ fun GroupExperienceSetupContent(
                                 inviteCode = issuedInvite?.inviteCode,
                                 groupSetup = groupSetup,
                                 editingMomentId = editingMomentId,
-                                onSuccess = onCreated,
+                                onSuccess = { outcome ->
+                                    scope.launch {
+                                        accountRepo.patchMomentNotificationPreferences(
+                                            outcome.momentId,
+                                            notifyChanges,
+                                        )
+                                        onCreated(outcome)
+                                    }
+                                },
                             )
                         }
                         .testTag(MaestroIds.GROUP_SETUP_SUBMIT)
@@ -483,21 +541,6 @@ fun GroupExperienceSetupContent(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-        }
-
-        if (showAddPeople) {
-            GroupAddPeopleSheet(
-                palette = palette,
-                experienceTitle = name,
-                typeCode = selectedCode,
-                existingNames = people.map { it.name },
-                issuedInviteCode = issuedInvite?.inviteCode,
-                onAddPerson = { added ->
-                    peopleEdited = true
-                    people = people + added
-                },
-                onDismiss = { showAddPeople = false },
-            )
         }
     }
 }

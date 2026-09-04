@@ -58,7 +58,7 @@ struct LivingGapQuickAddSheet: View {
         case .memory:
             WeddingMemoryBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .task:
-            WeddingPlanningBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
+            WeddingPlanningBody(momentId: momentId, momentTypeCode: momentTypeCode, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .resident:
             LivingResidentBody(momentId: momentId, theme: theme, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .asset:

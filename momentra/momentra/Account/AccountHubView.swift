@@ -13,6 +13,7 @@ struct AccountHubView: View {
     @State private var status: String?
     @State private var pinInput = ""
     @State private var hideBalances = UserDefaults.standard.bool(forKey: "momentra_hide_balances")
+    @State private var pushNotificationsEnabled = UserDefaults.standard.object(forKey: "momentra_push_notifications") as? Bool ?? true
     @State private var section = "home"
     @State private var consents: [ConsentPurposePayload] = []
     @State private var devices: [DeviceItemPayload] = []
@@ -104,6 +105,18 @@ struct AccountHubView: View {
                     }
                 case "prefs":
                     Section("Preferences") {
+                        Toggle("Push notifications", isOn: $pushNotificationsEnabled)
+                            .onChange(of: pushNotificationsEnabled) { _, v in
+                                UserDefaults.standard.set(v, forKey: "momentra_push_notifications")
+                                Task {
+                                    do {
+                                        _ = try await APIClient.shared.patchMyNotificationPreferences(pushNotificationsEnabled: v)
+                                        status = v ? "Push enabled" : "Push muted"
+                                    } catch {
+                                        status = error.localizedDescription
+                                    }
+                                }
+                            }
                         Toggle("Hide balances", isOn: $hideBalances)
                             .onChange(of: hideBalances) { _, v in
                                 UserDefaults.standard.set(v, forKey: "momentra_hide_balances")
@@ -182,6 +195,10 @@ struct AccountHubView: View {
                     consents = (try? await APIClient.shared.listConsents().purposes) ?? []
                     await PushNotifications.syncDeviceWithBackend()
                     devices = (try? await APIClient.shared.listDevices().items) ?? []
+                    if let prefs = try? await APIClient.shared.getMyNotificationPreferences() {
+                        pushNotificationsEnabled = prefs.pushNotificationsEnabled
+                        UserDefaults.standard.set(prefs.pushNotificationsEnabled, forKey: "momentra_push_notifications")
+                    }
                 }
             }
         }

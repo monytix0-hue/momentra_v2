@@ -3,6 +3,8 @@ import Foundation
 enum GroupBudgetUtils {
     static let customOption = "Custom…"
     static let presetOptions = ["₹80,000", "₹50,000", "₹1,20,000", "₹25,000", customOption]
+    static let purchaseAmountOptions = ["₹25,000", "₹50,000", "₹1,00,000", customOption]
+    static let livingBudgetOptions = ["₹25,000", "₹40,000", "₹60,000", customOption]
 
     static func parseDisplayToApiAmount(_ display: String) -> String? {
         let digits = display

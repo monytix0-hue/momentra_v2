@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -19,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -36,7 +38,10 @@ import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupProgressBar
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
+import com.example.momentra.ui.shell.group.shared.RemoteMemoryImage
 import com.example.momentra.ui.shell.group.shared.loadGroupMemoryTab
+import com.example.momentra.ui.shell.group.shared.primaryDownloadUrl
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.shell.group.living.create.LivingActiveTheme
 import com.example.momentra.ui.shell.group.living.create.LivingEmptyBlock
@@ -146,24 +151,48 @@ fun LivingMemoryActiveContent(
                 LivingEmptyBlock(theme, "Timeline empty", "Shared memories will appear here — nothing is invented.")
             } else {
                 items.forEach { item ->
-                    Text(
-                        item.title ?: "Memory",
-                        color = theme.text,
-                        fontSize = 13.sp,
-                        fontFamily = PlusJakartaSans,
+                    val thumbUrl = item.primaryDownloadUrl()
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
                             .background(theme.accentSoft)
                             .border(1.dp, theme.accent.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
                             .padding(12.dp),
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (thumbUrl != null) {
+                            RemoteMemoryImage(
+                                url = thumbUrl,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .border(1.dp, theme.accent.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
+                            )
+                        }
+                        Text(
+                            item.title ?: "Memory",
+                            color = theme.text,
+                            fontSize = 13.sp,
+                            fontFamily = PlusJakartaSans,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }
 
         LivingSectionCard(theme, "Memory Gallery") {
-            LivingEmptyBlock(theme, "No photos yet", "Shared gallery requires group media API.")
+            MemoryPhotoGalleryStrip(
+                items = items,
+                emptyMessage = "No photos yet",
+                emptyDetail = "Add a memory with a photo from Quick Add.",
+                text = theme.text,
+                muted = theme.secondary,
+                field = theme.card,
+                border = theme.border,
+            )
         }
 
         LivingSectionCard(theme, "People Impact") {

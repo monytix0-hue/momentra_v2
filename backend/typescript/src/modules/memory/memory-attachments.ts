@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGroupMember } from '../collaboration/group-membership';
+import { trySignedDownloadUrl } from '../media/service';
 
 export const attachMemoryMediaSchema = z.object({ uploadId: z.string().uuid() }).strict();
 
@@ -11,7 +12,10 @@ export interface MemoryAttachmentDto {
   contentType: string | null;
   status: string;
   createdAt: string;
+  downloadUrl: string | null;
 }
+
+const MEDIA_PER_MEMORY_CAP = 3;
 
 export async function listMemoryAttachments(
   client: PoolClient,
@@ -25,20 +29,87 @@ export async function listMemoryAttachments(
     content_type: string | null;
     status: string;
     created_at: Date;
+    bucket: string | null;
+    object_key: string | null;
   }>(
-    `SELECT me.source_id, mu.content_type, mu.status, me.created_at
+    `SELECT me.source_id, mu.content_type, mu.status, me.created_at, mu.bucket, mu.object_key
      FROM memory.memory_evidence me
      JOIN platform.media_upload mu ON mu.media_upload_id = me.source_id
      WHERE me.memory_id = $1 AND me.source_type = 'MEDIA'
      ORDER BY me.created_at ASC`,
     [memoryId]
   );
-  return rows.rows.map((r) => ({
-    uploadId: r.source_id,
-    contentType: r.content_type,
-    status: r.status,
-    createdAt: r.created_at.toISOString(),
-  }));
+  return Promise.all(
+    rows.rows.map(async (r) => ({
+      uploadId: r.source_id,
+      contentType: r.content_type,
+      status: r.status,
+      createdAt: r.created_at.toISOString(),
+      downloadUrl:
+        r.status === 'COMPLETED' ? await trySignedDownloadUrl(r.bucket, r.object_key) : null,
+    }))
+  );
+}
+
+/** Batch-load media (capped) for many memories — used by list/facet payloads. */
+export async function listMediaForMemories(
+  client: PoolClient,
+  memoryIds: string[],
+  perMemoryCap = MEDIA_PER_MEMORY_CAP
+): Promise<Map<string, MemoryAttachmentDto[]>> {
+  const result = new Map<string, MemoryAttachmentDto[]>();
+  if (memoryIds.length === 0) return result;
+
+  const rows = await client.query<{
+    memory_id: string;
+    source_id: string;
+    content_type: string | null;
+    status: string;
+    created_at: Date;
+    bucket: string | null;
+    object_key: string | null;
+    rn: string;
+  }>(
+    `SELECT * FROM (
+       SELECT me.memory_id, me.source_id, mu.content_type, mu.status, me.created_at,
+              mu.bucket, mu.object_key,
+              ROW_NUMBER() OVER (PARTITION BY me.memory_id ORDER BY me.created_at ASC) AS rn
+       FROM memory.memory_evidence me
+       JOIN platform.media_upload mu ON mu.media_upload_id = me.source_id
+       WHERE me.memory_id = ANY($1::uuid[]) AND me.source_type = 'MEDIA'
+     ) t
+     WHERE rn <= $2
+     ORDER BY memory_id, rn`,
+    [memoryIds, perMemoryCap]
+  );
+
+  for (const r of rows.rows) {
+    const list = result.get(r.memory_id) ?? [];
+    list.push({
+      uploadId: r.source_id,
+      contentType: r.content_type,
+      status: r.status,
+      createdAt: r.created_at.toISOString(),
+      downloadUrl: null, // filled below
+    });
+    result.set(r.memory_id, list);
+  }
+
+  // Sign URLs in parallel for COMPLETED uploads.
+  const signJobs: Array<Promise<void>> = [];
+  for (const r of rows.rows) {
+    if (r.status !== 'COMPLETED') continue;
+    const list = result.get(r.memory_id);
+    const item = list?.find((m) => m.uploadId === r.source_id);
+    if (!item) continue;
+    signJobs.push(
+      trySignedDownloadUrl(r.bucket, r.object_key).then((url) => {
+        item.downloadUrl = url;
+      })
+    );
+  }
+  await Promise.all(signJobs);
+  return result;
 }
 
 export async function attachMemoryMedia(
@@ -57,8 +128,10 @@ export async function attachMemoryMedia(
     user_id: string;
     scope_type: string;
     scope_id: string;
+    bucket: string | null;
+    object_key: string | null;
   }>(
-    `SELECT media_upload_id, content_type, status, user_id, scope_type, scope_id
+    `SELECT media_upload_id, content_type, status, user_id, scope_type, scope_id, bucket, object_key
      FROM platform.media_upload
      WHERE media_upload_id = $1`,
     [uploadId]
@@ -81,11 +154,14 @@ export async function attachMemoryMedia(
     [memoryId, uploadId]
   );
 
+  const downloadUrl = await trySignedDownloadUrl(upload.rows[0].bucket, upload.rows[0].object_key);
+
   return {
     uploadId,
     contentType: upload.rows[0].content_type,
     status: upload.rows[0].status,
     createdAt: new Date().toISOString(),
+    downloadUrl,
   };
 }
 

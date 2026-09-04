@@ -309,6 +309,41 @@ final class APIClient {
         try await authorizedGet(path: "v1/me/devices")
     }
 
+    struct GlobalNotificationPrefsPayload: Decodable {
+        let pushNotificationsEnabled: Bool
+    }
+
+    struct MomentNotificationPrefsPayload: Decodable {
+        let momentId: String
+        let notifyOnChanges: Bool
+    }
+
+    func getMyNotificationPreferences() async throws -> GlobalNotificationPrefsPayload {
+        try await authorizedGet(path: "v1/me/notification-preferences")
+    }
+
+    @discardableResult
+    func patchMyNotificationPreferences(pushNotificationsEnabled: Bool) async throws -> GlobalNotificationPrefsPayload {
+        struct Body: Encodable { let pushNotificationsEnabled: Bool }
+        return try await authorizedPatch(
+            path: "v1/me/notification-preferences",
+            body: Body(pushNotificationsEnabled: pushNotificationsEnabled)
+        )
+    }
+
+    func getMomentNotificationPreferences(momentId: String) async throws -> MomentNotificationPrefsPayload {
+        try await authorizedGet(path: "v1/moments/\(momentId)/notification-preferences")
+    }
+
+    @discardableResult
+    func patchMomentNotificationPreferences(momentId: String, notifyOnChanges: Bool) async throws -> MomentNotificationPrefsPayload {
+        struct Body: Encodable { let notifyOnChanges: Bool }
+        return try await authorizedPatch(
+            path: "v1/moments/\(momentId)/notification-preferences",
+            body: Body(notifyOnChanges: notifyOnChanges)
+        )
+    }
+
     func listConsents() async throws -> ConsentListPayload {
         try await authorizedGet(path: "v1/me/consents")
     }
@@ -838,6 +873,45 @@ final class APIClient {
         return try await authorizedPost(
             path: "v1/companies/\(companyId)/leave",
             body: Body(transferUserId: transferUserId),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    struct UpdateParticipantRoleResult: Decodable {
+        let momentId: String?
+        let participantId: String?
+        let roleCode: String?
+    }
+
+    struct RemoveParticipantResult: Decodable {
+        let momentId: String?
+        let participantId: String?
+        let status: String?
+    }
+
+    func updateGroupParticipantRole(
+        momentId: String,
+        participantId: String,
+        roleCode: String,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> UpdateParticipantRoleResult {
+        struct Body: Encodable { let roleCode: String }
+        return try await authorizedPatch(
+            path: "v1/group/moments/\(momentId)/participants/\(participantId)",
+            body: Body(roleCode: roleCode),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func removeGroupParticipant(
+        momentId: String,
+        participantId: String,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> RemoveParticipantResult {
+        struct EmptyBody: Encodable {}
+        return try await authorizedPost(
+            path: "v1/group/moments/\(momentId)/participants/\(participantId)/remove",
+            body: EmptyBody(),
             idempotencyKey: idempotencyKey
         )
     }
@@ -2036,6 +2110,11 @@ final class APIClient {
                 let title: String?
                 let dueAt: String?
                 let status: String?
+                let createdAt: String?
+                let categoryCode: String?
+                let location: String?
+                let priorityCode: String?
+                let description: String?
             }
 
             struct BookingItem: Decodable {
@@ -2048,6 +2127,7 @@ final class APIClient {
                 let updateId: String?
                 let message: String?
                 let createdAt: String?
+                let urgencyCode: String?
             }
         }
     }
@@ -2070,6 +2150,22 @@ final class APIClient {
                 let memoryId: String?
                 let title: String?
                 let occurredAt: String?
+                let status: String?
+                let media: [GroupMemoryMedia]?
+                let mediaCount: Int?
+
+                struct GroupMemoryMedia: Decodable, Identifiable {
+                    var id: String { uploadId ?? downloadUrl ?? createdAt ?? UUID().uuidString }
+                    let uploadId: String?
+                    let contentType: String?
+                    let status: String?
+                    let createdAt: String?
+                    let downloadUrl: String?
+                }
+
+                var primaryDownloadUrl: String? {
+                    media?.first(where: { ($0.downloadUrl ?? "").isEmpty == false })?.downloadUrl
+                }
             }
         }
     }
@@ -2315,9 +2411,36 @@ final class APIClient {
         let momentId: String?
     }
 
-    func createPlanningItem(momentId: String, title: String, dueAt: String? = nil, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {
-        struct Body: Encodable { let title: String; let dueAt: String? }
-        return try await authorizedPost(path: "v1/moments/\(momentId)/planning-items", body: Body(title: title, dueAt: dueAt), idempotencyKey: idempotencyKey)
+    func createPlanningItem(
+        momentId: String,
+        title: String,
+        dueAt: String? = nil,
+        categoryCode: String? = nil,
+        location: String? = nil,
+        priorityCode: String? = nil,
+        description: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CollabIdResult {
+        struct Body: Encodable {
+            let title: String
+            let dueAt: String?
+            let categoryCode: String?
+            let location: String?
+            let priorityCode: String?
+            let description: String?
+        }
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/planning-items",
+            body: Body(
+                title: title,
+                dueAt: dueAt,
+                categoryCode: categoryCode,
+                location: location,
+                priorityCode: priorityCode,
+                description: description
+            ),
+            idempotencyKey: idempotencyKey
+        )
     }
 
     // MARK: - Group collab list GETs (parity with Android ApiService)
@@ -2527,9 +2650,23 @@ final class APIClient {
         return try await authorizedPost(path: "v1/moments/\(momentId)/polls", body: Body(question: question, options: options, closesAt: closesAt, pollType: pollType), idempotencyKey: idempotencyKey)
     }
 
-    func postGroupUpdate(momentId: String, message: String, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {
-        struct Body: Encodable { let message: String }
-        return try await authorizedPost(path: "v1/moments/\(momentId)/updates", body: Body(message: message), idempotencyKey: idempotencyKey)
+    func postGroupUpdate(
+        momentId: String,
+        message: String,
+        notifyMembers: Bool = true,
+        urgencyCode: String = "NORMAL",
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CollabIdResult {
+        struct Body: Encodable {
+            let message: String
+            let notifyMembers: Bool
+            let urgencyCode: String
+        }
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/updates",
+            body: Body(message: message, notifyMembers: notifyMembers, urgencyCode: urgencyCode),
+            idempotencyKey: idempotencyKey
+        )
     }
 
     func createGroupMemory(momentId: String, title: String, capturedAt: String? = nil, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {

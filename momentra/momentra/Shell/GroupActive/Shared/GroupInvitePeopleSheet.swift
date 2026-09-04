@@ -1,11 +1,12 @@
 import SwiftUI
 import UIKit
 
-/// Trip Quick Add — mint invite link + add participant (Figma 581:13699).
+/// Invite link/QR + active members manage (organizer role edit / remove).
 struct GroupInvitePeopleSheet: View {
     let momentId: String
     let momentTitle: String
     let momentTypeCode: String
+    let currentUserId: String?
     @Binding var isPresented: Bool
     var onSaved: () -> Void = {}
 
@@ -13,16 +14,17 @@ struct GroupInvitePeopleSheet: View {
     @State private var minting = true
     @State private var mintError: String?
     @State private var participants: [APIClient.GroupParticipantPayload] = []
-    @State private var name = ""
-    @State private var email = ""
-    @State private var role = "PARTICIPANT"
-    @State private var submitting = false
-    @State private var formError: String?
+    @State private var actionError: String?
+    @State private var busyParticipantId: String?
+    @State private var removeTarget: APIClient.GroupParticipantPayload?
     @State private var copied = false
-    @State private var pendingPhone: String?
-    @State private var showSendChooser = false
 
     private let sheetBg = TripSheetTokens.bg
+    private let roleOptions: [(code: String, label: String)] = [
+        ("PARTICIPANT", "Member"),
+        ("ORGANIZER", "Organizer"),
+        ("OBSERVER", "Viewer"),
+    ]
 
     private var displayPath: String? {
         inviteCode.map { GroupInviteLink.displayPath(code: $0) }
@@ -32,17 +34,20 @@ struct GroupInvitePeopleSheet: View {
         inviteCode.map { GroupInviteLink.copyText(code: $0) }
     }
 
-    private var inviteBody: String? {
-        guard let copyText else { return nil }
-        return InviteOutboundShare.inviteMessage(title: momentTitle, url: copyText)
-    }
-
     private var qrPayload: String? {
         inviteCode.map { GroupInviteLink.qrPayload(code: $0) }
     }
 
-    private var invitePeopleSubtitle: String {
-        GroupExperienceFamily.forTypeCode(momentTypeCode).invitePeopleSubtitle
+    private var activeMembers: [APIClient.GroupParticipantPayload] {
+        participants.filter { ($0.status ?? "").uppercased() == "ACTIVE" }
+    }
+
+    private var viewerIsOrganizer: Bool {
+        guard let currentUserId else { return false }
+        return activeMembers.contains { p in
+            p.userId == currentUserId &&
+            ["ORGANIZER", "CO_ORGANIZER"].contains((p.roleCode ?? "").uppercased())
+        }
     }
 
     var body: some View {
@@ -56,7 +61,7 @@ struct GroupInvitePeopleSheet: View {
                     TripSheetHeader(
                         iconAsset: "GroupQaUserPlus",
                         title: "Invite People",
-                        subtitle: invitePeopleSubtitle,
+                        subtitle: "Share a link or QR so people can join",
                         accent: TripForm.accent
                     )
 
@@ -70,121 +75,142 @@ struct GroupInvitePeopleSheet: View {
                         momentTitle: momentTitle
                     )
 
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            TripFieldLabel(text: "Name")
-                            TripSheetField(value: $name, placeholder: "Aarav Mehta")
-                        }
-                        VStack(alignment: .leading, spacing: 6) {
-                            TripFieldLabel(text: "Email/Phone")
-                            TripSheetField(value: $email, placeholder: "aarav@email.com", keyboardType: .emailAddress)
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        TripFieldLabel(text: "Assigned Role")
-                        HStack(spacing: 8) {
-                            roleChip("PARTICIPANT", label: "Member")
-                            roleChip("ORGANIZER", label: "Organizer")
-                            roleChip("VIEWER", label: "Viewer")
-                        }
-                    }
-
-                    if !participants.isEmpty {
+                    if !activeMembers.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
-                            TripFieldLabel(text: "Already Invited (\(participants.count))")
-                            ForEach(participants) { p in
-                                HStack {
-                                    Circle()
-                                        .fill(TripForm.accent.opacity(0.2))
-                                        .frame(width: 28, height: 28)
-                                        .overlay(
-                                            Text(tripInitials(p.displayName ?? "?"))
-                                                .font(.plusJakarta(size: 10, weight: .bold))
-                                                .foregroundStyle(TripForm.accent)
-                                        )
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(p.displayName ?? "Participant")
-                                            .font(.plusJakarta(size: 13, weight: .semibold))
-                                            .foregroundStyle(TripForm.text)
-                                        Text(p.status ?? "Member")
-                                            .font(.plusJakarta(size: 11))
-                                            .foregroundStyle(TripForm.muted)
-                                    }
-                                    Spacer()
-                                    Text((p.status ?? "Pending").capitalized)
-                                        .font(.plusJakarta(size: 11, weight: .semibold))
-                                        .foregroundStyle(TripForm.green)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(TripForm.green.opacity(0.12))
-                                        .clipShape(Capsule())
-                                }
-                                .padding(8)
-                                .background(TripForm.field)
-                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(TripForm.border))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            TripFieldLabel(text: "Active members (\(activeMembers.count))")
+                            ForEach(activeMembers) { p in
+                                memberRow(p)
                             }
                         }
                     }
 
-                    if let formError {
-                        Text(formError)
+                    if let actionError {
+                        Text(actionError)
                             .font(.plusJakarta(size: 12))
                             .foregroundStyle(Color(hex: "#F87171"))
                     }
+
+                    Text("Share via Messages or WhatsApp so they can join")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(TripForm.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(24)
             }
         } footer: {
-            TripPrimaryCta(
-                label: "Send Invite",
-                enabled: !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !submitting,
-                loading: submitting,
-                footer: "Share via Messages or WhatsApp so they can join",
-                colors: [TripForm.accent, TripSheetTokens.accentEnd],
-                onTap: { Task { await addParticipant() } }
-            )
-            .padding(.horizontal, 24)
-            .padding(.bottom, 8)
-            .background(sheetBg)
+            EmptyView()
         }
         .presentationDetents([.large])
         .task(id: "\(momentId)|\(momentTitle)|\(momentTypeCode)") {
             await bootstrap()
         }
-        .confirmationDialog("Send invite via…", isPresented: $showSendChooser, titleVisibility: .visible) {
-            Button("Messages") {
-                if let body = inviteBody {
-                    InviteOutboundShare.sendSms(phone: pendingPhone, message: body)
+        .confirmationDialog(
+            "Remove member?",
+            isPresented: Binding(
+                get: { removeTarget != nil },
+                set: { if !$0 { removeTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) {
+                if let target = removeTarget {
+                    removeTarget = nil
+                    Task { await removeMember(target) }
                 }
             }
-            Button("WhatsApp") {
-                if let body = inviteBody {
-                    InviteOutboundShare.sendWhatsApp(phone: pendingPhone, message: body)
-                }
-            }
-            Button("Not now", role: .cancel) {}
+            Button("Cancel", role: .cancel) { removeTarget = nil }
         } message: {
-            Text("Share the Momentra invite link through Messages or WhatsApp.")
+            Text("Remove \(removeTarget?.displayName ?? "this member") from the group?")
         }
     }
 
-    private func roleChip(_ code: String, label: String) -> some View {
-        let selected = role == code
-        return Text(label)
-            .font(.plusJakarta(size: 12, weight: .semibold))
-            .foregroundStyle(selected ? TripForm.text : TripForm.muted)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
-            .background(selected ? TripForm.accent.opacity(0.2) : TripForm.field)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(selected ? TripForm.accent : TripForm.border)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .onTapGesture { role = code }
+    @ViewBuilder
+    private func memberRow(_ p: APIClient.GroupParticipantPayload) -> some View {
+        let name = (p.displayName?.isEmpty == false) ? (p.displayName ?? "Member") : "Member"
+        let busy = busyParticipantId == p.participantId
+        let selected = uiRoleCode(p.roleCode)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(TripForm.accent.opacity(0.2))
+                    .frame(width: 28, height: 28)
+                    .overlay(
+                        Text(tripInitials(name))
+                            .font(.plusJakarta(size: 10, weight: .bold))
+                            .foregroundStyle(TripForm.accent)
+                    )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(.plusJakarta(size: 13, weight: .semibold))
+                        .foregroundStyle(TripForm.text)
+                    Text(displayRoleLabel(p.roleCode))
+                        .font(.plusJakarta(size: 11))
+                        .foregroundStyle(TripForm.muted)
+                }
+                Spacer()
+                Text("Active")
+                    .font(.plusJakarta(size: 11, weight: .semibold))
+                    .foregroundStyle(TripForm.green)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(TripForm.green.opacity(0.12))
+                    .clipShape(Capsule())
+                if viewerIsOrganizer {
+                    Button {
+                        removeTarget = p
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(busy ? TripForm.muted : Color(hex: "#EF4444"))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(busy)
+                }
+            }
+            if viewerIsOrganizer {
+                HStack(spacing: 8) {
+                    ForEach(roleOptions, id: \.code) { opt in
+                        let isSelected = selected == opt.code
+                        Text(opt.label)
+                            .font(.plusJakarta(size: 11, weight: .semibold))
+                            .foregroundStyle(isSelected ? TripForm.text : TripForm.muted)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(isSelected ? TripForm.accent.opacity(0.25) : TripForm.field)
+                            .overlay(
+                                Capsule().stroke(isSelected ? TripForm.accent : TripForm.border)
+                            )
+                            .clipShape(Capsule())
+                            .onTapGesture {
+                                guard !busy, !isSelected else { return }
+                                Task { await changeRole(p, to: opt.code) }
+                            }
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(TripForm.field)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(TripForm.border))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func displayRoleLabel(_ roleCode: String?) -> String {
+        switch (roleCode ?? "").uppercased() {
+        case "ORGANIZER", "CO_ORGANIZER": return "Organizer"
+        case "OBSERVER", "VIEWER": return "Viewer"
+        case "RESIDENT": return "Resident"
+        case "CONTRIBUTOR": return "Contributor"
+        default: return "Member"
+        }
+    }
+
+    private func uiRoleCode(_ roleCode: String?) -> String {
+        switch (roleCode ?? "").uppercased() {
+        case "ORGANIZER", "CO_ORGANIZER": return "ORGANIZER"
+        case "OBSERVER", "VIEWER": return "OBSERVER"
+        default: return "PARTICIPANT"
+        }
     }
 
     private func bootstrap() async {
@@ -215,38 +241,36 @@ struct GroupInvitePeopleSheet: View {
         }
     }
 
-    private func addParticipant() async {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        submitting = true
-        formError = nil
+    private func changeRole(_ p: APIClient.GroupParticipantPayload, to roleCode: String) async {
+        busyParticipantId = p.participantId
+        actionError = nil
         do {
-            var emailTrimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
-            var phone: String? = nil
-            if !emailTrimmed.isEmpty {
-                if InviteOutboundShare.looksLikePhone(emailTrimmed) {
-                    phone = emailTrimmed
-                    emailTrimmed = ""
-                }
-            }
-            _ = try await APIClient.shared.addGroupParticipant(
+            _ = try await APIClient.shared.updateGroupParticipantRole(
                 momentId: momentId,
-                displayName: trimmed,
-                roleCode: role,
-                email: emailTrimmed.isEmpty ? nil : emailTrimmed,
-                phone: phone
+                participantId: p.participantId,
+                roleCode: roleCode
             )
-            name = ""
-            email = ""
             await refreshParticipants()
             onSaved()
-            if let phone, inviteBody != nil {
-                pendingPhone = phone
-                showSendChooser = true
-            }
         } catch {
-            formError = error.localizedDescription
+            actionError = error.localizedDescription
         }
-        submitting = false
+        busyParticipantId = nil
+    }
+
+    private func removeMember(_ p: APIClient.GroupParticipantPayload) async {
+        busyParticipantId = p.participantId
+        actionError = nil
+        do {
+            _ = try await APIClient.shared.removeGroupParticipant(
+                momentId: momentId,
+                participantId: p.participantId
+            )
+            await refreshParticipants()
+            onSaved()
+        } catch {
+            actionError = error.localizedDescription
+        }
+        busyParticipantId = nil
     }
 }

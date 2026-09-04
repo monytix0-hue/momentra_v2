@@ -57,6 +57,7 @@ struct GroupSectionSetupView: View {
     @State private var ownership: String
     @State private var targetDateIso: String?
     @State private var amount: String
+    @State private var amountCustom = ""
     @State private var currency: String
     @State private var ownershipSplit: String
     @State private var paymentPlan: String
@@ -80,8 +81,9 @@ struct GroupSectionSetupView: View {
     @State private var houseReview: String
     @State private var people: [DraftPerson]
     @State private var peopleEdited = false
-    @State private var showAddPeople = false
     @State private var issuedInvite: GroupInvite?
+    @State private var mintingInvite = false
+    @State private var inviteError: String?
 
     init(
         variant: GroupSetupVariant,
@@ -165,6 +167,7 @@ struct GroupSectionSetupView: View {
                         name = opt.defaultName
                         people = Self.defaultPeople(for: opt.code)
                         peopleEdited = false
+                        amountCustom = ""
                     }
                 )
                 GroupLongFormDiamondDivider()
@@ -192,48 +195,59 @@ struct GroupSectionSetupView: View {
             .padding(.bottom, 48)
         }
         .background(GroupSetupTheme.bg.ignoresSafeArea())
-        .sheet(isPresented: $showAddPeople) {
-            GroupAddPeopleSheet(
-                palette: palette,
-                experienceTitle: name,
-                typeCode: selectedCode,
-                existingNames: people.map(\.name),
-                issuedInviteCode: issuedInvite?.inviteCode,
-                onAdd: { draft in
-                    peopleEdited = true
-                    people.append(.init(
-                        name: draft.name,
-                        roleCode: "PARTICIPANT",
-                        roleLabel: "Member",
-                        avatarName: draft.avatarName ?? "ges_avatar_6",
-                        isOrganizer: false,
-                        photo: draft.photo,
-                        useInitials: draft.photo == nil && draft.avatarName == nil,
-                        contactEmail: draft.email,
-                        contactPhone: draft.phone
-                    ))
-                },
-                onDismiss: { showAddPeople = false }
-            )
-            .presentationDetents([.fraction(0.92)])
-            .presentationCornerRadius(24)
-            .presentationBackground(GroupSetupTheme.card)
-            .presentationDragIndicator(.hidden)
-        }
         .onAppear {
             onSetupTypeChanged(selectedCode)
         }
         .onChange(of: selectedCode) { _, code in
             issuedInvite = nil
+            inviteError = nil
+            amountCustom = ""
             onSetupTypeChanged(code)
         }
-        .task(id: showAddPeople ? selectedCode : "closed") {
-            guard showAddPeople else { return }
+    }
+
+    private func ensureInvite() async -> GroupInvite? {
+        if let issuedInvite { return issuedInvite }
+        mintingInvite = true
+        inviteError = nil
+        let title = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let minted = await createModel.mintGroupInvite(
+            title: title.isEmpty ? selected.defaultName : title,
+            momentTypeCode: selectedCode,
+            section: variant.section
+        )
+        mintingInvite = false
+        guard let minted else {
+            inviteError = "Couldn’t create invite link. Try again."
+            return nil
+        }
+        issuedInvite = minted
+        return minted
+    }
+
+    private func shareQr() {
+        Task {
+            guard let invite = await ensureInvite() else { return }
+            let url = GroupInviteLink.qrPayload(code: invite.inviteCode)
+            guard let qr = GroupQRCode.image(from: url, size: 512) else {
+                inviteError = "Couldn’t create QR code."
+                return
+            }
+            InviteOutboundShare.presentSystemShare(items: [qr, url])
+        }
+    }
+
+    private func shareWhatsApp() {
+        Task {
+            guard let invite = await ensureInvite() else { return }
+            let url = GroupInviteLink.copyText(code: invite.inviteCode)
             let title = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            issuedInvite = await createModel.mintGroupInvite(
-                title: title.isEmpty ? selected.defaultName : title,
-                momentTypeCode: selectedCode,
-                section: variant.section
+            InviteOutboundShare.sendWhatsApp(
+                phone: nil,
+                message: InviteOutboundShare.inviteMessage(
+                    title: title.isEmpty ? selected.defaultName : title,
+                    url: url
+                )
             )
         }
     }
@@ -315,11 +329,14 @@ struct GroupSectionSetupView: View {
                 label: "Expected amount",
                 hint: "Estimated total",
                 value: amount,
-                options: ["₹25,000", "₹50,000", "₹1,00,000"],
+                options: GroupBudgetUtils.purchaseAmountOptions,
                 onValueChange: { amount = $0 },
                 editableGlyph: true,
                 testTag: "setup.dropdown.expectedAmount"
             )
+            if amount == GroupBudgetUtils.customOption {
+                GroupBudgetCustomField(value: $amountCustom, currencyCode: currency)
+            }
             groupTitle("Money")
             GroupLongFormPrefRow(
                 label: "Currency",
@@ -464,11 +481,14 @@ struct GroupSectionSetupView: View {
                 label: "Monthly budget",
                 hint: "Shared household spending",
                 value: amount,
-                options: ["₹25,000", "₹40,000", "₹60,000"],
+                options: GroupBudgetUtils.livingBudgetOptions,
                 onValueChange: { amount = $0 },
                 editableGlyph: true,
                 testTag: "setup.dropdown.monthlyBudget"
             )
+            if amount == GroupBudgetUtils.customOption {
+                GroupBudgetCustomField(value: $amountCustom, currencyCode: currency)
+            }
             GroupLongFormPrefRow(
                 label: "Rent split",
                 hint: "How rent is divided",
@@ -571,7 +591,7 @@ struct GroupSectionSetupView: View {
         GroupLongFormSectionCard(step: "04", title: isPurchase ? "Purchase Summary" : "Living Summary", accent: palette.accent) {
             VStack(alignment: .leading, spacing: 10) {
                 summaryLine(isPurchase ? "Purchase" : "Home", name)
-                summaryLine(isPurchase ? "Amount" : "Budget", amount)
+                summaryLine(isPurchase ? "Amount" : "Budget", GroupBudgetUtils.summaryLabel(displayBudget: amount, customAmount: amountCustom))
                 summaryLine("Members", buildMemberSummary(people))
             }
             .padding(16)
@@ -637,20 +657,60 @@ struct GroupSectionSetupView: View {
                     }
                 }
             }
-            Button {
-                showAddPeople = true
-            } label: {
-                HStack(spacing: 10) {
-                    Image("ges_icon_add_people").renderingMode(.template).resizable().scaledToFit().frame(width: 18, height: 18)
-                        .foregroundStyle(palette.accent)
-                    Text("Add People").font(.plusJakarta(size: 14, weight: .bold))
+            HStack(spacing: 10) {
+                Button {
+                    shareQr()
+                } label: {
+                    Group {
+                        if mintingInvite {
+                            ProgressView()
+                                .tint(palette.accent)
+                        } else {
+                            HStack(spacing: 8) {
+                                Image(systemName: "qrcode")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Share QR").font(.plusJakarta(size: 13, weight: .bold))
+                            }
+                        }
+                    }
+                    .foregroundStyle(mintingInvite ? palette.accent.opacity(0.35) : palette.accent)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .strokeBorder(
+                                mintingInvite ? palette.accent.opacity(0.35) : palette.accent,
+                                style: StrokeStyle(lineWidth: 1, dash: [8, 8])
+                            )
+                    )
                 }
-                .foregroundStyle(palette.accent)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(palette.accent, style: StrokeStyle(lineWidth: 1, dash: [8, 8])))
+                .buttonStyle(.plain)
+                .disabled(mintingInvite)
+
+                Button {
+                    shareWhatsApp()
+                } label: {
+                    Text("WhatsApp")
+                        .font(.plusJakarta(size: 13, weight: .bold))
+                        .foregroundStyle(mintingInvite ? palette.accent.opacity(0.35) : palette.accent)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .strokeBorder(
+                                    mintingInvite ? palette.accent.opacity(0.35) : palette.accent,
+                                    style: StrokeStyle(lineWidth: 1, dash: [8, 8])
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(mintingInvite)
             }
-            .buttonStyle(.plain)
             .padding(.top, 12)
+            if let inviteError, !inviteError.isEmpty {
+                Text(inviteError)
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(Color(hex: "#FF5961"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 

@@ -158,7 +158,7 @@ async function main(): Promise<void> {
 
     if (!validationOnly) {
       const installFiles = forwardOnly
-        ? install.filter((f) => /^V03[1-9]__|^V04[0-9]__|^V05[0-9]__|^V06[0-9]__/.test(f))
+        ? install.filter((f) => /^V03[1-9]__|^V04[0-9]__|^V05[0-9]__|^V06[0-9]__|^V07[0-9]__/.test(f))
         : install;
       for (const file of installFiles) {
         await runMigrationFile(client, file);

@@ -160,3 +160,36 @@ export async function completeUpload(
   }
   return { uploadId, mediaId: uploadId, status: 'READY' };
 }
+
+/** Signed GET URL for a private media object (default 1 hour). */
+export async function createSignedDownloadUrl(
+  bucket: string,
+  objectKey: string,
+  expiresSec = 3600
+): Promise<string> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(objectKey, expiresSec);
+  if (error || !data?.signedUrl) {
+    throw new AppError(
+      ErrorCode.INFRASTRUCTURE_UNAVAILABLE,
+      `Failed to create Supabase signed download URL: ${error?.message ?? 'unknown'}`,
+      500
+    );
+  }
+  return data.signedUrl;
+}
+
+/** Best-effort signed URL; returns null if storage is misconfigured or signing fails. */
+export async function trySignedDownloadUrl(
+  bucket: string | null | undefined,
+  objectKey: string | null | undefined,
+  expiresSec = 3600
+): Promise<string | null> {
+  if (!bucket?.trim() || !objectKey?.trim()) return null;
+  try {
+    return await createSignedDownloadUrl(bucket.trim(), objectKey.trim(), expiresSec);
+  } catch {
+    return null;
+  }
+}
+

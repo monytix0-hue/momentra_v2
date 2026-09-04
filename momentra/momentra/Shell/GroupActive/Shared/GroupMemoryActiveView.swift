@@ -56,7 +56,8 @@ struct GroupMemoryActiveView: View {
                                         title: item.title ?? "Memory",
                                         meta: formatMemoryInstant(item.occurredAt),
                                         accent: accents[index % accents.count],
-                                        glyph: memoryGlyph(index)
+                                        glyph: memoryGlyph(index),
+                                        thumbUrl: item.primaryDownloadUrl
                                     )
                                 }
                             }
@@ -64,13 +65,16 @@ struct GroupMemoryActiveView: View {
                         GroupSectionCard(title: "Milestone Wall", badge: { GroupApiGapBadge() }) {
                             GroupEmptySection(message: "No milestones yet", detail: "Milestone capture is not live for groups.")
                         }
-                        GroupSectionCard(title: "Gallery", badge: {
-                            HStack(spacing: 6) {
-                                GroupComingSoonBadge()
-                                GroupApiGapBadge()
-                            }
-                        }) {
-                            GroupEmptySection(message: "No photos yet", detail: "Shared gallery requires group media API.")
+                        GroupSectionCard(title: "Gallery") {
+                            MemoryPhotoGalleryStrip(
+                                items: items,
+                                emptyMessage: "No photos yet",
+                                emptyDetail: "Add a memory with a photo from Quick Add.",
+                                text: GroupActiveTheme.text,
+                                muted: GroupActiveTheme.secondary,
+                                field: GroupActiveTheme.card,
+                                border: GroupActiveTheme.border
+                            )
                         }
                         GroupSectionCard(title: "People Impact") {
                             Text(peopleCount > 0 ? "\(peopleCount) people shaped this shared story" : "No participants yet")
@@ -183,13 +187,22 @@ struct GroupMemoryActiveView: View {
         .clipShape(RoundedRectangle(cornerRadius: 24))
     }
 
-    private func memoryRow(title: String, meta: String?, accent: Color, glyph: String) -> some View {
+    private func memoryRow(title: String, meta: String?, accent: Color, glyph: String, thumbUrl: String?) -> some View {
         HStack(spacing: 12) {
             Capsule().fill(accent).frame(width: 3, height: 40)
-            Text(glyph)
-                .frame(width: 36, height: 36)
-                .background(accent.opacity(0.18))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+            if let thumbUrl, !thumbUrl.isEmpty {
+                MemoryMediaThumb(
+                    urlString: thumbUrl,
+                    size: 44,
+                    border: accent.opacity(0.35),
+                    field: Color(hex: "#181716")
+                )
+            } else {
+                Text(glyph)
+                    .frame(width: 36, height: 36)
+                    .background(accent.opacity(0.18))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.plusJakarta(size: 13, weight: .semibold))

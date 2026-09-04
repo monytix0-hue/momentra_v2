@@ -37,7 +37,7 @@ struct WeddingGapQuickAddSheet: View {
         case .budget: WeddingBudgetBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .participant: WeddingParticipantBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .vendor: WeddingVendorBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
-        case .planning: WeddingPlanningBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+        case .planning: WeddingPlanningBody(momentId: momentId, momentTypeCode: "WEDDING", onDismiss: onClose, onSaved: onSaved)
         case .attendance: WeddingAttendanceBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .poll: WeddingPollBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .memory: WeddingMemoryBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
@@ -1140,9 +1140,11 @@ struct WeddingVendorBody: View {
 
 struct WeddingPlanningBody: View {
     var momentId: String?
+    var momentTypeCode: String? = "WEDDING"
     var onDismiss: () -> Void
     var onSaved: () -> Void
 
+    @State private var category = ""
     @State private var title = ""
     @State private var date = ""
     @State private var time = ""
@@ -1161,9 +1163,29 @@ struct WeddingPlanningBody: View {
         participants.map { (id: $0.participantId, name: $0.displayName ?? String($0.participantId.prefix(8))) }
     }
 
+    private var categoryOptions: [String] {
+        GroupPlanningCategoryCatalog.labels(for: momentTypeCode)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             SheetHeader(icon: "calendar", title: "Add Planning Item", accent: accent)
+
+            VStack(alignment: .leading, spacing: 8) {
+                FieldLabel(text: "Category")
+                ChipRow(
+                    options: categoryOptions,
+                    selected: Binding(
+                        get: {
+                            category.isEmpty
+                                ? GroupPlanningCategoryCatalog.defaultLabel(for: momentTypeCode)
+                                : category
+                        },
+                        set: { category = $0 }
+                    ),
+                    accent: accent
+                )
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 FieldLabel(text: "Plan Title")
@@ -1218,7 +1240,9 @@ struct WeddingPlanningBody: View {
 
             PrimaryCta(
                 label: "Add Planning Item",
-                enabled: live && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                enabled: live
+                    && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && !(category.isEmpty ? GroupPlanningCategoryCatalog.defaultLabel(for: momentTypeCode) : category).isEmpty,
                 accent: accent,
                 loading: submitting,
                 footer: "Everyone will be notified"
@@ -1227,6 +1251,9 @@ struct WeddingPlanningBody: View {
             }
         }
         .onAppear {
+            if category.isEmpty {
+                category = GroupPlanningCategoryCatalog.defaultLabel(for: momentTypeCode)
+            }
             if let momentId {
                 Task { await loadParticipants(momentId) }
             }
@@ -1250,11 +1277,22 @@ struct WeddingPlanningBody: View {
         guard let momentId else { return }
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        let categoryLabel = category.isEmpty
+            ? GroupPlanningCategoryCatalog.defaultLabel(for: momentTypeCode)
+            : category
+        let loc = location.trimmingCharacters(in: .whitespacesAndNewlines)
         Task {
             submitting = true
             error = nil
             do {
-                _ = try await APIClient.shared.createPlanningItem(momentId: momentId, title: trimmed)
+                _ = try await APIClient.shared.createPlanningItem(
+                    momentId: momentId,
+                    title: trimmed,
+                    dueAt: SetupDateTimeUtils.combineLocalDateTimeIso(date: date, time: time),
+                    categoryCode: GroupPlanningCategoryCatalog.code(forLabel: categoryLabel),
+                    location: loc.isEmpty ? nil : loc,
+                    priorityCode: GroupPlanningCategoryCatalog.priorityCode(for: priority)
+                )
                 submitting = false
                 onSaved()
                 onDismiss()
@@ -1627,7 +1665,17 @@ struct WeddingMemoryBody: View {
             submitting = true
             error = nil
             do {
-                _ = try await APIClient.shared.createGroupMemory(momentId: momentId, title: trimmed)
+                let created = try await APIClient.shared.createGroupMemory(momentId: momentId, title: trimmed)
+                if let memoryId = created.memoryId,
+                   let image = selectedImage,
+                   let bytes = image.jpegData(compressionQuality: 0.85) {
+                    _ = try await APIClient.shared.uploadAndAttachMemoryMedia(
+                        momentId: momentId,
+                        memoryId: memoryId,
+                        bytes: bytes,
+                        contentType: "image/jpeg"
+                    )
+                }
                 submitting = false
                 onSaved()
                 onDismiss()
@@ -1776,7 +1824,12 @@ struct WeddingUpdateBody: View {
             submitting = true
             error = nil
             do {
-                _ = try await APIClient.shared.postGroupUpdate(momentId: momentId, message: trimmed)
+                _ = try await APIClient.shared.postGroupUpdate(
+                    momentId: momentId,
+                    message: trimmed,
+                    notifyMembers: notify,
+                    urgencyCode: urgent ? "URGENT" : "NORMAL"
+                )
                 submitting = false
                 onSaved()
                 onDismiss()

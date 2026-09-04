@@ -413,10 +413,17 @@ fun GroupDetailField(
 fun GroupPeopleCard(
     people: List<GroupDraftPerson>,
     palette: GroupTypePalette,
-    onInvite: () -> Unit,
+    onShareQr: () -> Unit,
+    onWhatsApp: () -> Unit,
+    shareEnabled: Boolean = true,
+    mintingInvite: Boolean = false,
+    inviteError: String? = null,
     onRemove: ((GroupDraftPerson) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val accent = palette.accent
+    val actionEnabled = shareEnabled && !mintingInvite
+    val stroke = if (actionEnabled) accent else accent.copy(alpha = 0.35f)
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -440,29 +447,77 @@ fun GroupPeopleCard(
                 },
             )
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(GroupSetupTheme.StepInactiveBg)
-                .dashedBorder(1.dp, palette.accent, RoundedCornerShape(14.dp))
-                .clickable(onClick = onInvite)
-                .padding(horizontal = 14.dp),
-            contentAlignment = Alignment.CenterStart,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(GroupSetupTheme.StepInactiveBg)
+                    .dashedBorder(1.dp, stroke, RoundedCornerShape(14.dp))
+                    .then(if (actionEnabled) Modifier.clickable(onClick = onShareQr) else Modifier)
+                    .padding(horizontal = 10.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Image(
-                    painterResource(R.drawable.ges_icon_add_people),
-                    null,
-                    Modifier.size(18.dp),
-                    colorFilter = ColorFilter.tint(palette.accent),
-                )
-                Text("Add People", color = palette.accent, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = PlusJakartaSans)
+                if (mintingInvite) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = accent,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Image(
+                            painterResource(R.drawable.ic_shell_qr),
+                            null,
+                            Modifier.size(16.dp),
+                            colorFilter = ColorFilter.tint(stroke),
+                        )
+                        Text(
+                            "Share QR",
+                            color = stroke,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            fontFamily = PlusJakartaSans,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(GroupSetupTheme.StepInactiveBg)
+                    .dashedBorder(1.dp, stroke, RoundedCornerShape(14.dp))
+                    .then(if (actionEnabled) Modifier.clickable(onClick = onWhatsApp) else Modifier)
+                    .padding(horizontal = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "WhatsApp",
+                    color = stroke,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+        }
+        inviteError?.takeIf { it.isNotBlank() }?.let { err ->
+            Text(
+                err,
+                color = Color(0xFFFF5961),
+                fontSize = 12.sp,
+                fontFamily = PlusJakartaSans,
+            )
         }
     }
 }

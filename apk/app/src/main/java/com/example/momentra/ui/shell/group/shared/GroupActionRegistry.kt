@@ -65,7 +65,7 @@ object GroupActionRegistry {
         HubTileSpec("invite", "Invite", "Add people", R.drawable.ic_group_qa_userplus, androidx.compose.ui.graphics.Color(0xFFFFB598), androidx.compose.ui.graphics.Color(0xFFE8621A), Destination.INVITE, PARTICIPANT_MANAGE),
         HubTileSpec("settle", "Settle", "Pay down balances", R.drawable.ic_group_qa_wallet, androidx.compose.ui.graphics.Color(0xFF059669), androidx.compose.ui.graphics.Color(0xFF10B981), Destination.SETTLEMENT, SETTLEMENT_RECORD),
         HubTileSpec("purchase", "Purchase item", "Track a buy", R.drawable.ic_group_qa_chartbar, androidx.compose.ui.graphics.Color(0xFFF59E0B), androidx.compose.ui.graphics.Color(0xFFD97706), Destination.PURCHASE_ITEM, PURCHASE_ITEM_CREATE),
-        HubTileSpec("resident", "Resident", "Add a housemate", R.drawable.ic_group_qa_userplus, androidx.compose.ui.graphics.Color(0xFF6366F1), androidx.compose.ui.graphics.Color(0xFF4338CA), Destination.RESIDENT, RESIDENT_MANAGE),
+        HubTileSpec("resident", "Invite", "Add people", R.drawable.ic_group_qa_userplus, androidx.compose.ui.graphics.Color(0xFF6366F1), androidx.compose.ui.graphics.Color(0xFF4338CA), Destination.RESIDENT, RESIDENT_MANAGE),
     )
 
     val figmaTripHubTiles: List<HubTileSpec>

@@ -2,6 +2,11 @@ import type { PoolClient } from 'pg';
 import { getPool, withTransaction } from '../database/pool';
 import { enqueueOutboxJob, getOutboxQueue } from '../queue/outbox-queue';
 import { enqueueAnalyticsJob, getAnalyticsQueue } from '../queue/analytics-queue';
+import { enqueueNotificationJob, getNotificationQueue } from '../queue/notification-queue';
+import {
+  isPeerPushEvent,
+  shouldSkipPushForPayload,
+} from '../notifications/allowlist';
 import { redisConfigured } from '../redis/client';
 
 export type OutboxClaimedRow = {
@@ -216,19 +221,44 @@ export async function maybeEnqueueAnalyticsForOutbox(row: OutboxClaimedRow): Pro
   });
 }
 
+export async function maybeEnqueueNotificationForOutbox(row: OutboxClaimedRow): Promise<boolean> {
+  const ev = await getPool().query<{
+    event_name: string;
+    payload: Record<string, unknown> | null;
+  }>(
+    `SELECT event_name, payload FROM events.domain_event WHERE domain_event_id = $1`,
+    [row.domain_event_id]
+  );
+  if (!ev.rowCount) return false;
+  const e = ev.rows[0]!;
+  if (!isPeerPushEvent(e.event_name)) return false;
+  if (shouldSkipPushForPayload(e.event_name, e.payload)) return false;
+  return enqueueNotificationJob({
+    outboxEventId: row.outbox_event_id,
+    domainEventId: row.domain_event_id,
+    topicCode: row.topic_code,
+    eventName: e.event_name,
+  });
+}
+
 export type DispatchOneResult = {
   outcome: 'published' | 'pending_no_redis' | 'failed';
   analytics?: boolean;
   analyticsFailed?: boolean;
+  notification?: boolean;
+  notificationFailed?: boolean;
 };
 
 /**
  * Primary enqueue is the delivery boundary.
- * Analytics fan-out failure does not roll back PUBLISHED.
+ * Analytics / notification fan-out failure does not roll back PUBLISHED.
  */
 export async function dispatchOneOutboxEvent(
   row: OutboxClaimedRow,
-  opts?: { analyticsFailCountRef?: { value: number } }
+  opts?: {
+    analyticsFailCountRef?: { value: number };
+    notificationFailCountRef?: { value: number };
+  }
 ): Promise<DispatchOneResult> {
   try {
     const enqueued = await enqueueOutboxJob({
@@ -254,8 +284,19 @@ export async function dispatchOneOutboxEvent(
       }
     }
 
+    let notification = false;
+    let notificationFailed = false;
+    try {
+      notification = await maybeEnqueueNotificationForOutbox(row);
+    } catch {
+      notificationFailed = true;
+      if (opts?.notificationFailCountRef) {
+        opts.notificationFailCountRef.value += 1;
+      }
+    }
+
     await markOutboxPublished(row.outbox_event_id);
-    return { outcome: 'published', analytics, analyticsFailed };
+    return { outcome: 'published', analytics, analyticsFailed, notification, notificationFailed };
   } catch (e) {
     await markOutboxFailed(row.outbox_event_id, e);
     return { outcome: 'failed' };
@@ -273,12 +314,15 @@ export async function logOutboxStatusCounts(analyticsEnqueueFailCount = 0): Prom
 
   let outboxJobCounts: Record<string, number> | null = null;
   let analyticsJobCounts: Record<string, number> | null = null;
+  let notificationJobCounts: Record<string, number> | null = null;
   if (redisConfigured()) {
     try {
       const oq = getOutboxQueue();
       const aq = getAnalyticsQueue();
+      const nq = getNotificationQueue();
       if (oq) outboxJobCounts = await oq.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed');
       if (aq) analyticsJobCounts = await aq.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed');
+      if (nq) notificationJobCounts = await nq.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed');
     } catch {
       // Redis flaky — outbox counts still useful
     }
@@ -292,6 +336,7 @@ export async function logOutboxStatusCounts(analyticsEnqueueFailCount = 0): Prom
       counts,
       bullmqOutbox: outboxJobCounts,
       bullmqAnalytics: analyticsJobCounts,
+      bullmqNotifications: notificationJobCounts,
       analyticsEnqueueFailCount,
       redisConfigured: redisConfigured(),
     })

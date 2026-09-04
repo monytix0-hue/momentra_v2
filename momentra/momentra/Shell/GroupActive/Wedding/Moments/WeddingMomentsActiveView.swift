@@ -13,6 +13,7 @@ struct WeddingMomentsActiveView: View {
     @State private var listPlanning: [APIClient.GroupLifePayload.LifeInner.PlanningItem] = []
     @State private var listBookings: [APIClient.GroupLifePayload.LifeInner.BookingItem] = []
     @State private var listUpdates: [APIClient.GroupLifePayload.LifeInner.UpdateItem] = []
+    @State private var listMemoryItems: [GroupMemoryItem] = []
     @State private var title: String?
     @State private var loading = true
     @State private var error: String?
@@ -149,9 +150,14 @@ struct WeddingMomentsActiveView: View {
                 }
 
                 WeddingSectionCard(title: "Shared Gallery") {
-                    WeddingEmptyBlock(
-                        message: "Gallery empty",
-                        detail: "Shared media will appear when group media API is live."
+                    MemoryPhotoGalleryStrip(
+                        items: listMemoryItems,
+                        emptyMessage: "Gallery empty",
+                        emptyDetail: "Add a memory with a photo from Quick Add.",
+                        text: WeddingActiveTheme.text,
+                        muted: WeddingActiveTheme.secondary,
+                        field: WeddingActiveTheme.card,
+                        border: WeddingActiveTheme.border
                     )
                 }
 
@@ -188,6 +194,7 @@ struct WeddingMomentsActiveView: View {
             async let plansResult = APIClient.shared.listPlanningItems(momentId: momentId)
             async let bookingsResult = APIClient.shared.listBookings(momentId: momentId)
             async let updatesResult = APIClient.shared.listGroupUpdates(momentId: momentId)
+            async let memoriesResult = APIClient.shared.listGroupMemories(momentId: momentId)
             let loadedPulse = try await pulseResult
             let finFacet = try await financeResult
             let loadedLife = try await lifeResult
@@ -199,6 +206,13 @@ struct WeddingMomentsActiveView: View {
             listPlanning = (try? await plansResult)?.items ?? loadedLife.payload?.planningItems ?? []
             listBookings = (try? await bookingsResult)?.items ?? loadedLife.payload?.bookings ?? []
             listUpdates = (try? await updatesResult)?.items ?? loadedLife.payload?.updates ?? []
+            if let listed = try? await memoriesResult {
+                listMemoryItems = listed.items
+            } else if let facet = try? await APIClient.shared.getGroupMemory(momentId: momentId) {
+                listMemoryItems = facet.payload?.items ?? []
+            } else {
+                listMemoryItems = []
+            }
             GroupTabDataCache.putPulse(momentId, .init(
                 title: loadedPulse.title,
                 pulse: loadedPulse,

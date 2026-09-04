@@ -27,12 +27,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupLifePayloadDto
+import com.example.momentra.data.api.GroupLifePlanningItemDto
+import com.example.momentra.data.api.GroupMemoryItemDto
+import com.example.momentra.data.api.GroupPollItemDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
+import com.example.momentra.ui.shell.group.shared.MomentsPlanningHeader
+import com.example.momentra.ui.shell.group.shared.MomentsPlanningRecentRow
+import com.example.momentra.ui.shell.group.shared.MomentsUrgentUpdateRow
+import com.example.momentra.ui.shell.group.shared.PlanningScheduleSheet
+import com.example.momentra.ui.shell.group.shared.PollDetailSheet
 import com.example.momentra.ui.shell.group.shared.loadGroupPulseTab
+import com.example.momentra.ui.shell.group.shared.recentOpenPlanningItems
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.shell.group.experience.create.ExperienceActiveTheme
 import com.example.momentra.ui.shell.group.experience.create.ExperienceEmptyBlock
@@ -46,6 +56,7 @@ fun ExperienceMomentsActiveContent(
     momentId: String?,
     momentTitle: String?,
     refreshToken: Long,
+    momentTypeCode: String? = null,
     onOpenQuickAdd: () -> Unit = {},
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
     modifier: Modifier = Modifier,
@@ -54,6 +65,11 @@ fun ExperienceMomentsActiveContent(
     var pulse by remember { mutableStateOf<GroupPulsePayloadDto?>(null) }
     var finance by remember { mutableStateOf<GroupFinancePayloadDto?>(null) }
     var life by remember { mutableStateOf<GroupLifePayloadDto?>(null) }
+    var planningItems by remember { mutableStateOf<List<GroupLifePlanningItemDto>>(emptyList()) }
+    var polls by remember { mutableStateOf<List<GroupPollItemDto>>(emptyList()) }
+    var memoryItems by remember { mutableStateOf<List<GroupMemoryItemDto>>(emptyList()) }
+    var selectedPollId by remember { mutableStateOf<String?>(null) }
+    var scheduleOpen by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -85,6 +101,13 @@ fun ExperienceMomentsActiveContent(
             life = facet.payload
             GroupTabDataCache.putLife(momentId, facet.payload)
         }
+        planningItems = repository.listPlanningItems(momentId).getOrNull()?.items
+            ?: life?.planningItems.orEmpty()
+        polls = repository.listPolls(momentId).getOrNull()?.items.orEmpty()
+        repository.listMemories(momentId).onSuccess { memoryItems = it.items }
+            .onFailure {
+                repository.getMemory(momentId).onSuccess { memoryItems = it.payload?.items.orEmpty() }
+            }
     }
 
     if (loading && pulse == null && finance == null) {
@@ -97,7 +120,8 @@ fun ExperienceMomentsActiveContent(
     val peopleCount = pulse?.participantCount ?: 0
     val openTasks = pulse?.openTaskCount ?: life?.openTaskCount ?: 0
     val displayTitle = momentTitle ?: title ?: "${theme.typeLabel} Moments"
-    val planningItems = life?.planningItems.orEmpty()
+    val allPlans = if (planningItems.isNotEmpty()) planningItems else life?.planningItems.orEmpty()
+    val recentPlans = recentOpenPlanningItems(allPlans)
     val bookings = life?.bookings.orEmpty()
     val updates = life?.updates.orEmpty()
 
@@ -133,23 +157,26 @@ fun ExperienceMomentsActiveContent(
             }
         }
 
-        ExperienceSectionCard(theme, "Timeline") {
-            if (planningItems.isEmpty()) {
+        ExperienceSectionCard(theme, "Planning") {
+            MomentsPlanningHeader(
+                title = "Recent plans",
+                text = theme.text,
+                muted = theme.secondary,
+                accent = theme.accent,
+                onOpenSchedule = { scheduleOpen = true },
+            )
+            if (recentPlans.isEmpty()) {
                 ExperienceEmptyBlock(theme, "No timeline items yet", "Add a planning item from Quick Add — nothing is invented.")
             } else {
-                planningItems.forEach { item ->
-                    Text(
-                        item.title ?: item.planningItemId.orEmpty(),
-                        color = theme.text,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = PlusJakartaSans,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(theme.bg)
-                            .border(1.dp, theme.border, RoundedCornerShape(12.dp))
-                            .padding(12.dp),
+                recentPlans.forEach { item ->
+                    MomentsPlanningRecentRow(
+                        item = item,
+                        momentTypeCode = momentTypeCode,
+                        text = theme.text,
+                        muted = theme.secondary,
+                        accent = theme.accent,
+                        field = theme.bg,
+                        border = theme.border,
                     )
                 }
             }
@@ -163,16 +190,55 @@ fun ExperienceMomentsActiveContent(
             }
         }
 
+        ExperienceSectionCard(theme, "Polls") {
+            if (polls.isEmpty()) {
+                ExperienceEmptyBlock(theme, "No polls yet", "Create a poll from Quick Add to decide together.")
+            } else {
+                polls.forEach { item ->
+                    Text(
+                        item.question ?: item.pollId.orEmpty(),
+                        color = theme.text,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(theme.bg)
+                            .border(1.dp, theme.border, RoundedCornerShape(12.dp))
+                            .clickable { item.pollId?.let { selectedPollId = it } }
+                            .padding(12.dp),
+                    )
+                }
+            }
+        }
+
         ExperienceSectionCard(theme, "Updates") {
             if (updates.isEmpty()) {
                 ExperienceEmptyBlock(theme, "No updates yet", "Share a status update from Quick Add.")
             } else {
-                updates.take(8).forEach { Text(it.message ?: it.updateId.orEmpty(), color = theme.text, fontSize = 13.sp, fontFamily = PlusJakartaSans) }
+                updates.take(8).forEach { item ->
+                    MomentsUrgentUpdateRow(
+                        item = item,
+                        text = theme.text,
+                        muted = theme.secondary,
+                        field = theme.bg,
+                        border = theme.border,
+                    )
+                }
             }
         }
 
         ExperienceSectionCard(theme, "Shared Gallery") {
-            ExperienceEmptyBlock(theme, "Gallery empty", "Shared media will appear when group media API is live.")
+            MemoryPhotoGalleryStrip(
+                items = memoryItems,
+                emptyMessage = "No photos yet",
+                emptyDetail = "Add a memory with a photo from Quick Add.",
+                text = theme.text,
+                muted = theme.secondary,
+                field = theme.bg,
+                border = theme.border,
+            )
         }
 
         Column(
@@ -199,5 +265,27 @@ fun ExperienceMomentsActiveContent(
                     .padding(vertical = 14.dp),
             )
         }
+    }
+
+    PlanningScheduleSheet(
+        items = allPlans,
+        visible = scheduleOpen,
+        onDismiss = { scheduleOpen = false },
+        momentTypeCode = momentTypeCode,
+        accent = theme.accent,
+        surface = theme.card,
+        field = theme.bg,
+        border = theme.border,
+        text = theme.text,
+        muted = theme.secondary,
+    )
+    selectedPollId?.let { pollId ->
+        PollDetailSheet(
+            pollId = pollId,
+            visible = true,
+            onDismiss = { selectedPollId = null },
+            onSaved = {},
+            repository = repository,
+        )
     }
 }

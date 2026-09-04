@@ -11,6 +11,7 @@ enum GroupCollabKind: String, Identifiable {
 struct GroupCollabSheet: View {
     let kind: GroupCollabKind
     let momentId: String
+    var momentTypeCode: String? = nil
     @Binding var isPresented: Bool
     var onSaved: () -> Void = {}
 
@@ -33,7 +34,7 @@ struct GroupCollabSheet: View {
     @State private var bookingCost = ""
     @State private var bookedById: String?
     @State private var priority = "Medium"
-    @State private var planTemplate = ""
+    @State private var planCategory = ""
     @State private var mood = "🍁"
     @State private var notifyAll = true
     @State private var bookingConfirmed = true
@@ -213,7 +214,23 @@ struct GroupCollabSheet: View {
     }
 
     private var planningFields: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let categoryOptions = GroupPlanningCategoryCatalog.labels(for: momentTypeCode)
+        return VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                TripFieldLabel(text: "Category")
+                TripChipRow(
+                    options: categoryOptions,
+                    selected: Binding(
+                        get: {
+                            planCategory.isEmpty
+                                ? GroupPlanningCategoryCatalog.defaultLabel(for: momentTypeCode)
+                                : planCategory
+                        },
+                        set: { planCategory = $0 }
+                    ),
+                    accent: TripForm.teal
+                )
+            }
             VStack(alignment: .leading, spacing: 6) {
                 TripFieldLabel(text: "Plan Title")
                 TripSheetField(value: $primary, placeholder: "Dolphin Watching & Sunset Cruise")
@@ -241,17 +258,6 @@ struct GroupCollabSheet: View {
             VStack(alignment: .leading, spacing: 6) {
                 TripFieldLabel(text: "Priority")
                 TripSegmentedControl(options: ["Low", "Medium", "High"], selected: $priority, accent: TripForm.teal)
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                TripFieldLabel(text: "Quick Templates")
-                TripChipRow(
-                    options: ["Restaurant", "Activity", "Travel", "Meeting"],
-                    selected: Binding(
-                        get: { planTemplate.isEmpty ? "Restaurant" : planTemplate },
-                        set: { planTemplate = $0; if primary.isEmpty { primary = $0 } }
-                    ),
-                    accent: TripForm.teal
-                )
             }
             VStack(alignment: .leading, spacing: 6) {
                 TripFieldLabel(text: "Add Notes")
@@ -567,10 +573,19 @@ struct GroupCollabSheet: View {
         do {
             switch kind {
             case .planning:
+                let categoryLabel = planCategory.isEmpty
+                    ? GroupPlanningCategoryCatalog.defaultLabel(for: momentTypeCode)
+                    : planCategory
+                let location = secondary.trimmingCharacters(in: .whitespacesAndNewlines)
+                let note = notes.trimmingCharacters(in: .whitespacesAndNewlines)
                 _ = try await APIClient.shared.createPlanningItem(
                     momentId: momentId,
                     title: trimmed,
-                    dueAt: combinedIso()
+                    dueAt: combinedIso(),
+                    categoryCode: GroupPlanningCategoryCatalog.code(forLabel: categoryLabel),
+                    location: location.isEmpty ? nil : location,
+                    priorityCode: GroupPlanningCategoryCatalog.priorityCode(for: priority),
+                    description: note.isEmpty ? nil : note
                 )
             case .booking:
                 _ = try await APIClient.shared.createBooking(
@@ -593,7 +608,12 @@ struct GroupCollabSheet: View {
                     pollType: multi ? "MULTI_CHOICE" : "SINGLE_CHOICE"
                 )
             case .update:
-                _ = try await APIClient.shared.postGroupUpdate(momentId: momentId, message: trimmed)
+                _ = try await APIClient.shared.postGroupUpdate(
+                    momentId: momentId,
+                    message: trimmed,
+                    notifyMembers: notifyAll,
+                    urgencyCode: GroupPlanningCategoryCatalog.urgencyCode(for: priority == "High" ? "Urgent" : "Normal")
+                )
             case .memory:
                 let title: String
                 if trimmed.isEmpty {

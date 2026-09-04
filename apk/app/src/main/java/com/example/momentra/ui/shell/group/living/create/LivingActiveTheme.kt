@@ -92,7 +92,7 @@ data class LivingActiveTheme(
             ),
             includesContribution = true,
             quickChips = listOf(
-                Triple("🏠", "Resident", LivingQuickAddKind.RESIDENT),
+                Triple("🏠", "Invite", LivingQuickAddKind.RESIDENT),
                 Triple("💳", "Expense", LivingQuickAddKind.EXPENSE),
                 Triple("🎁", "Contribute", LivingQuickAddKind.CONTRIBUTION),
                 Triple("✅", "Task", LivingQuickAddKind.TASK),
@@ -140,7 +140,7 @@ data class LivingActiveTheme(
             ),
             includesContribution = true,
             quickChips = listOf(
-                Triple("🏠", "Resident", LivingQuickAddKind.RESIDENT),
+                Triple("🏠", "Invite", LivingQuickAddKind.RESIDENT),
                 Triple("💳", "Expense", LivingQuickAddKind.EXPENSE),
                 Triple("🎁", "Contribute", LivingQuickAddKind.CONTRIBUTION),
                 Triple("🔧", "Maintain", LivingQuickAddKind.MAINTENANCE),
@@ -188,7 +188,7 @@ data class LivingActiveTheme(
             ),
             includesContribution = false,
             quickChips = listOf(
-                Triple("🏠", "Resident", LivingQuickAddKind.RESIDENT),
+                Triple("🏠", "Invite", LivingQuickAddKind.RESIDENT),
                 Triple("💳", "Expense", LivingQuickAddKind.EXPENSE),
                 Triple("✅", "Task", LivingQuickAddKind.TASK),
                 Triple("📷", "Photos", LivingQuickAddKind.MEMORY),
@@ -236,7 +236,7 @@ data class LivingActiveTheme(
             ),
             includesContribution = false,
             quickChips = listOf(
-                Triple("🏠", "Resident", LivingQuickAddKind.RESIDENT),
+                Triple("🏠", "Invite", LivingQuickAddKind.RESIDENT),
                 Triple("💳", "Expense", LivingQuickAddKind.EXPENSE),
                 Triple("✅", "Task", LivingQuickAddKind.TASK),
                 Triple("📷", "Photos", LivingQuickAddKind.MEMORY),
@@ -273,7 +273,7 @@ enum class LivingQuickAddKind {
 }
 
 fun LivingQuickAddKind.label(): String = when (this) {
-    LivingQuickAddKind.RESIDENT -> "Resident"
+    LivingQuickAddKind.RESIDENT -> "Invite"
     LivingQuickAddKind.EXPENSE -> "Expense"
     LivingQuickAddKind.CONTRIBUTION -> "Contribution"
     LivingQuickAddKind.TASK -> "Task"

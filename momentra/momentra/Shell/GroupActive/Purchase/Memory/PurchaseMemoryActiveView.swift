@@ -82,26 +82,40 @@ struct PurchaseMemoryActiveView: View {
                         )
                     } else {
                         ForEach(items) { item in
-                            Text(item.title ?? "Memory")
-                                .font(.plusJakarta(size: 13))
-                                .foregroundStyle(theme.text)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(12)
-                                .background(theme.accentSoft)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(theme.accent.opacity(0.35))
-                                )
+                            HStack(spacing: 10) {
+                                if let thumb = item.primaryDownloadUrl, !thumb.isEmpty {
+                                    MemoryMediaThumb(
+                                        urlString: thumb,
+                                        size: 40,
+                                        border: theme.accent.opacity(0.35),
+                                        field: theme.accentSoft
+                                    )
+                                }
+                                Text(item.title ?? "Memory")
+                                    .font(.plusJakarta(size: 13))
+                                    .foregroundStyle(theme.text)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(12)
+                            .background(theme.accentSoft)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(theme.accent.opacity(0.35))
+                            )
                         }
                     }
                 }
 
                 PurchaseSectionCard(theme: theme, title: "Memory Gallery") {
-                    PurchaseEmptyBlock(
-                        theme: theme,
-                        message: "No photos yet",
-                        detail: "Shared gallery requires group media API."
+                    MemoryPhotoGalleryStrip(
+                        items: items,
+                        emptyMessage: "No photos yet",
+                        emptyDetail: "Add a memory with a photo from Quick Add.",
+                        text: theme.text,
+                        muted: theme.secondary,
+                        field: theme.card,
+                        border: theme.border
                     )
                 }
 

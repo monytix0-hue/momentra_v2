@@ -4,6 +4,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -55,6 +57,7 @@ class MomentraFirebaseMessagingService : FirebaseMessagingService() {
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setAutoCancel(true)
             .setContentIntent(pending)
+            .setDefaults(NotificationCompat.DEFAULT_SOUND or NotificationCompat.DEFAULT_VIBRATE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
         try {
@@ -68,18 +71,7 @@ class MomentraFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun ensureChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val manager = getSystemService(NotificationManager::class.java) ?: return
-        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                "Momentra updates",
-                NotificationManager.IMPORTANCE_HIGH,
-            ).apply {
-                description = "Group activity, invites, and moment updates"
-            },
-        )
+        ensureDefaultChannel(this)
     }
 
     companion object {
@@ -91,6 +83,11 @@ class MomentraFirebaseMessagingService : FirebaseMessagingService() {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
             val manager = app.getSystemService(NotificationManager::class.java) ?: return
             if (manager.getNotificationChannel(CHANNEL_ID) != null) return
+            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val audioAttrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
             manager.createNotificationChannel(
                 NotificationChannel(
                     CHANNEL_ID,
@@ -98,6 +95,8 @@ class MomentraFirebaseMessagingService : FirebaseMessagingService() {
                     NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
                     description = "Group activity, invites, and moment updates"
+                    setSound(soundUri, audioAttrs)
+                    enableVibration(true)
                 },
             )
         }

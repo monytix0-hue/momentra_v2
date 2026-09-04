@@ -45,8 +45,9 @@ struct GroupExperienceSetupView: View {
     @State private var updateCadence = "Every week"
     @State private var people: [DraftPerson] = []
     @State private var peopleEdited = false
-    @State private var showAddPeople = false
     @State private var issuedInvite: GroupInvite?
+    @State private var mintingInvite = false
+    @State private var inviteError: String?
 
     private var selected: GroupTypeOption { types.first { $0.code == selectedCode } ?? types[0] }
     private var palette: GroupTypePalette { GroupSetupTheme.palette(for: selectedCode) }
@@ -92,34 +93,6 @@ struct GroupExperienceSetupView: View {
             .padding(.bottom, 48)
         }
         .background(GroupSetupTheme.bg.ignoresSafeArea())
-        .sheet(isPresented: $showAddPeople) {
-            GroupAddPeopleSheet(
-                palette: palette,
-                experienceTitle: name,
-                typeCode: selectedCode,
-                existingNames: people.map(\.name),
-                issuedInviteCode: issuedInvite?.inviteCode,
-                onAdd: { draft in
-                    peopleEdited = true
-                    people.append(.init(
-                        name: draft.name,
-                        roleCode: "PARTICIPANT",
-                        roleLabel: "Member",
-                        avatarName: draft.avatarName ?? "ges_avatar_6",
-                        isOrganizer: false,
-                        photo: draft.photo,
-                        useInitials: draft.photo == nil && draft.avatarName == nil,
-                        contactEmail: draft.email,
-                        contactPhone: draft.phone
-                    ))
-                },
-                onDismiss: { showAddPeople = false }
-            )
-            .presentationDetents([.fraction(0.92)])
-            .presentationCornerRadius(24)
-            .presentationBackground(GroupSetupTheme.card)
-            .presentationDragIndicator(.hidden)
-        }
         .onAppear {
             if let initialTypeCode, types.contains(where: { $0.code == initialTypeCode }) {
                 selectedCode = initialTypeCode
@@ -129,18 +102,63 @@ struct GroupExperienceSetupView: View {
             }
             if people.isEmpty { people = defaultPeople(for: selectedCode) }
             onSetupTypeChanged(selectedCode)
+            if let editingMomentId {
+                Task {
+                    if let prefs = try? await APIClient.shared.getMomentNotificationPreferences(momentId: editingMomentId) {
+                        await MainActor.run { notifyChanges = prefs.notifyOnChanges }
+                    }
+                }
+            }
         }
         .onChange(of: selectedCode) { _, code in
             issuedInvite = nil
+            inviteError = nil
             onSetupTypeChanged(code)
         }
-        .task(id: showAddPeople ? selectedCode : "closed") {
-            guard showAddPeople else { return }
+    }
+
+    private func ensureInvite() async -> GroupInvite? {
+        if let issuedInvite { return issuedInvite }
+        mintingInvite = true
+        inviteError = nil
+        let title = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let minted = await createModel.mintGroupInvite(
+            title: title.isEmpty ? selected.defaultName : title,
+            momentTypeCode: selectedCode,
+            section: "experience"
+        )
+        mintingInvite = false
+        guard let minted else {
+            inviteError = "Couldn’t create invite link. Try again."
+            return nil
+        }
+        issuedInvite = minted
+        return minted
+    }
+
+    private func shareQr() {
+        Task {
+            guard let invite = await ensureInvite() else { return }
+            let url = GroupInviteLink.qrPayload(code: invite.inviteCode)
+            guard let qr = GroupQRCode.image(from: url, size: 512) else {
+                inviteError = "Couldn’t create QR code."
+                return
+            }
+            InviteOutboundShare.presentSystemShare(items: [qr, url])
+        }
+    }
+
+    private func shareWhatsApp() {
+        Task {
+            guard let invite = await ensureInvite() else { return }
+            let url = GroupInviteLink.copyText(code: invite.inviteCode)
             let title = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            issuedInvite = await createModel.mintGroupInvite(
-                title: title.isEmpty ? selected.defaultName : title,
-                momentTypeCode: selectedCode,
-                section: "experience"
+            InviteOutboundShare.sendWhatsApp(
+                phone: nil,
+                message: InviteOutboundShare.inviteMessage(
+                    title: title.isEmpty ? selected.defaultName : title,
+                    url: url
+                )
             )
         }
     }
@@ -416,20 +434,60 @@ struct GroupExperienceSetupView: View {
                     }
                 }
             }
-            Button {
-                showAddPeople = true
-            } label: {
-                HStack(spacing: 10) {
-                    Image("ges_icon_add_people").renderingMode(.template).resizable().scaledToFit().frame(width: 18, height: 18)
-                        .foregroundStyle(palette.accent)
-                    Text("Add People").font(.plusJakarta(size: 14, weight: .bold))
+            HStack(spacing: 10) {
+                Button {
+                    shareQr()
+                } label: {
+                    Group {
+                        if mintingInvite {
+                            ProgressView()
+                                .tint(palette.accent)
+                        } else {
+                            HStack(spacing: 8) {
+                                Image(systemName: "qrcode")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Share QR").font(.plusJakarta(size: 13, weight: .bold))
+                            }
+                        }
+                    }
+                    .foregroundStyle(mintingInvite ? palette.accent.opacity(0.35) : palette.accent)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .strokeBorder(
+                                mintingInvite ? palette.accent.opacity(0.35) : palette.accent,
+                                style: StrokeStyle(lineWidth: 1, dash: [8, 8])
+                            )
+                    )
                 }
-                .foregroundStyle(palette.accent)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(palette.accent, style: StrokeStyle(lineWidth: 1, dash: [8, 8])))
+                .buttonStyle(.plain)
+                .disabled(mintingInvite)
+
+                Button {
+                    shareWhatsApp()
+                } label: {
+                    Text("WhatsApp")
+                        .font(.plusJakarta(size: 13, weight: .bold))
+                        .foregroundStyle(mintingInvite ? palette.accent.opacity(0.35) : palette.accent)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .strokeBorder(
+                                    mintingInvite ? palette.accent.opacity(0.35) : palette.accent,
+                                    style: StrokeStyle(lineWidth: 1, dash: [8, 8])
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(mintingInvite)
             }
-            .buttonStyle(.plain)
             .padding(.top, 12)
+            if let inviteError, !inviteError.isEmpty {
+                Text(inviteError)
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(Color(hex: "#FF5961"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 
@@ -507,7 +565,15 @@ struct GroupExperienceSetupView: View {
             inviteCode: issuedInvite?.inviteCode,
             groupSetup: groupSetup,
             editingMomentId: editingMomentId,
-            onSuccess: onCreated
+            onSuccess: { outcome in
+                Task {
+                    _ = try? await APIClient.shared.patchMomentNotificationPreferences(
+                        momentId: outcome.momentId,
+                        notifyOnChanges: notifyChanges
+                    )
+                    await MainActor.run { onCreated(outcome) }
+                }
+            }
         )
     }
 }

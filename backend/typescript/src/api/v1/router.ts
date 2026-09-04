@@ -25,6 +25,7 @@ import * as businessMemoryCommands from '../../modules/business/business-memory-
 import * as projectionService from '../../modules/projection/service';
 import * as deviceService from '../../modules/device/service';
 import * as accountService from '../../modules/account/service';
+import * as notificationPrefs from '../../modules/notifications/preferences';
 import * as momentService from '../../modules/moment/service';
 import * as workService from '../../modules/work/service';
 import * as financeService from '../../modules/finance/service';
@@ -212,6 +213,54 @@ v1Router.delete('/me/devices/:deviceId', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
     const data = await withDb((client) => deviceService.revokeDevice(client, ctx, param(req.params.deviceId)));
+    res.json(commandEnvelope(data, ctx.correlationId));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/me/notification-preferences', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) => notificationPrefs.getGlobalNotificationPrefs(client, ctx));
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.patch('/me/notification-preferences', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(notificationPrefs.patchGlobalNotificationPrefsSchema, req.body);
+    const data = await withDb((client) => notificationPrefs.patchGlobalNotificationPrefs(client, ctx, body));
+    res.json(commandEnvelope(data, ctx.correlationId));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/moments/:momentId/notification-preferences', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const momentId = param(req.params.momentId);
+    const data = await withDb((client) =>
+      notificationPrefs.getMomentNotificationPrefs(client, ctx, momentId)
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.patch('/moments/:momentId/notification-preferences', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const momentId = param(req.params.momentId);
+    const body = parseBody(notificationPrefs.patchMomentNotificationPrefsSchema, req.body);
+    const data = await withDb((client) =>
+      notificationPrefs.patchMomentNotificationPrefs(client, ctx, momentId, body)
+    );
     res.json(commandEnvelope(data, ctx.correlationId));
   } catch (e) {
     next(e);
@@ -2658,6 +2707,68 @@ v1Router.post('/group/moments/:momentId/leave', requireIdempotencyKey, async (re
     next(e);
   }
 });
+
+v1Router.patch(
+  '/group/moments/:momentId/participants/:participantId',
+  requireIdempotencyKey,
+  async (req, res, next) => {
+    try {
+      const ctx = req.requestContext!;
+      const body = parseBody(groupMembership.updateGroupParticipantRoleSchema, req.body ?? {});
+      const result = await runCommand({
+        operationCode: 'GROUP_PARTICIPANT_ROLE_UPDATE',
+        idempotencyKey: req.idempotencyKey!,
+        body,
+        ctx,
+        resourceType: 'PARTICIPANT',
+        execute: async (client, b) => {
+          const r = await groupMembership.updateGroupParticipantRole(
+            client,
+            ctx,
+            param(req.params.momentId),
+            param(req.params.participantId),
+            b as z.infer<typeof groupMembership.updateGroupParticipantRoleSchema>
+          );
+          return { result: r, resourceId: r.participantId };
+        },
+      });
+      publishProjectionUpdated(ctx.userId, ['GROUP_PARTICIPANTS', 'GROUP_ACTIVITY', 'GROUP_PULSE'], ctx.correlationId);
+      res.json(commandEnvelope(result, ctx.correlationId));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+v1Router.post(
+  '/group/moments/:momentId/participants/:participantId/remove',
+  requireIdempotencyKey,
+  async (req, res, next) => {
+    try {
+      const ctx = req.requestContext!;
+      const result = await runCommand({
+        operationCode: 'GROUP_PARTICIPANT_REMOVE',
+        idempotencyKey: req.idempotencyKey!,
+        body: {},
+        ctx,
+        resourceType: 'PARTICIPANT',
+        execute: async (client) => {
+          const r = await groupMembership.removeGroupParticipant(
+            client,
+            ctx,
+            param(req.params.momentId),
+            param(req.params.participantId)
+          );
+          return { result: r, resourceId: r.participantId };
+        },
+      });
+      publishProjectionUpdated(ctx.userId, ['GROUP_PARTICIPANTS', 'GROUP_ACTIVITY', 'GROUP_PULSE'], ctx.correlationId);
+      res.json(commandEnvelope(result, ctx.correlationId));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 v1Router.post('/moments/:momentId/participants', requireIdempotencyKey, async (req, res, next) => {
   try {

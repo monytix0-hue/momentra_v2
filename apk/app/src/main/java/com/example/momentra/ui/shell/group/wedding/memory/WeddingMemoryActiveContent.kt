@@ -41,6 +41,7 @@ import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupProgressBar
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
 import com.example.momentra.ui.shell.group.shared.loadGroupMemoryTab
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.shell.group.wedding.create.WeddingActiveTheme
@@ -192,9 +193,14 @@ fun WeddingMemoryActiveContent(
             }
 
             WeddingSectionCard(title = "🖼  Memory Gallery") {
-                WeddingEmptyBlock(
-                    message = "No photos yet",
-                    detail = "Shared gallery requires group media API.",
+                MemoryPhotoGalleryStrip(
+                    items = items,
+                    emptyMessage = "No photos yet",
+                    emptyDetail = "Add a memory with a photo from Quick Add.",
+                    text = WeddingActiveTheme.Text,
+                    muted = WeddingActiveTheme.Secondary,
+                    field = WeddingActiveTheme.Card,
+                    border = WeddingActiveTheme.Border,
                 )
             }
 

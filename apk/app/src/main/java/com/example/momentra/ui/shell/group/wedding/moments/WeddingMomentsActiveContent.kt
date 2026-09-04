@@ -27,11 +27,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupLifePayloadDto
+import com.example.momentra.data.api.GroupMemoryItemDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
 import com.example.momentra.ui.shell.group.shared.loadGroupPulseTab
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.shell.group.wedding.create.WeddingActiveTheme
@@ -55,6 +57,7 @@ fun WeddingMomentsActiveContent(
     var pulse by remember { mutableStateOf<GroupPulsePayloadDto?>(null) }
     var finance by remember { mutableStateOf<GroupFinancePayloadDto?>(null) }
     var life by remember { mutableStateOf<GroupLifePayloadDto?>(null) }
+    var memoryItems by remember { mutableStateOf<List<GroupMemoryItemDto>>(emptyList()) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -64,6 +67,7 @@ fun WeddingMomentsActiveContent(
             pulse = null
             finance = null
             life = null
+            memoryItems = emptyList()
             return@LaunchedEffect
         }
         error = null
@@ -89,6 +93,10 @@ fun WeddingMomentsActiveContent(
             life = facet.payload
             GroupTabDataCache.putLife(momentId, facet.payload)
         }
+        repository.listMemories(momentId).onSuccess { memoryItems = it.items }
+            .onFailure {
+                repository.getMemory(momentId).onSuccess { memoryItems = it.payload?.items.orEmpty() }
+            }
     }
 
     if (loading && pulse == null && finance == null) {
@@ -216,9 +224,14 @@ fun WeddingMomentsActiveContent(
             }
 
             WeddingSectionCard(title = "📸  Shared Gallery") {
-                WeddingEmptyBlock(
-                    message = "Gallery empty",
-                    detail = "Shared media will appear when group media API is live.",
+                MemoryPhotoGalleryStrip(
+                    items = memoryItems,
+                    emptyMessage = "No photos yet",
+                    emptyDetail = "Add a memory with a photo from Quick Add.",
+                    text = WeddingActiveTheme.Text,
+                    muted = WeddingActiveTheme.Secondary,
+                    field = WeddingActiveTheme.Bg,
+                    border = WeddingActiveTheme.Border,
                 )
             }
 

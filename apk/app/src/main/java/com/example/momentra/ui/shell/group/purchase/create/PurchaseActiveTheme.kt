@@ -286,7 +286,7 @@ enum class PurchaseQuickAddKind {
 }
 
 fun PurchaseQuickAddKind.label(): String = when (this) {
-    PurchaseQuickAddKind.CONTRIBUTOR -> "Contributor"
+    PurchaseQuickAddKind.CONTRIBUTOR -> "Invite"
     PurchaseQuickAddKind.CONTRIBUTION -> "Contribution"
     PurchaseQuickAddKind.EXPENSE -> "Expense"
     PurchaseQuickAddKind.BUDGET -> "Budget"
@@ -315,7 +315,7 @@ fun PurchaseQuickAddKind.emoji(): String = when (this) {
 
 fun purchaseHubTiles(theme: PurchaseActiveTheme): List<PurchaseQuickAddKind> {
     val tiles = mutableListOf<PurchaseQuickAddKind>()
-    if (theme.includesContributor) tiles.add(PurchaseQuickAddKind.CONTRIBUTOR)
+    tiles.add(PurchaseQuickAddKind.CONTRIBUTOR)
     tiles.add(PurchaseQuickAddKind.CONTRIBUTION)
     tiles.add(PurchaseQuickAddKind.EXPENSE)
     if (theme.includesBudget) tiles.add(PurchaseQuickAddKind.BUDGET)

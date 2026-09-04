@@ -246,3 +246,232 @@ export async function leaveGroupMoment(
 
   return { momentId, status: 'LEFT', transferredToUserId };
 }
+
+const MANAGEABLE_ROLES = [
+  'ORGANIZER',
+  'CO_ORGANIZER',
+  'PARTICIPANT',
+  'RESIDENT',
+  'CONTRIBUTOR',
+  'OBSERVER',
+] as const;
+
+export const updateGroupParticipantRoleSchema = z
+  .object({
+    roleCode: z.enum(MANAGEABLE_ROLES),
+  })
+  .strict();
+
+export type UpdateGroupParticipantRoleInput = z.infer<typeof updateGroupParticipantRoleSchema>;
+
+function assertCallerIsOrganizer(me: GroupMemberInfo): void {
+  if (!LEADER_ROLES.has(me.role)) {
+    throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Only organizers can manage members.', 403);
+  }
+}
+
+async function countActiveOrganizers(client: PoolClient, momentId: string): Promise<number> {
+  const rows = await client.query<{ c: string }>(
+    `SELECT COUNT(*)::text AS c
+     FROM collaboration.moment_participant
+     WHERE moment_id = $1
+       AND status = 'ACTIVE'
+       AND participant_role IN ('ORGANIZER', 'CO_ORGANIZER')`,
+    [momentId]
+  );
+  return Number(rows.rows[0]?.c ?? 0);
+}
+
+async function loadActiveParticipant(
+  client: PoolClient,
+  momentId: string,
+  participantId: string
+): Promise<{
+  participantId: string;
+  userId: string | null;
+  roleCode: string;
+}> {
+  const row = await client.query<{
+    participant_id: string;
+    user_id: string | null;
+    participant_role: string;
+  }>(
+    `SELECT participant_id, user_id, participant_role
+     FROM collaboration.moment_participant
+     WHERE moment_id = $1 AND participant_id = $2 AND status = 'ACTIVE'`,
+    [momentId, participantId]
+  );
+  if (!row.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Active participant not found.', 404);
+  }
+  return {
+    participantId: row.rows[0].participant_id,
+    userId: row.rows[0].user_id,
+    roleCode: row.rows[0].participant_role,
+  };
+}
+
+/**
+ * Organizer updates another (or self) ACTIVE participant's role.
+ * Cannot demote the sole remaining organizer.
+ */
+export async function updateGroupParticipantRole(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  participantId: string,
+  body: UpdateGroupParticipantRoleInput
+): Promise<{ momentId: string; participantId: string; roleCode: string }> {
+  const me = await assertGroupMember(client, ctx, momentId);
+  assertCallerIsOrganizer(me);
+
+  const target = await loadActiveParticipant(client, momentId, participantId);
+  const nextRole = body.roleCode;
+  const wasLeader = LEADER_ROLES.has(target.roleCode);
+  const willBeLeader = LEADER_ROLES.has(nextRole);
+
+  if (wasLeader && !willBeLeader) {
+    const organizers = await countActiveOrganizers(client, momentId);
+    if (organizers <= 1) {
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        'Cannot demote the only organizer. Promote someone else first.',
+        400
+      );
+    }
+  }
+
+  await client.query(
+    `UPDATE collaboration.moment_participant
+     SET participant_role = $3, updated_at = now(), version = version + 1
+     WHERE moment_id = $1 AND participant_id = $2 AND status = 'ACTIVE'`,
+    [momentId, participantId, nextRole]
+  );
+
+  if (nextRole === 'ORGANIZER' && target.userId) {
+    await client.query(
+      `UPDATE collaboration.group_moment_context
+       SET organizer_user_id = $2, updated_at = now(), version = version + 1
+       WHERE moment_id = $1`,
+      [momentId, target.userId]
+    );
+  }
+
+  await recordCommandSideEffects(client, ctx, {
+    eventName: 'GroupParticipantRoleUpdated',
+    domainCode: 'GROUP',
+    aggregateType: 'MOMENT',
+    aggregateId: momentId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: {
+      momentId,
+      participantId,
+      previousRole: target.roleCode,
+      roleCode: nextRole,
+      actorUserId: ctx.userId,
+    },
+    auditActionCode: 'PARTICIPANT_ROLE_UPDATE',
+    auditResourceType: 'PARTICIPANT',
+    auditResourceId: participantId,
+    afterSnapshot: { momentId, participantId, roleCode: nextRole },
+    activity: {
+      domainCode: 'GROUP',
+      momentId,
+      activityCode: 'GROUP_MEMBER_ROLE_CHANGED',
+      title: 'Member role updated',
+      payload: { participantId, roleCode: nextRole },
+    },
+  });
+
+  return { momentId, participantId, roleCode: nextRole };
+}
+
+/**
+ * Organizer removes another ACTIVE participant (status REMOVED). Cannot remove self or sole organizer.
+ */
+export async function removeGroupParticipant(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  participantId: string
+): Promise<{ momentId: string; participantId: string; status: 'REMOVED' }> {
+  const me = await assertGroupMember(client, ctx, momentId);
+  assertCallerIsOrganizer(me);
+
+  if (me.participantId === participantId) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      'Use leave to exit the group yourself.',
+      400
+    );
+  }
+
+  const target = await loadActiveParticipant(client, momentId, participantId);
+  if (LEADER_ROLES.has(target.roleCode)) {
+    const organizers = await countActiveOrganizers(client, momentId);
+    if (organizers <= 1) {
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        'Cannot remove the only organizer.',
+        400
+      );
+    }
+  }
+
+  await client.query(
+    `UPDATE collaboration.moment_participant
+     SET status = 'REMOVED',
+         participant_role = CASE
+           WHEN participant_role IN ('ORGANIZER', 'CO_ORGANIZER') THEN 'PARTICIPANT'
+           ELSE participant_role
+         END,
+         updated_at = now(),
+         version = version + 1
+     WHERE moment_id = $1 AND participant_id = $2 AND status = 'ACTIVE'`,
+    [momentId, participantId]
+  );
+
+  const { domainEventId } = await recordCommandSideEffects(client, ctx, {
+    eventName: 'GroupParticipantRemoved',
+    domainCode: 'GROUP',
+    aggregateType: 'MOMENT',
+    aggregateId: momentId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: {
+      momentId,
+      participantId,
+      removedUserId: target.userId,
+      actorUserId: ctx.userId,
+    },
+    auditActionCode: 'PARTICIPANT_REMOVE',
+    auditResourceType: 'PARTICIPANT',
+    auditResourceId: participantId,
+    afterSnapshot: { momentId, participantId, status: 'REMOVED' },
+    activity: {
+      domainCode: 'GROUP',
+      momentId,
+      activityCode: 'GROUP_MEMBER_REMOVED',
+      title: 'Member removed',
+      payload: { participantId, removedUserId: target.userId },
+    },
+  });
+
+  const tax = await loadMomentTaxonomy(client, momentId);
+  await emitLeanBusinessEvent(client, ctx, {
+    eventName: 'participant_exited',
+    eventId: domainEventId,
+    momentId,
+    momentDomain: tax?.domain ?? 'group',
+    momentCategory: tax?.category,
+    momentType: tax?.type,
+    properties: {
+      exit_type: 'removed',
+      initiated_by_role: 'organizer',
+      removed_participant_id: participantId,
+    },
+  });
+
+  return { momentId, participantId, status: 'REMOVED' };
+}

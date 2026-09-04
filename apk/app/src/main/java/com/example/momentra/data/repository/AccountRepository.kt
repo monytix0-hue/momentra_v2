@@ -5,7 +5,11 @@ import com.example.momentra.data.api.ApiService
 import com.example.momentra.data.api.ConsentPurposeBody
 import com.example.momentra.data.api.ConsentPurposeDto
 import com.example.momentra.data.api.DeviceItemDto
+import com.example.momentra.data.api.GlobalNotificationPrefsDto
+import com.example.momentra.data.api.MomentNotificationPrefsDto
+import com.example.momentra.data.api.PatchGlobalNotificationPrefsBody
 import com.example.momentra.data.api.PatchMeBody
+import com.example.momentra.data.api.PatchMomentNotificationPrefsBody
 import com.example.momentra.data.api.mapHttpFailure
 import retrofit2.HttpException
 import java.util.UUID
@@ -48,6 +52,31 @@ class AccountRepository(
     suspend fun withdrawConsent(purposeCode: String): Result<Unit> = runCatching {
         api.withdrawConsent(UUID.randomUUID().toString(), ConsentPurposeBody(purposeCode))
         Unit
+    }.recoverCatching { e -> throw mapThrowable(e) }
+
+    suspend fun getNotificationPreferences(): Result<GlobalNotificationPrefsDto> = runCatching {
+        api.getMyNotificationPreferences().data
+    }.recoverCatching { e -> throw mapThrowable(e) }
+
+    suspend fun patchNotificationPreferences(enabled: Boolean): Result<GlobalNotificationPrefsDto> =
+        runCatching {
+            api.patchMyNotificationPreferences(PatchGlobalNotificationPrefsBody(enabled)).data
+        }.recoverCatching { e -> throw mapThrowable(e) }
+
+    suspend fun getMomentNotificationPreferences(
+        momentId: String,
+    ): Result<MomentNotificationPrefsDto> = runCatching {
+        api.getMomentNotificationPreferences(momentId).data
+    }.recoverCatching { e -> throw mapThrowable(e) }
+
+    suspend fun patchMomentNotificationPreferences(
+        momentId: String,
+        notifyOnChanges: Boolean,
+    ): Result<MomentNotificationPrefsDto> = runCatching {
+        api.patchMomentNotificationPreferences(
+            momentId,
+            PatchMomentNotificationPrefsBody(notifyOnChanges),
+        ).data
     }.recoverCatching { e -> throw mapThrowable(e) }
 
     private fun mapThrowable(e: Throwable): Throwable = when (e) {

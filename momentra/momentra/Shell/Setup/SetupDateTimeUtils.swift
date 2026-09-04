@@ -121,4 +121,32 @@ enum SetupDateTimeUtils {
         formatter.timeZone = .current
         return formatter.date(from: String(iso.prefix(10))) ?? Date()
     }
+
+    /// Combine local `yyyy-MM-dd` + `HH:mm` into an offset ISO-8601 datetime for API `.datetime()`.
+    static func combineLocalDateTimeIso(date: String?, time: String?) -> String? {
+        let dateRaw = (date ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let timeRaw = (time ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !dateRaw.isEmpty || !timeRaw.isEmpty else { return nil }
+        let cal = Calendar.current
+        var comps = DateComponents()
+        let daySource = dateRaw.isEmpty ? Date() : dateFromIso(dateRaw)
+        let day = cal.dateComponents([.year, .month, .day], from: daySource)
+        comps.year = day.year
+        comps.month = day.month
+        comps.day = day.day
+        if timeRaw.isEmpty {
+            comps.hour = 0
+            comps.minute = 0
+        } else {
+            let t = cal.dateComponents([.hour, .minute], from: timeFromIso(timeRaw))
+            comps.hour = t.hour
+            comps.minute = t.minute
+        }
+        comps.second = 0
+        guard let combined = cal.date(from: comps) else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        formatter.timeZone = .current
+        return formatter.string(from: combined)
+    }
 }
