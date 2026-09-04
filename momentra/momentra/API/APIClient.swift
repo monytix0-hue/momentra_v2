@@ -2499,6 +2499,8 @@ final class APIClient {
         let pollType: String?
         let closesAt: String?
         let createdAt: String?
+        let createdByUserId: String?
+        let canClose: Bool?
         let options: [GroupPollDetailOptionPayload]?
     }
 

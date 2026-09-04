@@ -659,6 +659,7 @@ private fun MemoryBody(
         ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
+        tryTakePersistableReadPermission(context.contentResolver, uri)
         photoUri = uri
         photoBitmap = runCatching {
             context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
@@ -758,18 +759,24 @@ private fun MemoryBody(
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
     TripPrimaryCta(
         label = "Save Memory",
-        enabled = caption.isNotBlank() || photoUri != null,
+        enabled = caption.isNotBlank() || photoUri != null || photoBitmap != null,
         loading = submitting,
         gradient = listOf(TripFormTokens.Pink, Color(0xFFF472B6)),
         onClick = {
             scope.launch {
                 submitting = true
                 error = null
+                if (type == "Photo" && photoUri == null && photoBitmap == null) {
+                    submitting = false
+                    error = "Add a photo before saving"
+                    return@launch
+                }
                 val trimmed = caption.trim()
                 val title = when {
                     trimmed.isNotBlank() -> "[$type] $trimmed"
                     else -> type
                 }
+                val wantsPhoto = photoUri != null || photoBitmap != null || type == "Photo"
                 val create = repository.createMemory(
                     momentId = momentId,
                     title = title,
@@ -778,32 +785,35 @@ private fun MemoryBody(
                 create.fold(
                     onSuccess = { created ->
                         val memoryId = created.memoryId
-                        val uri = photoUri
-                        if (memoryId != null && uri != null) {
-                            val bytes = withContext(Dispatchers.IO) {
-                                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                    ?: photoBitmap?.let { bmp ->
-                                        ByteArrayOutputStream().use { out ->
-                                            bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
-                                            out.toByteArray()
-                                        }
-                                    }
-                            }
-                            if (bytes != null) {
-                                repository.uploadAndAttachMemoryMedia(momentId, memoryId, bytes).fold(
-                                    onSuccess = { submitting = false; onSaved(); onDismiss() },
-                                    onFailure = { submitting = false; error = it.message },
-                                )
-                            } else {
-                                submitting = false
-                                onSaved()
-                                onDismiss()
-                            }
-                        } else {
+                        if (memoryId == null) {
+                            submitting = false
+                            error = "Memory saved but id missing — photo not attached"
+                            return@fold
+                        }
+                        if (!wantsPhoto) {
+                            GroupTabDataCache.invalidateMoment(momentId)
                             submitting = false
                             onSaved()
                             onDismiss()
+                            return@fold
                         }
+                        val bytes = withContext(Dispatchers.IO) {
+                            encodeMemoryPhotoBytes(context.contentResolver, photoUri, photoBitmap)
+                        }
+                        if (bytes == null) {
+                            submitting = false
+                            error = "Could not read the selected photo. Try picking it again."
+                            return@fold
+                        }
+                        repository.uploadAndAttachMemoryMedia(momentId, memoryId, bytes).fold(
+                            onSuccess = {
+                                GroupTabDataCache.invalidateMoment(momentId)
+                                submitting = false
+                                onSaved()
+                                onDismiss()
+                            },
+                            onFailure = { submitting = false; error = it.message ?: "Photo upload failed" },
+                        )
                     },
                     onFailure = { submitting = false; error = it.message },
                 )

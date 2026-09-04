@@ -77,6 +77,9 @@ import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.group.shared.GroupExpenseCategoryCatalog
 import com.example.momentra.ui.shell.group.shared.GroupPlanningCategoryCatalog
 import com.example.momentra.ui.shell.group.shared.GroupSettlementSheet
+import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.encodeMemoryPhotoBytes
+import com.example.momentra.ui.shell.group.shared.tryTakePersistableReadPermission
 import com.example.momentra.ui.shell.group.shared.tripDateTimeToIso
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.setup.SetupDateTimeUtils
@@ -1439,6 +1442,7 @@ internal fun WeddingMemorySheetBody(momentId: String?, repository: GroupSliceRep
         ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
+        tryTakePersistableReadPermission(context.contentResolver, uri)
         photoUri = uri
         photoBitmap = runCatching {
             context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
@@ -1537,44 +1541,53 @@ internal fun WeddingMemorySheetBody(momentId: String?, repository: GroupSliceRep
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
     PrimaryCta(
         label = "Capture Memory",
-        enabled = live && title.isNotBlank(),
+        enabled = live && title.isNotBlank() && (type != "Photo" || photoUri != null || photoBitmap != null),
         accent = accent,
         loading = submitting,
-        footer = "Everyone will be notified",
+        footer = if (type == "Photo") "Photo required for Photo memories" else "Everyone will be notified",
         onClick = {
             scope.launch {
                 submitting = true
                 error = null
+                val wantsPhoto = photoUri != null || photoBitmap != null || type == "Photo"
+                if (type == "Photo" && photoUri == null && photoBitmap == null) {
+                    submitting = false
+                    error = "Add a photo before saving"
+                    return@launch
+                }
                 val create = repository.createMemory(momentId!!, title.trim())
                 create.fold(
                     onSuccess = { created ->
                         val memoryId = created.memoryId
-                        val uri = photoUri
-                        if (memoryId != null && uri != null) {
-                            val bytes = withContext(Dispatchers.IO) {
-                                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                    ?: photoBitmap?.let { bmp ->
-                                        ByteArrayOutputStream().use { out ->
-                                            bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
-                                            out.toByteArray()
-                                        }
-                                    }
-                            }
-                            if (bytes != null) {
-                                repository.uploadAndAttachMemoryMedia(momentId, memoryId, bytes).fold(
-                                    onSuccess = { submitting = false; onSaved(); onDismiss() },
-                                    onFailure = { submitting = false; error = it.message },
-                                )
-                            } else {
-                                submitting = false
-                                onSaved()
-                                onDismiss()
-                            }
-                        } else {
+                        if (memoryId == null) {
+                            submitting = false
+                            error = "Memory saved but id missing — photo not attached"
+                            return@fold
+                        }
+                        if (!wantsPhoto) {
+                            GroupTabDataCache.invalidateMoment(momentId)
                             submitting = false
                             onSaved()
                             onDismiss()
+                            return@fold
                         }
+                        val bytes = withContext(Dispatchers.IO) {
+                            encodeMemoryPhotoBytes(context.contentResolver, photoUri, photoBitmap)
+                        }
+                        if (bytes == null) {
+                            submitting = false
+                            error = "Could not read the selected photo. Try picking it again."
+                            return@fold
+                        }
+                        repository.uploadAndAttachMemoryMedia(momentId, memoryId, bytes).fold(
+                            onSuccess = {
+                                GroupTabDataCache.invalidateMoment(momentId)
+                                submitting = false
+                                onSaved()
+                                onDismiss()
+                            },
+                            onFailure = { submitting = false; error = it.message ?: "Photo upload failed" },
+                        )
                     },
                     onFailure = { submitting = false; error = it.message },
                 )

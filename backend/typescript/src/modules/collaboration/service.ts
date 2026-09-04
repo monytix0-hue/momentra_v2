@@ -1,7 +1,12 @@
 import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
-import { assertGovernanceAllowed, assertGroupPeopleManageAllowed } from '../governance/resolver';
+import {
+  assertGovernanceAllowed,
+  assertGroupPeopleManageAllowed,
+  assertPollCloseAllowed,
+  canClosePoll,
+} from '../governance/resolver';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { emitLeanBusinessEvent, loadMomentTaxonomy } from '../analytics/lean-events';
 import { z } from 'zod';
@@ -201,6 +206,8 @@ export async function getPollById(
   pollType: string;
   closesAt: string | null;
   createdAt: string;
+  createdByUserId: string;
+  canClose: boolean;
   options: Array<{
     pollOptionId: string;
     text: string;
@@ -217,8 +224,9 @@ export async function getPollById(
     poll_type: string;
     closes_at: Date | null;
     created_at: Date;
+    created_by_user_id: string;
   }>(
-    `SELECT poll_id, moment_id, question, status, poll_type, closes_at, created_at
+    `SELECT poll_id, moment_id, question, status, poll_type, closes_at, created_at, created_by_user_id
      FROM shared.poll WHERE poll_id = $1`,
     [pollId]
   );
@@ -251,6 +259,8 @@ export async function getPollById(
   );
   const mySet = new Set(myVotes.rows.map((v) => v.poll_option_id));
 
+  const allowedToClose = await canClosePoll(client, ctx, row.moment_id, row.created_by_user_id);
+
   return {
     pollId: row.poll_id,
     momentId: row.moment_id,
@@ -259,6 +269,8 @@ export async function getPollById(
     pollType: row.poll_type,
     closesAt: row.closes_at?.toISOString() ?? null,
     createdAt: row.created_at.toISOString(),
+    createdByUserId: row.created_by_user_id,
+    canClose: row.status === 'OPEN' && allowedToClose,
     options: opts.rows.map((o) => ({
       pollOptionId: o.poll_option_id,
       text: o.option_text,
@@ -326,14 +338,14 @@ export async function closePoll(
   ctx: RequestContext,
   pollId: string
 ): Promise<{ pollId: string; momentId: string; status: string }> {
-  const poll = await client.query<{ moment_id: string; status: string }>(
-    `SELECT moment_id, status FROM shared.poll WHERE poll_id = $1`,
+  const poll = await client.query<{ moment_id: string; status: string; created_by_user_id: string }>(
+    `SELECT moment_id, status, created_by_user_id FROM shared.poll WHERE poll_id = $1`,
     [pollId]
   );
   if (!poll.rows[0]) {
     throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Poll not found', 404);
   }
-  const { moment_id: momentId, status } = poll.rows[0];
+  const { moment_id: momentId, status, created_by_user_id: createdByUserId } = poll.rows[0];
   await assertGovernanceAllowed(client, ctx, { actionCode: 'POLL_CLOSE', resourceType: 'POLL', momentId });
   await assertMomentAccess(client, ctx, momentId);
 
@@ -343,6 +355,7 @@ export async function closePoll(
   if (status !== 'OPEN') {
     throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Poll cannot be closed', 409);
   }
+  await assertPollCloseAllowed(client, ctx, momentId, createdByUserId);
 
   await client.query(
     `UPDATE shared.poll SET status = 'CLOSED', updated_at = now() WHERE poll_id = $1`,

@@ -141,7 +141,7 @@ fun PollDetailBody(
                     },
                 )
             }
-            if (isOpen) {
+            if (isOpen && poll?.canClose == true) {
                 PrimaryCta(
                     label = "Close poll",
                     enabled = !submitting,

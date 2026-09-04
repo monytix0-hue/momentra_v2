@@ -39,7 +39,7 @@ struct PollDetailSheet: View {
                         ForEach(poll.options ?? []) { option in
                             pollOptionRow(option)
                         }
-                        if isOpen {
+                        if isOpen, poll.canClose == true {
                             PrimaryCta(
                                 label: "Close poll",
                                 enabled: !submitting,

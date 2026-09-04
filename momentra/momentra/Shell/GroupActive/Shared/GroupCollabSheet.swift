@@ -621,12 +621,24 @@ struct GroupCollabSheet: View {
                 } else {
                     title = "[\(memoryType)] \(trimmed)"
                 }
+                if memoryType == "Photo" && selectedImageData == nil {
+                    error = "Add a photo before saving"
+                    busy = false
+                    return
+                }
                 let created = try await APIClient.shared.createGroupMemory(
                     momentId: momentId,
                     title: title,
                     capturedAt: nowIso()
                 )
-                if let memoryId = created.memoryId, let bytes = selectedImageData {
+                let wantsPhoto = selectedImageData != nil || memoryType == "Photo"
+                if wantsPhoto {
+                    guard let memoryId = created.memoryId else {
+                        throw NSError(domain: "Momentra", code: 1, userInfo: [NSLocalizedDescriptionKey: "Memory saved but id missing — photo not attached"])
+                    }
+                    guard let bytes = selectedImageData else {
+                        throw NSError(domain: "Momentra", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not read the selected photo. Try picking it again."])
+                    }
                     _ = try await APIClient.shared.uploadAndAttachMemoryMedia(
                         momentId: momentId,
                         memoryId: memoryId,

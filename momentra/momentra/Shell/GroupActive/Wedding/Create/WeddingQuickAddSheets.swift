@@ -1661,14 +1661,24 @@ struct WeddingMemoryBody: View {
         guard let momentId else { return }
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        if type == "Photo" && selectedImage == nil {
+            error = "Add a photo before saving"
+            return
+        }
         Task {
             submitting = true
             error = nil
             do {
                 let created = try await APIClient.shared.createGroupMemory(momentId: momentId, title: trimmed)
-                if let memoryId = created.memoryId,
-                   let image = selectedImage,
-                   let bytes = image.jpegData(compressionQuality: 0.85) {
+                let wantsPhoto = selectedImage != nil || type == "Photo"
+                if wantsPhoto {
+                    guard let memoryId = created.memoryId else {
+                        throw NSError(domain: "Momentra", code: 1, userInfo: [NSLocalizedDescriptionKey: "Memory saved but id missing — photo not attached"])
+                    }
+                    guard let image = selectedImage,
+                          let bytes = image.jpegData(compressionQuality: 0.85) else {
+                        throw NSError(domain: "Momentra", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not read the selected photo. Try picking it again."])
+                    }
                     _ = try await APIClient.shared.uploadAndAttachMemoryMedia(
                         momentId: momentId,
                         memoryId: memoryId,

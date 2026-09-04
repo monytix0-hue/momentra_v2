@@ -5,6 +5,7 @@ import com.example.momentra.data.api.AnalyticsInsightItemDto
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupLifePayloadDto
 import com.example.momentra.data.api.GroupMemoryPayloadDto
+import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import java.util.concurrent.ConcurrentHashMap
 
@@ -22,6 +23,7 @@ object GroupTabDataCache {
         val memory: GroupMemoryPayloadDto?,
         val finance: GroupFinancePayloadDto?,
         val pulse: GroupPulsePayloadDto?,
+        val participants: List<GroupParticipantDto> = emptyList(),
     )
 
     private val pulseByMoment = ConcurrentHashMap<String, PulseTab>()

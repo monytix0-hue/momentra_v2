@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupMemoryPayloadDto
+import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.security.BalanceMask
@@ -62,6 +63,7 @@ fun ExperienceMemoryActiveContent(
     var memory by remember { mutableStateOf<GroupMemoryPayloadDto?>(null) }
     var finance by remember { mutableStateOf<GroupFinancePayloadDto?>(null) }
     var pulse by remember { mutableStateOf<GroupPulsePayloadDto?>(null) }
+    var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     val hide = SecurityPreferences(LocalContext.current).hideBalances()
 
@@ -80,6 +82,7 @@ fun ExperienceMemoryActiveContent(
             memory = cached.memory
             finance = cached.finance ?: finance
             pulse = cached.pulse ?: pulse
+            participants = cached.participants
             loading = false
         }
         if (pulse == null && finance == null) loading = true
@@ -88,6 +91,7 @@ fun ExperienceMemoryActiveContent(
                 memory = data.memory
                 finance = data.finance ?: finance
                 pulse = data.pulse ?: pulse
+                participants = data.participants
                 loading = false
             },
             onFailure = { e ->
@@ -110,6 +114,9 @@ fun ExperienceMemoryActiveContent(
     val displayTitle = momentTitle ?: "${theme.typeLabel} Memory"
     val utilization = GroupFinanceFormat.utilizationPercent(total?.expenseTotal, total?.budgetTotal)
     val positions = finance?.positions.orEmpty()
+    val nameById = remember(participants) {
+        participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
+    }
 
     Column(
         modifier = modifier
@@ -202,7 +209,12 @@ fun ExperienceMemoryActiveContent(
             } else {
                 positions.take(3).forEach { pos ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(pos.participantId.take(8) + "…", color = theme.text, fontSize = 12.sp, fontFamily = PlusJakartaSans)
+                        Text(
+                            nameById[pos.participantId] ?: pos.participantId.take(8),
+                            color = theme.text,
+                            fontSize = 12.sp,
+                            fontFamily = PlusJakartaSans,
+                        )
                         Text(
                             BalanceMask.mask(GroupFinanceFormat.formatMoney(pos.netPosition, pos.currencyCode), hide),
                             color = theme.secondary,

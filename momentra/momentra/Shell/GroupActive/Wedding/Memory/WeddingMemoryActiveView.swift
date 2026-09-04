@@ -10,6 +10,7 @@ struct WeddingMemoryActiveView: View {
     @State private var memory: APIClient.GroupMemoryPayload?
     @State private var finance: APIClient.GroupFinancePayload?
     @State private var pulse: APIClient.GroupPulsePayload?
+    @State private var participants: [APIClient.GroupParticipantPayload] = []
     @State private var listMemoryItems: [APIClient.GroupMemoryPayload.MemoryInner.GroupMemoryItem] = []
     @State private var loading = true
     @State private var error: String?
@@ -24,6 +25,12 @@ struct WeddingMemoryActiveView: View {
         }
         .background(WeddingActiveTheme.bg)
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
+    }
+
+    private var nameById: [String: String] {
+        Dictionary(uniqueKeysWithValues: participants.map {
+            ($0.participantId, $0.displayName ?? String($0.participantId.prefix(8)))
+        })
     }
 
     @ViewBuilder
@@ -138,7 +145,7 @@ struct WeddingMemoryActiveView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             ForEach(Array(positions.prefix(3))) { pos in
                                 HStack {
-                                    Text(String(pos.participantId.prefix(8)) + "…")
+                                    Text(nameById[pos.participantId] ?? String(pos.participantId.prefix(8)))
                                         .font(.plusJakarta(size: 12))
                                         .foregroundStyle(WeddingActiveTheme.text)
                                     Spacer()
@@ -211,6 +218,7 @@ struct WeddingMemoryActiveView: View {
             memory = cachedMemory.memory
             finance = cachedMemory.finance ?? finance
             pulse = cachedMemory.pulse ?? pulse
+            participants = cachedMemory.participants
             loading = false
         }
         if pulse == nil && finance == nil { loading = true }
@@ -219,8 +227,10 @@ struct WeddingMemoryActiveView: View {
             let cached = GroupTabDataCache.peekPulse(momentId)
             async let memoryResult = APIClient.shared.getGroupMemory(momentId: momentId)
             async let listResult = APIClient.shared.listGroupMemories(momentId: momentId)
+            async let partsResult = APIClient.shared.listGroupParticipants(momentId: momentId)
             let loadedMemory = try await memoryResult
             listMemoryItems = (try? await listResult)?.items ?? []
+            let loadedParts = (try? await partsResult) ?? []
             var loadedFinance = cached?.finance
             var loadedPulse = cached?.pulse
             if loadedFinance == nil {
@@ -232,10 +242,12 @@ struct WeddingMemoryActiveView: View {
             memory = loadedMemory
             finance = loadedFinance
             pulse = loadedPulse
+            participants = loadedParts
             GroupTabDataCache.putMemory(momentId, .init(
                 memory: loadedMemory,
                 finance: loadedFinance,
-                pulse: loadedPulse
+                pulse: loadedPulse,
+                participants: loadedParts
             ))
         } catch is CancellationError {
             // Tab/refresh cancelled an in-flight load — not an API outage.

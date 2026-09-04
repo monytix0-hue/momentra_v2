@@ -538,6 +538,22 @@ PollResponse:
     status:
       type: string
       enum: [DRAFT, OPEN, CLOSED, CANCELLED]
+    pollType:
+      type: string
+    closesAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    createdByUserId:
+      type: string
+      format: uuid
+      description: User who created the poll
+    canClose:
+      type: boolean
+      description: Whether the current caller may close this poll (creator, organizer, or admin; false when not OPEN)
     options:
       type: array
       items:
@@ -546,10 +562,16 @@ PollResponse:
           pollOptionId:
             type: string
             format: uuid
+          text:
+            type: string
           optionText:
             type: string
           sortOrder:
             type: integer
+          voteCount:
+            type: integer
+          votedByMe:
+            type: boolean
 
 CompanyCreateRequest:
   type: object

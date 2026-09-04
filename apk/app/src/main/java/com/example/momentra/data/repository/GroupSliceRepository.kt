@@ -703,7 +703,13 @@ class GroupSliceRepository(
             .put(bytes.toRequestBody(contentType.toMediaType()))
             .header("Content-Type", contentType)
             .build()
-        client.newCall(request).execute().use { it.isSuccessful }
+        client.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                val body = resp.body?.string()?.take(200).orEmpty()
+                error("Storage upload failed (${resp.code}): $body")
+            }
+            true
+        }
     }
 
     private fun mapError(e: Throwable): Throwable = when (e) {

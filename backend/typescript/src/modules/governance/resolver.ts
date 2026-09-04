@@ -249,15 +249,16 @@ export async function assertGroupPeopleManageAllowed(
 const GROUP_LEADER_ROLES = new Set(['ORGANIZER', 'CO_ORGANIZER']);
 const COMPANY_LEADER_TYPES = new Set(['OWNER', 'ADMIN']);
 
-/**
- * Group/Business moment lifecycle (archive/cancel/delete) is leader-only.
- * Personal remains any owner with moment access (authorize already scoped).
- */
-export async function assertMomentLifecycleLeader(
+async function loadMomentLeadership(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string
-): Promise<void> {
+): Promise<{
+  domain_code: string;
+  organizer_user_id: string | null;
+  participant_role: string | null;
+  membership_type: string | null;
+} | null> {
   const row = await client.query<{
     domain_code: string;
     organizer_user_id: string | null;
@@ -278,7 +279,37 @@ export async function assertMomentLifecycleLeader(
      WHERE m.moment_id = $1`,
     [momentId, ctx.userId]
   );
-  const r = row.rows[0];
+  return row.rows[0] ?? null;
+}
+
+function isMomentLeader(r: {
+  domain_code: string;
+  organizer_user_id: string | null;
+  participant_role: string | null;
+  membership_type: string | null;
+}, userId: string): boolean {
+  if (r.domain_code === 'PERSONAL') return true;
+  if (r.domain_code === 'GROUP') {
+    const isOrganizerUser = r.organizer_user_id === userId;
+    const isLeaderRole = r.participant_role != null && GROUP_LEADER_ROLES.has(r.participant_role);
+    return isOrganizerUser || isLeaderRole;
+  }
+  if (r.domain_code === 'BUSINESS') {
+    return r.membership_type != null && COMPANY_LEADER_TYPES.has(r.membership_type);
+  }
+  return false;
+}
+
+/**
+ * Group/Business moment lifecycle (archive/cancel/delete) is leader-only.
+ * Personal remains any owner with moment access (authorize already scoped).
+ */
+export async function assertMomentLifecycleLeader(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string
+): Promise<void> {
+  const r = await loadMomentLeadership(client, ctx, momentId);
   if (!r) {
     throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Moment not found.', 404);
   }
@@ -286,9 +317,7 @@ export async function assertMomentLifecycleLeader(
     return;
   }
   if (r.domain_code === 'GROUP') {
-    const isOrganizerUser = r.organizer_user_id === ctx.userId;
-    const isLeaderRole = r.participant_role != null && GROUP_LEADER_ROLES.has(r.participant_role);
-    if (isOrganizerUser || isLeaderRole) return;
+    if (isMomentLeader(r, ctx.userId)) return;
     throw new AppError(
       ErrorCode.GOVERNANCE_DENIED,
       'Only organizers can archive, cancel, or delete this group moment.',
@@ -296,7 +325,7 @@ export async function assertMomentLifecycleLeader(
     );
   }
   if (r.domain_code === 'BUSINESS') {
-    if (r.membership_type != null && COMPANY_LEADER_TYPES.has(r.membership_type)) return;
+    if (isMomentLeader(r, ctx.userId)) return;
     throw new AppError(
       ErrorCode.GOVERNANCE_DENIED,
       'Only company owners or admins can archive, cancel, or delete this business moment.',
@@ -304,4 +333,32 @@ export async function assertMomentLifecycleLeader(
     );
   }
   throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Not permitted for this moment scope.', 403);
+}
+
+/** True if caller may close a poll (creator, group organizer, or company admin). */
+export async function canClosePoll(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  createdByUserId: string
+): Promise<boolean> {
+  if (createdByUserId === ctx.userId) return true;
+  const r = await loadMomentLeadership(client, ctx, momentId);
+  if (!r) return false;
+  return isMomentLeader(r, ctx.userId);
+}
+
+/** Poll close is restricted to the poll creator, group organizers, or company admins. */
+export async function assertPollCloseAllowed(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  createdByUserId: string
+): Promise<void> {
+  if (await canClosePoll(client, ctx, momentId, createdByUserId)) return;
+  throw new AppError(
+    ErrorCode.GOVERNANCE_DENIED,
+    'Only the poll creator, organizers, or admins can close this poll.',
+    403
+  );
 }

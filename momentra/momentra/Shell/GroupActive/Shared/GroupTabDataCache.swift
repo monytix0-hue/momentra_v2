@@ -13,6 +13,7 @@ enum GroupTabDataCache {
         let memory: APIClient.GroupMemoryPayload?
         let finance: APIClient.GroupFinancePayload?
         let pulse: APIClient.GroupPulsePayload?
+        var participants: [APIClient.GroupParticipantPayload] = []
     }
 
     private static var pulseByMoment: [String: PulseTab] = [:]

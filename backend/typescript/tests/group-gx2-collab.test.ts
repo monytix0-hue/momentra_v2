@@ -114,6 +114,15 @@ describe('GX2-C Group collaboration', () => {
     assert.equal(pollDetail.status, 200, JSON.stringify(pollDetail.body));
     assert.equal(pollDetail.body.data.status, 'OPEN');
     assert.equal(pollDetail.body.data.options.length, 2);
+    assert.equal(pollDetail.body.data.canClose, false);
+    assert.ok(pollDetail.body.data.createdByUserId);
+
+    const pollDetailOrg = await request(app)
+      .get(`/v1/polls/${pollId}`)
+      .set('X-Dev-Firebase-Uid', organizerUid);
+    assert.equal(pollDetailOrg.status, 200, JSON.stringify(pollDetailOrg.body));
+    assert.equal(pollDetailOrg.body.data.canClose, true);
+
     const optionId = pollDetail.body.data.options[0].pollOptionId as string;
 
     const vote = await request(app)
@@ -128,6 +137,13 @@ describe('GX2-C Group collaboration', () => {
       [pollId, userIdFor(memberUid)]
     );
     assert.equal(voteRow.rows.length, 1);
+
+    const memberCloseDenied = await request(app)
+      .post(`/v1/polls/${pollId}/close`)
+      .set('X-Dev-Firebase-Uid', memberUid)
+      .set('Idempotency-Key', `gx2-close-deny-${randomUUID()}`)
+      .send({});
+    assert.equal(memberCloseDenied.status, 403, JSON.stringify(memberCloseDenied.body));
 
     const close = await request(app)
       .post(`/v1/polls/${pollId}/close`)
@@ -203,6 +219,35 @@ describe('GX2-C Group collaboration', () => {
       .set('Idempotency-Key', `gx2-deny-${randomUUID()}`)
       .send({ title: 'Should fail' });
     assert.equal(deniedWrite.status, 403);
+  });
+
+  it('allows poll creator (non-organizer) to close their own poll', async () => {
+    const orgUid = `gx2-pc-org-${randomUUID()}`;
+    const memUid = `gx2-pc-mem-${randomUUID()}`;
+    const { momentId } = await createGroupMomentWithTwoMembers(orgUid, memUid);
+
+    const poll = await request(app)
+      .post(`/v1/moments/${momentId}/polls`)
+      .set('X-Dev-Firebase-Uid', memUid)
+      .set('Idempotency-Key', `gx2-pc-poll-${randomUUID()}`)
+      .send({ question: 'Lunch spot?', options: ['Cafe', 'Park'] });
+    assert.equal(poll.status, 201, JSON.stringify(poll.body));
+    const pollId = poll.body.data.pollId as string;
+
+    const asCreator = await request(app)
+      .get(`/v1/polls/${pollId}`)
+      .set('X-Dev-Firebase-Uid', memUid);
+    assert.equal(asCreator.status, 200, JSON.stringify(asCreator.body));
+    assert.equal(asCreator.body.data.canClose, true);
+    assert.equal(asCreator.body.data.createdByUserId, userIdFor(memUid));
+
+    const close = await request(app)
+      .post(`/v1/polls/${pollId}/close`)
+      .set('X-Dev-Firebase-Uid', memUid)
+      .set('Idempotency-Key', `gx2-pc-close-${randomUUID()}`)
+      .send({});
+    assert.equal(close.status, 200, JSON.stringify(close.body));
+    assert.equal(close.body.data.status, 'CLOSED');
   });
 
   it('GET /life returns null domain scores when empty, populated when seeded', async () => {

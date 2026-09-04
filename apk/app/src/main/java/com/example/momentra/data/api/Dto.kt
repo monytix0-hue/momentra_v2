@@ -1338,6 +1338,8 @@ data class GroupPollDetailDto(
     @SerializedName("pollType") val pollType: String? = null,
     @SerializedName("closesAt") val closesAt: String? = null,
     @SerializedName("createdAt") val createdAt: String? = null,
+    @SerializedName("createdByUserId") val createdByUserId: String? = null,
+    @SerializedName("canClose") val canClose: Boolean? = null,
     val options: List<GroupPollOptionDto> = emptyList(),
 )
 

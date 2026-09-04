@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupMemoryPayloadDto
+import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.security.BalanceMask
@@ -65,6 +66,7 @@ fun WeddingMemoryActiveContent(
     var memory by remember { mutableStateOf<GroupMemoryPayloadDto?>(null) }
     var finance by remember { mutableStateOf<GroupFinancePayloadDto?>(null) }
     var pulse by remember { mutableStateOf<GroupPulsePayloadDto?>(null) }
+    var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     val hide = SecurityPreferences(LocalContext.current).hideBalances()
 
@@ -74,6 +76,7 @@ fun WeddingMemoryActiveContent(
             memory = null
             finance = null
             pulse = null
+            participants = emptyList()
             return@LaunchedEffect
         }
         error = null
@@ -86,6 +89,7 @@ fun WeddingMemoryActiveContent(
             memory = cached.memory
             finance = cached.finance ?: finance
             pulse = cached.pulse ?: pulse
+            participants = cached.participants
             loading = false
         }
         if (pulse == null && finance == null) loading = true
@@ -103,6 +107,7 @@ fun WeddingMemoryActiveContent(
                 memory = merged
                 finance = data.finance
                 pulse = data.pulse
+                participants = data.participants
                 loading = false
             },
             onFailure = { e ->
@@ -125,6 +130,9 @@ fun WeddingMemoryActiveContent(
     val displayTitle = momentTitle ?: "Group Memory"
     val utilization = GroupFinanceFormat.utilizationPercent(total?.expenseTotal, total?.budgetTotal)
     val positions = finance?.positions.orEmpty()
+    val nameById = remember(participants) {
+        participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
+    }
 
     WeddingFadeIn {
         Column(
@@ -220,7 +228,7 @@ fun WeddingMemoryActiveContent(
                 } else {
                     positions.take(3).forEach { pos ->
                         Text(
-                            "${pos.participantId.take(8)} · ${BalanceMask.mask(GroupFinanceFormat.formatMoney(pos.netPosition, pos.currencyCode), hide)}",
+                            "${nameById[pos.participantId] ?: pos.participantId.take(8)} · ${BalanceMask.mask(GroupFinanceFormat.formatMoney(pos.netPosition, pos.currencyCode), hide)}",
                             color = WeddingActiveTheme.Secondary,
                             fontSize = 12.sp,
                             fontFamily = PlusJakartaSans,

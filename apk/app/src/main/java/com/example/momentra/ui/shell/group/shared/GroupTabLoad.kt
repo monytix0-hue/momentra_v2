@@ -53,10 +53,17 @@ suspend fun loadGroupMemoryTab(
         val memoryDeferred = async { repository.getMemory(momentId) }
         val financeDeferred = if (cached?.finance != null) null else async { repository.getFinance(momentId) }
         val pulseDeferred = if (cached?.pulse != null) null else async { repository.getPulse(momentId) }
+        val participantsDeferred = async { repository.getParticipants(momentId) }
         val memory = memoryDeferred.await().getOrThrow().payload
         val finance = cached?.finance ?: financeDeferred!!.await().getOrThrow().payload
         val pulse = cached?.pulse ?: pulseDeferred!!.await().getOrThrow().payload
-        val data = GroupTabDataCache.MemoryTab(memory = memory, finance = finance, pulse = pulse)
+        val participants = participantsDeferred.await().getOrNull()?.participants.orEmpty()
+        val data = GroupTabDataCache.MemoryTab(
+            memory = memory,
+            finance = finance,
+            pulse = pulse,
+            participants = participants,
+        )
         GroupTabDataCache.putMemory(momentId, data)
         data
     }
