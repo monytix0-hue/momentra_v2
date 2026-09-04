@@ -52,9 +52,11 @@ import * as analyticsEngine from '../../modules/analytics/engine';
 import { resolveCapabilityForMomentType } from '../../modules/governance/resolver';
 import { executeActionProposal } from '../../modules/ai/action-proposal.command';
 import { telemetryRouter } from './telemetry-router';
+import { leanAnalyticsRouter } from './lean-analytics-router';
 
 export const v1Router = Router();
 v1Router.use('/telemetry', telemetryRouter);
+v1Router.use('/analytics/lean', leanAnalyticsRouter);
 v1Router.use(authMiddleware);
 /** S9-K: per-user when authenticated; fail-open without Redis. */
 v1Router.use(
@@ -371,6 +373,32 @@ v1Router.get('/companies/:companyId/members', async (req, res, next) => {
       businessMembership.listCompanyMembers(client, ctx, param(req.params.companyId))
     );
     res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/companies/:companyId/leave', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(businessMembership.leaveCompanySchema, req.body ?? {});
+    const result = await runCommand({
+      operationCode: 'COMPANY_MEMBER_LEAVE',
+      idempotencyKey: req.idempotencyKey!,
+      body,
+      ctx,
+      resourceType: 'COMPANY_MEMBERSHIP',
+      execute: async (client, b) => {
+        const r = await businessMembership.leaveCompany(
+          client,
+          ctx,
+          param(req.params.companyId),
+          b as z.infer<typeof businessMembership.leaveCompanySchema>
+        );
+        return { result: r, resourceId: r.companyId };
+      },
+    });
+    res.json(commandEnvelope(result, ctx.correlationId));
   } catch (e) {
     next(e);
   }
@@ -2599,6 +2627,33 @@ v1Router.get('/group/moments/:momentId/participants', async (req, res, next) => 
       groupMembership.listGroupParticipants(client, ctx, param(req.params.momentId))
     );
     res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/group/moments/:momentId/leave', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(groupMembership.leaveGroupMomentSchema, req.body ?? {});
+    const result = await runCommand({
+      operationCode: 'GROUP_PARTICIPANT_LEAVE',
+      idempotencyKey: req.idempotencyKey!,
+      body,
+      ctx,
+      resourceType: 'PARTICIPANT',
+      execute: async (client, b) => {
+        const r = await groupMembership.leaveGroupMoment(
+          client,
+          ctx,
+          param(req.params.momentId),
+          b as z.infer<typeof groupMembership.leaveGroupMomentSchema>
+        );
+        return { result: r, resourceId: r.momentId };
+      },
+    });
+    publishProjectionUpdated(ctx.userId, ['GROUP_PARTICIPANTS', 'GROUP_ACTIVITY', 'GROUP_PULSE'], ctx.correlationId);
+    res.json(commandEnvelope(result, ctx.correlationId));
   } catch (e) {
     next(e);
   }

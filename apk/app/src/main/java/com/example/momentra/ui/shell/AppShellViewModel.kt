@@ -192,6 +192,21 @@ class AppShellViewModel(
         refreshBootstrap()
     }
 
+    /** After leaving a Group/Business moment or company, drop selection and reload inventory. */
+    fun clearSelectedMomentAfterLeave() {
+        _state.update {
+            it.copy(
+                selectedMomentId = null,
+                selectedMomentTitle = null,
+                selectedMomentTypeCode = null,
+                selectedMomentByContext = it.selectedMomentByContext + (it.selectedContext to null),
+                momentExperience = MomentExperienceKind.FIRST_MOMENT,
+                contextContent = ShellContentState.Loading,
+            )
+        }
+        refreshBootstrap()
+    }
+
     private fun refreshBootstrap() {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {

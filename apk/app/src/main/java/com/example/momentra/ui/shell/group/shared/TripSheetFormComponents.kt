@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.ui.setup.SetupDateTimeUtils
+import com.example.momentra.ui.shell.empty.group.InviteSendChannelRow
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.time.LocalDate
 import java.time.LocalTime
@@ -369,6 +370,8 @@ internal fun TripInviteShareSection(
     onCopy: () -> Unit,
     onShareLink: () -> Unit,
     onShareQr: () -> Unit,
+    onMessages: (() -> Unit)? = null,
+    onWhatsApp: (() -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -383,6 +386,14 @@ internal fun TripInviteShareSection(
                 copied = copied,
                 onCopy = onCopy,
                 onShareLink = if (copyText != null && !minting) onShareLink else null,
+            )
+        }
+        if (onMessages != null && onWhatsApp != null) {
+            InviteSendChannelRow(
+                enabled = copyText != null && !minting,
+                accent = TripSheetTokens.Accent,
+                onMessages = onMessages,
+                onWhatsApp = onWhatsApp,
             )
         }
         TripInviteQrBlock(qrBitmap = qrBitmap, minting = minting)

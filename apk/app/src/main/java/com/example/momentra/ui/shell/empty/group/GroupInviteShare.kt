@@ -4,11 +4,32 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import java.io.File
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+
+fun inviteMessage(title: String, url: String): String {
+    val label = title.trim().ifBlank { "this Moment" }
+    return "Join $label on Momentra: $url"
+}
+
+fun invitePhoneDigits(phone: String?): String? {
+    if (phone.isNullOrBlank()) return null
+    val digits = phone.filter { it.isDigit() }
+    return digits.takeIf { it.length >= 8 }
+}
+
+fun looksLikeInvitePhone(raw: String?): Boolean {
+    if (raw.isNullOrBlank()) return false
+    val t = raw.trim()
+    if (t.contains('@')) return false
+    return t.any { it.isDigit() } && invitePhoneDigits(t) != null
+}
 
 fun shareInviteLink(context: Context, url: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
@@ -16,6 +37,55 @@ fun shareInviteLink(context: Context, url: String) {
         putExtra(Intent.EXTRA_TEXT, url)
     }
     context.startActivity(Intent.createChooser(intent, "Share invite link"))
+}
+
+/** Opens the SMS compose UI with a prefilled body (and optional recipient). */
+fun sendInviteSms(context: Context, phone: String?, message: String) {
+    val digits = invitePhoneDigits(phone)
+    val uri = if (digits != null) {
+        Uri.parse("smsto:$digits")
+    } else {
+        Uri.parse("smsto:")
+    }
+    val intent = Intent(Intent.ACTION_SENDTO, uri).apply {
+        putExtra("sms_body", message)
+    }
+    runCatching {
+        context.startActivity(intent)
+    }.onFailure {
+        shareInviteLink(context, message)
+    }
+}
+
+/**
+ * Opens WhatsApp with a prefilled invite message.
+ * Prefer `wa.me` when a phone is known; otherwise open WhatsApp share / system share fallback.
+ */
+fun sendInviteWhatsApp(context: Context, phone: String?, message: String) {
+    val encoded = URLEncoder.encode(message, StandardCharsets.UTF_8.toString())
+    val digits = invitePhoneDigits(phone)
+    val candidates = buildList {
+        if (digits != null) {
+            add(Uri.parse("https://wa.me/$digits?text=$encoded"))
+            add(Uri.parse("whatsapp://send?phone=$digits&text=$encoded"))
+        }
+        add(Uri.parse("https://api.whatsapp.com/send?text=$encoded"))
+        add(Uri.parse("whatsapp://send?text=$encoded"))
+    }
+    for (uri in candidates) {
+        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val resolved = intent.resolveActivity(context.packageManager) != null
+        if (resolved) {
+            runCatching {
+                context.startActivity(intent)
+                return
+            }
+        }
+    }
+    // WhatsApp not installed — fall back to system share of the message text.
+    shareInviteLink(context, message)
 }
 
 fun shareInviteQr(context: Context, bitmap: Bitmap, inviteUrl: String) {

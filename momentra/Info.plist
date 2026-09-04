@@ -48,6 +48,11 @@
 	<string>Momentra saves invite QR codes to your photo library so you can share them.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>Momentra uses your contacts to help you invite people to circles and moments.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>whatsapp</string>
+		<string>sms</string>
+	</array>
 	<key>UIAppFonts</key>
 	<array>
 		<string>PlusJakartaSans-Regular.ttf</string>

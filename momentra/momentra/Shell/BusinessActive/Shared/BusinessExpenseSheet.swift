@@ -513,9 +513,44 @@ struct BusinessMembersSheet: View {
                         Text("Code: \(inviteCode ?? "")")
                             .font(.plusJakarta(size: 13))
                             .foregroundStyle(Color(hex: "#9E9AA8"))
-                        Text("Share this link or QR. New members join as MEMBER.")
+                        Text("Share this link via Messages or WhatsApp. New members join as MEMBER.")
                             .font(.plusJakarta(size: 12))
                             .foregroundStyle(Color(hex: "#64748B"))
+                        InviteSendChannelButtons(
+                            enabled: invitePath != nil,
+                            accent: accent,
+                            onMessages: {
+                                if let path = invitePath {
+                                    InviteOutboundShare.sendSms(
+                                        phone: nil,
+                                        message: InviteOutboundShare.inviteMessage(title: "company", url: path)
+                                    )
+                                }
+                            },
+                            onWhatsApp: {
+                                if let path = invitePath {
+                                    InviteOutboundShare.sendWhatsApp(
+                                        phone: nil,
+                                        message: InviteOutboundShare.inviteMessage(title: "company", url: path)
+                                    )
+                                }
+                            }
+                        )
+                        HStack(spacing: 16) {
+                            Button("Copy link") {
+                                UIPasteboard.general.string = invitePath
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(accent)
+                            Button("Share…") {
+                                if let path = invitePath {
+                                    InviteOutboundShare.presentSystemShare(items: [path])
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(accent)
+                        }
+                        .font(.plusJakarta(size: 14, weight: .bold))
                     }
                     Spacer()
                     Button("Done") { showInvite = false }
@@ -523,7 +558,7 @@ struct BusinessMembersSheet: View {
                         .foregroundStyle(accent)
                 }
                 .padding(20)
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
             }
         }
         .presentationDetents([.medium, .large])

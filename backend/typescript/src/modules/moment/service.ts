@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
-import { assertGovernanceAllowed, resolveCapabilityForMomentType } from '../governance/resolver';
+import { assertGovernanceAllowed, resolveCapabilityForMomentType, assertMomentLifecycleLeader } from '../governance/resolver';
 import { insertAudit, insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
 import {
@@ -18,6 +18,7 @@ import {
   insertPersonalSetupRow,
 } from './setup-persistence';
 import { bindInviteToMoment } from '../collaboration/invite-service';
+import { emitLeanBusinessEvent } from '../analytics/lean-events';
 
 const participantRoleSchema = z.enum([
   'ORGANIZER',
@@ -250,6 +251,23 @@ export async function createMoment(
 
   await insertAudit(client, ctx, 'MOMENT_CREATE', 'MOMENT', momentId, domainEventId, result as unknown as Record<string, unknown>);
 
+  const leanDomain =
+    body.domainCode === 'GROUP' ? 'group' : body.domainCode === 'BUSINESS' ? 'business' : 'personal';
+  await emitLeanBusinessEvent(client, ctx, {
+    eventName: 'moment_created',
+    eventId: domainEventId,
+    momentId,
+    momentDomain: leanDomain,
+    momentCategory: familyCode,
+    momentType: body.momentTypeCode,
+    properties: {
+      creation_method: 'api',
+      has_budget: Boolean(body.groupSetup?.budgetAmount),
+      has_timeline: Boolean(body.startAt || body.endAt),
+      initial_participant_count: (body.participants?.length ?? 0) + (body.domainCode === 'GROUP' ? 1 : 0),
+    },
+  });
+
   if (body.domainCode === 'PERSONAL') {
     await client.query(
       `INSERT INTO projection.personal_moments (
@@ -419,6 +437,7 @@ export async function archiveMoment(
   expectedVersion: number
 ): Promise<MomentResult> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'MOMENT_ARCHIVE', resourceType: 'MOMENT', momentId });
+  await assertMomentLifecycleLeader(client, ctx, momentId);
   const updated = await client.query<{ moment_id: string; domain_code: string; title: string; status: string; version: string }>(
     `UPDATE core.moment SET status = 'ARCHIVED', version = version + 1, updated_at = now()
      WHERE moment_id = $1 AND version = $2
@@ -445,6 +464,7 @@ export async function cancelMoment(
   expectedVersion: number
 ): Promise<MomentResult> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'MOMENT_CANCEL', resourceType: 'MOMENT', momentId });
+  await assertMomentLifecycleLeader(client, ctx, momentId);
   const updated = await client.query<{ moment_id: string; domain_code: string; title: string; status: string; version: string }>(
     `UPDATE core.moment SET status = 'CANCELLED', version = version + 1, updated_at = now()
      WHERE moment_id = $1 AND version = $2
@@ -472,6 +492,7 @@ export async function deleteMoment(
   expectedVersion: number
 ): Promise<MomentResult> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'MOMENT_DELETE', resourceType: 'MOMENT', momentId });
+  await assertMomentLifecycleLeader(client, ctx, momentId);
   const existing = await client.query<{ status: string }>(
     `SELECT status FROM core.moment WHERE moment_id = $1`,
     [momentId]

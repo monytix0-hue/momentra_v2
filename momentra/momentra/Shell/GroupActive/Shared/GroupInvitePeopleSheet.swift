@@ -19,6 +19,8 @@ struct GroupInvitePeopleSheet: View {
     @State private var submitting = false
     @State private var formError: String?
     @State private var copied = false
+    @State private var pendingPhone: String?
+    @State private var showSendChooser = false
 
     private let sheetBg = TripSheetTokens.bg
 
@@ -28,6 +30,11 @@ struct GroupInvitePeopleSheet: View {
 
     private var copyText: String? {
         inviteCode.map { GroupInviteLink.copyText(code: $0) }
+    }
+
+    private var inviteBody: String? {
+        guard let copyText else { return nil }
+        return InviteOutboundShare.inviteMessage(title: momentTitle, url: copyText)
     }
 
     private var qrPayload: String? {
@@ -59,7 +66,8 @@ struct GroupInvitePeopleSheet: View {
                         mintError: mintError,
                         copied: $copied,
                         copyText: copyText,
-                        qrPayload: qrPayload
+                        qrPayload: qrPayload,
+                        momentTitle: momentTitle
                     )
 
                     HStack(spacing: 12) {
@@ -133,7 +141,7 @@ struct GroupInvitePeopleSheet: View {
                 label: "Send Invite",
                 enabled: !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !submitting,
                 loading: submitting,
-                footer: "Share the invite link so they can join",
+                footer: "Share via Messages or WhatsApp so they can join",
                 colors: [TripForm.accent, TripSheetTokens.accentEnd],
                 onTap: { Task { await addParticipant() } }
             )
@@ -144,6 +152,21 @@ struct GroupInvitePeopleSheet: View {
         .presentationDetents([.large])
         .task(id: "\(momentId)|\(momentTitle)|\(momentTypeCode)") {
             await bootstrap()
+        }
+        .confirmationDialog("Send invite via…", isPresented: $showSendChooser, titleVisibility: .visible) {
+            Button("Messages") {
+                if let body = inviteBody {
+                    InviteOutboundShare.sendSms(phone: pendingPhone, message: body)
+                }
+            }
+            Button("WhatsApp") {
+                if let body = inviteBody {
+                    InviteOutboundShare.sendWhatsApp(phone: pendingPhone, message: body)
+                }
+            }
+            Button("Not now", role: .cancel) {}
+        } message: {
+            Text("Share the Momentra invite link through Messages or WhatsApp.")
         }
     }
 
@@ -201,9 +224,7 @@ struct GroupInvitePeopleSheet: View {
             var emailTrimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
             var phone: String? = nil
             if !emailTrimmed.isEmpty {
-                let looksLikePhone = emailTrimmed.contains(where: { $0.isNumber })
-                    && !emailTrimmed.contains("@")
-                if looksLikePhone {
+                if InviteOutboundShare.looksLikePhone(emailTrimmed) {
                     phone = emailTrimmed
                     emailTrimmed = ""
                 }
@@ -219,6 +240,10 @@ struct GroupInvitePeopleSheet: View {
             email = ""
             await refreshParticipants()
             onSaved()
+            if let phone, inviteBody != nil {
+                pendingPhone = phone
+                showSendChooser = true
+            }
         } catch {
             formError = error.localizedDescription
         }

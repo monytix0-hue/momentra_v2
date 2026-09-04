@@ -38,9 +38,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import com.example.momentra.ui.shell.empty.group.generateInviteQrBitmap
-import com.example.momentra.ui.shell.empty.group.shareInviteLink
-import com.example.momentra.ui.shell.empty.group.shareInviteQr
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -49,6 +46,15 @@ import com.example.momentra.R
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.empty.group.GroupInviteLink
+import com.example.momentra.ui.shell.empty.group.InviteSendChooserDialog
+import com.example.momentra.ui.shell.empty.group.PendingInviteSend
+import com.example.momentra.ui.shell.empty.group.generateInviteQrBitmap
+import com.example.momentra.ui.shell.empty.group.inviteMessage
+import com.example.momentra.ui.shell.empty.group.looksLikeInvitePhone
+import com.example.momentra.ui.shell.empty.group.sendInviteSms
+import com.example.momentra.ui.shell.empty.group.sendInviteWhatsApp
+import com.example.momentra.ui.shell.empty.group.shareInviteLink
+import com.example.momentra.ui.shell.empty.group.shareInviteQr
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -80,6 +86,7 @@ fun GroupInvitePeopleSheet(
     var submitting by remember { mutableStateOf(false) }
     var formError by remember { mutableStateOf<String?>(null) }
     var copied by remember { mutableStateOf(false) }
+    var pendingSend by remember { mutableStateOf<PendingInviteSend?>(null) }
 
     fun refreshParticipants() {
         scope.launch {
@@ -172,6 +179,14 @@ fun GroupInvitePeopleSheet(
                     val bitmap = qrPayload?.let { generateInviteQrBitmap(it, 512) } ?: return@TripInviteShareSection
                     shareInviteQr(context, bitmap, text)
                 },
+                onMessages = {
+                    val text = copyText ?: return@TripInviteShareSection
+                    sendInviteSms(context, null, inviteMessage(momentTitle, text))
+                },
+                onWhatsApp = {
+                    val text = copyText ?: return@TripInviteShareSection
+                    sendInviteWhatsApp(context, null, inviteMessage(momentTitle, text))
+                },
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -245,15 +260,13 @@ fun GroupInvitePeopleSheet(
                 label = "Send Invite",
                 enabled = name.isNotBlank(),
                 loading = submitting,
-                footer = "Share the invite link so they can join",
+                footer = "Share via Messages or WhatsApp so they can join",
                 onClick = {
                     scope.launch {
                         submitting = true
                         formError = null
                         val contact = email.trim().ifBlank { null }
-                        val isPhone = contact != null &&
-                            contact.any { it.isDigit() } &&
-                            !contact.contains('@')
+                        val isPhone = looksLikeInvitePhone(contact)
                         repository.addParticipant(
                             momentId = momentId,
                             displayName = name.trim(),
@@ -263,6 +276,13 @@ fun GroupInvitePeopleSheet(
                         ).fold(
                             onSuccess = {
                                 submitting = false
+                                val link = copyText
+                                if (isPhone && link != null) {
+                                    pendingSend = PendingInviteSend(
+                                        phone = contact,
+                                        message = inviteMessage(momentTitle, link),
+                                    )
+                                }
                                 name = ""
                                 email = ""
                                 refreshParticipants()
@@ -278,4 +298,18 @@ fun GroupInvitePeopleSheet(
             )
         }
     }
+
+    InviteSendChooserDialog(
+        pending = pendingSend,
+        accent = TripSheetTokens.Accent,
+        onMessages = { pending ->
+            sendInviteSms(context, pending.phone, pending.message)
+            pendingSend = null
+        },
+        onWhatsApp = { pending ->
+            sendInviteWhatsApp(context, pending.phone, pending.message)
+            pendingSend = null
+        },
+        onDismiss = { pendingSend = null },
+    )
 }

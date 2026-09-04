@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGroupMember } from '../collaboration/group-membership';
+import { listMetricsForScope, PHASE7_PULSE_METRIC_CODES } from '../analytics/engine';
 import {
   assembleTypedSignals,
   computeLifeModuleScores,
@@ -121,6 +122,28 @@ export async function getPersonalPulse(
   }
 
   const r = row.rows[0];
+  const basePayload: Record<string, unknown> = { ...(r.widget_payload ?? {}) };
+  // Phase 7 curated metric bundle (server-authored). UI shell unchanged; clients may ignore.
+  const phase7ScopeType = momentId ? 'MOMENT' : 'USER';
+  const phase7ScopeId = momentId ?? userId;
+  try {
+    const phase7Metrics = await listMetricsForScope(client, phase7ScopeType, phase7ScopeId);
+    const curated = new Set<string>(PHASE7_PULSE_METRIC_CODES);
+    const phase7Bundle = phase7Metrics.filter((m) => curated.has(m.metricCode));
+    if (phase7Bundle.length > 0) {
+      basePayload.phase7Metrics = phase7Bundle.map((m) => ({
+        metricCode: m.metricCode,
+        numericValue: m.numericValue,
+        textValue: m.textValue,
+        status: m.status,
+        version: m.version,
+        computedAt: m.computedAt,
+      }));
+    }
+  } catch {
+    // Catalogue may not be migrated yet — leave Pulse payload intact.
+  }
+
   const dto: PersonalPulseDto = {
     userId: r.user_id,
     attentionCount: r.attention_count,
@@ -129,7 +152,7 @@ export async function getPersonalPulse(
     moodState: r.mood_state,
     rhythmScore: r.rhythm_score,
     wellbeingScore: r.wellbeing_score,
-    widgetPayload: r.widget_payload ?? {},
+    widgetPayload: basePayload,
     projectionVersion: parseInt(r.projection_version, 10),
     updatedAt: r.updated_at.toISOString(),
   };

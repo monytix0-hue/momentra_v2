@@ -3,6 +3,7 @@ import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGovernanceAllowed, assertGroupPeopleManageAllowed } from '../governance/resolver';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
+import { emitLeanBusinessEvent, loadMomentTaxonomy } from '../analytics/lean-events';
 import { z } from 'zod';
 
 export const participantSchema = z
@@ -86,6 +87,20 @@ export async function addParticipant(
       );
       return { participantId: existing.rows[0]!.participant_id, momentId };
     }
+    const tax = await loadMomentTaxonomy(client, momentId);
+    await emitLeanBusinessEvent(client, ctx, {
+      eventName: 'participant_joined',
+      momentId,
+      momentDomain: tax?.domain ?? 'group',
+      momentCategory: tax?.category,
+      momentType: tax?.type,
+      userId: targetUserId,
+      properties: {
+        participant_role: body.roleCode,
+        join_source: 'add_participant',
+        was_existing_user: true,
+      },
+    });
     return { participantId: inserted.rows[0].participant_id, momentId };
   }
 
@@ -111,6 +126,20 @@ export async function addParticipant(
       }),
     ]
   );
+  const tax = await loadMomentTaxonomy(client, momentId);
+  await emitLeanBusinessEvent(client, ctx, {
+    eventName: 'participant_invited',
+    momentId,
+    momentDomain: tax?.domain ?? 'group',
+    momentCategory: tax?.category,
+    momentType: tax?.type,
+    properties: {
+      invite_id: inserted.rows[0]!.participant_id,
+      invite_channel: 'in_app',
+      invitee_user_status: 'external',
+      invited_role: body.roleCode,
+    },
+  });
   return { participantId: inserted.rows[0]!.participant_id, momentId };
 }
 

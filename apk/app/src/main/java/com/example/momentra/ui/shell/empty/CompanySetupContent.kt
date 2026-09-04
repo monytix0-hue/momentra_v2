@@ -51,11 +51,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.analytics.AnalyticsScreens
 import com.example.momentra.ui.shell.empty.business.CompanyJoinCodeSheet
+import com.example.momentra.ui.shell.empty.business.CompanyJoinLink
 import com.example.momentra.analytics.MomentraAnalytics
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.CreateCompanyBody
 import com.example.momentra.data.api.CreateLocationBody
+import com.example.momentra.data.api.MintCompanyInviteBody
 import com.example.momentra.domain.CompanySummary
+import com.example.momentra.ui.shell.empty.group.InviteSendChooserDialog
+import com.example.momentra.ui.shell.empty.group.PendingInviteSend
+import com.example.momentra.ui.shell.empty.group.inviteMessage
+import com.example.momentra.ui.shell.empty.group.looksLikeInvitePhone
+import com.example.momentra.ui.shell.empty.group.sendInviteSms
+import com.example.momentra.ui.shell.empty.group.sendInviteWhatsApp
+import androidx.compose.ui.platform.LocalContext
 import java.util.UUID
 import kotlinx.coroutines.launch
 
@@ -119,7 +128,10 @@ fun CompanySetupContent(
     var inviteText by remember { mutableStateOf("") }
     var activating by remember { mutableStateOf(false) }
     var showJoinCode by remember { mutableStateOf(false) }
+    var pendingActivation by remember { mutableStateOf<CompanySummary?>(null) }
+    var pendingInviteSend by remember { mutableStateOf<PendingInviteSend?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     DisposableEffect(Unit) {
         MomentraAnalytics.get().onScreenEnter(AnalyticsScreens.COMPANY_SETUP)
@@ -244,12 +256,32 @@ fun CompanySetupContent(
                                     )
                                 }
                             }
-                            onActivated(
-                                CompanySummary(
-                                    companyId = created.companyId,
-                                    displayName = created.displayName,
-                                ),
+                            val summary = CompanySummary(
+                                companyId = created.companyId,
+                                displayName = created.displayName,
                             )
+                            val inviteUrl = runCatching {
+                                ApiClient.apiService.mintCompanyInvite(
+                                    idempotencyKey = UUID.randomUUID().toString(),
+                                    body = MintCompanyInviteBody(companyId = created.companyId),
+                                ).data.let { dto ->
+                                    dto.invitePath.ifBlank { CompanyJoinLink.displayPath(dto.inviteCode) }
+                                }
+                            }.getOrNull()
+                            if (inviteUrl != null) {
+                                val phoneHint = members
+                                    .asReversed()
+                                    .mapNotNull { m -> m.name.takeIf { looksLikeInvitePhone(it) } }
+                                    .firstOrNull()
+                                    ?: inviteText.takeIf { looksLikeInvitePhone(it) }
+                                pendingInviteSend = PendingInviteSend(
+                                    phone = phoneHint,
+                                    message = inviteMessage(created.displayName, inviteUrl),
+                                )
+                                pendingActivation = summary
+                            } else {
+                                onActivated(summary)
+                            }
                         } catch (_: Exception) {
                             onClose()
                         } finally {
@@ -269,6 +301,28 @@ fun CompanySetupContent(
         onJoined = { company ->
             showJoinCode = false
             onActivated(company)
+        },
+    )
+
+    InviteSendChooserDialog(
+        pending = pendingInviteSend,
+        accent = CoAccent,
+        onMessages = { pending ->
+            sendInviteSms(context, pending.phone, pending.message)
+            pendingInviteSend = null
+            pendingActivation?.let { onActivated(it) }
+            pendingActivation = null
+        },
+        onWhatsApp = { pending ->
+            sendInviteWhatsApp(context, pending.phone, pending.message)
+            pendingInviteSend = null
+            pendingActivation?.let { onActivated(it) }
+            pendingActivation = null
+        },
+        onDismiss = {
+            pendingInviteSend = null
+            pendingActivation?.let { onActivated(it) }
+            pendingActivation = null
         },
     )
 }

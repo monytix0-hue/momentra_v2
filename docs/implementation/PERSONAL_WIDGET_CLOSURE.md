@@ -47,3 +47,7 @@ Proof: `backend/typescript/tests/personal-three-layer-join.test.ts`.
 ## Honesty rule
 
 Every widget is **MAPPED**, **STATIC**, or **honest empty / Coming soon**. Do not invent bond/vitality/future scores on-device. Do not treat Excel empty `API Route` as “no backend needed” for PROJECTION_READ / CANONICAL_WRITE rows.
+
+## Phase 7 Pulse metric freeze (PER-008 subset)
+
+Keep the live Pulse UI shell. Curated Pulse-surface metrics are frozen in V058 + [`PERSONAL_PHASE7_PULSE_METRIC_MAP.json`](PERSONAL_PHASE7_PULSE_METRIC_MAP.json) / [`PERSONAL_PHASE7_PULSE_CURATION.md`](PERSONAL_PHASE7_PULSE_CURATION.md). Analytics DET syncs those values into `analytics.metric_*`; `GET /v1/personal/pulse` may expose them as `widget_payload.phase7Metrics` without changing hero/axis chrome. When pack rows conflict with this honesty rule, honesty wins — defer ZERO_GAP / AI Coming Soon / Emotional DNA.

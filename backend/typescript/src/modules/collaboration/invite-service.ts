@@ -5,6 +5,7 @@ import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGovernanceAllowed, assertGroupPeopleManageAllowed } from '../governance/resolver';
 import { recordCommandSideEffects } from '../../platform/events/outbox';
+import { emitLeanBusinessEvent, loadMomentTaxonomy } from '../analytics/lean-events';
 
 export const mintInviteSchema = z
   .object({
@@ -300,6 +301,21 @@ export async function mintInvite(
       'Invite link created',
       { inviteCode: result.inviteCode, momentId: boundMomentId }
     );
+    const tax = await loadMomentTaxonomy(client, boundMomentId);
+    await emitLeanBusinessEvent(client, ctx, {
+      eventName: 'participant_invited',
+      eventId: domainEventId,
+      momentId: boundMomentId,
+      momentDomain: tax?.domain ?? 'group',
+      momentCategory: tax?.category,
+      momentType: tax?.type ?? body.momentTypeCode,
+      properties: {
+        invite_id: result.inviteId,
+        invite_channel: 'link',
+        invitee_user_status: 'unknown',
+        invited_role: 'PARTICIPANT',
+      },
+    });
   }
   return result;
 }
@@ -478,6 +494,22 @@ export async function redeemInvite(
     displayName ? `${displayName} joined` : 'Someone joined the group',
     { inviteCode: code, momentId: row.moment_id, participantId, userId: ctx.userId }
   );
+
+  const tax = await loadMomentTaxonomy(client, row.moment_id);
+  await emitLeanBusinessEvent(client, ctx, {
+    eventName: 'participant_joined',
+    eventId: domainEventId,
+    momentId: row.moment_id,
+    momentDomain: tax?.domain ?? 'group',
+    momentCategory: tax?.category,
+    momentType: tax?.type,
+    properties: {
+      invite_id: row.invite_id,
+      participant_role: 'PARTICIPANT',
+      join_source: 'invite_redeem',
+      was_existing_user: true,
+    },
+  });
 
   return {
     inviteId: row.invite_id,

@@ -454,6 +454,20 @@ interface ApiService {
         @Path("momentId") momentId: String,
     ): SuccessEnvelope<GroupParticipantsDto>
 
+    @POST("v1/group/moments/{momentId}/leave")
+    suspend fun leaveGroupMoment(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: LeaveMomentBody,
+    ): SuccessEnvelope<LeaveMomentResultDto>
+
+    @POST("v1/companies/{companyId}/leave")
+    suspend fun leaveCompany(
+        @Path("companyId") companyId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: LeaveMomentBody,
+    ): SuccessEnvelope<LeaveCompanyResultDto>
+
     @PATCH("v1/group/moments/{momentId}/budget")
     suspend fun patchGroupBudget(
         @Path("momentId") momentId: String,

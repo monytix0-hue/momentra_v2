@@ -809,6 +809,39 @@ final class APIClient {
         )
     }
 
+    struct LeaveResult: Decodable {
+        let momentId: String?
+        let companyId: String?
+        let status: String?
+        let transferredToUserId: String?
+    }
+
+    func leaveGroupMoment(
+        momentId: String,
+        transferUserId: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> LeaveResult {
+        struct Body: Encodable { let transferUserId: String? }
+        return try await authorizedPost(
+            path: "v1/group/moments/\(momentId)/leave",
+            body: Body(transferUserId: transferUserId),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func leaveCompany(
+        companyId: String,
+        transferUserId: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> LeaveResult {
+        struct Body: Encodable { let transferUserId: String? }
+        return try await authorizedPost(
+            path: "v1/companies/\(companyId)/leave",
+            body: Body(transferUserId: transferUserId),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
     func mintGroupInvite(
         title: String,
         momentTypeCode: String,

@@ -91,6 +91,7 @@ fun GroupAddPeopleSheet(
     var contacts by remember { mutableStateOf<List<DeviceContact>>(emptyList()) }
     var copied by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
+    var pendingSend by remember { mutableStateOf<PendingInviteSend?>(null) }
     var hasContactsPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==
@@ -120,6 +121,15 @@ fun GroupAddPeopleSheet(
     val invitePath = inviteCode?.let { GroupInviteLink.displayPath(it) }
     val copyText = inviteCode?.let { GroupInviteLink.copyText(it) }
     val qrPayload = inviteCode?.let { GroupInviteLink.qrPayload(it) }
+    val inviteBody = remember(copyText, experienceTitle) {
+        copyText?.let { inviteMessage(experienceTitle, it) }
+    }
+
+    fun offerSendAfterAdd(phone: String?) {
+        val body = inviteBody ?: return
+        if (!looksLikeInvitePhone(phone)) return
+        pendingSend = PendingInviteSend(phone = phone, message = body)
+    }
     val qrSizePx = with(LocalDensity.current) { 144.dp.roundToPx() }
     val qrBitmap = remember(qrPayload, qrSizePx) {
         qrPayload?.let { generateInviteQrBitmap(it, qrSizePx) }
@@ -340,6 +350,7 @@ fun GroupAddPeopleSheet(
                                                     contactPhone = contact.phone,
                                                 ),
                                             )
+                                            offerSendAfterAdd(contact.phone ?: contact.subtitle)
                                         }
                                     },
                                 )
@@ -369,6 +380,9 @@ fun GroupAddPeopleSheet(
                                                 contactPhone = typedQuery.takeIf { looksPhone && !looksEmail },
                                             ),
                                         )
+                                        if (looksPhone && !looksEmail) {
+                                            offerSendAfterAdd(typedQuery)
+                                        }
                                         query = ""
                                     },
                                 )
@@ -444,6 +458,18 @@ fun GroupAddPeopleSheet(
                                     )
                                 }
                             }
+                            InviteSendChannelRow(
+                                enabled = inviteBody != null,
+                                accent = palette.accent,
+                                onMessages = {
+                                    val body = inviteBody ?: return@InviteSendChannelRow
+                                    sendInviteSms(context, null, body)
+                                },
+                                onWhatsApp = {
+                                    val body = inviteBody ?: return@InviteSendChannelRow
+                                    sendInviteWhatsApp(context, null, body)
+                                },
+                            )
                         }
 
                         HorizontalDivider(color = GroupSetupTheme.Border, thickness = 1.dp)
@@ -555,6 +581,20 @@ fun GroupAddPeopleSheet(
             }
         }
     }
+
+    InviteSendChooserDialog(
+        pending = pendingSend,
+        accent = palette.accent,
+        onMessages = { pending ->
+            sendInviteSms(context, pending.phone, pending.message)
+            pendingSend = null
+        },
+        onWhatsApp = { pending ->
+            sendInviteWhatsApp(context, pending.phone, pending.message)
+            pendingSend = null
+        },
+        onDismiss = { pendingSend = null },
+    )
 }
 
 @Composable

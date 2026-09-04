@@ -29,6 +29,10 @@ struct CompanySetupFlowView: View {
     @State private var inviteText = ""
     @State private var activating = false
     @State private var showJoinCode = false
+    @State private var pendingActivation: CompanySummary?
+    @State private var pendingInviteMessage: String?
+    @State private var pendingInvitePhone: String?
+    @State private var showPostInviteChooser = false
 
     private let bg = Color(hex: "#0C0F15")
     private let accent = Color(hex: "#818CF8")
@@ -68,6 +72,35 @@ struct CompanySetupFlowView: View {
         }
         .background(bg.ignoresSafeArea())
         .trackScreen(AnalyticsScreens.companySetup)
+        .confirmationDialog("Invite your team via…", isPresented: $showPostInviteChooser, titleVisibility: .visible) {
+            Button("Messages") {
+                if let message = pendingInviteMessage {
+                    InviteOutboundShare.sendSms(phone: pendingInvitePhone, message: message)
+                }
+                finishActivation()
+            }
+            Button("WhatsApp") {
+                if let message = pendingInviteMessage {
+                    InviteOutboundShare.sendWhatsApp(phone: pendingInvitePhone, message: message)
+                }
+                finishActivation()
+            }
+            Button("Not now", role: .cancel) {
+                finishActivation()
+            }
+        } message: {
+            Text("Share the company invite link through Messages or WhatsApp.")
+        }
+    }
+
+    private func finishActivation() {
+        showPostInviteChooser = false
+        if let pending = pendingActivation {
+            pendingActivation = nil
+            pendingInviteMessage = nil
+            pendingInvitePhone = nil
+            onActivated(pending)
+        }
     }
 
     private var header: some View {
@@ -553,7 +586,23 @@ struct CompanySetupFlowView: View {
                     timezone: tz
                 )
             }
-            onActivated(CompanySummary(companyId: created.companyId, displayName: created.displayName))
+            let summary = CompanySummary(companyId: created.companyId, displayName: created.displayName)
+            if let invite = try? await APIClient.shared.mintCompanyInvite(
+                companyId: created.companyId,
+                membershipType: "MEMBER",
+                idempotencyKey: UUID().uuidString
+            ) {
+                let path = invite.invitePath.isEmpty
+                    ? CompanyJoinLink.displayPath(code: invite.inviteCode)
+                    : invite.invitePath
+                pendingInviteMessage = InviteOutboundShare.inviteMessage(title: created.displayName, url: path)
+                pendingInvitePhone = members.reversed().map(\.name).first { InviteOutboundShare.looksLikePhone($0) }
+                    ?? (InviteOutboundShare.looksLikePhone(inviteText) ? inviteText : nil)
+                pendingActivation = summary
+                showPostInviteChooser = true
+            } else {
+                onActivated(summary)
+            }
         } catch {
             onClose()
         }

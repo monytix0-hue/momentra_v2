@@ -21,6 +21,8 @@ struct GroupAddPeopleSheet: View {
     @State private var saved = false
     @State private var shareItems: [Any] = []
     @State private var showShare = false
+    @State private var pendingPhone: String?
+    @State private var showSendChooser = false
 
     private var inviteCode: String? {
         let minted = issuedInviteCode?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -35,6 +37,11 @@ struct GroupAddPeopleSheet: View {
 
     private var copyText: String? {
         inviteCode.map { GroupInviteLink.copyText(code: $0) }
+    }
+
+    private var inviteBody: String? {
+        guard let copyText else { return nil }
+        return InviteOutboundShare.inviteMessage(title: experienceTitle, url: copyText)
     }
 
     private var qrPayload: String? {
@@ -150,6 +157,27 @@ struct GroupAddPeopleSheet: View {
         .sheet(isPresented: $showShare) {
             ActivityShareSheet(items: shareItems)
         }
+        .confirmationDialog("Send invite via…", isPresented: $showSendChooser, titleVisibility: .visible) {
+            Button("Messages") {
+                if let body = inviteBody {
+                    InviteOutboundShare.sendSms(phone: pendingPhone, message: body)
+                }
+            }
+            Button("WhatsApp") {
+                if let body = inviteBody {
+                    InviteOutboundShare.sendWhatsApp(phone: pendingPhone, message: body)
+                }
+            }
+            Button("Not now", role: .cancel) {}
+        } message: {
+            Text("Share the Momentra invite link through Messages or WhatsApp.")
+        }
+    }
+
+    private func offerSendAfterAdd(phone: String?) {
+        guard inviteBody != nil, InviteOutboundShare.looksLikePhone(phone) else { return }
+        pendingPhone = phone
+        showSendChooser = true
     }
 
     private var header: some View {
@@ -226,6 +254,8 @@ struct GroupAddPeopleSheet: View {
                                 phone: contact.phone.isEmpty ? nil : contact.phone,
                                 avatarName: contact.avatarName
                             ))
+                            let phone = contact.phone.isEmpty ? contact.subtitle : contact.phone
+                            offerSendAfterAdd(phone: phone)
                         }
                     )
                 }
@@ -246,6 +276,9 @@ struct GroupAddPeopleSheet: View {
                                 email: looksEmail ? typedQuery : nil,
                                 phone: looksPhone && !looksEmail ? typedQuery : nil
                             ))
+                            if looksPhone && !looksEmail {
+                                offerSendAfterAdd(phone: typedQuery)
+                            }
                             query = ""
                         }
                     )
@@ -323,6 +356,20 @@ struct GroupAddPeopleSheet: View {
             .padding(.vertical, 4)
             .background(GroupSetupTheme.bg, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(GroupSetupTheme.border, lineWidth: 1))
+            InviteSendChannelButtons(
+                enabled: inviteBody != nil,
+                accent: palette.accent,
+                onMessages: {
+                    if let body = inviteBody {
+                        InviteOutboundShare.sendSms(phone: nil, message: body)
+                    }
+                },
+                onWhatsApp: {
+                    if let body = inviteBody {
+                        InviteOutboundShare.sendWhatsApp(phone: nil, message: body)
+                    }
+                }
+            )
         }
     }
 

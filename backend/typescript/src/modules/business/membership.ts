@@ -222,3 +222,103 @@ export async function addCompanyMember(
     status: 'ACTIVE',
   };
 }
+
+export const leaveCompanySchema = z
+  .object({
+    transferUserId: z.string().uuid().optional(),
+  })
+  .strict();
+
+export type LeaveCompanyInput = z.infer<typeof leaveCompanySchema>;
+
+/**
+ * Self-leave a company. OWNER/ADMIN must transfer leadership to another ACTIVE member first.
+ */
+export async function leaveCompany(
+  client: PoolClient,
+  ctx: RequestContext,
+  companyId: string,
+  body: LeaveCompanyInput
+): Promise<{ companyId: string; status: 'LEFT'; transferredToUserId: string | null }> {
+  const me = await assertActiveCompanyMember(client, ctx, companyId);
+  const isLeader = me.membershipType === 'OWNER' || me.membershipType === 'ADMIN';
+
+  const others = await client.query<{ user_id: string; membership_type: string }>(
+    `SELECT user_id, membership_type
+     FROM business.company_membership
+     WHERE company_id = $1 AND status = 'ACTIVE' AND user_id <> $2`,
+    [companyId, ctx.userId]
+  );
+
+  let transferredToUserId: string | null = null;
+
+  if (isLeader) {
+    if (others.rows.length === 0) {
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        'Invite another member and transfer admin before leaving, or keep the company.',
+        400
+      );
+    }
+    if (!body.transferUserId) {
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        'Owners and admins must select another member before leaving.',
+        400
+      );
+    }
+    const successor = others.rows.find((r) => r.user_id === body.transferUserId);
+    if (!successor) {
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        'transferUserId must be another ACTIVE company member.',
+        400
+      );
+    }
+    const promoteTo =
+      me.membershipType === 'OWNER'
+        ? 'OWNER'
+        : successor.membership_type === 'OWNER'
+          ? 'OWNER'
+          : 'ADMIN';
+    await client.query(
+      `UPDATE business.company_membership
+       SET membership_type = $3, updated_at = now(), version = version + 1
+       WHERE company_id = $1 AND user_id = $2 AND status = 'ACTIVE'`,
+      [companyId, body.transferUserId, promoteTo]
+    );
+    if (me.membershipType === 'OWNER' && promoteTo === 'OWNER') {
+      // Demote other owners to ADMIN so there is a single primary owner after transfer.
+      await client.query(
+        `UPDATE business.company_membership
+         SET membership_type = 'ADMIN', updated_at = now(), version = version + 1
+         WHERE company_id = $1
+           AND user_id <> $2
+           AND user_id <> $3
+           AND membership_type = 'OWNER'
+           AND status = 'ACTIVE'`,
+        [companyId, body.transferUserId, ctx.userId]
+      );
+    }
+    transferredToUserId = body.transferUserId;
+  }
+
+  await client.query(
+    `UPDATE business.company_membership
+     SET status = 'LEFT', updated_at = now(), version = version + 1
+     WHERE company_id = $1 AND user_id = $2 AND status = 'ACTIVE'`,
+    [companyId, ctx.userId]
+  );
+
+  await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'CompanyMemberLeft',
+    domainCode: 'BUSINESS',
+    aggregateType: 'COMPANY',
+    aggregateId: companyId,
+    scopeType: 'COMPANY',
+    scopeId: companyId,
+    payload: { companyId, userId: ctx.userId, transferredToUserId },
+  });
+
+  return { companyId, status: 'LEFT', transferredToUserId };
+}

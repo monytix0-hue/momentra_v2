@@ -34,10 +34,20 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import com.example.momentra.ui.shell.empty.group.InviteSendChannelRow
+import com.example.momentra.ui.shell.empty.group.generateInviteQrBitmap
+import com.example.momentra.ui.shell.empty.group.inviteMessage
+import com.example.momentra.ui.shell.empty.group.sendInviteSms
+import com.example.momentra.ui.shell.empty.group.sendInviteWhatsApp
+import com.example.momentra.ui.shell.empty.group.shareInviteLink
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
@@ -266,13 +276,16 @@ fun CompanyInviteShareSheet(
     companyId: String,
     visible: Boolean,
     onDismiss: () -> Unit,
+    companyName: String = "company",
 ) {
     if (!visible) return
+    val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var inviteCode by remember { mutableStateOf<String?>(null) }
     var invitePath by remember { mutableStateOf<String?>(null) }
+    var copied by remember { mutableStateOf(false) }
 
     androidx.compose.runtime.LaunchedEffect(companyId, visible) {
         if (!visible) return@LaunchedEffect
@@ -354,12 +367,57 @@ fun CompanyInviteShareSheet(
                         fontFamily = PlusJakartaSans,
                     )
                     Text(
-                        "Share this link or QR. New members join as MEMBER.",
+                        "Share this link via Messages or WhatsApp. New members join as MEMBER.",
                         color = Color(0xFF64748B),
                         fontSize = 12.sp,
                         fontFamily = PlusJakartaSans,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    InviteSendChannelRow(
+                        enabled = invitePath != null,
+                        accent = Accent,
+                        onMessages = {
+                            val url = invitePath ?: return@InviteSendChannelRow
+                            sendInviteSms(context, null, inviteMessage(companyName, url))
+                        },
+                        onWhatsApp = {
+                            val url = invitePath ?: return@InviteSendChannelRow
+                            sendInviteWhatsApp(context, null, inviteMessage(companyName, url))
+                        },
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            if (copied) "Copied" else "Copy link",
+                            color = Accent,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSans,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    val url = invitePath ?: return@clickable
+                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    cm.setPrimaryClip(ClipData.newPlainText("invite", url))
+                                    copied = true
+                                }
+                                .padding(8.dp),
+                        )
+                        Text(
+                            "Share…",
+                            color = Accent,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSans,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    val url = invitePath ?: return@clickable
+                                    shareInviteLink(context, url)
+                                }
+                                .padding(8.dp),
+                        )
+                    }
                 }
             }
             Text(

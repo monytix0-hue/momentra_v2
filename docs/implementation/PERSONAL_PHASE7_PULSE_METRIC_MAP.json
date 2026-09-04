@@ -1,0 +1,214 @@
+{
+  "pack": "Momentra_Personal_Analytics_Phase7_Implementation_Pack_v1.xlsx",
+  "principle": "Client never invents analytics. Curate Pulse-surface PMETs that map to live hero/axis/spend widgets only.",
+  "deferred": [
+    "ZERO_GAP_FIELD_CONTROL_*",
+    "COMING_SOON / AI Insights narrative",
+    "Emotional DNA / Memory narrative PMETs",
+    "Figma chrome labels (Allocation 38%, Consistency +11 as display strings)"
+  ],
+  "windows": {
+    "TODAY": { "code": "TODAY", "isoDuration": "P1D", "description": "Calendar day as-of" },
+    "ROLLING_7D": { "code": "ROLLING_7D", "isoDuration": "P7D", "description": "Rolling 7 days" },
+    "ROLLING_30D": { "code": "ROLLING_30D", "isoDuration": "P30D", "description": "Rolling 30 days" },
+    "ROLLING_90D": { "code": "ROLLING_90D", "isoDuration": "P90D", "description": "Rolling 90 days" },
+    "LIFETIME": { "code": "LIFETIME", "isoDuration": null, "description": "All eligible history" },
+    "CURRENT_VS_PRIOR_7D": { "code": "CURRENT_VS_PRIOR_7D", "isoDuration": "P7D", "description": "Current 7d vs prior 7d" }
+  },
+  "evidenceGates": {
+    "E1": { "minEvidenceCount": 1, "minSpanDays": 0 },
+    "E2": { "minEvidenceCount": 3, "minSpanDays": 7 },
+    "E3": { "minEvidenceCount": 5, "minSpanDays": 14 },
+    "E5": { "minEvidenceCount": 8, "minSpanDays": 21 },
+    "E7": { "minEvidenceCount": 20, "minSpanDays": 60 }
+  },
+  "thresholdSets": {
+    "SCORE_0_100": [
+      { "code": "CRITICAL", "comparator": "BETWEEN", "lower": 0, "upper": 39.999, "severity": "CRITICAL" },
+      { "code": "LOW", "comparator": "BETWEEN", "lower": 40, "upper": 59.999, "severity": "MEDIUM" },
+      { "code": "MODERATE", "comparator": "BETWEEN", "lower": 60, "upper": 74.999, "severity": "LOW" },
+      { "code": "GOOD", "comparator": "BETWEEN", "lower": 75, "upper": 89.999, "severity": "INFO" },
+      { "code": "EXCELLENT", "comparator": "BETWEEN", "lower": 90, "upper": 100, "severity": "INFO" }
+    ],
+    "HEALTH_0_100": [
+      { "code": "CRITICAL", "comparator": "BETWEEN", "lower": 0, "upper": 39.999, "severity": "CRITICAL" },
+      { "code": "LOW", "comparator": "BETWEEN", "lower": 40, "upper": 59.999, "severity": "MEDIUM" },
+      { "code": "MODERATE", "comparator": "BETWEEN", "lower": 60, "upper": 74.999, "severity": "LOW" },
+      { "code": "GOOD", "comparator": "BETWEEN", "lower": 75, "upper": 89.999, "severity": "INFO" },
+      { "code": "EXCELLENT", "comparator": "BETWEEN", "lower": 90, "upper": 100, "severity": "INFO" }
+    ]
+  },
+  "pulseMetrics": [
+    {
+      "metricCode": "WELLBEING_STATE",
+      "liveWidget": "Pulse hero (Life Ops Wellbeing / family composite)",
+      "pulseSource": "projection.personal_pulse.wellbeing_score",
+      "pmetIds": ["PMET-0068", "PMET-0069"],
+      "pmetCodes": ["PERSONAL.FUTURE_BUILDING.FUTURE_SCORE", "PERSONAL.FUTURE_BUILDING.FUTURE_SCORE_78_100"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "RECOVERY_SCORE",
+      "liveWidget": "Life Ops axis: Recovery / Pressure (100-recovery on client)",
+      "pulseSource": "projection.personal_pulse.recovery_score",
+      "pmetIds": ["PMET-0077"],
+      "pmetCodes": ["PERSONAL.FUTURE_BUILDING.HELPING_HURTING"],
+      "note": "Helping/Hurting pack row is COUNT_EVENTS chrome; Recovery Score is the live Life Ops axis authority.",
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "RHYTHM_CONSISTENCY",
+      "liveWidget": "Life Ops / Future axis: Rhythm / Discipline column",
+      "pulseSource": "projection.personal_pulse.rhythm_score",
+      "pmetIds": ["PMET-0028", "PMET-0029"],
+      "pmetCodes": ["PERSONAL.FUTURE_BUILDING.DISCIPLINE", "PERSONAL.FUTURE_BUILDING.DISCIPLINE_77"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "FUTURE_VISION_SCORE",
+      "liveWidget": "Future Building axis: Vision",
+      "pulseSource": "widget_payload.visionScore",
+      "pmetIds": ["PMET-0014"],
+      "pmetCodes": ["PERSONAL.FUTURE_BUILDING.CAREER_RISING"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "HEALTH_0_100"
+    },
+    {
+      "metricCode": "FUTURE_GROWTH_SCORE",
+      "liveWidget": "Future Building axis: Growth",
+      "pulseSource": "widget_payload.growthScore",
+      "pmetIds": ["PMET-0074"],
+      "pmetCodes": ["PERSONAL.FUTURE_BUILDING.GROWTH_74"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "HEALTH_0_100"
+    },
+    {
+      "metricCode": "FUTURE_MOMENTUM_SCORE",
+      "liveWidget": "Future Building axis: Momentum",
+      "pulseSource": "widget_payload.momentumScore",
+      "pmetIds": ["PMET-0106", "PMET-0104"],
+      "pmetCodes": ["PERSONAL.FUTURE_BUILDING.MOMENTUM", "PERSONAL.FUTURE_BUILDING.MOMENTUM_81"],
+      "window": "CURRENT_VS_PRIOR_7D",
+      "evidenceGate": "E3",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "FUTURE_DISCIPLINE_SCORE",
+      "liveWidget": "Future Building axis: Discipline",
+      "pulseSource": "widget_payload.disciplineScore",
+      "pmetIds": ["PMET-0029"],
+      "pmetCodes": ["PERSONAL.FUTURE_BUILDING.DISCIPLINE"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "LIFESTYLE_JOY_SCORE",
+      "liveWidget": "Lifestyle axis: Joy",
+      "pulseSource": "widget_payload.joyScore",
+      "pmetIds": [],
+      "pmetCodes": ["PERSONAL.LIFESTYLE.JOY"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "LIFESTYLE_FULFILLMENT_SCORE",
+      "liveWidget": "Lifestyle axis: Fulfillment",
+      "pulseSource": "widget_payload.fulfillmentScore",
+      "pmetIds": [],
+      "pmetCodes": ["PERSONAL.LIFESTYLE.FULFILLMENT"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "LIFESTYLE_VITALITY_SCORE",
+      "liveWidget": "Lifestyle axis: Vitality / Vitality Index",
+      "pulseSource": "widget_payload.vitalityScore",
+      "pmetIds": [],
+      "pmetCodes": ["PERSONAL.LIFESTYLE.VITALITY"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "LIFESTYLE_EXPLORATION_SCORE",
+      "liveWidget": "Lifestyle axis: Exploration",
+      "pulseSource": "widget_payload.explorationScore",
+      "pmetIds": [],
+      "pmetCodes": ["PERSONAL.LIFESTYLE.EXPLORATION"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "RELATIONSHIP_TRUST_SCORE",
+      "liveWidget": "Relationships axis: Trust",
+      "pulseSource": "widget_payload.trustScore",
+      "pmetIds": [],
+      "pmetCodes": ["PERSONAL.RELATIONSHIPS.TRUST"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "RELATIONSHIP_CARE_SCORE",
+      "liveWidget": "Relationships axis: Care",
+      "pulseSource": "widget_payload.careScore",
+      "pmetIds": [],
+      "pmetCodes": ["PERSONAL.RELATIONSHIPS.CARE"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "RELATIONSHIP_SUPPORT_SCORE",
+      "liveWidget": "Relationships axis: Support",
+      "pulseSource": "widget_payload.supportScore",
+      "pmetIds": [],
+      "pmetCodes": ["PERSONAL.RELATIONSHIPS.SUPPORT"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "RELATIONSHIP_PRESENCE_SCORE",
+      "liveWidget": "Relationships axis: Presence",
+      "pulseSource": "widget_payload.presenceScore",
+      "pmetIds": [],
+      "pmetCodes": ["PERSONAL.RELATIONSHIPS.PRESENCE"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "RELATIONSHIP_INVESTMENT",
+      "liveWidget": "Relationships hero: Bond Index",
+      "pulseSource": "widget_payload.bondIndex",
+      "pmetIds": [],
+      "pmetCodes": ["PERSONAL.RELATIONSHIPS.BOND_INDEX"],
+      "window": "ROLLING_7D",
+      "evidenceGate": "E2",
+      "thresholdSet": "SCORE_0_100"
+    },
+    {
+      "metricCode": "BUDGET_UTILIZATION",
+      "liveWidget": "Money / Investment snapshot (spendByCurrency)",
+      "pulseSource": "widget_payload.spendByCurrency + DET spend window",
+      "pmetIds": ["PMET-0085"],
+      "pmetCodes": ["PERSONAL.FUTURE_BUILDING.INVESTMENT_SNAPSHOT"],
+      "window": "ROLLING_30D",
+      "evidenceGate": "E1",
+      "thresholdSet": null
+    }
+  ]
+}

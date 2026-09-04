@@ -92,6 +92,10 @@ struct AppShellView: View {
                 ManageMomentFlowSheet(
                     momentId: momentId,
                     momentTitle: model.selectedMomentTitle ?? "Moment",
+                    domain: model.selectedContext,
+                    currentUserId: identity.userId,
+                    companyId: model.selectedCompany?.companyId
+                        ?? model.moments.first(where: { $0.momentId == momentId })?.companyId,
                     isPresented: $showManageMoment,
                     onEditSetup: {
                         editSetupTarget = EditMomentSetupTarget.resolve(
@@ -101,6 +105,10 @@ struct AppShellView: View {
                     },
                     onLifecycleChanged: {
                         model.reloadCurrentContext()
+                    },
+                    onLeft: {
+                        showManageMoment = false
+                        model.clearSelectedMomentAfterLeave()
                     }
                 )
                 .preferredColorScheme(.dark)

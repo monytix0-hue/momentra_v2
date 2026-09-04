@@ -19,15 +19,38 @@ struct TripInviteShareSection: View {
     @Binding var copied: Bool
     let copyText: String?
     let qrPayload: String?
+    var momentTitle: String = "Moment"
+    var showMessageChannels: Bool = true
 
     @State private var shareItems: [Any] = []
     @State private var showShare = false
+
+    private var inviteBody: String? {
+        guard let copyText else { return nil }
+        return InviteOutboundShare.inviteMessage(title: momentTitle, url: copyText)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
                 TripFieldLabel(text: "Share Invitation Link")
                 inviteLinkBlock
+            }
+            if showMessageChannels {
+                InviteSendChannelButtons(
+                    enabled: inviteBody != nil && !minting,
+                    accent: TripForm.accent,
+                    onMessages: {
+                        if let body = inviteBody {
+                            InviteOutboundShare.sendSms(phone: nil, message: body)
+                        }
+                    },
+                    onWhatsApp: {
+                        if let body = inviteBody {
+                            InviteOutboundShare.sendWhatsApp(phone: nil, message: body)
+                        }
+                    }
+                )
             }
             qrBlock
             shareQrButton

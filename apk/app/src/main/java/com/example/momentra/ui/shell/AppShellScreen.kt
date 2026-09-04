@@ -977,6 +977,10 @@ fun AppShellScreen(
                     ManageMomentSheet(
                         momentId = momentId,
                         momentTitle = state.selectedMomentTitle ?: "Moment",
+                        domain = state.selectedContext,
+                        currentUserId = identity.userId,
+                        companyId = state.selectedCompany?.companyId
+                            ?: state.moments.firstOrNull { it.momentId == momentId }?.companyId,
                         onDismiss = { showManageMoment = false },
                         onEditSetup = {
                             showManageMoment = false
@@ -984,6 +988,10 @@ fun AppShellScreen(
                         },
                         onLifecycleChanged = {
                             shellViewModel.reloadCurrentContext()
+                        },
+                        onLeft = {
+                            showManageMoment = false
+                            shellViewModel.clearSelectedMomentAfterLeave()
                         },
                     )
                 }

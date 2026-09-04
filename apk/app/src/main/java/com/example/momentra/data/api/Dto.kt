@@ -1403,6 +1403,22 @@ data class GroupParticipantDto(
     @SerializedName("displayName") val displayName: String? = null,
 )
 
+data class LeaveMomentBody(
+    @SerializedName("transferUserId") val transferUserId: String? = null,
+)
+
+data class LeaveMomentResultDto(
+    @SerializedName("momentId") val momentId: String,
+    val status: String = "LEFT",
+    @SerializedName("transferredToUserId") val transferredToUserId: String? = null,
+)
+
+data class LeaveCompanyResultDto(
+    @SerializedName("companyId") val companyId: String,
+    val status: String = "LEFT",
+    @SerializedName("transferredToUserId") val transferredToUserId: String? = null,
+)
+
 data class GroupExpenseSplitInputDto(
     @SerializedName("participantId") val participantId: String,
     val amount: String? = null,

@@ -12,6 +12,7 @@
     "migrate:validate": "tsx scripts/migrate.ts --validation-only",
     "migrate:reset": "tsx scripts/reset-database.ts --confirm",
     "migrate:full": "tsx scripts/reset-database.ts --confirm && tsx scripts/migrate.ts",
+    "analytics:refresh-group-lean-kpis": "tsx scripts/refresh-group-lean-kpis.ts",
     "test:db": "tsx scripts/db-phase1-tests.ts",
     "openapi:build": "tsx scripts/build-openapi.ts",
     "openapi:bundle": "tsx scripts/bundle-openapi.ts",

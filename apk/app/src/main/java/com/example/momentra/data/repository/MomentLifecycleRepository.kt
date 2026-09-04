@@ -2,6 +2,9 @@ package com.example.momentra.data.repository
 
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.ApiService
+import com.example.momentra.data.api.LeaveCompanyResultDto
+import com.example.momentra.data.api.LeaveMomentBody
+import com.example.momentra.data.api.LeaveMomentResultDto
 import com.example.momentra.data.api.MomentLifecycleResultDto
 import com.example.momentra.data.api.MomentVersionBody
 import com.example.momentra.data.api.UpdateMomentBody
@@ -50,6 +53,24 @@ class MomentLifecycleRepository(
                 momentId = momentId,
                 idempotencyKey = UUID.randomUUID().toString(),
                 body = MomentVersionBody(expectedVersion = expectedVersion),
+            ).data
+        }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun leaveGroup(momentId: String, transferUserId: String?): Result<LeaveMomentResultDto> =
+        runCatching {
+            api.leaveGroupMoment(
+                momentId = momentId,
+                idempotencyKey = UUID.randomUUID().toString(),
+                body = LeaveMomentBody(transferUserId = transferUserId),
+            ).data
+        }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun leaveCompany(companyId: String, transferUserId: String?): Result<LeaveCompanyResultDto> =
+        runCatching {
+            api.leaveCompany(
+                companyId = companyId,
+                idempotencyKey = UUID.randomUUID().toString(),
+                body = LeaveMomentBody(transferUserId = transferUserId),
             ).data
         }.recoverCatching { e -> throw mapError(e) }
 

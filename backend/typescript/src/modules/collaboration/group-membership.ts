@@ -1,6 +1,9 @@
 import type { PoolClient } from 'pg';
+import { z } from 'zod';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
+import { recordCommandSideEffects } from '../../platform/events/outbox';
+import { emitLeanBusinessEvent, loadMomentTaxonomy } from '../analytics/lean-events';
 
 export interface GroupMemberInfo {
   participantId: string;
@@ -104,4 +107,142 @@ export async function assertParticipantsOnMoment(
       400
     );
   }
+}
+
+const LEADER_ROLES = new Set(['ORGANIZER', 'CO_ORGANIZER']);
+
+export const leaveGroupMomentSchema = z
+  .object({
+    transferUserId: z.string().uuid().optional(),
+  })
+  .strict();
+
+export type LeaveGroupMomentInput = z.infer<typeof leaveGroupMomentSchema>;
+
+/**
+ * Self-leave a Group moment. Leaders must transfer ORGANIZER to another ACTIVE user first.
+ */
+export async function leaveGroupMoment(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  body: LeaveGroupMomentInput
+): Promise<{ momentId: string; status: 'LEFT'; transferredToUserId: string | null }> {
+  const me = await assertGroupMember(client, ctx, momentId);
+
+  const ctxRow = await client.query<{ organizer_user_id: string }>(
+    `SELECT organizer_user_id FROM collaboration.group_moment_context WHERE moment_id = $1`,
+    [momentId]
+  );
+  if (!ctxRow.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Group moment context not found.', 404);
+  }
+
+  const isLeader =
+    LEADER_ROLES.has(me.role) || ctxRow.rows[0].organizer_user_id === ctx.userId;
+
+  const others = await client.query<{ user_id: string; participant_role: string }>(
+    `SELECT user_id, participant_role
+     FROM collaboration.moment_participant
+     WHERE moment_id = $1
+       AND status = 'ACTIVE'
+       AND user_id IS NOT NULL
+       AND user_id <> $2`,
+    [momentId, ctx.userId]
+  );
+
+  let transferredToUserId: string | null = null;
+
+  if (isLeader) {
+    if (others.rows.length === 0) {
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        'Invite another member and transfer organizer before leaving, or delete the moment.',
+        400
+      );
+    }
+    if (!body.transferUserId) {
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        'Organizers must select another member to become organizer before leaving.',
+        400
+      );
+    }
+    const successor = others.rows.find((r) => r.user_id === body.transferUserId);
+    if (!successor) {
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        'transferUserId must be another ACTIVE participant on this moment.',
+        400
+      );
+    }
+    await client.query(
+      `UPDATE collaboration.moment_participant
+       SET participant_role = 'ORGANIZER', updated_at = now(), version = version + 1
+       WHERE moment_id = $1 AND user_id = $2 AND status = 'ACTIVE'`,
+      [momentId, body.transferUserId]
+    );
+    await client.query(
+      `UPDATE collaboration.group_moment_context
+       SET organizer_user_id = $2, updated_at = now(), version = version + 1
+       WHERE moment_id = $1`,
+      [momentId, body.transferUserId]
+    );
+    transferredToUserId = body.transferUserId;
+  }
+
+  await client.query(
+    `UPDATE collaboration.moment_participant
+     SET status = 'LEFT',
+         participant_role = CASE
+           WHEN participant_role IN ('ORGANIZER', 'CO_ORGANIZER') THEN 'PARTICIPANT'
+           ELSE participant_role
+         END,
+         updated_at = now(),
+         version = version + 1
+     WHERE moment_id = $1 AND user_id = $2 AND status = 'ACTIVE'`,
+    [momentId, ctx.userId]
+  );
+
+  const { domainEventId } = await recordCommandSideEffects(client, ctx, {
+    eventName: 'GroupParticipantLeft',
+    domainCode: 'GROUP',
+    aggregateType: 'MOMENT',
+    aggregateId: momentId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: {
+      momentId,
+      userId: ctx.userId,
+      transferredToUserId,
+    },
+    auditActionCode: 'PARTICIPANT_LEAVE',
+    auditResourceType: 'PARTICIPANT',
+    auditResourceId: me.participantId,
+    afterSnapshot: { momentId, status: 'LEFT', transferredToUserId },
+    activity: {
+      domainCode: 'GROUP',
+      momentId,
+      activityCode: 'GROUP_MEMBER_LEFT',
+      title: transferredToUserId ? 'Organizer transferred and left' : 'Member left',
+      payload: { userId: ctx.userId, transferredToUserId },
+    },
+  });
+
+  const tax = await loadMomentTaxonomy(client, momentId);
+  await emitLeanBusinessEvent(client, ctx, {
+    eventName: 'participant_exited',
+    eventId: domainEventId,
+    momentId,
+    momentDomain: tax?.domain ?? 'group',
+    momentCategory: tax?.category,
+    momentType: tax?.type,
+    properties: {
+      exit_type: 'left',
+      initiated_by_role: 'self',
+      transfer_user_id: transferredToUserId,
+    },
+  });
+
+  return { momentId, status: 'LEFT', transferredToUserId };
 }

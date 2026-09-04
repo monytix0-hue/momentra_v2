@@ -347,6 +347,115 @@ export type AnalyticsJobScope = {
   sourceVersion?: string;
 };
 
+/** Phase 7 curated Pulse metric codes (PER-008 subset). */
+export const PHASE7_PULSE_METRIC_CODES = [
+  'RECOVERY_SCORE',
+  'WELLBEING_STATE',
+  'RHYTHM_CONSISTENCY',
+  'BUDGET_UTILIZATION',
+  'RELATIONSHIP_INVESTMENT',
+  'FUTURE_VISION_SCORE',
+  'FUTURE_GROWTH_SCORE',
+  'FUTURE_MOMENTUM_SCORE',
+  'FUTURE_DISCIPLINE_SCORE',
+  'LIFESTYLE_JOY_SCORE',
+  'LIFESTYLE_FULFILLMENT_SCORE',
+  'LIFESTYLE_VITALITY_SCORE',
+  'LIFESTYLE_EXPLORATION_SCORE',
+  'RELATIONSHIP_TRUST_SCORE',
+  'RELATIONSHIP_CARE_SCORE',
+  'RELATIONSHIP_SUPPORT_SCORE',
+  'RELATIONSHIP_PRESENCE_SCORE',
+] as const;
+
+/** Phase 7 curated Pulse codes → personal_pulse column or widget_payload key. */
+const PHASE7_PULSE_METRIC_SOURCES: ReadonlyArray<{
+  metricCode: (typeof PHASE7_PULSE_METRIC_CODES)[number];
+  column?: 'recovery_score' | 'wellbeing_score' | 'rhythm_score';
+  payloadKey?: string;
+  timeWindow: string;
+}> = [
+  { metricCode: 'RECOVERY_SCORE', column: 'recovery_score', timeWindow: 'P7D' },
+  { metricCode: 'WELLBEING_STATE', column: 'wellbeing_score', timeWindow: 'P7D' },
+  { metricCode: 'RHYTHM_CONSISTENCY', column: 'rhythm_score', timeWindow: 'P7D' },
+  { metricCode: 'FUTURE_VISION_SCORE', payloadKey: 'visionScore', timeWindow: 'P7D' },
+  { metricCode: 'FUTURE_GROWTH_SCORE', payloadKey: 'growthScore', timeWindow: 'P7D' },
+  { metricCode: 'FUTURE_MOMENTUM_SCORE', payloadKey: 'momentumScore', timeWindow: 'P7D' },
+  { metricCode: 'FUTURE_DISCIPLINE_SCORE', payloadKey: 'disciplineScore', timeWindow: 'P7D' },
+  { metricCode: 'LIFESTYLE_JOY_SCORE', payloadKey: 'joyScore', timeWindow: 'P7D' },
+  { metricCode: 'LIFESTYLE_FULFILLMENT_SCORE', payloadKey: 'fulfillmentScore', timeWindow: 'P7D' },
+  { metricCode: 'LIFESTYLE_VITALITY_SCORE', payloadKey: 'vitalityScore', timeWindow: 'P7D' },
+  { metricCode: 'LIFESTYLE_EXPLORATION_SCORE', payloadKey: 'explorationScore', timeWindow: 'P7D' },
+  { metricCode: 'RELATIONSHIP_TRUST_SCORE', payloadKey: 'trustScore', timeWindow: 'P7D' },
+  { metricCode: 'RELATIONSHIP_CARE_SCORE', payloadKey: 'careScore', timeWindow: 'P7D' },
+  { metricCode: 'RELATIONSHIP_SUPPORT_SCORE', payloadKey: 'supportScore', timeWindow: 'P7D' },
+  { metricCode: 'RELATIONSHIP_PRESENCE_SCORE', payloadKey: 'presenceScore', timeWindow: 'P7D' },
+  { metricCode: 'RELATIONSHIP_INVESTMENT', payloadKey: 'bondIndex', timeWindow: 'P7D' },
+];
+
+function parseNullableScore(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
+/**
+ * Sync curated Phase 7 Pulse metrics from projection.personal_pulse into analytics.metric_*.
+ * Does not invent scores — only mirrors server projection values when present.
+ */
+async function syncPhase7PulseMetrics(
+  client: PoolClient,
+  args: {
+    userId: string;
+    scopeType: string;
+    scopeId: string;
+    triggerEventId?: string | null;
+  },
+): Promise<number> {
+  const pulse = await client.query<{
+    recovery_score: string | null;
+    wellbeing_score: string | null;
+    rhythm_score: string | null;
+    attention_count: number;
+    widget_payload: Record<string, unknown> | null;
+    projection_version: string;
+  }>(
+    `SELECT recovery_score, wellbeing_score, rhythm_score, attention_count,
+            widget_payload, projection_version::text
+     FROM projection.personal_pulse
+     WHERE user_id = $1`,
+    [args.userId],
+  );
+  if (!pulse.rowCount) return 0;
+
+  const row = pulse.rows[0];
+  const payload = row.widget_payload ?? {};
+  const sourceVersion = `pulse:${row.projection_version}`;
+  const evidenceFloor = Math.max(1, Number(row.attention_count) || 0);
+  let written = 0;
+
+  for (const spec of PHASE7_PULSE_METRIC_SOURCES) {
+    const raw = spec.column ? row[spec.column] : payload[spec.payloadKey!];
+    const numericValue = parseNullableScore(raw);
+    if (numericValue == null) continue;
+
+    const wrote = await upsertNumericMetric(client, {
+      metricCode: spec.metricCode,
+      scopeType: args.scopeType,
+      scopeId: args.scopeId,
+      numericValue,
+      evidenceCount: evidenceFloor,
+      triggerEventId: args.triggerEventId,
+      timeWindow: spec.timeWindow,
+      sourceVersion,
+      userId: args.userId,
+    });
+    if (wrote) written += 1;
+  }
+  return written;
+}
+
 /**
  * Run DET metrics (+ optional FastAPI narrative). Consent re-checked at execute time.
  */
@@ -369,6 +478,13 @@ export async function runAnalyticsJob(client: PoolClient, job: AnalyticsJobScope
     currency = spend.currency;
     const scopeType = job.momentId ? 'MOMENT' : 'USER';
     const scopeId = job.momentId ?? job.userId;
+
+    metricsWritten += await syncPhase7PulseMetrics(client, {
+      userId: job.userId,
+      scopeType,
+      scopeId,
+      triggerEventId: job.triggerEventId,
+    });
 
     if (spend.evidence > 0) {
       // Use BUDGET_UTILIZATION as spend-proxy numeric when budget unknown — store MoM in json via text metric alternate

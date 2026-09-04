@@ -245,3 +245,63 @@ export async function assertGroupPeopleManageAllowed(
     momentId,
   });
 }
+
+const GROUP_LEADER_ROLES = new Set(['ORGANIZER', 'CO_ORGANIZER']);
+const COMPANY_LEADER_TYPES = new Set(['OWNER', 'ADMIN']);
+
+/**
+ * Group/Business moment lifecycle (archive/cancel/delete) is leader-only.
+ * Personal remains any owner with moment access (authorize already scoped).
+ */
+export async function assertMomentLifecycleLeader(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string
+): Promise<void> {
+  const row = await client.query<{
+    domain_code: string;
+    organizer_user_id: string | null;
+    participant_role: string | null;
+    membership_type: string | null;
+  }>(
+    `SELECT m.domain_code,
+            gmc.organizer_user_id,
+            mp.participant_role,
+            cm.membership_type
+     FROM core.moment m
+     LEFT JOIN collaboration.group_moment_context gmc ON gmc.moment_id = m.moment_id
+     LEFT JOIN collaboration.moment_participant mp
+       ON mp.moment_id = m.moment_id AND mp.user_id = $2 AND mp.status = 'ACTIVE'
+     LEFT JOIN business.business_moment_context bmc ON bmc.moment_id = m.moment_id
+     LEFT JOIN business.company_membership cm
+       ON cm.company_id = bmc.company_id AND cm.user_id = $2 AND cm.status = 'ACTIVE'
+     WHERE m.moment_id = $1`,
+    [momentId, ctx.userId]
+  );
+  const r = row.rows[0];
+  if (!r) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Moment not found.', 404);
+  }
+  if (r.domain_code === 'PERSONAL') {
+    return;
+  }
+  if (r.domain_code === 'GROUP') {
+    const isOrganizerUser = r.organizer_user_id === ctx.userId;
+    const isLeaderRole = r.participant_role != null && GROUP_LEADER_ROLES.has(r.participant_role);
+    if (isOrganizerUser || isLeaderRole) return;
+    throw new AppError(
+      ErrorCode.GOVERNANCE_DENIED,
+      'Only organizers can archive, cancel, or delete this group moment.',
+      403
+    );
+  }
+  if (r.domain_code === 'BUSINESS') {
+    if (r.membership_type != null && COMPANY_LEADER_TYPES.has(r.membership_type)) return;
+    throw new AppError(
+      ErrorCode.GOVERNANCE_DENIED,
+      'Only company owners or admins can archive, cancel, or delete this business moment.',
+      403
+    );
+  }
+  throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Not permitted for this moment scope.', 403);
+}

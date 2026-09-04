@@ -154,6 +154,17 @@ final class AppShellModel: ObservableObject {
         refreshBootstrap()
     }
 
+    /// After leaving a Group/Business moment or company, drop selection and reload inventory.
+    func clearSelectedMomentAfterLeave() {
+        selectedMomentId = nil
+        selectedMomentTitle = nil
+        selectedMomentTypeCode = nil
+        selectedMomentByContext[selectedContext] = nil
+        momentExperience = .firstMoment
+        contextContent = .loading
+        refreshBootstrap()
+    }
+
     private func refreshBootstrap() {
         loadTask?.cancel()
         loadTask = Task {

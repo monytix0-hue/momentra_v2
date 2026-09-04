@@ -7,6 +7,7 @@ import { z } from 'zod';
 import Decimal from 'decimal.js';
 import { parseMoney } from './service';
 import { assertGroupMember, assertParticipantsOnMoment } from '../collaboration/group-membership';
+import { emitLeanBusinessEvent, loadMomentTaxonomy } from '../analytics/lean-events';
 
 const moneyString = z.string().regex(/^\d+(\.\d{1,4})?$/);
 const percentString = z.string().regex(/^\d+(\.\d{1,6})?$/);
@@ -407,6 +408,23 @@ export async function createGroupExpense(
     body.splitStrategy === 'POOLED',
     1
   );
+
+  const tax = await loadMomentTaxonomy(client, momentId);
+  await emitLeanBusinessEvent(client, ctx, {
+    eventName: 'expense_added',
+    eventId: domainEventId,
+    momentId,
+    momentDomain: tax?.domain ?? 'group',
+    momentCategory: tax?.category,
+    momentType: tax?.type,
+    properties: {
+      expense_id: expenseId,
+      amount: amount.toFixed(4),
+      currency: body.currencyCode,
+      expense_category: body.splitStrategy,
+      participant_count_affected: shareRows.length,
+    },
+  });
 
   return result;
 }
