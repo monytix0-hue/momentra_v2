@@ -13,6 +13,17 @@ enum PersonalSetupLongForm {
     static let pink = Color(hex: "#E12A9E")
 }
 
+enum PersonalSetupEditPrefill {
+    static func mergeDefaults(_ defaults: [String: Any], saved: [String: AnyDecodable]?) -> [String: Any] {
+        var merged = defaults
+        guard let saved else { return merged }
+        for (key, wrapped) in saved {
+            merged[key] = wrapped.value
+        }
+        return merged
+    }
+}
+
 struct PersonalSetupCloseRow: View {
     var onBack: () -> Void
     var enabled: Bool = true

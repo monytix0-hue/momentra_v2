@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Shared Living Moments (G09–G12). Live APIs only.
+/// Living Moments (Flatmates / Co-living / Family / Custom). Live APIs only.
 struct LivingMomentsActiveView: View {
     let theme: LivingActiveTheme
     let refreshToken: UInt64
@@ -13,17 +13,53 @@ struct LivingMomentsActiveView: View {
     @State private var finance: APIClient.GroupFinancePayload?
     @State private var life: APIClient.GroupLifePayload?
     @State private var listPlanning: [GroupPlanningItem] = []
+    @State private var listBookings: [APIClient.GroupLifePayload.LifeInner.BookingItem] = []
     @State private var listUpdates: [GroupUpdateItem] = []
     @State private var listPolls: [APIClient.GroupPollItemPayload] = []
     @State private var listMemoryItems: [GroupMemoryItem] = []
-    @State private var selectedPollId: String?
-    @State private var scheduleOpen = false
+    @State private var livingRules: [APIClient.GroupLivingRulePayload] = []
     @State private var residents: [APIClient.GroupResidentPayload] = []
     @State private var sharedAssets: [APIClient.GroupSharedAssetPayload] = []
     @State private var maintenance: [APIClient.GroupMaintenanceRecordPayload] = []
+    @State private var listExpenses: [APIClient.GroupExpenseListItemPayload] = []
+    @State private var memoryCount: Int = 0
+    @State private var selectedPollId: String?
+    @State private var pollsListOpen = false
+    @State private var scheduleOpen = false
     @State private var title: String?
     @State private var loading = true
     @State private var error: String?
+
+    private var chrome: MomentsChrome { .living(theme) }
+
+    private enum LivingKind {
+        case flatmates, coLiving, familyHousehold, customLiving
+    }
+
+    private var kind: LivingKind {
+        switch theme.typeLabel {
+        case LivingActiveTheme.coLiving.typeLabel: return .coLiving
+        case LivingActiveTheme.familyHousehold.typeLabel: return .familyHousehold
+        case LivingActiveTheme.customLiving.typeLabel: return .customLiving
+        default: return .flatmates
+        }
+    }
+
+    private var showUpcoming: Bool {
+        kind == .flatmates || kind == .familyHousehold
+    }
+
+    private var planningItems: [GroupPlanningItem] {
+        listPlanning.isEmpty ? (life?.payload?.planningItems ?? []) : listPlanning
+    }
+
+    private var bookings: [APIClient.GroupLifePayload.LifeInner.BookingItem] {
+        listBookings.isEmpty ? (life?.payload?.bookings ?? []) : listBookings
+    }
+
+    private var updates: [GroupUpdateItem] {
+        listUpdates.isEmpty ? (life?.payload?.updates ?? []) : listUpdates
+    }
 
     var body: some View {
         Group {
@@ -37,7 +73,7 @@ struct LivingMomentsActiveView: View {
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
         .sheet(isPresented: $scheduleOpen) {
             PlanningScheduleSheet(
-                items: allPlanningItems,
+                items: planningItems,
                 momentTypeCode: momentTypeCode,
                 accent: theme.accent,
                 surface: theme.card,
@@ -46,6 +82,15 @@ struct LivingMomentsActiveView: View {
                 text: theme.text,
                 muted: theme.secondary,
                 onDismiss: { scheduleOpen = false }
+            )
+        }
+        .sheet(isPresented: $pollsListOpen) {
+            GroupPollsListSheet(
+                momentTitle: momentTitle ?? title,
+                chrome: .living(theme),
+                polls: listPolls,
+                onDismiss: { pollsListOpen = false },
+                onChanged: { Task { await load() } }
             )
         }
         .sheet(item: Binding(
@@ -64,10 +109,6 @@ struct LivingMomentsActiveView: View {
         let id: String
     }
 
-    private var allPlanningItems: [GroupPlanningItem] {
-        listPlanning.isEmpty ? (life?.payload?.planningItems ?? []) : listPlanning
-    }
-
     @ViewBuilder
     private var content: some View {
         let budgetTotal = finance?.totals?.first?.budgetTotal
@@ -77,271 +118,232 @@ struct LivingMomentsActiveView: View {
             ? residents.count
             : (pulse?.payload?.participantCount ?? 0)
         let openTasks = pulse?.payload?.openTaskCount ?? life?.payload?.openTaskCount ?? 0
-        let displayTitle = momentTitle ?? title ?? "\(theme.typeLabel) Moments"
-        let recentPlans = recentOpenPlanningItems(allPlanningItems)
-        let updates = listUpdates.isEmpty ? (life?.payload?.updates ?? []) : listUpdates
+        let moments = memoryCount > 0 ? memoryCount : listMemoryItems.count
         let funded = LivingFinanceMath.fundedPercent(
             contributionTotal: contributionTotal,
             budgetTotal: budgetTotal
         )
+        let displayTitle = momentTitle ?? title ?? "\(theme.typeLabel) Moments"
+        let status = (pulse?.status ?? life?.status ?? "PLANNING").uppercased()
+        let dayGroups = itineraryDayGroups(planningItems)
+        let upcoming = momentsUpcomingFromPlanning(planning: planningItems, bookings: bookings, finance: finance)
         let gradients = theme.statGradients
         let g0 = gradients.indices.contains(0) ? gradients[0] : [theme.accent, theme.accentSolid]
         let g1 = gradients.indices.contains(1) ? gradients[1] : [theme.accentLight, theme.accent]
         let g2 = gradients.indices.contains(2) ? gradients[2] : [theme.accent, theme.accentSolid]
+        let g3 = gradients.indices.contains(3) ? gradients[3] : [theme.accentLight, theme.accentSolid]
+        let highlights = listMemoryItems.prefix(3).compactMap { $0.title }.filter { !$0.isEmpty }
+
+        let heroStats: [(label: String, value: String, colors: [Color])] = {
+            switch kind {
+            case .flatmates:
+                return [
+                    ("RESIDENTS", "\(peopleCount)", g0),
+                    ("COLLECTED", funded.map { "\($0)%" } ?? "—", g1),
+                    ("RENT", GroupFinanceFormat.compactMoney(budgetTotal, currencyCode: currency), g2),
+                    ("MOMENTS", "\(moments)", g3),
+                ]
+            case .coLiving:
+                return [
+                    ("COMMUNITY", "\(peopleCount)", g0),
+                    ("COLLECTED", funded.map { "\($0)%" } ?? "—", g1),
+                    ("BUDGET", GroupFinanceFormat.compactMoney(budgetTotal, currencyCode: currency), g2),
+                    ("TASKS", "\(openTasks)", g3),
+                ]
+            case .familyHousehold:
+                return [
+                    ("PEOPLE", "\(peopleCount)", g0),
+                    ("EVENTS", "\(planningItems.count)", g1),
+                    ("BUDGET", GroupFinanceFormat.compactMoney(budgetTotal, currencyCode: currency), g2),
+                    ("MOMENTS", "\(moments)", g3),
+                ]
+            case .customLiving:
+                return [
+                    ("PROPERTY", "\(peopleCount)", g0),
+                    ("ASSETS", "\(sharedAssets.count)", g1),
+                    ("BUDGET", GroupFinanceFormat.compactMoney(budgetTotal, currencyCode: currency), g2),
+                    ("MOMENTS", "\(moments)", g3),
+                ]
+            }
+        }()
 
         NativeDashboardScaffold(background: theme.bg) {
-
-
             NativeListSection {
-
-            VStack(alignment: .leading, spacing: 14) {
-                if let error {
-                    Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("SHARED LIVING")
-                                .font(.plusJakarta(size: 11, weight: .semibold))
-                                .foregroundStyle(theme.secondary)
-                            Text(displayTitle)
-                                .font(.plusJakarta(size: 24, weight: .bold))
-                                .foregroundStyle(theme.text)
-                        }
-                        Spacer()
-                        Text(theme.typeLabel.uppercased())
-                            .font(.plusJakarta(size: 10, weight: .bold))
-                            .foregroundStyle(theme.darkText)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(theme.accent)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                VStack(alignment: .leading, spacing: 14) {
+                    if let error {
+                        Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
                     }
 
-                    HStack(spacing: 12) {
-                        LivingStatCard(label: "RESIDENTS", value: peopleCount > 0 ? "\(peopleCount)" : "—", colors: g0)
-                        LivingStatCard(
-                            label: "RENT/MO",
-                            value: GroupFinanceFormat.compactMoney(budgetTotal, currencyCode: currency),
-                            colors: g1
-                        )
-                    }
-                    HStack(spacing: 12) {
-                        LivingStatCard(
-                            label: "COLLECTED",
-                            value: funded.map { "\($0)%" } ?? "—",
-                            colors: g2
-                        )
-                        LivingStatCard(
-                            label: "TASKS",
-                            value: openTasks > 0 ? "\(openTasks)" : (allPlanningItems.isEmpty ? "—" : "\(allPlanningItems.count)"),
-                            colors: g0
-                        )
-                    }
-                }
-                .padding(16)
-                .background(theme.card)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-                .overlay(RoundedRectangle(cornerRadius: 20).stroke(theme.border))
-
-                LivingSectionCard(theme: theme, title: "Residents") {
-                    if residents.isEmpty {
-                        LivingEmptyBlock(
-                            theme: theme,
-                            message: "No residents yet",
-                            detail: "Add a resident from Quick Add — nothing is invented."
-                        )
-                    } else {
-                        ForEach(residents) { resident in
-                            HStack {
-                                Text(resident.name ?? "Resident")
-                                    .font(.plusJakarta(size: 13, weight: .semibold))
-                                    .foregroundStyle(theme.text)
-                                Spacer()
-                                if let role = resident.roleCode, !role.isEmpty {
-                                    Text(role)
-                                        .font(.plusJakarta(size: 11, weight: .semibold))
-                                        .foregroundStyle(theme.secondary)
-                                }
-                            }
-                            .padding(12)
-                            .background(theme.bg)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.border))
-                        }
-                    }
-                }
-
-                LivingSectionCard(theme: theme, title: "Planning & Tasks") {
-                    MomentsPlanningHeader(
-                        title: "Recent plans",
-                        text: theme.text,
-                        muted: theme.secondary,
-                        accent: theme.accent,
-                        onOpenSchedule: { scheduleOpen = true }
+                    MomentsHeroHeader(
+                        eyebrow: "SHARED LIVING",
+                        title: displayTitle,
+                        status: status,
+                        stats: heroStats,
+                        chrome: chrome
                     )
-                    if recentPlans.isEmpty {
-                        LivingEmptyBlock(
-                            theme: theme,
-                            message: "No planning items yet",
-                            detail: "Add a task when ready — nothing is invented."
-                        )
-                    } else {
-                        ForEach(Array(recentPlans.enumerated()), id: \.offset) { _, item in
-                            MomentsPlanningRecentRow(
-                                item: item,
-                                momentTypeCode: momentTypeCode,
-                                text: theme.text,
-                                muted: theme.secondary,
-                                accent: theme.accent,
-                                field: theme.bg,
-                                border: theme.border
-                            )
-                        }
-                    }
-                }
 
-                LivingSectionCard(theme: theme, title: "Shared Assets") {
-                    if sharedAssets.isEmpty {
-                        LivingEmptyBlock(
-                            theme: theme,
-                            message: "No shared assets yet",
-                            detail: "Add a household asset from Quick Add."
-                        )
-                    } else {
-                        ForEach(sharedAssets) { asset in
-                            HStack {
-                                Text(asset.title ?? "Asset")
-                                    .font(.plusJakarta(size: 13, weight: .semibold))
-                                    .foregroundStyle(theme.text)
-                                Spacer()
-                                if let status = asset.status, !status.isEmpty {
-                                    Text(status)
-                                        .font(.plusJakarta(size: 11, weight: .semibold))
-                                        .foregroundStyle(theme.accentLight)
-                                }
-                            }
-                            .padding(12)
-                            .background(theme.bg)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.border))
-                        }
-                    }
-                }
-
-                LivingSectionCard(theme: theme, title: "Maintenance") {
-                    if maintenance.isEmpty {
-                        LivingEmptyBlock(
-                            theme: theme,
-                            message: "No maintenance records",
-                            detail: "Log maintenance from Quick Add when something needs care."
-                        )
-                    } else {
-                        ForEach(maintenance) { record in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(record.title ?? "Maintenance")
-                                    .font(.plusJakarta(size: 13, weight: .semibold))
-                                    .foregroundStyle(theme.text)
-                                if let desc = record.description, !desc.isEmpty {
-                                    Text(desc)
-                                        .font(.plusJakarta(size: 11))
-                                        .foregroundStyle(theme.secondary)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
-                            .background(theme.bg)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.border))
-                        }
-                    }
-                }
-
-                LivingSectionCard(theme: theme, title: "Polls") {
+                    MomentsSectionHeader(title: "Polls  🗳️", chrome: chrome, onViewAll: {
+                        pollsListOpen = true
+                    })
                     if listPolls.isEmpty {
-                        LivingEmptyBlock(
-                            theme: theme,
-                            message: "No polls yet",
-                            detail: "Create a poll from Quick Add to decide together."
-                        )
+                        GroupEmptySection(message: "No polls yet", detail: "Create a poll from Quick Add to decide together.")
                     } else {
-                        ForEach(listPolls) { item in
-                            Button {
-                                if let id = item.pollId { selectedPollId = id }
-                            } label: {
-                                Text(item.question ?? item.pollId ?? "Poll")
-                                    .font(.plusJakarta(size: 13, weight: .semibold))
-                                    .foregroundStyle(theme.text)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(12)
-                                    .background(theme.bg)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.border))
+                        ForEach(Array(listPolls.prefix(2))) { poll in
+                            MomentsPollPreviewCard(poll: poll, chrome: chrome) {
+                                if let id = poll.pollId { selectedPollId = id }
                             }
-                            .buttonStyle(.plain)
                         }
                     }
-                }
 
-                LivingSectionCard(theme: theme, title: "Updates") {
-                    if updates.isEmpty {
-                        LivingEmptyBlock(
-                            theme: theme,
-                            message: "No updates yet",
-                            detail: "Share a status update from Quick Add."
-                        )
+                    MomentsSectionHeader(title: "Tasks / Planning", chrome: chrome, onViewAll: { scheduleOpen = true })
+                    if dayGroups.isEmpty {
+                        GroupEmptySection(message: "No tasks yet", detail: "Add a planning item from Quick Add — nothing is invented.")
                     } else {
-                        ForEach(Array(updates.prefix(8).enumerated()), id: \.offset) { _, item in
-                            MomentsUrgentUpdateRow(
-                                item: item,
-                                text: theme.text,
-                                muted: theme.secondary,
-                                field: theme.bg,
-                                border: theme.border
+                        ForEach(Array(dayGroups.enumerated()), id: \.offset) { index, group in
+                            let first = group.items.first
+                            MomentsItineraryDayCard(
+                                dayIndex: index + 1,
+                                day: group.day,
+                                title: first?.title ?? "Plans",
+                                timeLabel: [
+                                    formatPlanningTime(first?.dueAt),
+                                    "\(group.items.count) item\(group.items.count == 1 ? "" : "s")",
+                                ].compactMap { $0 }.joined(separator: " · "),
+                                chrome: chrome
                             )
                         }
                     }
-                }
 
-                LivingSectionCard(theme: theme, title: "Shared Gallery") {
+                    MomentsSectionHeader(title: "Updates / Feed  📱", chrome: chrome)
+                    if updates.isEmpty {
+                        GroupEmptySection(message: "No updates yet", detail: "Share a status update from Quick Add.")
+                    } else {
+                        ForEach(Array(updates.prefix(5).enumerated()), id: \.offset) { index, item in
+                            MomentsUpdateFeedRow(item: item, index: index, chrome: chrome)
+                        }
+                    }
+
+                    MomentsSectionHeader(title: "Shared Gallery  📸", chrome: chrome)
                     MemoryPhotoGalleryStrip(
                         items: listMemoryItems,
                         emptyMessage: "Gallery empty",
                         emptyDetail: "Add a memory with a photo from Quick Add.",
-                        text: theme.text,
-                        muted: theme.secondary,
-                        field: theme.card,
-                        border: theme.border
+                        text: chrome.text,
+                        muted: chrome.secondary,
+                        field: chrome.card,
+                        border: chrome.border,
+                        showMediaCountBadge: true
+                    )
+
+                    if !highlights.isEmpty {
+                        MomentsSectionHeader(title: "Highlights", chrome: chrome)
+                        ForEach(Array(highlights.enumerated()), id: \.offset) { _, title in
+                            MomentsSimpleRowCard(title: title, chrome: chrome)
+                        }
+                    }
+
+                    MomentsSectionHeader(title: kind == .customLiving ? "Property Rules" : "House Rules", chrome: chrome)
+                    if livingRules.isEmpty {
+                        GroupEmptySection(message: "No rules yet", detail: "Add a living rule from Quick Add.")
+                    } else {
+                        ForEach(Array(livingRules.prefix(5))) { rule in
+                            MomentsSimpleRowCard(
+                                title: rule.title,
+                                meta: rule.ruleText,
+                                status: rule.status,
+                                chrome: chrome
+                            )
+                        }
+                    }
+
+                    MomentsSectionHeader(
+                        title: kind == .customLiving ? "Property Assets" : "Shared Assets",
+                        chrome: chrome
+                    )
+                    if sharedAssets.isEmpty {
+                        GroupEmptySection(message: "No shared assets yet", detail: "Add a household asset from Quick Add.")
+                    } else {
+                        ForEach(Array(sharedAssets.prefix(6))) { asset in
+                            MomentsSimpleRowCard(
+                                title: asset.title ?? "Asset",
+                                status: asset.status,
+                                chrome: chrome
+                            )
+                        }
+                    }
+
+                    MomentsSectionHeader(title: "Maintenance", chrome: chrome)
+                    if maintenance.isEmpty {
+                        GroupEmptySection(message: "No maintenance records", detail: "Log maintenance from Quick Add when something needs care.")
+                    } else {
+                        ForEach(Array(maintenance.prefix(5))) { record in
+                            MomentsSimpleRowCard(
+                                title: record.title ?? "Maintenance",
+                                meta: record.description,
+                                status: record.status,
+                                chrome: chrome
+                            )
+                        }
+                    }
+
+                    MomentsSectionHeader(title: "Residents", chrome: chrome)
+                    if residents.isEmpty {
+                        GroupEmptySection(message: "No residents yet", detail: "Add a resident from Quick Add.")
+                    } else {
+                        ForEach(Array(residents.prefix(8))) { resident in
+                            MomentsSimpleRowCard(
+                                title: resident.name ?? resident.participantId ?? "Resident",
+                                meta: resident.roleCode,
+                                status: resident.status,
+                                chrome: chrome
+                            )
+                        }
+                    }
+
+                    if theme.includesContribution {
+                        MomentsSectionHeader(title: "Contributions & Expenses", chrome: chrome)
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Collected \(funded.map { "\($0)%" } ?? "—") · \(GroupFinanceFormat.formatMoney(contributionTotal, currencyCode: currency))")
+                                .font(.plusJakarta(size: 13, weight: .semibold))
+                                .foregroundStyle(chrome.text)
+                            MomentsExpensesCard(
+                                spent: finance?.totals?.first?.expenseTotal,
+                                currency: currency,
+                                peopleCount: peopleCount,
+                                expenses: listExpenses,
+                                chrome: chrome
+                            )
+                        }
+                    } else {
+                        MomentsSectionHeader(title: "Expenses  💸", chrome: chrome)
+                        MomentsExpensesCard(
+                            spent: finance?.totals?.first?.expenseTotal,
+                            currency: currency,
+                            peopleCount: peopleCount,
+                            expenses: listExpenses,
+                            chrome: chrome
+                        )
+                    }
+
+                    if showUpcoming {
+                        MomentsSectionHeader(title: "Upcoming Events  🗓", chrome: chrome)
+                        if upcoming.isEmpty {
+                            GroupEmptySection(message: "Nothing upcoming", detail: "Near-term plans will show here.")
+                        } else {
+                            ForEach(Array(upcoming.enumerated()), id: \.offset) { index, event in
+                                MomentsUpcomingEventCard(event: event, highlight: index == 0, chrome: chrome)
+                            }
+                        }
+                    }
+
+                    MomentsQuickAddCta(
+                        title: "Add to the \(theme.typeLabel.lowercased()) story",
+                        subtitle: "Add a resident, expense, task, asset or memory.",
+                        chrome: chrome,
+                        onTap: onOpenQuickAdd
                     )
                 }
-
-                VStack(spacing: 16) {
-                    Text("Add to the \(theme.typeLabel.lowercased()) story")
-                        .font(.plusJakarta(size: 18, weight: .bold))
-                        .foregroundStyle(Color.white)
-                    Text("Add a resident, expense, task, asset or memory.")
-                        .font(.plusJakarta(size: 13))
-                        .foregroundStyle(Color.white.opacity(0.9))
-                    Button(action: onOpenQuickAdd) {
-                        Text("+ Open Quick Add")
-                            .font(.plusJakarta(size: 14, weight: .bold))
-                            .foregroundStyle(theme.darkText)
-                            .frame(maxWidth: .infinity).background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(20)
-                .frame(maxWidth: .infinity)
-                .background(theme.heroGradient)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
             }
-
-
-            }
-
-
         }
     }
 
@@ -361,11 +363,16 @@ struct LivingMomentsActiveView: View {
             async let financeResult = APIClient.shared.getGroupFinance(momentId: momentId)
             async let lifeResult = APIClient.shared.getGroupLife(momentId: momentId)
             async let plansResult = APIClient.shared.listPlanningItems(momentId: momentId)
+            async let bookingsResult = APIClient.shared.listBookings(momentId: momentId)
             async let updatesResult = APIClient.shared.listGroupUpdates(momentId: momentId)
             async let pollsResult = APIClient.shared.listPolls(momentId: momentId)
             async let residentsResult = APIClient.shared.listResidents(momentId: momentId)
             async let assetsResult = APIClient.shared.listSharedAssets(momentId: momentId)
             async let maintenanceResult = APIClient.shared.listMaintenanceRecords(momentId: momentId)
+            async let rulesResult = APIClient.shared.listLivingRules(momentId: momentId)
+            async let memoriesResult = APIClient.shared.listGroupMemories(momentId: momentId)
+            async let expensesResult = APIClient.shared.listGroupExpenses(momentId: momentId, limit: 10)
+
             let loadedPulse = try await pulseResult
             let finFacet = try await financeResult
             let loadedLife = try await lifeResult
@@ -375,11 +382,21 @@ struct LivingMomentsActiveView: View {
             finance = loadedFinance
             life = loadedLife
             listPlanning = (try? await plansResult)?.items ?? loadedLife.payload?.planningItems ?? []
+            listBookings = (try? await bookingsResult)?.items ?? loadedLife.payload?.bookings ?? []
             listUpdates = (try? await updatesResult)?.items ?? loadedLife.payload?.updates ?? []
             listPolls = (try? await pollsResult)?.items ?? []
             residents = (try? await residentsResult)?.items ?? []
             sharedAssets = (try? await assetsResult)?.items ?? []
             maintenance = (try? await maintenanceResult)?.items ?? []
+            livingRules = (try? await rulesResult)?.items ?? []
+            listExpenses = (try? await expensesResult)?.items ?? []
+            if let mems = try? await memoriesResult {
+                listMemoryItems = mems.items
+                memoryCount = mems.memoryCount ?? mems.items.count
+            } else {
+                listMemoryItems = (try? await APIClient.shared.getGroupMemory(momentId: momentId))?.payload?.items ?? []
+                memoryCount = listMemoryItems.count
+            }
             GroupTabDataCache.putPulse(momentId, .init(
                 title: loadedPulse.title,
                 pulse: loadedPulse,

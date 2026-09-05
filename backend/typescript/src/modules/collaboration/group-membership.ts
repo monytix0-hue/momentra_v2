@@ -14,8 +14,28 @@ export interface GroupParticipantRow {
   participantId: string;
   userId: string | null;
   roleCode: string;
+  roleLabel: string;
   status: string;
   displayName: string | null;
+  isGuest: boolean;
+}
+
+function roleLabelFor(roleCode: string, isGuest: boolean): string {
+  if (isGuest) return 'Guest';
+  switch (roleCode) {
+    case 'ORGANIZER':
+      return 'Organizer';
+    case 'CO_ORGANIZER':
+      return 'Co-organizer';
+    case 'RESIDENT':
+      return 'Resident';
+    case 'CONTRIBUTOR':
+      return 'Contributor';
+    case 'OBSERVER':
+      return 'Viewer';
+    default:
+      return 'Member';
+  }
 }
 
 /** Assert caller is an ACTIVE participant on a GROUP moment. */
@@ -58,12 +78,13 @@ export async function listGroupParticipants(
   const rows = await client.query<{
     participant_id: string;
     user_id: string | null;
+    external_party_id: string | null;
     participant_role: string;
     status: string;
     metadata: { displayName?: string } | null;
     display_name: string | null;
   }>(
-    `SELECT mp.participant_id, mp.user_id, mp.participant_role, mp.status, mp.metadata,
+    `SELECT mp.participant_id, mp.user_id, mp.external_party_id, mp.participant_role, mp.status, mp.metadata,
             COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName') AS display_name
      FROM collaboration.moment_participant mp
      LEFT JOIN core.user_profile up ON up.user_id = mp.user_id
@@ -75,13 +96,18 @@ export async function listGroupParticipants(
 
   return {
     momentId,
-    participants: rows.rows.map((r) => ({
-      participantId: r.participant_id,
-      userId: r.user_id,
-      roleCode: r.participant_role,
-      status: r.status,
-      displayName: r.display_name ?? r.metadata?.displayName ?? null,
-    })),
+    participants: rows.rows.map((r) => {
+      const isGuest = r.external_party_id != null;
+      return {
+        participantId: r.participant_id,
+        userId: r.user_id,
+        roleCode: r.participant_role,
+        roleLabel: roleLabelFor(r.participant_role, isGuest),
+        status: r.status,
+        displayName: r.display_name ?? r.metadata?.displayName ?? null,
+        isGuest,
+      };
+    }),
   };
 }
 
@@ -264,7 +290,7 @@ export const updateGroupParticipantRoleSchema = z
 
 export type UpdateGroupParticipantRoleInput = z.infer<typeof updateGroupParticipantRoleSchema>;
 
-function assertCallerIsOrganizer(me: GroupMemberInfo): void {
+export function assertCallerIsOrganizer(me: GroupMemberInfo): void {
   if (!LEADER_ROLES.has(me.role)) {
     throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Only organizers can manage members.', 403);
   }

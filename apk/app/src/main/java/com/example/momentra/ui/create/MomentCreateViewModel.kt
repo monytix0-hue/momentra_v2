@@ -3,10 +3,14 @@ package com.example.momentra.ui.create
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.ApiResultException
 import com.example.momentra.data.api.CreateMomentParticipantBody
 import com.example.momentra.data.api.GroupSetupBlockDto
 import com.example.momentra.data.api.GroupInviteDto
+import com.example.momentra.data.api.PatchPersonalSetupBody
+import com.example.momentra.data.repository.AccountRepository
+import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.repository.MomentCreateRepository
 import com.example.momentra.data.repository.MomentLifecycleRepository
 import com.example.momentra.domain.CreateMomentOutcome
@@ -20,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 data class MomentCreateUiState(
     val submitting: Boolean = false,
@@ -51,14 +56,14 @@ class MomentCreateViewModel(
         _state.update { it.copy(submitting = true, error = null) }
         viewModelScope.launch {
             val resolvedTitle = title ?: catalog.defaultTitle
-            if (editingMomentId != null) {
-                submitEdit(editingMomentId, resolvedTitle, catalog.momentTypeCode, onSuccess)
-                return@launch
-            }
             val prefs = SetupPreferenceFilter.filterToCatalogKeys(
                 preferences,
                 PersonalSetupCatalog.allowedKeys(kind),
             )
+            if (editingMomentId != null) {
+                submitPersonalEdit(editingMomentId, resolvedTitle, catalog.momentTypeCode, prefs, onSuccess)
+                return@launch
+            }
             repository.createPersonalMoment(
                 systemCode = kind.systemCode,
                 momentTypeCode = catalog.momentTypeCode,
@@ -165,7 +170,7 @@ class MomentCreateViewModel(
         val (apiType, customLabel) = resolveGroupTypeForApi(section, momentTypeCode, title)
         viewModelScope.launch {
             if (editingMomentId != null) {
-                submitEdit(editingMomentId, title, apiType, onSuccess)
+                submitGroupEdit(editingMomentId, title, apiType, groupSetup, onSuccess)
                 return@launch
             }
             repository.createGroupMoment(
@@ -203,6 +208,139 @@ class MomentCreateViewModel(
                     }
                 },
             )
+        }
+    }
+
+    private suspend fun submitGroupEdit(
+        momentId: String,
+        title: String,
+        momentTypeCode: String,
+        groupSetup: GroupSetupBlockDto?,
+        onSuccess: (CreateMomentOutcome) -> Unit,
+    ) {
+        val lifecycle = MomentLifecycleRepository()
+        val accountRepo = AccountRepository()
+        val groupRepo = GroupSliceRepository()
+        lifecycle.getVersion(momentId).fold(
+            onSuccess = { version ->
+                lifecycle.rename(momentId, title, version).fold(
+                    onSuccess = { dto ->
+                        groupSetup?.let { setup ->
+                            runCatching {
+                                groupRepo.patchGroupBudget(
+                                    momentId,
+                                    setup.budgetAmount,
+                                    setup.budgetCurrencyCode,
+                                )
+                            }
+                            setup.reminderPreferences?.let { rem ->
+                                runCatching {
+                                    accountRepo.patchMomentNotificationPreferences(momentId, true, rem)
+                                }
+                            }
+                        }
+                        _state.update { it.copy(submitting = false, error = null) }
+                        onSuccess(
+                            CreateMomentOutcome(
+                                momentId = dto.momentId,
+                                title = dto.title,
+                                domainCode = dto.domainCode,
+                                status = dto.status,
+                                version = dto.version,
+                                momentTypeCode = momentTypeCode,
+                                setupId = null,
+                                projectionHints = emptyList(),
+                            ),
+                        )
+                    },
+                    onFailure = { e ->
+                        _state.update {
+                            it.copy(
+                                submitting = false,
+                                error = (e as? ApiResultException)?.message ?: e.message ?: "Update failed",
+                            )
+                        }
+                    },
+                )
+            },
+            onFailure = { e ->
+                _state.update {
+                    it.copy(
+                        submitting = false,
+                        error = (e as? ApiResultException)?.message ?: e.message ?: "Update failed",
+                    )
+                }
+            },
+        )
+    }
+
+    private suspend fun submitPersonalEdit(
+        momentId: String,
+        title: String,
+        momentTypeCode: String,
+        preferences: Map<String, Any>,
+        onSuccess: (CreateMomentOutcome) -> Unit,
+    ) {
+        try {
+            val setups = ApiClient.apiService.getPersonalSetups().data
+            val setup = setups.items.firstOrNull { it.momentId == momentId }
+                ?: throw ApiResultException.NotFound("Personal setup not found for this moment.")
+            val setupVersion = setup.version
+                ?: throw ApiResultException.Validation(message = "Personal setup version missing.")
+            ApiClient.apiService.patchPersonalSetup(
+                setupId = setup.setupId,
+                idempotencyKey = UUID.randomUUID().toString(),
+                body = PatchPersonalSetupBody(
+                    expectedVersion = setupVersion,
+                    title = title,
+                    preferences = preferences,
+                ),
+            )
+            val lifecycle = MomentLifecycleRepository()
+            lifecycle.getVersion(momentId).fold(
+                onSuccess = { version ->
+                    lifecycle.rename(momentId, title, version).fold(
+                        onSuccess = { dto ->
+                            _state.update { it.copy(submitting = false, error = null) }
+                            onSuccess(
+                                CreateMomentOutcome(
+                                    momentId = dto.momentId,
+                                    title = dto.title,
+                                    domainCode = dto.domainCode,
+                                    status = dto.status,
+                                    version = dto.version,
+                                    momentTypeCode = momentTypeCode,
+                                    setupId = setup.setupId,
+                                    projectionHints = emptyList(),
+                                ),
+                            )
+                        },
+                        onFailure = { e ->
+                            _state.update {
+                                it.copy(
+                                    submitting = false,
+                                    error = (e as? ApiResultException)?.message ?: e.message ?: "Update failed",
+                                )
+                            }
+                        },
+                    )
+                },
+                onFailure = { e ->
+                    _state.update {
+                        it.copy(
+                            submitting = false,
+                            error = (e as? ApiResultException)?.message ?: e.message ?: "Update failed",
+                        )
+                    }
+                },
+            )
+        } catch (e: Exception) {
+            _state.update {
+                it.copy(
+                    submitting = false,
+                    error = (e as? ApiResultException)?.message ?: e.message ?: "Update failed",
+                )
+            }
         }
     }
 

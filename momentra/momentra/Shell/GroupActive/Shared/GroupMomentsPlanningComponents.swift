@@ -78,6 +78,124 @@ func isUrgentUpdate(_ item: GroupUpdateItem) -> Bool {
     (item.urgencyCode ?? "").caseInsensitiveCompare("URGENT") == .orderedSame
 }
 
+/// Completion percent for planning items: DONE / (OPEN+IN_PROGRESS+DONE). Zero when none countable.
+func planningPlansPercent(_ items: [GroupPlanningItem]) -> Int {
+    var done = 0
+    var countable = 0
+    for item in items {
+        let status = (item.status ?? "").uppercased()
+        if status == "CANCELLED" { continue }
+        countable += 1
+        if status == "DONE" { done += 1 }
+    }
+    guard countable > 0 else { return 0 }
+    return Int((Double(done) / Double(countable) * 100).rounded())
+}
+
+func formatRelativeShort(_ iso: String?) -> String {
+    guard let date = parsePlanningInstant(iso) else { return "" }
+    let seconds = Int(-date.timeIntervalSinceNow)
+    if seconds < 60 { return "just now" }
+    if seconds < 3600 { return "\(seconds / 60)m ago" }
+    if seconds < 86_400 { return "\(seconds / 3600)h ago" }
+    if seconds < 86_400 * 7 { return "\(seconds / 86_400)d ago" }
+    let out = DateFormatter()
+    out.dateFormat = "d MMM"
+    return out.string(from: date)
+}
+
+func formatPollClosesMeta(closesAt: String?, totalVotes: Int?) -> String {
+    let votes = totalVotes ?? 0
+    let votePart = votes == 1 ? "1 vote" : "\(votes) votes"
+    guard let closes = parsePlanningInstant(closesAt) else { return votePart }
+    let remaining = closes.timeIntervalSinceNow
+    if remaining <= 0 { return "Ended · \(votePart)" }
+    if remaining < 3600 {
+        let mins = max(1, Int(remaining / 60))
+        return "Ends in \(mins)m · \(votePart)"
+    }
+    if remaining < 86_400 {
+        let hours = Int(remaining / 3600)
+        return "Ends in \(hours)h · \(votePart)"
+    }
+    let days = Int(remaining / 86_400)
+    if days == 1 { return "Ends tomorrow · \(votePart)" }
+    return "Ends in \(days)d · \(votePart)"
+}
+
+/// Status pill text for polls list (Figma): "Ends in 2h", "Ends tomorrow", "Closed".
+func formatPollEndsTag(closesAt: String?, status: String?) -> String {
+    let upper = (status ?? "").uppercased()
+    if upper == "CLOSED" || upper == "CANCELLED" { return "Closed" }
+    guard let closes = parsePlanningInstant(closesAt) else {
+        return upper == "OPEN" || upper.isEmpty ? "Open" : upper.capitalized
+    }
+    let remaining = closes.timeIntervalSinceNow
+    if remaining <= 0 { return "Closed" }
+    if remaining < 3600 {
+        let mins = max(1, Int(remaining / 60))
+        return "Ends in \(mins)m"
+    }
+    if remaining < 86_400 {
+        let hours = Int(remaining / 3600)
+        return "Ends in \(hours)h"
+    }
+    let days = Int(remaining / 86_400)
+    if days == 1 { return "Ends tomorrow" }
+    return "Ends in \(days)d"
+}
+
+func initialsFromName(_ name: String?) -> String {
+    let parts = (name ?? "")
+        .split(separator: " ")
+        .filter { !$0.isEmpty }
+    if parts.isEmpty { return "?" }
+    if parts.count == 1 { return String(parts[0].prefix(2)).uppercased() }
+    return "\(parts[0].prefix(1))\(parts[1].prefix(1))".uppercased()
+}
+
+func formatBookingDay(_ iso: String?) -> String? {
+    guard let date = parsePlanningInstant(iso) else { return nil }
+    let out = DateFormatter()
+    out.dateFormat = "d MMM"
+    return out.string(from: date)
+}
+
+func formatBookingDayTime(_ iso: String?) -> String? {
+    guard let date = parsePlanningInstant(iso) else { return nil }
+    let out = DateFormatter()
+    out.dateFormat = "d MMM · h:mm a"
+    return out.string(from: date)
+}
+
+func formatItineraryDayLabel(dayIndex: Int, date: Date) -> String {
+    let out = DateFormatter()
+    out.dateFormat = "d MMM"
+    return "DAY \(dayIndex) • \(out.string(from: date).uppercased())"
+}
+
+/// Distinct due-days for itinerary preview, preserving chronological order.
+func itineraryDayGroups(
+    _ items: [GroupPlanningItem],
+    limit: Int = 3
+) -> [(day: Date, items: [GroupPlanningItem])] {
+    let open = recentOpenPlanningItems(items, limit: 50)
+    var orderedDays: [Date] = []
+    var buckets: [Date: [GroupPlanningItem]] = [:]
+    for item in open {
+        guard let day = planningItemDayKey(item) else { continue }
+        if buckets[day] == nil {
+            orderedDays.append(day)
+            buckets[day] = []
+        }
+        buckets[day, default: []].append(item)
+    }
+    return orderedDays.prefix(limit).compactMap { day in
+        guard let dayItems = buckets[day], !dayItems.isEmpty else { return nil }
+        return (day, dayItems)
+    }
+}
+
 // MARK: - Schedule sheet
 
 struct PlanningScheduleSheet: View {

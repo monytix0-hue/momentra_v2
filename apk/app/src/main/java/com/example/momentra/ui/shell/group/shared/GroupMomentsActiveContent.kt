@@ -2,17 +2,14 @@ package com.example.momentra.ui.shell.group.shared
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -20,17 +17,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.data.api.GroupExpenseListItemDto
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupLifeBookingDto
 import com.example.momentra.data.api.GroupLifePlanningItemDto
@@ -39,9 +38,8 @@ import com.example.momentra.data.api.GroupMemoryItemDto
 import com.example.momentra.data.api.GroupPollItemDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
+import kotlinx.coroutines.launch
 import com.example.momentra.ui.theme.PlusJakartaSans
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** Figma 575:14327 — Group Moments active tab (live API only). */
@@ -55,6 +53,7 @@ fun GroupMomentsActiveContent(
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
+    val chrome = MomentsChrome.Trip
     var loading by remember { mutableStateOf(true) }
     var pulse by remember { mutableStateOf<GroupPulsePayloadDto?>(null) }
     var finance by remember { mutableStateOf<GroupFinancePayloadDto?>(null) }
@@ -64,7 +63,11 @@ fun GroupMomentsActiveContent(
     var updates by remember { mutableStateOf<List<GroupLifeUpdateDto>>(emptyList()) }
     var polls by remember { mutableStateOf<List<GroupPollItemDto>>(emptyList()) }
     var memoryItems by remember { mutableStateOf<List<GroupMemoryItemDto>>(emptyList()) }
+    var expenses by remember { mutableStateOf<List<GroupExpenseListItemDto>>(emptyList()) }
+    var memoryCount by remember { mutableIntStateOf(0) }
     var selectedPollId by remember { mutableStateOf<String?>(null) }
+    var pollsListOpen by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     var scheduleOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(refreshToken, momentId) {
@@ -77,6 +80,8 @@ fun GroupMomentsActiveContent(
             updates = emptyList()
             polls = emptyList()
             memoryItems = emptyList()
+            expenses = emptyList()
+            memoryCount = 0
             return@LaunchedEffect
         }
         error = null
@@ -96,7 +101,6 @@ fun GroupMomentsActiveContent(
                 loading = false
             },
         )
-        // Prefer dedicated list GETs (parity with iOS); fall back to Life facet embedding.
         val plans = repository.listPlanningItems(momentId).getOrNull()?.items
         val books = repository.listBookings(momentId).getOrNull()?.items
         val upds = repository.listUpdates(momentId).getOrNull()?.items
@@ -114,10 +118,16 @@ fun GroupMomentsActiveContent(
                 updates = life?.updates.orEmpty()
             }
         }
-        repository.listMemories(momentId).onSuccess { memoryItems = it.items }
-            .onFailure {
-                repository.getMemory(momentId).onSuccess { memoryItems = it.payload?.items.orEmpty() }
+        repository.listMemories(momentId).onSuccess {
+            memoryItems = it.items
+            memoryCount = it.memoryCount.takeIf { c -> c > 0 } ?: it.items.size
+        }.onFailure {
+            repository.getMemory(momentId).onSuccess {
+                memoryItems = it.payload?.items.orEmpty()
+                memoryCount = it.payload?.memoryCount?.takeIf { c -> c > 0 } ?: memoryItems.size
             }
+        }
+        expenses = repository.listGroupExpenses(momentId, 10).getOrNull()?.items.orEmpty()
     }
 
     if (loading && pulse == null) {
@@ -126,21 +136,22 @@ fun GroupMomentsActiveContent(
     }
 
     val budgetTotal = finance?.totals?.firstOrNull()?.budgetTotal
+    val expenseTotal = finance?.totals?.firstOrNull()?.expenseTotal
     val currency = finance?.totals?.firstOrNull()?.currencyCode ?: "INR"
     val peopleCount = pulse?.participantCount ?: 0
-    val plansCount = pulse?.openTaskCount ?: planningItems.size
-    val recentPlans = recentOpenPlanningItems(planningItems)
-    val itineraryAccents = listOf(
-        Color(0xFF14B8A6),
-        Color(0xFFB45309),
-        Color(0xFFA855F7),
-        GroupActiveTheme.AccentOrange,
-    )
+    val plansPct = planningPlansPercent(planningItems)
+    val momentsValue = if (memoryCount > 0) memoryCount else memoryItems.size
+    val status = "PLANNING"
+    val title = momentTitle ?: "Shared Moments"
+    val dayGroups = itineraryDayGroups(planningItems)
+    val upcoming = remember(bookings, planningItems, finance, peopleCount) {
+        buildMomentsUpcomingEvents(bookings, planningItems, finance)
+    }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(GroupActiveTheme.Bg)
+            .background(chrome.bg)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .padding(bottom = 56.dp),
@@ -148,144 +159,91 @@ fun GroupMomentsActiveContent(
     ) {
         error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
 
-        GroupHeroHeader(
-            title = momentTitle ?: "Shared Moments",
-            subtitle = "Plan, share, and relive together",
-            meta = "PLANNING",
+        MomentsHeroHeader(
+            eyebrow = "SHARED EXPERIENCE",
+            title = title,
+            status = status,
+            stats = listOf(
+                Triple("PEOPLE", "$peopleCount", listOf(Color(0xFF14B8A6), Color(0xFF0F766E))),
+                Triple("PLANS", "$plansPct%", listOf(Color(0xFFFF8E63), Color(0xFFE8744F))),
+                Triple("BUDGET", GroupFinanceFormat.compactMoney(budgetTotal, currency), listOf(Color(0xFFE88A4F), Color(0xFFC2410C))),
+                Triple("MOMENTS", "$momentsValue", listOf(Color(0xFFA855F7), Color(0xFF7C3AED))),
+            ),
+            chrome = chrome,
         )
 
-        GroupSectionCard(title = "Shared Experience") {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MomentsMetricCard(
-                    label = "PEOPLE",
-                    value = "$peopleCount",
-                    glyph = "👥",
-                    brush = Brush.linearGradient(listOf(Color(0xFF0F766E), Color(0xFF14B8A6))),
-                    modifier = Modifier.weight(1f),
-                )
-                MomentsMetricCard(
-                    label = "PLANS",
-                    value = "$plansCount",
-                    glyph = "🗺️",
-                    brush = Brush.linearGradient(listOf(Color(0xFFE89574), GroupActiveTheme.Brand)),
-                    modifier = Modifier.weight(1f),
-                )
+        MomentsSectionHeader("Polls  🗳️", chrome, onViewAll = { pollsListOpen = true })
+        if (polls.isEmpty()) {
+            GroupEmptySection("No polls yet", "Create a poll from Quick Add to decide together.")
+        } else {
+            polls.take(2).forEach { poll ->
+                MomentsPollPreviewCard(poll = poll, chrome = chrome, onClick = { poll.pollId?.let { selectedPollId = it } })
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MomentsMetricCard(
-                    label = "BUDGET",
-                    value = GroupFinanceFormat.compactMoney(budgetTotal, currency),
-                    glyph = "💰",
-                    brush = Brush.linearGradient(listOf(Color(0xFF9A3412), GroupActiveTheme.AccentOrange)),
-                    modifier = Modifier.weight(1f),
-                )
-                MomentsMetricCard(
-                    label = "UPDATES",
-                    value = "${updates.size}",
-                    glyph = "✨",
-                    brush = Brush.linearGradient(listOf(Color(0xFF6B21A8), Color(0xFFA855F7))),
-                    modifier = Modifier.weight(1f),
+        }
+
+        MomentsSectionHeader("Itinerary", chrome, onViewAll = { scheduleOpen = true })
+        if (dayGroups.isEmpty()) {
+            GroupEmptySection("No itinerary days yet", "Add a planning item from Quick Add — nothing is invented.")
+        } else {
+            dayGroups.forEachIndexed { index, (day, items) ->
+                val first = items.firstOrNull()
+                MomentsItineraryDayCard(
+                    dayIndex = index + 1,
+                    day = day,
+                    title = first?.title ?: "Plan",
+                    timeLabel = formatPlanningTime(first?.dueAt) ?: "All day",
+                    chrome = chrome,
                 )
             }
         }
 
-        GroupSectionCard(title = "Itinerary") {
-            MomentsPlanningHeader(
-                title = "Recent plans",
-                text = GroupActiveTheme.Text,
-                muted = GroupActiveTheme.Secondary,
-                accent = Color(0xFF14B8A6),
-                onOpenSchedule = { scheduleOpen = true },
-            )
-            if (recentPlans.isEmpty()) {
-                GroupEmptySection(
-                    message = "No itinerary days yet",
-                    detail = "Add a planning item from Quick Add — nothing is invented.",
-                )
-            } else {
-                recentPlans.forEach { item ->
-                    MomentsPlanningRecentRow(
-                        item = item,
-                        momentTypeCode = momentTypeCode,
-                        text = GroupActiveTheme.Text,
-                        muted = GroupActiveTheme.Secondary,
-                        accent = Color(0xFF14B8A6),
-                        field = GroupActiveTheme.Card,
-                        border = GroupActiveTheme.Border,
-                    )
-                }
+        MomentsSectionHeader("Updates / Feed  📱", chrome)
+        if (updates.isEmpty()) {
+            GroupEmptySection("No updates yet", "Share a status update from Quick Add.")
+        } else {
+            updates.take(3).forEachIndexed { index, item ->
+                MomentsUpdateFeedRow(item = item, index = index, chrome = chrome)
             }
         }
 
-        GroupSectionCard(title = "Bookings") {
-            if (bookings.isEmpty()) {
-                GroupEmptySection(
-                    message = "No bookings yet",
-                    detail = "Add a booking from Quick Add when ready.",
-                )
-            } else {
-                bookings.forEachIndexed { index, item ->
-                    MomentsListRow(
-                        title = item.title ?: item.bookingId.orEmpty(),
-                        meta = item.status,
-                        accent = itineraryAccents[(index + 1) % itineraryAccents.size],
-                        glyph = "🏨",
-                    )
-                }
+        MomentsSectionHeader("Shared Gallery  📸", chrome)
+        MemoryPhotoGalleryStrip(
+            items = memoryItems,
+            emptyMessage = "No photos yet",
+            emptyDetail = "Add a memory with a photo from Quick Add.",
+            text = chrome.text,
+            muted = chrome.secondary,
+            field = chrome.card,
+            border = chrome.border,
+            showMediaCountBadge = true,
+        )
+
+        MomentsSectionHeader("Bookings  🛎️", chrome)
+        if (bookings.isEmpty()) {
+            GroupEmptySection("No bookings yet", "Add a booking from Quick Add when ready.")
+        } else {
+            bookings.take(4).forEach { MomentsBookingCard(it, chrome) }
+        }
+
+        MomentsSectionHeader("Upcoming Events  🗓", chrome)
+        if (upcoming.isEmpty()) {
+            GroupEmptySection("Nothing upcoming", "Near-term bookings and plans will show here.")
+        } else {
+            upcoming.forEachIndexed { index, event ->
+                MomentsUpcomingEventCard(event = event, highlight = index == 0, chrome = chrome)
             }
         }
 
-        GroupSectionCard(title = "Polls") {
-            if (polls.isEmpty()) {
-                GroupEmptySection(
-                    message = "No polls yet",
-                    detail = "Create a poll from Quick Add to decide together.",
-                )
-            } else {
-                polls.forEachIndexed { index, item ->
-                    MomentsListRow(
-                        title = item.question ?: item.pollId.orEmpty(),
-                        meta = item.status,
-                        accent = itineraryAccents[(index + 3) % itineraryAccents.size],
-                        glyph = "📊",
-                        onClick = item.pollId?.let { pollId -> ({ selectedPollId = pollId }) },
-                    )
-                }
-            }
-        }
+        MomentsSectionHeader("Expenses & Budget  💸", chrome)
+        MomentsExpensesCard(
+            spent = expenseTotal,
+            currency = currency,
+            peopleCount = peopleCount,
+            expenses = expenses,
+            chrome = chrome,
+        )
 
-        GroupSectionCard(title = "Updates") {
-            if (updates.isEmpty()) {
-                GroupEmptySection(
-                    message = "No updates yet",
-                    detail = "Share a status update from Quick Add.",
-                )
-            } else {
-                updates.take(8).forEach { item ->
-                    MomentsUrgentUpdateRow(
-                        item = item,
-                        text = GroupActiveTheme.Text,
-                        muted = GroupActiveTheme.Secondary,
-                        field = GroupActiveTheme.Card,
-                        border = GroupActiveTheme.Border,
-                    )
-                }
-            }
-        }
-
-        GroupSectionCard(title = "Shared Gallery") {
-            MemoryPhotoGalleryStrip(
-                items = memoryItems,
-                emptyMessage = "No photos yet",
-                emptyDetail = "Add a memory with a photo from Quick Add.",
-                text = GroupActiveTheme.Text,
-                muted = GroupActiveTheme.Secondary,
-                field = GroupActiveTheme.Card,
-                border = GroupActiveTheme.Border,
-            )
-        }
-
-        MomentsQuickAddCta(onClick = onCreateMoment)
+        MomentsQuickAddCta(chrome = chrome, onClick = onCreateMoment)
     }
 
     PlanningScheduleSheet(
@@ -294,11 +252,26 @@ fun GroupMomentsActiveContent(
         onDismiss = { scheduleOpen = false },
         momentTypeCode = momentTypeCode,
         accent = Color(0xFF14B8A6),
-        surface = GroupActiveTheme.Bg,
-        field = GroupActiveTheme.Card,
-        border = GroupActiveTheme.Border,
-        text = GroupActiveTheme.Text,
-        muted = GroupActiveTheme.Secondary,
+        surface = chrome.bg,
+        field = chrome.card,
+        border = chrome.border,
+        text = chrome.text,
+        muted = chrome.secondary,
+    )
+
+    GroupPollsListSheet(
+        visible = pollsListOpen,
+        momentTitle = momentTitle,
+        chrome = MomentsChrome.Trip,
+        polls = polls,
+        onDismiss = { pollsListOpen = false },
+        onChanged = {
+            if (!momentId.isNullOrBlank()) {
+                scope.launch {
+                    polls = repository.listPolls(momentId).getOrNull()?.items.orEmpty()
+                }
+            }
+        },
     )
 
     selectedPollId?.let { pollId ->
@@ -306,125 +279,61 @@ fun GroupMomentsActiveContent(
             pollId = pollId,
             visible = true,
             onDismiss = { selectedPollId = null },
-            onSaved = { /* parent refreshToken handles reload */ },
+            onSaved = {
+                if (!momentId.isNullOrBlank()) {
+                    scope.launch {
+                        polls = repository.listPolls(momentId).getOrNull()?.items.orEmpty()
+                    }
+                }
+            },
             repository = repository,
         )
     }
 }
 
 @Composable
-private fun MomentsMetricCard(
-    label: String,
-    value: String,
-    glyph: String,
-    brush: Brush,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(brush)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Text(glyph, fontSize = 18.sp)
-        Text(label, color = Color.White.copy(alpha = 0.85f), fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
-        Text(value, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
-    }
-}
-
-@Composable
-private fun MomentsListRow(
-    title: String,
-    meta: String?,
-    accent: Color,
-    glyph: String,
-    onClick: (() -> Unit)? = null,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF181716))
-            .border(1.dp, GroupActiveTheme.Border, RoundedCornerShape(14.dp))
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(3.dp)
-                .height(36.dp)
-                .clip(RoundedCornerShape(100.dp))
-                .background(accent),
-        )
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(accent.copy(alpha = 0.18f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(glyph, fontSize = 16.sp)
-        }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, color = GroupActiveTheme.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
-            meta?.takeIf { it.isNotBlank() }?.let {
-                Text(it, color = GroupActiveTheme.Secondary, fontSize = 11.sp, fontFamily = PlusJakartaSans)
-            }
-        }
-    }
-}
-
-@Composable
-private fun MomentsQuickAddCta(onClick: () -> Unit) {
+private fun MomentsBookingCard(item: GroupLifeBookingDto, chrome: MomentsChrome) {
+    val status = (item.status ?: "PLANNED").uppercase(Locale.US)
+    val confirmed = status == "CONFIRMED" || status == "BOOKED" || status == "COMPLETED"
+    val typeLabel = (item.bookingType ?: "Booking").replace('_', ' ').replaceFirstChar { it.titlecase(Locale.US) }
+    val day = formatBookingDay(item.startAt ?: item.bookedAt)
+    val meta = listOfNotNull(typeLabel, day).joinToString(" · ")
+    val whenLabel = formatBookingDayTime(item.startAt) ?: formatBookingDay(item.bookedAt) ?: "—"
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Brush.horizontalGradient(listOf(GroupActiveTheme.Brand, GroupActiveTheme.AccentOrange)))
+            .clip(RoundedCornerShape(16.dp))
+            .background(chrome.card)
+            .border(1.dp, chrome.border, RoundedCornerShape(16.dp))
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            "Create the next shared moment",
-            color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.ExtraBold,
-            fontFamily = PlusJakartaSans,
-        )
-        Text(
-            "Plan, booking, poll, expense, memory or update.",
-            color = Color.White.copy(alpha = 0.85f),
-            fontSize = 12.sp,
-            fontFamily = PlusJakartaSans,
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color.White)
-                .clickable(onClick = onClick)
-                .padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center,
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(chrome.card),
+                    contentAlignment = Alignment.Center,
+                ) { Text(if (confirmed) "🏨" else "🎟️", fontSize = 18.sp) }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(item.title ?: item.bookingId.orEmpty(), color = chrome.text, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+                    Text(meta, color = chrome.secondary, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+                }
+            }
             Text(
-                "+ Open Quick Add",
-                color = GroupActiveTheme.AccentOrange,
-                fontSize = 14.sp,
+                status,
+                color = if (confirmed) Color(0xFF22C55E) else chrome.accent,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = PlusJakartaSans,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background((if (confirmed) Color(0xFF22C55E) else chrome.accent).copy(alpha = 0.1f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }
-    }
-}
-
-private fun formatTripInstant(raw: String?): String? {
-    if (raw.isNullOrBlank()) return null
-    return runCatching {
-        OffsetDateTime.parse(raw).format(DateTimeFormatter.ofPattern("MMM d · h:mm a", Locale.US))
-    }.getOrElse {
-        raw.take(16).replace('T', ' ')
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(if (confirmed) "Check-in" else "Start time", color = chrome.secondary, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+            Text(whenLabel, color = chrome.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+        }
     }
 }

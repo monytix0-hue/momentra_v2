@@ -60,13 +60,23 @@ struct MemoryPhotoGalleryStrip: View {
     var field: Color
     var border: Color
     var tileSize: CGFloat = 96
+    var showMediaCountBadge: Bool = false
 
-    private var urls: [URL] {
-        memoryGalleryUrls(from: items)
+    private var tiles: [(url: URL?, count: Int)] {
+        if showMediaCountBadge {
+            return items.compactMap { item -> (URL?, Int)? in
+                let count = item.mediaCount ?? item.media?.count ?? 0
+                guard let url = item.primaryDownloadUrl.flatMap({ URL(string: $0) }) else {
+                    return count > 0 ? (nil, count) : nil
+                }
+                return (url, max(count, 1))
+            }
+        }
+        return memoryGalleryUrls(from: items).map { ($0, 0) }
     }
 
     var body: some View {
-        if urls.isEmpty {
+        if tiles.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
                 Text(emptyMessage)
                     .font(.plusJakarta(size: 13, weight: .semibold))
@@ -77,16 +87,32 @@ struct MemoryPhotoGalleryStrip: View {
             }
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Array(urls.enumerated()), id: \.offset) { _, url in
-                        RemoteMemoryImage(url: url, placeholderColor: field)
-                            .frame(width: tileSize, height: tileSize)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(border, lineWidth: 1)
-                            )
-                            .background(field)
+                HStack(spacing: 12) {
+                    ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
+                        ZStack(alignment: .topTrailing) {
+                            RemoteMemoryImage(url: tile.url, placeholderColor: field)
+                                .frame(
+                                    width: showMediaCountBadge ? nil : tileSize,
+                                    height: showMediaCountBadge ? 140 : tileSize
+                                )
+                                .frame(maxWidth: showMediaCountBadge ? .infinity : nil)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                            if showMediaCountBadge, tile.count > 0 {
+                                Text("\(tile.count)")
+                                    .font(.plusJakarta(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.black.opacity(0.5))
+                                    .clipShape(Capsule())
+                                    .padding(6)
+                            }
+                        }
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color(hex: "#40E88A4F"), lineWidth: 1.5)
+                        )
+                        .frame(width: showMediaCountBadge ? 110 : tileSize)
                     }
                 }
             }

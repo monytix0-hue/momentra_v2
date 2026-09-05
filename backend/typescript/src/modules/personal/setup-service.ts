@@ -258,6 +258,7 @@ export async function listUserSetups(
     momentId: string;
     status: string;
     preferences: Record<string, unknown>;
+    version: number;
     createdAt: string;
   }>
 > {
@@ -268,9 +269,10 @@ export async function listUserSetups(
     moment_id: string;
     status: string;
     preferences: Record<string, unknown>;
+    version: number;
     created_at: Date;
   }>(
-    `SELECT life_system_setup_id, system_code, title, moment_id, status, preferences, created_at
+    `SELECT life_system_setup_id, system_code, title, moment_id, status, preferences, version, created_at
      FROM personal.life_system_setup
      WHERE user_id = $1
      ORDER BY created_at DESC
@@ -284,6 +286,134 @@ export async function listUserSetups(
     momentId: r.moment_id,
     status: r.status,
     preferences: r.preferences ?? {},
+    version: r.version,
     createdAt: r.created_at.toISOString(),
   }));
+}
+
+export const patchSetupSchema = z
+  .object({
+    expectedVersion: z.number().int().positive(),
+    title: z.string().min(1).max(500).optional(),
+    preferences: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+
+export type PatchSetupInput = z.infer<typeof patchSetupSchema>;
+
+export async function patchPersonalSetup(
+  client: PoolClient,
+  ctx: RequestContext,
+  setupId: string,
+  body: PatchSetupInput
+): Promise<{
+  setupId: string;
+  systemCode: string;
+  momentId: string;
+  title: string;
+  status: string;
+  version: number;
+  preferences: Record<string, unknown>;
+}> {
+  const existing = await client.query<{
+    life_system_setup_id: string;
+    system_code: string;
+    moment_id: string;
+    title: string;
+    status: string;
+    version: number;
+    preferences: Record<string, unknown>;
+    user_id: string;
+  }>(
+    `SELECT life_system_setup_id, system_code, moment_id, title, status, version, preferences, user_id
+     FROM personal.life_system_setup
+     WHERE life_system_setup_id = $1`,
+    [setupId]
+  );
+  const row = existing.rows[0];
+  if (!row || row.user_id !== ctx.userId) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Personal setup not found.', 404);
+  }
+  if (row.version !== body.expectedVersion) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Setup version conflict.', 409);
+  }
+
+  const systemCode = row.system_code as PersonalSetupSystemCode;
+  const nextTitle = body.title ?? row.title;
+  const catalog = getSetupByCode(systemCode);
+  if (!catalog) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `Unknown personal setup: ${systemCode}`, 400);
+  }
+  let nextPreferences: Record<string, unknown> = row.preferences ?? {};
+  if (body.preferences !== undefined) {
+    const allowed = new Set(Object.keys(catalog.defaultPreferences));
+    const booleanKeys = new Set(['reflectWeekly', 'remindWeekly']);
+    for (const key of Object.keys(body.preferences)) {
+      if (!allowed.has(key)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, `Unknown preference key: ${key}`, 400);
+      }
+      const value = body.preferences[key];
+      if (booleanKeys.has(key)) {
+        if (typeof value !== 'boolean') {
+          throw new AppError(ErrorCode.VALIDATION_FAILED, `preferences.${key} must be a boolean.`, 400);
+        }
+      } else if (typeof value !== 'string') {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, `preferences.${key} must be a string.`, 400);
+      }
+    }
+    nextPreferences = { ...catalog.defaultPreferences, ...body.preferences };
+  }
+
+  const updated = await client.query<{
+    life_system_setup_id: string;
+    system_code: string;
+    moment_id: string;
+    title: string;
+    status: string;
+    version: number;
+    preferences: Record<string, unknown>;
+  }>(
+    `UPDATE personal.life_system_setup
+     SET title = $2,
+         preferences = $3::jsonb,
+         version = version + 1,
+         updated_at = now()
+     WHERE life_system_setup_id = $1 AND version = $4
+     RETURNING life_system_setup_id, system_code, moment_id, title, status, version, preferences`,
+    [setupId, nextTitle, JSON.stringify(nextPreferences), body.expectedVersion]
+  );
+  if (!updated.rows[0]) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Setup version conflict.', 409);
+  }
+
+  const result = updated.rows[0];
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'PersonalSetupUpdated',
+    domainCode: 'PERSONAL',
+    aggregateType: 'LIFE_SYSTEM_SETUP',
+    aggregateId: result.life_system_setup_id,
+    scopeType: 'MOMENT',
+    scopeId: result.moment_id,
+    payload: {
+      setupId: result.life_system_setup_id,
+      systemCode: result.system_code,
+      momentId: result.moment_id,
+      title: result.title,
+    },
+  });
+  await insertAudit(client, ctx, 'PERSONAL_SETUP_UPDATE', 'LIFE_SYSTEM_SETUP', result.life_system_setup_id, domainEventId, {
+    systemCode: result.system_code,
+    momentId: result.moment_id,
+    title: result.title,
+  });
+
+  return {
+    setupId: result.life_system_setup_id,
+    systemCode: result.system_code,
+    momentId: result.moment_id,
+    title: result.title,
+    status: result.status,
+    version: result.version,
+    preferences: result.preferences ?? {},
+  };
 }

@@ -46,7 +46,7 @@ import androidx.compose.ui.platform.testTag
 import com.example.momentra.ui.theme.PlusJakartaSans
 
 internal const val GROUP_LOCAL_ONLY_NOTE =
-    "Saved on this device — syncs when Group preferences API ships"
+    "Synced with your group — budget and reminders save on activate"
 
 /** Compact Figma type strip (EXPERIENCE SETUPS / PURCHASE SETUPS / …). */
 @Composable
@@ -589,7 +589,7 @@ internal fun cycleOption(current: String, options: List<String>): String {
 internal fun experienceChipLabel(opt: GroupTypeOption): String = when (opt.code) {
     "TRIP" -> "Trip"
     "WEDDING" -> "Wedding"
-    "HOUSE_PARTY" -> "Party"
+    "HOUSE_PARTY" -> "Celebration"
     "OFFICE_OUTING" -> "Office"
     else -> opt.label.take(8)
 }

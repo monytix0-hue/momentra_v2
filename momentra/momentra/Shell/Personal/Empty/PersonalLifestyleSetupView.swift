@@ -252,6 +252,16 @@ struct PersonalLifestyleSetupView: View {
             momentTitle = (initialTitle?.isEmpty == false) ? initialTitle! : catalog.defaultTitle
             let habit2 = selections["habit2"] as? String ?? ""
             showHabit2 = !habit2.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            guard let editingMomentId else { return }
+            Task {
+                guard let setup = try? await APIClient.shared.personalSetup(forMomentId: editingMomentId) else { return }
+                selections = PersonalSetupEditPrefill.mergeDefaults(catalog.defaultPreferences, saved: setup.preferences)
+                if initialTitle == nil || initialTitle?.isEmpty == true {
+                    momentTitle = setup.title
+                }
+                let loadedHabit2 = selections["habit2"] as? String ?? ""
+                showHabit2 = !loadedHabit2.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
         }
     }
 

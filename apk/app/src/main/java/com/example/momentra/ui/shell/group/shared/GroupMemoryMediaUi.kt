@@ -112,10 +112,26 @@ fun MemoryPhotoGalleryStrip(
     field: Color,
     border: Color,
     tileSize: Dp = 96.dp,
+    showMediaCountBadge: Boolean = false,
     emptyContent: (@Composable () -> Unit)? = null,
 ) {
-    val urls = remember(items) { memoryGalleryUrls(items) }
-    if (urls.isEmpty()) {
+    data class Tile(val url: String?, val count: Int)
+    val tiles = remember(items, showMediaCountBadge) {
+        if (showMediaCountBadge) {
+            items.mapNotNull { item ->
+                val count = if (item.mediaCount > 0) item.mediaCount else item.media.size
+                val url = item.media.firstOrNull { !it.downloadUrl.isNullOrBlank() }?.downloadUrl
+                when {
+                    !url.isNullOrBlank() -> Tile(url, maxOf(count, 1))
+                    count > 0 -> Tile(null, count)
+                    else -> null
+                }
+            }
+        } else {
+            memoryGalleryUrls(items).map { Tile(it, 0) }
+        }
+    }
+    if (tiles.isEmpty()) {
         if (emptyContent != null) {
             emptyContent()
         } else {
@@ -130,17 +146,36 @@ fun MemoryPhotoGalleryStrip(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        urls.forEach { url ->
-            RemoteMemoryImage(
-                url = url,
+        tiles.forEach { tile ->
+            Box(
                 modifier = Modifier
-                    .size(tileSize)
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, border, RoundedCornerShape(12.dp))
+                    .size(width = if (showMediaCountBadge) 110.dp else tileSize, height = if (showMediaCountBadge) 140.dp else tileSize)
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.5.dp, Color(0x40E88A4F), RoundedCornerShape(16.dp))
                     .background(field),
-            )
+            ) {
+                RemoteMemoryImage(
+                    url = tile.url,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (showMediaCountBadge && tile.count > 0) {
+                    Text(
+                        "${tile.count}",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.Black.copy(alpha = 0.5f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
+            }
         }
     }
 }

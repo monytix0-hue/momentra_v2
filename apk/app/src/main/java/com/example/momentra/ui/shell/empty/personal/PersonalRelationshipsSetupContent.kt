@@ -16,6 +16,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -28,10 +30,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.momentra.analytics.AnalyticsScreens
 import com.example.momentra.analytics.MomentraAnalytics
-import androidx.compose.runtime.collectAsState
-import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.momentra.data.api.ApiClient
 import com.example.momentra.domain.CreateMomentOutcome
 import com.example.momentra.ui.create.MomentCreateViewModel
 import com.example.momentra.ui.setup.SetupTitleField
@@ -80,6 +82,22 @@ fun PersonalRelationshipsSetupContent(
     DisposableEffect(Unit) {
         MomentraAnalytics.get().onScreenEnter(AnalyticsScreens.PERSONAL_SETUP_RELATIONSHIPS)
         onDispose { MomentraAnalytics.get().onScreenExit(AnalyticsScreens.PERSONAL_SETUP_RELATIONSHIPS) }
+    }
+
+    LaunchedEffect(editingMomentId) {
+        val momentId = editingMomentId ?: return@LaunchedEffect
+        runCatching {
+            ApiClient.apiService.getPersonalSetups().data.items.firstOrNull { it.momentId == momentId }
+        }.getOrNull()?.let { setup ->
+            selections.clear()
+            selections.putAll(
+                mergePersonalSetupPreferences(catalog.defaultPreferences, setup.preferences),
+            )
+            if (initialTitle.isNullOrBlank()) {
+                momentTitle = setup.title
+            }
+            showHabit2 = selectionString(selections, "habit2").isNotBlank()
+        }
     }
 
     Column(modifier = modifier.fillMaxSize().background(PersonalSetupLongFormTokens.Bg)) {

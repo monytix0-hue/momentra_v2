@@ -7,6 +7,7 @@ import {
   assertPollCloseAllowed,
   canClosePoll,
 } from '../governance/resolver';
+import { assertCallerIsOrganizer, assertGroupMember } from './group-membership';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { emitLeanBusinessEvent, loadMomentTaxonomy } from '../analytics/lean-events';
 import { z } from 'zod';
@@ -73,79 +74,87 @@ export async function addParticipant(
   momentId: string,
   body: z.infer<typeof participantSchema>
 ): Promise<{ participantId: string; momentId: string }> {
-  await assertGroupPeopleManageAllowed(client, ctx, momentId);
+  const isGuest = Boolean(body.displayName?.trim()) && !body.userId;
 
-  if (body.userId || !body.displayName) {
-    const targetUserId = body.userId ?? ctx.userId;
+  if (isGuest) {
+    const me = await assertGroupMember(client, ctx, momentId);
+    assertCallerIsOrganizer(me);
+
+    const displayName = body.displayName!.trim();
+    const party = await client.query<{ external_party_id: string }>(
+      `INSERT INTO core.external_party (party_type, display_name, status)
+       VALUES ('PERSON', $1, 'ACTIVE')
+       RETURNING external_party_id`,
+      [displayName]
+    );
+    // ACTIVE so guests appear in expense paid-by / split pickers.
     const inserted = await client.query<{ participant_id: string }>(
       `INSERT INTO collaboration.moment_participant (
-         moment_id, user_id, participant_role, status, joined_at, version
-       ) VALUES ($1, $2, $3, 'ACTIVE', now(), 1)
-       ON CONFLICT DO NOTHING
+         moment_id, external_party_id, participant_role, status, invited_at, joined_at, version, metadata
+       ) VALUES ($1, $2, 'OBSERVER', 'ACTIVE', now(), now(), 1, $3::jsonb)
        RETURNING participant_id`,
-      [momentId, targetUserId, body.roleCode]
+      [
+        momentId,
+        party.rows[0]!.external_party_id,
+        JSON.stringify({
+          displayName,
+          email: body.email ?? null,
+          phone: body.phone ?? null,
+          guest: true,
+        }),
+      ]
     );
-    if (!inserted.rows[0]) {
-      const existing = await client.query<{ participant_id: string }>(
-        `SELECT participant_id FROM collaboration.moment_participant WHERE moment_id = $1 AND user_id = $2 LIMIT 1`,
-        [momentId, targetUserId]
-      );
-      return { participantId: existing.rows[0]!.participant_id, momentId };
-    }
     const tax = await loadMomentTaxonomy(client, momentId);
     await emitLeanBusinessEvent(client, ctx, {
-      eventName: 'participant_joined',
+      eventName: 'participant_invited',
       momentId,
       momentDomain: tax?.domain ?? 'group',
       momentCategory: tax?.category,
       momentType: tax?.type,
-      userId: targetUserId,
       properties: {
-        participant_role: body.roleCode,
-        join_source: 'add_participant',
-        was_existing_user: true,
+        invite_id: inserted.rows[0]!.participant_id,
+        invite_channel: 'in_app',
+        invitee_user_status: 'external',
+        invited_role: 'OBSERVER',
+        is_guest: true,
       },
     });
-    return { participantId: inserted.rows[0].participant_id, momentId };
+    return { participantId: inserted.rows[0]!.participant_id, momentId };
   }
 
-  const party = await client.query<{ external_party_id: string }>(
-    `INSERT INTO core.external_party (party_type, display_name, status)
-     VALUES ('PERSON', $1, 'ACTIVE')
-     RETURNING external_party_id`,
-    [body.displayName]
-  );
+  await assertGroupPeopleManageAllowed(client, ctx, momentId);
+
+  const targetUserId = body.userId ?? ctx.userId;
   const inserted = await client.query<{ participant_id: string }>(
     `INSERT INTO collaboration.moment_participant (
-       moment_id, external_party_id, participant_role, status, invited_at, version, metadata
-     ) VALUES ($1, $2, $3, 'INVITED', now(), 1, $4::jsonb)
+       moment_id, user_id, participant_role, status, joined_at, version
+     ) VALUES ($1, $2, $3, 'ACTIVE', now(), 1)
+     ON CONFLICT DO NOTHING
      RETURNING participant_id`,
-    [
-      momentId,
-      party.rows[0]!.external_party_id,
-      body.roleCode,
-      JSON.stringify({
-        displayName: body.displayName,
-        email: body.email ?? null,
-        phone: body.phone ?? null,
-      }),
-    ]
+    [momentId, targetUserId, body.roleCode]
   );
+  if (!inserted.rows[0]) {
+    const existing = await client.query<{ participant_id: string }>(
+      `SELECT participant_id FROM collaboration.moment_participant WHERE moment_id = $1 AND user_id = $2 LIMIT 1`,
+      [momentId, targetUserId]
+    );
+    return { participantId: existing.rows[0]!.participant_id, momentId };
+  }
   const tax = await loadMomentTaxonomy(client, momentId);
   await emitLeanBusinessEvent(client, ctx, {
-    eventName: 'participant_invited',
+    eventName: 'participant_joined',
     momentId,
     momentDomain: tax?.domain ?? 'group',
     momentCategory: tax?.category,
     momentType: tax?.type,
+    userId: targetUserId,
     properties: {
-      invite_id: inserted.rows[0]!.participant_id,
-      invite_channel: 'in_app',
-      invitee_user_status: 'external',
-      invited_role: body.roleCode,
+      participant_role: body.roleCode,
+      join_source: 'add_participant',
+      was_existing_user: true,
     },
   });
-  return { participantId: inserted.rows[0]!.participant_id, momentId };
+  return { participantId: inserted.rows[0].participant_id, momentId };
 }
 
 export async function createPoll(

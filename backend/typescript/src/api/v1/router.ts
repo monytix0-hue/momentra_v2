@@ -2237,6 +2237,35 @@ v1Router.post('/personal/setups/:systemCode/activate', requireIdempotencyKey, as
   }
 });
 
+v1Router.patch('/personal/setups/:setupId', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(personalSetupService.patchSetupSchema, req.body ?? {});
+    const setupId = param(req.params.setupId);
+    const result = await runCommand({
+      operationCode: 'PERSONAL_SETUP_UPDATE',
+      idempotencyKey: req.idempotencyKey!,
+      body: { ...body, setupId },
+      ctx,
+      resourceType: 'LIFE_SYSTEM_SETUP',
+      execute: async (client, b) => {
+        const input = b as personalSetupService.PatchSetupInput & { setupId: string };
+        const r = await personalSetupService.patchPersonalSetup(client, ctx, input.setupId, input);
+        return { result: r, resourceId: r.setupId };
+      },
+    });
+    publishProjectionUpdated(ctx.userId, ['PERSONAL_MOMENTS', 'PERSONAL_PULSE', 'PERSONAL_LIFE'], ctx.correlationId);
+    res.json(
+      commandEnvelope(result, ctx.correlationId, {
+        resourceVersion: result.version,
+        projectionHints: toProjectionHints(['PERSONAL_MOMENTS', 'PERSONAL_PULSE', 'PERSONAL_LIFE']),
+      })
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+
 v1Router.get('/personal/attention', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
@@ -2938,6 +2967,20 @@ v1Router.post('/moments/:momentId/group-expenses', requireIdempotencyKey, async 
         projectionHints: toProjectionHints([...hints], 'refresh'),
       })
     );
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/group/moments/:momentId/group-expenses', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const limitRaw = typeof req.query.limit === 'string' ? Number(req.query.limit) : 20;
+    const limit = Number.isFinite(limitRaw) ? limitRaw : 20;
+    const data = await withDb((client) =>
+      groupExpenseService.listGroupExpenses(client, ctx, param(req.params.momentId), limit)
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {
     next(e);
   }

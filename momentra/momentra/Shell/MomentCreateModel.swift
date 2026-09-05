@@ -32,10 +32,11 @@ final class MomentCreateModel: ObservableObject {
         let filtered = SetupPreferenceFilter.filterToCatalogKeys(preferences, allowedKeys: allowedKeys)
         let resolvedTitle = title ?? catalog.defaultTitle
         if let editingMomentId {
-            submitEdit(
+            submitPersonalEdit(
                 momentId: editingMomentId,
                 title: resolvedTitle,
                 momentTypeCode: catalog.momentTypeCode,
+                preferences: filtered,
                 onSuccess: onSuccess
             )
             return
@@ -109,10 +110,11 @@ final class MomentCreateModel: ObservableObject {
     ) {
         let resolved = Self.resolveGroupTypeForApi(section: section, momentTypeCode: momentTypeCode, title: title)
         if let editingMomentId {
-            submitEdit(
+            submitGroupEdit(
                 momentId: editingMomentId,
                 title: title,
                 momentTypeCode: resolved.momentTypeCode,
+                groupSetup: groupSetup,
                 onSuccess: onSuccess
             )
             return
@@ -135,6 +137,57 @@ final class MomentCreateModel: ObservableObject {
             },
             onSuccess: onSuccess
         )
+    }
+
+    private func submitGroupEdit(
+        momentId: String,
+        title: String,
+        momentTypeCode: String,
+        groupSetup: CreateMomentRequest.GroupSetupBlock?,
+        onSuccess: @escaping (CreateMomentOutcome) -> Void
+    ) {
+        guard !state.submitting else { return }
+        state = UiState(submitting: true, error: nil)
+        Task {
+            do {
+                let detail = try await APIClient.shared.getMomentDetail(momentId: momentId)
+                let result = try await APIClient.shared.updateMoment(
+                    momentId: momentId,
+                    title: title,
+                    expectedVersion: detail.version
+                )
+                if let setup = groupSetup {
+                    _ = try? await APIClient.shared.patchGroupBudget(
+                        momentId: momentId,
+                        budgetAmount: setup.budgetAmount,
+                        budgetCurrencyCode: setup.budgetCurrencyCode
+                    )
+                    if let reminders = setup.reminderPreferences {
+                        _ = try? await APIClient.shared.patchMomentNotificationPreferences(
+                            momentId: momentId,
+                            reminderPreferences: reminders
+                        )
+                    }
+                }
+                let outcome = CreateMomentOutcome(
+                    momentId: result.momentId,
+                    title: result.title,
+                    domainCode: result.domainCode,
+                    status: result.status,
+                    version: result.version,
+                    momentTypeCode: momentTypeCode,
+                    setupId: nil,
+                    projectionHints: []
+                )
+                state = UiState(submitting: false, error: nil)
+                onSuccess(outcome)
+            } catch {
+                state = UiState(
+                    submitting: false,
+                    error: (error as? APIErrorKind).map(Self.message(for:)) ?? error.localizedDescription
+                )
+            }
+        }
     }
 
     /// Catalog may use `CUSTOM` for purchase/living — map to seeded taxonomy + customTypeLabel.
@@ -181,6 +234,55 @@ final class MomentCreateModel: ObservableObject {
 
     func listCompanies() async -> [CompanySummary] {
         (try? await repository.listCompanies()) ?? []
+    }
+
+    private func submitPersonalEdit(
+        momentId: String,
+        title: String,
+        momentTypeCode: String,
+        preferences: [String: Any],
+        onSuccess: @escaping (CreateMomentOutcome) -> Void
+    ) {
+        guard !state.submitting else { return }
+        state = UiState(submitting: true, error: nil)
+        Task {
+            do {
+                guard let setup = try await APIClient.shared.personalSetup(forMomentId: momentId),
+                      let setupVersion = setup.version
+                else {
+                    throw APIErrorKind.notFound("Personal setup not found for this moment.")
+                }
+                _ = try await APIClient.shared.patchPersonalSetup(
+                    setupId: setup.setupId,
+                    expectedVersion: setupVersion,
+                    title: title,
+                    preferences: preferences
+                )
+                let detail = try await APIClient.shared.getMomentDetail(momentId: momentId)
+                let result = try await APIClient.shared.updateMoment(
+                    momentId: momentId,
+                    title: title,
+                    expectedVersion: detail.version
+                )
+                let outcome = CreateMomentOutcome(
+                    momentId: result.momentId,
+                    title: result.title,
+                    domainCode: result.domainCode,
+                    status: result.status,
+                    version: result.version,
+                    momentTypeCode: momentTypeCode,
+                    setupId: setup.setupId,
+                    projectionHints: []
+                )
+                state = UiState(submitting: false, error: nil)
+                onSuccess(outcome)
+            } catch {
+                state = UiState(
+                    submitting: false,
+                    error: (error as? APIErrorKind).map(Self.message(for:)) ?? error.localizedDescription
+                )
+            }
+        }
     }
 
     private func submitEdit(

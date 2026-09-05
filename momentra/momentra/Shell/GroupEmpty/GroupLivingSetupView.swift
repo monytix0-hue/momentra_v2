@@ -197,12 +197,43 @@ struct GroupSectionSetupView: View {
         .background(GroupSetupTheme.bg.ignoresSafeArea())
         .onAppear {
             onSetupTypeChanged(selectedCode)
+            if let editingMomentId {
+                Task { await loadEditPrefill(momentId: editingMomentId) }
+            }
         }
         .onChange(of: selectedCode) { _, code in
             issuedInvite = nil
             inviteError = nil
             amountCustom = ""
             onSetupTypeChanged(code)
+        }
+    }
+
+    private func loadEditPrefill(momentId: String) async {
+        if let prefs = try? await APIClient.shared.getMomentNotificationPreferences(momentId: momentId) {
+            await MainActor.run {
+                let rem = prefs.reminderPreferences ?? [:]
+                if let v = rem["billReminders"] { billReminders = v ? "Enabled" : "Disabled" }
+                if let v = rem["choreReminders"] { choreReminders = v ? "Enabled" : "Disabled" }
+                if let v = rem["paymentReminders"] { paymentReminders = v ? "Enabled" : "Disabled" }
+            }
+        }
+        if let finance = try? await APIClient.shared.getGroupFinance(momentId: momentId).payload,
+           let total = finance.totals?.first(where: { ($0.budgetTotal.flatMap { Double($0) } ?? 0) > 0 })
+            ?? finance.totals?.first,
+           let raw = total.budgetTotal, Double(raw) ?? 0 > 0 {
+            let display = GroupBudgetUtils.formatApiAmountForDisplay(raw, currencyCode: total.currencyCode)
+            let options = isPurchase ? GroupBudgetUtils.purchaseAmountOptions : GroupBudgetUtils.livingBudgetOptions
+            await MainActor.run {
+                currency = total.currencyCode
+                if options.contains(display) {
+                    amount = display
+                    amountCustom = ""
+                } else {
+                    amount = GroupBudgetUtils.customOption
+                    amountCustom = GroupBudgetUtils.formatCustomAmountInput(raw)
+                }
+            }
         }
     }
 
@@ -436,19 +467,6 @@ struct GroupSectionSetupView: View {
                 placeholder: selected.defaultName
             )
             subsectionTitle("Your Home")
-            GroupLongFormPrefRow(
-                label: "Living type",
-                hint: "What kind of home is this?",
-                value: livingChipLabel(selected),
-                options: variant.types.map(livingChipLabel),
-                onValueChange: { label in
-                    let next = variant.types.first { livingChipLabel($0) == label } ?? selected
-                    selectedCode = next.code
-                    name = next.defaultName
-                    people = Self.defaultPeople(for: next.code)
-                },
-                testTag: "setup.dropdown.livingType"
-            )
             GroupLongFormPrefRow(
                 label: "Primary goal",
                 hint: "What matters most at home?",
@@ -760,6 +778,20 @@ struct GroupSectionSetupView: View {
     private func activate() {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        let budgetAmount = GroupBudgetUtils.resolveBudgetAmount(displayBudget: amount, customAmount: amountCustom)
+        let reminderPreferences: [String: Bool] = [
+            "billReminders": billReminders.lowercased() == "enabled",
+            "choreReminders": choreReminders.lowercased() == "enabled",
+            "paymentReminders": paymentReminders.lowercased() == "enabled",
+        ]
+        let groupSetup = budgetAmount.map {
+            CreateMomentRequest.GroupSetupBlock(
+                budgetAmount: $0,
+                budgetCurrencyCode: currency,
+                destinationText: nil,
+                reminderPreferences: reminderPreferences
+            )
+        }
         createModel.submitGroupMoment(
             section: variant.section,
             momentTypeCode: selected.code,
@@ -778,16 +810,13 @@ struct GroupSectionSetupView: View {
                     )
                 },
             inviteCode: issuedInvite?.inviteCode,
+            groupSetup: groupSetup,
             editingMomentId: editingMomentId,
             onSuccess: { outcome in
                 Task {
                     _ = try? await APIClient.shared.patchMomentNotificationPreferences(
                         momentId: outcome.momentId,
-                        reminderPreferences: [
-                            "billReminders": billReminders.lowercased() == "enabled",
-                            "choreReminders": choreReminders.lowercased() == "enabled",
-                            "paymentReminders": paymentReminders.lowercased() == "enabled",
-                        ]
+                        reminderPreferences: reminderPreferences
                     )
                     await MainActor.run { onCreated(outcome) }
                 }

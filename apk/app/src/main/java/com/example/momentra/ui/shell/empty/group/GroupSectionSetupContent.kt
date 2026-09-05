@@ -39,7 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.CreateMomentParticipantBody
 import com.example.momentra.data.api.GroupInviteDto
+import com.example.momentra.data.api.GroupSetupBlockDto
 import com.example.momentra.data.repository.AccountRepository
+import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.domain.CreateMomentOutcome
 import com.example.momentra.ui.create.MomentCreateViewModel
 import com.example.momentra.ui.setup.SetupDateField
@@ -179,6 +181,38 @@ private fun GroupSectionLongFormFlow(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val accountRepo = remember { AccountRepository() }
+    val groupRepo = remember { GroupSliceRepository() }
+
+    LaunchedEffect(editingMomentId) {
+        val mid = editingMomentId ?: return@LaunchedEffect
+        accountRepo.getMomentNotificationPreferences(mid).onSuccess { prefs ->
+            val rem = prefs.reminderPreferences.orEmpty()
+            rem["billReminders"]?.let { billReminders = if (it) "Enabled" else "Disabled" }
+            rem["choreReminders"]?.let { choreReminders = if (it) "Enabled" else "Disabled" }
+            rem["paymentReminders"]?.let { paymentReminders = if (it) "Enabled" else "Disabled" }
+        }
+        groupRepo.getFinance(mid).onSuccess { facet ->
+            val totals = facet.payload?.totals.orEmpty()
+            val total = totals.firstOrNull {
+                it.budgetTotal.toDoubleOrNull()?.let { v -> v > 0 } == true
+            } ?: totals.firstOrNull()
+            val raw = total?.budgetTotal?.takeIf { (it.toDoubleOrNull() ?: 0.0) > 0 } ?: return@onSuccess
+            val display = GroupBudgetUtils.formatApiAmountForDisplay(raw, total!!.currencyCode)
+            val options = if (family == GroupLongFormFamily.PURCHASE) {
+                GroupBudgetUtils.PURCHASE_AMOUNT_OPTIONS
+            } else {
+                GroupBudgetUtils.LIVING_BUDGET_OPTIONS
+            }
+            currency = total.currencyCode
+            if (display in options) {
+                amount = display
+                amountCustom = ""
+            } else {
+                amount = GroupBudgetUtils.CUSTOM_OPTION
+                amountCustom = GroupBudgetUtils.formatCustomAmountInput(raw)
+            }
+        }
+    }
 
     val palette = selected.palette
     val accent = palette.accent
@@ -488,19 +522,6 @@ private fun GroupSectionLongFormFlow(
                     )
                     GroupLongFormSubsectionTitle("Your Home")
                     GroupLongFormPrefRow(
-                        label = "Living type",
-                        hint = "What kind of home is this?",
-                        value = chipLabel(selected),
-                        options = types.map(chipLabel),
-                        onValueChange = { label ->
-                            val next = types.first { chipLabel(it) == label }
-                            selectedCode = next.code
-                            name = next.defaultName
-                            people = defaultGroupPeople(next.code)
-                        },
-                        testTag = MaestroIds.setupDropdown("livingType"),
-                    )
-                    GroupLongFormPrefRow(
                         label = "Primary goal",
                         hint = "What matters most at home?",
                         value = itemOrGoal,
@@ -705,6 +726,20 @@ private fun GroupSectionLongFormFlow(
                                         phone = it.contactPhone,
                                     )
                                 }
+                            val budgetAmount = GroupBudgetUtils.resolveBudgetAmount(amount, amountCustom)
+                            val reminderPreferences = mapOf(
+                                "billReminders" to billReminders.equals("Enabled", ignoreCase = true),
+                                "choreReminders" to choreReminders.equals("Enabled", ignoreCase = true),
+                                "paymentReminders" to paymentReminders.equals("Enabled", ignoreCase = true),
+                            )
+                            val groupSetup = budgetAmount?.let {
+                                GroupSetupBlockDto(
+                                    budgetAmount = it,
+                                    budgetCurrencyCode = currency,
+                                    destinationText = null,
+                                    reminderPreferences = reminderPreferences,
+                                )
+                            }
                             createViewModel.submitGroupMoment(
                                 section = variant.section,
                                 momentTypeCode = selectedCode,
@@ -714,6 +749,7 @@ private fun GroupSectionLongFormFlow(
                                 endAt = null,
                                 participants = invitees,
                                 inviteCode = issuedInvite?.inviteCode,
+                                groupSetup = groupSetup,
                                 editingMomentId = editingMomentId,
                                 onSuccess = { outcome ->
                                     scope.launch {
@@ -721,11 +757,7 @@ private fun GroupSectionLongFormFlow(
                                             accountRepo.patchMomentNotificationPreferences(
                                                 outcome.momentId,
                                                 true,
-                                                mapOf(
-                                                    "billReminders" to billReminders.equals("Enabled", ignoreCase = true),
-                                                    "choreReminders" to choreReminders.equals("Enabled", ignoreCase = true),
-                                                    "paymentReminders" to paymentReminders.equals("Enabled", ignoreCase = true),
-                                                ),
+                                                reminderPreferences,
                                             )
                                         }
                                         onCreated(outcome)

@@ -40,6 +40,7 @@ import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupLifePlanningItemDto
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
+import com.example.momentra.data.api.GroupResidentItemDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
@@ -83,7 +84,7 @@ fun LivingPulseActiveContent(
     var editingExpenseId by remember { mutableStateOf<String?>(null) }
     var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
     var planningItems by remember { mutableStateOf<List<GroupLifePlanningItemDto>>(emptyList()) }
-    var residents by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
+    var residents by remember { mutableStateOf<List<GroupResidentItemDto>>(emptyList()) }
     var insights by remember { mutableStateOf<List<AnalyticsInsightItemDto>>(emptyList()) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -305,11 +306,10 @@ fun LivingPulseActiveContent(
                 }
                 residents.isNotEmpty() -> {
                     residents.take(8).forEach { r ->
-                        val name = r["name"]?.toString()
-                            ?: r["displayName"]?.toString()
-                            ?: r["residentId"]?.toString()?.take(8)
+                        val name = r.name
+                            ?: r.residentId?.take(8)
                             ?: "Resident"
-                        val role = r["roleCode"]?.toString() ?: r["role"]?.toString() ?: "Resident"
+                        val role = r.roleCode ?: "Resident"
                         LivingCrewRow(theme = theme, name = name, role = role, amountLabel = "—")
                     }
                 }

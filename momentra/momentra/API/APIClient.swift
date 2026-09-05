@@ -1828,6 +1828,7 @@ final class APIClient {
         let momentId: String
         let status: String
         let preferences: [String: AnyDecodable]?
+        let version: Int?
         let createdAt: String
     }
 
@@ -1874,6 +1875,45 @@ final class APIClient {
             ),
             idempotencyKey: idempotencyKey
         )
+    }
+
+    struct PatchPersonalSetupResult: Decodable {
+        let setupId: String
+        let systemCode: String
+        let momentId: String
+        let title: String
+        let status: String
+        let version: Int
+        let preferences: [String: AnyDecodable]?
+    }
+
+    func patchPersonalSetup(
+        setupId: String,
+        expectedVersion: Int,
+        title: String? = nil,
+        preferences: [String: Any]? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> PatchPersonalSetupResult {
+        struct Body: Encodable {
+            let expectedVersion: Int
+            let title: String?
+            let preferences: [String: JSONEncodableValue]?
+        }
+        return try await authorizedPatch(
+            path: "v1/personal/setups/\(setupId)",
+            body: Body(
+                expectedVersion: expectedVersion,
+                title: title,
+                preferences: preferences.map { JSONEncodableValue.map($0) }
+            ),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    /// Finds the personal setup row for a moment, if any.
+    func personalSetup(forMomentId momentId: String) async throws -> PersonalSetupItemPayload? {
+        let payload = try await getPersonalSetups()
+        return payload.items.first { $0.momentId == momentId }
     }
 
     struct ExpenseSubcategoryPayload: Decodable, Identifiable {
@@ -2202,6 +2242,10 @@ final class APIClient {
             struct BookingItem: Decodable {
                 let bookingId: String?
                 let title: String?
+                let bookingType: String?
+                let bookedAt: String?
+                let startAt: String?
+                let endAt: String?
                 let status: String?
             }
 
@@ -2209,6 +2253,8 @@ final class APIClient {
                 let updateId: String?
                 let message: String?
                 let createdAt: String?
+                let participantId: String?
+                let authorDisplayName: String?
                 let urgencyCode: String?
             }
         }
@@ -2266,8 +2312,12 @@ final class APIClient {
         let participantId: String
         let userId: String?
         let roleCode: String?
+        let roleLabel: String?
         let status: String?
         let displayName: String?
+        let isGuest: Bool?
+
+        var guest: Bool { isGuest == true }
     }
 
     struct GroupParticipantsPayload: Decodable {
@@ -2547,6 +2597,7 @@ final class APIClient {
         let pollOptionId: String?
         let text: String?
         let sortOrder: Int?
+        let voteCount: Int?
     }
 
     struct GroupPollItemPayload: Decodable, Identifiable {
@@ -2556,6 +2607,9 @@ final class APIClient {
         let status: String?
         let closesAt: String?
         let createdAt: String?
+        let createdByUserId: String?
+        let createdByDisplayName: String?
+        let totalVotes: Int?
         let options: [GroupPollOptionPayload]?
     }
 
@@ -2592,11 +2646,59 @@ final class APIClient {
         let label: String?
         let amount: String?
         let status: String?
+        let createdAt: String?
     }
 
     struct GroupPurchaseItemsPayload: Decodable {
         let momentId: String?
         let items: [GroupPurchaseItemPayload]
+    }
+
+    struct GroupVendorItemPayload: Decodable, Identifiable {
+        var id: String { groupVendorId ?? vendorName ?? UUID().uuidString }
+        let groupVendorId: String?
+        let vendorName: String?
+        let vendorType: String?
+        let status: String?
+        let createdAt: String?
+    }
+
+    struct GroupVendorsPayload: Decodable {
+        let momentId: String?
+        let items: [GroupVendorItemPayload]
+    }
+
+    struct GroupAttendanceItemPayload: Decodable, Identifiable {
+        var id: String { attendanceId ?? participantId ?? UUID().uuidString }
+        let attendanceId: String?
+        let participantId: String?
+        let displayName: String?
+        let attendanceStatus: String?
+        let note: String?
+        let checkedAt: String?
+        let updatedAt: String?
+    }
+
+    struct GroupAttendancePayload: Decodable {
+        let momentId: String?
+        let items: [GroupAttendanceItemPayload]
+    }
+
+    struct GroupOwnershipItemPayload: Decodable, Identifiable {
+        var id: String { ownershipRecordId ?? participantId ?? UUID().uuidString }
+        let ownershipRecordId: String?
+        let purchaseItemId: String?
+        let participantId: String?
+        let displayName: String?
+        let ownershipShare: String?
+        let ownershipNote: String?
+        let status: String?
+        let createdAt: String?
+    }
+
+    struct GroupOwnershipPayload: Decodable {
+        let momentId: String?
+        let items: [GroupOwnershipItemPayload]
     }
 
     struct GroupResidentPayload: Decodable, Identifiable {
@@ -2619,6 +2721,23 @@ final class APIClient {
         let memoryCount: Int?
     }
 
+    struct GroupExpenseListItemPayload: Decodable, Identifiable {
+        var id: String { expenseId ?? UUID().uuidString }
+        let expenseId: String?
+        let description: String?
+        let categoryCode: String?
+        let amount: String?
+        let currencyCode: String?
+        let paidByParticipantId: String?
+        let paidByDisplayName: String?
+        let effectiveAt: String?
+    }
+
+    struct GroupExpensesListPayload: Decodable {
+        let momentId: String?
+        let items: [GroupExpenseListItemPayload]
+    }
+
     func listPlanningItems(momentId: String) async throws -> GroupPlanningItemsPayload {
         try await authorizedGet(path: "v1/group/moments/\(momentId)/planning-items")
     }
@@ -2629,6 +2748,13 @@ final class APIClient {
 
     func listPolls(momentId: String) async throws -> GroupPollsPayload {
         try await authorizedGet(path: "v1/group/moments/\(momentId)/polls")
+    }
+
+    func listGroupExpenses(momentId: String, limit: Int = 20) async throws -> GroupExpensesListPayload {
+        try await authorizedGet(
+            path: "v1/group/moments/\(momentId)/group-expenses",
+            query: ["limit": String(limit)]
+        )
     }
 
     func getPoll(pollId: String) async throws -> GroupPollDetailPayload {
@@ -2666,16 +2792,20 @@ final class APIClient {
         try await authorizedGet(path: "v1/group/moments/\(momentId)/delivery-handovers")
     }
 
-    func listOwnershipRecords(momentId: String) async throws -> GroupCollabListPayload {
+    func listOwnershipRecords(momentId: String) async throws -> GroupOwnershipPayload {
         try await authorizedGet(path: "v1/group/moments/\(momentId)/ownership-records")
     }
 
-    func listGroupAttendance(momentId: String) async throws -> GroupCollabListPayload {
+    func listGroupAttendance(momentId: String) async throws -> GroupAttendancePayload {
         try await authorizedGet(path: "v1/group/moments/\(momentId)/attendance")
     }
 
     func listPurchaseItems(momentId: String) async throws -> GroupPurchaseItemsPayload {
         try await authorizedGet(path: "v1/group/moments/\(momentId)/purchase-items")
+    }
+
+    func listGroupVendors(momentId: String) async throws -> GroupVendorsPayload {
+        try await authorizedGet(path: "v1/group/moments/\(momentId)/vendors")
     }
 
     func listResidents(momentId: String) async throws -> GroupResidentsPayload {
@@ -4490,10 +4620,6 @@ final class APIClient {
             body: Body(body),
             idempotencyKey: idempotencyKey
         )
-    }
-
-    func listGroupVendors(momentId: String) async throws -> PersonalProjectionPayload {
-        try await authorizedGet(path: "v1/group/moments/\(momentId)/vendors")
     }
 
     func listMemoryMedia(momentId: String, memoryId: String) async throws -> PersonalProjectionPayload {

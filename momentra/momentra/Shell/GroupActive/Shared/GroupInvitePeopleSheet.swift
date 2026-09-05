@@ -18,6 +18,8 @@ struct GroupInvitePeopleSheet: View {
     @State private var busyParticipantId: String?
     @State private var removeTarget: APIClient.GroupParticipantPayload?
     @State private var copied = false
+    @State private var guestName = ""
+    @State private var addingGuest = false
 
     private let sheetBg = TripSheetTokens.bg
     private let roleOptions: [(code: String, label: String)] = [
@@ -74,6 +76,39 @@ struct GroupInvitePeopleSheet: View {
                         qrPayload: qrPayload,
                         momentTitle: momentTitle
                     )
+
+                    if viewerIsOrganizer {
+                        VStack(alignment: .leading, spacing: 8) {
+                            TripFieldLabel(text: "Add guest")
+                            Text("Guests have no account — organizers can add them to expenses.")
+                                .font(.plusJakarta(size: 11))
+                                .foregroundStyle(TripForm.muted)
+                            HStack(spacing: 8) {
+                                TextField("Guest name", text: $guestName)
+                                    .font(.plusJakarta(size: 13))
+                                    .foregroundStyle(TripForm.text)
+                                    .padding(10)
+                                    .background(TripForm.field)
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(TripForm.border))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .accessibilityIdentifier("group.invite.guestName")
+                                Button {
+                                    Task { await addGuest() }
+                                } label: {
+                                    Text(addingGuest ? "…" : "Add")
+                                        .font(.plusJakarta(size: 13, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 10)
+                                        .background(TripForm.accent)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(addingGuest || guestName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                .accessibilityIdentifier("group.invite.addGuest")
+                            }
+                        }
+                    }
 
                     if !activeMembers.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
@@ -140,10 +175,21 @@ struct GroupInvitePeopleSheet: View {
                             .foregroundStyle(TripForm.accent)
                     )
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(name)
-                        .font(.plusJakarta(size: 13, weight: .semibold))
-                        .foregroundStyle(TripForm.text)
-                    Text(displayRoleLabel(p.roleCode))
+                    HStack(spacing: 6) {
+                        Text(name)
+                            .font(.plusJakarta(size: 13, weight: .semibold))
+                            .foregroundStyle(TripForm.text)
+                        if p.guest {
+                            Text("Guest")
+                                .font(.plusJakarta(size: 10, weight: .semibold))
+                                .foregroundStyle(TripForm.accent)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(TripForm.accent.opacity(0.15))
+                                .clipShape(Capsule())
+                        }
+                    }
+                    Text(p.roleLabel ?? displayRoleLabel(p.roleCode))
                         .font(.plusJakarta(size: 11))
                         .foregroundStyle(TripForm.muted)
                 }
@@ -167,7 +213,7 @@ struct GroupInvitePeopleSheet: View {
                     .disabled(busy)
                 }
             }
-            if viewerIsOrganizer {
+            if viewerIsOrganizer && !p.guest {
                 HStack(spacing: 8) {
                     ForEach(roleOptions, id: \.code) { opt in
                         let isSelected = selected == opt.code
@@ -238,6 +284,22 @@ struct GroupInvitePeopleSheet: View {
             participants = try await APIClient.shared.listGroupParticipants(momentId: momentId)
         } catch {
             // best-effort list
+        }
+    }
+
+    private func addGuest() async {
+        let name = guestName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        addingGuest = true
+        actionError = nil
+        defer { addingGuest = false }
+        do {
+            _ = try await APIClient.shared.addGroupParticipant(momentId: momentId, displayName: name)
+            guestName = ""
+            await refreshParticipants()
+            onSaved()
+        } catch {
+            actionError = error.localizedDescription
         }
     }
 

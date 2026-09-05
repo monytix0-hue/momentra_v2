@@ -429,6 +429,68 @@ export async function createGroupExpense(
   return result;
 }
 
+/** List recent POSTED group expenses for Moments / finance surfaces. */
+export async function listGroupExpenses(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  limit = 20
+): Promise<{
+  momentId: string;
+  items: Array<{
+    expenseId: string;
+    description: string | null;
+    categoryCode: string | null;
+    amount: string;
+    currencyCode: string;
+    paidByParticipantId: string;
+    paidByDisplayName: string | null;
+    effectiveAt: string;
+  }>;
+}> {
+  await assertGroupMember(client, ctx, momentId);
+  const capped = Math.min(Math.max(1, limit), 100);
+  const rows = await client.query<{
+    expense_id: string;
+    description: string | null;
+    category_code: string | null;
+    amount: string;
+    currency_code: string;
+    paid_by_participant_id: string;
+    paid_by_display_name: string | null;
+    effective_at: Date;
+  }>(
+    `SELECT e.expense_id, e.description, e.category_code, e.amount::text, e.currency_code,
+            g.paid_by_participant_id, e.effective_at,
+            COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName') AS paid_by_display_name
+     FROM finance.expense e
+     INNER JOIN finance.group_expense_context g ON g.expense_id = e.expense_id AND g.moment_id = e.moment_id
+     LEFT JOIN collaboration.moment_participant mp
+       ON mp.participant_id = g.paid_by_participant_id AND mp.moment_id = e.moment_id
+     LEFT JOIN core.user_profile up ON up.user_id = mp.user_id
+     LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
+     WHERE e.moment_id = $1::uuid
+       AND e.domain_code = 'GROUP'
+       AND e.status = 'POSTED'
+     ORDER BY e.effective_at DESC, e.expense_id DESC
+     LIMIT $2`,
+    [momentId, capped]
+  );
+  return {
+    momentId,
+    items: rows.rows.map((r) => ({
+      expenseId: r.expense_id,
+      description: r.description,
+      categoryCode: r.category_code,
+      amount: r.amount,
+      currencyCode: r.currency_code,
+      paidByParticipantId: r.paid_by_participant_id,
+      paidByDisplayName: r.paid_by_display_name,
+      effectiveAt: r.effective_at.toISOString(),
+    })),
+  };
+}
+
 export async function getGroupExpense(
   client: PoolClient,
   ctx: RequestContext,

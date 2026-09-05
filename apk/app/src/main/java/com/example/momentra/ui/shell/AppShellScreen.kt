@@ -1450,6 +1450,7 @@ private fun ShellDestinationContent(
                                     momentId = selectedMomentId,
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = groupTabRefreshToken,
+                                    momentTypeCode = selectedMomentTypeCode,
                                     onOpenQuickAdd = onOpenQuickAdd,
                                 )
                             } else if (isExperience) {

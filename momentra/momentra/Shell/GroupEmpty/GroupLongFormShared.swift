@@ -1,12 +1,12 @@
 import SwiftUI
 
-let groupLocalOnlyNote = "Saved on this device — syncs when Group preferences API ships"
+let groupLocalOnlyNote = "Synced with your group — budget and reminders save on activate"
 
 func experienceChipLabel(_ opt: GroupTypeOption) -> String {
     switch opt.code {
     case "TRIP": return "Trip"
     case "WEDDING": return "Wedding"
-    case "HOUSE_PARTY": return "Party"
+    case "HOUSE_PARTY": return "Celebration"
     case "OFFICE_OUTING": return "Office"
     default: return String(opt.label.prefix(8))
     }

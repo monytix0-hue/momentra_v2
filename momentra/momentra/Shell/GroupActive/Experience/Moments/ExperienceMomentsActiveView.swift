@@ -17,11 +17,31 @@ struct ExperienceMomentsActiveView: View {
     @State private var listUpdates: [GroupUpdateItem] = []
     @State private var listPolls: [APIClient.GroupPollItemPayload] = []
     @State private var listMemoryItems: [GroupMemoryItem] = []
+    @State private var listVendors: [APIClient.GroupVendorItemPayload] = []
+    @State private var listAttendance: [APIClient.GroupAttendanceItemPayload] = []
+    @State private var listExpenses: [APIClient.GroupExpenseListItemPayload] = []
+    @State private var memoryCount: Int = 0
     @State private var selectedPollId: String?
+    @State private var pollsListOpen = false
     @State private var scheduleOpen = false
     @State private var title: String?
     @State private var loading = true
     @State private var error: String?
+
+    private var chrome: MomentsChrome { .experience(theme) }
+    private var isOfficeOuting: Bool { theme.typeLabel == ExperienceActiveTheme.officeOuting.typeLabel }
+
+    private var planningItems: [GroupPlanningItem] {
+        listPlanning.isEmpty ? (life?.payload?.planningItems ?? []) : listPlanning
+    }
+
+    private var bookings: [APIClient.GroupLifePayload.LifeInner.BookingItem] {
+        listBookings.isEmpty ? (life?.payload?.bookings ?? []) : listBookings
+    }
+
+    private var updates: [GroupUpdateItem] {
+        listUpdates.isEmpty ? (life?.payload?.updates ?? []) : listUpdates
+    }
 
     var body: some View {
         Group {
@@ -35,7 +55,7 @@ struct ExperienceMomentsActiveView: View {
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
         .sheet(isPresented: $scheduleOpen) {
             PlanningScheduleSheet(
-                items: allPlanningItems,
+                items: planningItems,
                 momentTypeCode: momentTypeCode,
                 accent: theme.accent,
                 surface: theme.card,
@@ -44,6 +64,15 @@ struct ExperienceMomentsActiveView: View {
                 text: theme.text,
                 muted: theme.secondary,
                 onDismiss: { scheduleOpen = false }
+            )
+        }
+        .sheet(isPresented: $pollsListOpen) {
+            GroupPollsListSheet(
+                momentTitle: momentTitle ?? title,
+                chrome: .experience(theme),
+                polls: listPolls,
+                onDismiss: { pollsListOpen = false },
+                onChanged: { Task { await load() } }
             )
         }
         .sheet(item: Binding(
@@ -62,194 +91,168 @@ struct ExperienceMomentsActiveView: View {
         let id: String
     }
 
-    private var allPlanningItems: [GroupPlanningItem] {
-        listPlanning.isEmpty ? (life?.payload?.planningItems ?? []) : listPlanning
-    }
-
     @ViewBuilder
     private var content: some View {
         let budgetTotal = finance?.totals?.first?.budgetTotal
         let currency = finance?.totals?.first?.currencyCode ?? "INR"
         let peopleCount = pulse?.payload?.participantCount ?? 0
         let openTasks = pulse?.payload?.openTaskCount ?? life?.payload?.openTaskCount ?? 0
+        let confirmed = listAttendance.filter {
+            let s = ($0.attendanceStatus ?? "").uppercased()
+            return s == "CONFIRMED" || s == "ATTENDING" || s == "YES"
+        }.count
+        let moments = memoryCount > 0 ? memoryCount : listMemoryItems.count
         let displayTitle = momentTitle ?? title ?? "\(theme.typeLabel) Moments"
-        let recentPlans = recentOpenPlanningItems(allPlanningItems)
-        let bookings = listBookings.isEmpty ? (life?.payload?.bookings ?? []) : listBookings
-        let updates = listUpdates.isEmpty ? (life?.payload?.updates ?? []) : listUpdates
+        let status = (pulse?.status ?? life?.status ?? "PLANNING").uppercased()
+        let dayGroups = itineraryDayGroups(planningItems)
+        let upcoming = momentsUpcomingFromPlanning(planning: planningItems, bookings: bookings, finance: finance)
+        let gradients = theme.statGradients
+        let g0 = gradients.indices.contains(0) ? gradients[0] : [theme.accent, theme.accentSolid]
+        let g1 = gradients.indices.contains(1) ? gradients[1] : [theme.accentLight, theme.accent]
+        let g2 = gradients.indices.contains(2) ? gradients[2] : [theme.accent, theme.accentSolid]
+        let g3 = gradients.indices.contains(3) ? gradients[3] : [theme.accentLight, theme.accentSolid]
+
+        let heroStats: [(label: String, value: String, colors: [Color])] = isOfficeOuting
+            ? [
+                ("GUESTS", "\(peopleCount)", g0),
+                ("CONFIRMED", "\(confirmed)", g1),
+                ("BUDGET", GroupFinanceFormat.compactMoney(budgetTotal, currencyCode: currency), g2),
+                ("TASKS", "\(openTasks)", g3),
+            ]
+            : [
+                ("GUESTS", "\(peopleCount)", g0),
+                ("BUDGET", GroupFinanceFormat.compactMoney(budgetTotal, currencyCode: currency), g1),
+                ("MOMENTS", "\(moments)", g2),
+                ("TASKS", "\(openTasks)", g3),
+            ]
+
         NativeDashboardScaffold(background: theme.bg) {
-
             NativeListSection {
-
-            VStack(alignment: .leading, spacing: 14) {
-                if let error {
-                    Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("SHARED EXPERIENCE")
-                                .font(.plusJakarta(size: 11, weight: .semibold))
-                                .foregroundStyle(theme.secondary)
-                            Text(displayTitle)
-                                .font(.plusJakarta(size: 24, weight: .bold))
-                                .foregroundStyle(theme.text)
-                        }
-                        Spacer()
-                        Text(theme.typeLabel.uppercased())
-                            .font(.plusJakarta(size: 10, weight: .bold))
-                            .foregroundStyle(theme.darkText)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(theme.accent)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                VStack(alignment: .leading, spacing: 14) {
+                    if let error {
+                        Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
                     }
 
-                    HStack(spacing: 12) {
-                        ExperienceStatCard(label: "PEOPLE", value: "\(peopleCount)", colors: theme.statGradients[0])
-                        ExperienceStatCard(
-                            label: "BUDGET",
-                            value: GroupFinanceFormat.compactMoney(budgetTotal, currencyCode: currency),
-                            colors: theme.statGradients[1]
-                        )
-                    }
-                    HStack(spacing: 12) {
-                        ExperienceStatCard(label: "UPDATES", value: "\(updates.count)", colors: theme.statGradients[2])
-                        ExperienceStatCard(label: "TASKS", value: "\(openTasks)", colors: theme.statGradients[0])
-                    }
-                }
-                .padding(16)
-                .background(theme.card)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-                .overlay(RoundedRectangle(cornerRadius: 20).stroke(theme.border))
-
-                ExperienceSectionCard(theme: theme, title: "Planning") {
-                    MomentsPlanningHeader(
-                        title: "Recent plans",
-                        text: theme.text,
-                        muted: theme.secondary,
-                        accent: theme.accent,
-                        onOpenSchedule: { scheduleOpen = true }
+                    MomentsHeroHeader(
+                        eyebrow: "SHARED EXPERIENCE",
+                        title: displayTitle,
+                        status: status,
+                        stats: heroStats,
+                        chrome: chrome
                     )
-                    if recentPlans.isEmpty {
-                        ExperienceEmptyBlock(
-                            theme: theme,
-                            message: "No timeline items yet",
-                            detail: "Add a planning item from Quick Add — nothing is invented."
-                        )
-                    } else {
-                        ForEach(Array(recentPlans.enumerated()), id: \.offset) { _, item in
-                            MomentsPlanningRecentRow(
-                                item: item,
-                                momentTypeCode: momentTypeCode,
-                                text: theme.text,
-                                muted: theme.secondary,
-                                accent: theme.accent,
-                                field: theme.bg,
-                                border: theme.border
-                            )
-                        }
-                    }
-                }
 
-                ExperienceSectionCard(theme: theme, title: "Bookings") {
-                    if bookings.isEmpty {
-                        ExperienceEmptyBlock(
-                            theme: theme,
-                            message: "No bookings yet",
-                            detail: "Add a booking from Quick Add when ready."
-                        )
-                    } else {
-                        ForEach(bookings.indices, id: \.self) { i in
-                            Text(bookings[i].title ?? bookings[i].bookingId ?? "")
-                                .font(.plusJakarta(size: 13))
-                                .foregroundStyle(theme.text)
-                        }
-                    }
-                }
-
-                ExperienceSectionCard(theme: theme, title: "Polls") {
+                    MomentsSectionHeader(title: "Polls  🗳️", chrome: chrome, onViewAll: {
+                        pollsListOpen = true
+                    })
                     if listPolls.isEmpty {
-                        ExperienceEmptyBlock(
-                            theme: theme,
-                            message: "No polls yet",
-                            detail: "Create a poll from Quick Add to decide together."
-                        )
+                        GroupEmptySection(message: "No polls yet", detail: "Create a poll from Quick Add to decide together.")
                     } else {
-                        ForEach(listPolls) { item in
-                            Button {
-                                if let id = item.pollId { selectedPollId = id }
-                            } label: {
-                                Text(item.question ?? item.pollId ?? "Poll")
-                                    .font(.plusJakarta(size: 13, weight: .semibold))
-                                    .foregroundStyle(theme.text)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(12)
-                                    .background(theme.bg)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.border))
+                        ForEach(Array(listPolls.prefix(2))) { poll in
+                            MomentsPollPreviewCard(poll: poll, chrome: chrome) {
+                                if let id = poll.pollId { selectedPollId = id }
                             }
-                            .buttonStyle(.plain)
                         }
                     }
-                }
 
-                ExperienceSectionCard(theme: theme, title: "Updates") {
-                    if updates.isEmpty {
-                        ExperienceEmptyBlock(
-                            theme: theme,
-                            message: "No updates yet",
-                            detail: "Share a status update from Quick Add."
-                        )
+                    MomentsSectionHeader(title: "Itinerary", chrome: chrome, onViewAll: { scheduleOpen = true })
+                    if dayGroups.isEmpty {
+                        GroupEmptySection(message: "No itinerary days yet", detail: "Add a planning item from Quick Add — nothing is invented.")
                     } else {
-                        ForEach(Array(updates.prefix(8).enumerated()), id: \.offset) { _, item in
-                            MomentsUrgentUpdateRow(
-                                item: item,
-                                text: theme.text,
-                                muted: theme.secondary,
-                                field: theme.bg,
-                                border: theme.border
+                        ForEach(Array(dayGroups.enumerated()), id: \.offset) { index, group in
+                            let first = group.items.first
+                            MomentsItineraryDayCard(
+                                dayIndex: index + 1,
+                                day: group.day,
+                                title: first?.title ?? "Plans",
+                                timeLabel: [
+                                    formatPlanningTime(first?.dueAt),
+                                    "\(group.items.count) item\(group.items.count == 1 ? "" : "s")",
+                                ].compactMap { $0 }.joined(separator: " · "),
+                                chrome: chrome
                             )
                         }
                     }
-                }
 
-                ExperienceSectionCard(theme: theme, title: "Shared Gallery") {
+                    MomentsSectionHeader(title: "Updates / Feed  📱", chrome: chrome)
+                    if updates.isEmpty {
+                        GroupEmptySection(message: "No updates yet", detail: "Share a status update from Quick Add.")
+                    } else {
+                        ForEach(Array(updates.prefix(5).enumerated()), id: \.offset) { index, item in
+                            MomentsUpdateFeedRow(item: item, index: index, chrome: chrome)
+                        }
+                    }
+
+                    if !isOfficeOuting || !listVendors.isEmpty {
+                        MomentsSectionHeader(title: "Vendors  🏪", chrome: chrome)
+                        if listVendors.isEmpty {
+                            GroupEmptySection(message: "No vendors yet", detail: "Add a vendor from Quick Add when ready.")
+                        } else {
+                            ForEach(Array(listVendors.prefix(5))) { vendor in
+                                MomentsSimpleRowCard(
+                                    title: vendor.vendorName ?? "Vendor",
+                                    meta: vendor.vendorType,
+                                    status: vendor.status,
+                                    chrome: chrome
+                                )
+                            }
+                        }
+                    }
+
+                    MomentsSectionHeader(title: "Attendance  ✅", chrome: chrome)
+                    if listAttendance.isEmpty {
+                        GroupEmptySection(
+                            message: isOfficeOuting ? "No attendance yet" : "No RSVPs yet",
+                            detail: "Record attendance from Quick Add."
+                        )
+                    } else {
+                        ForEach(Array(listAttendance.prefix(8))) { row in
+                            MomentsSimpleRowCard(
+                                title: row.displayName ?? "Guest",
+                                meta: row.note,
+                                status: row.attendanceStatus,
+                                chrome: chrome
+                            )
+                        }
+                    }
+
+                    MomentsSectionHeader(title: "Shared Gallery  📸", chrome: chrome)
                     MemoryPhotoGalleryStrip(
                         items: listMemoryItems,
                         emptyMessage: "Gallery empty",
                         emptyDetail: "Add a memory with a photo from Quick Add.",
-                        text: theme.text,
-                        muted: theme.secondary,
-                        field: theme.card,
-                        border: theme.border
+                        text: chrome.text,
+                        muted: chrome.secondary,
+                        field: chrome.card,
+                        border: chrome.border,
+                        showMediaCountBadge: true
+                    )
+
+                    MomentsSectionHeader(title: "Upcoming Events  🗓", chrome: chrome)
+                    if upcoming.isEmpty {
+                        GroupEmptySection(message: "Nothing upcoming", detail: "Near-term bookings and plans will show here.")
+                    } else {
+                        ForEach(Array(upcoming.enumerated()), id: \.offset) { index, event in
+                            MomentsUpcomingEventCard(event: event, highlight: index == 0, chrome: chrome)
+                        }
+                    }
+
+                    MomentsSectionHeader(title: "Expenses & Budget  💸", chrome: chrome)
+                    MomentsExpensesCard(
+                        spent: finance?.totals?.first?.expenseTotal,
+                        currency: currency,
+                        peopleCount: peopleCount,
+                        expenses: listExpenses,
+                        chrome: chrome
+                    )
+
+                    MomentsQuickAddCta(
+                        title: "Add to the \(theme.typeLabel.lowercased()) story",
+                        subtitle: "Add a plan, expense, memory, poll or update.",
+                        chrome: chrome,
+                        onTap: onOpenQuickAdd
                     )
                 }
-
-                VStack(spacing: 16) {
-                    Text("Add to the \(theme.typeLabel.lowercased()) story")
-                        .font(.plusJakarta(size: 18, weight: .bold))
-                        .foregroundStyle(Color.white)
-                    Text("Add a plan, expense, memory, poll or update.")
-                        .font(.plusJakarta(size: 13))
-                        .foregroundStyle(Color.white.opacity(0.9))
-                    Button(action: onOpenQuickAdd) {
-                        Text("+ Open Quick Add")
-                            .font(.plusJakarta(size: 14, weight: .bold))
-                            .foregroundStyle(theme.darkText)
-                            .frame(maxWidth: .infinity).background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(20)
-                .frame(maxWidth: .infinity)
-                .background(theme.heroGradient)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
             }
-
-            }
-
         }
     }
 
@@ -273,6 +276,10 @@ struct ExperienceMomentsActiveView: View {
             async let updatesResult = APIClient.shared.listGroupUpdates(momentId: momentId)
             async let pollsResult = APIClient.shared.listPolls(momentId: momentId)
             async let memoriesResult = APIClient.shared.listGroupMemories(momentId: momentId)
+            async let vendorsResult = APIClient.shared.listGroupVendors(momentId: momentId)
+            async let attendanceResult = APIClient.shared.listGroupAttendance(momentId: momentId)
+            async let expensesResult = APIClient.shared.listGroupExpenses(momentId: momentId, limit: 10)
+
             let loadedPulse = try await pulseResult
             let finFacet = try await financeResult
             let loadedLife = try await lifeResult
@@ -285,14 +292,15 @@ struct ExperienceMomentsActiveView: View {
             listBookings = (try? await bookingsResult)?.items ?? loadedLife.payload?.bookings ?? []
             listUpdates = (try? await updatesResult)?.items ?? loadedLife.payload?.updates ?? []
             listPolls = (try? await pollsResult)?.items ?? []
+            listVendors = (try? await vendorsResult)?.items ?? []
+            listAttendance = (try? await attendanceResult)?.items ?? []
+            listExpenses = (try? await expensesResult)?.items ?? []
             if let listed = try? await memoriesResult {
                 listMemoryItems = listed.items
-            } else if let cached = GroupTabDataCache.peekMemory(momentId)?.memory?.payload?.items {
-                listMemoryItems = cached
-            } else if let facet = try? await APIClient.shared.getGroupMemory(momentId: momentId) {
-                listMemoryItems = facet.payload?.items ?? []
+                memoryCount = listed.memoryCount ?? listed.items.count
             } else {
-                listMemoryItems = []
+                listMemoryItems = (try? await APIClient.shared.getGroupMemory(momentId: momentId))?.payload?.items ?? []
+                memoryCount = listMemoryItems.count
             }
             GroupTabDataCache.putPulse(momentId, .init(
                 title: loadedPulse.title,

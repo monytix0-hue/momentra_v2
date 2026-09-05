@@ -815,6 +815,7 @@ data class PersonalSetupItemDto(
     @SerializedName("momentId") val momentId: String,
     val status: String,
     val preferences: Map<String, Any?> = emptyMap(),
+    val version: Int? = null,
     @SerializedName("createdAt") val createdAt: String,
 )
 
@@ -838,6 +839,22 @@ data class ActivatePersonalSetupResultDto(
     val title: String,
     val status: String,
     val version: Int,
+)
+
+data class PatchPersonalSetupBody(
+    @SerializedName("expectedVersion") val expectedVersion: Int,
+    val title: String? = null,
+    val preferences: Map<String, @JvmSuppressWildcards Any>? = null,
+)
+
+data class PatchPersonalSetupResultDto(
+    @SerializedName("setupId") val setupId: String,
+    @SerializedName("systemCode") val systemCode: String,
+    @SerializedName("momentId") val momentId: String,
+    val title: String,
+    val status: String,
+    val version: Int,
+    val preferences: Map<String, Any?> = emptyMap(),
 )
 
 data class BusinessSetupCatalogItemDto(
@@ -1212,6 +1229,10 @@ data class GroupLifePlanningItemDto(
 data class GroupLifeBookingDto(
     @SerializedName("bookingId") val bookingId: String? = null,
     val title: String? = null,
+    @SerializedName("bookingType") val bookingType: String? = null,
+    @SerializedName("bookedAt") val bookedAt: String? = null,
+    @SerializedName("startAt") val startAt: String? = null,
+    @SerializedName("endAt") val endAt: String? = null,
     val status: String? = null,
 )
 
@@ -1219,6 +1240,8 @@ data class GroupLifeUpdateDto(
     @SerializedName("updateId") val updateId: String? = null,
     val message: String? = null,
     @SerializedName("createdAt") val createdAt: String? = null,
+    @SerializedName("participantId") val participantId: String? = null,
+    @SerializedName("authorDisplayName") val authorDisplayName: String? = null,
     @SerializedName("urgencyCode") val urgencyCode: String? = null,
 )
 
@@ -1343,24 +1366,115 @@ data class GroupMemoriesListDto(
     @SerializedName("memoryCount") val memoryCount: Int = 0,
 )
 
+data class GroupPurchaseItemDto(
+    @SerializedName("purchaseItemId") val purchaseItemId: String? = null,
+    val label: String? = null,
+    val amount: String? = null,
+    val status: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
+)
+
 data class GroupPurchaseItemsDto(
-    @SerializedName("momentId") val momentId: String,
-    val items: List<Map<String, Any?>> = emptyList(),
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<GroupPurchaseItemDto> = emptyList(),
+)
+
+data class GroupVendorItemDto(
+    @SerializedName("groupVendorId") val groupVendorId: String? = null,
+    @SerializedName("vendorName") val vendorName: String? = null,
+    @SerializedName("vendorType") val vendorType: String? = null,
+    val status: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
+)
+
+data class GroupVendorsDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<GroupVendorItemDto> = emptyList(),
+)
+
+data class GroupAttendanceItemDto(
+    @SerializedName("attendanceId") val attendanceId: String? = null,
+    @SerializedName("participantId") val participantId: String? = null,
+    @SerializedName("displayName") val displayName: String? = null,
+    @SerializedName("attendanceStatus") val attendanceStatus: String? = null,
+    val note: String? = null,
+    @SerializedName("checkedAt") val checkedAt: String? = null,
+    @SerializedName("updatedAt") val updatedAt: String? = null,
+)
+
+data class GroupAttendanceDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<GroupAttendanceItemDto> = emptyList(),
+)
+
+data class GroupOwnershipItemDto(
+    @SerializedName("ownershipRecordId") val ownershipRecordId: String? = null,
+    @SerializedName("purchaseItemId") val purchaseItemId: String? = null,
+    @SerializedName("participantId") val participantId: String? = null,
+    @SerializedName("displayName") val displayName: String? = null,
+    @SerializedName("ownershipShare") val ownershipShare: String? = null,
+    @SerializedName("ownershipNote") val ownershipNote: String? = null,
+    val status: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
+)
+
+data class GroupOwnershipDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<GroupOwnershipItemDto> = emptyList(),
+)
+
+data class GroupLivingRuleItemDto(
+    @SerializedName("livingRuleId") val livingRuleId: String? = null,
+    val title: String? = null,
+    @SerializedName("ruleText") val ruleText: String? = null,
+    val status: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
+)
+
+data class GroupLivingRulesDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<GroupLivingRuleItemDto> = emptyList(),
+)
+
+data class GroupResidentItemDto(
+    @SerializedName("residentId") val residentId: String? = null,
+    @SerializedName("participantId") val participantId: String? = null,
+    @SerializedName("roleCode") val roleCode: String? = null,
+    val status: String? = null,
+    val name: String? = null,
 )
 
 data class GroupResidentsDto(
-    @SerializedName("momentId") val momentId: String,
-    val items: List<Map<String, Any?>> = emptyList(),
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<GroupResidentItemDto> = emptyList(),
+)
+
+data class GroupSharedAssetItemDto(
+    @SerializedName("sharedAssetId") val sharedAssetId: String? = null,
+    val title: String? = null,
+    @SerializedName("assetType") val assetType: String? = null,
+    @SerializedName("conditionCode") val conditionCode: String? = null,
+    val status: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
 )
 
 data class GroupSharedAssetsDto(
-    @SerializedName("momentId") val momentId: String,
-    val items: List<Map<String, Any?>> = emptyList(),
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<GroupSharedAssetItemDto> = emptyList(),
+)
+
+data class GroupMaintenanceRecordItemDto(
+    @SerializedName("maintenanceRecordId") val maintenanceRecordId: String? = null,
+    @SerializedName("sharedAssetId") val sharedAssetId: String? = null,
+    val title: String? = null,
+    val description: String? = null,
+    val status: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
 )
 
 data class GroupMaintenanceRecordsDto(
-    @SerializedName("momentId") val momentId: String,
-    val items: List<Map<String, Any?>> = emptyList(),
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<GroupMaintenanceRecordItemDto> = emptyList(),
 )
 
 data class CreatePlanningItemBody(
@@ -1393,6 +1507,9 @@ data class GroupPollItemDto(
     val status: String? = null,
     @SerializedName("closesAt") val closesAt: String? = null,
     @SerializedName("createdAt") val createdAt: String? = null,
+    @SerializedName("createdByUserId") val createdByUserId: String? = null,
+    @SerializedName("createdByDisplayName") val createdByDisplayName: String? = null,
+    @SerializedName("totalVotes") val totalVotes: Int? = null,
     val options: List<GroupPollOptionDto> = emptyList(),
 )
 
@@ -1599,6 +1716,22 @@ data class GroupExpenseDetailDto(
     @SerializedName("paidByParticipantId") val paidByParticipantId: String,
     @SerializedName("splitStrategy") val splitStrategy: String,
     val shares: List<GroupExpenseShareDto> = emptyList(),
+)
+
+data class GroupExpenseListItemDto(
+    @SerializedName("expenseId") val expenseId: String? = null,
+    val description: String? = null,
+    @SerializedName("categoryCode") val categoryCode: String? = null,
+    val amount: String? = null,
+    @SerializedName("currencyCode") val currencyCode: String? = null,
+    @SerializedName("paidByParticipantId") val paidByParticipantId: String? = null,
+    @SerializedName("paidByDisplayName") val paidByDisplayName: String? = null,
+    @SerializedName("effectiveAt") val effectiveAt: String? = null,
+)
+
+data class GroupExpensesListDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<GroupExpenseListItemDto> = emptyList(),
 )
 
 data class CreateSettlementBody(

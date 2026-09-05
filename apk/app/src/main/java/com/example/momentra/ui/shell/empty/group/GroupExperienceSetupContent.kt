@@ -43,6 +43,7 @@ import com.example.momentra.data.api.GroupSetupBlockDto
 import kotlinx.coroutines.launch
 import com.example.momentra.domain.CreateMomentOutcome
 import com.example.momentra.data.repository.AccountRepository
+import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.create.MomentCreateViewModel
 import com.example.momentra.ui.setup.SetupDateTimeUtils
 import com.example.momentra.ui.setup.SetupDateRangeField
@@ -99,11 +100,32 @@ fun GroupExperienceSetupContent(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val accountRepo = remember { AccountRepository() }
+    val groupRepo = remember { GroupSliceRepository() }
 
     LaunchedEffect(editingMomentId) {
         val mid = editingMomentId ?: return@LaunchedEffect
-        accountRepo.getMomentNotificationPreferences(mid)
-            .onSuccess { notifyChanges = it.notifyOnChanges }
+        accountRepo.getMomentNotificationPreferences(mid).onSuccess { prefs ->
+            notifyChanges = prefs.notifyOnChanges
+            val rem = prefs.reminderPreferences.orEmpty()
+            rem["expenseReminders"]?.let { expenseReminders = if (it) "Enabled" else "Disabled" }
+            rem["photoReminders"]?.let { photoReminders = if (it) "Enabled" else "Disabled" }
+        }
+        groupRepo.getFinance(mid).onSuccess { facet ->
+            val totals = facet.payload?.totals.orEmpty()
+            val total = totals.firstOrNull {
+                it.budgetTotal.toDoubleOrNull()?.let { v -> v > 0 } == true
+            } ?: totals.firstOrNull()
+            val raw = total?.budgetTotal?.takeIf { (it.toDoubleOrNull() ?: 0.0) > 0 } ?: return@onSuccess
+            val display = GroupBudgetUtils.formatApiAmountForDisplay(raw, total!!.currencyCode)
+            currency = total.currencyCode
+            if (display in GroupBudgetUtils.PRESET_OPTIONS) {
+                budget = display
+                budgetCustomAmount = ""
+            } else {
+                budget = GroupBudgetUtils.CUSTOM_OPTION
+                budgetCustomAmount = GroupBudgetUtils.formatCustomAmountInput(raw)
+            }
+        }
     }
 
     val palette = selected.palette
@@ -225,21 +247,6 @@ fun GroupExperienceSetupContent(
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     GroupLongFormSubsectionTitle("Your Experience")
-                    GroupLongFormPrefRow(
-                        label = "Experience type",
-                        hint = "What are you planning?",
-                        value = experienceChipLabel(selected),
-                        options = types.map(::experienceChipLabel),
-                        onValueChange = { label ->
-                            val next = types.first { experienceChipLabel(it) == label }
-                            selectedCode = next.code
-                            name = next.defaultName
-                            startDateIso = null
-                            endDateIso = null
-                            people = defaultGroupPeople(next.code)
-                        },
-                        testTag = MaestroIds.setupDropdown("experienceType"),
-                    )
                     GroupLongFormPrefRow(
                         label = "Primary goal",
                         hint = "What brings everyone together?",
@@ -481,11 +488,16 @@ fun GroupExperienceSetupContent(
                                     )
                                 }
                             val budgetAmount = GroupBudgetUtils.resolveBudgetAmount(budget, budgetCustomAmount)
+                            val reminderPreferences = mapOf(
+                                "expenseReminders" to (expenseReminders.equals("Enabled", ignoreCase = true)),
+                                "photoReminders" to (photoReminders.equals("Enabled", ignoreCase = true)),
+                            )
                             val groupSetup = budgetAmount?.let {
                                 GroupSetupBlockDto(
                                     budgetAmount = it,
                                     budgetCurrencyCode = currency,
                                     destinationText = destination.takeIf { d -> d.isNotBlank() },
+                                    reminderPreferences = reminderPreferences,
                                 )
                             }
                             createViewModel.submitGroupMoment(
@@ -504,10 +516,7 @@ fun GroupExperienceSetupContent(
                                         accountRepo.patchMomentNotificationPreferences(
                                             outcome.momentId,
                                             notifyChanges,
-                                            mapOf(
-                                                "expenseReminders" to (expenseReminders.equals("Enabled", ignoreCase = true)),
-                                                "photoReminders" to (photoReminders.equals("Enabled", ignoreCase = true)),
-                                            ),
+                                            reminderPreferences,
                                         )
                                         onCreated(outcome)
                                     }

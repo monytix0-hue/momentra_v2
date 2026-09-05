@@ -96,6 +96,119 @@ fun formatPlanningDayChip(day: LocalDate, today: LocalDate = LocalDate.now()): S
 fun isUrgentUpdate(item: GroupLifeUpdateDto): Boolean =
     item.urgencyCode.equals("URGENT", ignoreCase = true)
 
+/** DONE / (OPEN+IN_PROGRESS+DONE); 0 when none countable. */
+fun planningPlansPercent(items: List<GroupLifePlanningItemDto>): Int {
+    var done = 0
+    var countable = 0
+    for (item in items) {
+        val status = item.status.orEmpty().uppercase(Locale.US)
+        if (status == "CANCELLED") continue
+        countable++
+        if (status == "DONE") done++
+    }
+    if (countable == 0) return 0
+    return ((done.toDouble() / countable.toDouble()) * 100).toInt()
+}
+
+fun formatRelativeShort(iso: String?): String {
+    val millis = parseInstantMillis(iso) ?: return ""
+    val seconds = ((System.currentTimeMillis() - millis) / 1000).toInt()
+    if (seconds < 60) return "just now"
+    if (seconds < 3600) return "${seconds / 60}m ago"
+    if (seconds < 86_400) return "${seconds / 3600}h ago"
+    if (seconds < 86_400 * 7) return "${seconds / 86_400}d ago"
+    return runCatching {
+        OffsetDateTime.parse(iso).format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()))
+    }.getOrDefault("")
+}
+
+fun formatPollClosesMeta(closesAt: String?, totalVotes: Int?): String {
+    val votes = totalVotes ?: 0
+    val votePart = if (votes == 1) "1 vote" else "$votes votes"
+    val closeMillis = parseInstantMillis(closesAt) ?: return votePart
+    val remaining = closeMillis - System.currentTimeMillis()
+    if (remaining <= 0) return "Ended · $votePart"
+    if (remaining < 3_600_000) {
+        val mins = maxOf(1, (remaining / 60_000).toInt())
+        return "Ends in ${mins}m · $votePart"
+    }
+    if (remaining < 86_400_000) {
+        val hours = (remaining / 3_600_000).toInt()
+        return "Ends in ${hours}h · $votePart"
+    }
+    val days = (remaining / 86_400_000).toInt()
+    return if (days == 1) "Ends tomorrow · $votePart" else "Ends in ${days}d · $votePart"
+}
+
+/** Status pill text for polls list (Figma): "Ends in 2h", "Ends tomorrow", "Closed". */
+fun formatPollEndsTag(closesAt: String?, status: String?): String {
+    val upper = (status ?: "").uppercase(Locale.US)
+    if (upper == "CLOSED" || upper == "CANCELLED") return "Closed"
+    val closeMillis = parseInstantMillis(closesAt)
+        ?: return if (upper == "OPEN" || upper.isEmpty()) "Open" else upper.replaceFirstChar { it.titlecase(Locale.US) }
+    val remaining = closeMillis - System.currentTimeMillis()
+    if (remaining <= 0) return "Closed"
+    if (remaining < 3_600_000) {
+        val mins = maxOf(1, (remaining / 60_000).toInt())
+        return "Ends in ${mins}m"
+    }
+    if (remaining < 86_400_000) {
+        val hours = (remaining / 3_600_000).toInt()
+        return "Ends in ${hours}h"
+    }
+    val days = (remaining / 86_400_000).toInt()
+    return if (days == 1) "Ends tomorrow" else "Ends in ${days}d"
+}
+
+fun initialsFromName(name: String?): String {
+    val parts = name.orEmpty().split(" ").filter { it.isNotBlank() }
+    if (parts.isEmpty()) return "?"
+    if (parts.size == 1) return parts[0].take(2).uppercase(Locale.US)
+    return "${parts[0].take(1)}${parts[1].take(1)}".uppercase(Locale.US)
+}
+
+fun formatBookingDay(iso: String?): String? {
+    val millis = parseInstantMillis(iso) ?: return null
+    return runCatching {
+        OffsetDateTime.parse(iso).atZoneSameInstant(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()))
+    }.getOrNull() ?: runCatching {
+        java.time.Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()))
+    }.getOrNull()
+}
+
+fun formatBookingDayTime(iso: String?): String? {
+    if (iso.isNullOrBlank()) return null
+    return runCatching {
+        OffsetDateTime.parse(iso).atZoneSameInstant(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("d MMM · h:mm a", Locale.getDefault()))
+    }.getOrNull()
+}
+
+fun formatItineraryDayLabel(dayIndex: Int, date: LocalDate): String {
+    val day = date.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())).uppercase(Locale.US)
+    return "DAY $dayIndex • $day"
+}
+
+fun itineraryDayGroups(
+    items: List<GroupLifePlanningItemDto>,
+    limit: Int = 3,
+): List<Pair<LocalDate, List<GroupLifePlanningItemDto>>> {
+    val open = recentOpenPlanningItems(items, limit = 50)
+    val orderedDays = linkedSetOf<LocalDate>()
+    val buckets = linkedMapOf<LocalDate, MutableList<GroupLifePlanningItemDto>>()
+    for (item in open) {
+        val day = planningItemDayKey(item) ?: continue
+        if (orderedDays.add(day)) buckets[day] = mutableListOf()
+        buckets[day]?.add(item)
+    }
+    return orderedDays.take(limit).mapNotNull { day ->
+        val dayItems = buckets[day].orEmpty()
+        if (dayItems.isEmpty()) null else day to dayItems
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlanningScheduleSheet(

@@ -59,8 +59,8 @@ object GroupSetupCatalog {
         ),
         GroupTypeOption(
             code = "HOUSE_PARTY",
-            label = "Celebration/House Party",
-            nameLabel = "Party Name",
+            label = "Celebration",
+            nameLabel = "Celebration Name",
             defaultName = "Rooftop House Party",
             defaultDates = "22 Nov 2025",
             defaultNotes = "Music, food, and easy RSVPs.",

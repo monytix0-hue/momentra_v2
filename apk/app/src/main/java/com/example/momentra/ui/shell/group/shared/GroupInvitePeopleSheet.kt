@@ -19,12 +19,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,9 +42,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,12 +70,15 @@ private val MANAGE_ROLE_OPTIONS = listOf(
     "OBSERVER" to "Viewer",
 )
 
-private fun displayRoleLabel(roleCode: String?): String = when (roleCode?.uppercase(Locale.US)) {
-    "ORGANIZER", "CO_ORGANIZER" -> "Organizer"
-    "OBSERVER", "VIEWER" -> "Viewer"
-    "RESIDENT" -> "Resident"
-    "CONTRIBUTOR" -> "Contributor"
-    else -> "Member"
+private fun displayRoleLabel(roleCode: String?, isGuest: Boolean = false): String {
+    if (isGuest) return "Guest"
+    return when (roleCode?.uppercase(Locale.US)) {
+        "ORGANIZER", "CO_ORGANIZER" -> "Organizer"
+        "OBSERVER", "VIEWER" -> "Viewer"
+        "RESIDENT" -> "Resident"
+        "CONTRIBUTOR" -> "Contributor"
+        else -> "Member"
+    }
 }
 
 private fun uiRoleCode(roleCode: String?): String = when (roleCode?.uppercase(Locale.US)) {
@@ -106,6 +113,8 @@ fun GroupInvitePeopleSheet(
     var busyParticipantId by remember { mutableStateOf<String?>(null) }
     var removeTarget by remember { mutableStateOf<GroupParticipantDto?>(null) }
     var copied by remember { mutableStateOf(false) }
+    var guestName by remember { mutableStateOf("") }
+    var addingGuest by remember { mutableStateOf(false) }
 
     fun refreshParticipants() {
         scope.launch {
@@ -212,6 +221,86 @@ fun GroupInvitePeopleSheet(
                     sendInviteWhatsApp(context, null, inviteMessage(momentTitle, text))
                 },
             )
+
+            if (viewerIsOrganizer) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TripFieldLabel("Add guest")
+                    Text(
+                        "Guests have no account — organizers can add them to expenses.",
+                        color = TripSheetTokens.Muted,
+                        fontSize = 11.sp,
+                        fontFamily = PlusJakartaSans,
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        BasicTextField(
+                            value = guestName,
+                            onValueChange = { guestName = it },
+                            singleLine = true,
+                            textStyle = LocalTextStyle.current.copy(
+                                color = TripSheetTokens.Text,
+                                fontSize = 13.sp,
+                                fontFamily = PlusJakartaSans,
+                            ),
+                            cursorBrush = SolidColor(TripSheetTokens.Accent),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(TripSheetTokens.Field)
+                                .border(1.dp, TripSheetTokens.Border, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 12.dp)
+                                .testTag("group.invite.guestName"),
+                            decorationBox = { inner ->
+                                if (guestName.isEmpty()) {
+                                    Text(
+                                        "Guest name",
+                                        color = TripSheetTokens.Muted,
+                                        fontSize = 13.sp,
+                                        fontFamily = PlusJakartaSans,
+                                    )
+                                }
+                                inner()
+                            },
+                        )
+                        Text(
+                            if (addingGuest) "…" else "Add",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = PlusJakartaSans,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(TripSheetTokens.Accent)
+                                .clickable(
+                                    enabled = !addingGuest && guestName.trim().isNotEmpty(),
+                                ) {
+                                    val name = guestName.trim()
+                                    if (name.isEmpty()) return@clickable
+                                    scope.launch {
+                                        addingGuest = true
+                                        actionError = null
+                                        repository.addParticipant(momentId, name).fold(
+                                            onSuccess = {
+                                                guestName = ""
+                                                addingGuest = false
+                                                refreshParticipants()
+                                                onSaved()
+                                            },
+                                            onFailure = {
+                                                addingGuest = false
+                                                actionError = it.message
+                                            },
+                                        )
+                                    }
+                                }
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                                .testTag("group.invite.addGuest"),
+                        )
+                    }
+                }
+            }
 
             if (activeMembers.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -347,9 +436,27 @@ private fun InviteActiveMemberRow(
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(name, color = TripSheetTokens.Text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(name, color = TripSheetTokens.Text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+                    if (participant.isGuest) {
+                        Text(
+                            "Guest",
+                            color = TripSheetTokens.Accent,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = PlusJakartaSans,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(TripSheetTokens.Accent.copy(alpha = 0.15f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
                 Text(
-                    displayRoleLabel(participant.roleCode),
+                    participant.roleLabel ?: displayRoleLabel(participant.roleCode, participant.isGuest),
                     color = TripSheetTokens.Muted,
                     fontSize = 11.sp,
                     fontFamily = PlusJakartaSans,
@@ -377,7 +484,7 @@ private fun InviteActiveMemberRow(
                 )
             }
         }
-        if (viewerIsOrganizer) {
+        if (viewerIsOrganizer && !participant.isGuest) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),

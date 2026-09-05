@@ -481,13 +481,14 @@ export async function listBookings(client: PoolClient, ctx: RequestContext, mome
   await assertGroupMember(client, ctx, momentId);
   const rows = await client.query<{
     booking_id: string;
+    booking_type: string;
     provider_name: string | null;
     booked_at: Date | null;
     start_at: Date | null;
     end_at: Date | null;
     status: string;
   }>(
-    `SELECT booking_id, provider_name, booked_at, start_at, end_at, status
+    `SELECT booking_id, booking_type, provider_name, booked_at, start_at, end_at, status
      FROM collaboration.booking
      WHERE moment_id = $1
      ORDER BY COALESCE(start_at, booked_at, created_at) ASC
@@ -499,6 +500,7 @@ export async function listBookings(client: PoolClient, ctx: RequestContext, mome
     items: rows.rows.map((r) => ({
       bookingId: r.booking_id,
       title: r.provider_name,
+      bookingType: r.booking_type,
       bookedAt: r.booked_at?.toISOString() ?? null,
       startAt: r.start_at?.toISOString() ?? null,
       endAt: r.end_at?.toISOString() ?? null,
@@ -516,11 +518,17 @@ export async function listUpdates(client: PoolClient, ctx: RequestContext, momen
     created_at: Date;
     participant_id: string | null;
     urgency_code: string;
+    author_display_name: string | null;
   }>(
-    `SELECT group_update_id, body, status, created_at, participant_id, urgency_code
-     FROM collaboration.group_update
-     WHERE moment_id = $1
-     ORDER BY created_at DESC
+    `SELECT gu.group_update_id, gu.body, gu.status, gu.created_at, gu.participant_id, gu.urgency_code,
+            COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName') AS author_display_name
+     FROM collaboration.group_update gu
+     LEFT JOIN collaboration.moment_participant mp
+       ON mp.participant_id = gu.participant_id AND mp.moment_id = gu.moment_id
+     LEFT JOIN core.user_profile up ON up.user_id = mp.user_id
+     LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
+     WHERE gu.moment_id = $1
+     ORDER BY gu.created_at DESC
      LIMIT 100`,
     [momentId]
   );
@@ -532,6 +540,7 @@ export async function listUpdates(client: PoolClient, ctx: RequestContext, momen
       status: r.status,
       createdAt: r.created_at.toISOString(),
       participantId: r.participant_id,
+      authorDisplayName: r.author_display_name,
       urgencyCode: r.urgency_code ?? 'NORMAL',
     })),
   };
@@ -545,11 +554,15 @@ export async function listPolls(client: PoolClient, ctx: RequestContext, momentI
     status: string;
     closes_at: Date | null;
     created_at: Date;
+    created_by_user_id: string | null;
+    created_by_display_name: string | null;
   }>(
-    `SELECT poll_id, question, status, closes_at, created_at
-     FROM shared.poll
-     WHERE moment_id = $1
-     ORDER BY created_at DESC
+    `SELECT p.poll_id, p.question, p.status, p.closes_at, p.created_at, p.created_by_user_id,
+            up.display_name AS created_by_display_name
+     FROM shared.poll p
+     LEFT JOIN core.user_profile up ON up.user_id = p.created_by_user_id
+     WHERE p.moment_id = $1
+     ORDER BY p.created_at DESC
      LIMIT 50`,
     [momentId]
   );
@@ -560,17 +573,29 @@ export async function listPolls(client: PoolClient, ctx: RequestContext, momentI
        WHERE poll_id = $1 ORDER BY sort_order ASC`,
       [p.poll_id]
     );
+    const voteCounts = await client.query<{ poll_option_id: string; n: string }>(
+      `SELECT poll_option_id, COUNT(*)::text AS n
+       FROM shared.poll_vote WHERE poll_id = $1 GROUP BY poll_option_id`,
+      [p.poll_id]
+    );
+    const countMap = new Map(voteCounts.rows.map((v) => [v.poll_option_id, Number(v.n)]));
+    const options = opts.rows.map((o) => ({
+      pollOptionId: o.poll_option_id,
+      text: o.option_text,
+      sortOrder: o.sort_order,
+      voteCount: countMap.get(o.poll_option_id) ?? 0,
+    }));
+    const totalVotes = options.reduce((sum, o) => sum + o.voteCount, 0);
     items.push({
       pollId: p.poll_id,
       question: p.question,
       status: p.status,
       closesAt: p.closes_at?.toISOString() ?? null,
       createdAt: p.created_at.toISOString(),
-      options: opts.rows.map((o) => ({
-        pollOptionId: o.poll_option_id,
-        text: o.option_text,
-        sortOrder: o.sort_order,
-      })),
+      createdByUserId: p.created_by_user_id,
+      createdByDisplayName: p.created_by_display_name,
+      totalVotes,
+      options,
     });
   }
   return { momentId, items };
@@ -634,8 +659,9 @@ export async function listPurchaseItems(client: PoolClient, ctx: RequestContext,
     title: string;
     target_amount: string | null;
     status: string;
+    created_at: Date;
   }>(
-    `SELECT purchase_item_id, title, target_amount::text, status
+    `SELECT purchase_item_id, title, target_amount::text, status, created_at
      FROM collaboration.purchase_item
      WHERE moment_id = $1
      ORDER BY created_at DESC
@@ -649,6 +675,7 @@ export async function listPurchaseItems(client: PoolClient, ctx: RequestContext,
       label: r.title,
       amount: r.target_amount,
       status: r.status,
+      createdAt: r.created_at.toISOString(),
     })),
   };
 }
@@ -693,12 +720,18 @@ export async function listOwnershipRecords(client: PoolClient, ctx: RequestConte
     ownership_note: string | null;
     status: string;
     created_at: Date;
+    display_name: string | null;
   }>(
-    `SELECT ownership_record_id, purchase_item_id, participant_id, ownership_share::text,
-            ownership_note, status, created_at
-     FROM collaboration.ownership_record
-     WHERE moment_id = $1
-     ORDER BY created_at DESC
+    `SELECT o.ownership_record_id, o.purchase_item_id, o.participant_id, o.ownership_share::text,
+            o.ownership_note, o.status, o.created_at,
+            COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName') AS display_name
+     FROM collaboration.ownership_record o
+     LEFT JOIN collaboration.moment_participant mp
+       ON mp.participant_id = o.participant_id AND mp.moment_id = o.moment_id
+     LEFT JOIN core.user_profile up ON up.user_id = mp.user_id
+     LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
+     WHERE o.moment_id = $1
+     ORDER BY o.created_at DESC
      LIMIT 200`,
     [momentId]
   );
@@ -708,6 +741,7 @@ export async function listOwnershipRecords(client: PoolClient, ctx: RequestConte
       ownershipRecordId: r.ownership_record_id,
       purchaseItemId: r.purchase_item_id,
       participantId: r.participant_id,
+      displayName: r.display_name,
       ownershipShare: r.ownership_share,
       ownershipNote: r.ownership_note,
       status: r.status,
@@ -1034,11 +1068,17 @@ export async function listAttendance(client: PoolClient, ctx: RequestContext, mo
     note: string | null;
     checked_at: Date | null;
     updated_at: Date;
+    display_name: string | null;
   }>(
-    `SELECT attendance_id, participant_id, attendance_status, note, checked_at, updated_at
-     FROM collaboration.attendance
-     WHERE moment_id = $1
-     ORDER BY updated_at DESC
+    `SELECT a.attendance_id, a.participant_id, a.attendance_status, a.note, a.checked_at, a.updated_at,
+            COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName') AS display_name
+     FROM collaboration.attendance a
+     LEFT JOIN collaboration.moment_participant mp
+       ON mp.participant_id = a.participant_id AND mp.moment_id = a.moment_id
+     LEFT JOIN core.user_profile up ON up.user_id = mp.user_id
+     LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
+     WHERE a.moment_id = $1
+     ORDER BY a.updated_at DESC
      LIMIT 500`,
     [momentId]
   );
@@ -1047,6 +1087,7 @@ export async function listAttendance(client: PoolClient, ctx: RequestContext, mo
     items: rows.rows.map((r) => ({
       attendanceId: r.attendance_id,
       participantId: r.participant_id,
+      displayName: r.display_name,
       attendanceStatus: r.attendance_status,
       note: r.note,
       checkedAt: r.checked_at?.toISOString() ?? null,

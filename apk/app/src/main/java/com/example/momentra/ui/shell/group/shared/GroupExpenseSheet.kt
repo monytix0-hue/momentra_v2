@@ -419,8 +419,10 @@ fun GroupExpenseSheet(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                participants.firstOrNull { it.participantId == paidById }?.displayName
-                                    ?: "Select",
+                                participants.firstOrNull { it.participantId == paidById }?.let { p ->
+                                    val base = p.displayName ?: "Select"
+                                    if (p.isGuest) "$base · Guest" else base
+                                } ?: "Select",
                                 color = sheetText,
                                 fontSize = 14.sp,
                                 fontFamily = PlusJakartaSans,
@@ -437,10 +439,11 @@ fun GroupExpenseSheet(
                             onDismissRequest = { paidByMenuOpen = false },
                         ) {
                             participants.forEach { p ->
+                                val base = p.displayName ?: p.participantId.take(8)
                                 DropdownMenuItem(
                                     text = {
                                         Text(
-                                            p.displayName ?: p.participantId.take(8),
+                                            if (p.isGuest) "$base · Guest" else base,
                                             fontFamily = PlusJakartaSans,
                                         )
                                     },
@@ -489,7 +492,10 @@ fun GroupExpenseSheet(
                     participants.forEachIndexed { index, p ->
                         val selected = p.participantId in selectedSplitIds
                         val color = avatarColors[index % avatarColors.size]
-                        val name = p.displayName ?: p.participantId.take(8)
+                        val name = run {
+                            val base = p.displayName ?: p.participantId.take(8)
+                            if (p.isGuest) "$base · Guest" else base
+                        }
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(6.dp),

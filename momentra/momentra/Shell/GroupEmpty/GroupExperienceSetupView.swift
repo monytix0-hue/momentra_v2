@@ -103,17 +103,40 @@ struct GroupExperienceSetupView: View {
             if people.isEmpty { people = defaultPeople(for: selectedCode) }
             onSetupTypeChanged(selectedCode)
             if let editingMomentId {
-                Task {
-                    if let prefs = try? await APIClient.shared.getMomentNotificationPreferences(momentId: editingMomentId) {
-                        await MainActor.run { notifyChanges = prefs.notifyOnChanges }
-                    }
-                }
+                Task { await loadEditPrefill(momentId: editingMomentId) }
             }
         }
         .onChange(of: selectedCode) { _, code in
             issuedInvite = nil
             inviteError = nil
             onSetupTypeChanged(code)
+        }
+    }
+
+    private func loadEditPrefill(momentId: String) async {
+        if let prefs = try? await APIClient.shared.getMomentNotificationPreferences(momentId: momentId) {
+            await MainActor.run {
+                notifyChanges = prefs.notifyOnChanges
+                let rem = prefs.reminderPreferences ?? [:]
+                if let v = rem["expenseReminders"] { expenseReminders = v ? "Enabled" : "Disabled" }
+                if let v = rem["photoReminders"] { photoReminders = v ? "Enabled" : "Disabled" }
+            }
+        }
+        if let finance = try? await APIClient.shared.getGroupFinance(momentId: momentId).payload,
+           let total = finance.totals?.first(where: { ($0.budgetTotal.flatMap { Double($0) } ?? 0) > 0 })
+            ?? finance.totals?.first,
+           let raw = total.budgetTotal, Double(raw) ?? 0 > 0 {
+            let display = GroupBudgetUtils.formatApiAmountForDisplay(raw, currencyCode: total.currencyCode)
+            await MainActor.run {
+                currency = total.currencyCode
+                if GroupBudgetUtils.presetOptions.contains(display) {
+                    budget = display
+                    budgetCustomAmount = ""
+                } else {
+                    budget = GroupBudgetUtils.customOption
+                    budgetCustomAmount = GroupBudgetUtils.formatCustomAmountInput(raw)
+                }
+            }
         }
     }
 
@@ -189,21 +212,6 @@ struct GroupExperienceSetupView: View {
                 placeholder: selected.defaultName
             )
             subsectionTitle("Your Experience")
-            GroupLongFormPrefRow(
-                label: "Experience type",
-                hint: "What are you planning?",
-                value: experienceChipLabel(selected),
-                options: types.map(experienceChipLabel),
-                onValueChange: { label in
-                    let next = types.first { experienceChipLabel($0) == label } ?? selected
-                    selectedCode = next.code
-                    name = next.defaultName
-                    startDateIso = nil
-                    endDateIso = nil
-                    people = defaultPeople(for: next.code)
-                },
-                testTag: "setup.dropdown.experienceType"
-            )
             GroupLongFormPrefRow(
                 label: "Primary goal",
                 hint: "What brings everyone together?",
@@ -547,11 +555,16 @@ struct GroupExperienceSetupView: View {
             )
         }
         let budgetAmount = GroupBudgetUtils.resolveBudgetAmount(displayBudget: budget, customAmount: budgetCustomAmount)
+        let reminderPreferences: [String: Bool] = [
+            "expenseReminders": expenseReminders.lowercased() == "enabled",
+            "photoReminders": photoReminders.lowercased() == "enabled",
+        ]
         let groupSetup = budgetAmount.map {
             CreateMomentRequest.GroupSetupBlock(
                 budgetAmount: $0,
                 budgetCurrencyCode: currency,
-                destinationText: destination.isEmpty ? nil : destination
+                destinationText: destination.isEmpty ? nil : destination,
+                reminderPreferences: reminderPreferences
             )
         }
         createModel.submitGroupMoment(
@@ -570,10 +583,7 @@ struct GroupExperienceSetupView: View {
                     _ = try? await APIClient.shared.patchMomentNotificationPreferences(
                         momentId: outcome.momentId,
                         notifyOnChanges: notifyChanges,
-                        reminderPreferences: [
-                            "expenseReminders": expenseReminders.lowercased() == "enabled",
-                            "photoReminders": photoReminders.lowercased() == "enabled",
-                        ]
+                        reminderPreferences: reminderPreferences
                     )
                     await MainActor.run { onCreated(outcome) }
                 }

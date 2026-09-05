@@ -336,6 +336,10 @@ class GroupSliceRepository(
         api.listPolls(momentId).data
     }.recoverCatching { e -> throw mapError(e) }
 
+    suspend fun listGroupExpenses(momentId: String, limit: Int = 20) = runCatching {
+        api.listGroupExpenses(momentId, limit).data
+    }.recoverCatching { e -> throw mapError(e) }
+
     suspend fun getPoll(pollId: String) = runCatching {
         api.getPoll(pollId).data
     }.recoverCatching { e -> throw mapError(e) }
@@ -638,6 +642,22 @@ class GroupSliceRepository(
 
     suspend fun listPurchaseItems(momentId: String) = runCatching {
         api.listPurchaseItems(momentId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listGroupVendors(momentId: String) = runCatching {
+        api.listGroupVendors(momentId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listAttendance(momentId: String) = runCatching {
+        api.listAttendance(momentId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listOwnershipRecords(momentId: String) = runCatching {
+        api.listOwnershipRecords(momentId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listLivingRules(momentId: String) = runCatching {
+        api.listLivingRules(momentId).data
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun listResidents(momentId: String) = runCatching {

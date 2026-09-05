@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -124,15 +125,32 @@ fun GroupParticipantsSheet(
                                 .padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    p.displayName ?: p.participantId.take(8),
+                                    color = textPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    fontFamily = PlusJakartaSans,
+                                )
+                                if (p.isGuest) {
+                                    Text(
+                                        "Guest",
+                                        color = accent,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontFamily = PlusJakartaSans,
+                                        modifier = Modifier
+                                            .background(accent.copy(alpha = 0.15f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
                             Text(
-                                p.displayName ?: p.participantId.take(8),
-                                color = textPrimary,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                fontFamily = PlusJakartaSans,
-                            )
-                            Text(
-                                "${p.roleCode} · ${p.status}",
+                                "${p.roleLabel ?: p.roleCode} · ${p.status}",
                                 color = TextSecondary,
                                 fontSize = 12.sp,
                                 fontFamily = PlusJakartaSans,

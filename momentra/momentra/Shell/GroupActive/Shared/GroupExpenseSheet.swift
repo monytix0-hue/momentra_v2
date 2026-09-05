@@ -63,7 +63,10 @@ struct GroupExpenseSheet: View {
         isEditing ? "Edit Expense" : "Add Expense"
     }
     private var people: [(id: String, name: String)] {
-        participants.map { (id: $0.participantId, name: $0.displayName ?? shortId($0.participantId)) }
+        participants.map {
+            let base = $0.displayName ?? shortId($0.participantId)
+            return (id: $0.participantId, name: $0.guest ? "\(base) · Guest" : base)
+        }
     }
 
     var body: some View {
@@ -191,13 +194,16 @@ struct GroupExpenseSheet: View {
                     fieldLabel("PAID BY")
                     Menu {
                         ForEach(participants) { p in
-                            Button(p.displayName ?? shortId(p.participantId)) {
+                            let base = p.displayName ?? shortId(p.participantId)
+                            Button(p.guest ? "\(base) · Guest" : base) {
                                 paidByParticipantId = p.participantId
                             }
                         }
                     } label: {
                         HStack {
-                            Text(participants.first(where: { $0.participantId == paidByParticipantId })?.displayName ?? "Select")
+                            let selected = participants.first(where: { $0.participantId == paidByParticipantId })
+                            let base = selected?.displayName ?? "Select"
+                            Text(selected?.guest == true ? "\(base) · Guest" : base)
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(Color(hex: "#E5E0EE"))
                             Spacer()
@@ -664,9 +670,20 @@ struct GroupParticipantsSheet: View {
                 } else {
                     List(participants) { p in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(p.displayName ?? String(p.participantId.prefix(8)))
-                                .font(.headline)
-                            Text("\(p.roleCode ?? "MEMBER") · \(p.status ?? "")")
+                            HStack(spacing: 8) {
+                                Text(p.displayName ?? String(p.participantId.prefix(8)))
+                                    .font(.headline)
+                                if p.guest {
+                                    Text("Guest")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(accent)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(accent.opacity(0.15))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            Text("\(p.roleLabel ?? p.roleCode ?? "MEMBER") · \(p.status ?? "")")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

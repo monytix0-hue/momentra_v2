@@ -64,6 +64,18 @@ object PersonalSetupLongFormTokens {
     val Green = Color(0xFF10B981)
 }
 
+/** Merge catalog defaults with saved setup preferences for edit prefill. */
+fun mergePersonalSetupPreferences(
+    defaults: Map<String, Any>,
+    saved: Map<String, Any?>,
+): Map<String, Any> {
+    val merged = defaults.toMutableMap()
+    for ((key, value) in saved) {
+        if (value != null) merged[key] = value
+    }
+    return merged
+}
+
 @Composable
 fun PersonalSetupCloseRow(
     onBack: () -> Unit,

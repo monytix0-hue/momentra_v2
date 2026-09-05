@@ -379,6 +379,13 @@ interface ApiService {
         @Body body: ActivatePersonalSetupBody,
     ): SuccessEnvelope<ActivatePersonalSetupResultDto>
 
+    @PATCH("v1/personal/setups/{setupId}")
+    suspend fun patchPersonalSetup(
+        @Path("setupId") setupId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: PatchPersonalSetupBody,
+    ): SuccessEnvelope<PatchPersonalSetupResultDto>
+
     @GET("v1/business/setups")
     suspend fun getBusinessSetups(): SuccessEnvelope<BusinessSetupsDto>
 
@@ -531,6 +538,12 @@ interface ApiService {
         @Body body: CreateGroupExpenseBody,
     ): SuccessEnvelope<CreateGroupExpenseResultDto>
 
+    @GET("v1/group/moments/{momentId}/group-expenses")
+    suspend fun listGroupExpenses(
+        @Path("momentId") momentId: String,
+        @Query("limit") limit: Int? = 20,
+    ): SuccessEnvelope<GroupExpensesListDto>
+
     @GET("v1/moments/{momentId}/group-expenses/{expenseId}")
     suspend fun getGroupExpense(
         @Path("momentId") momentId: String,
@@ -615,7 +628,7 @@ interface ApiService {
     ): SuccessEnvelope<IdResultDto>
 
     @GET("v1/group/moments/{momentId}/living-rules")
-    suspend fun listLivingRules(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, Any?>>
+    suspend fun listLivingRules(@Path("momentId") momentId: String): SuccessEnvelope<GroupLivingRulesDto>
 
     @POST("v1/moments/{momentId}/living-rules")
     suspend fun createLivingRule(
@@ -655,7 +668,7 @@ interface ApiService {
     ): SuccessEnvelope<IdResultDto>
 
     @GET("v1/group/moments/{momentId}/ownership-records")
-    suspend fun listOwnershipRecords(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, Any?>>
+    suspend fun listOwnershipRecords(@Path("momentId") momentId: String): SuccessEnvelope<GroupOwnershipDto>
 
     @POST("v1/moments/{momentId}/ownership-records")
     suspend fun createOwnershipRecord(
@@ -712,7 +725,7 @@ interface ApiService {
     ): SuccessEnvelope<IdResultDto>
 
     @GET("v1/group/moments/{momentId}/attendance")
-    suspend fun listAttendance(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, Any?>>
+    suspend fun listAttendance(@Path("momentId") momentId: String): SuccessEnvelope<GroupAttendanceDto>
 
     @POST("v1/moments/{momentId}/attendance")
     suspend fun recordAttendance(
@@ -1160,7 +1173,7 @@ interface ApiService {
     ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
 
     @GET("v1/group/moments/{momentId}/vendors")
-    suspend fun listGroupVendors(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+    suspend fun listGroupVendors(@Path("momentId") momentId: String): SuccessEnvelope<GroupVendorsDto>
 
     @GET("v1/moments/{momentId}/memories/{memoryId}/media")
     suspend fun listMemoryMedia(
