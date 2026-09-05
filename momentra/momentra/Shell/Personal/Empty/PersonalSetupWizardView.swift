@@ -36,6 +36,15 @@ enum PersonalSetupSystem: String, CaseIterable, Identifiable {
     }
 
     var setupTitle: String { "Set up \(label)" }
+
+    var pulseFamily: PersonalPulseFamily {
+        switch self {
+        case .lifeOperations: return .lifeOperations
+        case .futureBuilding: return .futureBuilding
+        case .lifestyle: return .lifestyle
+        case .relationships: return .relationships
+        }
+    }
 }
 
 /// Routes Create cards to Figma long-form setup sheets (not chip wizards).

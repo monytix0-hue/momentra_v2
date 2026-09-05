@@ -379,7 +379,9 @@ struct PersonalPulseActiveView: View {
 
     private var helpingHurtingCard: some View {
         let drivers = PersonalLifeOpsDerived.helpingHurting(
-            from: activities.map { (code: $0.activityCode, title: $0.title) }
+            from: activities.map {
+                (code: $0.activityCode, label: PersonalActivityTimelineDerived.driverLabel($0))
+            }
         )
         return HStack(alignment: .top, spacing: 10) {
             driverColumn(
@@ -483,31 +485,46 @@ struct PersonalPulseActiveView: View {
     }
 
     private func activityRow(_ item: APIClient.ActivityItemPayload) -> some View {
-        let isExpense = item.activityCode.localizedCaseInsensitiveContains("EXPENSE")
+        let isExpense = PersonalActivityTimelineDerived.isExpense(item)
         let badge = isExpense ? Color(hex: "#F87171") : Color(hex: "#4CD6FF")
-        return HStack(spacing: 10) {
+        let chips = PersonalActivityTimelineDerived.pulseChips(item)
+        let amount = PersonalActivityTimelineDerived.amountLabel(item)
+        return HStack(alignment: .top, spacing: 10) {
             Image(systemName: isExpense ? "cart" : "bolt.fill")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(badge)
                 .frame(width: 32, height: 32)
                 .background(badge.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 10))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color(hex: "#E5E0EE"))
-                Text(formatOccurredAt(item.occurredAt))
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color(hex: "#C9C4D8"))
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(PersonalActivityTimelineDerived.displayTitle(item))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#E5E0EE"))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    if let amount {
+                        Text(amount)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(Color(hex: "#E5E0EE"))
+                    }
+                }
+                HStack(spacing: 6) {
+                    ForEach(chips, id: \.self) { chip in
+                        Text(chip)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(Color(hex: "#C9C4D8"))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(Capsule())
+                    }
+                    Spacer(minLength: 4)
+                    Text(formatOccurredAt(item.occurredAt))
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color(hex: "#C9C4D8"))
+                }
             }
-            Spacer()
-            Text(item.activityCode.replacingOccurrences(of: "_", with: " ").capitalized)
-                .font(.system(size: 10, weight: .heavy))
-                .foregroundStyle(Color(hex: "#14121B"))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(badge)
-                .clipShape(Capsule())
         }
         .padding(.vertical, 4)
     }

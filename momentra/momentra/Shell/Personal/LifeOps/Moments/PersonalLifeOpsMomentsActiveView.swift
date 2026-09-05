@@ -216,29 +216,58 @@ struct PersonalLifeOpsMomentsActiveView: View {
 
     private func journeyRow(_ item: APIClient.ActivityItemPayload) -> some View {
         let meta = activityVisual(item.activityCode)
+        let isExpense = PersonalActivityTimelineDerived.isExpense(item)
+        let chips = PersonalActivityTimelineDerived.pulseChips(item)
+        let amount = PersonalActivityTimelineDerived.amountLabel(item)
         return HStack(alignment: .top, spacing: 12) {
             Text(meta.emoji)
                 .font(.system(size: 18))
                 .frame(width: 40, height: 40)
                 .background(meta.color)
                 .clipShape(RoundedRectangle(cornerRadius: 20))
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(meta.label)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(isExpense ? PersonalActivityTimelineDerived.displayTitle(item) : meta.label)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color(hex: "#E5E0EE"))
-                    Spacer()
-                    Text(PersonalLifeOpsDerived.relativeTime(item.occurredAt))
-                        .font(.system(size: 10, weight: .heavy))
-                        .foregroundStyle(meta.color)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(meta.color.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    if let amount, isExpense {
+                        Text(amount)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color(hex: "#E5E0EE"))
+                    } else {
+                        Text(PersonalLifeOpsDerived.relativeTime(item.occurredAt))
+                            .font(.system(size: 10, weight: .heavy))
+                            .foregroundStyle(meta.color)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(meta.color.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
                 }
-                Text(item.title)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color(hex: "#C9C4D8"))
+                if isExpense {
+                    HStack(spacing: 6) {
+                        ForEach(chips, id: \.self) { chip in
+                            Text(chip)
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(Color(hex: "#C9C4D8"))
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Color.white.opacity(0.08))
+                                .clipShape(Capsule())
+                        }
+                        Spacer(minLength: 4)
+                        Text(PersonalLifeOpsDerived.relativeTime(item.occurredAt))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color(hex: "#C9C4D8"))
+                    }
+                } else {
+                    Text(PersonalActivityTimelineDerived.displayTitle(item))
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(hex: "#C9C4D8"))
+                        .lineLimit(1)
+                }
             }
         }
         .padding(16)

@@ -217,19 +217,88 @@ data class BootstrapPreferencesDto(
 
 data class GlobalNotificationPrefsDto(
     @SerializedName("pushNotificationsEnabled") val pushNotificationsEnabled: Boolean,
+    @SerializedName("categories") val categories: NotificationCategoriesDto? = null,
+    @SerializedName("quietHoursStart") val quietHoursStart: String? = null,
+    @SerializedName("quietHoursEnd") val quietHoursEnd: String? = null,
+    @SerializedName("digestEnabled") val digestEnabled: Boolean? = null,
+)
+
+data class NotificationCategoriesDto(
+    val finance: Boolean? = null,
+    val tasks: Boolean? = null,
+    val social: Boolean? = null,
+    val invites: Boolean? = null,
+    val approvals: Boolean? = null,
+    val reminders: Boolean? = null,
 )
 
 data class PatchGlobalNotificationPrefsBody(
-    @SerializedName("pushNotificationsEnabled") val pushNotificationsEnabled: Boolean,
+    @SerializedName("pushNotificationsEnabled") val pushNotificationsEnabled: Boolean? = null,
+    val categories: NotificationCategoriesDto? = null,
+    @SerializedName("quietHoursStart") val quietHoursStart: String? = null,
+    @SerializedName("quietHoursEnd") val quietHoursEnd: String? = null,
+    @SerializedName("digestEnabled") val digestEnabled: Boolean? = null,
 )
 
 data class MomentNotificationPrefsDto(
     @SerializedName("momentId") val momentId: String,
     @SerializedName("notifyOnChanges") val notifyOnChanges: Boolean,
+    @SerializedName("reminderPreferences") val reminderPreferences: Map<String, Boolean>? = null,
 )
 
 data class PatchMomentNotificationPrefsBody(
-    @SerializedName("notifyOnChanges") val notifyOnChanges: Boolean,
+    @SerializedName("notifyOnChanges") val notifyOnChanges: Boolean? = null,
+    @SerializedName("reminderPreferences") val reminderPreferences: Map<String, Boolean>? = null,
+)
+
+data class NotificationInboxDto(
+    val items: List<NotificationInboxItemDto>,
+    @SerializedName("unreadCount") val unreadCount: Int,
+)
+
+data class NotificationInboxItemDto(
+    @SerializedName("notificationId") val notificationId: String,
+    @SerializedName("eventName") val eventName: String,
+    @SerializedName("categoryCode") val categoryCode: String,
+    @SerializedName("priorityCode") val priorityCode: String,
+    val title: String,
+    val body: String,
+    @SerializedName("momentId") val momentId: String? = null,
+    @SerializedName("deepLink") val deepLink: String? = null,
+    @SerializedName("actorDisplayName") val actorDisplayName: String? = null,
+    @SerializedName("readAt") val readAt: String? = null,
+    @SerializedName("createdAt") val createdAt: String,
+)
+
+data class MarkNotificationsReadBody(
+    @SerializedName("notificationIds") val notificationIds: List<String>? = null,
+    val all: Boolean? = null,
+)
+
+data class MarkNotificationsReadResultDto(
+    @SerializedName("updatedCount") val updatedCount: Int,
+)
+
+data class NotificationDeliveryMetricsDto(
+    val today: NotificationDeliveryTodayDto,
+    @SerializedName("byEvent") val byEvent: List<NotificationDeliveryByEventDto> = emptyList(),
+    @SerializedName("inboxUnread") val inboxUnread: Int = 0,
+)
+
+data class NotificationDeliveryTodayDto(
+    val attempted: Int = 0,
+    val sent: Int = 0,
+    val failed: Int = 0,
+    @SerializedName("revokedTokens") val revokedTokens: Int = 0,
+    @SerializedName("digestBatched") val digestBatched: Int = 0,
+    val inbox: Int = 0,
+)
+
+data class NotificationDeliveryByEventDto(
+    @SerializedName("eventName") val eventName: String,
+    val attempted: Int = 0,
+    val sent: Int = 0,
+    val failed: Int = 0,
 )
 
 data class RegisterDeviceBody(
@@ -483,6 +552,7 @@ data class GroupSetupBlockDto(
     @SerializedName("budgetAmount") val budgetAmount: String,
     @SerializedName("budgetCurrencyCode") val budgetCurrencyCode: String,
     @SerializedName("destinationText") val destinationText: String? = null,
+    @SerializedName("reminderPreferences") val reminderPreferences: Map<String, Boolean>? = null,
 )
 
 data class PatchGroupBudgetBody(
@@ -1068,6 +1138,7 @@ data class ActivityPayloadDto(
     @SerializedName("currencyCode") val currencyCode: String? = null,
     @SerializedName("lifestyleContext") val lifestyleContext: String? = null,
     val description: String? = null,
+    @SerializedName("merchantName") val merchantName: String? = null,
     @SerializedName("categoryCode") val categoryCode: String? = null,
     @SerializedName("subcategoryCode") val subcategoryCode: String? = null,
     @SerializedName("financialAccountId") val financialAccountId: String? = null,

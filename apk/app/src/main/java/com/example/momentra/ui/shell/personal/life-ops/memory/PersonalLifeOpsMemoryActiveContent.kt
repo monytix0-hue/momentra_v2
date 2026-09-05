@@ -42,6 +42,7 @@ import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlin.math.min
 import kotlin.math.roundToInt
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalLifeOpsDerived
+import com.example.momentra.ui.shell.personal.shared.PersonalActivityTimelineDerived
 import com.example.momentra.ui.shell.personal.shared.loadPersonalPulseTab
 import com.example.momentra.ui.shell.personal.shared.PersonalTabDataCache
 
@@ -107,7 +108,9 @@ fun PersonalLifeOpsMemoryActiveContent(
     )
     val stage = PersonalLifeOpsDerived.stageBand(pulse?.wellbeingScore)
     val (helping, hurting) = PersonalLifeOpsDerived.helpingHurting(
-        activities.map { it.activityCode to it.title },
+        activities.map {
+            it.activityCode to PersonalActivityTimelineDerived.driverLabel(it)
+        },
     )
     val hasRecovery = activities.any { it.activityCode.contains("RECOVERY", ignoreCase = true) } ||
         PersonalLifeOpsDerived.scoreNumber(pulse?.recoveryScore) != null

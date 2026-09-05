@@ -114,7 +114,7 @@ enum PersonalLifeOpsDerived {
         let helping: Bool
     }
 
-    static func helpingHurting(from activities: [(code: String, title: String)]) -> (helping: [DriverItem], hurting: [DriverItem]) {
+    static func helpingHurting(from activities: [(code: String, label: String)]) -> (helping: [DriverItem], hurting: [DriverItem]) {
         var helping: [DriverItem] = []
         var hurting: [DriverItem] = []
         for item in activities.prefix(8) {
@@ -129,14 +129,14 @@ enum PersonalLifeOpsDerived {
                 else if code.contains("WELLBEING") { label = "Vitality +" }
                 else if code.contains("DISCOVERY") || code.contains("CREATION") { label = "Exploration +" }
                 else if code.contains("RECOVERY") { label = "Recovery +" }
-                else { label = item.title }
+                else { label = item.label }
                 helping.append(DriverItem(label: label, helping: true))
             } else if code.contains("MOOD") {
-                helping.append(DriverItem(label: "Mood · \(item.title)", helping: true))
+                helping.append(DriverItem(label: item.label, helping: true))
             } else if code.contains("RHYTHM") || code.contains("WELLBEING") || code.contains("PIVOT") || code.contains("LIFESTYLE") {
                 helping.append(DriverItem(label: code.contains("PIVOT") ? "Pivot +" : "Focus +", helping: true))
             } else if code.contains("EXPENSE") {
-                hurting.append(DriverItem(label: "Spend · \(item.title)", helping: false))
+                hurting.append(DriverItem(label: item.label, helping: false))
             }
         }
         return (Array(helping.prefix(3)), Array(hurting.prefix(3)))

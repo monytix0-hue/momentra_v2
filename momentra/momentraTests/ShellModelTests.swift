@@ -13,6 +13,25 @@ struct ShellModelTests {
         #expect(err == .forbidden("GOVERNANCE_DENIED"))
     }
 
+    @Test func apiErrorPrefersServerMessage() {
+        let err = APIErrorKind.from(
+            status: 400,
+            code: "VALIDATION_FAILED",
+            message: "expectedVersion is required."
+        )
+        #expect(err == .validation("expectedVersion is required."))
+        #expect(err.errorDescription == "expectedVersion is required.")
+    }
+
+    @Test func apiErrorConflictUsesMessage() {
+        let err = APIErrorKind.from(
+            status: 409,
+            code: "VALIDATION_FAILED",
+            message: "You already have an active Life Operations moment."
+        )
+        #expect(err == .conflict("You already have an active Life Operations moment."))
+    }
+
     @Test func contextLabels() {
         #expect(AppContextKind.personal.label == "Personal")
         #expect(AppContextKind.business.label == "Business")

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.momentra.ui.create.MomentCreateViewModel
+import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
 
 /**
  * Interactive Personal setup — Figma long-form sheets (353:6809+).
@@ -47,6 +48,13 @@ fun PersonalSetupSystem.toKind(): PersonalSetupKind = when (this) {
     PersonalSetupSystem.FUTURE_BUILDING -> PersonalSetupKind.FUTURE_BUILDING
     PersonalSetupSystem.LIFESTYLE -> PersonalSetupKind.LIFESTYLE
     PersonalSetupSystem.RELATIONSHIPS -> PersonalSetupKind.RELATIONSHIPS
+}
+
+fun PersonalSetupSystem.toPulseFamily(): PersonalPulseFamily = when (this) {
+    PersonalSetupSystem.LIFE_OPERATIONS -> PersonalPulseFamily.LIFE_OPERATIONS
+    PersonalSetupSystem.FUTURE_BUILDING -> PersonalPulseFamily.FUTURE_BUILDING
+    PersonalSetupSystem.LIFESTYLE -> PersonalPulseFamily.LIFESTYLE
+    PersonalSetupSystem.RELATIONSHIPS -> PersonalPulseFamily.RELATIONSHIPS
 }
 
 @Composable

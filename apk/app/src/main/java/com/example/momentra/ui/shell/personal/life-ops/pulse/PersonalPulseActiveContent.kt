@@ -55,12 +55,14 @@ import com.example.momentra.ui.shell.personal.future.create.FutureQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.LifeOpsQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalLifeOpsDerived
 import com.example.momentra.ui.shell.personal.shared.LifestyleQuickAddKind
+import com.example.momentra.ui.shell.personal.shared.PersonalActivityTimelineDerived
 import com.example.momentra.ui.shell.personal.shared.loadPersonalPulseTab
 import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
 import com.example.momentra.ui.shell.personal.shared.personalPulseFamilyFor
 import com.example.momentra.ui.shell.personal.shared.PersonalTabDataCache
 import com.example.momentra.ui.shell.personal.shared.theme
 import com.example.momentra.ui.shell.personal.shared.heroBrush
+import androidx.compose.ui.text.style.TextOverflow
 
 private val PulseBg = Color(0xFF14121B)
 private val PulseCard = Color(0xFF1A1726)
@@ -452,7 +454,9 @@ fun PersonalPulseActiveContent(
 
         if (isLifeOps || isFuture || isLifestyle) {
             val (helping, hurting) = PersonalLifeOpsDerived.helpingHurting(
-                activities.map { it.activityCode to it.title },
+                activities.map {
+                    it.activityCode to PersonalActivityTimelineDerived.driverLabel(it)
+                },
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -879,14 +883,16 @@ private fun MomentumPill(label: String, tint: Color, modifier: Modifier = Modifi
 
 @Composable
 private fun ActivityRowFigma(item: ActivityItemDto, showDivider: Boolean) {
-    val isExpense = item.activityCode.contains("EXPENSE", ignoreCase = true)
+    val isExpense = PersonalActivityTimelineDerived.isExpense(item)
     val badgeColor = if (isExpense) PulseRed else PulseCyan
+    val chips = PersonalActivityTimelineDerived.pulseChips(item)
+    val amount = PersonalActivityTimelineDerived.amountLabel(item)
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
         ) {
             Box(
                 modifier = Modifier
@@ -904,35 +910,61 @@ private fun ActivityRowFigma(item: ActivityItemDto, showDivider: Boolean) {
                 )
             }
             Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    item.title,
-                    color = PulseText,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = PlusJakartaSans,
-                )
-                Text(
-                    formatOccurredAt(item.occurredAt),
-                    color = PulseMuted,
-                    fontSize = 10.sp,
-                    fontFamily = PlusJakartaSans,
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(badgeColor)
-                    .padding(horizontal = 8.dp, vertical = 3.dp),
-            ) {
-                Text(
-                    item.activityCode.replace('_', ' ').lowercase(Locale.getDefault())
-                        .replaceFirstChar { it.titlecase(Locale.getDefault()) },
-                    color = PulseBg,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontFamily = PlusJakartaSans,
-                )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        PersonalActivityTimelineDerived.displayTitle(item),
+                        color = PulseText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (amount != null) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            amount,
+                            color = PulseText,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    chips.forEach { chip ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .padding(horizontal = 7.dp, vertical = 2.dp),
+                        ) {
+                            Text(
+                                chip,
+                                color = PulseMuted,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = PlusJakartaSans,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        formatOccurredAt(item.occurredAt),
+                        color = PulseMuted,
+                        fontSize = 10.sp,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
             }
         }
         if (showDivider) {

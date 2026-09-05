@@ -504,6 +504,10 @@ fun GroupExperienceSetupContent(
                                         accountRepo.patchMomentNotificationPreferences(
                                             outcome.momentId,
                                             notifyChanges,
+                                            mapOf(
+                                                "expenseReminders" to (expenseReminders.equals("Enabled", ignoreCase = true)),
+                                                "photoReminders" to (photoReminders.equals("Enabled", ignoreCase = true)),
+                                            ),
                                         )
                                         onCreated(outcome)
                                     }

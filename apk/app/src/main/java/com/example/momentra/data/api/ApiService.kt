@@ -3,7 +3,6 @@ package com.example.momentra.data.api
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
-import retrofit2.http.HTTP
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -70,6 +69,21 @@ interface ApiService {
         @Path("momentId") momentId: String,
         @Body body: PatchMomentNotificationPrefsBody,
     ): SuccessEnvelope<MomentNotificationPrefsDto>
+
+    @GET("v1/me/notifications")
+    suspend fun listMyNotifications(
+        @Query("limit") limit: Int? = null,
+        @Query("unreadOnly") unreadOnly: Boolean? = null,
+        @Query("cursor") cursor: String? = null,
+    ): SuccessEnvelope<NotificationInboxDto>
+
+    @POST("v1/me/notifications/read")
+    suspend fun markMyNotificationsRead(
+        @Body body: MarkNotificationsReadBody,
+    ): SuccessEnvelope<MarkNotificationsReadResultDto>
+
+    @GET("v1/me/notifications/metrics")
+    suspend fun getMyNotificationMetrics(): SuccessEnvelope<NotificationDeliveryMetricsDto>
 
     @GET("v1/analytics/metrics")
     suspend fun listAnalyticsMetrics(
@@ -168,7 +182,7 @@ interface ApiService {
         @Body body: MomentVersionBody,
     ): SuccessEnvelope<MomentLifecycleResultDto>
 
-    @HTTP(method = "DELETE", path = "v1/moments/{momentId}", hasBody = true)
+    @POST("v1/moments/{momentId}/delete")
     suspend fun deleteMoment(
         @Path("momentId") momentId: String,
         @Header("Idempotency-Key") idempotencyKey: String,
@@ -1077,13 +1091,6 @@ interface ApiService {
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: Map<String, @JvmSuppressWildcards Any>,
     ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
-
-    @DELETE("v1/moments/{momentId}")
-    suspend fun deleteMoment(
-        @Path("momentId") momentId: String,
-        @Header("Idempotency-Key") idempotencyKey: String,
-        @Body body: Map<String, @JvmSuppressWildcards Any>,
-    ): SuccessEnvelope<MomentLifecycleResultDto>
 
     @GET("v1/personal/moments/{momentId}/mood-history")
     suspend fun getPersonalMoodHistory(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>

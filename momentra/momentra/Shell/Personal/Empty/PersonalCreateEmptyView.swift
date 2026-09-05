@@ -3,6 +3,7 @@ import SwiftUI
 struct PersonalCreateEmptyView: View {
     var history: [MomentSummary] = []
     var onMomentCreated: (String, String, String?) -> Void = { _, _, _ in }
+    var onOpenExisting: (String) -> Void = { _ in }
 
     @State private var wizard: PersonalSetupSystem?
 
@@ -22,6 +23,20 @@ struct PersonalCreateEmptyView: View {
                 .presentationCornerRadius(24)
                 .preferredColorScheme(.dark)
             }
+    }
+
+    private func activeMoment(for system: PersonalSetupSystem) -> MomentSummary? {
+        history.first {
+            $0.isActiveStatus && PersonalPulseFamily.forTypeCode($0.momentTypeCode) == system.pulseFamily
+        }
+    }
+
+    private func selectOrCreate(_ system: PersonalSetupSystem) {
+        if let existing = activeMoment(for: system) {
+            onOpenExisting(existing.momentId)
+        } else {
+            wizard = system
+        }
     }
 
     private var chooser: some View {
@@ -153,7 +168,8 @@ struct PersonalCreateEmptyView: View {
         deep: Color,
         thumb: String
     ) -> some View {
-        Button { wizard = system } label: {
+        let existing = activeMoment(for: system)
+        return Button { selectOrCreate(system) } label: {
             VStack(spacing: 0) {
                 Image(thumb)
                     .resizable()
@@ -178,9 +194,9 @@ struct PersonalCreateEmptyView: View {
                             .minimumScaleFactor(0.85)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    Text(subtitle)
+                    Text(existing != nil ? "Open existing" : subtitle)
                         .font(.plusJakarta(size: 11))
-                        .foregroundStyle(PersonalEmptyTokens.subtle)
+                        .foregroundStyle(existing != nil ? accent : PersonalEmptyTokens.subtle)
                         .lineLimit(1)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -207,7 +223,8 @@ struct PersonalCreateEmptyView: View {
         _ color: Color,
         _ system: PersonalSetupSystem
     ) -> some View {
-        Button { wizard = system } label: {
+        let existing = activeMoment(for: system)
+        return Button { selectOrCreate(system) } label: {
             HStack {
                 HStack(spacing: 12) {
                     Text(emoji).font(.system(size: 18))
@@ -215,14 +232,14 @@ struct PersonalCreateEmptyView: View {
                         Text(title)
                             .font(.plusJakarta(size: 14, weight: .semibold))
                             .foregroundStyle(PersonalEmptyTokens.text)
-                        Text(subtitle)
+                        Text(existing != nil ? "Open existing \(system.label)" : subtitle)
                             .font(.plusJakarta(size: 11))
                             .foregroundStyle(PersonalEmptyTokens.subtle)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer()
-                Text(cta)
+                Text(existing != nil ? "Open" : cta)
                     .font(.plusJakarta(size: 12, weight: .bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)

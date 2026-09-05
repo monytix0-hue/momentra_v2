@@ -1,4 +1,5 @@
 import { Queue, Worker, type Job, type ConnectionOptions } from 'bullmq';
+import { bullmqPriority, notificationPriority } from '../notifications/allowlist';
 
 export const NOTIFICATION_QUEUE_NAME = 'momentra-notifications';
 
@@ -7,6 +8,8 @@ export interface NotificationJobPayload {
   domainEventId: string;
   topicCode: string;
   eventName: string;
+  /** Optional override; derived from eventName when omitted. */
+  priority?: 'HIGH' | 'NORMAL' | 'LOW';
 }
 
 function redisConnection(): ConnectionOptions | null {
@@ -31,8 +34,10 @@ export function getNotificationQueue(): Queue<NotificationJobPayload> | null {
 export async function enqueueNotificationJob(payload: NotificationJobPayload): Promise<boolean> {
   const queue = getNotificationQueue();
   if (!queue) return false;
-  await queue.add(payload.eventName, payload, {
+  const priority = payload.priority ?? notificationPriority(payload.eventName);
+  await queue.add(payload.eventName, { ...payload, priority }, {
     jobId: `notif:${payload.domainEventId}`,
+    priority: bullmqPriority(priority),
     removeOnComplete: 1000,
     removeOnFail: 5000,
     attempts: 3,

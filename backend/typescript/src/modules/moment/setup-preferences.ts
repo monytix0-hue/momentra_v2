@@ -111,6 +111,16 @@ export const groupSetupBlockSchema = z
     budgetAmount: z.string().regex(/^\d+(\.\d{1,4})?$/),
     budgetCurrencyCode: z.string().length(3).regex(/^[A-Z]{3}$/),
     destinationText: z.string().max(500).optional(),
+    reminderPreferences: z
+      .object({
+        billReminders: z.boolean().optional(),
+        choreReminders: z.boolean().optional(),
+        expenseReminders: z.boolean().optional(),
+        photoReminders: z.boolean().optional(),
+        paymentReminders: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

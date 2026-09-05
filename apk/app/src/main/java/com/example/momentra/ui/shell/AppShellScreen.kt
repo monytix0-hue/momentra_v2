@@ -50,6 +50,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
 import com.example.momentra.data.local.AppPreferences
 import com.example.momentra.data.local.PendingJoinInvite
+import com.example.momentra.data.local.PendingDeepLink
 import com.example.momentra.domain.AppContext
 import com.example.momentra.domain.BottomDestination
 import com.example.momentra.domain.CompanySummary
@@ -205,6 +206,16 @@ fun AppShellScreen(
             if (offered.isNullOrBlank()) return@collect
             val code = PendingJoinInvite.consume(prefs) ?: return@collect
             pendingGroupJoinCode = code
+        }
+    }
+
+    LaunchedEffect(state.identity?.userId) {
+        if (state.identity?.userId == null) return@LaunchedEffect
+        PendingDeepLink.link.collect { offered ->
+            if (offered.isNullOrBlank()) return@collect
+            val link = PendingDeepLink.consume() ?: return@collect
+            val momentId = PendingDeepLink.parseMomentId(link) ?: return@collect
+            shellViewModel.selectMoment(momentId)
         }
     }
 
@@ -400,6 +411,10 @@ fun AppShellScreen(
                     onMomentCreated = { momentId, title, momentTypeCode ->
                         newMomentOpen = false
                         shellViewModel.onMomentCreated(momentId, title, momentTypeCode)
+                    },
+                    onOpenExisting = { momentId ->
+                        newMomentOpen = false
+                        shellViewModel.selectMoment(momentId)
                     },
                 )
             } else if (newMomentOpen && state.selectedContext == AppContext.BUSINESS) {

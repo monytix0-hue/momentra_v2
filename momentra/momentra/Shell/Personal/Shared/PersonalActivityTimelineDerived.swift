@@ -124,6 +124,131 @@ enum PersonalActivityTimelineDerived {
         item.activityPayload?.status != "VOIDED"
     }
 
+    /// Short headline for Pulse / timeline — never the Feelings/Paid-from essay.
+    static func displayTitle(_ item: APIClient.ActivityItemPayload) -> String {
+        let payload = item.activityPayload
+        if let merchant = payload?.merchantName?.trimmingCharacters(in: .whitespacesAndNewlines), !merchant.isEmpty {
+            return merchant
+        }
+        let raw = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isEssayTitle(raw) {
+            if let code = payload?.categoryCode, !code.isEmpty {
+                return PersonalExpenseCategoryCatalog.labelForCode(code)
+            }
+            return "Expense"
+        }
+        if raw.isEmpty { return isExpense(item) ? "Expense" : "Activity" }
+        return raw
+    }
+
+    static func amountLabel(_ item: APIClient.ActivityItemPayload) -> String? {
+        guard let raw = item.activityPayload?.amount, let value = Double(raw) else { return nil }
+        let currency = item.activityPayload?.currencyCode ?? "INR"
+        let symbol = currency == "INR" ? "₹" : "\(currency) "
+        let rounded = value.rounded()
+        if abs(rounded - value) < 0.001 {
+            return "\(symbol)\(Int(rounded))"
+        }
+        return String(format: "%@%.2f", symbol, value)
+    }
+
+    static func categoryChip(_ item: APIClient.ActivityItemPayload) -> String? {
+        guard let code = item.activityPayload?.categoryCode, !code.isEmpty else { return nil }
+        return PersonalExpenseCategoryCatalog.labelForCode(code)
+    }
+
+    static func paidFromChip(_ item: APIClient.ActivityItemPayload) -> String? {
+        if let method = item.activityPayload?.paymentMethodCode?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !method.isEmpty {
+            return method.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+        guard let desc = essaySource(item) else { return nil }
+        return parseLabeledField(desc, label: "Paid from:")
+    }
+
+    /// Mood / Feelings as master-expense smileys (e.g. "Happy" → 😊).
+    static func feelingsChip(_ item: APIClient.ActivityItemPayload) -> String? {
+        guard let desc = essaySource(item),
+              let raw = parseLabeledField(desc, label: "Feelings:") else { return nil }
+        let mapped = raw
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map { feelingEmoji(for: $0) ?? $0 }
+        guard !mapped.isEmpty else { return nil }
+        return mapped.joined(separator: " ")
+    }
+
+    private static func feelingEmoji(for label: String) -> String? {
+        PersonalMasterExpenseTheme.emotionalOptions
+            .first { $0.label.caseInsensitiveCompare(label) == .orderedSame }?
+            .emoji
+    }
+
+    static func pulseChips(_ item: APIClient.ActivityItemPayload) -> [String] {
+        var chips: [String] = []
+        if let cat = categoryChip(item) { chips.append(cat) }
+        if let mood = feelingsChip(item) { chips.append(mood) }
+        if let paid = paidFromChip(item) { chips.append(paid) }
+        return chips
+    }
+
+    /// Compact HELPING/HURTING / Memory driver line — never the essay title.
+    static func driverLabel(_ item: APIClient.ActivityItemPayload) -> String {
+        let code = item.activityCode.uppercased()
+        if isExpense(item) || code.contains("EXPENSE") {
+            var parts = ["Spend", displayTitle(item)]
+            if let mood = feelingsChip(item) { parts.append(mood) }
+            return parts.joined(separator: " · ")
+        }
+        if code.contains("MOOD") {
+            return "Mood · \(displayTitle(item))"
+        }
+        return displayTitle(item)
+    }
+
+    /// Compact secondary line where chips do not fit.
+    static func summaryLine(_ item: APIClient.ActivityItemPayload) -> String {
+        var parts = [displayTitle(item)]
+        if let amount = amountLabel(item) { parts.append(amount) }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func essaySource(_ item: APIClient.ActivityItemPayload) -> String? {
+        if let desc = item.activityPayload?.description?.trimmingCharacters(in: .whitespacesAndNewlines), !desc.isEmpty {
+            return desc
+        }
+        if isEssayTitle(item.title) { return item.title }
+        return nil
+    }
+
+    private static func isEssayTitle(_ title: String) -> Bool {
+        let lower = title.lowercased()
+        return lower.contains("feelings:") ||
+            lower.contains("paid from:") ||
+            lower.contains("meaning:") ||
+            lower.contains("when:") ||
+            title.contains("\n") ||
+            title.count > 60
+    }
+
+    private static func parseLabeledField(_ description: String, label: String) -> String? {
+        guard let range = description.range(of: label, options: .caseInsensitive) else { return nil }
+        var rest = String(description[range.upperBound...])
+        if let nl = rest.firstIndex(of: "\n") {
+            rest = String(rest[..<nl])
+        }
+        if let dot = rest.range(of: " · ") {
+            rest = String(rest[..<dot.lowerBound])
+        }
+        let trimmed = rest.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func parsePaidFrom(_ description: String) -> String? {
+        parseLabeledField(description, label: "Paid from:")
+    }
+
     private static func typeLabel(_ code: String) -> String {
         if code.contains("RECOVERY") { return "Recovery" }
         if code.contains("ATTENTION") { return "Attention" }

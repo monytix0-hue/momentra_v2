@@ -57,6 +57,7 @@ struct CreateMomentRequest: Encodable {
         let budgetAmount: String
         let budgetCurrencyCode: String
         let destinationText: String?
+        var reminderPreferences: [String: Bool]? = nil
     }
 }
 

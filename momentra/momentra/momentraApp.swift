@@ -80,6 +80,15 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         completionHandler([.banner, .list, .sound, .badge])
     }
 
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        PushDeepLinkStore.shared.offer(userInfo: response.notification.request.content.userInfo)
+        completionHandler()
+    }
+
     // MARK: - MessagingDelegate
 
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {

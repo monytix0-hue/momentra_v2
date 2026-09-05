@@ -107,6 +107,7 @@ function buildActivityPayload(row: {
   categoryCode: string | null;
   subcategoryCode?: string | null;
   description?: string | null;
+  merchantName?: string | null;
   financialAccountId?: string | null;
   paymentMethodCode?: string | null;
   effectiveAt?: string;
@@ -119,6 +120,7 @@ function buildActivityPayload(row: {
     categoryCode: row.categoryCode,
     subcategoryCode: row.subcategoryCode ?? null,
     description: row.description ?? null,
+    merchantName: row.merchantName ?? null,
     financialAccountId: row.financialAccountId ?? null,
     paymentMethodCode: row.paymentMethodCode ?? null,
     effectiveAt: row.effectiveAt ?? null,
@@ -313,7 +315,7 @@ export async function createExpense(
 
   await insertAudit(client, ctx, 'EXPENSE_CREATE', 'EXPENSE', expenseId, domainEventId, result as unknown as Record<string, unknown>);
 
-  const title = body.description ?? body.merchantName ?? 'Expense';
+  const title = body.merchantName?.trim() || 'Expense';
   await client.query(
     `INSERT INTO projection.recent_activity (
        user_id, source_event_id, domain_code, scope_type, scope_id,
@@ -334,6 +336,7 @@ export async function createExpense(
           categoryCode: body.categoryCode ?? null,
           subcategoryCode: body.subcategoryCode ?? null,
           description: body.description ?? null,
+          merchantName: body.merchantName ?? null,
           financialAccountId: accountId,
           paymentMethodCode: paymentMethod,
           effectiveAt,
@@ -445,7 +448,7 @@ export async function updateExpense(
   });
   await insertAudit(client, ctx, 'EXPENSE_UPDATE', 'EXPENSE', expenseId, domainEventId, { expenseId });
 
-  const title = nextDescription ?? nextMerchant ?? 'Expense';
+  const title = (nextMerchant?.trim() || 'Expense');
   await client.query(
     `UPDATE projection.recent_activity SET
        title = $3,
@@ -467,6 +470,7 @@ export async function updateExpense(
           categoryCode: nextCategory,
           subcategoryCode: nextSubcategory,
           description: nextDescription,
+          merchantName: nextMerchant,
           financialAccountId: nextAccountId,
           paymentMethodCode: nextPaymentMethod,
           effectiveAt: nextEffectiveAt,

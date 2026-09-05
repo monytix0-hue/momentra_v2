@@ -70,7 +70,7 @@ export async function createGoal(
   const goalId = inserted.rows[0]!.goal_id;
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'GoalCreated',
-    domainCode: 'WORK',
+    domainCode,
     aggregateType: 'GOAL',
     aggregateId: goalId,
     scopeType: 'MOMENT',
@@ -122,9 +122,10 @@ export async function createMilestone(
     [goalId, momentId, body.title, body.targetAt ? body.targetAt.slice(0, 10) : null, status]
   );
   const milestoneId = inserted.rows[0]!.milestone_id;
+  const domainCode = await momentDomain(client, momentId);
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'MilestoneCreated',
-    domainCode: 'WORK',
+    domainCode,
     aggregateType: 'MILESTONE',
     aggregateId: milestoneId,
     scopeType: 'MOMENT',
@@ -139,7 +140,7 @@ export async function createMilestone(
   };
   await insertAudit(client, ctx, 'MILESTONE_CREATE', 'MILESTONE', milestoneId, domainEventId, result);
 
-  const domain = await momentDomain(client, momentId);
+  const domain = domainCode;
   if (domain === 'BUSINESS') {
     const bmc = await client.query<{ company_id: string; business_family: string }>(
       `SELECT company_id, business_family FROM business.business_moment_context WHERE moment_id = $1`,
@@ -182,7 +183,7 @@ export async function createTask(
   const taskId = inserted.rows[0]!.task_id;
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'TaskCreated',
-    domainCode: 'WORK',
+    domainCode,
     aggregateType: 'TASK',
     aggregateId: taskId,
     scopeType: 'MOMENT',

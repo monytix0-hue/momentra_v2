@@ -26,6 +26,8 @@ import * as projectionService from '../../modules/projection/service';
 import * as deviceService from '../../modules/device/service';
 import * as accountService from '../../modules/account/service';
 import * as notificationPrefs from '../../modules/notifications/preferences';
+import * as notificationInbox from '../../modules/notifications/inbox';
+import * as notificationMetrics from '../../modules/notifications/metrics';
 import * as momentService from '../../modules/moment/service';
 import * as workService from '../../modules/work/service';
 import * as financeService from '../../modules/finance/service';
@@ -235,6 +237,42 @@ v1Router.patch('/me/notification-preferences', async (req, res, next) => {
     const body = parseBody(notificationPrefs.patchGlobalNotificationPrefsSchema, req.body);
     const data = await withDb((client) => notificationPrefs.patchGlobalNotificationPrefs(client, ctx, body));
     res.json(commandEnvelope(data, ctx.correlationId));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/me/notifications', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const query = notificationInbox.listInboxQuerySchema.parse({
+      limit: req.query.limit,
+      unreadOnly: req.query.unreadOnly,
+      cursor: req.query.cursor,
+    });
+    const data = await withDb((client) => notificationInbox.listInbox(client, ctx, query));
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/me/notifications/read', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(notificationInbox.markReadSchema, req.body);
+    const data = await withDb((client) => notificationInbox.markInboxRead(client, ctx, body));
+    res.json(commandEnvelope(data, ctx.correlationId));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/me/notifications/metrics', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) => notificationMetrics.getDeliveryMetrics(client, ctx));
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {
     next(e);
   }
@@ -1521,6 +1559,20 @@ v1Router.post('/moments/:momentId/cancel', requireIdempotencyKey, async (req, re
     const expectedVersion = parseVersion(req.body);
     const result = await withDb((client) =>
       momentService.cancelMoment(client, ctx, param(req.params.momentId), expectedVersion)
+    );
+    res.json(commandEnvelope(result, ctx.correlationId, { resourceVersion: result.version }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** Preferred delete path — JSON body with expectedVersion (DELETE+body is unreliable on many clients). */
+v1Router.post('/moments/:momentId/delete', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const expectedVersion = parseVersion(req.body);
+    const result = await withDb((client) =>
+      momentService.deleteMoment(client, ctx, param(req.params.momentId), expectedVersion)
     );
     res.json(commandEnvelope(result, ctx.correlationId, { resourceVersion: result.version }));
   } catch (e) {

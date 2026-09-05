@@ -779,7 +779,19 @@ struct GroupSectionSetupView: View {
                 },
             inviteCode: issuedInvite?.inviteCode,
             editingMomentId: editingMomentId,
-            onSuccess: onCreated
+            onSuccess: { outcome in
+                Task {
+                    _ = try? await APIClient.shared.patchMomentNotificationPreferences(
+                        momentId: outcome.momentId,
+                        reminderPreferences: [
+                            "billReminders": billReminders.lowercased() == "enabled",
+                            "choreReminders": choreReminders.lowercased() == "enabled",
+                            "paymentReminders": paymentReminders.lowercased() == "enabled",
+                        ]
+                    )
+                    await MainActor.run { onCreated(outcome) }
+                }
+            }
         )
     }
 }

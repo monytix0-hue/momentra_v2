@@ -118,6 +118,42 @@ export interface MomentResult {
   setupId?: string;
 }
 
+const PERSONAL_SYSTEM_LABELS: Record<string, string> = {
+  LIFE_OPERATIONS: 'Life Operations',
+  FUTURE_BUILDING: 'Future Building',
+  LIFESTYLE: 'Lifestyle',
+  RELATIONSHIPS: 'Relationships',
+};
+
+/** One ACTIVE Personal moment per life-system category (LIFE_OPERATIONS, etc.). */
+export async function assertNoActivePersonalSystem(
+  client: PoolClient,
+  userId: string,
+  systemCategoryCode: string
+): Promise<void> {
+  const existing = await client.query<{ moment_id: string }>(
+    `SELECT m.moment_id
+     FROM core.moment m
+     JOIN personal.personal_moment_context pmc ON pmc.moment_id = m.moment_id
+     JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+     JOIN core.moment_category mc ON mc.moment_category_id = mt.moment_category_id
+     WHERE pmc.user_id = $1
+       AND m.domain_code = 'PERSONAL'
+       AND mc.code = $2
+       AND m.status = 'ACTIVE'
+     LIMIT 1`,
+    [userId, systemCategoryCode]
+  );
+  if (existing.rows[0]) {
+    const label = PERSONAL_SYSTEM_LABELS[systemCategoryCode] ?? systemCategoryCode;
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      `You already have an active ${label} moment.`,
+      409
+    );
+  }
+}
+
 export async function createMoment(
   client: PoolClient,
   ctx: RequestContext,
@@ -141,6 +177,10 @@ export async function createMoment(
   const allowed = await resolveCapabilityForMomentType(client, momentTypeId, 'MOMENT_CREATE');
   if (!allowed && process.env.GOVERNANCE_FAIL_OPEN !== '1') {
     throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Capability not enabled for moment type.', 403);
+  }
+
+  if (body.domainCode === 'PERSONAL') {
+    await assertNoActivePersonalSystem(client, ctx.userId, familyCode);
   }
 
   const momentInsert = await client.query<{ moment_id: string; version: string }>(
@@ -171,9 +211,15 @@ export async function createMoment(
     );
   } else if (body.domainCode === 'GROUP') {
     await client.query(
-      `INSERT INTO collaboration.group_moment_context (moment_id, group_family, organizer_user_id, status, version)
-       VALUES ($1, $2, $3, 'ACTIVE', 1)`,
-      [momentId, familyCode, ctx.userId]
+      `INSERT INTO collaboration.group_moment_context (
+         moment_id, group_family, organizer_user_id, status, version, reminder_preferences
+       ) VALUES ($1, $2, $3, 'ACTIVE', 1, $4::jsonb)`,
+      [
+        momentId,
+        familyCode,
+        ctx.userId,
+        JSON.stringify(body.groupSetup?.reminderPreferences ?? {}),
+      ]
     );
     await client.query(
       `INSERT INTO collaboration.moment_participant (moment_id, user_id, participant_role, status, joined_at)

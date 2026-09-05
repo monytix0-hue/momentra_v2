@@ -569,7 +569,11 @@ struct GroupExperienceSetupView: View {
                 Task {
                     _ = try? await APIClient.shared.patchMomentNotificationPreferences(
                         momentId: outcome.momentId,
-                        notifyOnChanges: notifyChanges
+                        notifyOnChanges: notifyChanges,
+                        reminderPreferences: [
+                            "expenseReminders": expenseReminders.lowercased() == "enabled",
+                            "photoReminders": photoReminders.lowercased() == "enabled",
+                        ]
                     )
                     await MainActor.run { onCreated(outcome) }
                 }

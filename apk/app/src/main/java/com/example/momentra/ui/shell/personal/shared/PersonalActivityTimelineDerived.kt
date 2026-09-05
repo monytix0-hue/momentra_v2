@@ -133,6 +133,119 @@ object PersonalActivityTimelineDerived {
     fun isVisible(item: ActivityItemDto): Boolean =
         item.activityPayload?.status != "VOIDED"
 
+    /** Short headline for Pulse / timeline — never the Feelings/Paid-from essay. */
+    fun displayTitle(item: ActivityItemDto): String {
+        val merchant = item.activityPayload?.merchantName?.trim().orEmpty()
+        if (merchant.isNotEmpty()) return merchant
+        val raw = item.title.trim()
+        if (isEssayTitle(raw)) {
+            val code = item.activityPayload?.categoryCode?.takeIf { it.isNotBlank() }
+            if (code != null) return PersonalExpenseCategoryCatalog.labelForCode(code)
+            return "Expense"
+        }
+        if (raw.isEmpty()) return if (isExpense(item)) "Expense" else "Activity"
+        return raw
+    }
+
+    fun amountLabel(item: ActivityItemDto): String? {
+        val raw = item.activityPayload?.amount ?: return null
+        val value = raw.toDoubleOrNull() ?: return null
+        val currency = item.activityPayload?.currencyCode ?: "INR"
+        val symbol = if (currency == "INR") "₹" else "$currency "
+        val rounded = value.roundToInt()
+        return if (kotlin.math.abs(value - rounded) < 0.001) {
+            "$symbol$rounded"
+        } else {
+            String.format(Locale.getDefault(), "%s%.2f", symbol, value)
+        }
+    }
+
+    fun categoryChip(item: ActivityItemDto): String? {
+        val code = item.activityPayload?.categoryCode?.takeIf { it.isNotBlank() } ?: return null
+        return PersonalExpenseCategoryCatalog.labelForCode(code)
+    }
+
+    fun paidFromChip(item: ActivityItemDto): String? {
+        item.activityPayload?.paymentMethodCode?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            return it.replace('_', ' ').lowercase(Locale.getDefault())
+                .replaceFirstChar { c -> c.titlecase(Locale.getDefault()) }
+        }
+        val desc = essaySource(item) ?: return null
+        return parseLabeledField(desc, "Paid from:")
+    }
+
+    /** Mood / Feelings as master-expense smileys (e.g. "Happy" → 😊). */
+    fun feelingsChip(item: ActivityItemDto): String? {
+        val desc = essaySource(item) ?: return null
+        val raw = parseLabeledField(desc, "Feelings:") ?: return null
+        val mapped = raw.split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .map { feelingEmoji(it) ?: it }
+        return mapped.takeIf { it.isNotEmpty() }?.joinToString(" ")
+    }
+
+    private fun feelingEmoji(label: String): String? =
+        PersonalMasterExpenseTheme.emotionalOptions
+            .firstOrNull { it.label.equals(label, ignoreCase = true) }
+            ?.emoji
+
+    fun pulseChips(item: ActivityItemDto): List<String> = buildList {
+        categoryChip(item)?.let { add(it) }
+        feelingsChip(item)?.let { add(it) }
+        paidFromChip(item)?.let { add(it) }
+    }
+
+    /** Compact HELPING/HURTING / Memory driver line — never the essay title. */
+    fun driverLabel(item: ActivityItemDto): String {
+        val code = item.activityCode.uppercase(Locale.getDefault())
+        if (isExpense(item) || code.contains("EXPENSE")) {
+            val parts = mutableListOf("Spend", displayTitle(item))
+            feelingsChip(item)?.let { parts.add(it) }
+            return parts.joinToString(" · ")
+        }
+        if (code.contains("MOOD")) {
+            return "Mood · ${displayTitle(item)}"
+        }
+        return displayTitle(item)
+    }
+
+    /** Compact secondary line where chips do not fit. */
+    fun summaryLine(item: ActivityItemDto): String {
+        val parts = mutableListOf(displayTitle(item))
+        amountLabel(item)?.let { parts.add(it) }
+        return parts.joinToString(" · ")
+    }
+
+    private fun essaySource(item: ActivityItemDto): String? {
+        item.activityPayload?.description?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        return item.title.takeIf { isEssayTitle(it) }
+    }
+
+    private fun isEssayTitle(title: String): Boolean {
+        val lower = title.lowercase(Locale.getDefault())
+        return lower.contains("feelings:") ||
+            lower.contains("paid from:") ||
+            lower.contains("meaning:") ||
+            lower.contains("when:") ||
+            title.contains('\n') ||
+            title.length > 60
+    }
+
+    private fun parseLabeledField(description: String, label: String): String? {
+        val idx = description.indexOf(label, ignoreCase = true)
+        if (idx < 0) return null
+        var rest = description.substring(idx + label.length)
+        val nl = rest.indexOf('\n')
+        if (nl >= 0) rest = rest.substring(0, nl)
+        val sep = rest.indexOf(" · ")
+        if (sep >= 0) rest = rest.substring(0, sep)
+        return rest.trim().takeIf { it.isNotEmpty() }
+    }
+
+    private fun parsePaidFrom(description: String): String? =
+        parseLabeledField(description, "Paid from:")
+
     private fun typeLabel(code: String): String = when {
         code.contains("RECOVERY") -> "Recovery"
         code.contains("ATTENTION") -> "Attention"

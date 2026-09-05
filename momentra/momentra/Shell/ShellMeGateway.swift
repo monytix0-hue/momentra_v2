@@ -12,14 +12,16 @@ enum APIErrorKind: Error, Equatable {
     case unknown(String)
 
     static func from(status: Int, code: String?, message: String?) -> APIErrorKind {
+        let detail = message?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolved = (detail?.isEmpty == false) ? detail! : (code ?? "Error")
         switch status {
-        case 401: return .unauthenticated(code ?? "UNAUTHORIZED")
-        case 403: return .forbidden(code ?? "GOVERNANCE_DENIED")
-        case 404: return .notFound(code ?? "RESOURCE_NOT_FOUND")
-        case 409: return .conflict(code ?? "CONFLICT")
-        case 400, 422: return .validation(code ?? "VALIDATION_FAILED")
-        case 429: return .rateLimited(code ?? "RATE_LIMITED")
-        case 500 ... 599: return .server(code ?? "INFRASTRUCTURE_UNAVAILABLE")
+        case 401: return .unauthenticated(resolved)
+        case 403: return .forbidden(resolved)
+        case 404: return .notFound(resolved)
+        case 409: return .conflict(resolved)
+        case 400, 422: return .validation(resolved)
+        case 429: return .rateLimited(resolved)
+        case 500 ... 599: return .server(resolved)
         default: return .unknown(message ?? "Unexpected status \(status)")
         }
     }
@@ -28,13 +30,13 @@ enum APIErrorKind: Error, Equatable {
 extension APIErrorKind: LocalizedError {
     var errorDescription: String? {
         switch self {
-        case .unauthenticated(let code): return "Signed out or session expired (\(code))."
-        case .forbidden(let code): return "You don’t have access (\(code))."
-        case .notFound(let code): return "Not found (\(code))."
-        case .conflict(let code): return "Conflict (\(code))."
-        case .validation(let code): return "Invalid request (\(code))."
-        case .rateLimited(let code): return "Too many requests (\(code)). Try again shortly."
-        case .server(let code): return "Server error (\(code))."
+        case .unauthenticated(let message): return message
+        case .forbidden(let message): return message
+        case .notFound(let message): return message
+        case .conflict(let message): return message
+        case .validation(let message): return message
+        case .rateLimited(let message): return message
+        case .server(let message): return message
         case .network(let message): return message
         case .unknown(let message): return message
         }

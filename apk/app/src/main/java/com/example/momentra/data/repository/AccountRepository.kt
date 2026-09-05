@@ -72,10 +72,11 @@ class AccountRepository(
     suspend fun patchMomentNotificationPreferences(
         momentId: String,
         notifyOnChanges: Boolean,
+        reminderPreferences: Map<String, Boolean>? = null,
     ): Result<MomentNotificationPrefsDto> = runCatching {
         api.patchMomentNotificationPreferences(
             momentId,
-            PatchMomentNotificationPrefsBody(notifyOnChanges),
+            PatchMomentNotificationPrefsBody(notifyOnChanges, reminderPreferences),
         ).data
     }.recoverCatching { e -> throw mapThrowable(e) }
 

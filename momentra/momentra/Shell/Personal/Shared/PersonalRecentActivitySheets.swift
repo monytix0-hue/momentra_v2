@@ -199,17 +199,43 @@ struct PersonalRecentActivityFlow: View {
 
     private func timelineRow(_ item: APIClient.ActivityItemPayload) -> some View {
         let visual = PersonalActivityTimelineDerived.rowVisual(item)
+        let chips = PersonalActivityTimelineDerived.pulseChips(item)
+        let amount = PersonalActivityTimelineDerived.amountLabel(item)
         return HStack(spacing: 0) {
             visual.accent.frame(width: 4)
-            HStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 Text(visual.emoji).font(.system(size: 22))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(hex: "#E5E0EE"))
-                    Text(visual.metadata)
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color(hex: "#C9C4D8"))
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(PersonalActivityTimelineDerived.displayTitle(item))
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color(hex: "#E5E0EE"))
+                            .lineLimit(1)
+                        Spacer(minLength: 4)
+                        if let amount {
+                            Text(amount)
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(Color(hex: "#E5E0EE"))
+                        }
+                    }
+                    if !chips.isEmpty {
+                        HStack(spacing: 6) {
+                            ForEach(chips, id: \.self) { chip in
+                                Text(chip)
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(Color(hex: "#C9C4D8"))
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 2)
+                                    .background(Color.white.opacity(0.08))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    } else {
+                        Text(visual.metadata)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(hex: "#C9C4D8"))
+                            .lineLimit(1)
+                    }
                     Text(visual.timeLabel)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(Color(hex: "#C9C4D8").opacity(0.7))

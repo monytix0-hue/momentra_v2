@@ -102,7 +102,7 @@ object PersonalLifeOpsDerived {
     fun helpingHurting(activities: List<Pair<String, String>>): Pair<List<DriverItem>, List<DriverItem>> {
         val helping = mutableListOf<DriverItem>()
         val hurting = mutableListOf<DriverItem>()
-        activities.take(8).forEach { (code, title) ->
+        activities.take(8).forEach { (code, label) ->
             val upper = code.uppercase()
             when {
                 upper.contains("MILESTONE") -> helping += DriverItem("Vision +", true)
@@ -115,10 +115,10 @@ object PersonalLifeOpsDerived {
                 upper.contains("DISCOVERY") || upper.contains("CREATION") ->
                     helping += DriverItem("Exploration +", true)
                 upper.contains("RECOVERY") -> helping += DriverItem("Recovery +", true)
-                upper.contains("MOOD") -> helping += DriverItem("Mood · $title", true)
+                upper.contains("MOOD") -> helping += DriverItem(label, true)
                 upper.contains("RHYTHM") || upper.contains("LIFESTYLE") ->
                     helping += DriverItem("Focus +", true)
-                upper.contains("EXPENSE") -> hurting += DriverItem("Spend · $title", false)
+                upper.contains("EXPENSE") -> hurting += DriverItem(label, false)
             }
         }
         return helping.take(3) to hurting.take(3)

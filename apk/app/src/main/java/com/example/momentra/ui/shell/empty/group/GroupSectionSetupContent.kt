@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.CreateMomentParticipantBody
 import com.example.momentra.data.api.GroupInviteDto
+import com.example.momentra.data.repository.AccountRepository
 import com.example.momentra.domain.CreateMomentOutcome
 import com.example.momentra.ui.create.MomentCreateViewModel
 import com.example.momentra.ui.setup.SetupDateField
@@ -177,6 +178,7 @@ private fun GroupSectionLongFormFlow(
     var inviteError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val accountRepo = remember { AccountRepository() }
 
     val palette = selected.palette
     val accent = palette.accent
@@ -713,7 +715,22 @@ private fun GroupSectionLongFormFlow(
                                 participants = invitees,
                                 inviteCode = issuedInvite?.inviteCode,
                                 editingMomentId = editingMomentId,
-                                onSuccess = onCreated,
+                                onSuccess = { outcome ->
+                                    scope.launch {
+                                        runCatching {
+                                            accountRepo.patchMomentNotificationPreferences(
+                                                outcome.momentId,
+                                                true,
+                                                mapOf(
+                                                    "billReminders" to billReminders.equals("Enabled", ignoreCase = true),
+                                                    "choreReminders" to choreReminders.equals("Enabled", ignoreCase = true),
+                                                    "paymentReminders" to paymentReminders.equals("Enabled", ignoreCase = true),
+                                                ),
+                                            )
+                                        }
+                                        onCreated(outcome)
+                                    }
+                                },
                             )
                         }
                         .testTag(MaestroIds.GROUP_SETUP_SUBMIT)

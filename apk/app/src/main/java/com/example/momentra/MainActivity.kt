@@ -33,6 +33,7 @@ class MainActivity : FragmentActivity() {
         coldLaunchMark = ShellPerf.start(if (savedInstanceState == null) "cold_launch" else "warm_process_recreate")
         super.onCreate(savedInstanceState)
         handleJoinIntent(intent)
+        handleDeepLinkIntent(intent)
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             LifecycleEventObserver { _, event ->
                 when (event) {
@@ -70,11 +71,28 @@ class MainActivity : FragmentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleJoinIntent(intent)
+        handleDeepLinkIntent(intent)
     }
 
     private fun handleJoinIntent(intent: Intent?) {
         val uri = intent?.data ?: return
         val code = GroupJoinLink.parse(uri.toString()) ?: return
         PendingJoinInvite.offer(AppPreferences(this), code)
+    }
+
+    private fun handleDeepLinkIntent(intent: Intent?) {
+        val fromExtra = intent?.getStringExtra(
+            com.example.momentra.data.device.MomentraFirebaseMessagingService.EXTRA_DEEP_LINK,
+        )
+        if (!fromExtra.isNullOrBlank()) {
+            com.example.momentra.data.local.PendingDeepLink.offer(fromExtra)
+            return
+        }
+        val data = intent?.data?.toString() ?: return
+        if (data.startsWith("momentra://moment", ignoreCase = true) ||
+            data.startsWith("momentra://inbox", ignoreCase = true)
+        ) {
+            com.example.momentra.data.local.PendingDeepLink.offer(data)
+        }
     }
 }

@@ -68,3 +68,4 @@ V067__lean_analytics_indexes.sql
 V068__lean_analytics_views_group_kpis.sql
 V069__notification_prefs_and_dispatch.sql
 V070__planning_category_and_update_urgency.sql
+V071__notification_platform_expansion.sql

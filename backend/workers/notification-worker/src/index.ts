@@ -5,11 +5,28 @@ import { Pool } from 'pg';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getMessaging, type Messaging } from 'firebase-admin/messaging';
 import {
-  isPeerPushEvent,
-  notificationCopy,
   PEER_PUSH_EVENT_NAMES,
+  alreadySucceeded,
+  bumpDeliveryStats,
+  categoryEnabled,
+  claimRecipient,
+  deepLinkForEvent,
+  enrichPayload,
+  insertInboxRow,
+  isPeerPushEvent,
+  loadDomainEvent,
+  markSent,
+  markSucceeded,
+  notificationCategory,
+  notificationCopy,
+  notificationPriority,
+  releaseClaim,
+  resolveActorDisplayName,
+  resolveRecipients,
+  shouldDigest,
   shouldSkipPushForPayload,
-} from '../../typescript/src/platform/notifications/allowlist';
+  type DomainEventRow,
+} from '../../typescript/src/platform/notifications/dispatch';
 import { startNotificationWorker } from '../../typescript/src/platform/queue/notification-queue';
 import type { NotificationJobPayload } from '../../typescript/src/platform/queue/notification-queue';
 
@@ -50,106 +67,23 @@ function initFirebaseAdmin(): Messaging | null {
   }
 }
 
-type DomainEventRow = {
-  domain_event_id: string;
-  actor_user_id: string;
-  event_name: string;
-  scope_id: string | null;
-  payload: Record<string, unknown> | null;
-};
-
-async function loadDomainEvent(pool: Pool, domainEventId: string): Promise<DomainEventRow | null> {
-  const r = await pool.query<DomainEventRow>(
-    `SELECT domain_event_id, actor_user_id, event_name, scope_id, payload
-     FROM events.domain_event WHERE domain_event_id = $1`,
-    [domainEventId]
+function isInvalidTokenError(e: unknown): boolean {
+  const code =
+    e && typeof e === 'object' && 'code' in e ? String((e as { code?: string }).code) : '';
+  const msg = String(e);
+  return (
+    code.includes('registration-token-not-registered') ||
+    code.includes('invalid-registration-token') ||
+    /not-registered|invalid-registration-token|registration-token-not-registered/i.test(msg)
   );
-  return r.rows[0] ?? null;
 }
 
-async function alreadySucceeded(pool: Pool, domainEventId: string): Promise<boolean> {
-  const r = await pool.query(
-    `SELECT 1 FROM events.event_consumer_state
-     WHERE consumer_code = 'NOTIFICATION_WORKER'
-       AND domain_event_id = $1
-       AND status = 'SUCCEEDED'
-     LIMIT 1`,
-    [domainEventId]
-  );
-  return (r.rowCount ?? 0) > 0;
-}
-
-async function markSucceeded(pool: Pool, domainEventId: string): Promise<void> {
+async function revokeToken(pool: Pool, pushToken: string): Promise<void> {
   await pool.query(
-    `INSERT INTO events.event_consumer_state (
-       consumer_code, domain_event_id, status, started_at, completed_at, attempt_count
-     ) VALUES ('NOTIFICATION_WORKER', $1, 'SUCCEEDED', now(), now(), 1)
-     ON CONFLICT (consumer_code, domain_event_id) DO UPDATE SET
-       status = 'SUCCEEDED',
-       completed_at = now(),
-       attempt_count = events.event_consumer_state.attempt_count + 1,
-       updated_at = now()`,
-    [domainEventId]
-  );
-}
-
-async function resolvePeerRecipients(
-  pool: Pool,
-  momentId: string | null | undefined,
-  actorUserId: string
-): Promise<string[]> {
-  if (!momentId) return [];
-  const rows = await pool.query<{ user_id: string }>(
-    `SELECT mp.user_id
-     FROM collaboration.moment_participant mp
-     JOIN core.user_profile up ON up.user_id = mp.user_id
-     WHERE mp.moment_id = $1
-       AND mp.status = 'ACTIVE'
-       AND mp.user_id IS NOT NULL
-       AND mp.user_id <> $2
-       AND mp.notify_on_changes = true
-       AND up.push_notifications_enabled = true
-       AND up.status = 'ACTIVE'`,
-    [momentId, actorUserId]
-  );
-  return rows.rows.map((r) => r.user_id);
-}
-
-async function claimRecipient(
-  pool: Pool,
-  domainEventId: string,
-  userId: string,
-  eventName: string
-): Promise<boolean> {
-  const r = await pool.query(
-    `INSERT INTO platform.notification_dispatch (domain_event_id, user_id, event_name, sent_count)
-     VALUES ($1, $2, $3, 0)
-     ON CONFLICT (domain_event_id, user_id) DO NOTHING
-     RETURNING user_id`,
-    [domainEventId, userId, eventName]
-  );
-  return (r.rowCount ?? 0) > 0;
-}
-
-async function releaseClaim(pool: Pool, domainEventId: string, userId: string): Promise<void> {
-  await pool.query(
-    `DELETE FROM platform.notification_dispatch
-     WHERE domain_event_id = $1 AND user_id = $2 AND sent_count = 0`,
-    [domainEventId, userId]
-  );
-}
-
-async function markSent(
-  pool: Pool,
-  domainEventId: string,
-  userId: string,
-  sentCount: number
-): Promise<void> {
-  await pool.query(
-    `UPDATE platform.notification_dispatch
-     SET sent_count = $3, sent_at = now()
-     WHERE domain_event_id = $1 AND user_id = $2`,
-    [domainEventId, userId, sentCount]
+    `UPDATE platform.user_device
+     SET revoked_at = now(), updated_at = now()
+     WHERE push_token = $1 AND revoked_at IS NULL`,
+    [pushToken]
   );
 }
 
@@ -158,8 +92,9 @@ async function sendPushToUser(
   pool: Pool,
   userId: string,
   title: string,
-  body: string
-): Promise<number> {
+  body: string,
+  data: Record<string, string>
+): Promise<{ sent: number; revoked: number }> {
   const devices = await pool.query<{ push_token: string; platform: string }>(
     `SELECT push_token, platform
      FROM platform.user_device
@@ -170,12 +105,13 @@ async function sendPushToUser(
     [userId]
   );
   let sent = 0;
+  let revoked = 0;
   for (const row of devices.rows) {
     try {
       await messaging.send({
         token: row.push_token,
         notification: { title, body },
-        data: { platform: row.platform },
+        data: { ...data, platform: row.platform },
         android: {
           priority: 'high',
           notification: {
@@ -194,59 +130,183 @@ async function sendPushToUser(
       });
       sent += 1;
     } catch (e) {
-      console.error(
-        JSON.stringify({
-          worker: 'notification-worker',
-          action: 'send_failed',
-          userId,
-          error: String(e),
-        })
-      );
+      if (isInvalidTokenError(e)) {
+        await revokeToken(pool, row.push_token);
+        revoked += 1;
+        console.error(
+          JSON.stringify({
+            worker: 'notification-worker',
+            action: 'token_revoked',
+            userId,
+            error: String(e),
+          })
+        );
+      } else {
+        console.error(
+          JSON.stringify({
+            worker: 'notification-worker',
+            action: 'send_failed',
+            userId,
+            error: String(e),
+          })
+        );
+      }
     }
   }
-  return sent;
+  return { sent, revoked };
 }
 
 async function processDomainEvent(
   pool: Pool,
   messaging: Messaging | null,
   ev: DomainEventRow
-): Promise<{ recipientCount: number; sentCount: number; skipped: string | null }> {
+): Promise<{
+  recipientCount: number;
+  sentCount: number;
+  inboxCount: number;
+  digestCount: number;
+  revokedTokens: number;
+  skipped: string | null;
+}> {
   if (!isPeerPushEvent(ev.event_name)) {
-    return { recipientCount: 0, sentCount: 0, skipped: 'not_allowlisted' };
+    return {
+      recipientCount: 0,
+      sentCount: 0,
+      inboxCount: 0,
+      digestCount: 0,
+      revokedTokens: 0,
+      skipped: 'not_allowlisted',
+    };
   }
   if (shouldSkipPushForPayload(ev.event_name, ev.payload)) {
     await markSucceeded(pool, ev.domain_event_id);
-    return { recipientCount: 0, sentCount: 0, skipped: 'notify_members_false' };
+    return {
+      recipientCount: 0,
+      sentCount: 0,
+      inboxCount: 0,
+      digestCount: 0,
+      revokedTokens: 0,
+      skipped: 'notify_members_false',
+    };
   }
   if (await alreadySucceeded(pool, ev.domain_event_id)) {
-    return { recipientCount: 0, sentCount: 0, skipped: 'already_succeeded' };
+    return {
+      recipientCount: 0,
+      sentCount: 0,
+      inboxCount: 0,
+      digestCount: 0,
+      revokedTokens: 0,
+      skipped: 'already_succeeded',
+    };
   }
 
+  const actorName = await resolveActorDisplayName(pool, ev.actor_user_id);
+  const payload = enrichPayload(ev, actorName);
+  const category = notificationCategory(ev.event_name);
+  const priority = notificationPriority(ev.event_name);
+  const copy = notificationCopy(ev.event_name, payload);
+  const deepLink = deepLinkForEvent(ev.event_name, payload);
   const momentId =
-    (typeof ev.payload?.momentId === 'string' ? ev.payload.momentId : null) ?? ev.scope_id;
-  const recipients = await resolvePeerRecipients(pool, momentId, ev.actor_user_id);
-  const copy = notificationCopy(ev.event_name, ev.payload);
-  let sentCount = 0;
+    (typeof payload.momentId === 'string' ? payload.momentId : null) ?? ev.scope_id;
 
-  for (const userId of recipients) {
-    const claimed = await claimRecipient(pool, ev.domain_event_id, userId, ev.event_name);
+  const recipients = await resolveRecipients(pool, { ...ev, payload });
+  let sentCount = 0;
+  let inboxCount = 0;
+  let digestCount = 0;
+  let revokedTokens = 0;
+
+  for (const prefs of recipients) {
+    if (!categoryEnabled(prefs.notification_categories, category)) {
+      continue;
+    }
+    const claimed = await claimRecipient(
+      pool,
+      ev.domain_event_id,
+      prefs.user_id,
+      ev.event_name,
+      category,
+      priority
+    );
     if (!claimed) continue;
+
     try {
+      const digest = shouldDigest(prefs, priority);
+      await insertInboxRow(pool, {
+        userId: prefs.user_id,
+        domainEventId: ev.domain_event_id,
+        eventName: ev.event_name,
+        category,
+        priority,
+        title: copy.title,
+        body: copy.body,
+        momentId,
+        deepLink,
+        actorUserId: ev.actor_user_id,
+        actorDisplayName: actorName,
+        digestPending: digest,
+        pushedAt: digest ? null : new Date(),
+      });
+      inboxCount += 1;
+
       let n = 0;
-      if (messaging) {
-        n = await sendPushToUser(messaging, pool, userId, copy.title, copy.body);
+      if (digest) {
+        digestCount += 1;
+        await markSent(pool, ev.domain_event_id, prefs.user_id, 0, 'digest_batched');
+      } else if (messaging) {
+        const data: Record<string, string> = {
+          eventName: ev.event_name,
+          category,
+          priority,
+          domainEventId: ev.domain_event_id,
+        };
+        if (momentId) data.momentId = momentId;
+        if (deepLink) data.deepLink = deepLink;
+        if (actorName) data.actorDisplayName = actorName;
+        const result = await sendPushToUser(
+          messaging,
+          pool,
+          prefs.user_id,
+          copy.title,
+          copy.body,
+          data
+        );
+        n = result.sent;
+        revokedTokens += result.revoked;
+        await markSent(
+          pool,
+          ev.domain_event_id,
+          prefs.user_id,
+          n,
+          n === 0 ? 'no_devices_or_all_failed' : null
+        );
+      } else {
+        await markSent(pool, ev.domain_event_id, prefs.user_id, 0, 'fcm_unconfigured');
       }
-      await markSent(pool, ev.domain_event_id, userId, n);
       sentCount += n;
     } catch (e) {
-      await releaseClaim(pool, ev.domain_event_id, userId);
+      await releaseClaim(pool, ev.domain_event_id, prefs.user_id);
       throw e;
     }
   }
 
+  await bumpDeliveryStats(pool, ev.event_name, {
+    attempted: recipients.length,
+    sent: sentCount,
+    failed: Math.max(0, recipients.length - sentCount - digestCount),
+    revokedToken: revokedTokens,
+    digestBatched: digestCount,
+    inbox: inboxCount,
+  });
+
   await markSucceeded(pool, ev.domain_event_id);
-  return { recipientCount: recipients.length, sentCount, skipped: null };
+  return {
+    recipientCount: recipients.length,
+    sentCount,
+    inboxCount,
+    digestCount,
+    revokedTokens,
+    skipped: null,
+  };
 }
 
 async function processJob(
@@ -272,6 +332,7 @@ async function processJob(
       action: messaging ? 'processed' : 'processed_no_fcm',
       eventName: ev.event_name,
       domainEventId: ev.domain_event_id,
+      priority: payload.priority ?? notificationPriority(ev.event_name),
       ...result,
     })
   );

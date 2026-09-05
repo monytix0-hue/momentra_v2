@@ -52,6 +52,8 @@ import com.example.momentra.R
 import com.example.momentra.analytics.AnalyticsScreens
 import com.example.momentra.analytics.MomentraAnalytics
 import com.example.momentra.domain.MomentSummary
+import com.example.momentra.domain.isActiveStatus
+import com.example.momentra.ui.shell.personal.shared.personalPulseFamilyFor
 import com.example.momentra.ui.theme.PlusJakartaSans
 
 /**
@@ -63,10 +65,25 @@ import com.example.momentra.ui.theme.PlusJakartaSans
 fun PersonalCreateEmptyContent(
     history: List<MomentSummary> = emptyList(),
     onMomentCreated: (momentId: String, title: String, momentTypeCode: String?) -> Unit = { _, _, _ -> },
+    onOpenExisting: (momentId: String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var wizard by remember { mutableStateOf<PersonalSetupSystem?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    fun activeMoment(system: PersonalSetupSystem): MomentSummary? =
+        history.firstOrNull {
+            it.isActiveStatus() && personalPulseFamilyFor(it.momentTypeCode) == system.toPulseFamily()
+        }
+
+    fun selectOrCreate(system: PersonalSetupSystem) {
+        val existing = activeMoment(system)
+        if (existing != null) {
+            onOpenExisting(existing.momentId)
+        } else {
+            wizard = system
+        }
+    }
 
     DisposableEffect(Unit) {
         MomentraAnalytics.get().onScreenEnter(AnalyticsScreens.PERSONAL_CREATE)
@@ -76,7 +93,8 @@ fun PersonalCreateEmptyContent(
     Box(modifier = modifier.fillMaxSize()) {
         PersonalCreateChooser(
             history = history,
-            onSelect = { wizard = it },
+            activeMomentFor = { activeMoment(it) },
+            onSelect = { selectOrCreate(it) },
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -117,6 +135,7 @@ fun PersonalCreateEmptyContent(
 @Composable
 private fun PersonalCreateChooser(
     history: List<MomentSummary>,
+    activeMomentFor: (PersonalSetupSystem) -> MomentSummary?,
     onSelect: (PersonalSetupSystem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -161,7 +180,12 @@ private fun PersonalCreateChooser(
                 ) {
                     LifeSystemCard(
                         title = "Life Operations",
-                        subtitle = "Daily commitments & money",
+                        subtitle = if (activeMomentFor(PersonalSetupSystem.LIFE_OPERATIONS) != null) {
+                            "Open existing"
+                        } else {
+                            "Daily commitments & money"
+                        },
+                        subtitleAccent = activeMomentFor(PersonalSetupSystem.LIFE_OPERATIONS) != null,
                         glyph = "▣",
                         accent = PePurple,
                         accentDeep = Color(0xFF4F46E5),
@@ -171,7 +195,12 @@ private fun PersonalCreateChooser(
                     )
                     LifeSystemCard(
                         title = "Future Building",
-                        subtitle = "Goals, growth & progress",
+                        subtitle = if (activeMomentFor(PersonalSetupSystem.FUTURE_BUILDING) != null) {
+                            "Open existing"
+                        } else {
+                            "Goals, growth & progress"
+                        },
+                        subtitleAccent = activeMomentFor(PersonalSetupSystem.FUTURE_BUILDING) != null,
                         glyph = "↗",
                         accent = PeGreen,
                         accentDeep = Color(0xFF0F766E),
@@ -186,7 +215,12 @@ private fun PersonalCreateChooser(
                 ) {
                     LifeSystemCard(
                         title = "Lifestyle",
-                        subtitle = "Experiences & wellbeing",
+                        subtitle = if (activeMomentFor(PersonalSetupSystem.LIFESTYLE) != null) {
+                            "Open existing"
+                        } else {
+                            "Experiences & wellbeing"
+                        },
+                        subtitleAccent = activeMomentFor(PersonalSetupSystem.LIFESTYLE) != null,
                         glyph = "◈",
                         accent = PeAmber,
                         accentDeep = Color(0xFFEA580C),
@@ -196,7 +230,12 @@ private fun PersonalCreateChooser(
                     )
                     LifeSystemCard(
                         title = "Relationships",
-                        subtitle = "Care & shared moments",
+                        subtitle = if (activeMomentFor(PersonalSetupSystem.RELATIONSHIPS) != null) {
+                            "Open existing"
+                        } else {
+                            "Care & shared moments"
+                        },
+                        subtitleAccent = activeMomentFor(PersonalSetupSystem.RELATIONSHIPS) != null,
                         glyph = "♡",
                         accent = PePink,
                         accentDeep = Color(0xFFBE185D),
@@ -224,24 +263,36 @@ private fun PersonalCreateChooser(
                 QuickStartRow(
                     emoji = "☀️",
                     title = "Morning check-in",
-                    subtitle = "How are you feeling today?",
-                    cta = "Log",
+                    subtitle = if (activeMomentFor(PersonalSetupSystem.LIFE_OPERATIONS) != null) {
+                        "Open existing Life Operations"
+                    } else {
+                        "How are you feeling today?"
+                    },
+                    cta = if (activeMomentFor(PersonalSetupSystem.LIFE_OPERATIONS) != null) "Open" else "Log",
                     ctaColor = PePurple,
                     onClick = { onSelect(PersonalSetupSystem.LIFE_OPERATIONS) },
                 )
                 QuickStartRow(
                     emoji = "💰",
                     title = "Track expense",
-                    subtitle = "Record a transaction",
-                    cta = "Add",
+                    subtitle = if (activeMomentFor(PersonalSetupSystem.LIFE_OPERATIONS) != null) {
+                        "Open existing Life Operations"
+                    } else {
+                        "Record a transaction"
+                    },
+                    cta = if (activeMomentFor(PersonalSetupSystem.LIFE_OPERATIONS) != null) "Open" else "Add",
                     ctaColor = PeGreen,
                     onClick = { onSelect(PersonalSetupSystem.LIFE_OPERATIONS) },
                 )
                 QuickStartRow(
                     emoji = "🤝",
                     title = "Log connection",
-                    subtitle = "Capture a shared moment",
-                    cta = "Start",
+                    subtitle = if (activeMomentFor(PersonalSetupSystem.RELATIONSHIPS) != null) {
+                        "Open existing Relationships"
+                    } else {
+                        "Capture a shared moment"
+                    },
+                    cta = if (activeMomentFor(PersonalSetupSystem.RELATIONSHIPS) != null) "Open" else "Start",
                     ctaColor = PeAmber,
                     onClick = { onSelect(PersonalSetupSystem.RELATIONSHIPS) },
                     showDivider = false,
@@ -296,6 +347,7 @@ private fun LifeSystemCard(
     @DrawableRes thumbRes: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    subtitleAccent: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -351,7 +403,7 @@ private fun LifeSystemCard(
             }
             Text(
                 subtitle,
-                color = PeSubtle,
+                color = if (subtitleAccent) accent else PeSubtle,
                 fontSize = 11.sp,
                 lineHeight = 14.sp,
                 fontFamily = PlusJakartaSans,

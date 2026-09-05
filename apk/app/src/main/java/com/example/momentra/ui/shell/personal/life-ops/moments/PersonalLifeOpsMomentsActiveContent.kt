@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,6 +43,7 @@ import com.example.momentra.data.repository.PersonalSliceRepository
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlin.math.roundToInt
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalLifeOpsDerived
+import com.example.momentra.ui.shell.personal.shared.PersonalActivityTimelineDerived
 import com.example.momentra.ui.shell.personal.shared.loadPersonalPulseTab
 import com.example.momentra.ui.shell.personal.shared.PersonalTabDataCache
 
@@ -358,6 +360,9 @@ private fun MiniStat(emoji: String, value: String, label: String, modifier: Modi
 @Composable
 private fun MomentsActivityJourneyItem(item: ActivityItemDto) {
     val meta = activityVisual(item.activityCode)
+    val isExpense = PersonalActivityTimelineDerived.isExpense(item)
+    val chips = PersonalActivityTimelineDerived.pulseChips(item)
+    val amount = PersonalActivityTimelineDerived.amountLabel(item)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -366,7 +371,7 @@ private fun MomentsActivityJourneyItem(item: ActivityItemDto) {
             .border(1.dp, meta.color.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         Box(
             modifier = Modifier
@@ -377,29 +382,90 @@ private fun MomentsActivityJourneyItem(item: ActivityItemDto) {
         ) {
             Text(meta.emoji, fontSize = 18.sp)
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(meta.label, color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(meta.color.copy(alpha = 0.12f))
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                Text(
+                    if (isExpense) PersonalActivityTimelineDerived.displayTitle(item) else meta.label,
+                    color = TextMain,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = PlusJakartaSans,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (isExpense && amount != null) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        amount,
+                        color = TextMain,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                } else {
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(meta.color.copy(alpha = 0.12f))
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            PersonalLifeOpsDerived.relativeTime(item.occurredAt),
+                            color = meta.color,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                }
+            }
+            if (isExpense) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
+                    chips.forEach { chip ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .padding(horizontal = 7.dp, vertical = 2.dp),
+                        ) {
+                            Text(
+                                chip,
+                                color = Muted,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = PlusJakartaSans,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
                     Text(
                         PersonalLifeOpsDerived.relativeTime(item.occurredAt),
-                        color = meta.color,
+                        color = Muted,
                         fontSize = 10.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.SemiBold,
                         fontFamily = PlusJakartaSans,
                     )
                 }
+            } else {
+                Text(
+                    PersonalActivityTimelineDerived.displayTitle(item),
+                    color = Muted,
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            Text(item.title, color = Muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         }
     }
 }

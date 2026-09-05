@@ -311,11 +311,44 @@ final class APIClient {
 
     struct GlobalNotificationPrefsPayload: Decodable {
         let pushNotificationsEnabled: Bool
+        let categories: NotificationCategoriesPayload?
+        let quietHoursStart: String?
+        let quietHoursEnd: String?
+        let digestEnabled: Bool?
+    }
+
+    struct NotificationCategoriesPayload: Codable {
+        var finance: Bool?
+        var tasks: Bool?
+        var social: Bool?
+        var invites: Bool?
+        var approvals: Bool?
+        var reminders: Bool?
     }
 
     struct MomentNotificationPrefsPayload: Decodable {
         let momentId: String
         let notifyOnChanges: Bool
+        let reminderPreferences: [String: Bool]?
+    }
+
+    struct NotificationInboxPayload: Decodable {
+        let items: [NotificationInboxItemPayload]
+        let unreadCount: Int
+    }
+
+    struct NotificationInboxItemPayload: Decodable {
+        let notificationId: String
+        let eventName: String
+        let categoryCode: String
+        let priorityCode: String
+        let title: String
+        let body: String
+        let momentId: String?
+        let deepLink: String?
+        let actorDisplayName: String?
+        let readAt: String?
+        let createdAt: String
     }
 
     func getMyNotificationPreferences() async throws -> GlobalNotificationPrefsPayload {
@@ -323,11 +356,29 @@ final class APIClient {
     }
 
     @discardableResult
-    func patchMyNotificationPreferences(pushNotificationsEnabled: Bool) async throws -> GlobalNotificationPrefsPayload {
-        struct Body: Encodable { let pushNotificationsEnabled: Bool }
+    func patchMyNotificationPreferences(
+        pushNotificationsEnabled: Bool? = nil,
+        categories: NotificationCategoriesPayload? = nil,
+        quietHoursStart: String? = nil,
+        quietHoursEnd: String? = nil,
+        digestEnabled: Bool? = nil
+    ) async throws -> GlobalNotificationPrefsPayload {
+        struct Body: Encodable {
+            let pushNotificationsEnabled: Bool?
+            let categories: NotificationCategoriesPayload?
+            let quietHoursStart: String?
+            let quietHoursEnd: String?
+            let digestEnabled: Bool?
+        }
         return try await authorizedPatch(
             path: "v1/me/notification-preferences",
-            body: Body(pushNotificationsEnabled: pushNotificationsEnabled)
+            body: Body(
+                pushNotificationsEnabled: pushNotificationsEnabled,
+                categories: categories,
+                quietHoursStart: quietHoursStart,
+                quietHoursEnd: quietHoursEnd,
+                digestEnabled: digestEnabled
+            )
         )
     }
 
@@ -336,12 +387,42 @@ final class APIClient {
     }
 
     @discardableResult
-    func patchMomentNotificationPreferences(momentId: String, notifyOnChanges: Bool) async throws -> MomentNotificationPrefsPayload {
-        struct Body: Encodable { let notifyOnChanges: Bool }
+    func patchMomentNotificationPreferences(
+        momentId: String,
+        notifyOnChanges: Bool? = nil,
+        reminderPreferences: [String: Bool]? = nil
+    ) async throws -> MomentNotificationPrefsPayload {
+        struct Body: Encodable {
+            let notifyOnChanges: Bool?
+            let reminderPreferences: [String: Bool]?
+        }
         return try await authorizedPatch(
             path: "v1/moments/\(momentId)/notification-preferences",
-            body: Body(notifyOnChanges: notifyOnChanges)
+            body: Body(notifyOnChanges: notifyOnChanges, reminderPreferences: reminderPreferences)
         )
+    }
+
+    func listMyNotifications(limit: Int = 30, unreadOnly: Bool? = nil) async throws -> NotificationInboxPayload {
+        var path = "v1/me/notifications?limit=\(limit)"
+        if let unreadOnly {
+            path += "&unreadOnly=\(unreadOnly)"
+        }
+        return try await authorizedGet(path: path)
+    }
+
+    @discardableResult
+    func markMyNotificationsRead(notificationIds: [String]? = nil, all: Bool? = nil) async throws -> [String: Int] {
+        struct Body: Encodable {
+            let notificationIds: [String]?
+            let all: Bool?
+        }
+        struct Result: Decodable { let updatedCount: Int }
+        let data: Result = try await authorizedPost(
+            path: "v1/me/notifications/read",
+            body: Body(notificationIds: notificationIds, all: all),
+            idempotencyKey: UUID().uuidString
+        )
+        return ["updatedCount": data.updatedCount]
     }
 
     func listConsents() async throws -> ConsentListPayload {
@@ -755,6 +836,7 @@ final class APIClient {
             let currencyCode: String?
             let lifestyleContext: String?
             let description: String?
+            let merchantName: String?
             let categoryCode: String?
             let subcategoryCode: String?
             let financialAccountId: String?
@@ -837,8 +919,8 @@ final class APIClient {
         idempotencyKey: String = UUID().uuidString
     ) async throws -> MomentLifecycleResult {
         struct Body: Encodable { let expectedVersion: Int }
-        return try await authorizedDelete(
-            path: "v1/moments/\(momentId)",
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/delete",
             body: Body(expectedVersion: expectedVersion),
             idempotencyKey: idempotencyKey
         )

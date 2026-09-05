@@ -61,7 +61,9 @@ struct PersonalLifeOpsMemoryActiveView: View {
 
     private var drivers: (helping: [PersonalLifeOpsDerived.DriverItem], hurting: [PersonalLifeOpsDerived.DriverItem]) {
         PersonalLifeOpsDerived.helpingHurting(
-            from: activities.map { ($0.activityCode, $0.title) }
+            from: activities.map {
+                ($0.activityCode, PersonalActivityTimelineDerived.driverLabel($0))
+            }
         )
     }
 

@@ -51,6 +51,10 @@ struct AppShellView: View {
                 if let pending = JoinInviteStore.shared.consume() {
                     pendingGroupJoin = PendingGroupJoin(id: pending)
                 }
+                if let link = PushDeepLinkStore.shared.consume(),
+                   let momentId = PushDeepLinkStore.parseMomentId(link) {
+                    model.selectMoment(id: momentId)
+                }
             }
             .onReceive(JoinInviteStore.shared.$pendingCode) { code in
                 guard let code, !code.isEmpty else { return }
@@ -58,6 +62,12 @@ struct AppShellView: View {
                 if let pending = JoinInviteStore.shared.consume() {
                     pendingGroupJoin = PendingGroupJoin(id: pending)
                 }
+            }
+            .onReceive(PushDeepLinkStore.shared.$pendingLink) { link in
+                guard let link, !link.isEmpty else { return }
+                guard let momentId = PushDeepLinkStore.parseMomentId(link) else { return }
+                _ = PushDeepLinkStore.shared.consume()
+                model.selectMoment(id: momentId)
             }
             .onChange(of: identity.userId) { _, _ in
                 model.bindIdentity(identity)
@@ -809,6 +819,10 @@ struct AppShellView: View {
                 onMomentCreated: { id, title, typeCode in
                     newMomentOpen = false
                     model.onMomentCreated(momentId: id, title: title, momentTypeCode: typeCode)
+                },
+                onOpenExisting: { momentId in
+                    newMomentOpen = false
+                    model.selectMoment(id: momentId)
                 }
             )
         } else if newMomentOpen, model.selectedContext == .group {

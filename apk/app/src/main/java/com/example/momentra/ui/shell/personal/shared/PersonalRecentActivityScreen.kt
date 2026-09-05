@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ActivityItemDto
@@ -434,6 +435,8 @@ private fun TimelineActivityRow(
     onEdit: () -> Unit,
 ) {
     val visual = PersonalActivityTimelineDerived.rowVisual(item)
+    val chips = PersonalActivityTimelineDerived.pulseChips(item)
+    val amount = PersonalActivityTimelineDerived.amountLabel(item)
 
     Row(
         modifier = Modifier
@@ -454,23 +457,67 @@ private fun TimelineActivityRow(
                 .weight(1f)
                 .padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
         ) {
             Text(visual.emoji, fontSize = 22.sp)
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    item.title,
-                    color = TimelineText,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = PlusJakartaSans,
-                )
-                Text(
-                    visual.metadata,
-                    color = TimelineMuted,
-                    fontSize = 11.sp,
-                    fontFamily = PlusJakartaSans,
-                )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        PersonalActivityTimelineDerived.displayTitle(item),
+                        color = TimelineText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (amount != null) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            amount,
+                            color = TimelineText,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                }
+                if (chips.isNotEmpty()) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        chips.forEach { chip ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp),
+                            ) {
+                                Text(
+                                    chip,
+                                    color = TimelineMuted,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = PlusJakartaSans,
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        visual.metadata,
+                        color = TimelineMuted,
+                        fontSize = 11.sp,
+                        fontFamily = PlusJakartaSans,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Text(
                     visual.timeLabel,
                     color = TimelineMuted.copy(alpha = 0.7f),
