@@ -737,126 +737,121 @@ fun GroupExpenseSheet(
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        if (submitting) {
-                            Brush.horizontalGradient(listOf(sheetCard, sheetCard))
-                        } else {
-                            Brush.horizontalGradient(listOf(sheetAccent, ctaEnd))
-                        },
-                    )
-                    .testTag(MaestroIds.GROUP_EXPENSE_SUBMIT)
-                    .clickable(enabled = !submitting) {
-                        val payer = paidById
-                        if (payer == null) {
-                            error = "Select payer"
-                            return@clickable
+            val submitExpenseEnabled = !submitting && paidById != null &&
+                (splitStrategy == "POOLED" || selectedSplitIds.isNotEmpty()) &&
+                amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
+            val draftExpenseEnabled = !isEditing && !submitting && paidById != null &&
+                amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
+            val submitExpense: (Boolean) -> Unit = submitExpense@{ asDraft ->
+                val payer = paidById
+                if (payer == null) {
+                    error = "Select payer"
+                    return@submitExpense
+                }
+                if (!asDraft) {
+                    if (splitStrategy != "POOLED" && selectedSplitIds.isEmpty()) {
+                        error = "Select payer and at least one participant"
+                        return@submitExpense
+                    }
+                    if (amount.toBigDecimalOrNull() == null || amount.toBigDecimal() <= BigDecimal.ZERO) {
+                        error = "Enter a valid amount"
+                        return@submitExpense
+                    }
+                } else if (amount.toBigDecimalOrNull() == null || amount.toBigDecimal() <= BigDecimal.ZERO) {
+                    error = "Enter a valid amount"
+                    return@submitExpense
+                }
+                val ids = selectedSplitIds.sorted()
+                val inputs = if (asDraft) {
+                    emptyList()
+                } else when (splitStrategy) {
+                    "POOLED" -> emptyList()
+                    "EQUAL" -> ids.map { GroupExpenseSplitInputDto(participantId = it) }
+                    "PERCENTAGE" -> {
+                        val pctSum = ids.sumOf {
+                            splitValues[it]?.toBigDecimalOrNull()?.toDouble() ?: 0.0
                         }
-                        if (splitStrategy != "POOLED" && selectedSplitIds.isEmpty()) {
-                            error = "Select payer and at least one participant"
-                            return@clickable
+                        if (kotlin.math.abs(pctSum - 100.0) > 0.01) {
+                            error = "Percents must sum to 100 (now $pctSum)"
+                            return@submitExpense
                         }
-                        if (amount.toBigDecimalOrNull() == null || amount.toBigDecimal() <= BigDecimal.ZERO) {
-                            error = "Enter a valid amount"
-                            return@clickable
-                        }
-                        val ids = selectedSplitIds.sorted()
-                        val inputs = when (splitStrategy) {
-                            "POOLED" -> emptyList()
-                            "EQUAL" -> ids.map { GroupExpenseSplitInputDto(participantId = it) }
-                            "PERCENTAGE" -> {
-                                val pctSum = ids.sumOf {
-                                    splitValues[it]?.toBigDecimalOrNull()?.toDouble() ?: 0.0
-                                }
-                                if (kotlin.math.abs(pctSum - 100.0) > 0.01) {
-                                    error = "Percents must sum to 100 (now $pctSum)"
-                                    return@clickable
-                                }
-                                ids.map {
-                                    GroupExpenseSplitInputDto(
-                                        participantId = it,
-                                        percent = splitValues[it],
-                                    )
-                                }
-                            }
-                            "EXACT" -> {
-                                val sum = ids.fold(BigDecimal.ZERO) { acc, id ->
-                                    acc.add(splitValues[id]?.toBigDecimalOrNull() ?: BigDecimal.ZERO)
-                                }
-                                if (sum.compareTo(amount.toBigDecimal()) != 0) {
-                                    error = "Exact amounts must equal expense amount"
-                                    return@clickable
-                                }
-                                ids.map {
-                                    GroupExpenseSplitInputDto(
-                                        participantId = it,
-                                        amount = splitValues[it],
-                                    )
-                                }
-                            }
-                            "SHARES" -> ids.map {
-                                val w = splitValues[it]?.toDoubleOrNull() ?: 1.0
-                                if (w <= 0) {
-                                    error = "Share weights must be positive"
-                                    return@clickable
-                                }
-                                GroupExpenseSplitInputDto(participantId = it, shares = w)
-                            }
-                            else -> {
-                                error = "Unknown split strategy"
-                                return@clickable
-                            }
-                        }
-                        scope.launch {
-                            submitting = true
-                            error = null
-                            val body = GroupExpenseSplitBuilder.build(
-                                amount = amount,
-                                currencyCode = currency,
-                                paidByParticipantId = payer,
-                                splitStrategy = splitStrategy,
-                                splitInputs = inputs,
-                                description = GroupExpenseCategoryCatalog.descriptionWithCategory(
-                                    category = category,
-                                    userDescription = description,
-                                ),
-                            )
-                            val result = if (expenseId != null) {
-                                repository.updateGroupExpense(momentId, expenseId, body)
-                            } else {
-                                repository.createGroupExpense(momentId, body)
-                            }
-                            result.fold(
-                                onSuccess = {
-                                    submitting = false
-                                    onSaved()
-                                    onDismiss()
-                                },
-                                onFailure = {
-                                    submitting = false
-                                    error = it.message
-                                },
+                        ids.map {
+                            GroupExpenseSplitInputDto(
+                                participantId = it,
+                                percent = splitValues[it],
                             )
                         }
                     }
-                    .padding(vertical = 14.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (submitting) {
-                    CircularProgressIndicator(color = sheetAccent, modifier = Modifier.padding(4.dp))
-                } else {
-                    Text(
-                        if (isEditing) "Save Expense" else "Add Expense",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        fontFamily = PlusJakartaSans,
+                    "EXACT" -> {
+                        val sum = ids.fold(BigDecimal.ZERO) { acc, id ->
+                            acc.add(splitValues[id]?.toBigDecimalOrNull() ?: BigDecimal.ZERO)
+                        }
+                        if (sum.compareTo(amount.toBigDecimal()) != 0) {
+                            error = "Exact amounts must equal expense amount"
+                            return@submitExpense
+                        }
+                        ids.map {
+                            GroupExpenseSplitInputDto(
+                                participantId = it,
+                                amount = splitValues[it],
+                            )
+                        }
+                    }
+                    "SHARES" -> ids.map {
+                        val w = splitValues[it]?.toDoubleOrNull() ?: 1.0
+                        if (w <= 0) {
+                            error = "Share weights must be positive"
+                            return@submitExpense
+                        }
+                        GroupExpenseSplitInputDto(participantId = it, shares = w)
+                    }
+                    else -> {
+                        error = "Unknown split strategy"
+                        return@submitExpense
+                    }
+                }
+                scope.launch {
+                    submitting = true
+                    error = null
+                    val strategy = if (asDraft) "POOLED" else splitStrategy
+                    val body = GroupExpenseSplitBuilder.build(
+                        amount = amount,
+                        currencyCode = currency,
+                        paidByParticipantId = payer,
+                        splitStrategy = strategy,
+                        splitInputs = inputs,
+                        description = GroupExpenseCategoryCatalog.descriptionWithCategory(
+                            category = category,
+                            userDescription = description,
+                        ),
+                    ).copy(asDraft = if (asDraft) true else null)
+                    val result = if (expenseId != null) {
+                        repository.updateGroupExpense(momentId, expenseId, body)
+                    } else {
+                        repository.createGroupExpense(momentId, body)
+                    }
+                    result.fold(
+                        onSuccess = {
+                            submitting = false
+                            onSaved()
+                            onDismiss()
+                        },
+                        onFailure = {
+                            submitting = false
+                            error = it.message
+                        },
                     )
                 }
             }
+            QuickAddDraftActions(
+                submitLabel = if (isEditing) "Save Expense" else "Add Expense",
+                submitEnabled = submitExpenseEnabled,
+                ctaBrush = Brush.horizontalGradient(listOf(sheetAccent, ctaEnd)),
+                loading = submitting,
+                onSubmit = { submitExpense(false) },
+                onSaveDraft = if (isEditing) null else ({ submitExpense(true) }),
+                draftEnabled = draftExpenseEnabled,
+            )
         }
     }
 }

@@ -582,25 +582,22 @@ fun GroupPersonRow(
             }
         }
         if (onRemove != null) {
-            Box(
+            Text(
+                "Remove",
+                color = Color(0xFFEF4444),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
                 modifier = Modifier
-                    .size(32.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(GroupSetupTheme.IconSurface)
                     .clickable(onClick = onRemove)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
                     .semantics {
                         role = Role.Button
                         contentDescription = "Remove ${person.name}"
                     },
-                contentAlignment = Alignment.Center,
-            ) {
-                Image(
-                    painterResource(R.drawable.ges_icon_x_circle),
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    colorFilter = ColorFilter.tint(GroupSetupTheme.TextSecondary),
-                )
-            }
+            )
         }
     }
 }

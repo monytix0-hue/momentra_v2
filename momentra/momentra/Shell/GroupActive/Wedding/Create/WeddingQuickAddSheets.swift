@@ -561,15 +561,16 @@ struct WeddingExpenseBody: View {
                     .foregroundStyle(Color(hex: "#F87171"))
             }
 
-            PrimaryCta(
-                label: "Add Expense",
-                enabled: live && isValid,
+            QuickAddDraftActions(
+                submitLabel: "Add Expense",
+                submitEnabled: live && isValid,
                 accent: accent,
                 loading: submitting,
-                footer: "Everyone will be notified"
-            ) {
-                submit()
-            }
+                footer: "Everyone will be notified",
+                onSubmit: { submit(asDraft: false) },
+                onSaveDraft: { submit(asDraft: true) },
+                draftEnabled: live && (Decimal(string: amount) ?? 0) > 0 && paidBy != nil
+            )
         }
         .onAppear {
             if let momentId {
@@ -597,25 +598,44 @@ struct WeddingExpenseBody: View {
         loading = false
     }
 
-    private func submit() {
-        guard let momentId, let payer = paidBy ?? selected.first, splitType == "Equal" else { return }
+    private func submit(asDraft: Bool = false) {
+        guard let momentId else { return }
+        guard let payer = paidBy ?? selected.first else { return }
         Task {
             submitting = true
             error = nil
             do {
-                let splits = selected.map { APIClient.GroupSplitInput(participantId: $0, shares: 1.0) }
-                _ = try await APIClient.shared.createGroupExpense(
-                    momentId: momentId,
-                    amount: amount,
-                    currencyCode: "INR",
-                    description: GroupExpenseCategoryCatalog.descriptionWithCategory(
-                        category: category,
-                        userDescription: description
-                    ),
-                    paidByParticipantId: payer,
-                    splitStrategy: "EQUAL",
-                    splitInputs: splits
-                )
+                if asDraft {
+                    _ = try await APIClient.shared.createGroupExpense(
+                        momentId: momentId,
+                        amount: amount,
+                        currencyCode: "INR",
+                        description: GroupExpenseCategoryCatalog.descriptionWithCategory(
+                            category: category,
+                            userDescription: description
+                        ),
+                        paidByParticipantId: payer,
+                        splitStrategy: "POOLED",
+                        splitInputs: [],
+                        asDraft: true
+                    )
+                } else {
+                    guard splitType == "Equal" else { return }
+                    let splits = selected.map { APIClient.GroupSplitInput(participantId: $0, shares: 1.0) }
+                    _ = try await APIClient.shared.createGroupExpense(
+                        momentId: momentId,
+                        amount: amount,
+                        currencyCode: "INR",
+                        description: GroupExpenseCategoryCatalog.descriptionWithCategory(
+                            category: category,
+                            userDescription: description
+                        ),
+                        paidByParticipantId: payer,
+                        splitStrategy: "EQUAL",
+                        splitInputs: splits,
+                        asDraft: nil
+                    )
+                }
                 submitting = false
                 onSaved()
                 onDismiss()
@@ -1238,17 +1258,18 @@ struct WeddingPlanningBody: View {
                     .foregroundStyle(Color(hex: "#F87171"))
             }
 
-            PrimaryCta(
-                label: "Add Planning Item",
-                enabled: live
+            QuickAddDraftActions(
+                submitLabel: "Add Planning Item",
+                submitEnabled: live
                     && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && !(category.isEmpty ? GroupPlanningCategoryCatalog.defaultLabel(for: momentTypeCode) : category).isEmpty,
                 accent: accent,
                 loading: submitting,
-                footer: "Everyone will be notified"
-            ) {
-                submit()
-            }
+                footer: "Everyone will be notified",
+                onSubmit: { submit(asDraft: false) },
+                onSaveDraft: { submit(asDraft: true) },
+                draftEnabled: live && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
         }
         .onAppear {
             if category.isEmpty {
@@ -1273,7 +1294,7 @@ struct WeddingPlanningBody: View {
         loading = false
     }
 
-    private func submit() {
+    private func submit(asDraft: Bool = false) {
         guard let momentId else { return }
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -1291,7 +1312,8 @@ struct WeddingPlanningBody: View {
                     dueAt: SetupDateTimeUtils.combineLocalDateTimeIso(date: date, time: time),
                     categoryCode: GroupPlanningCategoryCatalog.code(forLabel: categoryLabel),
                     location: loc.isEmpty ? nil : loc,
-                    priorityCode: GroupPlanningCategoryCatalog.priorityCode(for: priority)
+                    priorityCode: GroupPlanningCategoryCatalog.priorityCode(for: priority),
+                    asDraft: asDraft ? true : nil
                 )
                 submitting = false
                 onSaved()
@@ -1487,15 +1509,16 @@ struct WeddingPollBody: View {
                     .foregroundStyle(Color(hex: "#F87171"))
             }
 
-            PrimaryCta(
-                label: "Create Poll",
-                enabled: live && isValid,
+            QuickAddDraftActions(
+                submitLabel: "Create Poll",
+                submitEnabled: live && isValid,
                 accent: accent,
                 loading: submitting,
-                footer: "Everyone will be notified"
-            ) {
-                submit()
-            }
+                footer: "Everyone will be notified",
+                onSubmit: { submit(asDraft: false) },
+                onSaveDraft: { submit(asDraft: true) },
+                draftEnabled: live && !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
         }
     }
 
@@ -1505,18 +1528,32 @@ struct WeddingPollBody: View {
             && !optB.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func submit() {
+    private func submit(asDraft: Bool = false) {
         guard let momentId else { return }
         let q = question.trimmingCharacters(in: .whitespacesAndNewlines)
-        let options = [optA, optB, optC]
+        var options = [optA, optB, optC]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+        if asDraft {
+            if options.count >= 2 {
+                // keep filled options
+            } else if options.count == 1 {
+                options.append("TBD")
+            } else {
+                options = ["TBD", "TBD"]
+            }
+        }
         guard options.count >= 2 else { return }
         Task {
             submitting = true
             error = nil
             do {
-                _ = try await APIClient.shared.createPoll(momentId: momentId, question: q, options: options)
+                _ = try await APIClient.shared.createPoll(
+                    momentId: momentId,
+                    question: q,
+                    options: options,
+                    asDraft: asDraft ? true : nil
+                )
                 submitting = false
                 onSaved()
                 onDismiss()
@@ -1616,15 +1653,18 @@ struct WeddingMemoryBody: View {
                     .foregroundStyle(Color(hex: "#F87171"))
             }
 
-            PrimaryCta(
-                label: "Capture Memory",
-                enabled: live && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            QuickAddDraftActions(
+                submitLabel: "Capture Memory",
+                submitEnabled: live
+                    && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && (type != "Photo" || selectedImage != nil),
                 accent: accent,
                 loading: submitting,
-                footer: "Everyone will be notified"
-            ) {
-                submit()
-            }
+                footer: type == "Photo" ? "Photo required for Photo memories" : "Everyone will be notified",
+                onSubmit: { submit(asDraft: false) },
+                onSaveDraft: { submit(asDraft: true) },
+                draftEnabled: live && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
         }
         .confirmationDialog("Add photo", isPresented: $showSourcePicker, titleVisibility: .visible) {
             Button("Camera") { showCamera = true }
@@ -1657,11 +1697,11 @@ struct WeddingMemoryBody: View {
         }
     }
 
-    private func submit() {
+    private func submit(asDraft: Bool = false) {
         guard let momentId else { return }
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        if type == "Photo" && selectedImage == nil {
+        if !asDraft && type == "Photo" && selectedImage == nil {
             error = "Add a photo before saving"
             return
         }
@@ -1669,8 +1709,12 @@ struct WeddingMemoryBody: View {
             submitting = true
             error = nil
             do {
-                let created = try await APIClient.shared.createGroupMemory(momentId: momentId, title: trimmed)
-                let wantsPhoto = selectedImage != nil || type == "Photo"
+                let created = try await APIClient.shared.createGroupMemory(
+                    momentId: momentId,
+                    title: trimmed,
+                    asDraft: asDraft ? true : nil
+                )
+                let wantsPhoto = !asDraft && (selectedImage != nil || type == "Photo")
                 if wantsPhoto {
                     guard let memoryId = created.memoryId else {
                         throw NSError(domain: "Momentra", code: 1, userInfo: [NSLocalizedDescriptionKey: "Memory saved but id missing — photo not attached"])
@@ -1814,19 +1858,20 @@ struct WeddingUpdateBody: View {
                     .foregroundStyle(Color(hex: "#F87171"))
             }
 
-            PrimaryCta(
-                label: "Post Update",
-                enabled: live && !update.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            QuickAddDraftActions(
+                submitLabel: "Post Update",
+                submitEnabled: live && !update.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                 accent: accent,
                 loading: submitting,
-                footer: "Everyone will be notified"
-            ) {
-                submit()
-            }
+                footer: "Everyone will be notified",
+                onSubmit: { submit(asDraft: false) },
+                onSaveDraft: { submit(asDraft: true) },
+                draftEnabled: live && !update.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
         }
     }
 
-    private func submit() {
+    private func submit(asDraft: Bool = false) {
         guard let momentId else { return }
         let trimmed = update.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -1837,8 +1882,9 @@ struct WeddingUpdateBody: View {
                 _ = try await APIClient.shared.postGroupUpdate(
                     momentId: momentId,
                     message: trimmed,
-                    notifyMembers: notify,
-                    urgencyCode: urgent ? "URGENT" : "NORMAL"
+                    notifyMembers: asDraft ? false : notify,
+                    urgencyCode: urgent ? "URGENT" : "NORMAL",
+                    asDraft: asDraft ? true : nil
                 )
                 submitting = false
                 onSaved()

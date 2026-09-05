@@ -228,26 +228,42 @@ struct GroupFinanceDetailView: View {
     }
 
     private var financeSummary: some View {
-        let total = finance?.totals?.first
-        let currency = total?.currencyCode ?? "INR"
-        let utilization = GroupFinanceFormat.utilizationPercent(
-            expenseTotal: total?.expenseTotal,
-            budgetTotal: total?.budgetTotal
+        let allTotals = finance?.totals ?? []
+        let primaryTotal = GroupFinanceFormat.resolvePrimaryTotal(
+            allTotals,
+            preferredCurrency: finance?.viewerPosition?.currencyCode
         )
+        let currency = primaryTotal?.currencyCode ?? "INR"
+        let utilization = GroupFinanceFormat.utilizationPercent(
+            expenseTotal: primaryTotal?.expenseTotal,
+            budgetTotal: primaryTotal?.budgetTotal
+        )
+        let expenseHeadline = allTotals.count > 1
+            ? GroupFinanceFormat.expensePartitionLine(allTotals)
+            : GroupFinanceFormat.formatMoney(primaryTotal?.expenseTotal, currencyCode: currency)
         return VStack(alignment: .leading, spacing: 14) {
             Text("TOTAL EXPENSES")
                 .font(.plusJakarta(size: 11, weight: .semibold))
                 .foregroundStyle(chrome.secondary)
-            Text(GroupFinanceFormat.formatMoney(total?.expenseTotal, currencyCode: currency))
-                .font(.plusJakarta(size: 28, weight: .heavy))
+            Text(expenseHeadline)
+                .font(.plusJakarta(size: allTotals.count > 1 ? 18 : 28, weight: .heavy))
                 .foregroundStyle(chrome.text)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                summaryTile("Budget", GroupFinanceFormat.formatMoney(total?.budgetTotal, currencyCode: currency), "\(utilization)% Utilized", chrome.accent)
-                summaryTile("Contributions", GroupFinanceFormat.formatMoney(total?.contributionTotal, currencyCode: currency), "Collected", chrome.green)
-                summaryTile("Settled", GroupFinanceFormat.formatMoney(total?.settledTotal, currencyCode: currency), "Recorded", chrome.green)
-                summaryTile("Outstanding", GroupFinanceFormat.formatMoney(total?.outstandingTotal, currencyCode: currency), "Live total", chrome.orange)
+            if allTotals.count > 1 {
+                Text("Budget \(GroupFinanceFormat.budgetPartitionLine(allTotals))")
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(chrome.secondary)
+                ForEach(allTotals, id: \.currencyCode) { total in
+                    currencyTotalsRow(total)
+                }
+            } else if let primaryTotal {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    summaryTile("Budget", GroupFinanceFormat.formatMoney(primaryTotal.budgetTotal, currencyCode: currency), "\(utilization)% Utilized", chrome.accent)
+                    summaryTile("Contributions", GroupFinanceFormat.formatMoney(primaryTotal.contributionTotal, currencyCode: currency), "Collected", chrome.green)
+                    summaryTile("Settled", GroupFinanceFormat.formatMoney(primaryTotal.settledTotal, currencyCode: currency), "Recorded", chrome.green)
+                    summaryTile("Outstanding", GroupFinanceFormat.formatMoney(primaryTotal.outstandingTotal, currencyCode: currency), "Live total", chrome.orange)
+                }
+                GroupProgressBar(percent: utilization)
             }
-            GroupProgressBar(percent: utilization)
             Button("View Splits →", action: onOpenSplits)
                 .font(.plusJakarta(size: 13, weight: .semibold))
                 .foregroundStyle(chrome.accentLight)
@@ -256,6 +272,23 @@ struct GroupFinanceDetailView: View {
         .background(chrome.card)
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .overlay(RoundedRectangle(cornerRadius: 20).stroke(chrome.border))
+    }
+
+    private func currencyTotalsRow(_ total: APIClient.GroupFinanceTotalsPayload) -> some View {
+        let util = GroupFinanceFormat.utilizationPercent(expenseTotal: total.expenseTotal, budgetTotal: total.budgetTotal)
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(total.currencyCode)
+                .font(.plusJakarta(size: 11, weight: .bold))
+                .foregroundStyle(chrome.accentLight)
+            Text("Spent \(GroupFinanceFormat.formatMoney(total.expenseTotal, currencyCode: total.currencyCode)) · Budget \(GroupFinanceFormat.formatMoney(total.budgetTotal, currencyCode: total.currencyCode))")
+                .font(.plusJakarta(size: 13, weight: .semibold))
+                .foregroundStyle(chrome.text)
+            GroupProgressBar(percent: util)
+        }
+        .padding(12)
+        .background(chrome.bg)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(chrome.border))
     }
 
     private func summaryTile(_ label: String, _ value: String, _ hint: String, _ hintColor: Color) -> some View {
@@ -293,28 +326,33 @@ struct GroupFinanceDetailView: View {
     private var positionsSection: some View {
         let positions = finance?.positions ?? []
         let nameById = Dictionary(uniqueKeysWithValues: participants.map { ($0.participantId, $0.displayName ?? String($0.participantId.prefix(8))) })
-        let currency = finance?.totals?.first?.currencyCode ?? "INR"
+        let grouped = GroupFinanceFormat.groupPositionsByParticipant(positions)
         return VStack(alignment: .leading, spacing: 10) {
             Text("👥 Participant Positions")
                 .font(.plusJakarta(size: 16, weight: .heavy))
                 .foregroundStyle(chrome.text)
-            if positions.isEmpty {
+            if grouped.isEmpty {
                 Text("Positions appear after shared expenses are recorded.")
                     .font(.plusJakarta(size: 12))
                     .foregroundStyle(chrome.secondary)
             } else {
-                ForEach(positions) { pos in
-                    let name = nameById[pos.participantId] ?? String(pos.participantId.prefix(8))
-                    positionCard(name: name, pos: pos, currency: currency)
+                ForEach(grouped, id: \.0) { participantId, rows in
+                    let name = nameById[participantId] ?? String(participantId.prefix(8))
+                    positionCard(name: name, rows: rows)
                 }
             }
         }
     }
 
-    private func positionCard(name: String, pos: APIClient.GroupFinancePositionPayload, currency: String) -> some View {
-        let net = GroupFinanceFormat.parseAmount(pos.netPosition)
+    private func positionCard(name: String, rows: [APIClient.GroupFinancePositionPayload]) -> some View {
+        let primary = rows[0]
+        let net = GroupFinanceFormat.parseAmount(primary.netPosition)
         let getsBack = net >= 0
-        let roleLabel = isWeddingChrome ? "(Party Member)" : ""
+        let netLine = GroupFinanceFormat.formatPartitionedAmounts(rows.map { ($0.currencyCode, $0.netPosition ?? "0") })
+        let paidLine = GroupFinanceFormat.formatPartitionedAmounts(rows.map { ($0.currencyCode, $0.paidTotal ?? "0") }, compact: true)
+        let shareLine = GroupFinanceFormat.formatPartitionedAmounts(rows.map { ($0.currencyCode, $0.allocatedTotal ?? "0") }, compact: true)
+        let payableLine = GroupFinanceFormat.formatPartitionedAmounts(rows.map { ($0.currencyCode, $0.payableTotal ?? "0") }, compact: true)
+        let receivableLine = GroupFinanceFormat.formatPartitionedAmounts(rows.map { ($0.currencyCode, $0.receivableTotal ?? "0") }, compact: true)
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(String(name.prefix(1)).uppercased())
@@ -325,22 +363,22 @@ struct GroupFinanceDetailView: View {
                     .clipShape(Circle())
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name).font(.plusJakarta(size: 14, weight: .bold)).foregroundStyle(chrome.text)
-                    if isWeddingChrome && !roleLabel.isEmpty {
-                        Text(roleLabel).font(.plusJakarta(size: 11)).foregroundStyle(chrome.secondary)
+                    if rows.count > 1 {
+                        Text(rows.map(\.currencyCode).joined(separator: " · "))
+                            .font(.plusJakarta(size: 10))
+                            .foregroundStyle(chrome.secondary)
                     }
                 }
                 Spacer()
-                Text(getsBack
-                     ? "+\(GroupFinanceFormat.formatMoney(pos.netPosition, currencyCode: currency)) Gets back"
-                     : "-\(GroupFinanceFormat.formatMoney(decimalString(absDecimal(net)), currencyCode: currency)) Owes")
+                Text(getsBack ? "+\(netLine) Gets back" : "-\(netLine) Owes")
                     .font(.plusJakarta(size: 12, weight: .bold))
                     .foregroundStyle(getsBack ? chrome.green : chrome.orange)
             }
             HStack {
-                metric("Paid", GroupFinanceFormat.formatMoney(pos.paidTotal, currencyCode: currency))
-                metric("Share", GroupFinanceFormat.formatMoney(pos.allocatedTotal, currencyCode: currency))
-                metric("Payable", GroupFinanceFormat.formatMoney(pos.payableTotal, currencyCode: currency), chrome.orange)
-                metric("Receivable", GroupFinanceFormat.formatMoney(pos.receivableTotal, currencyCode: currency), chrome.green)
+                metric("Paid", paidLine)
+                metric("Share", shareLine)
+                metric("Payable", payableLine, chrome.orange)
+                metric("Receivable", receivableLine, chrome.green)
             }
         }
         .padding(14)
@@ -412,6 +450,7 @@ struct GroupExpenseSplitsView: View {
                         ProgressView().tint(chrome.accent).frame(maxWidth: .infinity).padding(.vertical, 40)
                     } else {
                         summaryCard
+                        sharedPoolSection
                         viewerBalance
                         whoOwes
                         breakdown
@@ -434,24 +473,35 @@ struct GroupExpenseSplitsView: View {
     }
 
     private var summaryCard: some View {
-        let total = finance?.totals?.first
-        let currency = total?.currencyCode ?? "INR"
-        let expenseTotal = GroupFinanceFormat.parseAmount(total?.expenseTotal)
-        let budgetTotal = GroupFinanceFormat.parseAmount(total?.budgetTotal)
+        let allTotals = finance?.totals ?? []
+        let primaryTotal = GroupFinanceFormat.resolvePrimaryTotal(
+            allTotals,
+            preferredCurrency: finance?.viewerPosition?.currencyCode
+        )
+        let currency = primaryTotal?.currencyCode ?? "INR"
+        let expenseHeadline = allTotals.count > 1
+            ? GroupFinanceFormat.expensePartitionLine(allTotals)
+            : GroupFinanceFormat.formatMoney(primaryTotal?.expenseTotal, currencyCode: currency)
+        let expenseTotal = GroupFinanceFormat.parseAmount(primaryTotal?.expenseTotal)
+        let budgetTotal = GroupFinanceFormat.parseAmount(primaryTotal?.budgetTotal)
         let categoryFraction: CGFloat = budgetTotal > 0 ? CGFloat(truncating: (expenseTotal as NSDecimalNumber).dividing(by: budgetTotal as NSDecimalNumber)) : 0
-        
+
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("💕 \(title ?? momentTitle ?? "Group Moment")")
                     .font(.plusJakarta(size: 16, weight: .heavy))
                     .foregroundStyle(chrome.text)
                 Spacer()
-                Text(GroupFinanceFormat.formatMoney(total?.expenseTotal, currencyCode: currency))
-                    .font(.plusJakarta(size: 18, weight: .heavy))
+                Text(expenseHeadline)
+                    .font(.plusJakarta(size: allTotals.count > 1 ? 14 : 18, weight: .heavy))
                     .foregroundStyle(chrome.accent)
             }
-            
-            if family == .wedding || family.isThemedExperience {
+
+            if allTotals.count > 1 {
+                Text("Budget \(GroupFinanceFormat.budgetPartitionLine(allTotals, compact: true))")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(chrome.secondary)
+            } else if family == .wedding || family.isThemedExperience {
                 Text("Spend vs budget")
                     .font(.plusJakarta(size: 11))
                     .foregroundStyle(chrome.secondary)
@@ -470,7 +520,7 @@ struct GroupExpenseSplitsView: View {
                     .font(.plusJakarta(size: 11))
                     .foregroundStyle(chrome.secondary)
             }
-            
+
             Button("Tap for Group Finance →", action: onOpenFinance)
                 .font(.plusJakarta(size: 12, weight: .semibold))
                 .foregroundStyle(chrome.accentLight)
@@ -481,16 +531,43 @@ struct GroupExpenseSplitsView: View {
         .overlay(RoundedRectangle(cornerRadius: 20).stroke(chrome.border))
     }
 
+    private var sharedPoolSection: some View {
+        let allTotals = finance?.totals ?? []
+        return Group {
+            if !allTotals.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("🏦 Shared Pool")
+                        .font(.plusJakarta(size: 16, weight: .heavy))
+                        .foregroundStyle(chrome.text)
+                    Text("Group totals by currency — amounts are not converted.")
+                        .font(.plusJakarta(size: 11))
+                        .foregroundStyle(chrome.secondary)
+                    ForEach(allTotals, id: \.currencyCode) { total in
+                        HStack {
+                            Text(total.currencyCode)
+                                .font(.plusJakarta(size: 12, weight: .bold))
+                                .foregroundStyle(chrome.accentLight)
+                            Spacer()
+                            Text(GroupFinanceFormat.formatMoney(total.expenseTotal, currencyCode: total.currencyCode))
+                                .font(.plusJakarta(size: 14, weight: .bold))
+                                .foregroundStyle(chrome.text)
+                        }
+                        .padding(12)
+                        .background(chrome.card)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(chrome.border))
+                    }
+                }
+            }
+        }
+    }
+
     private var viewerBalance: some View {
-        let viewer = finance?.viewerPosition
-        let currency = finance?.totals?.first?.currencyCode ?? "INR"
-        let net = GroupFinanceFormat.parseAmount(viewer?.netPosition)
-        let headline: String = {
-            guard viewer != nil else { return "No balance yet" }
-            if net < 0 { return "You owe \(GroupFinanceFormat.formatMoney(decimalString(absDecimal(net)), currencyCode: currency))" }
-            if net > 0 { return "You get back \(GroupFinanceFormat.formatMoney(viewer?.netPosition, currencyCode: currency))" }
-            return "You're settled up"
-        }()
+        let (headline, incl) = GroupFinanceFormat.viewerBalanceHeadline(
+            viewer: finance?.viewerPosition,
+            allPositions: finance?.positions ?? [],
+            hide: false
+        )
         return VStack(alignment: .leading, spacing: 12) {
             Text("YOUR BALANCE")
                 .font(.plusJakarta(size: 13, weight: .bold))
@@ -498,6 +575,11 @@ struct GroupExpenseSplitsView: View {
             Text(headline)
                 .font(.plusJakarta(size: 24, weight: .heavy))
                 .foregroundStyle(.white)
+            if let incl {
+                Text(incl)
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(Color.white.opacity(0.85))
+            }
             HStack {
                 Text("Keep group coordination high by settling up.")
                     .font(.plusJakarta(size: 12))
@@ -521,12 +603,11 @@ struct GroupExpenseSplitsView: View {
     private var whoOwes: some View {
         let positions = finance?.positions ?? []
         let nameById = Dictionary(uniqueKeysWithValues: participants.map { ($0.participantId, $0.displayName ?? String($0.participantId.prefix(8))) })
-        let currency = finance?.totals?.first?.currencyCode ?? "INR"
         return VStack(alignment: .leading, spacing: 10) {
             Text("🤝 Who Owes Whom")
                 .font(.plusJakarta(size: 16, weight: .heavy))
                 .foregroundStyle(chrome.text)
-            Text("Net positions from live finance — pairwise settlement graph is not available yet.")
+            Text("Individual net positions by currency — pairwise settlement graph is not available yet.")
                 .font(.plusJakarta(size: 11))
                 .foregroundStyle(chrome.secondary)
             ForEach(positions.filter { abs(GroupFinanceFormat.parseAmount($0.netPosition)) > 0 }) { pos in
@@ -544,12 +625,12 @@ struct GroupExpenseSplitsView: View {
                         Text(owes ? "\(name) owes (net)" : "\(name) gets back (net)")
                             .font(.plusJakarta(size: 14, weight: .bold))
                             .foregroundStyle(chrome.text)
-                        Text(owes ? "Pending settlement" : "Receivable outstanding")
+                        Text("\(pos.currencyCode) · \(owes ? "Pending settlement" : "Receivable outstanding")")
                             .font(.plusJakarta(size: 11))
                             .foregroundStyle(chrome.secondary)
                     }
                     Spacer()
-                    Text(GroupFinanceFormat.formatMoney(decimalString(absDecimal(net)), currencyCode: currency))
+                    Text(GroupFinanceFormat.formatMoney(decimalString(absDecimal(net)), currencyCode: pos.currencyCode))
                         .font(.plusJakarta(size: 14, weight: .heavy))
                         .foregroundStyle(owes ? chrome.orange : chrome.green)
                 }
@@ -564,44 +645,51 @@ struct GroupExpenseSplitsView: View {
     private var breakdown: some View {
         let positions = finance?.positions ?? []
         let nameById = Dictionary(uniqueKeysWithValues: participants.map { ($0.participantId, $0.displayName ?? String($0.participantId.prefix(8))) })
-        let currency = finance?.totals?.first?.currencyCode ?? "INR"
         return VStack(alignment: .leading, spacing: 10) {
             Text("📊 Expense Breakdown")
                 .font(.plusJakarta(size: 16, weight: .heavy))
                 .foregroundStyle(chrome.text)
-            ForEach(positions) { pos in
-                let name = nameById[pos.participantId] ?? String(pos.participantId.prefix(8))
-                let net = GroupFinanceFormat.parseAmount(pos.netPosition)
-                let positive = net >= 0
-                HStack(spacing: 12) {
-                    Text(String(name.prefix(1)).uppercased())
-                        .font(.plusJakarta(size: 14, weight: .heavy))
-                        .foregroundStyle(positive ? .white : chrome.text)
-                        .frame(width: 36, height: 36)
-                        .background(positive ? chrome.accent : Color.white.opacity(0.1))
-                        .clipShape(Circle())
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(name).font(.plusJakarta(size: 14, weight: .bold)).foregroundStyle(chrome.text)
-                            Spacer()
-                            Text("Paid \(GroupFinanceFormat.compactMoney(pos.paidTotal, currencyCode: currency)) · Share \(GroupFinanceFormat.compactMoney(pos.allocatedTotal, currencyCode: currency))")
+            Text("Individual paid vs share by currency.")
+                .font(.plusJakarta(size: 11))
+                .foregroundStyle(chrome.secondary)
+            ForEach(GroupFinanceFormat.groupPositionsByParticipant(positions), id: \.0) { participantId, rows in
+                let name = nameById[participantId] ?? String(participantId.prefix(8))
+                ForEach(rows) { pos in
+                    let net = GroupFinanceFormat.parseAmount(pos.netPosition)
+                    let positive = net >= 0
+                    HStack(spacing: 12) {
+                        Text(String(name.prefix(1)).uppercased())
+                            .font(.plusJakarta(size: 14, weight: .heavy))
+                            .foregroundStyle(positive ? .white : chrome.text)
+                            .frame(width: 36, height: 36)
+                            .background(positive ? chrome.accent : Color.white.opacity(0.1))
+                            .clipShape(Circle())
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(name).font(.plusJakarta(size: 14, weight: .bold)).foregroundStyle(chrome.text)
+                                Spacer()
+                                Text(pos.currencyCode)
+                                    .font(.plusJakarta(size: 10))
+                                    .foregroundStyle(chrome.secondary)
+                            }
+                            Text("Paid \(GroupFinanceFormat.compactMoney(pos.paidTotal, currencyCode: pos.currencyCode)) · Share \(GroupFinanceFormat.compactMoney(pos.allocatedTotal, currencyCode: pos.currencyCode))")
                                 .font(.plusJakarta(size: 11))
                                 .foregroundStyle(chrome.secondary)
-                        }
-                        HStack {
-                            GroupProgressBar(percent: sharePercent(pos))
-                            Text(positive
-                                 ? "+\(GroupFinanceFormat.formatMoney(pos.netPosition, currencyCode: currency))"
-                                 : "-\(GroupFinanceFormat.formatMoney(decimalString(absDecimal(net)), currencyCode: currency))")
-                                .font(.plusJakarta(size: 11, weight: .bold))
-                                .foregroundStyle(positive ? chrome.green : chrome.orange)
+                            HStack {
+                                GroupProgressBar(percent: sharePercent(pos))
+                                Text(positive
+                                     ? "+\(GroupFinanceFormat.formatMoney(pos.netPosition, currencyCode: pos.currencyCode))"
+                                     : "-\(GroupFinanceFormat.formatMoney(decimalString(absDecimal(net)), currencyCode: pos.currencyCode))")
+                                    .font(.plusJakarta(size: 11, weight: .bold))
+                                    .foregroundStyle(positive ? chrome.green : chrome.orange)
+                            }
                         }
                     }
+                    .padding(12)
+                    .background(chrome.card)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(chrome.border))
                 }
-                .padding(12)
-                .background(chrome.card)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(chrome.border))
             }
         }
     }

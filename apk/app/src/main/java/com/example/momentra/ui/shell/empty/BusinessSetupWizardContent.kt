@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,7 @@ import com.example.momentra.ui.setup.SetupTitleField
 import com.example.momentra.ui.setup.SetupTokens
 import com.example.momentra.ui.setup.SetupWizardHeader
 import com.example.momentra.ui.setup.SetupWizardScaffold
+import com.example.momentra.ui.shell.empty.personal.mergePersonalSetupPreferences
 import com.example.momentra.ui.shell.maestro.MaestroIds
 
 /** Interactive Business setup wizard — Figma 692:34736+ with shared setup shell. */
@@ -57,10 +59,28 @@ fun BusinessSetupWizardContent(
         }
     }
     var momentTitle by remember(kind) { mutableStateOf(initialTitle?.takeIf { it.isNotBlank() } ?: catalog.defaultTitle) }
+    var editingMomentStatus by remember(kind) { mutableStateOf<String?>(null) }
 
     DisposableEffect(kind) {
         MomentraAnalytics.get().onScreenEnter(kind.analyticsScreen)
         onDispose { MomentraAnalytics.get().onScreenExit(kind.analyticsScreen) }
+    }
+
+    LaunchedEffect(editingMomentId, kind) {
+        val momentId = editingMomentId ?: return@LaunchedEffect
+        createViewModel.getDomainSetupPrefill(momentId)?.let { prefill ->
+            editingMomentStatus = prefill.status
+            selections.clear()
+            selections.putAll(
+                mergePersonalSetupPreferences(
+                    catalog.defaultPreferences,
+                    prefill.preferences.orEmpty(),
+                ),
+            )
+            if (initialTitle.isNullOrBlank()) {
+                momentTitle = prefill.title
+            }
+        }
     }
 
     val ctaBrush = when (kind) {
@@ -75,6 +95,26 @@ fun BusinessSetupWizardContent(
         )
     }
 
+    fun submit(status: String) {
+        val apiPrefs = SetupPreferenceFilter.filterToCatalogKeys(
+            selections.toMap(),
+            BusinessSetupCatalog.allowedKeys(kind),
+        )
+        createViewModel.submitBusinessSetup(
+            kind = kind,
+            companyId = companyId,
+            preferences = apiPrefs,
+            title = momentTitle.trim().ifBlank { catalog.defaultTitle },
+            editingMomentId = editingMomentId,
+            editingMomentStatus = editingMomentStatus,
+            status = status,
+            onSuccess = { outcome ->
+                editingMomentStatus = outcome.status
+                onCreated(outcome)
+            },
+        )
+    }
+
     SetupWizardScaffold(
         modifier = modifier.testTag(kind.maestroTag),
         backgroundColor = SetupTokens.BizBg,
@@ -85,28 +125,26 @@ fun BusinessSetupWizardContent(
                 submitting = submitting,
                 accentBrush = ctaBrush,
                 ctaTestTag = MaestroIds.BUSINESS_SETUP_SUBMIT,
+                saveDraftTestTag = MaestroIds.setupField("saveDraft"),
                 backgroundColor = SetupTokens.BizBg,
-                onCta = {
-                    val apiPrefs = SetupPreferenceFilter.filterToCatalogKeys(
-                        selections.toMap(),
-                        BusinessSetupCatalog.allowedKeys(kind),
-                    )
-                    createViewModel.submitBusinessSetup(
-                        kind = kind,
-                        companyId = companyId,
-                        preferences = apiPrefs,
-                        title = momentTitle.trim().ifBlank { catalog.defaultTitle },
-                        editingMomentId = editingMomentId,
-                        onSuccess = onCreated,
-                    )
-                },
+                onCta = { submit("ACTIVE") },
+                onSaveDraft = { submit("DRAFT") },
             )
         },
     ) {
         SetupWizardHeader(
             title = kind.title,
             durationLabel = catalog.subtitle,
-            onClose = onClose,
+            onClose = {
+                if (
+                    !editingMomentId.isNullOrBlank() &&
+                    editingMomentStatus.equals("DRAFT", ignoreCase = true)
+                ) {
+                    createViewModel.discardMomentDraft(editingMomentId) { onClose() }
+                } else {
+                    onClose()
+                }
+            },
             enabled = !submitting,
         )
 

@@ -24,6 +24,19 @@ struct GroupExperienceSetupView: View {
         var contactPhone: String? = nil
     }
 
+    private struct ExperiencePlaceDraft: Identifiable {
+        let id = UUID()
+        var label: String = ""
+        var startIso: String? = nil
+        var endIso: String? = nil
+    }
+
+    private struct ExtraBudgetDraft: Identifiable {
+        let id = UUID()
+        var currencyCode: String = "USD"
+        var amount: String = ""
+    }
+
     private let types = GroupSetupCatalog.experienceTypes
 
     @State private var selectedCode = "TRIP"
@@ -31,10 +44,12 @@ struct GroupExperienceSetupView: View {
     @State private var startDateIso: String?
     @State private var endDateIso: String?
     @State private var destination = ""
+    @State private var places: [ExperiencePlaceDraft] = [ExperiencePlaceDraft()]
     @State private var primaryGoal = "Enjoy time together"
     @State private var budget = "₹80,000"
     @State private var budgetCustomAmount = ""
     @State private var currency = "INR"
+    @State private var extraBudgets: [ExtraBudgetDraft] = []
     @State private var splitStyle = "Equal split"
     @State private var multiCurrency = "Enabled"
     @State private var paymentRhythm = "After each expense"
@@ -45,6 +60,7 @@ struct GroupExperienceSetupView: View {
     @State private var updateCadence = "Every week"
     @State private var people: [DraftPerson] = []
     @State private var peopleEdited = false
+    @State private var editingMomentStatus: String?
     @State private var issuedInvite: GroupInvite?
     @State private var mintingInvite = false
     @State private var inviteError: String?
@@ -72,6 +88,8 @@ struct GroupExperienceSetupView: View {
                         name = opt.defaultName
                         startDateIso = nil
                         endDateIso = nil
+                        places = [ExperiencePlaceDraft()]
+                        extraBudgets = []
                         people = defaultPeople(for: opt.code)
                         peopleEdited = false
                     }
@@ -111,9 +129,54 @@ struct GroupExperienceSetupView: View {
             inviteError = nil
             onSetupTypeChanged(code)
         }
+        .onChange(of: places) { _, _ in
+            syncLegacyDestinationFields()
+        }
+    }
+
+    private func syncLegacyDestinationFields() {
+        destination = places.first?.label ?? ""
+        startDateIso = places.first?.startIso
+        endDateIso = places.last(where: { $0.endIso != nil })?.endIso ?? places.first?.endIso
     }
 
     private func loadEditPrefill(momentId: String) async {
+        if let prefill = await createModel.getGroupSetupPrefill(momentId: momentId) {
+            await MainActor.run {
+                editingMomentStatus = prefill.status
+                if let title = prefill.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+                    name = title
+                }
+                if let goal = prefill.primaryGoal {
+                    primaryGoal = goal
+                }
+                if let enabled = prefill.multiCurrencyEnabled {
+                    multiCurrency = enabled ? "Enabled" : "Disabled"
+                }
+                if let code = prefill.splitStyle {
+                    splitStyle = splitStyleLabel(fromApi: code)
+                }
+                let placeRows = prefill.places?.map {
+                    ExperiencePlaceDraft(
+                        label: $0.label ?? "",
+                        startIso: $0.startAt.map { String($0.prefix(10)) },
+                        endIso: $0.endAt.map { String($0.prefix(10)) }
+                    )
+                }.filter { !$0.label.isEmpty }
+                if let placeRows, !placeRows.isEmpty {
+                    places = placeRows
+                } else if let legacy = prefill.destinationText, !legacy.isEmpty {
+                    places = [
+                        ExperiencePlaceDraft(
+                            label: legacy,
+                            startIso: prefill.startAt.map { String($0.prefix(10)) },
+                            endIso: prefill.endAt.map { String($0.prefix(10)) }
+                        ),
+                    ]
+                }
+                applyBudgetPrefill(prefill.budgets)
+            }
+        }
         if let prefs = try? await APIClient.shared.getMomentNotificationPreferences(momentId: momentId) {
             await MainActor.run {
                 notifyChanges = prefs.notifyOnChanges
@@ -122,21 +185,83 @@ struct GroupExperienceSetupView: View {
                 if let v = rem["photoReminders"] { photoReminders = v ? "Enabled" : "Disabled" }
             }
         }
-        if let finance = try? await APIClient.shared.getGroupFinance(momentId: momentId).payload,
-           let total = finance.totals?.first(where: { ($0.budgetTotal.flatMap { Double($0) } ?? 0) > 0 })
-            ?? finance.totals?.first,
-           let raw = total.budgetTotal, Double(raw) ?? 0 > 0 {
-            let display = GroupBudgetUtils.formatApiAmountForDisplay(raw, currencyCode: total.currencyCode)
-            await MainActor.run {
-                currency = total.currencyCode
-                if GroupBudgetUtils.presetOptions.contains(display) {
-                    budget = display
-                    budgetCustomAmount = ""
-                } else {
-                    budget = GroupBudgetUtils.customOption
-                    budgetCustomAmount = GroupBudgetUtils.formatCustomAmountInput(raw)
+        let hasPlaceLabels = await MainActor.run { places.contains { !$0.label.isEmpty } }
+        if editingMomentId != nil, !hasPlaceLabels {
+            if let finance = try? await APIClient.shared.getGroupFinance(momentId: momentId).payload {
+                let totals = finance.totals ?? []
+                let total = totals.first(where: { ($0.budgetTotal.flatMap { Double($0) } ?? 0) > 0 }) ?? totals.first
+                if let total, let raw = total.budgetTotal, (Double(raw) ?? 0) > 0 {
+                    await MainActor.run {
+                        applyFinanceBudgetPrefill(totals: totals, primaryTotal: total, raw: raw)
+                    }
                 }
             }
+        }
+    }
+
+    private func applyBudgetPrefill(_ budgets: [GroupSetupBudgetPrefill]?) {
+        guard let budgets, !budgets.isEmpty else { return }
+        let primary = budgets.first(where: { $0.isPrimary == true }) ?? budgets.first
+        guard let primary else { return }
+        currency = primary.currencyCode
+        let display = GroupBudgetUtils.formatApiAmountForDisplay(primary.amount, currencyCode: primary.currencyCode)
+        if GroupBudgetUtils.presetOptions.contains(display) {
+            budget = display
+            budgetCustomAmount = ""
+        } else {
+            budget = GroupBudgetUtils.customOption
+            budgetCustomAmount = GroupBudgetUtils.formatCustomAmountInput(primary.amount)
+        }
+        extraBudgets = budgets
+            .filter { $0.currencyCode != primary.currencyCode }
+            .map {
+                ExtraBudgetDraft(
+                    currencyCode: $0.currencyCode,
+                    amount: GroupBudgetUtils.formatCustomAmountInput($0.amount)
+                )
+            }
+    }
+
+    private func applyFinanceBudgetPrefill(
+        totals: [APIClient.GroupFinanceTotalsPayload],
+        primaryTotal: APIClient.GroupFinanceTotalsPayload,
+        raw: String
+    ) {
+        let display = GroupBudgetUtils.formatApiAmountForDisplay(raw, currencyCode: primaryTotal.currencyCode)
+        currency = primaryTotal.currencyCode
+        if GroupBudgetUtils.presetOptions.contains(display) {
+            budget = display
+            budgetCustomAmount = ""
+        } else {
+            budget = GroupBudgetUtils.customOption
+            budgetCustomAmount = GroupBudgetUtils.formatCustomAmountInput(raw)
+        }
+        extraBudgets = totals
+            .filter { $0.currencyCode != currency }
+            .compactMap { row in
+                guard let amt = row.budgetTotal, (Double(amt) ?? 0) > 0 else { return nil }
+                return ExtraBudgetDraft(
+                    currencyCode: row.currencyCode,
+                    amount: GroupBudgetUtils.formatCustomAmountInput(amt)
+                )
+            }
+    }
+
+    private func splitStyleLabel(fromApi code: String) -> String {
+        switch code.uppercased() {
+        case "SHARES": return "By share"
+        case "POOLED": return "Host pays"
+        case "EXACT", "PERCENTAGE": return "Custom"
+        default: return "Equal split"
+        }
+    }
+
+    private func apiSplitStyle(from label: String) -> String {
+        switch label {
+        case "By share": return "SHARES"
+        case "Host pays": return "POOLED"
+        case "Custom": return "EXACT"
+        default: return "EQUAL"
         }
     }
 
@@ -152,7 +277,7 @@ struct GroupExperienceSetupView: View {
         )
         mintingInvite = false
         guard let minted else {
-            inviteError = "Couldn’t create invite link. Try again."
+            inviteError = "Couldn't create invite link. Try again."
             return nil
         }
         issuedInvite = minted
@@ -164,7 +289,7 @@ struct GroupExperienceSetupView: View {
             guard let invite = await ensureInvite() else { return }
             let url = GroupInviteLink.qrPayload(code: invite.inviteCode)
             guard let qr = GroupQRCode.image(from: url, size: 512) else {
-                inviteError = "Couldn’t create QR code."
+                inviteError = "Couldn't create QR code."
                 return
             }
             InviteOutboundShare.presentSystemShare(items: [qr, url])
@@ -188,13 +313,21 @@ struct GroupExperienceSetupView: View {
 
     private var headerRow: some View {
         HStack {
-            Button(action: onBack) {
+            Button(action: {
+                if let editingMomentId,
+                   editingMomentStatus?.caseInsensitiveCompare("DRAFT") == .orderedSame {
+                    createModel.discardMomentDraft(momentId: editingMomentId, onSuccess: onBack)
+                } else {
+                    onBack()
+                }
+            }) {
                 HStack(spacing: 6) {
                     Text("×").font(.plusJakarta(size: 16)).foregroundStyle(GroupSetupTheme.textSecondary)
-                    Text("Close").font(.plusJakarta(size: 14)).foregroundStyle(GroupSetupTheme.textSecondary)
+                    Text("Discard draft").font(.plusJakarta(size: 14)).foregroundStyle(GroupSetupTheme.textSecondary)
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Discard draft")
             Spacer()
             Text("GROUP MODE")
                 .font(.plusJakarta(size: 12, weight: .semibold))
@@ -221,42 +354,57 @@ struct GroupExperienceSetupView: View {
                 testTag: "setup.dropdown.primaryGoal"
             )
             subsectionTitle("Experience Details")
-            GroupLongFormDestinationField(
-                label: "Destination",
-                hint: "Where you're going",
-                value: $destination,
-                placeholder: "e.g. Goa, India",
-                testTag: "setup.field.destination"
-            )
-            SetupDateRangeField(
-                label: "Dates",
-                startIso: $startDateIso,
-                endIso: $endDateIso,
-                testTag: "setup.date.dates"
-            )
+            Text("Destinations (\(places.count) places)")
+                .font(.plusJakarta(size: 12))
+                .foregroundStyle(GroupSetupTheme.textSecondary)
+            ForEach(Array(places.enumerated()), id: \.element.id) { index, _ in
+                GroupLongFormDestinationField(
+                    label: "Place \(index + 1)",
+                    hint: "City or region",
+                    value: Binding(
+                        get: { places[index].label },
+                        set: { places[index].label = $0 }
+                    ),
+                    placeholder: "e.g. Goa, India",
+                    testTag: "setup.field.place_\(index)"
+                )
+                SetupDateRangeField(
+                    label: "Dates",
+                    startIso: Binding(
+                        get: { places[index].startIso },
+                        set: { places[index].startIso = $0 }
+                    ),
+                    endIso: Binding(
+                        get: { places[index].endIso },
+                        set: { places[index].endIso = $0 }
+                    ),
+                    testTag: "setup.date.placeDates_\(index)"
+                )
+            }
+            Button {
+                places.append(ExperiencePlaceDraft())
+            } label: {
+                Text("+ Add another place")
+                    .font(.plusJakarta(size: 14, weight: .semibold))
+                    .foregroundStyle(palette.accent)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
         }
     }
 
     private var section02DatesBudgetSplit: some View {
         GroupLongFormSectionCard(step: "02", title: "Dates, Budget & Split", accent: palette.accent) {
             groupTitle("Plan the Practical Details")
-            GroupLongFormDestinationField(
-                label: "Destination",
-                hint: "Where you're going",
-                value: $destination,
-                placeholder: "e.g. Goa, India",
-                testTag: "setup.field.destinationPractical"
-            )
-            SetupDateRangeField(
-                label: "Dates",
-                startIso: $startDateIso,
-                endIso: $endDateIso,
-                testTag: "setup.date.dates"
-            )
+            Text(places.first?.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? (places.first?.label ?? "")
+                : "Add places in section 01")
+                .font(.plusJakarta(size: 13))
+                .foregroundStyle(GroupSetupTheme.textSecondary)
             Divider().overlay(GroupSetupTheme.border)
             groupTitle("Money")
             GroupLongFormPrefRow(
-                label: "Budget",
+                label: "Primary budget",
                 hint: "Expected total",
                 value: budget,
                 options: GroupBudgetUtils.presetOptions,
@@ -271,13 +419,44 @@ struct GroupExperienceSetupView: View {
                 )
             }
             GroupLongFormPrefRow(
-                label: "Currency",
+                label: "Primary currency",
                 hint: "Default currency",
                 value: currency,
-                options: ["INR", "USD", "EUR"],
+                options: GroupTravelCurrencyCatalog.codes,
                 onValueChange: { currency = $0 },
                 testTag: "setup.dropdown.currency"
             )
+            if multiCurrency.lowercased() == "enabled" {
+                ForEach(Array(extraBudgets.enumerated()), id: \.element.id) { index, _ in
+                    GroupLongFormPrefRow(
+                        label: "Currency \(index + 2)",
+                        hint: GroupTravelCurrencyCatalog.display(extraBudgets[index].currencyCode),
+                        value: extraBudgets[index].currencyCode,
+                        options: GroupTravelCurrencyCatalog.codes.filter { $0 != currency },
+                        onValueChange: { extraBudgets[index].currencyCode = $0 },
+                        testTag: "setup.dropdown.extraCurrency_\(index)"
+                    )
+                    GroupBudgetCustomField(
+                        value: Binding(
+                            get: { extraBudgets[index].amount },
+                            set: { extraBudgets[index].amount = $0 }
+                        ),
+                        currencyCode: extraBudgets[index].currencyCode
+                    )
+                }
+                Button {
+                    let next = GroupTravelCurrencyCatalog.codes.first { code in
+                        code != currency && !extraBudgets.contains(where: { $0.currencyCode == code })
+                    } ?? "USD"
+                    extraBudgets.append(ExtraBudgetDraft(currencyCode: next))
+                } label: {
+                    Text("+ Add currency")
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(palette.accent)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+            }
             GroupLongFormPrefRow(
                 label: "Split style",
                 hint: "How costs are shared",
@@ -300,7 +479,7 @@ struct GroupExperienceSetupView: View {
                 label: "Payment rhythm",
                 hint: "How to settle",
                 value: paymentRhythm,
-                options: ["After each expense", "Weekly", "End of trip"],
+                options: ["After each expense", "Weekly", "End of trip", "Manual expense"],
                 onValueChange: { paymentRhythm = $0 },
                 testTag: "setup.dropdown.paymentRhythm"
             )
@@ -383,7 +562,7 @@ struct GroupExperienceSetupView: View {
                 .font(.plusJakarta(size: 12))
                 .foregroundStyle(GroupSetupTheme.textSecondary)
             GroupLongFormReadyBanner(message: "Your shared experience is ready")
-            Button(action: activate) {
+            Button(action: { submitExperience(status: "ACTIVE") }) {
                 ZStack {
                     if createModel.state.submitting { ProgressView().tint(GroupSetupTheme.ctaText) }
                     else { Text("Activate Shared Experience →").font(.plusJakarta(size: 16, weight: .heavy)).foregroundStyle(GroupSetupTheme.ctaText) }
@@ -393,6 +572,35 @@ struct GroupExperienceSetupView: View {
             }
             .buttonStyle(.plain)
             .disabled(createModel.state.submitting)
+            .accessibilityIdentifier("group.setup.submit")
+            HStack(spacing: 12) {
+                Button(action: { submitExperience(status: "DRAFT") }) {
+                    Text("Save draft")
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(GroupSetupTheme.textPrimary)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(GroupSetupTheme.border, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(createModel.state.submitting)
+                .accessibilityIdentifier("setup.field.saveDraft")
+
+                Button(action: onBack) {
+                    Text("Schedule later")
+                        .font(.plusJakarta(size: 14, weight: .medium))
+                        .foregroundStyle(GroupSetupTheme.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(GroupSetupTheme.border, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(createModel.state.submitting)
+            }
             Text("Modify, extend or change anytime.")
                 .font(.plusJakarta(size: 12))
                 .foregroundStyle(GroupSetupTheme.textSecondary)
@@ -427,15 +635,13 @@ struct GroupExperienceSetupView: View {
                             peopleEdited = true
                             people.removeAll { $0.id == person.id }
                         } label: {
-                            ZStack {
-                                Circle().fill(GroupSetupTheme.iconSurface).frame(width: 32, height: 32)
-                                Image("ges_icon_x_circle")
-                                    .renderingMode(.template)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 14, height: 14)
-                                    .foregroundStyle(GroupSetupTheme.textSecondary)
-                            }
+                            Text("Remove")
+                                .font(.plusJakarta(size: 12, weight: .semibold))
+                                .foregroundStyle(Color(hex: "#EF4444"))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(GroupSetupTheme.iconSurface)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Remove \(person.name)")
@@ -542,10 +748,68 @@ struct GroupExperienceSetupView: View {
         ]
     }
 
-    private func activate() {
+    private func buildGroupSetupBlock() -> CreateMomentRequest.GroupSetupBlock? {
+        guard let primaryAmount = GroupBudgetUtils.resolveBudgetAmount(displayBudget: budget, customAmount: budgetCustomAmount) else {
+            return nil
+        }
+        let placeBlocks = places
+            .filter { !$0.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .map {
+                CreateMomentRequest.GroupSetupBlock.PlaceBlock(
+                    label: $0.label.trimmingCharacters(in: .whitespacesAndNewlines),
+                    startAt: SetupDateTimeUtils.isoDateToStartInstant($0.startIso),
+                    endAt: SetupDateTimeUtils.isoDateToEndInstant($0.endIso ?? $0.startIso)
+                )
+            }
+        let resolvedPlaces: [CreateMomentRequest.GroupSetupBlock.PlaceBlock]? = {
+            if !placeBlocks.isEmpty { return placeBlocks }
+            guard !destination.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return [
+                CreateMomentRequest.GroupSetupBlock.PlaceBlock(
+                    label: destination.trimmingCharacters(in: .whitespacesAndNewlines),
+                    startAt: SetupDateTimeUtils.isoDateToStartInstant(startDateIso),
+                    endAt: SetupDateTimeUtils.isoDateToEndInstant(endDateIso ?? startDateIso)
+                ),
+            ]
+        }()
+        var budgetBlocks: [CreateMomentRequest.GroupSetupBlock.BudgetBlock] = [
+            .init(currencyCode: currency, amount: primaryAmount, isPrimary: true),
+        ]
+        if multiCurrency.lowercased() == "enabled" {
+            for row in extraBudgets {
+                let amt = row.amount.filter { $0.isNumber || $0 == "." }
+                guard !amt.isEmpty, row.currencyCode.caseInsensitiveCompare(currency) != .orderedSame else { continue }
+                budgetBlocks.append(.init(currencyCode: row.currencyCode, amount: amt, isPrimary: false))
+            }
+        }
+        let reminderPreferences: [String: Bool] = [
+            "expenseReminders": expenseReminders.lowercased() == "enabled",
+            "photoReminders": photoReminders.lowercased() == "enabled",
+        ]
+        return CreateMomentRequest.GroupSetupBlock(
+            budgetAmount: primaryAmount,
+            budgetCurrencyCode: currency,
+            destinationText: resolvedPlaces?.first?.label ?? destination.nilIfBlank,
+            places: resolvedPlaces,
+            budgets: budgetBlocks,
+            multiCurrencyEnabled: multiCurrency.lowercased() == "enabled",
+            splitStyle: apiSplitStyle(from: splitStyle),
+            primaryGoal: primaryGoal,
+            reminderPreferences: reminderPreferences,
+            setupPreferences: [
+                "paymentRhythm": JSONEncodableValue(paymentRhythm),
+                "joinApproval": JSONEncodableValue(joinApproval),
+                "updateCadence": JSONEncodableValue(updateCadence),
+            ]
+        )
+    }
+
+    private func submitExperience(status: String) {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        let startAt = SetupDateTimeUtils.isoDateToStartInstant(startDateIso)
-        let endAt = SetupDateTimeUtils.isoDateToEndInstant(endDateIso ?? startDateIso)
+        let startAt = SetupDateTimeUtils.isoDateToStartInstant(places.first?.startIso ?? startDateIso)
+        let endAt = SetupDateTimeUtils.isoDateToEndInstant(
+            places.compactMap { $0.endIso ?? $0.startIso }.last ?? endDateIso ?? startDateIso
+        )
         let invitees = people.filter { $0.roleCode != "ORGANIZER" }.map {
             CreateMomentParticipantInput(
                 displayName: $0.name,
@@ -554,19 +818,11 @@ struct GroupExperienceSetupView: View {
                 phone: $0.contactPhone
             )
         }
-        let budgetAmount = GroupBudgetUtils.resolveBudgetAmount(displayBudget: budget, customAmount: budgetCustomAmount)
+        let groupSetup = buildGroupSetupBlock()
         let reminderPreferences: [String: Bool] = [
             "expenseReminders": expenseReminders.lowercased() == "enabled",
             "photoReminders": photoReminders.lowercased() == "enabled",
         ]
-        let groupSetup = budgetAmount.map {
-            CreateMomentRequest.GroupSetupBlock(
-                budgetAmount: $0,
-                budgetCurrencyCode: currency,
-                destinationText: destination.isEmpty ? nil : destination,
-                reminderPreferences: reminderPreferences
-            )
-        }
         createModel.submitGroupMoment(
             section: "experience",
             momentTypeCode: selectedCode,
@@ -578,6 +834,8 @@ struct GroupExperienceSetupView: View {
             inviteCode: issuedInvite?.inviteCode,
             groupSetup: groupSetup,
             editingMomentId: editingMomentId,
+            editingMomentStatus: editingMomentStatus,
+            status: status,
             onSuccess: { outcome in
                 Task {
                     _ = try? await APIClient.shared.patchMomentNotificationPreferences(
@@ -585,9 +843,19 @@ struct GroupExperienceSetupView: View {
                         notifyOnChanges: notifyChanges,
                         reminderPreferences: reminderPreferences
                     )
-                    await MainActor.run { onCreated(outcome) }
+                    await MainActor.run {
+                        editingMomentStatus = outcome.status
+                        onCreated(outcome)
+                    }
                 }
             }
         )
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

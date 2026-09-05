@@ -574,3 +574,60 @@ struct MomentsSimpleRowCard: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(chrome.border))
     }
 }
+
+/// Figma 575:14327 — booking card in Moments / Experience tabs.
+struct MomentsBookingCard: View {
+    let booking: APIClient.GroupLifePayload.LifeInner.BookingItem
+    var chrome: MomentsChrome
+
+    var body: some View {
+        let status = (booking.status ?? "PLANNED").uppercased()
+        let confirmed = status == "CONFIRMED" || status == "BOOKED" || status == "COMPLETED"
+        let typeLabel = (booking.bookingType ?? "Booking")
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
+        let day = formatBookingDay(booking.startAt ?? booking.bookedAt)
+        let meta = [typeLabel, day].compactMap { $0 }.joined(separator: " · ")
+        let when = formatBookingDayTime(booking.startAt) ?? formatBookingDay(booking.bookedAt) ?? "—"
+
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                HStack(spacing: 12) {
+                    Text(confirmed ? "🏨" : "🎟️")
+                        .frame(width: 40, height: 40)
+                        .background(chrome.card)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(booking.title ?? booking.bookingId ?? "Booking")
+                            .font(.plusJakarta(size: 14, weight: .bold))
+                            .foregroundStyle(chrome.text)
+                        Text(meta)
+                            .font(.plusJakarta(size: 11))
+                            .foregroundStyle(chrome.secondary)
+                    }
+                }
+                Spacer()
+                Text(status)
+                    .font(.plusJakarta(size: 10, weight: .bold))
+                    .foregroundStyle(confirmed ? Color(hex: "#22C55E") : chrome.accent)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background((confirmed ? Color(hex: "#22C55E") : chrome.accent).opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(confirmed ? "Check-in" : "Start time")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(chrome.secondary)
+                Text(when)
+                    .font(.plusJakarta(size: 13, weight: .semibold))
+                    .foregroundStyle(chrome.text)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(chrome.card)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(chrome.border))
+    }
+}

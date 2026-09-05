@@ -40,6 +40,8 @@ import com.example.momentra.R
 import com.example.momentra.data.api.CreateMomentParticipantBody
 import com.example.momentra.data.api.GroupInviteDto
 import com.example.momentra.data.api.GroupSetupBlockDto
+import com.example.momentra.data.api.GroupSetupBudgetDto
+import com.example.momentra.data.api.GroupSetupPlaceDto
 import kotlinx.coroutines.launch
 import com.example.momentra.domain.CreateMomentOutcome
 import com.example.momentra.data.repository.AccountRepository
@@ -48,8 +50,20 @@ import com.example.momentra.ui.create.MomentCreateViewModel
 import com.example.momentra.ui.setup.SetupDateTimeUtils
 import com.example.momentra.ui.setup.SetupDateRangeField
 import com.example.momentra.ui.setup.SetupTitleField
+import com.example.momentra.ui.shell.group.shared.GroupTravelCurrencyCatalog
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.theme.PlusJakartaSans
+
+private data class ExperiencePlaceDraft(
+    val label: String = "",
+    val startIso: String? = null,
+    val endIso: String? = null,
+)
+
+private data class ExtraBudgetDraft(
+    val currencyCode: String = "USD",
+    val amount: String = "",
+)
 
 /** Figma 575:9761 — Shared Experience long-form setup. */
 @Composable
@@ -78,12 +92,16 @@ fun GroupExperienceSetupContent(
     var startDateIso by remember(selectedCode) { mutableStateOf<String?>(null) }
     var endDateIso by remember(selectedCode) { mutableStateOf<String?>(null) }
     var destination by remember(selectedCode) { mutableStateOf("") }
+    var places by remember(selectedCode) {
+        mutableStateOf(listOf(ExperiencePlaceDraft()))
+    }
     var primaryGoal by remember(selectedCode) {
         mutableStateOf("Enjoy time together")
     }
     var budget by remember(selectedCode) { mutableStateOf("₹80,000") }
     var budgetCustomAmount by remember(selectedCode) { mutableStateOf("") }
     var currency by remember(selectedCode) { mutableStateOf("INR") }
+    var extraBudgets by remember(selectedCode) { mutableStateOf<List<ExtraBudgetDraft>>(emptyList()) }
     var splitStyle by remember(selectedCode) { mutableStateOf("Equal split") }
     var multiCurrency by remember(selectedCode) { mutableStateOf("Enabled") }
     var paymentRhythm by remember(selectedCode) { mutableStateOf("After each expense") }
@@ -94,6 +112,7 @@ fun GroupExperienceSetupContent(
     var updateCadence by remember(selectedCode) { mutableStateOf("Every week") }
     var people by remember(selectedCode) { mutableStateOf(defaultGroupPeople(selectedCode)) }
     var peopleEdited by remember(selectedCode) { mutableStateOf(false) }
+    var editingMomentStatus by remember { mutableStateOf<String?>(null) }
     var issuedInvite by remember { mutableStateOf<GroupInviteDto?>(null) }
     var mintingInvite by remember { mutableStateOf(false) }
     var inviteError by remember { mutableStateOf<String?>(null) }
@@ -104,26 +123,90 @@ fun GroupExperienceSetupContent(
 
     LaunchedEffect(editingMomentId) {
         val mid = editingMomentId ?: return@LaunchedEffect
+        createViewModel.getGroupSetupPrefill(mid)?.let { prefill ->
+            editingMomentStatus = prefill.status
+            prefill.title?.takeIf { it.isNotBlank() }?.let { name = it }
+            prefill.primaryGoal?.let { primaryGoal = it }
+            prefill.multiCurrencyEnabled?.let { multiCurrency = if (it) "Enabled" else "Disabled" }
+            prefill.splitStyle?.let { code ->
+                splitStyle = when (code.uppercase()) {
+                    "SHARES" -> "By share"
+                    "POOLED" -> "Host pays"
+                    "EXACT", "PERCENTAGE" -> "Custom"
+                    else -> "Equal split"
+                }
+            }
+            val placeRows = prefill.places.orEmpty()
+                .map {
+                    ExperiencePlaceDraft(
+                        label = it.label.orEmpty(),
+                        startIso = it.startAt?.take(10),
+                        endIso = it.endAt?.take(10),
+                    )
+                }
+                .ifEmpty {
+                    listOf(
+                        ExperiencePlaceDraft(
+                            label = prefill.destinationText.orEmpty(),
+                            startIso = prefill.startAt?.take(10),
+                            endIso = prefill.endAt?.take(10),
+                        ),
+                    )
+                }
+            places = placeRows
+            val budgetRows = prefill.budgets.orEmpty()
+            val primary = budgetRows.firstOrNull { it.isPrimary == true } ?: budgetRows.firstOrNull()
+            if (primary != null) {
+                currency = primary.currencyCode
+                val display = GroupBudgetUtils.formatApiAmountForDisplay(primary.amount, primary.currencyCode)
+                if (display in GroupBudgetUtils.PRESET_OPTIONS) {
+                    budget = display
+                    budgetCustomAmount = ""
+                } else {
+                    budget = GroupBudgetUtils.CUSTOM_OPTION
+                    budgetCustomAmount = GroupBudgetUtils.formatCustomAmountInput(primary.amount)
+                }
+                extraBudgets = budgetRows
+                    .filter { it !== primary && it.currencyCode != primary.currencyCode }
+                    .map {
+                        ExtraBudgetDraft(
+                            currencyCode = it.currencyCode,
+                            amount = GroupBudgetUtils.formatCustomAmountInput(it.amount),
+                        )
+                    }
+            }
+        }
         accountRepo.getMomentNotificationPreferences(mid).onSuccess { prefs ->
             notifyChanges = prefs.notifyOnChanges
             val rem = prefs.reminderPreferences.orEmpty()
             rem["expenseReminders"]?.let { expenseReminders = if (it) "Enabled" else "Disabled" }
             rem["photoReminders"]?.let { photoReminders = if (it) "Enabled" else "Disabled" }
         }
-        groupRepo.getFinance(mid).onSuccess { facet ->
-            val totals = facet.payload?.totals.orEmpty()
-            val total = totals.firstOrNull {
-                it.budgetTotal.toDoubleOrNull()?.let { v -> v > 0 } == true
-            } ?: totals.firstOrNull()
-            val raw = total?.budgetTotal?.takeIf { (it.toDoubleOrNull() ?: 0.0) > 0 } ?: return@onSuccess
-            val display = GroupBudgetUtils.formatApiAmountForDisplay(raw, total!!.currencyCode)
-            currency = total.currencyCode
-            if (display in GroupBudgetUtils.PRESET_OPTIONS) {
-                budget = display
-                budgetCustomAmount = ""
-            } else {
-                budget = GroupBudgetUtils.CUSTOM_OPTION
-                budgetCustomAmount = GroupBudgetUtils.formatCustomAmountInput(raw)
+        if (editingMomentId != null && places.none { it.label.isNotBlank() }) {
+            groupRepo.getFinance(mid).onSuccess { facet ->
+                val totals = facet.payload?.totals.orEmpty()
+                val total = totals.firstOrNull {
+                    it.budgetTotal.toDoubleOrNull()?.let { v -> v > 0 } == true
+                } ?: totals.firstOrNull()
+                val raw = total?.budgetTotal?.takeIf { (it.toDoubleOrNull() ?: 0.0) > 0 } ?: return@onSuccess
+                val display = GroupBudgetUtils.formatApiAmountForDisplay(raw, total!!.currencyCode)
+                currency = total.currencyCode
+                if (display in GroupBudgetUtils.PRESET_OPTIONS) {
+                    budget = display
+                    budgetCustomAmount = ""
+                } else {
+                    budget = GroupBudgetUtils.CUSTOM_OPTION
+                    budgetCustomAmount = GroupBudgetUtils.formatCustomAmountInput(raw)
+                }
+                extraBudgets = totals
+                    .filter { it.currencyCode != currency }
+                    .mapNotNull { row ->
+                        val amt = row.budgetTotal.takeIf { (it.toDoubleOrNull() ?: 0.0) > 0 } ?: return@mapNotNull null
+                        ExtraBudgetDraft(
+                            currencyCode = row.currencyCode,
+                            amount = GroupBudgetUtils.formatCustomAmountInput(amt),
+                        )
+                    }
             }
         }
     }
@@ -193,16 +276,30 @@ fun GroupExperienceSetupContent(
             ) {
                 Row(
                     modifier = Modifier
-                        .clickable(onClick = onBack)
+                        .clickable {
+                            if (
+                                !editingMomentId.isNullOrBlank() &&
+                                editingMomentStatus.equals("DRAFT", ignoreCase = true)
+                            ) {
+                                createViewModel.discardMomentDraft(editingMomentId) { onBack() }
+                            } else {
+                                onBack()
+                            }
+                        }
                         .semantics {
                             role = Role.Button
-                            contentDescription = "Close"
+                            contentDescription = "Discard draft"
                         },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text("×", color = GroupSetupTheme.TextSecondary, fontSize = 16.sp, fontFamily = PlusJakartaSans)
-                    Text("Close", color = GroupSetupTheme.TextSecondary, fontSize = 14.sp, fontFamily = PlusJakartaSans)
+                    Text(
+                        "Discard draft",
+                        color = GroupSetupTheme.TextSecondary,
+                        fontSize = 14.sp,
+                        fontFamily = PlusJakartaSans,
+                    )
                 }
                 Text(
                     "GROUP MODE",
@@ -258,22 +355,59 @@ fun GroupExperienceSetupContent(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     GroupLongFormSubsectionTitle("Experience Details")
-                    GroupLongFormDestinationField(
-                        label = "Destination",
-                        hint = "Where you're going",
-                        value = destination,
-                        onValueChange = { destination = it },
-                        placeholder = "e.g. Goa, India",
-                        testTag = MaestroIds.setupField("destination"),
+                    Text(
+                        "Destinations (${places.size} places)",
+                        color = GroupSetupTheme.TextSecondary,
+                        fontSize = 12.sp,
+                        fontFamily = PlusJakartaSans,
                     )
-                    SetupDateRangeField(
-                        label = "Dates",
-                        startIso = startDateIso,
-                        endIso = endDateIso,
-                        onStartChange = { startDateIso = it },
-                        onEndChange = { endDateIso = it },
-                        testTag = MaestroIds.setupDate("dates"),
+                    places.forEachIndexed { index, place ->
+                        GroupLongFormDestinationField(
+                            label = "Place ${index + 1}",
+                            hint = "City or region",
+                            value = place.label,
+                            onValueChange = { v ->
+                                places = places.toMutableList().also {
+                                    it[index] = it[index].copy(label = v)
+                                }
+                            },
+                            placeholder = "e.g. Goa, India",
+                            testTag = MaestroIds.setupField("place_$index"),
+                        )
+                        SetupDateRangeField(
+                            label = "Dates",
+                            startIso = place.startIso,
+                            endIso = place.endIso,
+                            onStartChange = { v ->
+                                places = places.toMutableList().also {
+                                    it[index] = it[index].copy(startIso = v)
+                                }
+                            },
+                            onEndChange = { v ->
+                                places = places.toMutableList().also {
+                                    it[index] = it[index].copy(endIso = v)
+                                }
+                            },
+                            testTag = MaestroIds.setupDate("placeDates_$index"),
+                        )
+                    }
+                    Text(
+                        "+ Add another place",
+                        color = accent,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .clickable { places = places + ExperiencePlaceDraft() }
+                            .padding(vertical = 8.dp),
                     )
+                    // Keep legacy single destination in sync with first place for summary
+                    LaunchedEffect(places) {
+                        destination = places.firstOrNull()?.label.orEmpty()
+                        startDateIso = places.firstOrNull()?.startIso
+                        endDateIso = places.lastOrNull { it.endIso != null }?.endIso
+                            ?: places.firstOrNull()?.endIso
+                    }
                 }
             }
 
@@ -281,26 +415,16 @@ fun GroupExperienceSetupContent(
 
             GroupLongFormSectionCard(step = "02", title = "Dates, Budget & Split", accent = accent) {
                 GroupLongFormGroupTitle("Plan the Practical Details")
-                GroupLongFormDestinationField(
-                    label = "Destination",
-                    hint = "Where you're going",
-                    value = destination,
-                    onValueChange = { destination = it },
-                    placeholder = "e.g. Goa, India",
-                    testTag = MaestroIds.setupField("destinationPractical"),
-                )
-                SetupDateRangeField(
-                    label = "Dates",
-                    startIso = startDateIso,
-                    endIso = endDateIso,
-                    onStartChange = { startDateIso = it },
-                    onEndChange = { endDateIso = it },
-                    testTag = MaestroIds.setupDate("dates"),
+                Text(
+                    places.firstOrNull()?.label?.takeIf { it.isNotBlank() } ?: "Add places in section 01",
+                    color = GroupSetupTheme.TextSecondary,
+                    fontSize = 13.sp,
+                    fontFamily = PlusJakartaSans,
                 )
                 HorizontalDivider(color = GroupSetupTheme.Border, thickness = 1.dp)
                 GroupLongFormGroupTitle("Money")
                 GroupLongFormPrefRow(
-                    label = "Budget",
+                    label = "Primary budget",
                     hint = "Expected total",
                     value = budget,
                     options = GroupBudgetUtils.PRESET_OPTIONS,
@@ -316,13 +440,53 @@ fun GroupExperienceSetupContent(
                     )
                 }
                 GroupLongFormPrefRow(
-                    label = "Currency",
+                    label = "Primary currency",
                     hint = "Default currency",
                     value = currency,
-                    options = listOf("INR", "USD", "EUR"),
+                    options = GroupTravelCurrencyCatalog.codes,
                     onValueChange = { currency = it },
                     testTag = MaestroIds.setupDropdown("currency"),
                 )
+                if (multiCurrency.equals("Enabled", ignoreCase = true)) {
+                    extraBudgets.forEachIndexed { index, row ->
+                        GroupLongFormPrefRow(
+                            label = "Currency ${index + 2}",
+                            hint = GroupTravelCurrencyCatalog.display(row.currencyCode),
+                            value = row.currencyCode,
+                            options = GroupTravelCurrencyCatalog.codes.filter { it != currency },
+                            onValueChange = { code ->
+                                extraBudgets = extraBudgets.toMutableList().also {
+                                    it[index] = it[index].copy(currencyCode = code)
+                                }
+                            },
+                            testTag = MaestroIds.setupDropdown("extraCurrency_$index"),
+                        )
+                        GroupBudgetCustomField(
+                            value = row.amount,
+                            onValueChange = { amt ->
+                                extraBudgets = extraBudgets.toMutableList().also {
+                                    it[index] = it[index].copy(amount = amt)
+                                }
+                            },
+                            currencyCode = row.currencyCode,
+                        )
+                    }
+                    Text(
+                        "+ Add currency",
+                        color = accent,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .clickable {
+                                val next = GroupTravelCurrencyCatalog.codes.firstOrNull { c ->
+                                    c != currency && extraBudgets.none { it.currencyCode == c }
+                                } ?: "USD"
+                                extraBudgets = extraBudgets + ExtraBudgetDraft(currencyCode = next)
+                            }
+                            .padding(vertical = 8.dp),
+                    )
+                }
                 GroupLongFormPrefRow(
                     label = "Split style",
                     hint = "How costs are shared",
@@ -345,7 +509,7 @@ fun GroupExperienceSetupContent(
                     label = "Payment rhythm",
                     hint = "How to settle",
                     value = paymentRhythm,
-                    options = listOf("After each expense", "Weekly", "End of trip"),
+                    options = listOf("After each expense", "Weekly", "End of trip", "Manual expense"),
                     onValueChange = { paymentRhythm = it },
                     testTag = MaestroIds.setupDropdown("paymentRhythm"),
                 )
@@ -431,8 +595,24 @@ fun GroupExperienceSetupContent(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     SummaryLine("Experience", name)
+                    SummaryLine(
+                        "Destinations",
+                        places.filter { it.label.isNotBlank() }.joinToString(" → ") { it.label }
+                            .ifBlank { destination.ifBlank { "—" } },
+                    )
                     SummaryLine("Dates", SetupDateTimeUtils.formatDateRangeDisplay(startDateIso, endDateIso))
-                    SummaryLine("Budget", GroupBudgetUtils.summaryLabel(budget, budgetCustomAmount))
+                    SummaryLine(
+                        "Budget",
+                        buildString {
+                            append(GroupBudgetUtils.summaryLabel(budget, budgetCustomAmount))
+                            append(" ")
+                            append(currency)
+                            if (multiCurrency.equals("Enabled", ignoreCase = true) && extraBudgets.isNotEmpty()) {
+                                append(" + ")
+                                append(extraBudgets.joinToString(" + ") { it.currencyCode })
+                            }
+                        },
+                    )
                     SummaryLine("Members", buildMemberSummary(people))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -467,62 +647,137 @@ fun GroupExperienceSetupContent(
                 if (error != null) {
                     Text(error, color = ColorError, fontSize = 12.sp, fontFamily = PlusJakartaSans)
                 }
+                fun buildGroupSetupBlock(): GroupSetupBlockDto? {
+                    val primaryAmount = GroupBudgetUtils.resolveBudgetAmount(budget, budgetCustomAmount)
+                        ?: return null
+                    val placeDtos = places
+                        .filter { it.label.isNotBlank() }
+                        .map {
+                            GroupSetupPlaceDto(
+                                label = it.label.trim(),
+                                startAt = SetupDateTimeUtils.isoDateToStartInstant(it.startIso),
+                                endAt = SetupDateTimeUtils.isoDateToEndInstant(it.endIso ?: it.startIso),
+                            )
+                        }
+                        .ifEmpty {
+                            destination.takeIf { it.isNotBlank() }?.let {
+                                listOf(
+                                    GroupSetupPlaceDto(
+                                        label = it.trim(),
+                                        startAt = SetupDateTimeUtils.isoDateToStartInstant(startDateIso),
+                                        endAt = SetupDateTimeUtils.isoDateToEndInstant(endDateIso ?: startDateIso),
+                                    ),
+                                )
+                            }.orEmpty()
+                        }
+                    val budgetDtos = buildList {
+                        add(
+                            GroupSetupBudgetDto(
+                                currencyCode = currency,
+                                amount = primaryAmount,
+                                isPrimary = true,
+                            ),
+                        )
+                        if (multiCurrency.equals("Enabled", ignoreCase = true)) {
+                            extraBudgets.forEach { row ->
+                                val amt = row.amount.filter { it.isDigit() || it == '.' }
+                                    .takeIf { it.isNotBlank() } ?: return@forEach
+                                if (row.currencyCode.equals(currency, ignoreCase = true)) return@forEach
+                                add(
+                                    GroupSetupBudgetDto(
+                                        currencyCode = row.currencyCode,
+                                        amount = amt,
+                                        isPrimary = false,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                    val apiSplit = when (splitStyle) {
+                        "By share" -> "SHARES"
+                        "Host pays" -> "POOLED"
+                        "Custom" -> "EXACT"
+                        else -> "EQUAL"
+                    }
+                    return GroupSetupBlockDto(
+                        budgetAmount = primaryAmount,
+                        budgetCurrencyCode = currency,
+                        destinationText = placeDtos.firstOrNull()?.label
+                            ?: destination.takeIf { it.isNotBlank() },
+                        places = placeDtos.takeIf { it.isNotEmpty() },
+                        budgets = budgetDtos,
+                        multiCurrencyEnabled = multiCurrency.equals("Enabled", ignoreCase = true),
+                        splitStyle = apiSplit,
+                        primaryGoal = primaryGoal,
+                        reminderPreferences = mapOf(
+                            "expenseReminders" to (expenseReminders.equals("Enabled", ignoreCase = true)),
+                            "photoReminders" to (photoReminders.equals("Enabled", ignoreCase = true)),
+                        ),
+                        setupPreferences = mapOf(
+                            "paymentRhythm" to paymentRhythm,
+                            "joinApproval" to joinApproval,
+                            "updateCadence" to updateCadence,
+                        ),
+                    )
+                }
+                fun submitExperience(status: String) {
+                    if (name.isBlank()) return
+                    val startAt = SetupDateTimeUtils.isoDateToStartInstant(
+                        places.firstOrNull()?.startIso ?: startDateIso,
+                    )
+                    val endAt = SetupDateTimeUtils.isoDateToEndInstant(
+                        places.mapNotNull { it.endIso ?: it.startIso }.lastOrNull()
+                            ?: endDateIso
+                            ?: startDateIso,
+                    )
+                    val invitees = people
+                        .filter { it.roleCode != "ORGANIZER" }
+                        .map {
+                            CreateMomentParticipantBody(
+                                displayName = it.name,
+                                roleCode = it.roleCode,
+                                email = it.contactEmail,
+                                phone = it.contactPhone,
+                            )
+                        }
+                    createViewModel.submitGroupMoment(
+                        section = "experience",
+                        momentTypeCode = selectedCode,
+                        title = name.trim(),
+                        description = selected.defaultNotes.takeIf { it.isNotBlank() },
+                        startAt = startAt,
+                        endAt = endAt,
+                        participants = invitees,
+                        inviteCode = issuedInvite?.inviteCode,
+                        groupSetup = buildGroupSetupBlock(),
+                        editingMomentId = editingMomentId,
+                        editingMomentStatus = editingMomentStatus,
+                        status = status,
+                        onSuccess = { outcome ->
+                            scope.launch {
+                                accountRepo.patchMomentNotificationPreferences(
+                                    outcome.momentId,
+                                    notifyChanges,
+                                    mapOf(
+                                        "expenseReminders" to (expenseReminders.equals("Enabled", ignoreCase = true)),
+                                        "photoReminders" to (photoReminders.equals("Enabled", ignoreCase = true)),
+                                    ),
+                                )
+                                if (status == "DRAFT" && editingMomentId == null) {
+                                    // Stay on setup for draft; still notify host shell
+                                }
+                                onCreated(outcome)
+                            }
+                        },
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(palette.accentGradient)
-                        .clickable(enabled = !submitting) {
-                            if (name.isBlank()) return@clickable
-                            val startAt = SetupDateTimeUtils.isoDateToStartInstant(startDateIso)
-                            val endAt = SetupDateTimeUtils.isoDateToEndInstant(endDateIso ?: startDateIso)
-                            val invitees = people
-                                .filter { it.roleCode != "ORGANIZER" }
-                                .map {
-                                    CreateMomentParticipantBody(
-                                        displayName = it.name,
-                                        roleCode = it.roleCode,
-                                        email = it.contactEmail,
-                                        phone = it.contactPhone,
-                                    )
-                                }
-                            val budgetAmount = GroupBudgetUtils.resolveBudgetAmount(budget, budgetCustomAmount)
-                            val reminderPreferences = mapOf(
-                                "expenseReminders" to (expenseReminders.equals("Enabled", ignoreCase = true)),
-                                "photoReminders" to (photoReminders.equals("Enabled", ignoreCase = true)),
-                            )
-                            val groupSetup = budgetAmount?.let {
-                                GroupSetupBlockDto(
-                                    budgetAmount = it,
-                                    budgetCurrencyCode = currency,
-                                    destinationText = destination.takeIf { d -> d.isNotBlank() },
-                                    reminderPreferences = reminderPreferences,
-                                )
-                            }
-                            createViewModel.submitGroupMoment(
-                                section = "experience",
-                                momentTypeCode = selectedCode,
-                                title = name.trim(),
-                                description = selected.defaultNotes.takeIf { it.isNotBlank() },
-                                startAt = startAt,
-                                endAt = endAt,
-                                participants = invitees,
-                                inviteCode = issuedInvite?.inviteCode,
-                                groupSetup = groupSetup,
-                                editingMomentId = editingMomentId,
-                                onSuccess = { outcome ->
-                                    scope.launch {
-                                        accountRepo.patchMomentNotificationPreferences(
-                                            outcome.momentId,
-                                            notifyChanges,
-                                            reminderPreferences,
-                                        )
-                                        onCreated(outcome)
-                                    }
-                                },
-                            )
-                        }
+                        .clickable(enabled = !submitting) { submitExperience("ACTIVE") }
                         .testTag(MaestroIds.GROUP_SETUP_SUBMIT)
                         .semantics {
                             role = Role.Button
@@ -542,6 +797,53 @@ fun GroupExperienceSetupContent(
                             color = GroupSetupTheme.CtaText,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .border(1.dp, GroupSetupTheme.Border, RoundedCornerShape(14.dp))
+                            .clickable(enabled = !submitting) { submitExperience("DRAFT") }
+                            .testTag(MaestroIds.setupField("saveDraft"))
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = "Save draft"
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "Save draft",
+                            color = GroupSetupTheme.TextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable(enabled = !submitting, onClick = onBack)
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = "Schedule later"
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "Schedule later",
+                            color = GroupSetupTheme.TextSecondary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
                             fontFamily = PlusJakartaSans,
                         )
                     }

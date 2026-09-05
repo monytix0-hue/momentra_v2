@@ -19,7 +19,7 @@ import com.example.momentra.ui.shell.empty.business.BusinessSetupBottomSheet
 fun BusinessCreateFlow(
     companyId: String?,
     onCreateBack: () -> Unit,
-    onMomentCreated: (String, String, String?) -> Unit,
+    onMomentCreated: (String, String, String?, String) -> Unit,
     modifier: Modifier = Modifier,
     createViewModel: MomentCreateViewModel = viewModel(),
 ) {
@@ -56,7 +56,7 @@ fun BusinessCreateFlow(
                     },
                     onCreated = { outcome: CreateMomentOutcome ->
                         openSetup = null
-                        onMomentCreated(outcome.momentId, outcome.title, outcome.momentTypeCode)
+                        onMomentCreated(outcome.momentId, outcome.title, outcome.momentTypeCode, outcome.status)
                     },
                     modifier = Modifier.fillMaxSize(),
                 )

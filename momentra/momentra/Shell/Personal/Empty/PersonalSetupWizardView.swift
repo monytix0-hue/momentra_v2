@@ -53,7 +53,7 @@ struct PersonalSetupWizardView: View {
     var editingMomentId: String? = nil
     var initialTitle: String? = nil
     var onBack: () -> Void
-    var onCreated: (String, String, String?) -> Void
+    var onCreated: (String, String, String?, String) -> Void
 
     var body: some View {
         switch system {

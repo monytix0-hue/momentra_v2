@@ -39,7 +39,7 @@ import com.example.momentra.ui.theme.PlusJakartaSans
 import java.util.Locale
 import kotlin.math.roundToInt
 
-private enum PollsListFilter(val label: String) {
+private enum class PollsListFilter(val label: String) {
     All("All"),
     Active("Active"),
     Closed("Closed"),

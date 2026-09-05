@@ -2,14 +2,15 @@ package com.example.momentra.ui.shell.group.experience.memory
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -23,32 +24,42 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.GroupFinancePayloadDto
+import com.example.momentra.data.api.GroupMemoryItemDto
 import com.example.momentra.data.api.GroupMemoryPayloadDto
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
+import com.example.momentra.ui.shell.group.experience.create.ExperienceActiveTheme
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
+import com.example.momentra.ui.shell.group.shared.GroupActiveTheme
+import com.example.momentra.ui.shell.group.shared.GroupApiGapBadge
+import com.example.momentra.ui.shell.group.shared.GroupComingSoonBadge
+import com.example.momentra.ui.shell.group.shared.GroupCtaButton
+import com.example.momentra.ui.shell.group.shared.GroupEmptySection
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
+import com.example.momentra.ui.shell.group.shared.GroupMetricTile
 import com.example.momentra.ui.shell.group.shared.GroupProgressBar
+import com.example.momentra.ui.shell.group.shared.GroupSectionCard
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.loadGroupMemoryTab
 import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
 import com.example.momentra.ui.shell.group.shared.RemoteMemoryImage
-import com.example.momentra.ui.shell.group.shared.loadGroupMemoryTab
 import com.example.momentra.ui.shell.group.shared.primaryDownloadUrl
 import com.example.momentra.ui.theme.PlusJakartaSans
-import com.example.momentra.ui.shell.group.experience.create.ExperienceActiveTheme
-import com.example.momentra.ui.shell.group.experience.create.ExperienceEmptyBlock
-import com.example.momentra.ui.shell.group.experience.create.ExperienceSectionCard
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
-/** Figma 584:15935 / 584:16653 — Experience Memory. Live APIs only. */
+/** Figma 575:14470 — Experience Memory. Live APIs only. */
 @Composable
 fun ExperienceMemoryActiveContent(
     theme: ExperienceActiveTheme,
@@ -114,6 +125,12 @@ fun ExperienceMemoryActiveContent(
     val displayTitle = momentTitle ?: "${theme.typeLabel} Memory"
     val utilization = GroupFinanceFormat.utilizationPercent(total?.expenseTotal, total?.budgetTotal)
     val positions = finance?.positions.orEmpty()
+    val timelineAccents = listOf(
+        Color(0xFF14B8A6),
+        Color(0xFFB45309),
+        Color(0xFFA855F7),
+        GroupActiveTheme.AccentOrange,
+    )
     val nameById = remember(participants) {
         participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
     }
@@ -121,7 +138,7 @@ fun ExperienceMemoryActiveContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(theme.bg)
+            .background(GroupActiveTheme.Bg)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .padding(bottom = 56.dp),
@@ -129,95 +146,70 @@ fun ExperienceMemoryActiveContent(
     ) {
         error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(theme.heroGradient)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text("GROUP MEMORY", color = Color.White.copy(alpha = 0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
-            Text(displayTitle, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
-            Text("$people people shaped this moment", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, fontFamily = PlusJakartaSans)
-            Text(
-                if (memoryCount > 0) "$memoryCount memories captured" else "No memories yet",
-                color = theme.darkText,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = PlusJakartaSans,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color.White.copy(alpha = 0.9f))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            )
-        }
+        ExperienceMemoryHeroCard(
+            title = displayTitle,
+            peopleCount = people,
+            memoryCount = memoryCount,
+            theme = theme,
+        )
 
-        ExperienceSectionCard(theme, "Memory Timeline") {
+        GroupSectionCard(title = "Memory Timeline") {
             if (items.isEmpty()) {
-                ExperienceEmptyBlock(theme, "Timeline empty", "Shared memories will appear here — nothing is invented.")
+                GroupEmptySection(
+                    message = "Timeline empty",
+                    detail = "Shared memories will appear here — nothing is invented.",
+                )
             } else {
-                items.forEach { item ->
-                    val thumbUrl = item.primaryDownloadUrl()
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(theme.accentSoft)
-                            .border(1.dp, theme.accent.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (thumbUrl != null) {
-                            RemoteMemoryImage(
-                                url = thumbUrl,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .border(1.dp, theme.accent.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
-                            )
-                        }
-                        Text(
-                            item.title ?: "Memory",
-                            color = theme.text,
-                            fontSize = 13.sp,
-                            fontFamily = PlusJakartaSans,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+                items.forEachIndexed { index, item ->
+                    ExperienceMemoryTimelineRow(
+                        item = item,
+                        accent = timelineAccents[index % timelineAccents.size],
+                        glyph = experienceMemoryGlyph(index),
+                    )
                 }
             }
         }
 
-        ExperienceSectionCard(theme, "Memory Gallery") {
+        GroupSectionCard(title = "Milestone Wall", badge = { GroupApiGapBadge() }) {
+            GroupEmptySection(
+                message = "No milestones yet",
+                detail = "Milestone capture is not live for groups.",
+            )
+        }
+
+        GroupSectionCard(title = "Memory Gallery") {
             MemoryPhotoGalleryStrip(
                 items = items,
                 emptyMessage = "No photos yet",
                 emptyDetail = "Add a memory with a photo from Quick Add.",
-                text = theme.text,
-                muted = theme.secondary,
-                field = theme.card,
-                border = theme.border,
+                text = GroupActiveTheme.Text,
+                muted = GroupActiveTheme.Secondary,
+                field = GroupActiveTheme.Card,
+                border = GroupActiveTheme.Border,
             )
         }
 
-        ExperienceSectionCard(theme, "People Impact") {
-            Text("Participants: $people", color = theme.text, fontSize = 13.sp, fontFamily = PlusJakartaSans)
-            if (positions.isEmpty()) {
-                ExperienceEmptyBlock(theme, "No contributors yet", "People appear after expenses and activity are recorded.")
-            } else {
+        GroupSectionCard(title = "People Impact") {
+            Text(
+                if (people > 0) "$people people shaped this shared story" else "No participants yet",
+                color = GroupActiveTheme.Text,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+            )
+            GroupMetricTile("Participants", "$people")
+            if (positions.isNotEmpty()) {
                 positions.take(3).forEach { pos ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(
                             nameById[pos.participantId] ?: pos.participantId.take(8),
-                            color = theme.text,
+                            color = GroupActiveTheme.Text,
                             fontSize = 12.sp,
                             fontFamily = PlusJakartaSans,
                         )
                         Text(
                             BalanceMask.mask(GroupFinanceFormat.formatMoney(pos.netPosition, pos.currencyCode), hide),
-                            color = theme.secondary,
+                            color = GroupActiveTheme.Secondary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             fontFamily = PlusJakartaSans,
@@ -227,63 +219,212 @@ fun ExperienceMemoryActiveContent(
             }
         }
 
-        ExperienceSectionCard(theme, theme.budgetTitle) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    "Planned ${BalanceMask.mask(GroupFinanceFormat.formatMoney(total?.budgetTotal, currency), hide)}",
-                    color = theme.text,
-                    fontSize = 12.sp,
-                    fontFamily = PlusJakartaSans,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    "Actual ${BalanceMask.mask(GroupFinanceFormat.formatMoney(total?.expenseTotal, currency), hide)}",
-                    color = theme.text,
-                    fontSize = 12.sp,
-                    fontFamily = PlusJakartaSans,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            if (total?.budgetTotal != null) {
-                Text("$utilization% of planned", color = theme.accentLight, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+        GroupSectionCard(title = theme.budgetTitle) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Brush.horizontalGradient(listOf(theme.accentSolid, theme.accentLight)))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Planned", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, fontFamily = PlusJakartaSans)
+                        Text(
+                            BalanceMask.mask(GroupFinanceFormat.formatMoney(total?.budgetTotal, currency), hide),
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Actual", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, fontFamily = PlusJakartaSans)
+                        Text(
+                            BalanceMask.mask(GroupFinanceFormat.formatMoney(total?.expenseTotal, currency), hide),
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                }
                 GroupProgressBar(percent = utilization)
-            } else {
-                Text("Set a budget to track planned vs actual.", color = theme.secondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
+                Text(
+                    if (utilization > 0) "$utilization% of planned budget used"
+                    else "Set a budget to track planned vs actual.",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 11.sp,
+                    fontFamily = PlusJakartaSans,
+                )
             }
         }
 
-        ExperienceSectionCard(theme, "Memory Intelligence") {
-            ExperienceEmptyBlock(theme, "Insights coming soon", "AI memory intelligence for groups is on the roadmap — no invented copy.")
+        GroupSectionCard(title = "Memory Intelligence", badge = { GroupComingSoonBadge() }) {
+            GroupEmptySection(
+                message = "Insights coming soon",
+                detail = "AI memory intelligence for groups is on the roadmap — no invented copy.",
+            )
         }
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(theme.heroGradient)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .clip(RoundedCornerShape(18.dp))
+                .background(Brush.horizontalGradient(listOf(GroupActiveTheme.Brand, GroupActiveTheme.AccentOrange)))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Preserve this moment", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
             Text(
-                "Capture a memory, photo, or update for the ${theme.typeLabel.lowercase()} story.",
-                color = Color.White.copy(alpha = 0.9f),
-                fontSize = 13.sp,
+                "Preserve this moment",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.ExtraBold,
                 fontFamily = PlusJakartaSans,
             )
             Text(
-                "+ Capture Memory",
-                color = theme.darkText,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                "Capture a memory, photo, or update for the ${theme.typeLabel.lowercase()} story.",
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 12.sp,
                 fontFamily = PlusJakartaSans,
+            )
+            GroupCtaButton(label = "+ Capture Memory", enabled = true, onClick = onOpenQuickAdd)
+        }
+    }
+}
+
+@Composable
+private fun ExperienceMemoryHeroCard(
+    title: String,
+    peopleCount: Int,
+    memoryCount: Int,
+    theme: ExperienceActiveTheme,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(theme.accentSolid, theme.accentLight, Color(0xFF3D2A24)),
+                ),
+            )
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White)
-                    .clickable(onClick = onOpenQuickAdd)
-                    .padding(vertical = 14.dp),
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color.White.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(theme.heroEmoji, fontSize = 24.sp)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+                Text(
+                    "What you'll remember from this ${theme.typeLabel.lowercase()}",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ExperienceMemoryHeroChip("$peopleCount people")
+            ExperienceMemoryHeroChip(
+                if (memoryCount > 0) "$memoryCount memories captured" else "No memories yet",
             )
         }
     }
+}
+
+@Composable
+private fun ExperienceMemoryHeroChip(label: String) {
+    Text(
+        label,
+        color = Color.White,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        fontFamily = PlusJakartaSans,
+        modifier = Modifier
+            .clip(RoundedCornerShape(100.dp))
+            .background(Color.White.copy(alpha = 0.16f))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    )
+}
+
+@Composable
+private fun ExperienceMemoryTimelineRow(
+    item: GroupMemoryItemDto,
+    accent: Color,
+    glyph: String,
+) {
+    val thumbUrl = item.primaryDownloadUrl()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF181716))
+            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .size(width = 3.dp, height = 40.dp)
+                .clip(RoundedCornerShape(100.dp))
+                .background(accent),
+        )
+        if (thumbUrl != null) {
+            RemoteMemoryImage(
+                url = thumbUrl,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(accent.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(glyph, fontSize = 16.sp)
+            }
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                item.title ?: item.memoryId.orEmpty(),
+                color = GroupActiveTheme.Text,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+            )
+            formatExperienceMemoryInstant(item.occurredAt)?.let {
+                Text(it, color = GroupActiveTheme.Secondary, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+            }
+        }
+    }
+}
+
+private fun experienceMemoryGlyph(index: Int): String = when (index % 4) {
+    0 -> "📷"
+    1 -> "🎉"
+    2 -> "🌅"
+    else -> "✨"
+}
+
+private fun formatExperienceMemoryInstant(raw: String?): String? {
+    if (raw.isNullOrBlank()) return null
+    return runCatching {
+        OffsetDateTime.parse(raw).format(DateTimeFormatter.ofPattern("d MMM · h:mm a", Locale.US))
+    }.getOrNull()
 }

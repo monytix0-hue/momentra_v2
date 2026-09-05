@@ -850,6 +850,32 @@ final class APIClient {
         try await authorizedPostWithHints(path: "v1/moments", body: body, idempotencyKey: idempotencyKey)
     }
 
+    func getGroupSetupPrefill(momentId: String) async throws -> GroupSetupPrefill {
+        try await authorizedGet(path: "v1/group/moments/\(momentId)/setup")
+    }
+
+    func getDomainSetupPrefill(momentId: String) async throws -> DomainSetupPrefill {
+        try await authorizedGet(path: "v1/moments/\(momentId)/setup")
+    }
+
+    func activateMoment(momentId: String, idempotencyKey: String = UUID().uuidString) async throws -> CreateMomentResult {
+        struct EmptyBody: Encodable {}
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/activate",
+            body: EmptyBody(),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func discardMomentDraft(momentId: String, idempotencyKey: String = UUID().uuidString) async throws -> DiscardMomentDraftResult {
+        struct EmptyBody: Encodable {}
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/discard-draft",
+            body: EmptyBody(),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
     struct MomentDetailPayload: Decodable {
         let momentId: String
         let domainCode: String
@@ -2438,6 +2464,7 @@ final class APIClient {
         paidByParticipantId: String,
         splitStrategy: String,
         splitInputs: [GroupSplitInput],
+        asDraft: Bool? = nil,
         idempotencyKey: String = UUID().uuidString
     ) async throws -> CreateGroupExpenseResult {
         struct Body: Encodable {
@@ -2447,6 +2474,7 @@ final class APIClient {
             let paidByParticipantId: String
             let splitStrategy: String
             let splitInputs: [GroupSplitInput]
+            let asDraft: Bool?
         }
         return try await authorizedPost(
             path: "v1/moments/\(momentId)/group-expenses",
@@ -2456,7 +2484,8 @@ final class APIClient {
                 description: description,
                 paidByParticipantId: paidByParticipantId,
                 splitStrategy: splitStrategy,
-                splitInputs: splitInputs
+                splitInputs: splitInputs,
+                asDraft: asDraft
             ),
             idempotencyKey: idempotencyKey
         )
@@ -2551,6 +2580,7 @@ final class APIClient {
         location: String? = nil,
         priorityCode: String? = nil,
         description: String? = nil,
+        asDraft: Bool? = nil,
         idempotencyKey: String = UUID().uuidString
     ) async throws -> CollabIdResult {
         struct Body: Encodable {
@@ -2560,6 +2590,7 @@ final class APIClient {
             let location: String?
             let priorityCode: String?
             let description: String?
+            let asDraft: Bool?
         }
         return try await authorizedPost(
             path: "v1/moments/\(momentId)/planning-items",
@@ -2569,7 +2600,8 @@ final class APIClient {
                 categoryCode: categoryCode,
                 location: location,
                 priorityCode: priorityCode,
-                description: description
+                description: description,
+                asDraft: asDraft
             ),
             idempotencyKey: idempotencyKey
         )
@@ -2859,9 +2891,9 @@ final class APIClient {
         return try await authorizedPost(path: "v1/moments/\(momentId)/bookings", body: Body(title: title, bookedAt: bookedAt), idempotencyKey: idempotencyKey)
     }
 
-    func createPoll(momentId: String, question: String, options: [String], closesAt: String? = nil, pollType: String? = nil, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {
-        struct Body: Encodable { let question: String; let options: [String]; let closesAt: String?; let pollType: String? }
-        return try await authorizedPost(path: "v1/moments/\(momentId)/polls", body: Body(question: question, options: options, closesAt: closesAt, pollType: pollType), idempotencyKey: idempotencyKey)
+    func createPoll(momentId: String, question: String, options: [String], closesAt: String? = nil, pollType: String? = nil, asDraft: Bool? = nil, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {
+        struct Body: Encodable { let question: String; let options: [String]; let closesAt: String?; let pollType: String?; let asDraft: Bool? }
+        return try await authorizedPost(path: "v1/moments/\(momentId)/polls", body: Body(question: question, options: options, closesAt: closesAt, pollType: pollType, asDraft: asDraft), idempotencyKey: idempotencyKey)
     }
 
     func postGroupUpdate(
@@ -2869,23 +2901,25 @@ final class APIClient {
         message: String,
         notifyMembers: Bool = true,
         urgencyCode: String = "NORMAL",
+        asDraft: Bool? = nil,
         idempotencyKey: String = UUID().uuidString
     ) async throws -> CollabIdResult {
         struct Body: Encodable {
             let message: String
             let notifyMembers: Bool
             let urgencyCode: String
+            let asDraft: Bool?
         }
         return try await authorizedPost(
             path: "v1/moments/\(momentId)/updates",
-            body: Body(message: message, notifyMembers: notifyMembers, urgencyCode: urgencyCode),
+            body: Body(message: message, notifyMembers: notifyMembers, urgencyCode: urgencyCode, asDraft: asDraft),
             idempotencyKey: idempotencyKey
         )
     }
 
-    func createGroupMemory(momentId: String, title: String, capturedAt: String? = nil, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {
-        struct Body: Encodable { let title: String; let capturedAt: String? }
-        return try await authorizedPost(path: "v1/moments/\(momentId)/memories", body: Body(title: title, capturedAt: capturedAt), idempotencyKey: idempotencyKey)
+    func createGroupMemory(momentId: String, title: String, capturedAt: String? = nil, asDraft: Bool? = nil, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {
+        struct Body: Encodable { let title: String; let capturedAt: String?; let asDraft: Bool? }
+        return try await authorizedPost(path: "v1/moments/\(momentId)/memories", body: Body(title: title, capturedAt: capturedAt, asDraft: asDraft), idempotencyKey: idempotencyKey)
     }
 
     func addGroupParticipant(momentId: String, displayName: String, roleCode: String = "PARTICIPANT", email: String? = nil, phone: String? = nil, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {

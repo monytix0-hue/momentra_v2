@@ -61,7 +61,7 @@ fun PersonalSetupSystem.toPulseFamily(): PersonalPulseFamily = when (this) {
 fun PersonalSetupWizardContent(
     system: PersonalSetupSystem,
     onBack: () -> Unit,
-    onCreated: (momentId: String, title: String, momentTypeCode: String?) -> Unit,
+    onCreated: (momentId: String, title: String, momentTypeCode: String?, status: String) -> Unit,
     createViewModel: MomentCreateViewModel = viewModel(),
     modifier: Modifier = Modifier,
     editingMomentId: String? = null,

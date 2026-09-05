@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PersonalCreateEmptyView: View {
     var history: [MomentSummary] = []
-    var onMomentCreated: (String, String, String?) -> Void = { _, _, _ in }
+    var onMomentCreated: (String, String, String?, String) -> Void = { _, _, _, _ in }
     var onOpenExisting: (String) -> Void = { _ in }
 
     @State private var wizard: PersonalSetupSystem?
@@ -13,9 +13,9 @@ struct PersonalCreateEmptyView: View {
                 PersonalSetupWizardView(
                     system: system,
                     onBack: { wizard = nil },
-                    onCreated: { id, title, typeCode in
+                    onCreated: { id, title, typeCode, status in
                         wizard = nil
-                        onMomentCreated(id, title, typeCode)
+                        onMomentCreated(id, title, typeCode, status)
                     }
                 )
                 .presentationDetents([.large])

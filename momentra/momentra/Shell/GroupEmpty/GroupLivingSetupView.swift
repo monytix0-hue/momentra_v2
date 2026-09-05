@@ -81,6 +81,7 @@ struct GroupSectionSetupView: View {
     @State private var houseReview: String
     @State private var people: [DraftPerson]
     @State private var peopleEdited = false
+    @State private var editingMomentStatus: String?
     @State private var issuedInvite: GroupInvite?
     @State private var mintingInvite = false
     @State private var inviteError: String?
@@ -210,6 +211,14 @@ struct GroupSectionSetupView: View {
     }
 
     private func loadEditPrefill(momentId: String) async {
+        if let prefill = await createModel.getGroupSetupPrefill(momentId: momentId) {
+            await MainActor.run {
+                editingMomentStatus = prefill.status
+                if let title = prefill.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+                    name = title
+                }
+            }
+        }
         if let prefs = try? await APIClient.shared.getMomentNotificationPreferences(momentId: momentId) {
             await MainActor.run {
                 let rem = prefs.reminderPreferences ?? [:]
@@ -285,13 +294,21 @@ struct GroupSectionSetupView: View {
 
     private var headerRow: some View {
         HStack {
-            Button(action: onBack) {
+            Button(action: {
+                if let editingMomentId,
+                   editingMomentStatus?.caseInsensitiveCompare("DRAFT") == .orderedSame {
+                    createModel.discardMomentDraft(momentId: editingMomentId, onSuccess: onBack)
+                } else {
+                    onBack()
+                }
+            }) {
                 HStack(spacing: 6) {
                     Text("×").font(.plusJakarta(size: 16)).foregroundStyle(GroupSetupTheme.textSecondary)
-                    Text("Close").font(.plusJakarta(size: 14)).foregroundStyle(GroupSetupTheme.textSecondary)
+                    Text("Discard draft").font(.plusJakarta(size: 14)).foregroundStyle(GroupSetupTheme.textSecondary)
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Discard draft")
             Spacer()
             Text("GROUP MODE")
                 .font(.plusJakarta(size: 12, weight: .semibold))
@@ -616,7 +633,7 @@ struct GroupSectionSetupView: View {
             .background(GroupSetupTheme.card, in: RoundedRectangle(cornerRadius: 16))
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(GroupSetupTheme.border, lineWidth: 1))
             GroupLongFormReadyBanner(message: isPurchase ? "Your shared purchase is ready" : "Your shared living space is ready")
-            Button(action: activate) {
+            Button(action: { submitSection(status: "ACTIVE") }) {
                 ZStack {
                     if createModel.state.submitting { ProgressView().tint(GroupSetupTheme.ctaText) }
                     else { Text("\(variant.activateLabel) →").font(.plusJakarta(size: 16, weight: .heavy)).foregroundStyle(GroupSetupTheme.ctaText) }
@@ -626,6 +643,35 @@ struct GroupSectionSetupView: View {
             }
             .buttonStyle(.plain)
             .disabled(createModel.state.submitting)
+            .accessibilityIdentifier("group.setup.submit")
+            HStack(spacing: 12) {
+                Button(action: { submitSection(status: "DRAFT") }) {
+                    Text("Save draft")
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(GroupSetupTheme.textPrimary)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(GroupSetupTheme.border, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(createModel.state.submitting)
+                .accessibilityIdentifier("setup.field.saveDraft")
+
+                Button(action: onBack) {
+                    Text("Schedule later")
+                        .font(.plusJakarta(size: 14, weight: .medium))
+                        .foregroundStyle(GroupSetupTheme.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(GroupSetupTheme.border, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(createModel.state.submitting)
+            }
             Text("Modify, extend or change anytime.")
                 .font(.plusJakarta(size: 12))
                 .foregroundStyle(GroupSetupTheme.textSecondary)
@@ -662,12 +708,9 @@ struct GroupSectionSetupView: View {
                         } label: {
                             ZStack {
                                 Circle().fill(GroupSetupTheme.iconSurface).frame(width: 32, height: 32)
-                                Image("ges_icon_x_circle")
-                                    .renderingMode(.template)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 14, height: 14)
-                                    .foregroundStyle(GroupSetupTheme.textSecondary)
+                                Text("Remove")
+                                    .font(.plusJakarta(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color(hex: "#EF4444"))
                             }
                         }
                         .buttonStyle(.plain)
@@ -775,7 +818,7 @@ struct GroupSectionSetupView: View {
         ]
     }
 
-    private func activate() {
+    private func submitSection(status: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         let budgetAmount = GroupBudgetUtils.resolveBudgetAmount(displayBudget: amount, customAmount: amountCustom)
@@ -812,13 +855,18 @@ struct GroupSectionSetupView: View {
             inviteCode: issuedInvite?.inviteCode,
             groupSetup: groupSetup,
             editingMomentId: editingMomentId,
+            editingMomentStatus: editingMomentStatus,
+            status: status,
             onSuccess: { outcome in
                 Task {
                     _ = try? await APIClient.shared.patchMomentNotificationPreferences(
                         momentId: outcome.momentId,
                         reminderPreferences: reminderPreferences
                     )
-                    await MainActor.run { onCreated(outcome) }
+                    await MainActor.run {
+                        editingMomentStatus = outcome.status
+                        onCreated(outcome)
+                    }
                 }
             }
         )

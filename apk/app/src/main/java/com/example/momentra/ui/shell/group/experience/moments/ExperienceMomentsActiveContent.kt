@@ -38,7 +38,9 @@ import com.example.momentra.ui.shell.group.shared.GroupEmptySection
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
+import com.example.momentra.ui.shell.group.shared.MomentsBookingCard
 import com.example.momentra.ui.shell.group.shared.MomentsChrome
+import com.example.momentra.ui.shell.group.shared.planningPlansPercent
 import com.example.momentra.ui.shell.group.shared.MomentsExpensesCard
 import com.example.momentra.ui.shell.group.shared.MomentsHeroHeader
 import com.example.momentra.ui.shell.group.shared.MomentsItineraryDayCard
@@ -58,7 +60,7 @@ import com.example.momentra.ui.shell.group.shared.loadGroupPulseTab
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.util.Locale
 
-/** Figma 584:15500 / 584:16218 — Experience Moments. Live APIs only. */
+/** Figma 575:14327 — Experience Moments. Live APIs only. */
 @Composable
 fun ExperienceMomentsActiveContent(
     theme: ExperienceActiveTheme,
@@ -169,6 +171,7 @@ fun ExperienceMomentsActiveContent(
     val upcoming = remember(bookings, planningItems, finance) {
         buildMomentsUpcomingEvents(bookings, planningItems, finance)
     }
+    val plansPct = planningPlansPercent(planningItems)
     val g0 = listOf(theme.accentSolid, theme.accent)
     val g1 = listOf(theme.accent, theme.accentLight)
     val g2 = listOf(theme.accentLight, theme.accentSolid)
@@ -182,10 +185,10 @@ fun ExperienceMomentsActiveContent(
         )
     } else {
         listOf(
-            Triple("GUESTS", "$peopleCount", g0),
-            Triple("BUDGET", GroupFinanceFormat.compactMoney(budgetTotal, currency), g1),
-            Triple("MOMENTS", "$moments", g2),
-            Triple("TASKS", "$openTasks", g3),
+            Triple("PEOPLE", "$peopleCount", listOf(Color(0xFF14B8A6), Color(0xFF0F766E))),
+            Triple("PLANS", "$plansPct%", listOf(Color(0xFFFF8E63), Color(0xFFE8744F))),
+            Triple("BUDGET", GroupFinanceFormat.compactMoney(budgetTotal, currency), listOf(Color(0xFFE88A4F), Color(0xFFC2410C))),
+            Triple("MOMENTS", "$moments", listOf(Color(0xFFA855F7), Color(0xFF7C3AED))),
         )
     }
     val showVendors = !isOfficeOuting || vendors.isNotEmpty()
@@ -292,6 +295,13 @@ fun ExperienceMomentsActiveContent(
             showMediaCountBadge = true,
         )
 
+        MomentsSectionHeader("Bookings  🛎️", chrome)
+        if (bookings.isEmpty()) {
+            GroupEmptySection("No bookings yet", "Add a booking from Quick Add when ready.")
+        } else {
+            bookings.take(4).forEach { MomentsBookingCard(it, chrome) }
+        }
+
         MomentsSectionHeader("Upcoming Events  🗓", chrome)
         if (upcoming.isEmpty()) {
             GroupEmptySection("Nothing upcoming", "Near-term bookings and plans will show here.")
@@ -310,12 +320,7 @@ fun ExperienceMomentsActiveContent(
             chrome = chrome,
         )
 
-        MomentsQuickAddCta(
-            chrome = chrome,
-            onClick = onOpenQuickAdd,
-            title = "Add to the ${theme.typeLabel.lowercase(Locale.US)} story",
-            subtitle = "Add a plan, expense, memory, poll or update.",
-        )
+        MomentsQuickAddCta(chrome = chrome, onClick = onOpenQuickAdd)
     }
 
     PlanningScheduleSheet(

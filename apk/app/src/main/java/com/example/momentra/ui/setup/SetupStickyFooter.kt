@@ -1,6 +1,7 @@
 package com.example.momentra.ui.setup
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,8 +39,10 @@ fun SetupStickyFooter(
     submitting: Boolean = false,
     saved: Boolean = true,
     onPreview: (() -> Unit)? = null,
+    onSaveDraft: (() -> Unit)? = null,
     accentBrush: Brush = Brush.horizontalGradient(listOf(Color(0xFF7C5CFC), Color(0xFFE91E63))),
     ctaTestTag: String? = null,
+    saveDraftTestTag: String? = null,
     backgroundColor: Color = SetupTokens.BgPrimary,
     modifier: Modifier = Modifier,
 ) {
@@ -110,6 +113,29 @@ fun SetupStickyFooter(
                 CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
             } else {
                 Text(ctaLabel, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+            }
+        }
+        if (onSaveDraft != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                    .clickable(enabled = !submitting, onClick = onSaveDraft)
+                    .then(if (saveDraftTestTag != null) Modifier.testTag(saveDraftTestTag) else Modifier)
+                    .semantics {
+                        role = Role.Button
+                        contentDescription = "Save draft"
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "Save draft",
+                    color = SetupTokens.TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
         }
     }

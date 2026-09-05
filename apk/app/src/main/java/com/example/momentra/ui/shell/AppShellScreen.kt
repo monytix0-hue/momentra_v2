@@ -408,9 +408,9 @@ fun AppShellScreen(
             if (newMomentOpen && state.selectedContext == AppContext.PERSONAL) {
                 PersonalCreateEmptyContent(
                     history = state.moments,
-                    onMomentCreated = { momentId, title, momentTypeCode ->
+                    onMomentCreated = { momentId, title, momentTypeCode, status ->
                         newMomentOpen = false
-                        shellViewModel.onMomentCreated(momentId, title, momentTypeCode)
+                        shellViewModel.onMomentCreated(momentId, title, momentTypeCode, status)
                     },
                     onOpenExisting = { momentId ->
                         newMomentOpen = false
@@ -465,10 +465,10 @@ fun AppShellScreen(
                         }
                     },
                     onCompanyActivated = shellViewModel::onCompanyCreated,
-                    onMomentCreated = { id, title, momentTypeCode ->
+                    onMomentCreated = { id, title, momentTypeCode, status ->
                         groupCreatePhase = GroupCreatePhase.CHOOSER
                         preferGroupCreateFlow = false
-                        shellViewModel.onMomentCreated(id, title, momentTypeCode)
+                        shellViewModel.onMomentCreated(id, title, momentTypeCode, status)
                     },
                     onJoinGroupCode = { code -> pendingGroupJoinCode = code },
                     preferGroupCreateFlow = preferGroupCreateFlow,
@@ -1132,7 +1132,7 @@ private fun ShellDestinationContent(
     onCreateMoment: () -> Unit,
     onCreateBack: () -> Unit = onCreateMoment,
     onCompanyActivated: (CompanySummary) -> Unit = {},
-    onMomentCreated: (String, String, String?) -> Unit = { _, _, _ -> },
+    onMomentCreated: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
     onJoinGroupCode: (String) -> Unit = {},
     preferGroupCreateFlow: Boolean = false,
     onPreferGroupCreateFlow: (Boolean) -> Unit = {},

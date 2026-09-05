@@ -7,6 +7,7 @@ struct SetupStickyFooter: View {
     var submitting: Bool = false
     var saved: Bool = true
     var onPreview: (() -> Void)? = nil
+    var onSaveDraft: (() -> Void)? = nil
     var accentGradient: LinearGradient = SetupTokens.personalCtaGradient
     var backgroundColor: Color = SetupTokens.bgPrimary
     var ctaTextColor: Color = .white
@@ -60,6 +61,20 @@ struct SetupStickyFooter: View {
             .buttonStyle(.plain)
             .disabled(submitting)
             .accessibilityLabel(ctaLabel)
+
+            if let onSaveDraft {
+                Button(action: onSaveDraft) {
+                    Text("Save draft")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(SetupTokens.textPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "#1E293B")))
+                }
+                .buttonStyle(.plain)
+                .disabled(submitting)
+                .accessibilityLabel("Save draft")
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

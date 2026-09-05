@@ -58,6 +58,57 @@ enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
         }
     }
 
+    var hubLabel: String {
+        switch self {
+        case .participant: return "Invite"
+        case .planning: return "Planning"
+        case .expense: return "Expense"
+        case .budget: return "Budget"
+        case .contribution: return "Contribution"
+        case .settle: return "Settle"
+        case .vendor: return "Vendor"
+        case .attendance: return "Attendance"
+        case .update: return "Update"
+        case .poll: return "Poll"
+        case .memory: return "Memory"
+        case .booking: return "Booking"
+        }
+    }
+
+    var hubIconAsset: String {
+        switch self {
+        case .participant: return "GroupQaUserPlus"
+        case .planning: return "GroupQaCalendar"
+        case .expense: return "GroupQaWallet"
+        case .budget: return "GroupQaChartBar"
+        case .contribution: return "GroupQaHandshake"
+        case .settle: return "GroupQaWallet"
+        case .vendor: return "GroupQaUserPlus"
+        case .attendance: return "GroupQaVote"
+        case .update: return "GroupQaMegaphone"
+        case .poll: return "GroupQaVote"
+        case .memory: return "GroupQaCamera"
+        case .booking: return "GroupQaTicket"
+        }
+    }
+
+    var hubGradient: [Color] {
+        switch self {
+        case .participant: return [Color(hex: "#FFB598"), Color(hex: "#E8621A")]
+        case .planning: return [Color(hex: "#14B8A6"), Color(hex: "#0F766E")]
+        case .expense: return [Color(hex: "#33C759"), Color(hex: "#0F766E")]
+        case .budget: return [Color(hex: "#FFB598"), Color(hex: "#E8621A")]
+        case .contribution: return [Color(hex: "#10B981"), Color(hex: "#047857")]
+        case .settle: return [Color(hex: "#059669"), Color(hex: "#10B981")]
+        case .vendor: return [Color(hex: "#93C5FD"), Color(hex: "#3B82F6")]
+        case .attendance: return [Color(hex: "#10B981"), Color(hex: "#047857")]
+        case .update: return [Color(hex: "#3B82F6"), Color(hex: "#1D4ED8")]
+        case .poll: return [Color(hex: "#A855F7"), Color(hex: "#7C3AED")]
+        case .memory: return [Color(hex: "#FF8E63"), Color(hex: "#E8744F")]
+        case .booking: return [Color(hex: "#FF7A3D"), Color(hex: "#E85940")]
+        }
+    }
+
     func gradient(theme: ExperienceActiveTheme) -> [Color] {
         switch self {
         case .participant: return [theme.accentLight, theme.accent]

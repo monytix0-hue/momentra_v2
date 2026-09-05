@@ -356,6 +356,7 @@ class GroupSliceRepository(
         location: String? = null,
         priorityCode: String? = null,
         description: String? = null,
+        asDraft: Boolean? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ) = runCatching {
         api.createPlanningItem(
@@ -368,6 +369,7 @@ class GroupSliceRepository(
                 location = location,
                 priorityCode = priorityCode,
                 description = description,
+                asDraft = asDraft,
             ),
         ).data
     }.recoverCatching { e -> throw mapError(e) }
@@ -391,6 +393,7 @@ class GroupSliceRepository(
         options: List<String>,
         closesAt: String? = null,
         pollType: String? = null,
+        asDraft: Boolean? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ) = runCatching {
         api.createPoll(
@@ -401,6 +404,7 @@ class GroupSliceRepository(
                 options = options,
                 closesAt = closesAt,
                 pollType = pollType,
+                asDraft = asDraft,
             ),
         ).data
     }.recoverCatching { e -> throw mapError(e) }
@@ -410,12 +414,18 @@ class GroupSliceRepository(
         message: String,
         notifyMembers: Boolean = true,
         urgencyCode: String = "NORMAL",
+        asDraft: Boolean? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ) = runCatching {
         api.postUpdate(
             momentId,
             idempotencyKey,
-            PostUpdateBody(message = message, notifyMembers = notifyMembers, urgencyCode = urgencyCode),
+            PostUpdateBody(
+                message = message,
+                notifyMembers = notifyMembers,
+                urgencyCode = urgencyCode,
+                asDraft = asDraft,
+            ),
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 
@@ -423,12 +433,13 @@ class GroupSliceRepository(
         momentId: String,
         title: String,
         capturedAt: String? = null,
+        asDraft: Boolean? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ) = runCatching {
         api.createMemory(
             momentId,
             idempotencyKey,
-            CreateMemoryBody(title = title, capturedAt = capturedAt),
+            CreateMemoryBody(title = title, capturedAt = capturedAt, asDraft = asDraft),
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 

@@ -213,10 +213,27 @@ export async function listPersonalMoments(
     moment_type_code: string;
     display_rank: number;
   }>(
-    `SELECT moment_id, title, status, moment_type_code, display_rank
-     FROM projection.personal_moments
-     WHERE user_id = $1 AND ($2::int IS NULL OR display_rank > $2)
-     ORDER BY display_rank ASC LIMIT $3`,
+    `WITH combined AS (
+       SELECT moment_id, title, status, moment_type_code, display_rank
+       FROM projection.personal_moments
+       WHERE user_id = $1
+       UNION ALL
+       SELECT m.moment_id, m.title, m.status, mt.code AS moment_type_code,
+              (EXTRACT(EPOCH FROM m.updated_at)::bigint % 1000000000)::int AS display_rank
+       FROM core.moment m
+       JOIN personal.personal_moment_context pmc ON pmc.moment_id = m.moment_id AND pmc.user_id = $1
+       JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+       WHERE m.domain_code = 'PERSONAL' AND m.status = 'DRAFT'
+         AND NOT EXISTS (
+           SELECT 1 FROM projection.personal_moments pm
+           WHERE pm.user_id = $1 AND pm.moment_id = m.moment_id
+         )
+     )
+     SELECT moment_id, title, status, moment_type_code, display_rank
+     FROM combined
+     WHERE ($2::int IS NULL OR display_rank > $2)
+     ORDER BY display_rank ASC
+     LIMIT $3`,
     [userId, cursor ? parseInt(cursor, 10) : null, safeLimit + 1]
   );
 
@@ -605,7 +622,11 @@ export async function listGroupMoments(
      JOIN core.moment m ON m.moment_id = gmc.moment_id
      JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
      JOIN collaboration.moment_participant mp ON mp.moment_id = m.moment_id AND mp.user_id = $1
-     WHERE mp.status = 'ACTIVE' AND m.status = 'ACTIVE' ${cursorClause}
+     WHERE mp.status = 'ACTIVE'
+       AND (
+         m.status = 'ACTIVE'
+         OR (m.status = 'DRAFT' AND (gmc.organizer_user_id = $1 OR m.created_by_user_id = $1))
+       ) ${cursorClause}
      ORDER BY m.updated_at DESC
      LIMIT $2`,
     params
@@ -1121,7 +1142,11 @@ export async function listBusinessMoments(
      FROM business.business_moment_context bmc
      JOIN core.moment m ON m.moment_id = bmc.moment_id
      JOIN business.company_membership cm ON cm.company_id = bmc.company_id AND cm.user_id = $1
-     WHERE cm.status = 'ACTIVE' AND m.status = 'ACTIVE' ${cursorClause}
+     WHERE cm.status = 'ACTIVE'
+       AND (
+         m.status = 'ACTIVE'
+         OR (m.status = 'DRAFT' AND m.created_by_user_id = $1)
+       ) ${cursorClause}
      ORDER BY m.updated_at DESC
      LIMIT $2`,
     params

@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.ApiResultException
 import com.example.momentra.data.api.CreateMomentParticipantBody
+import com.example.momentra.data.api.DomainSetupPrefillDto
 import com.example.momentra.data.api.GroupSetupBlockDto
+import com.example.momentra.data.api.GroupSetupPrefillDto
 import com.example.momentra.data.api.GroupInviteDto
 import com.example.momentra.data.api.PatchPersonalSetupBody
 import com.example.momentra.data.repository.AccountRepository
@@ -49,6 +51,8 @@ class MomentCreateViewModel(
         preferences: Map<String, Any>,
         title: String? = null,
         editingMomentId: String? = null,
+        editingMomentStatus: String? = null,
+        status: String? = null,
         onSuccess: (CreateMomentOutcome) -> Unit,
     ) {
         val catalog = PersonalSetupCatalog.forKind(kind)
@@ -61,7 +65,14 @@ class MomentCreateViewModel(
                 PersonalSetupCatalog.allowedKeys(kind),
             )
             if (editingMomentId != null) {
-                submitPersonalEdit(editingMomentId, resolvedTitle, catalog.momentTypeCode, prefs, onSuccess)
+                submitPersonalEdit(
+                    momentId = editingMomentId,
+                    title = resolvedTitle,
+                    momentTypeCode = catalog.momentTypeCode,
+                    preferences = prefs,
+                    activateAfter = status == "ACTIVE" && editingMomentStatus.equals("DRAFT", ignoreCase = true),
+                    onSuccess = onSuccess,
+                )
                 return@launch
             }
             repository.createPersonalMoment(
@@ -69,30 +80,10 @@ class MomentCreateViewModel(
                 momentTypeCode = catalog.momentTypeCode,
                 title = resolvedTitle,
                 preferences = prefs,
+                status = status,
             ).fold(
-                onSuccess = { dto ->
-                    _state.update { it.copy(submitting = false, error = null) }
-                    onSuccess(
-                        CreateMomentOutcome(
-                            momentId = dto.momentId,
-                            title = dto.title,
-                            domainCode = dto.domainCode,
-                            status = dto.status,
-                            version = dto.version,
-                            momentTypeCode = catalog.momentTypeCode,
-                            setupId = dto.setupId,
-                            projectionHints = emptyList(),
-                        ),
-                    )
-                },
-                onFailure = { e ->
-                    _state.update {
-                        it.copy(
-                            submitting = false,
-                            error = (e as? ApiResultException)?.message ?: e.message ?: "Create failed",
-                        )
-                    }
-                },
+                onSuccess = { dto -> finishCreateSuccess(dto, catalog.momentTypeCode, onSuccess) },
+                onFailure = { e -> finishCreateFailure(e) },
             )
         }
     }
@@ -103,6 +94,8 @@ class MomentCreateViewModel(
         preferences: Map<String, Any>,
         title: String? = null,
         editingMomentId: String? = null,
+        editingMomentStatus: String? = null,
+        status: String? = null,
         onSuccess: (CreateMomentOutcome) -> Unit,
     ) {
         val catalog = BusinessSetupCatalog.forKind(kind)
@@ -110,44 +103,30 @@ class MomentCreateViewModel(
         _state.update { it.copy(submitting = true, error = null) }
         viewModelScope.launch {
             val resolvedTitle = title ?: catalog.defaultTitle
-            if (editingMomentId != null) {
-                submitEdit(editingMomentId, resolvedTitle, catalog.momentTypeCode, onSuccess)
-                return@launch
-            }
             val prefs = SetupPreferenceFilter.filterToCatalogKeys(
                 preferences,
                 BusinessSetupCatalog.allowedKeys(kind),
             )
+            if (editingMomentId != null) {
+                submitBusinessEdit(
+                    momentId = editingMomentId,
+                    title = resolvedTitle,
+                    momentTypeCode = catalog.momentTypeCode,
+                    activateAfter = status == "ACTIVE" && editingMomentStatus.equals("DRAFT", ignoreCase = true),
+                    onSuccess = onSuccess,
+                )
+                return@launch
+            }
             repository.createBusinessMoment(
                 companyId = companyId,
                 familyCode = kind.familyCode,
                 momentTypeCode = catalog.momentTypeCode,
                 title = resolvedTitle,
                 preferences = prefs,
+                status = status,
             ).fold(
-                onSuccess = { dto ->
-                    _state.update { it.copy(submitting = false, error = null) }
-                    onSuccess(
-                        CreateMomentOutcome(
-                            momentId = dto.momentId,
-                            title = dto.title,
-                            domainCode = dto.domainCode,
-                            status = dto.status,
-                            version = dto.version,
-                            momentTypeCode = catalog.momentTypeCode,
-                            setupId = dto.setupId,
-                            projectionHints = emptyList(),
-                        ),
-                    )
-                },
-                onFailure = { e ->
-                    _state.update {
-                        it.copy(
-                            submitting = false,
-                            error = (e as? ApiResultException)?.message ?: e.message ?: "Create failed",
-                        )
-                    }
-                },
+                onSuccess = { dto -> finishCreateSuccess(dto, catalog.momentTypeCode, onSuccess) },
+                onFailure = { e -> finishCreateFailure(e) },
             )
         }
     }
@@ -163,6 +142,8 @@ class MomentCreateViewModel(
         inviteCode: String? = null,
         groupSetup: GroupSetupBlockDto? = null,
         editingMomentId: String? = null,
+        editingMomentStatus: String? = null,
+        status: String? = null,
         onSuccess: (CreateMomentOutcome) -> Unit,
     ) {
         if (_state.value.submitting) return
@@ -170,7 +151,14 @@ class MomentCreateViewModel(
         val (apiType, customLabel) = resolveGroupTypeForApi(section, momentTypeCode, title)
         viewModelScope.launch {
             if (editingMomentId != null) {
-                submitGroupEdit(editingMomentId, title, apiType, groupSetup, onSuccess)
+                submitGroupEdit(
+                    momentId = editingMomentId,
+                    title = title,
+                    momentTypeCode = apiType,
+                    groupSetup = groupSetup,
+                    activateAfter = status == "ACTIVE" && editingMomentStatus.equals("DRAFT", ignoreCase = true),
+                    onSuccess = onSuccess,
+                )
                 return@launch
             }
             repository.createGroupMoment(
@@ -183,27 +171,31 @@ class MomentCreateViewModel(
                 inviteCode = inviteCode,
                 customTypeLabel = customLabel,
                 groupSetup = groupSetup,
+                status = status,
             ).fold(
-                onSuccess = { dto ->
+                onSuccess = { dto -> finishCreateSuccess(dto, apiType, onSuccess) },
+                onFailure = { e -> finishCreateFailure(e) },
+            )
+        }
+    }
+
+    fun discardMomentDraft(
+        momentId: String,
+        onSuccess: () -> Unit,
+    ) {
+        if (_state.value.submitting) return
+        _state.update { it.copy(submitting = true, error = null) }
+        viewModelScope.launch {
+            repository.discardMomentDraft(momentId).fold(
+                onSuccess = {
                     _state.update { it.copy(submitting = false, error = null) }
-                    onSuccess(
-                        CreateMomentOutcome(
-                            momentId = dto.momentId,
-                            title = dto.title,
-                            domainCode = dto.domainCode,
-                            status = dto.status,
-                            version = dto.version,
-                            momentTypeCode = apiType,
-                            setupId = dto.setupId,
-                            projectionHints = emptyList(),
-                        ),
-                    )
+                    onSuccess()
                 },
                 onFailure = { e ->
                     _state.update {
                         it.copy(
                             submitting = false,
-                            error = (e as? ApiResultException)?.message ?: e.message ?: "Create failed",
+                            error = (e as? ApiResultException)?.message ?: e.message ?: "Discard failed",
                         )
                     }
                 },
@@ -216,6 +208,7 @@ class MomentCreateViewModel(
         title: String,
         momentTypeCode: String,
         groupSetup: GroupSetupBlockDto?,
+        activateAfter: Boolean,
         onSuccess: (CreateMomentOutcome) -> Unit,
     ) {
         val lifecycle = MomentLifecycleRepository()
@@ -226,12 +219,19 @@ class MomentCreateViewModel(
                 lifecycle.rename(momentId, title, version).fold(
                     onSuccess = { dto ->
                         groupSetup?.let { setup ->
-                            runCatching {
-                                groupRepo.patchGroupBudget(
-                                    momentId,
-                                    setup.budgetAmount,
-                                    setup.budgetCurrencyCode,
-                                )
+                            val primary = setup.budgets?.firstOrNull { it.isPrimary == true }
+                                ?: setup.budgets?.firstOrNull()
+                            val amount = primary?.amount ?: setup.budgetAmount
+                            val currency = primary?.currencyCode ?: setup.budgetCurrencyCode
+                            if (amount != null && currency != null) {
+                                runCatching {
+                                    groupRepo.patchGroupBudget(momentId, amount, currency)
+                                }
+                            }
+                            setup.budgets?.drop(1)?.forEach { b ->
+                                runCatching {
+                                    groupRepo.patchGroupBudget(momentId, b.amount, b.currencyCode)
+                                }
                             }
                             setup.reminderPreferences?.let { rem ->
                                 runCatching {
@@ -239,38 +239,33 @@ class MomentCreateViewModel(
                                 }
                             }
                         }
-                        _state.update { it.copy(submitting = false, error = null) }
-                        onSuccess(
-                            CreateMomentOutcome(
-                                momentId = dto.momentId,
-                                title = dto.title,
-                                domainCode = dto.domainCode,
-                                status = dto.status,
-                                version = dto.version,
-                                momentTypeCode = momentTypeCode,
-                                setupId = null,
-                                projectionHints = emptyList(),
-                            ),
-                        )
-                    },
-                    onFailure = { e ->
-                        _state.update {
-                            it.copy(
-                                submitting = false,
-                                error = (e as? ApiResultException)?.message ?: e.message ?: "Update failed",
+                        if (activateAfter) {
+                            repository.activateMoment(momentId).fold(
+                                onSuccess = { activated ->
+                                    finishCreateSuccess(activated, momentTypeCode, onSuccess)
+                                },
+                                onFailure = { e -> finishCreateFailure(e) },
+                            )
+                        } else {
+                            _state.update { it.copy(submitting = false, error = null) }
+                            onSuccess(
+                                CreateMomentOutcome(
+                                    momentId = dto.momentId,
+                                    title = dto.title,
+                                    domainCode = dto.domainCode,
+                                    status = dto.status,
+                                    version = dto.version,
+                                    momentTypeCode = momentTypeCode,
+                                    setupId = null,
+                                    projectionHints = emptyList(),
+                                ),
                             )
                         }
                     },
+                    onFailure = { e -> finishCreateFailure(e) },
                 )
             },
-            onFailure = { e ->
-                _state.update {
-                    it.copy(
-                        submitting = false,
-                        error = (e as? ApiResultException)?.message ?: e.message ?: "Update failed",
-                    )
-                }
-            },
+            onFailure = { e -> finishCreateFailure(e) },
         )
     }
 
@@ -279,6 +274,7 @@ class MomentCreateViewModel(
         title: String,
         momentTypeCode: String,
         preferences: Map<String, Any>,
+        activateAfter: Boolean,
         onSuccess: (CreateMomentOutcome) -> Unit,
     ) {
         try {
@@ -301,6 +297,64 @@ class MomentCreateViewModel(
                 onSuccess = { version ->
                     lifecycle.rename(momentId, title, version).fold(
                         onSuccess = { dto ->
+                            if (activateAfter) {
+                                repository.activateMoment(momentId).fold(
+                                    onSuccess = { activated ->
+                                        finishCreateSuccess(
+                                            activated,
+                                            momentTypeCode,
+                                            onSuccess,
+                                            setupId = setup.setupId,
+                                        )
+                                    },
+                                    onFailure = { e -> finishCreateFailure(e) },
+                                )
+                            } else {
+                                _state.update { it.copy(submitting = false, error = null) }
+                                onSuccess(
+                                    CreateMomentOutcome(
+                                        momentId = dto.momentId,
+                                        title = dto.title,
+                                        domainCode = dto.domainCode,
+                                        status = dto.status,
+                                        version = dto.version,
+                                        momentTypeCode = momentTypeCode,
+                                        setupId = setup.setupId,
+                                        projectionHints = emptyList(),
+                                    ),
+                                )
+                            }
+                        },
+                        onFailure = { e -> finishCreateFailure(e) },
+                    )
+                },
+                onFailure = { e -> finishCreateFailure(e) },
+            )
+        } catch (e: Exception) {
+            finishCreateFailure(e)
+        }
+    }
+
+    private suspend fun submitBusinessEdit(
+        momentId: String,
+        title: String,
+        momentTypeCode: String,
+        activateAfter: Boolean,
+        onSuccess: (CreateMomentOutcome) -> Unit,
+    ) {
+        val lifecycle = MomentLifecycleRepository()
+        lifecycle.getVersion(momentId).fold(
+            onSuccess = { version ->
+                lifecycle.rename(momentId, title, version).fold(
+                    onSuccess = { dto ->
+                        if (activateAfter) {
+                            repository.activateMoment(momentId).fold(
+                                onSuccess = { activated ->
+                                    finishCreateSuccess(activated, momentTypeCode, onSuccess)
+                                },
+                                onFailure = { e -> finishCreateFailure(e) },
+                            )
+                        } else {
                             _state.update { it.copy(submitting = false, error = null) }
                             onSuccess(
                                 CreateMomentOutcome(
@@ -310,84 +364,47 @@ class MomentCreateViewModel(
                                     status = dto.status,
                                     version = dto.version,
                                     momentTypeCode = momentTypeCode,
-                                    setupId = setup.setupId,
+                                    setupId = null,
                                     projectionHints = emptyList(),
                                 ),
                             )
-                        },
-                        onFailure = { e ->
-                            _state.update {
-                                it.copy(
-                                    submitting = false,
-                                    error = (e as? ApiResultException)?.message ?: e.message ?: "Update failed",
-                                )
-                            }
-                        },
-                    )
-                },
-                onFailure = { e ->
-                    _state.update {
-                        it.copy(
-                            submitting = false,
-                            error = (e as? ApiResultException)?.message ?: e.message ?: "Update failed",
-                        )
-                    }
-                },
-            )
-        } catch (e: Exception) {
-            _state.update {
-                it.copy(
-                    submitting = false,
-                    error = (e as? ApiResultException)?.message ?: e.message ?: "Update failed",
-                )
-            }
-        }
-    }
-
-    private suspend fun submitEdit(
-        momentId: String,
-        title: String,
-        momentTypeCode: String,
-        onSuccess: (CreateMomentOutcome) -> Unit,
-    ) {
-        val lifecycle = MomentLifecycleRepository()
-        lifecycle.getVersion(momentId).fold(
-            onSuccess = { version ->
-                lifecycle.rename(momentId, title, version).fold(
-                    onSuccess = { dto ->
-                        _state.update { it.copy(submitting = false, error = null) }
-                        onSuccess(
-                            CreateMomentOutcome(
-                                momentId = dto.momentId,
-                                title = dto.title,
-                                domainCode = dto.domainCode,
-                                status = dto.status,
-                                version = dto.version,
-                                momentTypeCode = momentTypeCode,
-                                setupId = null,
-                                projectionHints = emptyList(),
-                            ),
-                        )
-                    },
-                    onFailure = { e ->
-                        _state.update {
-                            it.copy(
-                                submitting = false,
-                                error = (e as? ApiResultException)?.message ?: e.message ?: "Update failed",
-                            )
                         }
                     },
+                    onFailure = { e -> finishCreateFailure(e) },
                 )
             },
-            onFailure = { e ->
-                _state.update {
-                    it.copy(
-                        submitting = false,
-                        error = (e as? ApiResultException)?.message ?: e.message ?: "Update failed",
-                    )
-                }
-            },
+            onFailure = { e -> finishCreateFailure(e) },
         )
+    }
+
+    private fun finishCreateSuccess(
+        dto: com.example.momentra.data.api.CreateMomentResultDto,
+        momentTypeCode: String,
+        onSuccess: (CreateMomentOutcome) -> Unit,
+        setupId: String? = dto.setupId,
+    ) {
+        _state.update { it.copy(submitting = false, error = null) }
+        onSuccess(
+            CreateMomentOutcome(
+                momentId = dto.momentId,
+                title = dto.title,
+                domainCode = dto.domainCode,
+                status = dto.status,
+                version = dto.version,
+                momentTypeCode = momentTypeCode,
+                setupId = setupId,
+                projectionHints = emptyList(),
+            ),
+        )
+    }
+
+    private fun finishCreateFailure(e: Throwable) {
+        _state.update {
+            it.copy(
+                submitting = false,
+                error = (e as? ApiResultException)?.message ?: e.message ?: "Request failed",
+            )
+        }
     }
 
     /**
@@ -413,4 +430,10 @@ class MomentCreateViewModel(
         val (apiType, _) = resolveGroupTypeForApi(section, momentTypeCode, title)
         return repository.mintGroupInvite(title = title, momentTypeCode = apiType).getOrNull()
     }
+
+    suspend fun getGroupSetupPrefill(momentId: String): GroupSetupPrefillDto? =
+        repository.getGroupSetupPrefill(momentId).getOrNull()
+
+    suspend fun getDomainSetupPrefill(momentId: String): DomainSetupPrefillDto? =
+        repository.getDomainSetupPrefill(momentId).getOrNull()
 }

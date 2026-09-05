@@ -8,6 +8,7 @@ import {
   PERSONAL_SETUP_CATALOG,
   type PersonalSetupSystemCode,
 } from '../personal/setup-service';
+import { TRAVEL_CURRENCY_CODES, isTravelCurrencyCode } from '../finance/travel-currencies';
 
 /** Preference keys that must be string[]. */
 const ARRAY_KEYS = new Set<string>([]);
@@ -106,11 +107,45 @@ export const businessSetupBlockSchema = z
   })
   .strict();
 
+const travelCurrencySchema = z
+  .string()
+  .length(3)
+  .regex(/^[A-Z]{3}$/)
+  .refine((c) => isTravelCurrencyCode(c), { message: 'Unsupported travel currency code' });
+
+export const groupSetupPlaceSchema = z
+  .object({
+    label: z.string().min(1).max(500),
+    startAt: z.string().datetime().nullish(),
+    endAt: z.string().datetime().nullish(),
+  })
+  .strict()
+  .superRefine((row, ctx) => {
+    if (row.startAt && row.endAt && row.endAt < row.startAt) {
+      ctx.addIssue({ code: 'custom', message: 'place endAt must be >= startAt', path: ['endAt'] });
+    }
+  });
+
+export const groupSetupBudgetSchema = z
+  .object({
+    currencyCode: travelCurrencySchema,
+    amount: z.string().regex(/^\d+(\.\d{1,4})?$/),
+    isPrimary: z.boolean().optional(),
+  })
+  .strict();
+
 export const groupSetupBlockSchema = z
   .object({
-    budgetAmount: z.string().regex(/^\d+(\.\d{1,4})?$/),
-    budgetCurrencyCode: z.string().length(3).regex(/^[A-Z]{3}$/),
+    /** @deprecated Prefer budgets[]; kept for backward compatibility. */
+    budgetAmount: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
+    /** @deprecated Prefer budgets[]. */
+    budgetCurrencyCode: travelCurrencySchema.optional(),
     destinationText: z.string().max(500).optional(),
+    places: z.array(groupSetupPlaceSchema).max(30).optional(),
+    budgets: z.array(groupSetupBudgetSchema).max(20).optional(),
+    multiCurrencyEnabled: z.boolean().optional(),
+    splitStyle: z.enum(['EQUAL', 'PERCENTAGE', 'EXACT', 'SHARES', 'POOLED']).optional(),
+    primaryGoal: z.string().max(500).optional(),
     reminderPreferences: z
       .object({
         billReminders: z.boolean().optional(),
@@ -121,8 +156,32 @@ export const groupSetupBlockSchema = z
       })
       .strict()
       .optional(),
+    setupPreferences: z.record(z.string(), z.unknown()).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((body, ctx) => {
+    const hasLegacy = Boolean(body.budgetAmount && body.budgetCurrencyCode);
+    const hasBudgets = Boolean(body.budgets && body.budgets.length > 0);
+    if (!hasLegacy && !hasBudgets) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Provide budgets[] or budgetAmount+budgetCurrencyCode.',
+        path: ['budgets'],
+      });
+    }
+    if (hasBudgets && body.budgets) {
+      const codes = body.budgets.map((b) => b.currencyCode);
+      if (new Set(codes).size !== codes.length) {
+        ctx.addIssue({ code: 'custom', message: 'Duplicate currency in budgets.', path: ['budgets'] });
+      }
+      const primaries = body.budgets.filter((b) => b.isPrimary);
+      if (primaries.length > 1) {
+        ctx.addIssue({ code: 'custom', message: 'At most one primary budget.', path: ['budgets'] });
+      }
+    }
+  });
+
+export { TRAVEL_CURRENCY_CODES };
 
 export function resolvePersonalSetupTitle(
   systemCode: PersonalSetupSystemCode,
@@ -154,4 +213,25 @@ export function resolveBusinessSetupMomentType(
 ): string {
   const catalog = BUSINESS_SETUP_CATALOG.find((s) => s.familyCode === familyCode)!;
   return momentTypeOverride ?? catalog.defaultMomentTypeCode;
+}
+
+/** Normalize groupSetup to a budgets list (legacy or new). */
+export function normalizeGroupSetupBudgets(
+  groupSetup: z.infer<typeof groupSetupBlockSchema>
+): Array<{ currencyCode: string; amount: string; isPrimary: boolean }> {
+  if (groupSetup.budgets && groupSetup.budgets.length > 0) {
+    const hasPrimary = groupSetup.budgets.some((b) => b.isPrimary);
+    return groupSetup.budgets.map((b, i) => ({
+      currencyCode: b.currencyCode,
+      amount: b.amount,
+      isPrimary: hasPrimary ? Boolean(b.isPrimary) : i === 0,
+    }));
+  }
+  return [
+    {
+      currencyCode: groupSetup.budgetCurrencyCode!,
+      amount: groupSetup.budgetAmount!,
+      isPrimary: true,
+    },
+  ];
 }

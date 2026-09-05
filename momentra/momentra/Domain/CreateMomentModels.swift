@@ -39,6 +39,7 @@ struct CreateMomentRequest: Encodable {
     let companyId: String?
     let participants: [CreateMomentParticipantInput]?
     var inviteCode: String? = nil
+    var status: String? = nil
     let personalSetup: PersonalSetupBlock?
     let businessSetup: BusinessSetupBlock?
     var groupSetup: GroupSetupBlock? = nil
@@ -54,11 +55,77 @@ struct CreateMomentRequest: Encodable {
     }
 
     struct GroupSetupBlock: Encodable {
-        let budgetAmount: String
-        let budgetCurrencyCode: String
-        let destinationText: String?
+        var budgetAmount: String? = nil
+        var budgetCurrencyCode: String? = nil
+        var destinationText: String? = nil
+        var places: [PlaceBlock]? = nil
+        var budgets: [BudgetBlock]? = nil
+        var multiCurrencyEnabled: Bool? = nil
+        var splitStyle: String? = nil
+        var primaryGoal: String? = nil
         var reminderPreferences: [String: Bool]? = nil
+        var setupPreferences: [String: JSONEncodableValue]? = nil
+
+        struct PlaceBlock: Encodable {
+            let label: String
+            var startAt: String? = nil
+            var endAt: String? = nil
+        }
+
+        struct BudgetBlock: Encodable {
+            let currencyCode: String
+            let amount: String
+            var isPrimary: Bool? = nil
+        }
     }
+}
+
+struct GroupSetupPrefill: Decodable {
+    let momentId: String?
+    let title: String?
+    let status: String?
+    let momentTypeCode: String?
+    let startAt: String?
+    let endAt: String?
+    let places: [GroupSetupPlacePrefill]?
+    let budgets: [GroupSetupBudgetPrefill]?
+    let multiCurrencyEnabled: Bool?
+    let splitStyle: String?
+    let primaryGoal: String?
+    let destinationText: String?
+    let version: Int?
+}
+
+struct GroupSetupPlacePrefill: Decodable {
+    let placeId: String?
+    let label: String?
+    let startAt: String?
+    let endAt: String?
+    let sortOrder: Int?
+}
+
+struct GroupSetupBudgetPrefill: Decodable {
+    let currencyCode: String
+    let amount: String
+    let isPrimary: Bool?
+}
+
+struct DomainSetupPrefill: Decodable {
+    let momentId: String
+    let title: String
+    let status: String
+    let domainCode: String
+    let momentTypeCode: String
+    let systemCode: String?
+    let familyCode: String?
+    let preferences: [String: AnyDecodable]?
+    let companyId: String?
+    let version: Int
+}
+
+struct DiscardMomentDraftResult: Decodable {
+    let momentId: String
+    let discarded: Bool
 }
 
 struct JSONEncodableValue: Encodable {

@@ -44,6 +44,7 @@ import com.example.momentra.data.api.GroupFinancePositionDto
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.data.repository.MomentCreateRepository
 import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.maestro.MaestroIds
@@ -80,6 +81,7 @@ fun GroupPulseActiveContent(
     var insights by remember { mutableStateOf<List<AnalyticsInsightItemDto>>(emptyList()) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var destinations by remember { mutableStateOf<List<String>>(emptyList()) }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -111,6 +113,14 @@ fun GroupPulseActiveContent(
                     activity = data.activities
                     insights = data.insights
                     loading = false
+                    val widgetPlaces = TripPulseDestinations.fromWidget(data.pulse?.widgetPayload)
+                    destinations = if (widgetPlaces.isNotEmpty()) {
+                        widgetPlaces
+                    } else {
+                        MomentCreateRepository().getGroupSetupPrefill(momentId).getOrNull()
+                            ?.let { TripPulseDestinations.fromPrefill(it) }
+                            .orEmpty()
+                    }
                 },
                 onFailure = { e ->
                     error = e.message
@@ -126,7 +136,11 @@ fun GroupPulseActiveContent(
         return
     }
 
-    val primaryTotal = finance?.totals?.firstOrNull()
+    val allTotals = finance?.totals.orEmpty()
+    val primaryTotal = GroupFinanceFormat.resolvePrimaryTotal(
+        allTotals,
+        preferredCurrency = finance?.viewerPosition?.currencyCode,
+    )
     val currency = primaryTotal?.currencyCode ?: "INR"
     val budgetTotal = primaryTotal?.budgetTotal
     val expenseTotal = primaryTotal?.expenseTotal
@@ -167,6 +181,7 @@ fun GroupPulseActiveContent(
             TripHeroHeader(
                 title = displayTitle,
                 peopleCount = participantCount,
+                destinations = destinations,
             )
         }
 
@@ -290,13 +305,19 @@ fun GroupPulseActiveContent(
                     .clickable(onClick = onOpenFinance),
             ) {
                 Text(
-                    "$utilization% of budget used",
+                    if (allTotals.size > 1) {
+                        "Budget across ${allTotals.size} currencies (no FX conversion)"
+                    } else {
+                        "$utilization% of budget used"
+                    },
                     color = GroupActiveTheme.Text,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
                     fontFamily = PlusJakartaSans,
                 )
-                GroupProgressBar(percent = utilization)
+                if (primaryTotal?.budgetTotal != null) {
+                    GroupProgressBar(percent = utilization)
+                }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GroupMetricTile(
                         label = "Tasks",
@@ -305,7 +326,10 @@ fun GroupPulseActiveContent(
                     )
                     GroupMetricTile(
                         label = "Budget",
-                        value = GroupFinanceFormat.compactMoney(budgetTotal, currency),
+                        value = BalanceMask.mask(
+                            GroupFinanceFormat.budgetPartitionLine(allTotals, compact = true, hide = hideBalances),
+                            hideBalances,
+                        ),
                         modifier = Modifier.weight(1f).testTag(MaestroIds.PULSE_PROGRESS_BUDGET),
                     )
                     GroupMetricTile(
@@ -324,32 +348,26 @@ fun GroupPulseActiveContent(
                         message = "No participation data yet",
                         detail = "Positions appear after shared expenses are recorded.",
                     )
-                } else {
-                    val rows = if (positions.isNotEmpty()) {
-                        positions.take(6)
-                    } else {
-                        emptyList()
+                } else if (positions.isEmpty()) {
+                    participants.take(6).forEach { person ->
+                        Text(
+                            person.displayName ?: person.participantId.take(8),
+                            color = GroupActiveTheme.Text,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            fontFamily = PlusJakartaSans,
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        )
                     }
-                    if (rows.isEmpty()) {
-                        participants.take(6).forEach { person ->
-                            Text(
-                                person.displayName ?: person.participantId.take(8),
-                                color = GroupActiveTheme.Text,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
-                                fontFamily = PlusJakartaSans,
-                                modifier = Modifier.padding(vertical = 4.dp),
-                            )
-                        }
-                    } else {
-                        rows.forEach { pos ->
-                            ParticipationRow(
-                                name = nameById[pos.participantId] ?: pos.participantId.take(8),
-                                position = pos,
-                                hide = hideBalances,
-                                barPercent = participationBarPercent(pos.netPosition, maxAbsNet, positions.size),
-                            )
-                        }
+                } else {
+                    GroupFinanceFormat.groupPositionsByParticipant(positions).take(6).forEach { (_, rows) ->
+                        val primary = rows.first()
+                        ParticipationRow(
+                            name = nameById[primary.participantId] ?: primary.participantId.take(8),
+                            positions = rows,
+                            hide = hideBalances,
+                            barPercent = participationBarPercent(primary.netPosition, maxAbsNet, positions.size),
+                        )
                     }
                 }
             }
@@ -378,37 +396,49 @@ fun GroupPulseActiveContent(
                 } else {
                     OrangeBalanceCard(
                         viewer = viewer,
+                        positions = positions,
                         outstandingTotal = primaryTotal?.outstandingTotal,
-                        currency = currency,
+                        allTotals = allTotals,
                         hide = hideBalances,
                         onClick = onOpenFinance,
                     )
-                    if (primaryTotal != null) {
+                    if (allTotals.isNotEmpty()) {
+                        val expenseLine = GroupFinanceFormat.expensePartitionLine(allTotals, hide = hideBalances)
+                        val contributionLine = GroupFinanceFormat.formatPartitionedAmounts(
+                            allTotals.map { it.currencyCode to (it.contributionTotal ?: "0") },
+                            hide = hideBalances,
+                        )
                         FinanceBarRow(
                             label = "Expenses",
-                            value = expenseTotal,
-                            currency = currency,
-                            hide = hideBalances,
+                            valueLabel = BalanceMask.mask(expenseLine, hideBalances),
                             fill = GroupActiveTheme.AccentOrange,
-                            max = maxOf(
-                                GroupFinanceFormat.parseAmount(expenseTotal),
-                                GroupFinanceFormat.parseAmount(contributionTotal),
-                                GroupFinanceFormat.parseAmount(budgetTotal),
-                                BigDecimal.ONE,
-                            ),
+                            percent = if (allTotals.size == 1) {
+                                val max = maxOf(
+                                    GroupFinanceFormat.parseAmount(expenseTotal),
+                                    GroupFinanceFormat.parseAmount(contributionTotal),
+                                    GroupFinanceFormat.parseAmount(budgetTotal),
+                                    BigDecimal.ONE,
+                                )
+                                barPercent(GroupFinanceFormat.parseAmount(expenseTotal), max)
+                            } else {
+                                utilization
+                            },
                         )
                         FinanceBarRow(
                             label = "Contributions",
-                            value = contributionTotal,
-                            currency = currency,
-                            hide = hideBalances,
+                            valueLabel = BalanceMask.mask(contributionLine, hideBalances),
                             fill = Color(0xFF22C55E),
-                            max = maxOf(
-                                GroupFinanceFormat.parseAmount(expenseTotal),
-                                GroupFinanceFormat.parseAmount(contributionTotal),
-                                GroupFinanceFormat.parseAmount(budgetTotal),
-                                BigDecimal.ONE,
-                            ),
+                            percent = if (allTotals.size == 1) {
+                                val max = maxOf(
+                                    GroupFinanceFormat.parseAmount(expenseTotal),
+                                    GroupFinanceFormat.parseAmount(contributionTotal),
+                                    GroupFinanceFormat.parseAmount(budgetTotal),
+                                    BigDecimal.ONE,
+                                )
+                                barPercent(GroupFinanceFormat.parseAmount(contributionTotal), max)
+                            } else {
+                                utilization
+                            },
                         )
                     }
                 }
@@ -434,7 +464,7 @@ fun GroupPulseActiveContent(
 }
 
 @Composable
-private fun TripHeroHeader(title: String, peopleCount: Int) {
+private fun TripHeroHeader(title: String, peopleCount: Int, destinations: List<String>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -448,7 +478,10 @@ private fun TripHeroHeader(title: String, peopleCount: Int) {
             modifier = Modifier.horizontalScroll(rememberScrollState()),
         ) {
             HeroPill(label = title, solid = true)
-            HeroPill(label = "Trip · $peopleCount people", solid = false)
+            HeroPill(label = TripPulseDestinations.heroSubtitle(destinations, peopleCount), solid = false)
+            destinations.take(4).forEach { place ->
+                HeroPill(label = place, solid = false)
+            }
         }
         Text("🌴", fontSize = 20.sp)
         Text(
@@ -459,7 +492,11 @@ private fun TripHeroHeader(title: String, peopleCount: Int) {
             fontFamily = PlusJakartaSans,
         )
         Text(
-            "Shared trip pulse",
+            when {
+                destinations.size > 1 -> "${destinations.size} destinations"
+                destinations.size == 1 -> destinations.first()
+                else -> "Shared trip pulse"
+            },
             color = GroupActiveTheme.Secondary,
             fontSize = 13.sp,
             fontFamily = PlusJakartaSans,
@@ -523,19 +560,20 @@ private fun TripQuickTile(
 @Composable
 private fun OrangeBalanceCard(
     viewer: GroupFinancePositionDto?,
+    positions: List<GroupFinancePositionDto>,
     outstandingTotal: String?,
-    currency: String,
+    allTotals: List<com.example.momentra.data.api.GroupFinanceTotalDto>,
     hide: Boolean,
     onClick: () -> Unit,
 ) {
-    val net = viewer?.let { GroupFinanceFormat.parseAmount(it.netPosition) }
-    val headline = when {
-        viewer != null && net != null && net < BigDecimal.ZERO ->
-            "You owe ${BalanceMask.mask(GroupFinanceFormat.formatMoney(net.abs().toPlainString(), currency), hide)}"
-        viewer != null && net != null && net > BigDecimal.ZERO ->
-            "You are owed ${BalanceMask.mask(GroupFinanceFormat.formatMoney(viewer.netPosition, currency), hide)}"
-        viewer != null -> "You're settled up"
-        else -> "Outstanding ${BalanceMask.mask(GroupFinanceFormat.formatMoney(outstandingTotal, currency), hide)}"
+    val (headline, incl) = if (viewer != null) {
+        GroupFinanceFormat.viewerBalanceHeadline(viewer, positions, hide)
+    } else {
+        val line = GroupFinanceFormat.formatPartitionedAmounts(
+            allTotals.map { it.currencyCode to (it.outstandingTotal ?: "0") },
+            hide = hide,
+        )
+        "Outstanding ${BalanceMask.mask(line, hide)}" to null
     }
     Column(
         modifier = Modifier
@@ -564,29 +602,29 @@ private fun OrangeBalanceCard(
             fontWeight = FontWeight.ExtraBold,
             fontFamily = PlusJakartaSans,
         )
+        incl?.let {
+            Text(
+                it,
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 12.sp,
+                fontFamily = PlusJakartaSans,
+            )
+        }
     }
 }
 
 @Composable
 private fun FinanceBarRow(
     label: String,
-    value: String?,
-    currency: String,
-    hide: Boolean,
+    valueLabel: String,
     fill: Color,
-    max: BigDecimal,
+    percent: Int,
 ) {
-    val amount = GroupFinanceFormat.parseAmount(value)
-    val percent = if (max > BigDecimal.ZERO) {
-        amount.multiply(BigDecimal(100)).divide(max, 0, RoundingMode.HALF_UP).toInt().coerceIn(0, 100)
-    } else {
-        0
-    }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, color = GroupActiveTheme.Secondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
             Text(
-                BalanceMask.mask(GroupFinanceFormat.formatMoney(value, currency), hide),
+                valueLabel,
                 color = GroupActiveTheme.Text,
                 fontSize = 12.sp,
                 fontFamily = PlusJakartaSans,
@@ -600,7 +638,7 @@ private fun FinanceBarRow(
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(percent / 100f)
+                    .fillMaxWidth(percent.coerceIn(0, 100) / 100f)
                     .clip(RoundedCornerShape(100.dp))
                     .background(fill)
                     .padding(vertical = 4.dp),
@@ -609,14 +647,26 @@ private fun FinanceBarRow(
     }
 }
 
+private fun barPercent(amount: BigDecimal, max: BigDecimal): Int =
+    if (max > BigDecimal.ZERO) {
+        amount.multiply(BigDecimal(100)).divide(max, 0, RoundingMode.HALF_UP).toInt().coerceIn(0, 100)
+    } else {
+        0
+    }
+
 @Composable
 private fun ParticipationRow(
     name: String,
-    position: GroupFinancePositionDto,
+    positions: List<GroupFinancePositionDto>,
     hide: Boolean,
     barPercent: Int,
 ) {
-    val net = GroupFinanceFormat.parseAmount(position.netPosition)
+    val netLine = GroupFinanceFormat.formatPartitionedAmounts(
+        positions.map { it.currencyCode to it.netPosition },
+        compact = true,
+        hide = hide,
+    )
+    val primaryNet = GroupFinanceFormat.parseAmount(positions.firstOrNull()?.netPosition)
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -624,8 +674,8 @@ private fun ParticipationRow(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(name, color = GroupActiveTheme.Text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, fontFamily = PlusJakartaSans)
             Text(
-                BalanceMask.mask(GroupFinanceFormat.formatMoney(position.netPosition, position.currencyCode), hide),
-                color = if (net >= BigDecimal.ZERO) Color(0xFF4ADE80) else GroupActiveTheme.AccentOrange,
+                netLine,
+                color = if (primaryNet >= BigDecimal.ZERO) Color(0xFF4ADE80) else GroupActiveTheme.AccentOrange,
                 fontSize = 12.sp,
                 fontFamily = PlusJakartaSans,
             )

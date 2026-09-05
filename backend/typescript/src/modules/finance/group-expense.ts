@@ -31,6 +31,7 @@ export const createGroupExpenseSchema = z
           .strict()
       )
       .default([]),
+    asDraft: z.boolean().optional(),
   })
   .strict()
   .superRefine((val, ctx) => {
@@ -259,13 +260,14 @@ export async function createGroupExpense(
     }
   }
 
+  const expenseStatus = body.asDraft ? 'DRAFT' : 'POSTED';
   const expenseInsert = await client.query<{ expense_id: string; version: string }>(
     `INSERT INTO finance.expense (
        moment_id, domain_code, created_by_user_id, description,
        amount, currency_code, effective_at, status, posted_at, version
-     ) VALUES ($1, 'GROUP', $2, $3, $4, $5, now(), 'POSTED', now(), 1)
+     ) VALUES ($1, 'GROUP', $2, $3, $4, $5, now(), $6, CASE WHEN $6 = 'POSTED' THEN now() ELSE NULL END, 1)
      RETURNING expense_id, version`,
-    [momentId, ctx.userId, body.description ?? null, amount.toFixed(4), body.currencyCode]
+    [momentId, ctx.userId, body.description ?? null, amount.toFixed(4), body.currencyCode, expenseStatus]
   );
   const expenseId = expenseInsert.rows[0].expense_id;
 
@@ -279,7 +281,7 @@ export async function createGroupExpense(
   let shareRows: GroupExpenseResult['shares'] = [];
   let obligationRows: GroupExpenseResult['obligations'] = [];
 
-  if (body.splitStrategy !== 'POOLED' && computed.length > 0) {
+  if (!body.asDraft && body.splitStrategy !== 'POOLED' && computed.length > 0) {
     const shareInsert = await client.query<{
       expense_share_id: string;
       participant_id: string;
@@ -358,30 +360,32 @@ export async function createGroupExpense(
       momentId,
       amount: amount.toFixed(4),
       currencyCode: body.currencyCode,
-      status: 'POSTED',
+      status: expenseStatus,
       version: parseInt(expenseInsert.rows[0].version, 10),
       paidByParticipantId: body.paidByParticipantId,
       splitStrategy: body.splitStrategy,
       shares: shareRows,
       obligations: obligationRows,
     },
-    activity: {
-      domainCode: 'GROUP',
-      momentId,
-      activityCode:
-        body.splitStrategy === 'POOLED' ? 'GROUP_POOLED_EXPENSE_RECORDED' : 'GROUP_EXPENSE_RECORDED',
-      title:
-        body.splitStrategy === 'POOLED'
-          ? body.description ?? 'Household pooled spend'
-          : body.description ?? 'Group expense',
-      payload: {
-        expenseId,
-        amount: amount.toFixed(4),
-        currencyCode: body.currencyCode,
-        paidByParticipantId: body.paidByParticipantId,
-        splitStrategy: body.splitStrategy,
-      },
-    },
+    activity: body.asDraft
+      ? undefined
+      : {
+          domainCode: 'GROUP',
+          momentId,
+          activityCode:
+            body.splitStrategy === 'POOLED' ? 'GROUP_POOLED_EXPENSE_RECORDED' : 'GROUP_EXPENSE_RECORDED',
+          title:
+            body.splitStrategy === 'POOLED'
+              ? body.description ?? 'Household pooled spend'
+              : body.description ?? 'Group expense',
+          payload: {
+            expenseId,
+            amount: amount.toFixed(4),
+            currencyCode: body.currencyCode,
+            paidByParticipantId: body.paidByParticipantId,
+            splitStrategy: body.splitStrategy,
+          },
+        },
   });
 
   const result: GroupExpenseResult = {
@@ -389,7 +393,7 @@ export async function createGroupExpense(
     momentId,
     amount: amount.toFixed(4),
     currencyCode: body.currencyCode,
-    status: 'POSTED',
+    status: expenseStatus,
     version: parseInt(expenseInsert.rows[0].version, 10),
     paidByParticipantId: body.paidByParticipantId,
     splitStrategy: body.splitStrategy,
@@ -397,34 +401,36 @@ export async function createGroupExpense(
     obligations: obligationRows,
   };
 
-  await upsertGroupFinanceProjection(
-    client,
-    momentId,
-    body.currencyCode,
-    body.paidByParticipantId,
-    amount,
-    computed,
-    domainEventId,
-    body.splitStrategy === 'POOLED',
-    1
-  );
+  if (!body.asDraft) {
+    await upsertGroupFinanceProjection(
+      client,
+      momentId,
+      body.currencyCode,
+      body.paidByParticipantId,
+      amount,
+      computed,
+      domainEventId,
+      body.splitStrategy === 'POOLED',
+      1
+    );
 
-  const tax = await loadMomentTaxonomy(client, momentId);
-  await emitLeanBusinessEvent(client, ctx, {
-    eventName: 'expense_added',
-    eventId: domainEventId,
-    momentId,
-    momentDomain: tax?.domain ?? 'group',
-    momentCategory: tax?.category,
-    momentType: tax?.type,
-    properties: {
-      expense_id: expenseId,
-      amount: amount.toFixed(4),
-      currency: body.currencyCode,
-      expense_category: body.splitStrategy,
-      participant_count_affected: shareRows.length,
-    },
-  });
+    const tax = await loadMomentTaxonomy(client, momentId);
+    await emitLeanBusinessEvent(client, ctx, {
+      eventName: 'expense_added',
+      eventId: domainEventId,
+      momentId,
+      momentDomain: tax?.domain ?? 'group',
+      momentCategory: tax?.category,
+      momentType: tax?.type,
+      properties: {
+        expense_id: expenseId,
+        amount: amount.toFixed(4),
+        currency: body.currencyCode,
+        expense_category: body.splitStrategy,
+        participant_count_affected: shareRows.length,
+      },
+    });
+  }
 
   return result;
 }

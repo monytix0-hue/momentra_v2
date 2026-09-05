@@ -533,6 +533,7 @@ data class CreateMomentBody(
     val participants: List<CreateMomentParticipantBody>? = null,
     @SerializedName("inviteCode") val inviteCode: String? = null,
     @SerializedName("companyId") val companyId: String? = null,
+    val status: String? = null,
     @SerializedName("personalSetup") val personalSetup: PersonalSetupBlockDto? = null,
     @SerializedName("businessSetup") val businessSetup: BusinessSetupBlockDto? = null,
     @SerializedName("groupSetup") val groupSetup: GroupSetupBlockDto? = null,
@@ -548,11 +549,71 @@ data class BusinessSetupBlockDto(
     val preferences: Map<String, Any>? = null,
 )
 
+data class GroupSetupPlaceDto(
+    val label: String,
+    @SerializedName("startAt") val startAt: String? = null,
+    @SerializedName("endAt") val endAt: String? = null,
+)
+
+data class GroupSetupBudgetDto(
+    @SerializedName("currencyCode") val currencyCode: String,
+    val amount: String,
+    @SerializedName("isPrimary") val isPrimary: Boolean? = null,
+)
+
 data class GroupSetupBlockDto(
-    @SerializedName("budgetAmount") val budgetAmount: String,
-    @SerializedName("budgetCurrencyCode") val budgetCurrencyCode: String,
+    @SerializedName("budgetAmount") val budgetAmount: String? = null,
+    @SerializedName("budgetCurrencyCode") val budgetCurrencyCode: String? = null,
     @SerializedName("destinationText") val destinationText: String? = null,
+    val places: List<GroupSetupPlaceDto>? = null,
+    val budgets: List<GroupSetupBudgetDto>? = null,
+    @SerializedName("multiCurrencyEnabled") val multiCurrencyEnabled: Boolean? = null,
+    @SerializedName("splitStyle") val splitStyle: String? = null,
+    @SerializedName("primaryGoal") val primaryGoal: String? = null,
     @SerializedName("reminderPreferences") val reminderPreferences: Map<String, Boolean>? = null,
+    @SerializedName("setupPreferences") val setupPreferences: Map<String, Any>? = null,
+)
+
+data class GroupSetupPrefillDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    val title: String? = null,
+    val status: String? = null,
+    @SerializedName("momentTypeCode") val momentTypeCode: String? = null,
+    @SerializedName("startAt") val startAt: String? = null,
+    @SerializedName("endAt") val endAt: String? = null,
+    val places: List<GroupSetupPlacePrefillDto>? = null,
+    val budgets: List<GroupSetupBudgetDto>? = null,
+    @SerializedName("multiCurrencyEnabled") val multiCurrencyEnabled: Boolean? = null,
+    @SerializedName("splitStyle") val splitStyle: String? = null,
+    @SerializedName("primaryGoal") val primaryGoal: String? = null,
+    @SerializedName("destinationText") val destinationText: String? = null,
+    val version: Int? = null,
+)
+
+data class GroupSetupPlacePrefillDto(
+    @SerializedName("placeId") val placeId: String? = null,
+    val label: String? = null,
+    @SerializedName("startAt") val startAt: String? = null,
+    @SerializedName("endAt") val endAt: String? = null,
+    @SerializedName("sortOrder") val sortOrder: Int? = null,
+)
+
+data class DiscardMomentDraftResultDto(
+    @SerializedName("momentId") val momentId: String,
+    val discarded: Boolean = true,
+)
+
+data class DomainSetupPrefillDto(
+    @SerializedName("momentId") val momentId: String,
+    val title: String,
+    val status: String,
+    @SerializedName("domainCode") val domainCode: String,
+    @SerializedName("momentTypeCode") val momentTypeCode: String,
+    @SerializedName("systemCode") val systemCode: String? = null,
+    @SerializedName("familyCode") val familyCode: String? = null,
+    val preferences: Map<String, Any?>? = null,
+    @SerializedName("companyId") val companyId: String? = null,
+    val version: Int,
 )
 
 data class PatchGroupBudgetBody(
@@ -674,6 +735,7 @@ data class CreateExpenseBody(
     @SerializedName("paymentMethodCode") val paymentMethodCode: String? = null,
     @SerializedName("effectiveAt") val effectiveAt: String? = null,
     @SerializedName("recurringScheduleId") val recurringScheduleId: String? = null,
+    @SerializedName("asDraft") val asDraft: Boolean? = null,
 )
 
 data class CreateExpenseResultDto(
@@ -1484,6 +1546,7 @@ data class CreatePlanningItemBody(
     val location: String? = null,
     @SerializedName("priorityCode") val priorityCode: String? = null,
     val description: String? = null,
+    @SerializedName("asDraft") val asDraft: Boolean? = null,
 )
 data class CreateBookingBody(val title: String, @SerializedName("bookedAt") val bookedAt: String? = null)
 data class CreatePollBody(
@@ -1491,6 +1554,7 @@ data class CreatePollBody(
     val options: List<String>,
     @SerializedName("closesAt") val closesAt: String? = null,
     @SerializedName("pollType") val pollType: String? = null,
+    @SerializedName("asDraft") val asDraft: Boolean? = null,
 )
 
 data class GroupPollOptionDto(
@@ -1535,8 +1599,13 @@ data class PostUpdateBody(
     val message: String,
     @SerializedName("notifyMembers") val notifyMembers: Boolean? = true,
     @SerializedName("urgencyCode") val urgencyCode: String? = "NORMAL",
+    @SerializedName("asDraft") val asDraft: Boolean? = null,
 )
-data class CreateMemoryBody(val title: String, @SerializedName("capturedAt") val capturedAt: String? = null)
+data class CreateMemoryBody(
+    val title: String,
+    @SerializedName("capturedAt") val capturedAt: String? = null,
+    @SerializedName("asDraft") val asDraft: Boolean? = null,
+)
 data class CreateGroupVendorBody(
     @SerializedName("vendorName") val vendorName: String,
     @SerializedName("vendorType") val vendorType: String? = null,
@@ -1637,6 +1706,8 @@ data class GroupParticipantDto(
     @SerializedName("roleCode") val roleCode: String = "PARTICIPANT",
     val status: String = "ACTIVE",
     @SerializedName("displayName") val displayName: String? = null,
+    @SerializedName("roleLabel") val roleLabel: String? = null,
+    @SerializedName("isGuest") val isGuest: Boolean = false,
 )
 
 data class LeaveMomentBody(
@@ -1685,6 +1756,7 @@ data class CreateGroupExpenseBody(
     @SerializedName("paidByParticipantId") val paidByParticipantId: String,
     @SerializedName("splitStrategy") val splitStrategy: String,
     @SerializedName("splitInputs") val splitInputs: List<GroupExpenseSplitInputDto>,
+    @SerializedName("asDraft") val asDraft: Boolean? = null,
 )
 
 data class CreateGroupExpenseResultDto(

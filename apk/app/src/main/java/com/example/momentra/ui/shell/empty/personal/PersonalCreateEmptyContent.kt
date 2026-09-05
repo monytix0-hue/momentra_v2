@@ -64,7 +64,7 @@ import com.example.momentra.ui.theme.PlusJakartaSans
 @Composable
 fun PersonalCreateEmptyContent(
     history: List<MomentSummary> = emptyList(),
-    onMomentCreated: (momentId: String, title: String, momentTypeCode: String?) -> Unit = { _, _, _ -> },
+    onMomentCreated: (momentId: String, title: String, momentTypeCode: String?, status: String) -> Unit = { _, _, _, _ -> },
     onOpenExisting: (momentId: String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -118,9 +118,9 @@ fun PersonalCreateEmptyContent(
                 PersonalSetupWizardContent(
                     system = system,
                     onBack = { wizard = null },
-                    onCreated = { id, title, typeCode ->
+                    onCreated = { id, title, typeCode, status ->
                         wizard = null
-                        onMomentCreated(id, title, typeCode)
+                        onMomentCreated(id, title, typeCode, status)
                     },
                     modifier = Modifier
                         .fillMaxWidth()

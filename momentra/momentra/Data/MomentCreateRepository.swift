@@ -8,7 +8,8 @@ protocol MomentCreateGateway {
         title: String,
         description: String?,
         momentTypeCode: String,
-        preferences: [String: Any]
+        preferences: [String: Any],
+        status: String? = nil
     ) async throws -> CreateMomentOutcome
     func createBusinessSetup(
         draftKey: String,
@@ -17,7 +18,8 @@ protocol MomentCreateGateway {
         title: String,
         description: String?,
         momentTypeCode: String,
-        preferences: [String: Any]
+        preferences: [String: Any],
+        status: String? = nil
     ) async throws -> CreateMomentOutcome
     func createGroupMoment(
         draftKey: String,
@@ -29,7 +31,8 @@ protocol MomentCreateGateway {
         participants: [CreateMomentParticipantInput],
         inviteCode: String?,
         customTypeLabel: String?,
-        groupSetup: CreateMomentRequest.GroupSetupBlock?
+        groupSetup: CreateMomentRequest.GroupSetupBlock?,
+        status: String?
     ) async throws -> CreateMomentOutcome
     func mintGroupInvite(draftKey: String, title: String, momentTypeCode: String) async throws -> GroupInvite
     func previewGroupInvite(code: String) async throws -> GroupInvite
@@ -61,7 +64,8 @@ final class MomentCreateRepository: MomentCreateGateway {
         title: String,
         description: String?,
         momentTypeCode: String,
-        preferences: [String: Any]
+        preferences: [String: Any],
+        status: String? = nil
     ) async throws -> CreateMomentOutcome {
         try await createMoment(
             draftKey: draftKey,
@@ -75,6 +79,7 @@ final class MomentCreateRepository: MomentCreateGateway {
                 timezone: TimeZone.current.identifier,
                 companyId: nil,
                 participants: nil,
+                status: status,
                 personalSetup: .init(
                     systemCode: systemCode,
                     preferences: JSONEncodableValue.map(preferences)
@@ -91,7 +96,8 @@ final class MomentCreateRepository: MomentCreateGateway {
         title: String,
         description: String?,
         momentTypeCode: String,
-        preferences: [String: Any]
+        preferences: [String: Any],
+        status: String? = nil
     ) async throws -> CreateMomentOutcome {
         try await createMoment(
             draftKey: draftKey,
@@ -105,6 +111,7 @@ final class MomentCreateRepository: MomentCreateGateway {
                 timezone: TimeZone.current.identifier,
                 companyId: companyId,
                 participants: nil,
+                status: status,
                 personalSetup: nil,
                 businessSetup: .init(
                     familyCode: familyCode,
@@ -124,7 +131,8 @@ final class MomentCreateRepository: MomentCreateGateway {
         participants: [CreateMomentParticipantInput],
         inviteCode: String?,
         customTypeLabel: String? = nil,
-        groupSetup: CreateMomentRequest.GroupSetupBlock? = nil
+        groupSetup: CreateMomentRequest.GroupSetupBlock? = nil,
+        status: String? = nil
     ) async throws -> CreateMomentOutcome {
         try await createMoment(
             draftKey: draftKey,
@@ -140,6 +148,7 @@ final class MomentCreateRepository: MomentCreateGateway {
                 companyId: nil,
                 participants: participants.isEmpty ? nil : participants,
                 inviteCode: inviteCode,
+                status: status,
                 personalSetup: nil,
                 businessSetup: nil,
                 groupSetup: groupSetup

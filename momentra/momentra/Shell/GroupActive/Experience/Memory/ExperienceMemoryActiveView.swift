@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Figma 584:15935 / 584:16653 — Experience Memory. Live APIs only.
+/// Figma 575:14470 — Experience Memory. Live APIs only.
 struct ExperienceMemoryActiveView: View {
     let theme: ExperienceActiveTheme
     let refreshToken: UInt64
@@ -16,22 +16,23 @@ struct ExperienceMemoryActiveView: View {
     @State private var loading = true
     @State private var error: String?
 
+    private let timelineAccents: [Color] = [
+        Color(hex: "#14B8A6"),
+        Color(hex: "#B45309"),
+        Color(hex: "#A855F7"),
+        GroupActiveTheme.accentOrange,
+    ]
+
     var body: some View {
         Group {
             if loading && pulse == nil && finance == nil && memory == nil {
-                ProgressView().tint(theme.accent)
+                ProgressView().tint(GroupActiveTheme.brand)
             } else {
                 content
             }
         }
-        .background(theme.bg)
+        .background(GroupActiveTheme.bg)
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
-    }
-
-    private var nameById: [String: String] {
-        Dictionary(uniqueKeysWithValues: participants.map {
-            ($0.participantId, $0.displayName ?? String($0.participantId.prefix(8)))
-        })
     }
 
     @ViewBuilder
@@ -47,170 +48,235 @@ struct ExperienceMemoryActiveView: View {
             expenseTotal: total?.expenseTotal,
             budgetTotal: total?.budgetTotal
         )
-        let positions = finance?.positions ?? []
-        NativeDashboardScaffold(background: theme.bg) {
 
+        NativeDashboardScaffold(background: GroupActiveTheme.bg) {
             NativeListSection {
+                VStack(alignment: .leading, spacing: 14) {
+                    if let error {
+                        Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
+                    }
 
-            VStack(alignment: .leading, spacing: 14) {
-                if let error {
-                    Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
-                }
+                    experienceMemoryHero(title: displayTitle, peopleCount: people, memoryCount: memoryCount)
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("GROUP MEMORY")
-                        .font(.plusJakarta(size: 11, weight: .bold))
-                        .foregroundStyle(Color.white.opacity(0.9))
-                    Text(displayTitle)
-                        .font(.plusJakarta(size: 22, weight: .heavy))
-                        .foregroundStyle(Color.white)
-                    Text("\(people) people shaped this moment")
-                        .font(.plusJakarta(size: 13))
-                        .foregroundStyle(Color.white.opacity(0.9))
-                    Text(memoryCount > 0 ? "\(memoryCount) memories captured" : "No memories yet")
-                        .font(.plusJakarta(size: 11, weight: .bold))
-                        .foregroundStyle(theme.darkText)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .background(Color.white.opacity(0.9))
-                        .clipShape(Capsule())
-                }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(theme.heroGradient)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-
-                ExperienceSectionCard(theme: theme, title: "Memory Timeline") {
-                    if items.isEmpty {
-                        ExperienceEmptyBlock(
-                            theme: theme,
-                            message: "Timeline empty",
-                            detail: "Shared memories will appear here — nothing is invented."
-                        )
-                    } else {
-                        ForEach(items) { item in
-                            HStack(spacing: 10) {
-                                if let thumb = item.primaryDownloadUrl, !thumb.isEmpty {
-                                    MemoryMediaThumb(
-                                        urlString: thumb,
-                                        size: 40,
-                                        border: theme.accent.opacity(0.35),
-                                        field: theme.accentSoft
-                                    )
-                                }
-                                Text(item.title ?? "Memory")
-                                    .font(.plusJakarta(size: 13))
-                                    .foregroundStyle(theme.text)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .padding(12)
-                            .background(theme.accentSoft)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(theme.accent.opacity(0.35))
+                    GroupSectionCard(title: "Memory Timeline") {
+                        if items.isEmpty {
+                            GroupEmptySection(
+                                message: "Timeline empty",
+                                detail: "Shared memories will appear here — nothing is invented."
                             )
-                        }
-                    }
-                }
-
-                ExperienceSectionCard(theme: theme, title: "Memory Gallery") {
-                    MemoryPhotoGalleryStrip(
-                        items: items,
-                        emptyMessage: "No photos yet",
-                        emptyDetail: "Add a memory with a photo from Quick Add.",
-                        text: theme.text,
-                        muted: theme.secondary,
-                        field: theme.card,
-                        border: theme.border
-                    )
-                }
-
-                ExperienceSectionCard(theme: theme, title: "People Impact") {
-                    GroupMetricTile(label: "Participants", value: "\(people)")
-                    if positions.isEmpty {
-                        ExperienceEmptyBlock(
-                            theme: theme,
-                            message: "No contributors yet",
-                            detail: "People appear after expenses and activity are recorded."
-                        )
-                        .padding(.top, 8)
-                    } else {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ForEach(Array(positions.prefix(3))) { pos in
-                                HStack {
-                                    Text(nameById[pos.participantId] ?? String(pos.participantId.prefix(8)))
-                                        .font(.plusJakarta(size: 12))
-                                        .foregroundStyle(theme.text)
-                                    Spacer()
-                                    Text(GroupFinanceFormat.formatMoney(pos.netPosition, currencyCode: pos.currencyCode))
-                                        .font(.plusJakarta(size: 12, weight: .semibold))
-                                        .foregroundStyle(theme.secondary)
-                                }
-                                .padding(.top, 6)
+                        } else {
+                            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                                experienceTimelineRow(
+                                    item: item,
+                                    accent: timelineAccents[index % timelineAccents.count],
+                                    glyph: experienceMemoryGlyph(index)
+                                )
                             }
                         }
                     }
-                }
 
-                ExperienceSectionCard(theme: theme, title: theme.budgetTitle) {
-                    HStack(spacing: 8) {
-                        GroupMetricTile(
-                            label: "Planned",
-                            value: GroupFinanceFormat.formatMoney(total?.budgetTotal, currencyCode: currency)
-                        )
-                        GroupMetricTile(
-                            label: "Actual",
-                            value: GroupFinanceFormat.formatMoney(total?.expenseTotal, currencyCode: currency)
+                    GroupSectionCard(title: "Milestone Wall", badge: { GroupApiGapBadge() }) {
+                        GroupEmptySection(
+                            message: "No milestones yet",
+                            detail: "Milestone capture is not live for groups."
                         )
                     }
-                    if total?.budgetTotal != nil {
-                        Text("\(utilization)% of planned")
-                            .font(.plusJakarta(size: 12, weight: .semibold))
-                            .foregroundStyle(theme.accentLight)
-                            .padding(.top, 8)
-                        GroupProgressBar(percent: utilization)
-                    } else {
-                        Text("Set a budget to track planned vs actual.")
+
+                    GroupSectionCard(title: "Memory Gallery") {
+                        MemoryPhotoGalleryStrip(
+                            items: items,
+                            emptyMessage: "No photos yet",
+                            emptyDetail: "Add a memory with a photo from Quick Add.",
+                            text: GroupActiveTheme.text,
+                            muted: GroupActiveTheme.secondary,
+                            field: GroupActiveTheme.card,
+                            border: GroupActiveTheme.border
+                        )
+                    }
+
+                    GroupSectionCard(title: "People Impact") {
+                        Text(people > 0 ? "\(people) people shaped this shared story" : "No participants yet")
+                            .font(.plusJakarta(size: 13, weight: .semibold))
+                            .foregroundStyle(GroupActiveTheme.text)
+                        GroupMetricTile(label: "Participants", value: "\(people)")
+                    }
+
+                    GroupSectionCard(title: theme.budgetTitle) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Planned")
+                                        .font(.plusJakarta(size: 11))
+                                        .foregroundStyle(.white.opacity(0.8))
+                                    Text(GroupFinanceFormat.formatMoney(total?.budgetTotal, currencyCode: currency))
+                                        .font(.plusJakarta(size: 16, weight: .bold))
+                                        .foregroundStyle(.white)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Actual")
+                                        .font(.plusJakarta(size: 11))
+                                        .foregroundStyle(.white.opacity(0.8))
+                                    Text(GroupFinanceFormat.formatMoney(total?.expenseTotal, currencyCode: currency))
+                                        .font(.plusJakarta(size: 16, weight: .bold))
+                                        .foregroundStyle(.white)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            GroupProgressBar(percent: utilization)
+                            Text(
+                                utilization > 0
+                                    ? "\(utilization)% of planned budget used"
+                                    : "Set a budget to track planned vs actual."
+                            )
+                            .font(.plusJakarta(size: 11))
+                            .foregroundStyle(.white.opacity(0.85))
+                        }
+                        .padding(14)
+                        .background(
+                            LinearGradient(
+                                colors: [theme.accentSolid, theme.accentLight],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+
+                    GroupSectionCard(title: "Memory Intelligence", badge: { GroupComingSoonBadge() }) {
+                        GroupEmptySection(
+                            message: "Insights coming soon",
+                            detail: "AI memory intelligence for groups is on the roadmap — no invented copy."
+                        )
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Preserve this moment")
+                            .font(.plusJakarta(size: 16, weight: .heavy))
+                            .foregroundStyle(.white)
+                        Text("Capture a memory, photo, or update for the \(theme.typeLabel.lowercased()) story.")
                             .font(.plusJakarta(size: 12))
-                            .foregroundStyle(theme.secondary)
-                            .padding(.top, 8)
+                            .foregroundStyle(.white.opacity(0.85))
+                        GroupCtaButton(label: "+ Capture Memory", enabled: true, action: onOpenQuickAdd)
                     }
-                }
-
-                ExperienceSectionCard(theme: theme, title: "Memory Intelligence") {
-                    ExperienceEmptyBlock(
-                        theme: theme,
-                        message: "Insights coming soon",
-                        detail: "AI memory intelligence for groups is on the roadmap — no invented copy."
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        LinearGradient(
+                            colors: [GroupActiveTheme.brand, GroupActiveTheme.accentOrange],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
                     )
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
                 }
-
-                VStack(spacing: 16) {
-                    Text("Preserve this moment")
-                        .font(.plusJakarta(size: 18, weight: .bold))
-                        .foregroundStyle(Color.white)
-                    Text("Capture a memory, photo, or update for the \(theme.typeLabel.lowercased()) story.")
-                        .font(.plusJakarta(size: 13))
-                        .foregroundStyle(Color.white.opacity(0.9))
-                    Button(action: onOpenQuickAdd) {
-                        Text("+ Capture Memory")
-                            .font(.plusJakarta(size: 14, weight: .bold))
-                            .foregroundStyle(theme.darkText)
-                            .frame(maxWidth: .infinity).background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(20)
-                .frame(maxWidth: .infinity)
-                .background(theme.heroGradient)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
             }
-
-            }
-
         }
+    }
+
+    private func experienceMemoryHero(title: String, peopleCount: Int, memoryCount: Int) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 14) {
+                Text(theme.heroEmoji)
+                    .font(.system(size: 24))
+                    .frame(width: 56, height: 56)
+                    .background(Color.white.opacity(0.18))
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.plusJakarta(size: 20, weight: .heavy))
+                        .foregroundStyle(.white)
+                    Text("What you'll remember from this \(theme.typeLabel.lowercased())")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(.white.opacity(0.85))
+                }
+            }
+            HStack(spacing: 8) {
+                experienceHeroChip("\(peopleCount) people")
+                experienceHeroChip(memoryCount > 0 ? "\(memoryCount) memories captured" : "No memories yet")
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [theme.accentSolid, theme.accentLight, Color(hex: "#3D2A24")],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+    }
+
+    private func experienceHeroChip(_ label: String) -> some View {
+        Text(label)
+            .font(.plusJakarta(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.white.opacity(0.16))
+            .clipShape(Capsule())
+    }
+
+    private func experienceTimelineRow(
+        item: APIClient.GroupMemoryPayload.MemoryInner.GroupMemoryItem,
+        accent: Color,
+        glyph: String
+    ) -> some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 100)
+                .fill(accent)
+                .frame(width: 3, height: 40)
+            if let thumb = item.primaryDownloadUrl, !thumb.isEmpty {
+                MemoryMediaThumb(
+                    urlString: thumb,
+                    size: 44,
+                    border: accent.opacity(0.35),
+                    field: accent.opacity(0.18)
+                )
+            } else {
+                Text(glyph)
+                    .font(.system(size: 16))
+                    .frame(width: 36, height: 36)
+                    .background(accent.opacity(0.18))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title ?? "Memory")
+                    .font(.plusJakarta(size: 13, weight: .semibold))
+                    .foregroundStyle(GroupActiveTheme.text)
+                if let meta = formatExperienceMemoryInstant(item.occurredAt) {
+                    Text(meta)
+                        .font(.plusJakarta(size: 11))
+                        .foregroundStyle(GroupActiveTheme.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color(hex: "#181716"))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(accent.opacity(0.35)))
+    }
+
+    private func experienceMemoryGlyph(_ index: Int) -> String {
+        switch index % 4 {
+        case 0: return "📷"
+        case 1: return "🎉"
+        case 2: return "🌅"
+        default: return "✨"
+        }
+    }
+
+    private func formatExperienceMemoryInstant(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = formatter.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) else { return nil }
+        let out = DateFormatter()
+        out.locale = Locale(identifier: "en_US_POSIX")
+        out.dateFormat = "d MMM · h:mm a"
+        return out.string(from: date)
     }
 
     private func load() async {
@@ -257,7 +323,6 @@ struct ExperienceMemoryActiveView: View {
                 participants: loadedParts
             ))
         } catch is CancellationError {
-            // Tab/refresh cancelled an in-flight load — not an API outage.
         } catch {
             if Task.isCancelled { return }
             let ns = error as NSError

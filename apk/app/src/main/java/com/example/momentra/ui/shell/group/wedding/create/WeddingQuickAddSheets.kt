@@ -71,6 +71,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.example.momentra.R
+import com.example.momentra.data.api.CreateGroupExpenseBody
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupExpenseSplitBuilder
 import com.example.momentra.data.repository.GroupSliceRepository
@@ -81,6 +82,7 @@ import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.encodeMemoryPhotoBytes
 import com.example.momentra.ui.shell.group.shared.tryTakePersistableReadPermission
 import com.example.momentra.ui.shell.group.shared.tripDateTimeToIso
+import com.example.momentra.ui.shell.group.shared.QuickAddDraftActions
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.setup.SetupDateTimeUtils
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -709,14 +711,15 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
         ) { category = it }
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
-    PrimaryCta(
-        label = "Add Expense",
-        enabled = live && amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && selected.isNotEmpty(),
-        accent = accent,
+    val submitExpenseEnabled = live && amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && selected.isNotEmpty()
+    QuickAddDraftActions(
+        submitLabel = "Add Expense",
+        submitEnabled = submitExpenseEnabled,
+        ctaBrush = accent.cta,
         loading = submitting,
         footer = "Everyone will be notified",
-        onClick = {
-            val payer = paidBy ?: selected.firstOrNull() ?: return@PrimaryCta
+        onSubmit = {
+            val payer = paidBy ?: selected.firstOrNull() ?: return@QuickAddDraftActions
             scope.launch {
                 submitting = true
                 error = null
@@ -730,12 +733,36 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
                         userDescription = description,
                     ),
                 )
-                repository.createGroupExpense(momentId!!, body).fold(
+                repository.createGroupExpense(momentId!!, body.copy(asDraft = false)).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )
             }
         },
+        onSaveDraft = {
+            val payer = paidBy ?: participants.firstOrNull()?.participantId ?: return@QuickAddDraftActions
+            scope.launch {
+                submitting = true
+                error = null
+                val draftBody = CreateGroupExpenseBody(
+                    amount = amount.ifBlank { "0" },
+                    currencyCode = "INR",
+                    description = GroupExpenseCategoryCatalog.descriptionWithCategory(
+                        category = category,
+                        userDescription = description,
+                    ),
+                    paidByParticipantId = payer,
+                    splitStrategy = "POOLED",
+                    splitInputs = emptyList(),
+                    asDraft = true,
+                )
+                repository.createGroupExpense(momentId!!, draftBody).fold(
+                    onSuccess = { submitting = false; onSaved(); onDismiss() },
+                    onFailure = { submitting = false; error = it.message },
+                )
+            }
+        },
+        draftEnabled = live && amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && paidBy != null,
     )
 }
 
@@ -1225,13 +1252,14 @@ internal fun WeddingPlanningSheetBody(
         Segmented(listOf("Low", "Medium", "High"), priority, accent) { priority = it }
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
-    PrimaryCta(
-        label = "Add Planning Item",
-        enabled = live && title.isNotBlank() && category.isNotBlank(),
-        accent = accent,
+    val submitPlanningEnabled = live && title.isNotBlank() && category.isNotBlank()
+    QuickAddDraftActions(
+        submitLabel = "Add Planning Item",
+        submitEnabled = submitPlanningEnabled,
+        ctaBrush = accent.cta,
         loading = submitting,
         footer = "Everyone will be notified",
-        onClick = {
+        onSubmit = {
             scope.launch {
                 submitting = true
                 error = null
@@ -1242,12 +1270,32 @@ internal fun WeddingPlanningSheetBody(
                     categoryCode = GroupPlanningCategoryCatalog.codeForLabel(category),
                     location = location.trim().ifBlank { null },
                     priorityCode = GroupPlanningCategoryCatalog.priorityCode(priority),
+                    asDraft = false,
                 ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )
             }
         },
+        onSaveDraft = {
+            scope.launch {
+                submitting = true
+                error = null
+                repository.createPlanningItem(
+                    momentId = momentId!!,
+                    title = title.trim(),
+                    dueAt = tripDateTimeToIso(date, time),
+                    categoryCode = GroupPlanningCategoryCatalog.codeForLabel(category),
+                    location = location.trim().ifBlank { null },
+                    priorityCode = GroupPlanningCategoryCatalog.priorityCode(priority),
+                    asDraft = true,
+                ).fold(
+                    onSuccess = { submitting = false; onSaved(); onDismiss() },
+                    onFailure = { submitting = false; error = it.message },
+                )
+            }
+        },
+        draftEnabled = live && title.isNotBlank(),
     )
 }
 
@@ -1401,23 +1449,41 @@ internal fun WeddingPollSheetBody(momentId: String?, repository: GroupSliceRepos
         WeddingDatePickField(value = endDate, onValueChange = { endDate = it }, placeholder = "Optional")
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
-    PrimaryCta(
-        label = "Create Poll",
-        enabled = live && question.isNotBlank() && optA.isNotBlank() && optB.isNotBlank(),
-        accent = accent,
+    val submitPollEnabled = live && question.isNotBlank() && optA.isNotBlank() && optB.isNotBlank()
+    QuickAddDraftActions(
+        submitLabel = "Create Poll",
+        submitEnabled = submitPollEnabled,
+        ctaBrush = accent.cta,
         loading = submitting,
         footer = "Everyone will be notified",
-        onClick = {
+        onSubmit = {
             scope.launch {
                 submitting = true
                 error = null
                 val options = listOf(optA, optB, optC).map { it.trim() }.filter { it.isNotEmpty() }
-                repository.createPoll(momentId!!, question.trim(), options).fold(
+                repository.createPoll(momentId!!, question.trim(), options, asDraft = false).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )
             }
         },
+        onSaveDraft = {
+            scope.launch {
+                submitting = true
+                error = null
+                val filled = listOf(optA, optB, optC).map { it.trim() }.filter { it.isNotEmpty() }
+                val options = when {
+                    filled.size >= 2 -> filled
+                    filled.size == 1 -> listOf(filled[0], "TBD")
+                    else -> listOf("TBD", "TBD")
+                }
+                repository.createPoll(momentId!!, question.trim(), options, asDraft = true).fold(
+                    onSuccess = { submitting = false; onSaved(); onDismiss() },
+                    onFailure = { submitting = false; error = it.message },
+                )
+            }
+        },
+        draftEnabled = live && question.isNotBlank(),
     )
 }
 
@@ -1539,60 +1605,64 @@ internal fun WeddingMemorySheetBody(momentId: String?, repository: GroupSliceRep
         ChipRow(listOf("Joyful", "Emotional", "Fun", "Calm"), mood, accent) { mood = it }
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
-    PrimaryCta(
-        label = "Capture Memory",
-        enabled = live && title.isNotBlank() && (type != "Photo" || photoUri != null || photoBitmap != null),
-        accent = accent,
-        loading = submitting,
-        footer = if (type == "Photo") "Photo required for Photo memories" else "Everyone will be notified",
-        onClick = {
-            scope.launch {
-                submitting = true
-                error = null
-                val wantsPhoto = photoUri != null || photoBitmap != null || type == "Photo"
-                if (type == "Photo" && photoUri == null && photoBitmap == null) {
-                    submitting = false
-                    error = "Add a photo before saving"
-                    return@launch
-                }
-                val create = repository.createMemory(momentId!!, title.trim())
-                create.fold(
-                    onSuccess = { created ->
-                        val memoryId = created.memoryId
-                        if (memoryId == null) {
-                            submitting = false
-                            error = "Memory saved but id missing — photo not attached"
-                            return@fold
-                        }
-                        if (!wantsPhoto) {
+    val submitMemoryEnabled = live && title.isNotBlank() && (type != "Photo" || photoUri != null || photoBitmap != null)
+    val saveMemory: (Boolean) -> Unit = saveMemory@{ asDraft ->
+        scope.launch {
+            submitting = true
+            error = null
+            val wantsPhoto = !asDraft && (photoUri != null || photoBitmap != null || type == "Photo")
+            if (!asDraft && type == "Photo" && photoUri == null && photoBitmap == null) {
+                submitting = false
+                error = "Add a photo before saving"
+                return@launch
+            }
+            val create = repository.createMemory(momentId!!, title.trim(), asDraft = if (asDraft) true else null)
+            create.fold(
+                onSuccess = { created ->
+                    val memoryId = created.memoryId
+                    if (memoryId == null) {
+                        submitting = false
+                        error = "Memory saved but id missing — photo not attached"
+                        return@fold
+                    }
+                    if (!wantsPhoto) {
+                        GroupTabDataCache.invalidateMoment(momentId)
+                        submitting = false
+                        onSaved()
+                        onDismiss()
+                        return@fold
+                    }
+                    val bytes = withContext(Dispatchers.IO) {
+                        encodeMemoryPhotoBytes(context.contentResolver, photoUri, photoBitmap)
+                    }
+                    if (bytes == null) {
+                        submitting = false
+                        error = "Could not read the selected photo. Try picking it again."
+                        return@fold
+                    }
+                    repository.uploadAndAttachMemoryMedia(momentId, memoryId, bytes).fold(
+                        onSuccess = {
                             GroupTabDataCache.invalidateMoment(momentId)
                             submitting = false
                             onSaved()
                             onDismiss()
-                            return@fold
-                        }
-                        val bytes = withContext(Dispatchers.IO) {
-                            encodeMemoryPhotoBytes(context.contentResolver, photoUri, photoBitmap)
-                        }
-                        if (bytes == null) {
-                            submitting = false
-                            error = "Could not read the selected photo. Try picking it again."
-                            return@fold
-                        }
-                        repository.uploadAndAttachMemoryMedia(momentId, memoryId, bytes).fold(
-                            onSuccess = {
-                                GroupTabDataCache.invalidateMoment(momentId)
-                                submitting = false
-                                onSaved()
-                                onDismiss()
-                            },
-                            onFailure = { submitting = false; error = it.message ?: "Photo upload failed" },
-                        )
-                    },
-                    onFailure = { submitting = false; error = it.message },
-                )
-            }
-        },
+                        },
+                        onFailure = { submitting = false; error = it.message ?: "Photo upload failed" },
+                    )
+                },
+                onFailure = { submitting = false; error = it.message },
+            )
+        }
+    }
+    QuickAddDraftActions(
+        submitLabel = "Capture Memory",
+        submitEnabled = submitMemoryEnabled,
+        ctaBrush = accent.cta,
+        loading = submitting,
+        footer = if (type == "Photo") "Photo required for Photo memories" else "Everyone will be notified",
+        onSubmit = { saveMemory(false) },
+        onSaveDraft = { saveMemory(true) },
+        draftEnabled = live && title.isNotBlank(),
     )
 
     if (showSourcePicker) {
@@ -1670,13 +1740,13 @@ internal fun WeddingUpdateSheetBody(momentId: String?, repository: GroupSliceRep
         Text(if (notify) "ON" else "OFF", color = if (notify) accent.accent else Wq.Muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, fontFamily = PlusJakartaSans)
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
-    PrimaryCta(
-        label = "Post Update",
-        enabled = live && update.isNotBlank(),
-        accent = accent,
+    QuickAddDraftActions(
+        submitLabel = "Post Update",
+        submitEnabled = live && update.isNotBlank(),
+        ctaBrush = accent.cta,
         loading = submitting,
         footer = "Everyone will be notified",
-        onClick = {
+        onSubmit = {
             scope.launch {
                 submitting = true
                 error = null
@@ -1685,12 +1755,30 @@ internal fun WeddingUpdateSheetBody(momentId: String?, repository: GroupSliceRep
                     update.trim(),
                     notifyMembers = notify,
                     urgencyCode = if (urgent) "URGENT" else "NORMAL",
+                    asDraft = false,
                 ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )
             }
         },
+        onSaveDraft = {
+            scope.launch {
+                submitting = true
+                error = null
+                repository.postUpdate(
+                    momentId!!,
+                    update.trim(),
+                    notifyMembers = false,
+                    urgencyCode = if (urgent) "URGENT" else "NORMAL",
+                    asDraft = true,
+                ).fold(
+                    onSuccess = { submitting = false; onSaved(); onDismiss() },
+                    onFailure = { submitting = false; error = it.message },
+                )
+            }
+        },
+        draftEnabled = live && update.isNotBlank(),
     )
 }
 

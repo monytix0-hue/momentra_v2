@@ -337,6 +337,38 @@ async function loadActiveParticipant(
   };
 }
 
+async function loadRemovableParticipant(
+  client: PoolClient,
+  momentId: string,
+  participantId: string
+): Promise<{
+  participantId: string;
+  userId: string | null;
+  roleCode: string;
+  status: string;
+}> {
+  const row = await client.query<{
+    participant_id: string;
+    user_id: string | null;
+    participant_role: string;
+    status: string;
+  }>(
+    `SELECT participant_id, user_id, participant_role, status
+     FROM collaboration.moment_participant
+     WHERE moment_id = $1 AND participant_id = $2 AND status IN ('ACTIVE', 'INVITED')`,
+    [momentId, participantId]
+  );
+  if (!row.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Participant not found.', 404);
+  }
+  return {
+    participantId: row.rows[0].participant_id,
+    userId: row.rows[0].user_id,
+    roleCode: row.rows[0].participant_role,
+    status: row.rows[0].status,
+  };
+}
+
 /**
  * Organizer updates another (or self) ACTIVE participant's role.
  * Cannot demote the sole remaining organizer.
@@ -414,7 +446,8 @@ export async function updateGroupParticipantRole(
 }
 
 /**
- * Organizer removes another ACTIVE participant (status REMOVED). Cannot remove self or sole organizer.
+ * Organizer removes another ACTIVE or INVITED participant (status REMOVED).
+ * Cannot remove self or sole organizer.
  */
 export async function removeGroupParticipant(
   client: PoolClient,
@@ -433,8 +466,8 @@ export async function removeGroupParticipant(
     );
   }
 
-  const target = await loadActiveParticipant(client, momentId, participantId);
-  if (LEADER_ROLES.has(target.roleCode)) {
+  const target = await loadRemovableParticipant(client, momentId, participantId);
+  if (LEADER_ROLES.has(target.roleCode) && target.status === 'ACTIVE') {
     const organizers = await countActiveOrganizers(client, momentId);
     if (organizers <= 1) {
       throw new AppError(
@@ -454,7 +487,7 @@ export async function removeGroupParticipant(
          END,
          updated_at = now(),
          version = version + 1
-     WHERE moment_id = $1 AND participant_id = $2 AND status = 'ACTIVE'`,
+     WHERE moment_id = $1 AND participant_id = $2 AND status IN ('ACTIVE', 'INVITED')`,
     [momentId, participantId]
   );
 

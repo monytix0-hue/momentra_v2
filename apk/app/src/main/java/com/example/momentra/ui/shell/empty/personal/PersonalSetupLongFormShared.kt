@@ -43,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.domain.CreateMomentOutcome
+import com.example.momentra.ui.create.MomentCreateViewModel
 import com.example.momentra.ui.setup.SetupDropdownField
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -96,7 +98,7 @@ fun PersonalSetupCloseRow(
         ) {
             Text("×", color = PersonalSetupLongFormTokens.Secondary, fontSize = 16.sp)
             Text(
-                "Close",
+                "Discard draft",
                 color = PersonalSetupLongFormTokens.Secondary,
                 fontSize = 14.sp,
                 fontFamily = PlusJakartaSans,
@@ -477,6 +479,7 @@ fun PersonalSetupActivateFooter(
     ctaBrush: Brush,
     submitting: Boolean,
     error: String?,
+    onSaveDraft: () -> Unit,
     onActivate: () -> Unit,
 ) {
     Column(
@@ -522,7 +525,6 @@ fun PersonalSetupActivateFooter(
                 .clickable(enabled = !submitting, onClick = onActivate)
                 .semantics {
                     role = Role.Button
-                    // Maestro text matching breaks on the → glyph — keep a11y text ASCII-only.
                     contentDescription = ctaLabel.replace("→", "").trim()
                     testTag = MaestroIds.PERSONAL_SETUP_SUBMIT
                 },
@@ -536,6 +538,27 @@ fun PersonalSetupActivateFooter(
                 fontFamily = PlusJakartaSans,
             )
         }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .border(1.dp, PersonalSetupLongFormTokens.Border, RoundedCornerShape(14.dp))
+                .clickable(enabled = !submitting, onClick = onSaveDraft)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "Save draft"
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "Save draft",
+                color = PersonalSetupLongFormTokens.Text,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+            )
+        }
         Text(
             footerTagline,
             color = PersonalSetupLongFormTokens.Secondary,
@@ -544,6 +567,43 @@ fun PersonalSetupActivateFooter(
         )
         Spacer(Modifier.height(16.dp))
     }
+}
+
+fun handlePersonalSetupDiscard(
+    createViewModel: MomentCreateViewModel,
+    editingMomentId: String?,
+    editingMomentStatus: String?,
+    onBack: () -> Unit,
+) {
+    if (
+        !editingMomentId.isNullOrBlank() &&
+        editingMomentStatus.equals("DRAFT", ignoreCase = true)
+    ) {
+        createViewModel.discardMomentDraft(editingMomentId) { onBack() }
+    } else {
+        onBack()
+    }
+}
+
+fun submitPersonalSetupWithStatus(
+    createViewModel: MomentCreateViewModel,
+    kind: PersonalSetupKind,
+    preferences: Map<String, Any>,
+    title: String,
+    editingMomentId: String?,
+    editingMomentStatus: String?,
+    status: String,
+    onSuccess: (CreateMomentOutcome) -> Unit,
+) {
+    createViewModel.submitPersonalSetup(
+        kind = kind,
+        preferences = preferences,
+        title = title,
+        editingMomentId = editingMomentId,
+        editingMomentStatus = editingMomentStatus,
+        status = status,
+        onSuccess = onSuccess,
+    )
 }
 
 fun SnapshotStateMap<String, Any>.putCatalogDefaults(defaults: Map<String, Any>) {

@@ -252,8 +252,12 @@ fun GroupFinanceDetailFlow(
                 text = chrome.text,
                 onBack = onDismiss,
             )
-            val total = finance?.totals?.firstOrNull()
-            val currency = total?.currencyCode ?: "INR"
+            val allTotals = finance?.totals.orEmpty()
+            val primaryTotal = GroupFinanceFormat.resolvePrimaryTotal(
+                allTotals,
+                preferredCurrency = finance?.viewerPosition?.currencyCode,
+            )
+            val currency = primaryTotal?.currencyCode ?: "INR"
             val peopleCount = participants.size.takeIf { it > 0 }
                 ?: finance?.positions?.size
                 ?: 0
@@ -276,8 +280,8 @@ fun GroupFinanceDetailFlow(
                 if (loading && finance == null) {
                     Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = chrome.accent) }
                 } else {
-                    FinanceSummaryCard(finance, total, currency, hide, chrome)
-                    ParticipantPositionsSection(finance?.positions.orEmpty(), participants, currency, hide, chrome)
+                    FinanceSummaryCard(finance, allTotals, primaryTotal, hide, chrome)
+                    ParticipantPositionsSection(finance?.positions.orEmpty(), participants, hide, chrome)
                 }
             }
             SettleOutstandingCta(
@@ -354,8 +358,12 @@ fun GroupExpenseSplitsFlow(
                 text = chrome.text,
                 onBack = onDismiss,
             )
-            val total = finance?.totals?.firstOrNull()
-            val currency = total?.currencyCode ?: "INR"
+            val allTotals = finance?.totals.orEmpty()
+            val primaryTotal = GroupFinanceFormat.resolvePrimaryTotal(
+                allTotals,
+                preferredCurrency = finance?.viewerPosition?.currencyCode,
+            )
+            val currency = primaryTotal?.currencyCode ?: "INR"
             val viewer = finance?.viewerPosition
             Column(
                 modifier = Modifier
@@ -369,10 +377,11 @@ fun GroupExpenseSplitsFlow(
                 if (loading && finance == null) {
                     Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = chrome.accent) }
                 } else {
-                    SplitsSummaryCard(title, total, currency, hide, chrome, isWeddingChrome || family.isThemedExperience(), onOpenFinance)
-                    ViewerBalanceCard(viewer, currency, hide, chrome, onSettle = onSettle)
-                    WhoOwesWhomSection(finance?.positions.orEmpty(), participants, currency, hide, chrome)
-                    ExpenseBreakdownSection(finance?.positions.orEmpty(), participants, currency, hide, chrome)
+                    SplitsSummaryCard(title, allTotals, primaryTotal, hide, chrome, isWeddingChrome || family.isThemedExperience(), onOpenFinance)
+                    SharedPoolSection(allTotals, hide, chrome)
+                    ViewerBalanceCard(viewer, finance?.positions.orEmpty(), hide, chrome, onSettle = onSettle)
+                    WhoOwesWhomSection(finance?.positions.orEmpty(), participants, hide, chrome)
+                    ExpenseBreakdownSection(finance?.positions.orEmpty(), participants, hide, chrome)
                 }
             }
             if (onSettle != null) {
@@ -418,15 +427,21 @@ private fun FinanceTopBar(title: String, accent: Color, text: Color, onBack: () 
 @Composable
 private fun FinanceSummaryCard(
     finance: GroupFinancePayloadDto?,
-    total: com.example.momentra.data.api.GroupFinanceTotalDto?,
-    currency: String,
+    allTotals: List<com.example.momentra.data.api.GroupFinanceTotalDto>,
+    primaryTotal: com.example.momentra.data.api.GroupFinanceTotalDto?,
     hide: Boolean,
     chrome: GroupFinanceChrome,
 ) {
-    val utilization = GroupFinanceFormat.utilizationPercent(total?.expenseTotal, total?.budgetTotal)
-    val expense = GroupFinanceFormat.parseAmount(total?.expenseTotal)
-    val budget = GroupFinanceFormat.parseAmount(total?.budgetTotal)
+    val currency = primaryTotal?.currencyCode ?: "INR"
+    val utilization = GroupFinanceFormat.utilizationPercent(primaryTotal?.expenseTotal, primaryTotal?.budgetTotal)
+    val expense = GroupFinanceFormat.parseAmount(primaryTotal?.expenseTotal)
+    val budget = GroupFinanceFormat.parseAmount(primaryTotal?.budgetTotal)
     val left = (budget - expense).max(BigDecimal.ZERO)
+    val expenseHeadline = if (allTotals.size > 1) {
+        GroupFinanceFormat.expensePartitionLine(allTotals, hide = hide)
+    } else {
+        BalanceMask.mask(GroupFinanceFormat.formatMoney(primaryTotal?.expenseTotal, currency), hide)
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -439,67 +454,114 @@ private fun FinanceSummaryCard(
         Text("Finance Summary", color = chrome.text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
         Text("TOTAL EXPENSES", color = chrome.secondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
         Text(
-            BalanceMask.mask(GroupFinanceFormat.formatMoney(total?.expenseTotal, currency), hide),
+            expenseHeadline,
             color = chrome.text,
-            fontSize = 28.sp,
+            fontSize = if (allTotals.size > 1) 18.sp else 28.sp,
             fontWeight = FontWeight.ExtraBold,
             fontFamily = PlusJakartaSans,
         )
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SummaryTile(
-                "Budget",
-                BalanceMask.mask(GroupFinanceFormat.formatMoney(total?.budgetTotal, currency), hide),
-                "$utilization% Utilized",
-                chrome.accent,
-                chrome,
-                Modifier.weight(1f),
-            )
-            SummaryTile(
-                "Contributions",
-                BalanceMask.mask(GroupFinanceFormat.formatMoney(total?.contributionTotal, currency), hide),
-                "Collected",
-                chrome.green,
-                chrome,
-                Modifier.weight(1f),
-            )
-        }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SummaryTile(
-                "Settled",
-                BalanceMask.mask(GroupFinanceFormat.formatMoney(total?.settledTotal, currency), hide),
-                "Recorded",
-                chrome.green,
-                chrome,
-                Modifier.weight(1f),
-            )
-            val outstanding = GroupFinanceFormat.parseAmount(total?.outstandingTotal)
-            SummaryTile(
-                "Outstanding",
-                BalanceMask.mask(GroupFinanceFormat.formatMoney(total?.outstandingTotal, currency), hide),
-                if (outstanding > BigDecimal.ZERO) "Action pending" else "No action needed",
-                if (outstanding > BigDecimal.ZERO) chrome.orange else chrome.green,
-                chrome,
-                Modifier.weight(1f),
-            )
-        }
-        GroupProgressBar(percent = utilization, fill = chrome.accent, track = Color(0xFF332E40))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        if (allTotals.size > 1) {
             Text(
-                "${BalanceMask.mask(GroupFinanceFormat.formatMoney(total?.expenseTotal, currency), hide)} spent",
+                "Budget ${BalanceMask.mask(GroupFinanceFormat.budgetPartitionLine(allTotals, hide = hide), hide)}",
                 color = chrome.secondary,
                 fontSize = 12.sp,
                 fontFamily = PlusJakartaSans,
             )
-            Text(
-                "${BalanceMask.mask(GroupFinanceFormat.formatMoney(left.toPlainString(), currency), hide)} left",
-                color = chrome.secondary,
-                fontSize = 12.sp,
-                fontFamily = PlusJakartaSans,
-            )
+            allTotals.forEach { total ->
+                CurrencyTotalsRow(total, hide, chrome)
+            }
+        } else if (primaryTotal != null) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SummaryTile(
+                    "Budget",
+                    BalanceMask.mask(GroupFinanceFormat.formatMoney(primaryTotal.budgetTotal, currency), hide),
+                    "$utilization% Utilized",
+                    chrome.accent,
+                    chrome,
+                    Modifier.weight(1f),
+                )
+                SummaryTile(
+                    "Contributions",
+                    BalanceMask.mask(GroupFinanceFormat.formatMoney(primaryTotal.contributionTotal, currency), hide),
+                    "Collected",
+                    chrome.green,
+                    chrome,
+                    Modifier.weight(1f),
+                )
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SummaryTile(
+                    "Settled",
+                    BalanceMask.mask(GroupFinanceFormat.formatMoney(primaryTotal.settledTotal, currency), hide),
+                    "Recorded",
+                    chrome.green,
+                    chrome,
+                    Modifier.weight(1f),
+                )
+                val outstanding = GroupFinanceFormat.parseAmount(primaryTotal.outstandingTotal)
+                SummaryTile(
+                    "Outstanding",
+                    BalanceMask.mask(GroupFinanceFormat.formatMoney(primaryTotal.outstandingTotal, currency), hide),
+                    if (outstanding > BigDecimal.ZERO) "Action pending" else "No action needed",
+                    if (outstanding > BigDecimal.ZERO) chrome.orange else chrome.green,
+                    chrome,
+                    Modifier.weight(1f),
+                )
+            }
+            GroupProgressBar(percent = utilization, fill = chrome.accent, track = Color(0xFF332E40))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    "${BalanceMask.mask(GroupFinanceFormat.formatMoney(primaryTotal.expenseTotal, currency), hide)} spent",
+                    color = chrome.secondary,
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+                Text(
+                    "${BalanceMask.mask(GroupFinanceFormat.formatMoney(left.toPlainString(), currency), hide)} left",
+                    color = chrome.secondary,
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
         }
-        if (finance == null || total == null) {
+        if (finance == null || primaryTotal == null) {
             Text("No finance data yet — add an expense to populate this view.", color = chrome.secondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         }
+    }
+}
+
+@Composable
+private fun CurrencyTotalsRow(
+    total: com.example.momentra.data.api.GroupFinanceTotalDto,
+    hide: Boolean,
+    chrome: GroupFinanceChrome,
+) {
+    if (total.currencyCode.isBlank()) return
+    val util = GroupFinanceFormat.utilizationPercent(total.expenseTotal, total.budgetTotal)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(chrome.bg)
+            .border(1.dp, chrome.border, RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            total.currencyCode,
+            color = chrome.accentLight,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = PlusJakartaSans,
+        )
+        Text(
+            "Spent ${BalanceMask.mask(GroupFinanceFormat.formatMoney(total.expenseTotal, total.currencyCode), hide)} · Budget ${BalanceMask.mask(GroupFinanceFormat.formatMoney(total.budgetTotal, total.currencyCode), hide)}",
+            color = chrome.text,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
+        )
+        GroupProgressBar(percent = util, fill = chrome.accent, track = Color(0xFF332E40))
     }
 }
 
@@ -530,16 +592,16 @@ private fun SummaryTile(
 private fun ParticipantPositionsSection(
     positions: List<GroupFinancePositionDto>,
     participants: List<GroupParticipantDto>,
-    currency: String,
     hide: Boolean,
     chrome: GroupFinanceChrome,
 ) {
     val nameById = participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
+    val grouped = GroupFinanceFormat.groupPositionsByParticipant(positions)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("👥 Participant Positions", color = chrome.text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
             Text(
-                "${positions.size}",
+                "${grouped.size}",
                 color = chrome.accent,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
@@ -550,14 +612,13 @@ private fun ParticipantPositionsSection(
                     .padding(horizontal = 8.dp, vertical = 2.dp),
             )
         }
-        if (positions.isEmpty()) {
+        if (grouped.isEmpty()) {
             Text("Positions appear after shared expenses are recorded.", color = chrome.secondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         } else {
-            positions.forEach { pos ->
+            grouped.forEach { (participantId, rows) ->
                 PositionDetailCard(
-                    name = nameById[pos.participantId] ?: pos.participantId.take(8),
-                    position = pos,
-                    currency = currency,
+                    name = nameById[participantId] ?: participantId.take(8),
+                    positions = rows,
                     hide = hide,
                     chrome = chrome,
                 )
@@ -569,19 +630,27 @@ private fun ParticipantPositionsSection(
 @Composable
 private fun PositionDetailCard(
     name: String,
-    position: GroupFinancePositionDto,
-    currency: String,
+    positions: List<GroupFinancePositionDto>,
     hide: Boolean,
     chrome: GroupFinanceChrome,
 ) {
-    val net = GroupFinanceFormat.parseAmount(position.netPosition)
-    val getsBack = net >= BigDecimal.ZERO
+    val primary = positions.first()
+    val netLine = GroupFinanceFormat.formatPartitionedAmounts(
+        positions.map { it.currencyCode to it.netPosition },
+        hide = hide,
+    )
+    val primaryNet = GroupFinanceFormat.parseAmount(primary.netPosition)
+    val getsBack = primaryNet >= BigDecimal.ZERO
     val netLabel = if (getsBack) {
-        "+${BalanceMask.mask(GroupFinanceFormat.formatMoney(position.netPosition, currency), hide)} Gets back"
+        "+$netLine Gets back"
     } else {
-        "-${BalanceMask.mask(GroupFinanceFormat.formatMoney(net.abs().toPlainString(), currency), hide)} Owes"
+        "-$netLine Owes"
     }
     val netColor = if (getsBack) chrome.green else chrome.orange
+    val paidLine = GroupFinanceFormat.formatPartitionedAmounts(positions.map { it.currencyCode to it.paidTotal }, compact = true, hide = hide)
+    val shareLine = GroupFinanceFormat.formatPartitionedAmounts(positions.map { it.currencyCode to it.allocatedTotal }, compact = true, hide = hide)
+    val payableLine = GroupFinanceFormat.formatPartitionedAmounts(positions.map { it.currencyCode to it.payableTotal }, compact = true, hide = hide)
+    val receivableLine = GroupFinanceFormat.formatPartitionedAmounts(positions.map { it.currencyCode to it.receivableTotal }, compact = true, hide = hide)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -595,14 +664,22 @@ private fun PositionDetailCard(
             AvatarBubble(name, highlight = getsBack, chrome = chrome)
             Column(modifier = Modifier.weight(1f)) {
                 Text(name, color = chrome.text, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+                if (positions.size > 1) {
+                    Text(
+                        positions.joinToString(" · ") { it.currencyCode },
+                        color = chrome.secondary,
+                        fontSize = 10.sp,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
             }
             Text(netLabel, color = netColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            MetricCell("Paid", BalanceMask.mask(GroupFinanceFormat.formatMoney(position.paidTotal, currency), hide), chrome, Modifier.weight(1f))
-            MetricCell("Allocated", BalanceMask.mask(GroupFinanceFormat.formatMoney(position.allocatedTotal, currency), hide), chrome, Modifier.weight(1f))
-            MetricCell("Payable", BalanceMask.mask(GroupFinanceFormat.formatMoney(position.payableTotal, currency), hide), chrome, Modifier.weight(1f), tint = chrome.orange)
-            MetricCell("Receivable", BalanceMask.mask(GroupFinanceFormat.formatMoney(position.receivableTotal, currency), hide), chrome, Modifier.weight(1f), tint = chrome.green)
+            MetricCell("Paid", paidLine, chrome, Modifier.weight(1f))
+            MetricCell("Allocated", shareLine, chrome, Modifier.weight(1f))
+            MetricCell("Payable", payableLine, chrome, Modifier.weight(1f), tint = chrome.orange)
+            MetricCell("Receivable", receivableLine, chrome, Modifier.weight(1f), tint = chrome.green)
         }
     }
 }
@@ -653,14 +730,20 @@ private fun SettleOutstandingCta(
 @Composable
 private fun SplitsSummaryCard(
     title: String?,
-    total: com.example.momentra.data.api.GroupFinanceTotalDto?,
-    currency: String,
+    allTotals: List<com.example.momentra.data.api.GroupFinanceTotalDto>,
+    primaryTotal: com.example.momentra.data.api.GroupFinanceTotalDto?,
     hide: Boolean,
     chrome: GroupFinanceChrome,
     isWedding: Boolean,
     onOpenFinance: () -> Unit,
 ) {
-    val utilization = GroupFinanceFormat.utilizationPercent(total?.expenseTotal, total?.budgetTotal)
+    val currency = primaryTotal?.currencyCode ?: "INR"
+    val utilization = GroupFinanceFormat.utilizationPercent(primaryTotal?.expenseTotal, primaryTotal?.budgetTotal)
+    val expenseHeadline = if (allTotals.size > 1) {
+        GroupFinanceFormat.expensePartitionLine(allTotals, hide = hide)
+    } else {
+        BalanceMask.mask(GroupFinanceFormat.formatMoney(primaryTotal?.expenseTotal, currency), hide)
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -681,48 +764,93 @@ private fun SplitsSummaryCard(
                 modifier = Modifier.weight(1f),
             )
             Text(
-                BalanceMask.mask(GroupFinanceFormat.formatMoney(total?.expenseTotal, currency), hide),
+                expenseHeadline,
                 color = chrome.accent,
-                fontSize = 18.sp,
+                fontSize = if (allTotals.size > 1) 14.sp else 18.sp,
                 fontWeight = FontWeight.ExtraBold,
                 fontFamily = PlusJakartaSans,
             )
         }
         Text("TOTAL EXPENSES", color = chrome.secondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
-        GroupProgressBar(percent = utilization, fill = chrome.accent, track = Color(0xFF332E40))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        if (allTotals.size > 1) {
             Text(
-                "Budget ${BalanceMask.mask(GroupFinanceFormat.compactMoney(total?.budgetTotal, currency), hide)}",
+                "Budget ${BalanceMask.mask(GroupFinanceFormat.budgetPartitionLine(allTotals, compact = true, hide = hide), hide)}",
                 color = chrome.secondary,
                 fontSize = 11.sp,
                 fontFamily = PlusJakartaSans,
             )
-            Text(
-                "Outstanding ${BalanceMask.mask(GroupFinanceFormat.compactMoney(total?.outstandingTotal, currency), hide)}",
-                color = chrome.secondary,
-                fontSize = 11.sp,
-                fontFamily = PlusJakartaSans,
-            )
+        } else {
+            GroupProgressBar(percent = utilization, fill = chrome.accent, track = Color(0xFF332E40))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    "Budget ${BalanceMask.mask(GroupFinanceFormat.compactMoney(primaryTotal?.budgetTotal, currency), hide)}",
+                    color = chrome.secondary,
+                    fontSize = 11.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+                Text(
+                    "Outstanding ${BalanceMask.mask(GroupFinanceFormat.compactMoney(primaryTotal?.outstandingTotal, currency), hide)}",
+                    color = chrome.secondary,
+                    fontSize = 11.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
         }
         Text("Tap for Group Finance →", color = chrome.accentLight, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
     }
 }
 
 @Composable
+private fun SharedPoolSection(
+    allTotals: List<com.example.momentra.data.api.GroupFinanceTotalDto>,
+    hide: Boolean,
+    chrome: GroupFinanceChrome,
+) {
+    if (allTotals.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("🏦 Shared Pool", color = chrome.text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+        Text(
+            "Group totals by currency — amounts are not converted.",
+            color = chrome.secondary,
+            fontSize = 11.sp,
+            fontFamily = PlusJakartaSans,
+        )
+        allTotals.forEach { total ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(chrome.card)
+                    .border(1.dp, chrome.border, RoundedCornerShape(12.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(total.currencyCode, color = chrome.accentLight, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+                Text(
+                    BalanceMask.mask(
+                        GroupFinanceFormat.formatMoney(total.expenseTotal, total.currencyCode),
+                        hide,
+                    ),
+                    color = chrome.text,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ViewerBalanceCard(
     viewer: GroupFinancePositionDto?,
-    currency: String,
+    allPositions: List<GroupFinancePositionDto>,
     hide: Boolean,
     chrome: GroupFinanceChrome,
     onSettle: (() -> Unit)? = null,
 ) {
-    val net = GroupFinanceFormat.parseAmount(viewer?.netPosition)
-    val headline = when {
-        viewer == null -> "No balance yet"
-        net < BigDecimal.ZERO -> "You owe ${BalanceMask.mask(GroupFinanceFormat.formatMoney(net.abs().toPlainString(), currency), hide)}"
-        net > BigDecimal.ZERO -> "You get back ${BalanceMask.mask(GroupFinanceFormat.formatMoney(viewer.netPosition, currency), hide)}"
-        else -> "You're settled up"
-    }
+    val (headline, incl) = GroupFinanceFormat.viewerBalanceHeadline(viewer, allPositions, hide)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -733,6 +861,9 @@ private fun ViewerBalanceCard(
     ) {
         Text("YOUR BALANCE", color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
         Text(headline, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+        incl?.let {
+            Text(it, color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, fontFamily = PlusJakartaSans)
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "Keep group coordination high by settling up.",
@@ -763,7 +894,6 @@ private fun ViewerBalanceCard(
 private fun WhoOwesWhomSection(
     positions: List<GroupFinancePositionDto>,
     participants: List<GroupParticipantDto>,
-    currency: String,
     hide: Boolean,
     chrome: GroupFinanceChrome,
 ) {
@@ -771,7 +901,7 @@ private fun WhoOwesWhomSection(
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("🤝 Who Owes Whom", color = chrome.text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
         Text(
-            "Net positions from live finance — pairwise settlement graph is not available yet.",
+            "Individual net positions by currency — pairwise settlement graph is not available yet.",
             color = chrome.secondary,
             fontSize = 11.sp,
             fontFamily = PlusJakartaSans,
@@ -786,6 +916,7 @@ private fun WhoOwesWhomSection(
         } else {
             actionable.forEach { pos ->
                 val name = nameById[pos.participantId] ?: pos.participantId.take(8)
+                val currency = pos.currencyCode
                 val net = GroupFinanceFormat.parseAmount(pos.netPosition)
                 val owes = net < BigDecimal.ZERO
                 val amount = BalanceMask.mask(
@@ -812,7 +943,7 @@ private fun WhoOwesWhomSection(
                             fontFamily = PlusJakartaSans,
                         )
                         Text(
-                            if (owes) "Pending settlement" else "Receivable outstanding",
+                            "$currency · ${if (owes) "Pending settlement" else "Receivable outstanding"}",
                             color = chrome.secondary,
                             fontSize = 11.sp,
                             fontFamily = PlusJakartaSans,
@@ -840,61 +971,75 @@ private fun WhoOwesWhomSection(
 private fun ExpenseBreakdownSection(
     positions: List<GroupFinancePositionDto>,
     participants: List<GroupParticipantDto>,
-    currency: String,
     hide: Boolean,
     chrome: GroupFinanceChrome,
 ) {
     val nameById = participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("📊 Expense Breakdown", color = chrome.text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+        Text(
+            "Individual paid vs share by currency.",
+            color = chrome.secondary,
+            fontSize = 11.sp,
+            fontFamily = PlusJakartaSans,
+        )
         if (positions.isEmpty()) {
             Text("Breakdown appears after expenses are recorded.", color = chrome.secondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         } else {
-            positions.forEach { pos ->
-                val name = nameById[pos.participantId] ?: pos.participantId.take(8)
-                val paid = GroupFinanceFormat.parseAmount(pos.paidTotal)
-                val share = GroupFinanceFormat.parseAmount(pos.allocatedTotal)
-                val net = GroupFinanceFormat.parseAmount(pos.netPosition)
-                val ratio = if (share > BigDecimal.ZERO) {
-                    paid.multiply(BigDecimal(100)).divide(share, 0, RoundingMode.HALF_UP).toInt().coerceIn(0, 100)
-                } else {
-                    0
-                }
-                val positive = net >= BigDecimal.ZERO
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(chrome.card)
-                        .border(1.dp, chrome.border, RoundedCornerShape(16.dp))
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    AvatarBubble(name, highlight = positive, chrome = chrome)
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(name, color = chrome.text, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+            GroupFinanceFormat.groupPositionsByParticipant(positions).forEach { (participantId, rows) ->
+                val name = nameById[participantId] ?: participantId.take(8)
+                rows.forEach { pos ->
+                    val currency = pos.currencyCode
+                    val paid = GroupFinanceFormat.parseAmount(pos.paidTotal)
+                    val share = GroupFinanceFormat.parseAmount(pos.allocatedTotal)
+                    val net = GroupFinanceFormat.parseAmount(pos.netPosition)
+                    val ratio = if (share > BigDecimal.ZERO) {
+                        paid.multiply(BigDecimal(100)).divide(share, 0, RoundingMode.HALF_UP).toInt().coerceIn(0, 100)
+                    } else {
+                        0
+                    }
+                    val positive = net >= BigDecimal.ZERO
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(chrome.card)
+                            .border(1.dp, chrome.border, RoundedCornerShape(16.dp))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        AvatarBubble(name, highlight = positive, chrome = chrome)
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(name, color = chrome.text, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+                                Text(
+                                    currency,
+                                    color = chrome.secondary,
+                                    fontSize = 10.sp,
+                                    fontFamily = PlusJakartaSans,
+                                )
+                            }
                             Text(
                                 "Paid ${BalanceMask.mask(GroupFinanceFormat.compactMoney(pos.paidTotal, currency), hide)} · Share ${BalanceMask.mask(GroupFinanceFormat.compactMoney(pos.allocatedTotal, currency), hide)}",
                                 color = chrome.secondary,
                                 fontSize = 11.sp,
                                 fontFamily = PlusJakartaSans,
                             )
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            GroupProgressBar(
-                                percent = ratio,
-                                fill = if (positive) chrome.green else chrome.orange,
-                                track = Color(0xFF332E40),
-                                modifier = Modifier.weight(1f),
-                            )
-                            val signed = if (positive) {
-                                "+${BalanceMask.mask(GroupFinanceFormat.formatMoney(pos.netPosition, currency), hide)}"
-                            } else {
-                                "-${BalanceMask.mask(GroupFinanceFormat.formatMoney(net.abs().toPlainString(), currency), hide)}"
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                GroupProgressBar(
+                                    percent = ratio,
+                                    fill = if (positive) chrome.green else chrome.orange,
+                                    track = Color(0xFF332E40),
+                                    modifier = Modifier.weight(1f),
+                                )
+                                val signed = if (positive) {
+                                    "+${BalanceMask.mask(GroupFinanceFormat.formatMoney(pos.netPosition, currency), hide)}"
+                                } else {
+                                    "-${BalanceMask.mask(GroupFinanceFormat.formatMoney(net.abs().toPlainString(), currency), hide)}"
+                                }
+                                Text(signed, color = if (positive) chrome.green else chrome.orange, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
                             }
-                            Text(signed, color = if (positive) chrome.green else chrome.orange, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
                         }
                     }
                 }

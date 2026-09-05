@@ -5,12 +5,13 @@ struct PersonalRelationshipsSetupView: View {
     var editingMomentId: String? = nil
     var initialTitle: String? = nil
     var onBack: () -> Void
-    var onCreated: (String, String, String?) -> Void
+    var onCreated: (String, String, String?, String) -> Void
 
     @StateObject private var createModel = MomentCreateModel()
     @State private var selections: [String: Any] = [:]
     @State private var showHabit2 = false
     @State private var momentTitle: String = ""
+    @State private var editingMomentStatus: String?
     @State private var localError: String?
 
     private let catalog = PersonalSetupCatalog.forKind(.relationships)
@@ -33,7 +34,17 @@ struct PersonalRelationshipsSetupView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
-                PersonalSetupCloseRow(onBack: onBack, enabled: !createModel.state.submitting)
+                PersonalSetupCloseRow(
+                    onBack: {
+                        personalHandleSetupDiscard(
+                            createModel: createModel,
+                            editingMomentId: editingMomentId,
+                            editingMomentStatus: editingMomentStatus,
+                            onBack: onBack
+                        )
+                    },
+                    enabled: !createModel.state.submitting
+                )
                 PersonalSetupHeroBlock(
                     emoji: "💞",
                     title: "Set up Relationships",
@@ -244,7 +255,8 @@ struct PersonalRelationshipsSetupView: View {
                     ),
                     submitting: createModel.state.submitting,
                     error: localError ?? createModel.state.error,
-                    onActivate: activate
+                    onSaveDraft: { submit(status: "DRAFT") },
+                    onActivate: { submit(status: "ACTIVE") }
                 )
             }
             .padding(.horizontal, 24)
@@ -258,10 +270,20 @@ struct PersonalRelationshipsSetupView: View {
             showHabit2 = !habit2.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             guard let editingMomentId else { return }
             Task {
-                guard let setup = try? await APIClient.shared.personalSetup(forMomentId: editingMomentId) else { return }
-                selections = PersonalSetupEditPrefill.mergeDefaults(catalog.defaultPreferences, saved: setup.preferences)
-                if initialTitle == nil || initialTitle?.isEmpty == true {
-                    momentTitle = setup.title
+                if let prefill = await createModel.getDomainSetupPrefill(momentId: editingMomentId) {
+                    editingMomentStatus = prefill.status
+                    selections = PersonalSetupEditPrefill.mergeDefaults(
+                        catalog.defaultPreferences,
+                        saved: prefill.preferences
+                    )
+                    if initialTitle == nil || initialTitle?.isEmpty == true { momentTitle = prefill.title }
+                } else if let setup = try? await APIClient.shared.personalSetup(forMomentId: editingMomentId) {
+                    editingMomentStatus = setup.status
+                    selections = PersonalSetupEditPrefill.mergeDefaults(
+                        catalog.defaultPreferences,
+                        saved: setup.preferences
+                    )
+                    if initialTitle == nil || initialTitle?.isEmpty == true { momentTitle = setup.title }
                 }
                 let loadedHabit2 = selections["habit2"] as? String ?? ""
                 showHabit2 = !loadedHabit2.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -303,7 +325,7 @@ struct PersonalRelationshipsSetupView: View {
         }
     }
 
-    private func activate() {
+    private func submit(status: String) {
         guard !createModel.state.submitting else { return }
         localError = nil
         createModel.submitPersonalSetup(
@@ -312,9 +334,17 @@ struct PersonalRelationshipsSetupView: View {
             title: momentTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? catalog.defaultTitle
                 : momentTitle,
-            editingMomentId: editingMomentId
+            editingMomentId: editingMomentId,
+            editingMomentStatus: editingMomentStatus,
+            status: status
         ) { outcome in
-            onCreated(outcome.momentId, outcome.title, outcome.momentTypeCode ?? catalog.momentTypeCode)
+            editingMomentStatus = outcome.status
+            onCreated(
+                outcome.momentId,
+                outcome.title,
+                outcome.momentTypeCode ?? catalog.momentTypeCode,
+                outcome.status
+            )
         }
     }
 }

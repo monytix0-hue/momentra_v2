@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Figma 584:15500 / 584:16218 — Experience Moments. Live APIs only.
+/// Figma 575:14327 — Experience Moments. Live APIs only.
 struct ExperienceMomentsActiveView: View {
     let theme: ExperienceActiveTheme
     let refreshToken: UInt64
@@ -112,6 +112,7 @@ struct ExperienceMomentsActiveView: View {
         let g2 = gradients.indices.contains(2) ? gradients[2] : [theme.accent, theme.accentSolid]
         let g3 = gradients.indices.contains(3) ? gradients[3] : [theme.accentLight, theme.accentSolid]
 
+        let plansPct = planningPlansPercent(planningItems)
         let heroStats: [(label: String, value: String, colors: [Color])] = isOfficeOuting
             ? [
                 ("GUESTS", "\(peopleCount)", g0),
@@ -120,10 +121,10 @@ struct ExperienceMomentsActiveView: View {
                 ("TASKS", "\(openTasks)", g3),
             ]
             : [
-                ("GUESTS", "\(peopleCount)", g0),
-                ("BUDGET", GroupFinanceFormat.compactMoney(budgetTotal, currencyCode: currency), g1),
-                ("MOMENTS", "\(moments)", g2),
-                ("TASKS", "\(openTasks)", g3),
+                ("PEOPLE", "\(peopleCount)", [Color(hex: "#14B8A6"), Color(hex: "#0F766E")]),
+                ("PLANS", "\(plansPct)%", [Color(hex: "#FF8E63"), Color(hex: "#E8744F")]),
+                ("BUDGET", GroupFinanceFormat.compactMoney(budgetTotal, currencyCode: currency), [Color(hex: "#E88A4F"), Color(hex: "#C2410C")]),
+                ("MOMENTS", "\(moments)", [Color(hex: "#A855F7"), Color(hex: "#7C3AED")]),
             ]
 
         NativeDashboardScaffold(background: theme.bg) {
@@ -227,6 +228,15 @@ struct ExperienceMomentsActiveView: View {
                         showMediaCountBadge: true
                     )
 
+                    MomentsSectionHeader(title: "Bookings  🛎️", chrome: chrome)
+                    if listBookings.isEmpty {
+                        GroupEmptySection(message: "No bookings yet", detail: "Add a booking from Quick Add when ready.")
+                    } else {
+                        ForEach(Array(listBookings.prefix(4).enumerated()), id: \.offset) { _, booking in
+                            MomentsBookingCard(booking: booking, chrome: chrome)
+                        }
+                    }
+
                     MomentsSectionHeader(title: "Upcoming Events  🗓", chrome: chrome)
                     if upcoming.isEmpty {
                         GroupEmptySection(message: "Nothing upcoming", detail: "Near-term bookings and plans will show here.")
@@ -245,12 +255,7 @@ struct ExperienceMomentsActiveView: View {
                         chrome: chrome
                     )
 
-                    MomentsQuickAddCta(
-                        title: "Add to the \(theme.typeLabel.lowercased()) story",
-                        subtitle: "Add a plan, expense, memory, poll or update.",
-                        chrome: chrome,
-                        onTap: onOpenQuickAdd
-                    )
+                    MomentsQuickAddCta(chrome: chrome, onTap: onOpenQuickAdd)
                 }
             }
         }

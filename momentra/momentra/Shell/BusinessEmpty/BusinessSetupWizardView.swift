@@ -12,6 +12,7 @@ struct BusinessSetupWizardView: View {
 
     @State private var selections: [String: Any] = [:]
     @State private var momentTitle: String = ""
+    @State private var editingMomentStatus: String?
 
     private var catalog: BusinessSetupCatalogEntry {
         BusinessSetupCatalog.forKind(kind)
@@ -23,7 +24,14 @@ struct BusinessSetupWizardView: View {
                 SetupWizardHeader(
                     title: kind.title,
                     durationLabel: catalog.subtitle,
-                    onClose: onClose,
+                    onClose: {
+                        if let editingMomentId,
+                           editingMomentStatus?.caseInsensitiveCompare("DRAFT") == .orderedSame {
+                            createModel.discardMomentDraft(momentId: editingMomentId, onSuccess: onClose)
+                        } else {
+                            onClose()
+                        }
+                    },
                     enabled: !createModel.state.submitting
                 )
 
@@ -52,10 +60,11 @@ struct BusinessSetupWizardView: View {
             SetupStickyFooter(
                 tagline: catalog.footerTagline,
                 ctaLabel: catalog.activateLabel,
-                onCta: activate,
+                onCta: { submit(status: "ACTIVE") },
                 submitting: createModel.state.submitting,
                 accentGradient: kind.ctaGradient,
-                backgroundColor: SetupTokens.bizBg
+                backgroundColor: SetupTokens.bizBg,
+                onSaveDraft: { submit(status: "DRAFT") }
             )
             .accessibilityIdentifier("business.setup.submit")
         }
@@ -64,6 +73,19 @@ struct BusinessSetupWizardView: View {
         .onAppear {
             selections = catalog.defaultPreferences
             momentTitle = (initialTitle?.isEmpty == false) ? initialTitle! : catalog.defaultTitle
+            guard let editingMomentId else { return }
+            Task {
+                if let prefill = await createModel.getDomainSetupPrefill(momentId: editingMomentId) {
+                    editingMomentStatus = prefill.status
+                    selections = PersonalSetupEditPrefill.mergeDefaults(
+                        catalog.defaultPreferences,
+                        saved: prefill.preferences
+                    )
+                    if initialTitle == nil || initialTitle?.isEmpty == true {
+                        momentTitle = prefill.title
+                    }
+                }
+            }
         }
     }
 
@@ -150,15 +172,18 @@ struct BusinessSetupWizardView: View {
         }
     }
 
-    private func activate() {
+    private func submit(status: String) {
         let title = momentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         createModel.submitBusinessSetup(
             kind: kind,
             companyId: companyId,
             preferences: selections,
             title: title.isEmpty ? catalog.defaultTitle : title,
-            editingMomentId: editingMomentId
+            editingMomentId: editingMomentId,
+            editingMomentStatus: editingMomentStatus,
+            status: status
         ) { outcome in
+            editingMomentStatus = outcome.status
             onCreated(outcome)
         }
     }

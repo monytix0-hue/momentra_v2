@@ -216,7 +216,7 @@ final class AppShellModel: ObservableObject {
                 MomentSummary(
                     momentId: preserve,
                     title: (selectedMomentTitle?.isEmpty == false) ? (selectedMomentTitle ?? "Group") : "Group",
-                    status: "ACTIVE",
+                    status: moments.first(where: { $0.momentId == preserve })?.status ?? "ACTIVE",
                     momentTypeCode: selectedMomentTypeCode
                 )
             )
@@ -353,7 +353,7 @@ final class AppShellModel: ObservableObject {
         ShellPerf.end(mark, extras: ["momentId": String(id.prefix(8))])
     }
 
-    func onMomentCreated(momentId: String, title: String, momentTypeCode: String? = nil) {
+    func onMomentCreated(momentId: String, title: String, momentTypeCode: String? = nil, status: String = "ACTIVE") {
         selectedMomentId = momentId
         selectedMomentTitle = title
         selectedMomentTypeCode = momentTypeCode ?? selectedMomentTypeCode
@@ -361,12 +361,12 @@ final class AppShellModel: ObservableObject {
             moments[idx] = MomentSummary(
                 momentId: momentId,
                 title: title,
-                status: moments[idx].status,
+                status: status,
                 momentTypeCode: momentTypeCode ?? moments[idx].momentTypeCode,
                 companyId: moments[idx].companyId
             )
         } else {
-            moments.append(MomentSummary(momentId: momentId, title: title, status: "ACTIVE", momentTypeCode: momentTypeCode))
+            moments.append(MomentSummary(momentId: momentId, title: title, status: status, momentTypeCode: momentTypeCode))
         }
         bottomDestination = .pulse
         lastNonCreateDestination = .pulse

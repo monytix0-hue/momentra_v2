@@ -38,15 +38,14 @@ enum GroupFinanceFormat {
         return min(100, Int(pct.rounded()))
     }
 
+    static func symbolFor(_ currencyCode: String) -> String {
+        GroupTravelCurrencyCatalog.symbol(currencyCode)
+    }
+
     static func formatMoney(_ raw: String?, currencyCode: String = "INR") -> String {
         let value = parseAmount(raw)
         if value <= 0 { return "—" }
-        let prefix: String = switch currencyCode {
-        case "INR": "₹"
-        case "USD": "$"
-        case "EUR": "€"
-        default: "\(currencyCode) "
-        }
+        let prefix = symbolFor(currencyCode)
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.groupingSeparator = ","
@@ -58,17 +57,138 @@ enum GroupFinanceFormat {
 
     static func compactMoney(_ raw: String?, currencyCode: String = "INR") -> String {
         let value = parseAmount(raw)
-        let prefix: String = switch currencyCode {
-        case "INR": "₹"
-        case "USD": "$"
-        case "EUR": "€"
-        default: ""
-        }
+        let prefix = symbolFor(currencyCode)
         if value >= 100_000 {
             let k = (value as NSDecimalNumber).doubleValue / 1000
             return "\(prefix)\(Int(k.rounded()))K"
         }
         return formatMoney(raw, currencyCode: currencyCode)
+    }
+
+    /// Partitioned line e.g. "₹80,000 + $1,200 + €400" — no FX conversion.
+    static func formatPartitionedAmounts(
+        _ amounts: [(String, String)],
+        compact: Bool = false,
+        hide: Bool = false,
+        separator: String = " + "
+    ) -> String {
+        if hide { return "••••" }
+        let parts = amounts.compactMap { code, raw -> String? in
+            let formatted = compact ? compactMoney(raw, currencyCode: code) : formatMoney(raw, currencyCode: code)
+            return formatted == "—" ? nil : formatted
+        }
+        return parts.isEmpty ? "—" : parts.joined(separator: separator)
+    }
+
+    static func resolvePrimaryTotal(
+        _ totals: [APIClient.GroupFinanceTotalsPayload],
+        preferredCurrency: String? = nil
+    ) -> APIClient.GroupFinanceTotalsPayload? {
+        guard !totals.isEmpty else { return nil }
+        if let pref = preferredCurrency,
+           let match = totals.first(where: { $0.currencyCode.caseInsensitiveCompare(pref) == .orderedSame }) {
+            return match
+        }
+        return totals.first(where: { parseAmount($0.budgetTotal) > 0 }) ?? totals.first
+    }
+
+    static func budgetPartitionLine(
+        _ totals: [APIClient.GroupFinanceTotalsPayload],
+        compact: Bool = false,
+        hide: Bool = false
+    ) -> String {
+        formatPartitionedAmounts(
+            totals.map { ($0.currencyCode, $0.budgetTotal ?? "0") },
+            compact: compact,
+            hide: hide
+        )
+    }
+
+    static func expensePartitionLine(
+        _ totals: [APIClient.GroupFinanceTotalsPayload],
+        compact: Bool = false,
+        hide: Bool = false
+    ) -> String {
+        formatPartitionedAmounts(
+            totals.map { ($0.currencyCode, $0.expenseTotal ?? "0") },
+            compact: compact,
+            hide: hide
+        )
+    }
+
+    static func positionsForParticipant(
+        _ positions: [APIClient.GroupFinancePositionPayload],
+        participantId: String?
+    ) -> [APIClient.GroupFinancePositionPayload] {
+        guard let participantId else { return [] }
+        return positions.filter { $0.participantId == participantId }
+    }
+
+    static func viewerBalanceHeadline(
+        viewer: APIClient.GroupFinancePositionPayload?,
+        allPositions: [APIClient.GroupFinancePositionPayload],
+        hide: Bool
+    ) -> (headline: String, incl: String?) {
+        guard let viewer else { return ("No balance yet", nil) }
+        let primaryCode = viewer.currencyCode
+        let primaryNet = parseAmount(viewer.netPosition)
+        let headline: String = {
+            let v = (primaryNet as NSDecimalNumber).doubleValue
+            if v < 0 {
+                let owed = formatMoney(String(format: "%.2f", abs(v)), currencyCode: primaryCode)
+                return "You owe \(hide ? "••••" : owed)"
+            }
+            if v > 0 {
+                let owed = formatMoney(viewer.netPosition, currencyCode: primaryCode)
+                return "You are owed \(hide ? "••••" : owed)"
+            }
+            return "You're settled up"
+        }()
+        let others = positionsForParticipant(allPositions, participantId: viewer.participantId)
+            .filter { $0.currencyCode.caseInsensitiveCompare(primaryCode) != .orderedSame }
+            .compactMap { pos -> String? in
+                let net = parseAmount(pos.netPosition)
+                guard net != 0 else { return nil }
+                let v = (net as NSDecimalNumber).doubleValue
+                return formatMoney(String(format: "%.2f", abs(v)), currencyCode: pos.currencyCode)
+            }
+        let incl: String? = (others.isEmpty || hide) ? nil : "incl. \(others.joined(separator: " + "))"
+        return (headline, incl)
+    }
+
+    static func groupPositionsByParticipant(
+        _ positions: [APIClient.GroupFinancePositionPayload]
+    ) -> [(String, [APIClient.GroupFinancePositionPayload])] {
+        Dictionary(grouping: positions, by: \.participantId).map { ($0.key, $0.value) }
+    }
+}
+
+/// Trip pulse destination labels from pulse widget or setup prefill.
+enum TripPulseDestinations {
+    static func fromWidget(_ widget: [String: AnyDecodable]?) -> [String] {
+        guard let widget else { return [] }
+        if let places = widget["places"]?.value as? [[String: Any]] {
+            let labels = places.compactMap { $0["label"] as? String }.filter { !$0.isEmpty }
+            if !labels.isEmpty { return labels }
+        }
+        for key in ["destinationText", "destination_text", "destination"] {
+            if let raw = widget[key]?.value as? String, !raw.isEmpty { return [raw] }
+        }
+        return []
+    }
+
+    static func fromPrefill(_ prefill: GroupSetupPrefill?) -> [String] {
+        guard let prefill else { return [] }
+        let fromPlaces = (prefill.places ?? []).compactMap(\.label).filter { !$0.isEmpty }
+        if !fromPlaces.isEmpty { return fromPlaces }
+        if let legacy = prefill.destinationText, !legacy.isEmpty { return [legacy] }
+        return []
+    }
+
+    static func heroSubtitle(places: [String], peopleCount: Int) -> String {
+        if places.count > 1 { return "\(places.count) destinations · \(peopleCount) people" }
+        if places.count == 1 { return "\(places.first!) · \(peopleCount) people" }
+        return "Trip · \(peopleCount) people"
     }
 }
 

@@ -111,6 +111,7 @@ class PersonalSliceRepository(
         paymentMethodCode: String? = null,
         effectiveAt: String? = null,
         recurringScheduleId: String? = null,
+        asDraft: Boolean? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ): Result<CreateExpenseResultDto> = runCatching {
         api.createExpense(
@@ -127,6 +128,7 @@ class PersonalSliceRepository(
                 paymentMethodCode = paymentMethodCode,
                 effectiveAt = effectiveAt,
                 recurringScheduleId = recurringScheduleId,
+                asDraft = asDraft,
             ),
         ).data
     }.recoverCatching { e -> throw mapError(e) }

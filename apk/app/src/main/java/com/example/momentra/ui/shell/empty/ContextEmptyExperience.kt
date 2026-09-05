@@ -69,7 +69,7 @@ fun ContextEmptyExperience(
     onCreateMoment: () -> Unit,
     onCreateBack: () -> Unit = {},
     onCompanyActivated: (com.example.momentra.domain.CompanySummary) -> Unit = {},
-    onMomentCreated: (String, String, String?) -> Unit = { _, _, _ -> },
+    onMomentCreated: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
     onJoinGroupCode: (String) -> Unit = {},
     groupCreatePhase: GroupCreatePhase = GroupCreatePhase.CHOOSER,
     onGroupCreatePhase: (GroupCreatePhase) -> Unit = {},
@@ -139,7 +139,7 @@ private fun PersonalEmpty(
 
     onCreateMoment: () -> Unit,
 
-    onMomentCreated: (String, String, String?) -> Unit,
+    onMomentCreated: (String, String, String?, String) -> Unit,
 
     modifier: Modifier,
 
@@ -210,7 +210,7 @@ private fun GroupEmpty(
     history: List<MomentSummary>,
     onCreateMoment: () -> Unit,
     onCreateBack: () -> Unit,
-    onMomentCreated: (String, String, String?) -> Unit,
+    onMomentCreated: (String, String, String?, String) -> Unit,
     onJoinGroupCode: (String) -> Unit,
     groupCreatePhase: GroupCreatePhase,
     onGroupCreatePhase: (GroupCreatePhase) -> Unit,
@@ -271,7 +271,7 @@ fun GroupCreateFlow(
     phase: GroupCreatePhase,
     onPhase: (GroupCreatePhase) -> Unit,
     onCreateBack: () -> Unit,
-    onMomentCreated: (String, String, String?) -> Unit,
+    onMomentCreated: (String, String, String?, String) -> Unit,
     onJoinCode: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     createViewModel: MomentCreateViewModel = viewModel(),
@@ -279,7 +279,7 @@ fun GroupCreateFlow(
     val createState by createViewModel.state.collectAsState()
     val handleCreated: (CreateMomentOutcome) -> Unit = { outcome ->
         onPhase(GroupCreatePhase.CHOOSER)
-        onMomentCreated(outcome.momentId, outcome.title, outcome.momentTypeCode)
+        onMomentCreated(outcome.momentId, outcome.title, outcome.momentTypeCode, outcome.status)
     }
     Box(modifier) {
         GroupCreateMomentContent(
@@ -387,7 +387,7 @@ private fun BusinessEmpty(
     onCreateMoment: () -> Unit,
     onCreateBack: () -> Unit,
     onCompanyActivated: (com.example.momentra.domain.CompanySummary) -> Unit = {},
-    onMomentCreated: (String, String, String?) -> Unit = { _, _, _ -> },
+    onMomentCreated: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
     createViewModel: MomentCreateViewModel = viewModel(),
     modifier: Modifier,
 ) {

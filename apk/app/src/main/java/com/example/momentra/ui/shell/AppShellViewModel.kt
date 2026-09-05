@@ -265,7 +265,7 @@ class AppShellViewModel(
             rawMoments + MomentSummary(
                 momentId = preserveMomentId,
                 title = current.selectedMomentTitle?.takeIf { it.isNotBlank() } ?: "Group",
-                status = "ACTIVE",
+                status = current.moments.firstOrNull { it.momentId == preserveMomentId }?.status ?: "ACTIVE",
                 momentTypeCode = current.selectedMomentTypeCode,
             )
         } else {
@@ -427,7 +427,12 @@ class AppShellViewModel(
         ShellPerf.end(mark, mapOf("momentId" to momentId.take(8)))
     }
 
-    fun onMomentCreated(momentId: String, title: String, momentTypeCode: String? = null) {
+    fun onMomentCreated(
+        momentId: String,
+        title: String,
+        momentTypeCode: String? = null,
+        status: String = "ACTIVE",
+    ) {
         val ctx = _state.value.selectedContext
         if (ctx == AppContext.PERSONAL) {
             preferredPersonalMomentId = momentId
@@ -439,6 +444,7 @@ class AppShellViewModel(
                     val current = this[existingIdx]
                     this[existingIdx] = current.copy(
                         title = title,
+                        status = status,
                         momentTypeCode = momentTypeCode ?: current.momentTypeCode,
                     )
                 }
@@ -446,7 +452,7 @@ class AppShellViewModel(
                 it.moments + MomentSummary(
                     momentId = momentId,
                     title = title,
-                    status = "ACTIVE",
+                    status = status,
                     momentTypeCode = momentTypeCode,
                 )
             }

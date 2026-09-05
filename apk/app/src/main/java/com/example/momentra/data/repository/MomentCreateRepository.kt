@@ -24,6 +24,7 @@ class MomentCreateRepository(
         momentTypeCode: String,
         title: String,
         preferences: Map<String, Any>? = null,
+        status: String? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ): Result<CreateMomentResultDto> = runCatching {
         api.createMoment(
@@ -32,6 +33,7 @@ class MomentCreateRepository(
                 domainCode = "PERSONAL",
                 momentTypeCode = momentTypeCode,
                 title = title,
+                status = status,
                 personalSetup = PersonalSetupBlockDto(systemCode = systemCode, preferences = preferences),
             ),
         ).data
@@ -43,6 +45,7 @@ class MomentCreateRepository(
         momentTypeCode: String,
         title: String,
         preferences: Map<String, Any>? = null,
+        status: String? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ): Result<CreateMomentResultDto> = runCatching {
         api.createMoment(
@@ -52,6 +55,7 @@ class MomentCreateRepository(
                 momentTypeCode = momentTypeCode,
                 title = title,
                 companyId = companyId,
+                status = status,
                 businessSetup = BusinessSetupBlockDto(familyCode = familyCode, preferences = preferences),
             ),
         ).data
@@ -67,6 +71,7 @@ class MomentCreateRepository(
         inviteCode: String? = null,
         customTypeLabel: String? = null,
         groupSetup: GroupSetupBlockDto? = null,
+        status: String? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ): Result<CreateMomentResultDto> = runCatching {
         api.createMoment(
@@ -82,10 +87,30 @@ class MomentCreateRepository(
                 customTypeLabel = customTypeLabel,
                 participants = participants.ifEmpty { null },
                 inviteCode = inviteCode,
+                status = status,
                 groupSetup = groupSetup,
             ),
         ).data
     }.recoverCatching { e -> throw mapCreateError(e) }
+
+    suspend fun activateMoment(momentId: String): Result<CreateMomentResultDto> = runCatching {
+        api.activateMoment(momentId, UUID.randomUUID().toString()).data
+    }.recoverCatching { e -> throw mapCreateError(e) }
+
+    suspend fun discardMomentDraft(momentId: String): Result<Unit> = runCatching {
+        api.discardMomentDraft(momentId, UUID.randomUUID().toString())
+        Unit
+    }.recoverCatching { e -> throw mapCreateError(e) }
+
+    suspend fun getGroupSetupPrefill(momentId: String): Result<com.example.momentra.data.api.GroupSetupPrefillDto> =
+        runCatching {
+            api.getGroupSetupPrefill(momentId).data
+        }.recoverCatching { e -> throw mapCreateError(e) }
+
+    suspend fun getDomainSetupPrefill(momentId: String): Result<com.example.momentra.data.api.DomainSetupPrefillDto> =
+        runCatching {
+            api.getDomainSetupPrefill(momentId).data
+        }.recoverCatching { e -> throw mapCreateError(e) }
 
     suspend fun mintGroupInvite(
         title: String,

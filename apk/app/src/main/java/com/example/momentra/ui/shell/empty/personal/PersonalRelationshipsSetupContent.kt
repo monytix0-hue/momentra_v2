@@ -45,7 +45,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun PersonalRelationshipsSetupContent(
     onBack: () -> Unit,
-    onCreated: (momentId: String, title: String, momentTypeCode: String?) -> Unit,
+    onCreated: (momentId: String, title: String, momentTypeCode: String?, status: String) -> Unit,
     createViewModel: MomentCreateViewModel = viewModel(),
     modifier: Modifier = Modifier,
     editingMomentId: String? = null,
@@ -56,6 +56,7 @@ fun PersonalRelationshipsSetupContent(
         mutableStateMapOf<String, Any>().apply { putAll(catalog.defaultPreferences) }
     }
     var momentTitle by remember { mutableStateOf(initialTitle?.takeIf { it.isNotBlank() } ?: catalog.defaultTitle) }
+    var editingMomentStatus by remember { mutableStateOf<String?>(null) }
     var showHabit2 by remember { mutableStateOf(false) }
     val createState by createViewModel.state.collectAsState()
     val scrollState = rememberScrollState()
@@ -86,16 +87,23 @@ fun PersonalRelationshipsSetupContent(
 
     LaunchedEffect(editingMomentId) {
         val momentId = editingMomentId ?: return@LaunchedEffect
-        runCatching {
+        createViewModel.getDomainSetupPrefill(momentId)?.let { prefill ->
+            editingMomentStatus = prefill.status
+            selections.clear()
+            selections.putAll(
+                mergePersonalSetupPreferences(catalog.defaultPreferences, prefill.preferences.orEmpty()),
+            )
+            if (initialTitle.isNullOrBlank()) momentTitle = prefill.title
+            showHabit2 = selectionString(selections, "habit2").isNotBlank()
+        } ?: runCatching {
             ApiClient.apiService.getPersonalSetups().data.items.firstOrNull { it.momentId == momentId }
         }.getOrNull()?.let { setup ->
+            editingMomentStatus = setup.status
             selections.clear()
             selections.putAll(
                 mergePersonalSetupPreferences(catalog.defaultPreferences, setup.preferences),
             )
-            if (initialTitle.isNullOrBlank()) {
-                momentTitle = setup.title
-            }
+            if (initialTitle.isNullOrBlank()) momentTitle = setup.title
             showHabit2 = selectionString(selections, "habit2").isNotBlank()
         }
     }
@@ -109,7 +117,12 @@ fun PersonalRelationshipsSetupContent(
                 .padding(top = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            PersonalSetupCloseRow(onBack = onBack, enabled = !createState.submitting)
+            PersonalSetupCloseRow(
+                onBack = {
+                    handlePersonalSetupDiscard(createViewModel, editingMomentId, editingMomentStatus, onBack)
+                },
+                enabled = !createState.submitting,
+            )
             PersonalSetupHero(
                 emoji = "💞",
                 title = "Set up Relationships",
@@ -346,15 +359,44 @@ fun PersonalRelationshipsSetupContent(
                 ctaBrush = Brush.horizontalGradient(listOf(accent, Color(0xFFF472B6))),
                 submitting = createState.submitting,
                 error = createState.error,
-                onActivate = {
+                onSaveDraft = {
                     if (createState.submitting) return@PersonalSetupActivateFooter
-                    createViewModel.submitPersonalSetup(
+                    submitPersonalSetupWithStatus(
+                        createViewModel = createViewModel,
                         kind = PersonalSetupKind.RELATIONSHIPS,
                         preferences = selections.toMap(),
                         title = momentTitle.trim().ifBlank { catalog.defaultTitle },
                         editingMomentId = editingMomentId,
-                        onSuccess = { outcome: CreateMomentOutcome ->
-                            onCreated(outcome.momentId, outcome.title, outcome.momentTypeCode ?: catalog.momentTypeCode)
+                        editingMomentStatus = editingMomentStatus,
+                        status = "DRAFT",
+                        onSuccess = { outcome ->
+                            editingMomentStatus = outcome.status
+                            onCreated(
+                                outcome.momentId,
+                                outcome.title,
+                                outcome.momentTypeCode ?: catalog.momentTypeCode,
+                                outcome.status,
+                            )
+                        },
+                    )
+                },
+                onActivate = {
+                    if (createState.submitting) return@PersonalSetupActivateFooter
+                    submitPersonalSetupWithStatus(
+                        createViewModel = createViewModel,
+                        kind = PersonalSetupKind.RELATIONSHIPS,
+                        preferences = selections.toMap(),
+                        title = momentTitle.trim().ifBlank { catalog.defaultTitle },
+                        editingMomentId = editingMomentId,
+                        editingMomentStatus = editingMomentStatus,
+                        status = "ACTIVE",
+                        onSuccess = { outcome ->
+                            onCreated(
+                                outcome.momentId,
+                                outcome.title,
+                                outcome.momentTypeCode ?: catalog.momentTypeCode,
+                                outcome.status,
+                            )
                         },
                     )
                 },

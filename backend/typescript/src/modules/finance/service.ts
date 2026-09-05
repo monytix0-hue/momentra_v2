@@ -32,6 +32,7 @@ export const createExpenseSchema = z
       .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'Invalid ISO datetime' })
       .nullish(),
     recurringScheduleId: z.string().uuid().optional(),
+    asDraft: z.boolean().optional(),
   })
   .strict();
 
@@ -232,13 +233,14 @@ export async function createExpense(
     body.paymentMethodCode ?? (accountType ? derivePaymentMethodFromAccountType(accountType) : 'OTHER');
   const effectiveAt = body.effectiveAt ?? new Date().toISOString();
 
+  const expenseStatus = body.asDraft ? 'DRAFT' : 'POSTED';
   const expenseInsert = await client.query<{ expense_id: string; version: string }>(
     `INSERT INTO finance.expense (
        moment_id, domain_code, financial_account_id, created_by_user_id, merchant_name, description,
        category_code, subcategory_code, payment_method_code, amount, currency_code, effective_at,
        recurring_schedule_id, status, posted_at, version
      ) VALUES ($1, 'PERSONAL', $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11::timestamptz, now()),
-               $12, 'POSTED', now(), 1)
+               $12, $13, CASE WHEN $13 = 'POSTED' THEN now() ELSE NULL END, 1)
      RETURNING expense_id, version`,
     [
       momentId,
@@ -253,6 +255,7 @@ export async function createExpense(
       body.currencyCode,
       body.effectiveAt ?? null,
       body.recurringScheduleId ?? null,
+      expenseStatus,
     ]
   );
   const expenseId = expenseInsert.rows[0].expense_id;
@@ -309,12 +312,13 @@ export async function createExpense(
     momentId,
     amount: amount.toFixed(4),
     currencyCode: body.currencyCode,
-    status: 'POSTED',
+    status: expenseStatus,
     version: parseInt(expenseInsert.rows[0].version, 10),
   };
 
   await insertAudit(client, ctx, 'EXPENSE_CREATE', 'EXPENSE', expenseId, domainEventId, result as unknown as Record<string, unknown>);
 
+  if (!body.asDraft) {
   const title = body.merchantName?.trim() || 'Expense';
   await client.query(
     `INSERT INTO projection.recent_activity (
@@ -353,6 +357,7 @@ export async function createExpense(
     await refreshPersonalFinanceSnapshot(client, ctx.userId, momentId);
   } catch {
     // Snapshot writer optional until V045 applied
+  }
   }
 
   return result;

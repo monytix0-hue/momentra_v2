@@ -34,6 +34,7 @@ export const pollSchema = z
       .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'Invalid ISO datetime' })
       .nullish(),
     pollType: z.enum(['SINGLE_CHOICE', 'MULTI_CHOICE', 'YES_NO']).nullish(),
+    asDraft: z.boolean().optional(),
   })
   .strict();
 
@@ -168,12 +169,13 @@ export async function createPoll(
   const domainCode = scope.domainCode === 'BUSINESS' ? 'BUSINESS' : 'GROUP';
 
   const pollType = body.pollType ?? 'SINGLE_CHOICE';
+  const status = body.asDraft ? 'DRAFT' : 'OPEN';
   const pollInsert = await client.query<{ poll_id: string }>(
     `INSERT INTO shared.poll (
        moment_id, domain_code, company_id, question, poll_type, closes_at, status, created_by_user_id
-     ) VALUES ($1, $2, $3, $4, $5, $6::timestamptz, 'OPEN', $7)
+     ) VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7, $8)
      RETURNING poll_id`,
-    [momentId, domainCode, scope.companyId, body.question, pollType, body.closesAt ?? null, ctx.userId]
+    [momentId, domainCode, scope.companyId, body.question, pollType, body.closesAt ?? null, status, ctx.userId]
   );
   const pollId = pollInsert.rows[0]!.poll_id;
 
@@ -395,42 +397,46 @@ export async function createPlanningItem(
     location?: string | null;
     priorityCode?: string | null;
     description?: string | null;
+    asDraft?: boolean;
   }
-): Promise<{ planningItemId: string; momentId: string }> {
+): Promise<{ planningItemId: string; momentId: string; status: string }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'PLANNING_ITEM_CREATE', resourceType: 'PLANNING_ITEM', momentId });
+  const status = body.asDraft ? 'DRAFT' : 'OPEN';
   const r = await client.query<{ planning_item_id: string }>(
     `INSERT INTO collaboration.planning_item (
        moment_id, title, description, due_at, status, category_code, location, priority_code
      )
-     VALUES ($1, $2, $3, $4::timestamptz, 'OPEN', $5, $6, $7)
+     VALUES ($1, $2, $3, $4::timestamptz, $5, $6, $7, $8)
      RETURNING planning_item_id`,
     [
       momentId,
       body.title,
       body.description ?? null,
       body.dueAt ?? null,
+      status,
       body.categoryCode ?? null,
       body.location ?? null,
       body.priorityCode ?? null,
     ]
   );
-  return { planningItemId: r.rows[0]!.planning_item_id, momentId };
+  return { planningItemId: r.rows[0]!.planning_item_id, momentId, status };
 }
 
 export async function createBooking(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  body: { title: string; bookedAt?: string | null }
-): Promise<{ bookingId: string; momentId: string }> {
+  body: { title: string; bookedAt?: string | null; asDraft?: boolean }
+): Promise<{ bookingId: string; momentId: string; status: string }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'BOOKING_CREATE', resourceType: 'BOOKING', momentId });
+  const status = body.asDraft ? 'DRAFT' : 'PLANNED';
   const r = await client.query<{ booking_id: string }>(
     `INSERT INTO collaboration.booking (moment_id, booking_type, provider_name, booked_at, status, version)
-     VALUES ($1, 'OTHER', $2, $3::timestamptz, 'PLANNED', 1)
+     VALUES ($1, 'OTHER', $2, $3::timestamptz, $4, 1)
      RETURNING booking_id`,
-    [momentId, body.title, body.bookedAt ?? null]
+    [momentId, body.title, body.bookedAt ?? null, status]
   );
-  return { bookingId: r.rows[0]!.booking_id, momentId };
+  return { bookingId: r.rows[0]!.booking_id, momentId, status };
 }
 
 export const contributionSchema = z
@@ -468,26 +474,28 @@ export async function postUpdate(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  body: { message: string; notifyMembers?: boolean; urgencyCode?: string }
-): Promise<{ updateId: string; momentId: string; authorUserId: string; notifyMembers: boolean; urgencyCode: string }> {
+  body: { message: string; notifyMembers?: boolean; urgencyCode?: string; asDraft?: boolean }
+): Promise<{ updateId: string; momentId: string; authorUserId: string; notifyMembers: boolean; urgencyCode: string; status: string }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'UPDATE_CREATE', resourceType: 'UPDATE', momentId });
   const participant = await client.query<{ participant_id: string }>(
     `SELECT participant_id FROM collaboration.moment_participant WHERE moment_id = $1 AND user_id = $2 LIMIT 1`,
     [momentId, ctx.userId]
   );
   const urgency = body.urgencyCode === 'URGENT' ? 'URGENT' : 'NORMAL';
+  const status = body.asDraft ? 'DRAFT' : 'PUBLISHED';
   const r = await client.query<{ group_update_id: string }>(
     `INSERT INTO collaboration.group_update (moment_id, participant_id, body, status, urgency_code)
-     VALUES ($1, $2, $3, 'PUBLISHED', $4)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING group_update_id`,
-    [momentId, participant.rows[0]?.participant_id ?? null, body.message, urgency]
+    [momentId, participant.rows[0]?.participant_id ?? null, body.message, status, urgency]
   );
   return {
     updateId: r.rows[0]!.group_update_id,
     momentId,
     authorUserId: ctx.userId,
-    notifyMembers: body.notifyMembers !== false,
+    notifyMembers: body.asDraft ? false : body.notifyMembers !== false,
     urgencyCode: urgency,
+    status,
   };
 }
 
@@ -534,17 +542,18 @@ export async function createMemory(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  body: { title: string; capturedAt?: string | null }
-): Promise<{ memoryId: string; momentId: string }> {
+  body: { title: string; capturedAt?: string | null; asDraft?: boolean }
+): Promise<{ memoryId: string; momentId: string; status: string }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'MEMORY_CREATE', resourceType: 'MEMORY', momentId });
+  const status = body.asDraft ? 'DRAFT' : 'ACTIVE';
   const r = await client.query<{ memory_id: string }>(
     `INSERT INTO memory.memory (
        scope_type, scope_id, domain_code, moment_id, title, occurred_at, status, created_by_user_id, version
-     ) VALUES ('MOMENT', $1, (SELECT domain_code FROM core.moment WHERE moment_id = $1), $1, $2, COALESCE($3::timestamptz, now()), 'ACTIVE', $4, 1)
+     ) VALUES ('MOMENT', $1, (SELECT domain_code FROM core.moment WHERE moment_id = $1), $1, $2, COALESCE($3::timestamptz, now()), $4, $5, 1)
      RETURNING memory_id`,
-    [momentId, body.title, body.capturedAt ?? null, ctx.userId]
+    [momentId, body.title, body.capturedAt ?? null, status, ctx.userId]
   );
-  return { memoryId: r.rows[0]!.memory_id, momentId };
+  return { memoryId: r.rows[0]!.memory_id, momentId, status };
 }
 
 export async function createGroupVendor(

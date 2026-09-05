@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -94,17 +95,15 @@ object GroupFinanceFormat {
         )
     }
 
+    fun symbolFor(currencyCode: String): String =
+        GroupTravelCurrencyCatalog.symbol(currencyCode)
+
     fun formatMoney(raw: String?, currencyCode: String = "INR"): String {
         val value = parseAmount(raw)
         if (value <= BigDecimal.ZERO && (raw.isNullOrBlank() || raw == "0" || raw.startsWith("0."))) {
             return "—"
         }
-        val prefix = when (currencyCode) {
-            "INR" -> "₹"
-            "USD" -> "$"
-            "EUR" -> "€"
-            else -> "$currencyCode "
-        }
+        val prefix = symbolFor(currencyCode)
         val symbols = DecimalFormatSymbols(Locale.US).apply { groupingSeparator = ',' }
         val pattern = if (value.stripTrailingZeros().scale() <= 0) "#,##0" else "#,##0.##"
         return prefix + DecimalFormat(pattern, symbols).format(value)
@@ -112,12 +111,7 @@ object GroupFinanceFormat {
 
     fun compactMoney(raw: String?, currencyCode: String = "INR"): String {
         val value = parseAmount(raw)
-        val prefix = when (currencyCode) {
-            "INR" -> "₹"
-            "USD" -> "$"
-            "EUR" -> "€"
-            else -> ""
-        }
+        val prefix = symbolFor(currencyCode)
         return when {
             value >= BigDecimal(100000) -> {
                 val k = value.divide(BigDecimal(1000), 0, RoundingMode.HALF_UP)
@@ -126,6 +120,128 @@ object GroupFinanceFormat {
             value > BigDecimal.ZERO -> formatMoney(raw, currencyCode)
             else -> "—"
         }
+    }
+
+    /** Partitioned line e.g. "₹80,000 + $1,200 + €400" — no FX conversion. */
+    fun formatPartitionedAmounts(
+        amounts: List<Pair<String, String>>,
+        compact: Boolean = false,
+        hide: Boolean = false,
+        separator: String = " + ",
+    ): String {
+        if (hide) return "••••"
+        val parts = amounts.mapNotNull { (code, raw) ->
+            val formatted = if (compact) compactMoney(raw, code) else formatMoney(raw, code)
+            formatted.takeIf { it != "—" }
+        }
+        return parts.joinToString(separator).ifBlank { "—" }
+    }
+
+    fun resolvePrimaryTotal(
+        totals: List<com.example.momentra.data.api.GroupFinanceTotalDto>,
+        preferredCurrency: String? = null,
+    ): com.example.momentra.data.api.GroupFinanceTotalDto? {
+        if (totals.isEmpty()) return null
+        preferredCurrency?.let { pref ->
+            totals.firstOrNull { it.currencyCode.equals(pref, ignoreCase = true) }?.let { return it }
+        }
+        return totals.firstOrNull { parseAmount(it.budgetTotal) > BigDecimal.ZERO } ?: totals.first()
+    }
+
+    fun budgetPartitionLine(
+        totals: List<com.example.momentra.data.api.GroupFinanceTotalDto>,
+        compact: Boolean = false,
+        hide: Boolean = false,
+    ): String = formatPartitionedAmounts(
+        totals.map { it.currencyCode to (it.budgetTotal ?: "0") },
+        compact = compact,
+        hide = hide,
+    )
+
+    fun expensePartitionLine(
+        totals: List<com.example.momentra.data.api.GroupFinanceTotalDto>,
+        compact: Boolean = false,
+        hide: Boolean = false,
+    ): String = formatPartitionedAmounts(
+        totals.map { it.currencyCode to (it.expenseTotal ?: "0") },
+        compact = compact,
+        hide = hide,
+    )
+
+    fun positionsForParticipant(
+        positions: List<com.example.momentra.data.api.GroupFinancePositionDto>,
+        participantId: String?,
+    ): List<com.example.momentra.data.api.GroupFinancePositionDto> {
+        if (participantId.isNullOrBlank()) return emptyList()
+        return positions.filter { it.participantId == participantId }
+    }
+
+    fun viewerBalanceHeadline(
+        viewer: com.example.momentra.data.api.GroupFinancePositionDto?,
+        allPositions: List<com.example.momentra.data.api.GroupFinancePositionDto>,
+        hide: Boolean,
+    ): Pair<String, String?> {
+        if (viewer == null) return "No balance yet" to null
+        val primaryCode = viewer.currencyCode
+        val primaryNet = parseAmount(viewer.netPosition)
+        val headline = when {
+            primaryNet < BigDecimal.ZERO ->
+                "You owe ${BalanceMask.mask(formatMoney(primaryNet.abs().toPlainString(), primaryCode), hide)}"
+            primaryNet > BigDecimal.ZERO ->
+                "You are owed ${BalanceMask.mask(formatMoney(viewer.netPosition, primaryCode), hide)}"
+            else -> "You're settled up"
+        }
+        val others = positionsForParticipant(allPositions, viewer.participantId)
+            .filter { !it.currencyCode.equals(primaryCode, ignoreCase = true) }
+            .mapNotNull { pos ->
+                val net = parseAmount(pos.netPosition)
+                if (net.compareTo(BigDecimal.ZERO) == 0) null
+                else formatMoney(net.abs().toPlainString(), pos.currencyCode)
+            }
+        val incl = if (others.isEmpty() || hide) {
+            null
+        } else {
+            "incl. ${others.joinToString(" + ")}"
+        }
+        return headline to incl
+    }
+
+    fun groupPositionsByParticipant(
+        positions: List<com.example.momentra.data.api.GroupFinancePositionDto>,
+    ): List<Pair<String, List<com.example.momentra.data.api.GroupFinancePositionDto>>> =
+        positions.groupBy { it.participantId }.toList()
+}
+
+/** Trip pulse destination labels from pulse widget or setup prefill. */
+object TripPulseDestinations {
+    fun fromWidget(widget: Map<String, Any?>?): List<String> {
+        if (widget == null) return emptyList()
+        @Suppress("UNCHECKED_CAST")
+        val placesRaw = widget["places"] as? List<*>
+        val fromPlaces = placesRaw?.mapNotNull { item ->
+            when (item) {
+                is Map<*, *> -> item["label"]?.toString()?.takeIf { it.isNotBlank() }
+                else -> null
+            }
+        }.orEmpty()
+        if (fromPlaces.isNotEmpty()) return fromPlaces
+        for (key in listOf("destinationText", "destination_text", "destination")) {
+            widget[key]?.toString()?.takeIf { it.isNotBlank() && it != "null" }?.let { return listOf(it) }
+        }
+        return emptyList()
+    }
+
+    fun fromPrefill(prefill: com.example.momentra.data.api.GroupSetupPrefillDto?): List<String> {
+        if (prefill == null) return emptyList()
+        val fromPlaces = prefill.places.orEmpty().mapNotNull { it.label?.takeIf { l -> l.isNotBlank() } }
+        if (fromPlaces.isNotEmpty()) return fromPlaces
+        return prefill.destinationText?.takeIf { it.isNotBlank() }?.let { listOf(it) }.orEmpty()
+    }
+
+    fun heroSubtitle(places: List<String>, peopleCount: Int): String = when {
+        places.size > 1 -> "${places.size} destinations · $peopleCount people"
+        places.size == 1 -> "${places.first()} · $peopleCount people"
+        else -> "Trip · $peopleCount people"
     }
 }
 

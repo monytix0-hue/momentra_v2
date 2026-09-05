@@ -175,6 +175,7 @@ private fun GroupSectionLongFormFlow(
     var houseReview by remember(selectedCode) { mutableStateOf("Every month") }
     var people by remember(selectedCode) { mutableStateOf(defaultGroupPeople(selectedCode)) }
     var peopleEdited by remember(selectedCode) { mutableStateOf(false) }
+    var editingMomentStatus by remember { mutableStateOf<String?>(null) }
     var issuedInvite by remember { mutableStateOf<GroupInviteDto?>(null) }
     var mintingInvite by remember { mutableStateOf(false) }
     var inviteError by remember { mutableStateOf<String?>(null) }
@@ -185,6 +186,10 @@ private fun GroupSectionLongFormFlow(
 
     LaunchedEffect(editingMomentId) {
         val mid = editingMomentId ?: return@LaunchedEffect
+        createViewModel.getGroupSetupPrefill(mid)?.let { prefill ->
+            editingMomentStatus = prefill.status
+            prefill.title?.takeIf { it.isNotBlank() }?.let { name = it }
+        }
         accountRepo.getMomentNotificationPreferences(mid).onSuccess { prefs ->
             val rem = prefs.reminderPreferences.orEmpty()
             rem["billReminders"]?.let { billReminders = if (it) "Enabled" else "Disabled" }
@@ -296,16 +301,30 @@ private fun GroupSectionLongFormFlow(
             ) {
                 Row(
                     modifier = Modifier
-                        .clickable(onClick = onBack)
+                        .clickable {
+                            if (
+                                !editingMomentId.isNullOrBlank() &&
+                                editingMomentStatus.equals("DRAFT", ignoreCase = true)
+                            ) {
+                                createViewModel.discardMomentDraft(editingMomentId) { onBack() }
+                            } else {
+                                onBack()
+                            }
+                        }
                         .semantics {
                             role = Role.Button
-                            contentDescription = "Close"
+                            contentDescription = "Discard draft"
                         },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Text("×", color = GroupSetupTheme.TextSecondary, fontSize = 16.sp)
-                    Text("Close", color = GroupSetupTheme.TextSecondary, fontSize = 14.sp, fontFamily = PlusJakartaSans)
+                    Text("×", color = GroupSetupTheme.TextSecondary, fontSize = 16.sp, fontFamily = PlusJakartaSans)
+                    Text(
+                        "Discard draft",
+                        color = GroupSetupTheme.TextSecondary,
+                        fontSize = 14.sp,
+                        fontFamily = PlusJakartaSans,
+                    )
                 }
                 Text(
                     "GROUP MODE",
@@ -708,63 +727,66 @@ private fun GroupSectionLongFormFlow(
                 if (error != null) {
                     Text(error, color = Color(0xFFEF4444), fontSize = 12.sp, fontFamily = PlusJakartaSans)
                 }
+                fun submitSection(status: String) {
+                    if (name.isBlank()) return
+                    val invitees = people
+                        .filter { it.roleCode != "ORGANIZER" }
+                        .map {
+                            CreateMomentParticipantBody(
+                                displayName = it.name,
+                                roleCode = it.roleCode,
+                                email = it.contactEmail,
+                                phone = it.contactPhone,
+                            )
+                        }
+                    val budgetAmount = GroupBudgetUtils.resolveBudgetAmount(amount, amountCustom)
+                    val reminderPreferences = mapOf(
+                        "billReminders" to billReminders.equals("Enabled", ignoreCase = true),
+                        "choreReminders" to choreReminders.equals("Enabled", ignoreCase = true),
+                        "paymentReminders" to paymentReminders.equals("Enabled", ignoreCase = true),
+                    )
+                    val groupSetup = budgetAmount?.let {
+                        GroupSetupBlockDto(
+                            budgetAmount = it,
+                            budgetCurrencyCode = currency,
+                            destinationText = null,
+                            reminderPreferences = reminderPreferences,
+                        )
+                    }
+                    createViewModel.submitGroupMoment(
+                        section = variant.section,
+                        momentTypeCode = selectedCode,
+                        title = name.trim(),
+                        description = selected.defaultNotes.takeIf { it.isNotBlank() },
+                        startAt = null,
+                        endAt = null,
+                        participants = invitees,
+                        inviteCode = issuedInvite?.inviteCode,
+                        groupSetup = groupSetup,
+                        editingMomentId = editingMomentId,
+                        editingMomentStatus = editingMomentStatus,
+                        status = status,
+                        onSuccess = { outcome ->
+                            scope.launch {
+                                runCatching {
+                                    accountRepo.patchMomentNotificationPreferences(
+                                        outcome.momentId,
+                                        true,
+                                        reminderPreferences,
+                                    )
+                                }
+                                onCreated(outcome)
+                            }
+                        },
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(palette.accentGradient)
-                        .clickable(enabled = !submitting) {
-                            if (name.isBlank()) return@clickable
-                            val invitees = people
-                                .filter { it.roleCode != "ORGANIZER" }
-                                .map {
-                                    CreateMomentParticipantBody(
-                                        displayName = it.name,
-                                        roleCode = it.roleCode,
-                                        email = it.contactEmail,
-                                        phone = it.contactPhone,
-                                    )
-                                }
-                            val budgetAmount = GroupBudgetUtils.resolveBudgetAmount(amount, amountCustom)
-                            val reminderPreferences = mapOf(
-                                "billReminders" to billReminders.equals("Enabled", ignoreCase = true),
-                                "choreReminders" to choreReminders.equals("Enabled", ignoreCase = true),
-                                "paymentReminders" to paymentReminders.equals("Enabled", ignoreCase = true),
-                            )
-                            val groupSetup = budgetAmount?.let {
-                                GroupSetupBlockDto(
-                                    budgetAmount = it,
-                                    budgetCurrencyCode = currency,
-                                    destinationText = null,
-                                    reminderPreferences = reminderPreferences,
-                                )
-                            }
-                            createViewModel.submitGroupMoment(
-                                section = variant.section,
-                                momentTypeCode = selectedCode,
-                                title = name.trim(),
-                                description = selected.defaultNotes.takeIf { it.isNotBlank() },
-                                startAt = null,
-                                endAt = null,
-                                participants = invitees,
-                                inviteCode = issuedInvite?.inviteCode,
-                                groupSetup = groupSetup,
-                                editingMomentId = editingMomentId,
-                                onSuccess = { outcome ->
-                                    scope.launch {
-                                        runCatching {
-                                            accountRepo.patchMomentNotificationPreferences(
-                                                outcome.momentId,
-                                                true,
-                                                reminderPreferences,
-                                            )
-                                        }
-                                        onCreated(outcome)
-                                    }
-                                },
-                            )
-                        }
+                        .clickable(enabled = !submitting) { submitSection("ACTIVE") }
                         .testTag(MaestroIds.GROUP_SETUP_SUBMIT)
                         .semantics {
                             role = Role.Button
@@ -784,6 +806,53 @@ private fun GroupSectionLongFormFlow(
                             color = GroupSetupTheme.CtaText,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .border(1.dp, GroupSetupTheme.Border, RoundedCornerShape(14.dp))
+                            .clickable(enabled = !submitting) { submitSection("DRAFT") }
+                            .testTag(MaestroIds.setupField("saveDraft"))
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = "Save draft"
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "Save draft",
+                            color = GroupSetupTheme.TextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable(enabled = !submitting, onClick = onBack)
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = "Schedule later"
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "Schedule later",
+                            color = GroupSetupTheme.TextSecondary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
                             fontFamily = PlusJakartaSans,
                         )
                     }

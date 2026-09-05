@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
+import com.example.momentra.ui.shell.group.shared.TripSheetTokens
 import com.example.momentra.ui.shell.group.wedding.create.ChipRow
 import com.example.momentra.ui.shell.group.wedding.create.FieldLabel
 import com.example.momentra.ui.shell.group.wedding.create.PrimaryCta
@@ -57,16 +58,10 @@ import com.example.momentra.ui.shell.group.wedding.create.WeddingSettleSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingUpdateSheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingVendorSheetBody
 
-private val EqSheet = Color(0xFF1C1A24)
-private val EqHandle = Color(0xFF625E70)
-private val EqText = Color(0xFFFFFFFF)
-private val EqMuted = Color(0xFF9E9AA8)
-private val EqBorder = Color(0xFF322E40)
-
 private fun ExperienceActiveTheme.toSheetAccent(): SheetAccent =
-    SheetAccent(accent = accent, accentEnd = accentSolid, soft = accentSoft)
+    SheetAccent(accent = TripSheetTokens.Accent, accentEnd = TripSheetTokens.AccentEnd, soft = accentSoft)
 
-/** Figma party 592:8580 / outing 592:7770 — moment-colored Experience Quick Add sheets. */
+/** Figma 575:15497 — moment-colored Experience Quick Add sheets. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ExperienceGapQuickAddSheet(
@@ -109,8 +104,16 @@ fun ExperienceGapQuickAddSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = EqSheet,
-        dragHandle = null,
+        containerColor = TripSheetTokens.Bg,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 4.dp)
+                    .size(width = 40.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(TripSheetTokens.Border),
+            )
+        },
     ) {
         Column(
             modifier = Modifier
@@ -118,16 +121,9 @@ fun ExperienceGapQuickAddSheet(
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(top = 12.dp, bottom = 28.dp),
+                .padding(top = 4.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .size(width = 48.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(EqHandle),
-            )
             when (kind) {
                 ExperienceQuickAddKind.EXPENSE -> Unit
                 ExperienceQuickAddKind.CONTRIBUTION ->

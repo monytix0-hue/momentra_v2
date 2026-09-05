@@ -11,9 +11,11 @@ import {
   personalSetupBlockSchema,
   validateAndMergeBusinessPreferences,
   validateAndMergePersonalPreferences,
+  normalizeGroupSetupBudgets,
 } from './setup-preferences';
 import { seedGroupBudget } from '../finance/group-budget';
 import {
+  insertBusinessFamilyContext,
   insertBusinessSetupRow,
   insertPersonalSetupRow,
 } from './setup-persistence';
@@ -63,6 +65,8 @@ export const createMomentSchema = z
     participants: z.array(createMomentParticipantSchema).max(50).optional(),
     inviteCode: z.string().min(8).max(64).nullish(),
     expectedVersion: z.number().int().positive().optional(),
+    /** DRAFT = save setup without activating; ACTIVE = default when omitted. */
+    status: z.enum(['DRAFT', 'ACTIVE']).optional(),
     personalSetup: personalSetupBlockSchema.optional(),
     businessSetup: businessSetupBlockSchema.optional(),
     groupSetup: groupSetupBlockSchema.optional(),
@@ -179,7 +183,9 @@ export async function createMoment(
     throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Capability not enabled for moment type.', 403);
   }
 
-  if (body.domainCode === 'PERSONAL') {
+  const momentStatus = body.status === 'DRAFT' ? 'DRAFT' : 'ACTIVE';
+
+  if (body.domainCode === 'PERSONAL' && momentStatus === 'ACTIVE') {
     await assertNoActivePersonalSystem(client, ctx.userId, familyCode);
   }
 
@@ -187,7 +193,7 @@ export async function createMoment(
     `INSERT INTO core.moment (
        domain_code, moment_type_id, created_by_user_id, title, description,
        status, start_at, end_at, timezone, custom_type_label, version
-     ) VALUES ($1, $2, $3, $4, $5, 'ACTIVE', $6, $7, $8, $9, 1)
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1)
      RETURNING moment_id, version`,
     [
       body.domainCode,
@@ -195,6 +201,7 @@ export async function createMoment(
       ctx.userId,
       body.title,
       body.description ?? null,
+      momentStatus,
       body.startAt ?? null,
       body.endAt ?? null,
       body.timezone,
@@ -206,18 +213,19 @@ export async function createMoment(
   if (body.domainCode === 'PERSONAL') {
     await client.query(
       `INSERT INTO personal.personal_moment_context (moment_id, user_id, status, version)
-       VALUES ($1, $2, 'ACTIVE', 1)`,
-      [momentId, ctx.userId]
+       VALUES ($1, $2, $3, 1)`,
+      [momentId, ctx.userId, momentStatus]
     );
   } else if (body.domainCode === 'GROUP') {
     await client.query(
       `INSERT INTO collaboration.group_moment_context (
          moment_id, group_family, organizer_user_id, status, version, reminder_preferences
-       ) VALUES ($1, $2, $3, 'ACTIVE', 1, $4::jsonb)`,
+       ) VALUES ($1, $2, $3, $4, 1, $5::jsonb)`,
       [
         momentId,
         familyCode,
         ctx.userId,
+        momentStatus,
         JSON.stringify(body.groupSetup?.reminderPreferences ?? {}),
       ]
     );
@@ -227,26 +235,57 @@ export async function createMoment(
       [momentId, ctx.userId]
     );
     if (familyCode === 'SHARED_EXPERIENCE') {
+      const places = body.groupSetup?.places ?? [];
       const destinationText =
-        body.groupSetup?.destinationText ?? body.customTypeLabel ?? body.title;
+        places.length > 0
+          ? places.length === 1
+            ? places[0]!.label
+            : `${places.length} places`
+          : (body.groupSetup?.destinationText ?? body.customTypeLabel ?? body.title);
+      const placeStart = places[0]?.startAt ?? body.startAt ?? null;
+      const placeEnd = places.length
+        ? places[places.length - 1]?.endAt ?? places[0]?.endAt ?? body.endAt ?? null
+        : (body.endAt ?? null);
       await client.query(
         `INSERT INTO collaboration.shared_experience_context (
-           moment_id, experience_kind, destination_text, start_at, end_at, status
-         ) VALUES ($1, $2, $3, $4::timestamptz, $5::timestamptz, 'ACTIVE')
+           moment_id, experience_kind, destination_text, start_at, end_at, status,
+           multi_currency_enabled, split_style, primary_goal, setup_preferences
+         ) VALUES ($1, $2, $3, $4::timestamptz, $5::timestamptz, $6, $7, $8, $9, $10::jsonb)
          ON CONFLICT (moment_id) DO UPDATE SET
            experience_kind = EXCLUDED.experience_kind,
            destination_text = EXCLUDED.destination_text,
            start_at = EXCLUDED.start_at,
            end_at = EXCLUDED.end_at,
+           status = EXCLUDED.status,
+           multi_currency_enabled = EXCLUDED.multi_currency_enabled,
+           split_style = EXCLUDED.split_style,
+           primary_goal = EXCLUDED.primary_goal,
+           setup_preferences = EXCLUDED.setup_preferences,
            updated_at = now()`,
         [
           momentId,
           body.momentTypeCode,
           destinationText,
-          body.startAt ?? null,
-          body.endAt ?? null,
+          placeStart,
+          placeEnd,
+          momentStatus,
+          body.groupSetup?.multiCurrencyEnabled ?? false,
+          body.groupSetup?.splitStyle ?? null,
+          body.groupSetup?.primaryGoal ?? null,
+          JSON.stringify(body.groupSetup?.setupPreferences ?? {}),
         ]
       );
+      if (places.length > 0) {
+        let order = 0;
+        for (const place of places) {
+          await client.query(
+            `INSERT INTO collaboration.shared_experience_place (
+               moment_id, sort_order, label, start_at, end_at
+             ) VALUES ($1, $2, $3, $4::timestamptz, $5::timestamptz)`,
+            [momentId, order++, place.label, place.startAt ?? null, place.endAt ?? null]
+          );
+        }
+      }
     } else if (familyCode === 'SHARED_PURCHASE') {
       await client.query(
         `INSERT INTO collaboration.shared_purchase_context (moment_id, purchase_purpose, status)
@@ -273,8 +312,8 @@ export async function createMoment(
     }
     await client.query(
       `INSERT INTO business.business_moment_context (moment_id, company_id, business_family, team_id, status, version)
-       VALUES ($1, $2, $3, $4, 'ACTIVE', 1)`,
-      [momentId, body.companyId, familyCode, body.teamId ?? null]
+       VALUES ($1, $2, $3, $4, $5, 1)`,
+      [momentId, body.companyId, familyCode, body.teamId ?? null, momentStatus]
     );
   }
 
@@ -290,7 +329,7 @@ export async function createMoment(
     momentId,
     domainCode: body.domainCode,
     title: body.title,
-    status: 'ACTIVE',
+    status: momentStatus,
     version: parseInt(momentInsert.rows[0].version, 10),
     momentTypeCode: body.momentTypeCode,
   };
@@ -308,13 +347,16 @@ export async function createMoment(
     momentType: body.momentTypeCode,
     properties: {
       creation_method: 'api',
-      has_budget: Boolean(body.groupSetup?.budgetAmount),
+      has_budget: Boolean(
+        body.groupSetup?.budgetAmount || (body.groupSetup?.budgets && body.groupSetup.budgets.length > 0)
+      ),
       has_timeline: Boolean(body.startAt || body.endAt),
+      is_draft: momentStatus === 'DRAFT',
       initial_participant_count: (body.participants?.length ?? 0) + (body.domainCode === 'GROUP' ? 1 : 0),
     },
   });
 
-  if (body.domainCode === 'PERSONAL') {
+  if (body.domainCode === 'PERSONAL' && momentStatus === 'ACTIVE') {
     await client.query(
       `INSERT INTO projection.personal_moments (
          user_id, moment_id, temporal_bucket, display_rank, status, title,
@@ -378,7 +420,7 @@ export async function createMoment(
     }
   }
 
-  if (body.domainCode === 'GROUP' && body.inviteCode) {
+  if (body.domainCode === 'GROUP' && body.inviteCode && momentStatus === 'ACTIVE') {
     await bindInviteToMoment(client, ctx, body.inviteCode, momentId, body.momentTypeCode, body.title);
   }
 
@@ -393,7 +435,8 @@ export async function createMoment(
       momentId,
       body.personalSetup.systemCode,
       body.title,
-      preferences
+      preferences,
+      momentStatus
     );
   } else if (body.businessSetup && body.companyId) {
     const preferences = validateAndMergeBusinessPreferences(
@@ -407,21 +450,447 @@ export async function createMoment(
       body.companyId,
       body.businessSetup.familyCode,
       body.title,
-      preferences
+      preferences,
+      momentStatus
     );
   }
 
   if (body.domainCode === 'GROUP' && body.groupSetup) {
-    await seedGroupBudget(
-      client,
-      ctx,
-      momentId,
-      body.groupSetup.budgetAmount,
-      body.groupSetup.budgetCurrencyCode
-    );
+    const budgets = normalizeGroupSetupBudgets(body.groupSetup);
+    for (const b of budgets) {
+      await seedGroupBudget(client, ctx, momentId, b.amount, b.currencyCode);
+    }
   }
 
   return result;
+}
+
+export async function activateMomentDraft(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string
+): Promise<MomentResult> {
+  await assertMomentLifecycleLeader(client, ctx, momentId);
+  const row = await client.query<{
+    moment_id: string;
+    domain_code: string;
+    title: string;
+    status: string;
+    version: string;
+    moment_type_code: string;
+    category_code: string;
+    company_id: string | null;
+  }>(
+    `SELECT m.moment_id, m.domain_code, m.title, m.status, m.version::text,
+            mt.code AS moment_type_code, mc.code AS category_code,
+            bmc.company_id
+     FROM core.moment m
+     JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+     JOIN core.moment_category mc ON mc.moment_category_id = mt.moment_category_id
+     LEFT JOIN business.business_moment_context bmc ON bmc.moment_id = m.moment_id
+     WHERE m.moment_id = $1`,
+    [momentId]
+  );
+  if (!row.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Moment not found.', 404);
+  }
+  const m = row.rows[0];
+  if (m.status === 'ACTIVE') {
+    return {
+      momentId: m.moment_id,
+      domainCode: m.domain_code,
+      title: m.title,
+      status: 'ACTIVE',
+      version: parseInt(m.version, 10),
+      momentTypeCode: m.moment_type_code,
+    };
+  }
+  if (m.status !== 'DRAFT') {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Only DRAFT moments can be activated.', 409);
+  }
+
+  if (m.domain_code === 'PERSONAL') {
+    await assertNoActivePersonalSystem(client, ctx.userId, m.category_code);
+  }
+
+  await client.query(
+    `UPDATE core.moment SET status = 'ACTIVE', updated_at = now(), version = version + 1 WHERE moment_id = $1`,
+    [momentId]
+  );
+
+  if (m.domain_code === 'GROUP') {
+    await client.query(
+      `UPDATE collaboration.group_moment_context SET status = 'ACTIVE', updated_at = now(), version = version + 1
+       WHERE moment_id = $1`,
+      [momentId]
+    );
+    await client.query(
+      `UPDATE collaboration.shared_experience_context SET status = 'ACTIVE', updated_at = now()
+       WHERE moment_id = $1`,
+      [momentId]
+    );
+  } else if (m.domain_code === 'PERSONAL') {
+    await client.query(
+      `UPDATE personal.personal_moment_context SET status = 'ACTIVE', updated_at = now(), version = version + 1
+       WHERE moment_id = $1`,
+      [momentId]
+    );
+    await client.query(
+      `UPDATE personal.life_system_setup SET status = 'ACTIVE', updated_at = now(), version = version + 1
+       WHERE moment_id = $1 AND status = 'DRAFT'`,
+      [momentId]
+    );
+    await client.query(
+      `INSERT INTO projection.personal_moments (
+         user_id, moment_id, temporal_bucket, display_rank, status, title,
+         moment_type_code, start_at, end_at, card_payload, projection_version
+       )
+       SELECT pmc.user_id, m.moment_id, 'ACTIVE', 0, 'ACTIVE', m.title,
+              mt.code, m.start_at, m.end_at, '{}'::jsonb, 1
+       FROM core.moment m
+       JOIN personal.personal_moment_context pmc ON pmc.moment_id = m.moment_id
+       JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+       WHERE m.moment_id = $1
+       ON CONFLICT (user_id, moment_id) DO UPDATE SET status = 'ACTIVE', title = EXCLUDED.title`,
+      [momentId]
+    );
+    await client.query(
+      `INSERT INTO projection.personal_pulse (user_id, active_moment_count, projection_version)
+       VALUES ($1, 1, 1)
+       ON CONFLICT (user_id) DO UPDATE SET
+         active_moment_count = projection.personal_pulse.active_moment_count + 1,
+         projection_version = projection.personal_pulse.projection_version + 1,
+         updated_at = now()`,
+      [ctx.userId]
+    );
+  } else if (m.domain_code === 'BUSINESS') {
+    await client.query(
+      `UPDATE business.business_moment_context SET status = 'ACTIVE', updated_at = now(), version = version + 1
+       WHERE moment_id = $1`,
+      [momentId]
+    );
+    const setup = await client.query<{ family_code: string; title: string; company_id: string }>(
+      `SELECT family_code, title, company_id FROM business.business_system_setup
+       WHERE moment_id = $1 AND status = 'DRAFT' LIMIT 1`,
+      [momentId]
+    );
+    if (setup.rows[0]) {
+      await insertBusinessFamilyContext(
+        client,
+        momentId,
+        setup.rows[0].family_code as 'TEAM_OPERATIONS' | 'BUSINESS_RUNWAY' | 'BUSINESS_OPERATIONS',
+        setup.rows[0].title
+      );
+      await client.query(
+        `UPDATE business.business_system_setup SET status = 'ACTIVE', updated_at = now(), version = version + 1
+         WHERE moment_id = $1 AND status = 'DRAFT'`,
+        [momentId]
+      );
+    }
+  }
+
+  const ver = await client.query<{ version: string }>(
+    `SELECT version::text FROM core.moment WHERE moment_id = $1`,
+    [momentId]
+  );
+
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'MomentActivated',
+    domainCode: m.domain_code,
+    aggregateType: 'MOMENT',
+    aggregateId: momentId,
+    payload: { momentId, fromStatus: 'DRAFT' },
+  });
+  await insertAudit(client, ctx, 'MOMENT_ACTIVATE', 'MOMENT', momentId, domainEventId, {
+    momentId,
+  });
+
+  return {
+    momentId,
+    domainCode: m.domain_code,
+    title: m.title,
+    status: 'ACTIVE',
+    version: parseInt(ver.rows[0]!.version, 10),
+    momentTypeCode: m.moment_type_code,
+  };
+}
+
+/** @deprecated Use activateMomentDraft */
+export const activateGroupMomentDraft = activateMomentDraft;
+
+export async function discardMomentDraft(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string
+): Promise<{ momentId: string; discarded: boolean }> {
+  await assertMomentLifecycleLeader(client, ctx, momentId);
+  const row = await client.query<{ status: string; domain_code: string }>(
+    `SELECT status, domain_code FROM core.moment WHERE moment_id = $1`,
+    [momentId]
+  );
+  if (!row.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Moment not found.', 404);
+  }
+  if (row.rows[0].status !== 'DRAFT') {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Only DRAFT moments can be discarded.', 409);
+  }
+  const domain = row.rows[0].domain_code;
+
+  await client.query(
+    `UPDATE core.moment SET status = 'DELETED', updated_at = now(), version = version + 1 WHERE moment_id = $1`,
+    [momentId]
+  );
+
+  if (domain === 'GROUP') {
+    await client.query(
+      `UPDATE collaboration.group_moment_context SET status = 'CANCELLED', updated_at = now() WHERE moment_id = $1`,
+      [momentId]
+    );
+    await client.query(
+      `UPDATE collaboration.shared_experience_context SET status = 'CANCELLED', updated_at = now() WHERE moment_id = $1`,
+      [momentId]
+    );
+  } else if (domain === 'PERSONAL') {
+    await client.query(
+      `UPDATE personal.personal_moment_context SET status = 'CANCELLED', updated_at = now() WHERE moment_id = $1`,
+      [momentId]
+    );
+    await client.query(
+      `UPDATE personal.life_system_setup SET status = 'ARCHIVED', updated_at = now() WHERE moment_id = $1 AND status = 'DRAFT'`,
+      [momentId]
+    );
+  } else if (domain === 'BUSINESS') {
+    await client.query(
+      `UPDATE business.business_moment_context SET status = 'CANCELLED', updated_at = now() WHERE moment_id = $1`,
+      [momentId]
+    );
+    await client.query(
+      `UPDATE business.business_system_setup SET status = 'ARCHIVED', updated_at = now() WHERE moment_id = $1 AND status = 'DRAFT'`,
+      [momentId]
+    );
+  }
+
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'MomentDraftDiscarded',
+    domainCode: domain,
+    aggregateType: 'MOMENT',
+    aggregateId: momentId,
+    payload: { momentId },
+  });
+  await insertAudit(client, ctx, 'MOMENT_DISCARD_DRAFT', 'MOMENT', momentId, domainEventId, {
+    momentId,
+  });
+
+  return { momentId, discarded: true };
+}
+
+/** @deprecated Use discardMomentDraft */
+export const discardGroupMomentDraft = discardMomentDraft;
+
+export async function getGroupSetupPrefill(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string
+): Promise<{
+  momentId: string;
+  title: string;
+  status: string;
+  momentTypeCode: string;
+  startAt: string | null;
+  endAt: string | null;
+  places: Array<{ placeId: string; label: string; startAt: string | null; endAt: string | null; sortOrder: number }>;
+  budgets: Array<{ currencyCode: string; amount: string; isPrimary: boolean }>;
+  multiCurrencyEnabled: boolean;
+  splitStyle: string | null;
+  primaryGoal: string | null;
+  destinationText: string | null;
+  reminderPreferences: Record<string, unknown>;
+  setupPreferences: Record<string, unknown>;
+  version: number;
+}> {
+  const member = await client.query(
+    `SELECT 1 FROM collaboration.moment_participant
+     WHERE moment_id = $1 AND user_id = $2 AND status = 'ACTIVE'`,
+    [momentId, ctx.userId]
+  );
+  if (!member.rowCount) {
+    throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Not a member of this moment.', 403);
+  }
+  const m = await client.query<{
+    title: string;
+    status: string;
+    start_at: Date | null;
+    end_at: Date | null;
+    version: string;
+    moment_type_code: string;
+    destination_text: string | null;
+    multi_currency_enabled: boolean | null;
+    split_style: string | null;
+    primary_goal: string | null;
+    setup_preferences: Record<string, unknown> | null;
+    reminder_preferences: Record<string, unknown> | null;
+  }>(
+    `SELECT m.title, m.status, m.start_at, m.end_at, m.version::text,
+            mt.code AS moment_type_code,
+            sec.destination_text,
+            sec.multi_currency_enabled,
+            sec.split_style,
+            sec.primary_goal,
+            sec.setup_preferences,
+            gmc.reminder_preferences
+     FROM core.moment m
+     JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+     LEFT JOIN collaboration.group_moment_context gmc ON gmc.moment_id = m.moment_id
+     LEFT JOIN collaboration.shared_experience_context sec ON sec.moment_id = m.moment_id
+     WHERE m.moment_id = $1`,
+    [momentId]
+  );
+  if (!m.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Moment not found.', 404);
+  }
+  const row = m.rows[0];
+  const places = await client.query<{
+    place_id: string;
+    label: string;
+    start_at: Date | null;
+    end_at: Date | null;
+    sort_order: number;
+  }>(
+    `SELECT place_id, label, start_at, end_at, sort_order
+     FROM collaboration.shared_experience_place
+     WHERE moment_id = $1
+     ORDER BY sort_order ASC`,
+    [momentId]
+  );
+  const budgets = await client.query<{ currency_code: string; amount: string }>(
+    `SELECT currency_code, amount::text
+     FROM finance.budget
+     WHERE moment_id = $1 AND status = 'ACTIVE'
+     ORDER BY created_at ASC`,
+    [momentId]
+  );
+
+  return {
+    momentId,
+    title: row.title,
+    status: row.status,
+    momentTypeCode: row.moment_type_code,
+    startAt: row.start_at?.toISOString() ?? null,
+    endAt: row.end_at?.toISOString() ?? null,
+    places: places.rows.map((p) => ({
+      placeId: p.place_id,
+      label: p.label,
+      startAt: p.start_at?.toISOString() ?? null,
+      endAt: p.end_at?.toISOString() ?? null,
+      sortOrder: p.sort_order,
+    })),
+    budgets: budgets.rows.map((b, i) => ({
+      currencyCode: b.currency_code,
+      amount: b.amount,
+      isPrimary: i === 0,
+    })),
+    multiCurrencyEnabled: row.multi_currency_enabled ?? false,
+    splitStyle: row.split_style,
+    primaryGoal: row.primary_goal,
+    destinationText: row.destination_text,
+    reminderPreferences: row.reminder_preferences ?? {},
+    setupPreferences: row.setup_preferences ?? {},
+    version: parseInt(row.version, 10),
+  };
+}
+
+/** Prefill for Personal or Business setup resume (DRAFT or ACTIVE). */
+export async function getDomainSetupPrefill(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string
+): Promise<{
+  momentId: string;
+  title: string;
+  status: string;
+  domainCode: string;
+  momentTypeCode: string;
+  systemCode: string | null;
+  familyCode: string | null;
+  preferences: Record<string, unknown>;
+  companyId: string | null;
+  version: number;
+}> {
+  await assertMomentLifecycleLeader(client, ctx, momentId);
+  const m = await client.query<{
+    title: string;
+    status: string;
+    domain_code: string;
+    moment_type_code: string;
+    version: string;
+  }>(
+    `SELECT m.title, m.status, m.domain_code, mt.code AS moment_type_code, m.version::text
+     FROM core.moment m
+     JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+     WHERE m.moment_id = $1`,
+    [momentId]
+  );
+  if (!m.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Moment not found.', 404);
+  }
+  const row = m.rows[0];
+  let systemCode: string | null = null;
+  let familyCode: string | null = null;
+  let preferences: Record<string, unknown> = {};
+  let companyId: string | null = null;
+
+  if (row.domain_code === 'PERSONAL') {
+    const setup = await client.query<{ system_code: string; preferences: Record<string, unknown> }>(
+      `SELECT system_code, preferences
+       FROM personal.life_system_setup
+       WHERE moment_id = $1 AND user_id = $2
+       ORDER BY created_at DESC LIMIT 1`,
+      [momentId, ctx.userId]
+    );
+    systemCode = setup.rows[0]?.system_code ?? null;
+    preferences = setup.rows[0]?.preferences ?? {};
+  } else if (row.domain_code === 'BUSINESS') {
+    const setup = await client.query<{
+      family_code: string;
+      preferences: Record<string, unknown>;
+      company_id: string;
+    }>(
+      `SELECT family_code, preferences, company_id
+       FROM business.business_system_setup
+       WHERE moment_id = $1
+       ORDER BY created_at DESC LIMIT 1`,
+      [momentId]
+    );
+    familyCode = setup.rows[0]?.family_code ?? null;
+    preferences = setup.rows[0]?.preferences ?? {};
+    companyId = setup.rows[0]?.company_id ?? null;
+    if (!companyId) {
+      const bmc = await client.query<{ company_id: string }>(
+        `SELECT company_id FROM business.business_moment_context WHERE moment_id = $1`,
+        [momentId]
+      );
+      companyId = bmc.rows[0]?.company_id ?? null;
+    }
+  } else if (row.domain_code === 'GROUP') {
+    const gmc = await client.query<{ group_family: string }>(
+      `SELECT group_family FROM collaboration.group_moment_context WHERE moment_id = $1`,
+      [momentId]
+    );
+    familyCode = gmc.rows[0]?.group_family ?? null;
+  }
+
+  return {
+    momentId,
+    title: row.title,
+    status: row.status,
+    domainCode: row.domain_code,
+    momentTypeCode: row.moment_type_code,
+    systemCode,
+    familyCode,
+    preferences,
+    companyId,
+    version: parseInt(row.version, 10),
+  };
 }
 
 export async function updateMoment(

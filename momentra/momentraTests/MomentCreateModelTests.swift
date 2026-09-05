@@ -50,7 +50,8 @@ private final class FakeCreateGateway: MomentCreateGateway {
         title: String,
         description: String?,
         momentTypeCode: String,
-        preferences: [String: Any]
+        preferences: [String: Any],
+        status: String? = nil
     ) async throws -> CreateMomentOutcome {
         try await createMoment(
             draftKey: draftKey,
@@ -77,7 +78,8 @@ private final class FakeCreateGateway: MomentCreateGateway {
         title: String,
         description: String?,
         momentTypeCode: String,
-        preferences: [String: Any]
+        preferences: [String: Any],
+        status: String? = nil
     ) async throws -> CreateMomentOutcome {
         try await createMoment(
             draftKey: draftKey,
@@ -107,7 +109,8 @@ private final class FakeCreateGateway: MomentCreateGateway {
         participants: [CreateMomentParticipantInput],
         inviteCode: String?,
         customTypeLabel: String? = nil,
-        groupSetup: CreateMomentRequest.GroupSetupBlock? = nil
+        groupSetup: CreateMomentRequest.GroupSetupBlock? = nil,
+        status: String? = nil
     ) async throws -> CreateMomentOutcome {
         try await createMoment(
             draftKey: draftKey,
@@ -123,6 +126,7 @@ private final class FakeCreateGateway: MomentCreateGateway {
                 companyId: nil,
                 participants: participants.isEmpty ? nil : participants,
                 inviteCode: inviteCode,
+                status: status,
                 personalSetup: nil,
                 businessSetup: nil,
                 groupSetup: groupSetup

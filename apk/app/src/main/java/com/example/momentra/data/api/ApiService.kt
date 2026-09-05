@@ -161,6 +161,24 @@ interface ApiService {
     @GET("v1/moments/{momentId}")
     suspend fun getMoment(@Path("momentId") momentId: String): SuccessEnvelope<MomentDetailDto>
 
+    @GET("v1/group/moments/{momentId}/setup")
+    suspend fun getGroupSetupPrefill(@Path("momentId") momentId: String): SuccessEnvelope<GroupSetupPrefillDto>
+
+    @GET("v1/moments/{momentId}/setup")
+    suspend fun getDomainSetupPrefill(@Path("momentId") momentId: String): SuccessEnvelope<DomainSetupPrefillDto>
+
+    @POST("v1/moments/{momentId}/activate")
+    suspend fun activateMoment(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+    ): SuccessEnvelope<CreateMomentResultDto>
+
+    @POST("v1/moments/{momentId}/discard-draft")
+    suspend fun discardMomentDraft(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+    ): SuccessEnvelope<DiscardMomentDraftResultDto>
+
     @PATCH("v1/moments/{momentId}")
     suspend fun updateMoment(
         @Path("momentId") momentId: String,

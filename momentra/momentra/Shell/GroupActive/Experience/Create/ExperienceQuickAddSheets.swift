@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Figma party 592:8580 / outing 592:7770 — moment-colored Experience Quick Add sheets.
+/// Figma 575:15497 — moment-colored Experience Quick Add sheets.
 struct ExperienceGapQuickAddSheet: View {
     let theme: ExperienceActiveTheme
     let kind: ExperienceQuickAddKind
@@ -11,7 +11,11 @@ struct ExperienceGapQuickAddSheet: View {
     var onBooking: () -> Void = {}
 
     private var accent: SheetAccent {
-        SheetAccent(accent: theme.accent, accentEnd: theme.accentSolid, soft: theme.accentSoft)
+        SheetAccent(
+            accent: TripSheetTokens.accent,
+            accentEnd: TripSheetTokens.accentEnd,
+            soft: theme.accentSoft
+        )
     }
 
     var body: some View {
@@ -38,7 +42,7 @@ struct ExperienceGapQuickAddSheet: View {
             NativeSheetScaffold(
                 title: kind.label,
                 onClose: onClose,
-                background: Color(hex: "#1C1A24")
+                background: TripSheetTokens.bg
             ) {
                 ScrollView {
                     sheetBody

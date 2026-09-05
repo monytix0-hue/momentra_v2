@@ -431,6 +431,51 @@ fun PersonalMasterExpenseSheet(
                         .weight(1f)
                         .alpha(if (amount.isNotBlank() && !submitting) 1f else 0.5f)
                         .clip(RoundedCornerShape(14.dp))
+                        .border(1.dp, T.Border, RoundedCornerShape(14.dp))
+                        .clickable(enabled = amount.isNotBlank() && !submitting) {
+                            submitting = true
+                            error = null
+                            scope.launch {
+                                repository.createExpense(
+                                    momentId = momentId,
+                                    amount = amount.trim(),
+                                    currencyCode = "INR",
+                                    merchantName = purpose.trim().ifBlank { null },
+                                    description = notes.trim().ifBlank { null },
+                                    categoryCode = categoryCode,
+                                    financialAccountId = selectedAccountId,
+                                    paymentMethodCode = paymentMethod,
+                                    effectiveAt = effectiveAtFromWhen(whenCode),
+                                    asDraft = true,
+                                ).fold(
+                                    onSuccess = {
+                                        submitting = false
+                                        onSaved()
+                                        onDismiss()
+                                    },
+                                    onFailure = { e ->
+                                        submitting = false
+                                        error = e.message
+                                    },
+                                )
+                            }
+                        }
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Save draft",
+                        color = T.TextMain,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .alpha(if (amount.isNotBlank() && !submitting) 1f else 0.5f)
+                        .clip(RoundedCornerShape(14.dp))
                         .background(T.Accent)
                         .clickable(enabled = amount.isNotBlank() && !submitting) {
                             submitting = true
@@ -463,6 +508,7 @@ fun PersonalMasterExpenseSheet(
                                     financialAccountId = selectedAccountId,
                                     paymentMethodCode = paymentMethod,
                                     effectiveAt = effectiveAtFromWhen(whenCode),
+                                    asDraft = false,
                                 ).fold(
                                     onSuccess = {
                                         submitting = false

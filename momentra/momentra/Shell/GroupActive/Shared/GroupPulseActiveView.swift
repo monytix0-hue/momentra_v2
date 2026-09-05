@@ -19,12 +19,16 @@ struct GroupPulseActiveView: View {
     @State private var insights: [AnalyticsInsightItemPayload] = []
     @State private var loading = true
     @State private var error: String?
+    @State private var destinations: [String] = []
 
     private var hideBalances: Bool {
         UserDefaults.standard.bool(forKey: "momentra_hide_balances")
     }
 
-    private var primaryTotal: APIClient.GroupFinanceTotalsPayload? { finance?.totals?.first }
+    private var allTotals: [APIClient.GroupFinanceTotalsPayload] { finance?.totals ?? [] }
+    private var primaryTotal: APIClient.GroupFinanceTotalsPayload? {
+        GroupFinanceFormat.resolvePrimaryTotal(allTotals, preferredCurrency: finance?.viewerPosition?.currencyCode)
+    }
     private var currency: String { primaryTotal?.currencyCode ?? "INR" }
     private var utilization: Int {
         GroupFinanceFormat.utilizationPercent(
@@ -130,15 +134,19 @@ struct GroupPulseActiveView: View {
                         }
 
                         GroupSectionCard(title: "Progress Tracker") {
-                            Text("\(utilization)% of budget used")
+                            Text(allTotals.count > 1
+                                 ? "Budget across \(allTotals.count) currencies (no FX conversion)"
+                                 : "\(utilization)% of budget used")
                                 .font(.plusJakarta(size: 14, weight: .semibold))
                                 .foregroundStyle(GroupActiveTheme.text)
-                            GroupProgressBar(percent: utilization)
+                            if primaryTotal?.budgetTotal != nil {
+                                GroupProgressBar(percent: utilization)
+                            }
                             HStack(spacing: 8) {
                                 GroupMetricTile(label: "Tasks", value: "\(openTasks)")
                                 GroupMetricTile(
                                     label: "Budget",
-                                    value: GroupFinanceFormat.compactMoney(primaryTotal?.budgetTotal, currencyCode: currency)
+                                    value: maskMoney(GroupFinanceFormat.budgetPartitionLine(allTotals, compact: true, hide: hideBalances))
                                 )
                                 GroupMetricTile(label: "Moments", value: "\(expenseCount)")
                             }
@@ -156,10 +164,11 @@ struct GroupPulseActiveView: View {
                                 ForEach(participants.prefix(6)) { person in
                                     Text(person.displayName ?? String(person.participantId.prefix(8)))
                                         .font(.plusJakarta(size: 13, weight: .semibold))
-                                        .foregroundStyle(GroupActiveTheme.text)}
+                                        .foregroundStyle(GroupActiveTheme.text)
+                                }
                             } else {
-                                ForEach(positions.prefix(6)) { pos in
-                                    participationRow(pos)
+                                ForEach(Array(GroupFinanceFormat.groupPositionsByParticipant(positions).prefix(6)), id: \.0) { _, rows in
+                                    participationRow(rows)
                                 }
                             }
                         }
@@ -178,16 +187,23 @@ struct GroupPulseActiveView: View {
                                 GroupEmptySection(message: "No finance totals yet", detail: "Add an expense to see settlement data.")
                             } else {
                                 orangeBalanceCard
-                                if primaryTotal != nil {
+                                if !allTotals.isEmpty {
                                     financeBar(
                                         label: "Expenses",
-                                        value: primaryTotal?.expenseTotal,
-                                        color: GroupActiveTheme.accentOrange
+                                        valueLabel: maskMoney(GroupFinanceFormat.expensePartitionLine(allTotals, hide: hideBalances)),
+                                        color: GroupActiveTheme.accentOrange,
+                                        percent: allTotals.count == 1 ? singleCurrencyBarPercent(primaryTotal?.expenseTotal) : utilization
                                     )
                                     financeBar(
                                         label: "Contributions",
-                                        value: primaryTotal?.contributionTotal,
-                                        color: Color(hex: "#22C55E")
+                                        valueLabel: maskMoney(
+                                            GroupFinanceFormat.formatPartitionedAmounts(
+                                                allTotals.map { ($0.currencyCode, $0.contributionTotal ?? "0") },
+                                                hide: hideBalances
+                                            )
+                                        ),
+                                        color: Color(hex: "#22C55E"),
+                                        percent: allTotals.count == 1 ? singleCurrencyBarPercent(primaryTotal?.contributionTotal) : utilization
                                     )
                                 }
                             }
@@ -223,7 +239,10 @@ struct GroupPulseActiveView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     heroPill(displayTitle, solid: true)
-                    heroPill("Trip · \(participantCount) people", solid: false)
+                    heroPill(TripPulseDestinations.heroSubtitle(places: destinations, peopleCount: participantCount), solid: false)
+                    ForEach(destinations.prefix(4), id: \.self) { place in
+                        heroPill(place, solid: false)
+                    }
                 }
             }
             Text("🌴")
@@ -231,7 +250,11 @@ struct GroupPulseActiveView: View {
             Text(displayTitle)
                 .font(.plusJakarta(size: 24, weight: .heavy))
                 .foregroundStyle(GroupActiveTheme.text)
-            Text("Shared trip pulse")
+            Text(
+                destinations.count > 1 ? "\(destinations.count) destinations"
+                : destinations.count == 1 ? destinations[0]
+                : "Shared trip pulse"
+            )
                 .font(.plusJakarta(size: 13))
                 .foregroundStyle(GroupActiveTheme.secondary)
         }
@@ -291,22 +314,11 @@ struct GroupPulseActiveView: View {
 
     private var orangeBalanceCard: some View {
         let viewer = finance?.viewerPosition
-        let outstanding = primaryTotal?.outstandingTotal
-        let headline: String = {
-            if let netRaw = viewer?.netPosition {
-                let net = GroupFinanceFormat.parseAmount(netRaw)
-                let v = (net as NSDecimalNumber).doubleValue
-                if v < 0 {
-                    let owed = GroupFinanceFormat.formatMoney(String(format: "%.2f", abs(v)), currencyCode: currency)
-                    return "You owe \(maskMoney(owed))"
-                }
-                if v > 0 {
-                    return "You are owed \(maskMoney(GroupFinanceFormat.formatMoney(netRaw, currencyCode: currency)))"
-                }
-                return "You're settled up"
-            }
-            return "Outstanding \(maskMoney(GroupFinanceFormat.formatMoney(outstanding, currencyCode: currency)))"
-        }()
+        let (headline, incl) = GroupFinanceFormat.viewerBalanceHeadline(
+            viewer: viewer,
+            allPositions: positions,
+            hide: hideBalances
+        )
         return Button(action: onOpenFinance) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("YOUR BALANCE")
@@ -315,6 +327,11 @@ struct GroupPulseActiveView: View {
                 Text(headline)
                     .font(.plusJakarta(size: 16, weight: .heavy))
                     .foregroundStyle(.white)
+                if let incl {
+                    Text(incl)
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(Color.white.opacity(0.85))
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
@@ -330,24 +347,29 @@ struct GroupPulseActiveView: View {
         .buttonStyle(.plain)
     }
 
-    private func participationRow(_ pos: APIClient.GroupFinancePositionPayload) -> some View {
-        let name = nameById[pos.participantId] ?? String(pos.participantId.prefix(8))
-        let net = GroupFinanceFormat.parseAmount(pos.netPosition)
-        let netValue = (net as NSDecimalNumber).doubleValue
+    private func participationRow(_ rows: [APIClient.GroupFinancePositionPayload]) -> some View {
+        let primary = rows[0]
+        let name = nameById[primary.participantId] ?? String(primary.participantId.prefix(8))
+        let netLine = GroupFinanceFormat.formatPartitionedAmounts(
+            rows.map { ($0.currencyCode, $0.netPosition ?? "0") },
+            compact: true,
+            hide: hideBalances
+        )
+        let primaryNet = GroupFinanceFormat.parseAmount(primary.netPosition)
+        let netValue = (primaryNet as NSDecimalNumber).doubleValue
         let pct: Int = {
             if maxAbsNet > 0 {
                 return min(100, max(8, Int((abs(netValue) / maxAbsNet) * 100)))
             }
             return positions.isEmpty ? 0 : min(100, 100 / positions.count)
         }()
-        let netLabel = maskMoney(GroupFinanceFormat.formatMoney(pos.netPosition, currencyCode: pos.currencyCode))
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(name)
                     .font(.plusJakarta(size: 13, weight: .semibold))
                     .foregroundStyle(GroupActiveTheme.text)
                 Spacer()
-                Text(netLabel)
+                Text(netLine)
                     .font(.plusJakarta(size: 12))
                     .foregroundStyle(netValue >= 0 ? Color(hex: "#4ADE80") : GroupActiveTheme.accentOrange)
             }
@@ -356,16 +378,14 @@ struct GroupPulseActiveView: View {
         .padding(.vertical, 4)
     }
 
-    private func financeBar(label: String, value: String?, color: Color) -> some View {
-        let amt = (GroupFinanceFormat.parseAmount(value) as NSDecimalNumber).doubleValue
-        let pct = financeBarMax > 0 ? min(100, Int((amt / financeBarMax) * 100)) : 0
-        return VStack(alignment: .leading, spacing: 4) {
+    private func financeBar(label: String, valueLabel: String, color: Color, percent: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(label)
                     .font(.plusJakarta(size: 12))
                     .foregroundStyle(GroupActiveTheme.secondary)
                 Spacer()
-                Text(maskMoney(GroupFinanceFormat.formatMoney(value, currencyCode: currency)))
+                Text(valueLabel)
                     .font(.plusJakarta(size: 12))
                     .foregroundStyle(GroupActiveTheme.text)
             }
@@ -374,11 +394,16 @@ struct GroupPulseActiveView: View {
                     Capsule().fill(Color(hex: "#2A2624"))
                     Capsule()
                         .fill(color)
-                        .frame(width: geo.size.width * CGFloat(pct) / 100)
+                        .frame(width: geo.size.width * CGFloat(min(max(percent, 0), 100)) / 100)
                 }
             }
             .frame(height: 8)
         }
+    }
+
+    private func singleCurrencyBarPercent(_ value: String?) -> Int {
+        let amt = (GroupFinanceFormat.parseAmount(value) as NSDecimalNumber).doubleValue
+        return financeBarMax > 0 ? min(100, Int((amt / financeBarMax) * 100)) : 0
     }
 
     private func activityRow(_ item: APIClient.ActivityItemPayload) -> some View {
@@ -455,6 +480,14 @@ struct GroupPulseActiveView: View {
             insights = (try? await insightsResult)?.items ?? []
             _ = try? await metricsResult
             _ = try? await refreshResult
+            let widgetPlaces = TripPulseDestinations.fromWidget(loadedPulse.payload?.widgetPayload)
+            if !widgetPlaces.isEmpty {
+                destinations = widgetPlaces
+            } else if let prefill = try? await APIClient.shared.getGroupSetupPrefill(momentId: momentId) {
+                destinations = TripPulseDestinations.fromPrefill(prefill)
+            } else {
+                destinations = []
+            }
             GroupTabDataCache.putPulse(momentId, .init(
                 title: loadedPulse.title,
                 pulse: loadedPulse,

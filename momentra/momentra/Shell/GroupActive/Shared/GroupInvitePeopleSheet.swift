@@ -205,12 +205,17 @@ struct GroupInvitePeopleSheet: View {
                     Button {
                         removeTarget = p
                     } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .bold))
+                        Text("Remove")
+                            .font(.plusJakarta(size: 12, weight: .semibold))
                             .foregroundStyle(busy ? TripForm.muted : Color(hex: "#EF4444"))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color(hex: "#EF4444").opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
                     .disabled(busy)
+                    .accessibilityLabel("Remove \(p.displayName ?? "member")")
                 }
             }
             if viewerIsOrganizer && !p.guest {

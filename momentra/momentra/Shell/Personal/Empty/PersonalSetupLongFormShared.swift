@@ -27,13 +27,14 @@ enum PersonalSetupEditPrefill {
 struct PersonalSetupCloseRow: View {
     var onBack: () -> Void
     var enabled: Bool = true
+    var label: String = "Discard draft"
 
     var body: some View {
         HStack {
             Button(action: onBack) {
                 HStack(spacing: 6) {
                     Text("×")
-                    Text("Close")
+                    Text(label)
                 }
                 .foregroundStyle(SetupTokens.textSecondary)
             }
@@ -317,6 +318,7 @@ struct PersonalSetupActivateBlock: View {
     var ctaGradient: LinearGradient = SetupTokens.personalCtaGradient
     let submitting: Bool
     let error: String?
+    let onSaveDraft: () -> Void
     let onActivate: () -> Void
 
     var body: some View {
@@ -352,6 +354,17 @@ struct PersonalSetupActivateBlock: View {
             .buttonStyle(.plain)
             .disabled(submitting)
 
+            Button(action: onSaveDraft) {
+                Text("Save draft")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(SetupTokens.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(PersonalSetupLongForm.border))
+            }
+            .buttonStyle(.plain)
+            .disabled(submitting)
+
             Text(footerTagline)
                 .font(.system(size: 11))
                 .foregroundStyle(SetupTokens.textSecondary)
@@ -361,7 +374,23 @@ struct PersonalSetupActivateBlock: View {
     }
 }
 
+func personalHandleSetupDiscard(
+    createModel: MomentCreateModel,
+    editingMomentId: String?,
+    editingMomentStatus: String?,
+    onBack: @escaping () -> Void
+) {
+    if let editingMomentId,
+       editingMomentStatus?.caseInsensitiveCompare("DRAFT") == .orderedSame {
+        createModel.discardMomentDraft(momentId: editingMomentId, onSuccess: onBack)
+    } else {
+        onBack()
+    }
+}
+
 func personalSelectionString(_ selections: [String: Any], _ key: String) -> String {
+    selections[key] as? String ?? "\(selections[key] ?? "")"
+}
     selections[key] as? String ?? "\(selections[key] ?? "")"
 }
 

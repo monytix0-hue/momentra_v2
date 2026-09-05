@@ -321,31 +321,22 @@ struct GroupExpenseSheet: View {
     }
 
     private var saveButton: some View {
-        Button {
-            Task { await save() }
-        } label: {
-            HStack(spacing: 8) {
-                if submitting {
-                    ProgressView().tint(.white)
-                } else {
-                    Text(isEditing ? "Save Expense" : "Add Expense")
-                        .font(.system(size: 15, weight: .heavy))
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 13, weight: .bold))
-                }
-            }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(
-                LinearGradient(colors: [accent, peach], startPoint: .leading, endPoint: .trailing)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-        }
-        .buttonStyle(.plain)
-        .disabled(!canSubmit || submitting)
-        .opacity(!canSubmit ? 0.55 : 1)
+        QuickAddDraftActions(
+            submitLabel: isEditing ? "Save Expense" : "Add Expense",
+            submitEnabled: canSubmit,
+            accent: sheetAccent,
+            loading: submitting,
+            onSubmit: { Task { await save(asDraft: false) } },
+            onSaveDraft: isEditing ? nil : { Task { await save(asDraft: true) } },
+            draftEnabled: canSaveDraft
+        )
         .accessibilityIdentifier("group.expense.submit")
+    }
+
+    private var canSaveDraft: Bool {
+        guard !isEditing else { return false }
+        guard let amt = Decimal(string: amount.trimmingCharacters(in: .whitespacesAndNewlines)), amt > 0 else { return false }
+        return paidByParticipantId != nil && currencyCode.count == 3
     }
 
     private var canSubmit: Bool {
@@ -415,50 +406,60 @@ struct GroupExpenseSheet: View {
         loading = false
     }
 
-    private func save() async {
+    private func save(asDraft: Bool = false) async {
         guard let paidBy = paidByParticipantId else { return }
         submitting = true
         error = nil
         let ids = Array(selectedParticipantIds).sorted()
+        let strategy = asDraft ? "POOLED" : splitStrategy
         let inputs: [APIClient.GroupSplitInput]
-        switch splitStrategy {
-        case "POOLED":
+        if asDraft {
             inputs = []
-        case "EQUAL":
-            inputs = GroupActionRegistry.equalSplitInputs(participantIds: ids)
-        case "PERCENTAGE":
-            let sum = ids.reduce(0.0) { $0 + (Double(splitValues[$1] ?? "0") ?? 0) }
-            if abs(sum - 100) > 0.01 {
-                error = "Percents must sum to 100 (now \(sum))"
-                submitting = false
-                return
-            }
-            inputs = ids.map { APIClient.GroupSplitInput(participantId: $0, percent: splitValues[$0]) }
-        case "EXACT":
-            let sum = ids.reduce(Decimal.zero) { acc, id in
-                acc + (Decimal(string: splitValues[id] ?? "0") ?? 0)
-            }
-            let total = Decimal(string: amount.trimmingCharacters(in: .whitespacesAndNewlines)) ?? -1
-            if sum != total {
-                error = "Exact amounts must equal expense amount"
-                submitting = false
-                return
-            }
-            inputs = ids.map { APIClient.GroupSplitInput(participantId: $0, amount: splitValues[$0]) }
-        case "SHARES":
-            for id in ids {
-                let w = Double(splitValues[id] ?? "0") ?? 0
-                if w <= 0 {
-                    error = "Share weights must be positive"
+        } else {
+            switch splitStrategy {
+            case "POOLED":
+                inputs = []
+            case "EQUAL":
+                inputs = GroupActionRegistry.equalSplitInputs(participantIds: ids)
+            case "PERCENTAGE":
+                let sum = ids.reduce(0.0) { $0 + (Double(splitValues[$1] ?? "0") ?? 0) }
+                if abs(sum - 100) > 0.01 {
+                    error = "Percents must sum to 100 (now \(sum))"
                     submitting = false
                     return
                 }
+                inputs = ids.map { APIClient.GroupSplitInput(participantId: $0, percent: splitValues[$0]) }
+            case "EXACT":
+                let sum = ids.reduce(Decimal.zero) { acc, id in
+                    acc + (Decimal(string: splitValues[id] ?? "0") ?? 0)
+                }
+                let total = Decimal(string: amount.trimmingCharacters(in: .whitespacesAndNewlines)) ?? -1
+                if sum != total {
+                    error = "Exact amounts must equal expense amount"
+                    submitting = false
+                    return
+                }
+                inputs = ids.map { APIClient.GroupSplitInput(participantId: $0, amount: splitValues[$0]) }
+            case "SHARES":
+                for id in ids {
+                    let w = Double(splitValues[id] ?? "0") ?? 0
+                    if w <= 0 {
+                        error = "Share weights must be positive"
+                        submitting = false
+                        return
+                    }
+                }
+                inputs = ids.map {
+                    APIClient.GroupSplitInput(participantId: $0, shares: Double(splitValues[$0] ?? "1") ?? 1)
+                }
+            default:
+                error = "Unknown split strategy"
+                submitting = false
+                return
             }
-            inputs = ids.map {
-                APIClient.GroupSplitInput(participantId: $0, shares: Double(splitValues[$0] ?? "1") ?? 1)
-            }
-        default:
-            error = "Unknown split strategy"
+        }
+        if !asDraft && splitStrategy != "POOLED" && selectedParticipantIds.isEmpty {
+            error = "Select payer and at least one participant"
             submitting = false
             return
         }
@@ -485,8 +486,9 @@ struct GroupExpenseSheet: View {
                     currencyCode: currencyCode.uppercased(),
                     description: finalDescription.isEmpty ? nil : finalDescription,
                     paidByParticipantId: paidBy,
-                    splitStrategy: splitStrategy,
-                    splitInputs: inputs
+                    splitStrategy: strategy,
+                    splitInputs: inputs,
+                    asDraft: asDraft ? true : nil
                 )
             }
             isPresented = false

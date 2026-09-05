@@ -816,9 +816,9 @@ struct AppShellView: View {
         if newMomentOpen, model.selectedContext == .personal {
             PersonalCreateEmptyView(
                 history: model.moments,
-                onMomentCreated: { id, title, typeCode in
+                onMomentCreated: { id, title, typeCode, status in
                     newMomentOpen = false
-                    model.onMomentCreated(momentId: id, title: title, momentTypeCode: typeCode)
+                    model.onMomentCreated(momentId: id, title: title, momentTypeCode: typeCode, status: status)
                 },
                 onOpenExisting: { momentId in
                     newMomentOpen = false
@@ -838,7 +838,8 @@ struct AppShellView: View {
                         model.onMomentCreated(
                             momentId: outcome.momentId,
                             title: outcome.title,
-                            momentTypeCode: outcome.momentTypeCode
+                            momentTypeCode: outcome.momentTypeCode,
+                            status: outcome.status
                         )
                     }
                 )
@@ -899,7 +900,8 @@ struct AppShellView: View {
                         model.onMomentCreated(
                             momentId: outcome.momentId,
                             title: outcome.title,
-                            momentTypeCode: outcome.momentTypeCode
+                            momentTypeCode: outcome.momentTypeCode,
+                            status: outcome.status
                         )
                     },
                     groupCreatePhase: groupCreatePhase,
@@ -1515,7 +1517,8 @@ struct AppShellView: View {
                                 model.onMomentCreated(
                             momentId: outcome.momentId,
                             title: outcome.title,
-                            momentTypeCode: outcome.momentTypeCode
+                            momentTypeCode: outcome.momentTypeCode,
+                            status: outcome.status
                         )
                             }
                         )
@@ -1567,7 +1570,8 @@ struct AppShellView: View {
                             model.onMomentCreated(
                             momentId: outcome.momentId,
                             title: outcome.title,
-                            momentTypeCode: outcome.momentTypeCode
+                            momentTypeCode: outcome.momentTypeCode,
+                            status: outcome.status
                         )
                         }
                     )
@@ -1581,7 +1585,8 @@ struct AppShellView: View {
                             model.onMomentCreated(
                             momentId: outcome.momentId,
                             title: outcome.title,
-                            momentTypeCode: outcome.momentTypeCode
+                            momentTypeCode: outcome.momentTypeCode,
+                            status: outcome.status
                         )
                         }
                     )
@@ -1595,7 +1600,8 @@ struct AppShellView: View {
                             model.onMomentCreated(
                             momentId: outcome.momentId,
                             title: outcome.title,
-                            momentTypeCode: outcome.momentTypeCode
+                            momentTypeCode: outcome.momentTypeCode,
+                            status: outcome.status
                         )
                         }
                     )

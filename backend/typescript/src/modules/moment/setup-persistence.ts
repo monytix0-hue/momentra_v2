@@ -12,16 +12,20 @@ export async function insertPersonalSetupRow(
   momentId: string,
   systemCode: PersonalSetupSystemCode,
   title: string,
-  preferences: Record<string, unknown>
+  preferences: Record<string, unknown>,
+  status: 'DRAFT' | 'ACTIVE' = 'ACTIVE'
 ): Promise<string> {
   const inserted = await client.query<{ life_system_setup_id: string }>(
     `INSERT INTO personal.life_system_setup (
        user_id, moment_id, system_code, title, preferences, status, version
-     ) VALUES ($1, $2, $3, $4, $5::jsonb, 'ACTIVE', 1)
+     ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, 1)
      RETURNING life_system_setup_id`,
-    [ctx.userId, momentId, systemCode, title, JSON.stringify(preferences)]
+    [ctx.userId, momentId, systemCode, title, JSON.stringify(preferences), status]
   );
   const setupId = inserted.rows[0]!.life_system_setup_id;
+  if (status === 'DRAFT') {
+    return setupId;
+  }
   const catalog = PERSONAL_SETUP_CATALOG.find((s) => s.systemCode === systemCode)!;
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'PersonalSetupActivated',
@@ -78,17 +82,23 @@ export async function insertBusinessSetupRow(
   companyId: string,
   familyCode: BusinessSetupFamilyCode,
   title: string,
-  preferences: Record<string, unknown>
+  preferences: Record<string, unknown>,
+  status: 'DRAFT' | 'ACTIVE' = 'ACTIVE'
 ): Promise<string> {
-  await insertBusinessFamilyContext(client, momentId, familyCode, title);
+  if (status === 'ACTIVE') {
+    await insertBusinessFamilyContext(client, momentId, familyCode, title);
+  }
   const inserted = await client.query<{ business_system_setup_id: string }>(
     `INSERT INTO business.business_system_setup (
        company_id, user_id, moment_id, family_code, title, preferences, status, version
-     ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'ACTIVE', 1)
+     ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, 1)
      RETURNING business_system_setup_id`,
-    [companyId, ctx.userId, momentId, familyCode, title, JSON.stringify(preferences)]
+    [companyId, ctx.userId, momentId, familyCode, title, JSON.stringify(preferences), status]
   );
   const setupId = inserted.rows[0]!.business_system_setup_id;
+  if (status === 'DRAFT') {
+    return setupId;
+  }
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'BusinessSetupActivated',
     domainCode: 'BUSINESS',

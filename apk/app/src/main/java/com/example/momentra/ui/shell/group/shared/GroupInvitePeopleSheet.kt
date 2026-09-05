@@ -153,9 +153,12 @@ fun GroupInvitePeopleSheet(
     val qrBitmap = remember(qrPayload, qrSizePx) {
         qrPayload?.let { generateInviteQrBitmap(it, qrSizePx) }?.asImageBitmap()
     }
-    val activeMembers = participants.filter { it.status.equals("ACTIVE", ignoreCase = true) }
-    val viewerIsOrganizer = activeMembers.any { p ->
-        p.userId != null &&
+    val activeMembers = participants.filter {
+        it.status.equals("ACTIVE", ignoreCase = true) || it.status.equals("INVITED", ignoreCase = true)
+    }
+    val viewerIsOrganizer = participants.any { p ->
+        p.status.equals("ACTIVE", ignoreCase = true) &&
+            p.userId != null &&
             p.userId == currentUserId &&
             p.roleCode.uppercase(Locale.US) in setOf("ORGANIZER", "CO_ORGANIZER")
     }
@@ -304,7 +307,7 @@ fun GroupInvitePeopleSheet(
 
             if (activeMembers.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TripFieldLabel("Active members (${activeMembers.size})")
+                    TripFieldLabel("Members (${activeMembers.size})")
                     activeMembers.forEach { p ->
                         InviteActiveMemberRow(
                             participant = p,
@@ -463,24 +466,38 @@ private fun InviteActiveMemberRow(
                 )
             }
             Text(
-                "Active",
-                color = TripFormTokens.Green,
+                if (participant.status.equals("INVITED", ignoreCase = true)) "Invited" else "Active",
+                color = if (participant.status.equals("INVITED", ignoreCase = true)) {
+                    TripSheetTokens.Accent
+                } else {
+                    TripFormTokens.Green
+                },
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = PlusJakartaSans,
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
-                    .background(TripFormTokens.Green.copy(alpha = 0.12f))
+                    .background(
+                        if (participant.status.equals("INVITED", ignoreCase = true)) {
+                            TripSheetTokens.Accent.copy(alpha = 0.12f)
+                        } else {
+                            TripFormTokens.Green.copy(alpha = 0.12f)
+                        },
+                    )
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             )
             if (viewerIsOrganizer) {
-                Icon(
-                    Icons.Filled.Close,
-                    contentDescription = "Remove",
-                    tint = if (busy) TripSheetTokens.Muted else Color(0xFFEF4444),
+                Text(
+                    "Remove",
+                    color = if (busy) TripSheetTokens.Muted else Color(0xFFEF4444),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = PlusJakartaSans,
                     modifier = Modifier
-                        .size(18.dp)
-                        .then(if (busy) Modifier else Modifier.clickable(onClick = onRemove)),
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFEF4444).copy(alpha = 0.12f))
+                        .then(if (busy) Modifier else Modifier.clickable(onClick = onRemove))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }
         }

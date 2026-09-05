@@ -1514,6 +1514,70 @@ v1Router.get('/moments/:momentId', async (req, res, next) => {
   }
 });
 
+v1Router.get('/group/moments/:momentId/setup', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      momentService.getGroupSetupPrefill(client, ctx, param(req.params.momentId))
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/moments/:momentId/setup', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      momentService.getDomainSetupPrefill(client, ctx, param(req.params.momentId))
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/moments/:momentId/activate', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const result = await runCommand({
+      operationCode: 'MOMENT_ACTIVATE',
+      idempotencyKey: req.idempotencyKey!,
+      body: {},
+      ctx,
+      resourceType: 'MOMENT',
+      execute: async (client) => {
+        const r = await momentService.activateMomentDraft(client, ctx, param(req.params.momentId));
+        return { result: r, resourceId: r.momentId };
+      },
+    });
+    res.json(commandEnvelope(result, ctx.correlationId, { resourceVersion: result.version }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/moments/:momentId/discard-draft', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const result = await runCommand({
+      operationCode: 'MOMENT_DISCARD_DRAFT',
+      idempotencyKey: req.idempotencyKey!,
+      body: {},
+      ctx,
+      resourceType: 'MOMENT',
+      execute: async (client) => {
+        const r = await momentService.discardMomentDraft(client, ctx, param(req.params.momentId));
+        return { result: r, resourceId: r.momentId };
+      },
+    });
+    res.json(commandEnvelope(result, ctx.correlationId));
+  } catch (e) {
+    next(e);
+  }
+});
+
 v1Router.patch('/moments/:momentId', requireIdempotencyKey, async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
