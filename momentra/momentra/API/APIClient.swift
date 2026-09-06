@@ -197,18 +197,25 @@ private struct APIErrorBody: Decodable {
 }
 
 enum APIConfig {
+    /// UserDefaults key for Account → Developer API server override (LAN IP for device testing).
+    static let baseURLOverrideKey = "momentra_api_base_url_override"
+
     /// Resolution order:
     /// 1. Scheme env `MOMENTRA_API_BASE_URL`
-    /// 2. Info.plist `MomentraAPIBaseURL` (match Android `local.properties` API_BASE_URL)
-    /// 3. Simulator loopback fallback
+    /// 2. UserDefaults override (Account “API server” — use LAN IP on physical devices)
+    /// 3. Info.plist `MomentraAPIBaseURL` (match Android `local.properties` API_BASE_URL)
+    /// 4. Loopback fallback (`127.0.0.1:3000`) — simulator only; devices need LAN IP via override/plist
     ///
-    /// Physical devices and cross-machine backends must use the host LAN IP
-    /// (e.g. `http://192.168.29.112:3000/`), never `127.0.0.1`.
+    /// Physical devices must not rely on `127.0.0.1` — set Override to e.g. `http://192.168.x.x:3000/`.
     static var baseURL: URL {
         if let env = ProcessInfo.processInfo.environment["MOMENTRA_API_BASE_URL"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !env.isEmpty,
            let url = Self.normalizedBaseURL(env) {
+            return url
+        }
+        if let override = UserDefaults.standard.string(forKey: baseURLOverrideKey),
+           let url = Self.normalizedBaseURL(override) {
             return url
         }
         if let plist = Bundle.main.object(forInfoDictionaryKey: "MomentraAPIBaseURL") as? String,
@@ -218,11 +225,24 @@ enum APIConfig {
 #if targetEnvironment(simulator)
         return URL(string: "http://127.0.0.1:3000/")!
 #else
+        // Device fallback is loopback only as last resort — configure override or plist for LAN.
         return URL(string: "http://127.0.0.1:3000/")!
 #endif
     }
 
     static var baseURLDescription: String { baseURL.absoluteString }
+
+    static var baseURLOverride: String {
+        get { UserDefaults.standard.string(forKey: baseURLOverrideKey) ?? "" }
+        set {
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                UserDefaults.standard.removeObject(forKey: baseURLOverrideKey)
+            } else {
+                UserDefaults.standard.set(trimmed, forKey: baseURLOverrideKey)
+            }
+        }
+    }
 
     private static func normalizedBaseURL(_ raw: String) -> URL? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -277,6 +297,10 @@ final class APIClient {
 
     func warmAuthToken() {
         Task { _ = try? await AuthTokenCache.shared.get() }
+    }
+
+    func firebaseIdToken(forceRefresh: Bool = false) async throws -> String {
+        try await AuthTokenCache.shared.get(forceRefresh: forceRefresh)
     }
 
     func clearAuthTokenCache() {

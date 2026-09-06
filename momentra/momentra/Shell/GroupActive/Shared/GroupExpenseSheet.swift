@@ -13,6 +13,7 @@ struct GroupExpenseSheet: View {
 
     @State private var amount = ""
     @State private var currencyCode = "INR"
+    @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var descriptionText = ""
     @State private var expenseDate = ""
     @State private var category: String = GroupExpenseCategoryCatalog.defaultCategory(for: nil)
@@ -27,7 +28,9 @@ struct GroupExpenseSheet: View {
     @State private var showDeleteConfirm = false
     @State private var error: String?
 
-    private let currencyOptions = ["INR", "USD", "EUR", "GBP"]
+    private var currencyOptions: [String] {
+        MomentCurrencyResolver.pickerOptions(preferred: preferredCurrencyCodes)
+    }
     private var isEditing: Bool { expenseId != nil }
     private var accent: Color { isWedding ? WeddingActiveTheme.accentSolid : TripSheetTokens.accent }
     private var peach: Color { isWedding ? WeddingActiveTheme.accentLight : TripSheetTokens.accentEnd }
@@ -51,14 +54,7 @@ struct GroupExpenseSheet: View {
         return items
     }
     private var categoryOptions: [String] { GroupExpenseCategoryCatalog.categories(for: momentTypeCode) }
-    private var currencySymbol: String {
-        switch currencyCode {
-        case "USD": return "$"
-        case "EUR": return "€"
-        case "GBP": return "£"
-        default: return "₹"
-        }
-    }
+    private var currencySymbol: String { TravelCurrencyCatalog.symbol(currencyCode) }
     private var sheetTitle: String {
         isEditing ? "Edit Expense" : "Add Expense"
     }
@@ -121,6 +117,11 @@ struct GroupExpenseSheet: View {
         .task {
             category = GroupExpenseCategoryCatalog.defaultCategory(for: momentTypeCode)
             await loadParticipants()
+            if expenseId == nil {
+                let ctx = await MomentCurrencyContextLoader.loadGroup(momentId: momentId)
+                preferredCurrencyCodes = ctx.preferred
+                currencyCode = ctx.primary
+            }
             if let expenseId {
                 await loadExpense(expenseId)
             }
@@ -132,7 +133,7 @@ struct GroupExpenseSheet: View {
             HStack(alignment: .bottom, spacing: 6) {
                 Menu {
                     ForEach(currencyOptions, id: \.self) { code in
-                        Button(code) { currencyCode = code }
+                        Button(TravelCurrencyCatalog.display(code)) { currencyCode = code }
                     }
                 } label: {
                     Text(currencySymbol)
@@ -159,7 +160,7 @@ struct GroupExpenseSheet: View {
 
             Menu {
                 ForEach(currencyOptions, id: \.self) { code in
-                    Button(code) { currencyCode = code }
+                    Button(TravelCurrencyCatalog.display(code)) { currencyCode = code }
                 }
             } label: {
                 HStack {
@@ -564,6 +565,7 @@ struct GroupContributionSheet: View {
 
     @State private var amount = ""
     @State private var currencyCode = "INR"
+    @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var label = ""
     @State private var submitting = false
     @State private var error: String?
@@ -571,25 +573,29 @@ struct GroupContributionSheet: View {
     private var accent: Color { isWedding ? WeddingActiveTheme.accentSolid : Color(hex: "#14B8A6") }
     private var accentLight: Color { isWedding ? WeddingActiveTheme.accentLight : Color(hex: "#2DD4BF") }
 
+    private var currencyOptions: [String] {
+        MomentCurrencyResolver.pickerOptions(preferred: preferredCurrencyCodes)
+    }
+
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Record contribution")
                     .font(.system(size: 18, weight: .heavy))
                     .foregroundStyle(Color(hex: "#E5E0EE"))
-                HStack {
-                    TextField("INR", text: $currencyCode)
-                        .textInputAutocapitalization(.characters)
-                        .frame(width: 56)
-                        .foregroundStyle(Color(hex: "#C9C4D8"))
-                    TextField("0.00", text: $amount)
-                        .keyboardType(.decimalPad)
-                        .font(.system(size: 26, weight: .heavy))
-                        .foregroundStyle(Color(hex: "#E5E0EE"))
-                }
-                .padding(12)
-                .background(Color(hex: "#201E28"))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                TravelCurrencyPicker(
+                    selectedCode: $currencyCode,
+                    preferredCodes: preferredCurrencyCodes,
+                    showLabel: false,
+                    accentColor: accent
+                )
+                TextField("0.00", text: $amount)
+                    .keyboardType(.decimalPad)
+                    .font(.system(size: 26, weight: .heavy))
+                    .foregroundStyle(Color(hex: "#E5E0EE"))
+                    .padding(12)
+                    .background(Color(hex: "#201E28"))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 TextField("Label (optional)", text: $label)
                     .foregroundStyle(Color(hex: "#E5E0EE"))
                     .padding(12)
@@ -629,6 +635,11 @@ struct GroupContributionSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .task {
+            let ctx = await MomentCurrencyContextLoader.loadGroup(momentId: momentId)
+            preferredCurrencyCodes = ctx.preferred
+            currencyCode = ctx.primary
+        }
     }
 
     private func save() async {

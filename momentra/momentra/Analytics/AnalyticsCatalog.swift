@@ -32,6 +32,7 @@ enum AnalyticsWidgets {
     static let onboardingStepInside = "onboarding/btn_step_inside"
     static let onboardingNext = "onboarding/btn_next"
     static let onboardingGetStarted = "onboarding/btn_get_started"
+    static let onboardingQuickTour = "onboarding/quick_tour"
     static let loginTabSignIn = "login/tab_sign_in"
     static let loginTabRegister = "login/tab_register"
     static let loginTabPhone = "login/tab_phone"

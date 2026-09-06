@@ -65,6 +65,7 @@ fun OpsPulseActiveContent(
     var loading by remember { mutableStateOf(true) }
     var pulse by remember { mutableStateOf<BusinessPulsePayloadDto?>(null) }
     var activities by remember { mutableStateOf<List<ActivityItemDto>>(emptyList()) }
+    var issueAttention by remember { mutableStateOf<List<OpsAttentionDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(refreshToken, momentId) {
@@ -72,6 +73,7 @@ fun OpsPulseActiveContent(
             loading = false
             pulse = null
             activities = emptyList()
+            issueAttention = emptyList()
             error = "Select a Business Moment."
             return@LaunchedEffect
         }
@@ -92,6 +94,24 @@ fun OpsPulseActiveContent(
                 loading = false
             },
         )
+        repository.listIssues(momentId).fold(
+            onSuccess = { list ->
+                issueAttention = list.items
+                    .filter {
+                        val s = it.status?.uppercase().orEmpty()
+                        s.isBlank() || s == "OPEN" || s == "IN_PROGRESS" || s == "BLOCKED"
+                    }
+                    .take(8)
+                    .map { issue ->
+                        OpsAttentionDto(
+                            title = issue.title,
+                            severity = issue.severity,
+                            issueId = issue.issueId,
+                        )
+                    }
+            },
+            onFailure = { issueAttention = emptyList() },
+        )
     }
 
     if (loading && pulse == null) {
@@ -109,7 +129,7 @@ fun OpsPulseActiveContent(
     val monthlySpend = ops?.monthlySpend?.trim()?.takeIf { it.isNotEmpty() && it != "0" && it != "0.00" }
     val vendors = ops?.activeVendorCount
     val spendCats = ops?.spendByCategory.orEmpty()
-    val attention = ops?.needsAttention.orEmpty()
+    val attention = ops?.needsAttention.orEmpty().ifEmpty { issueAttention }
 
     val narrative = when (val n = slaPct) {
         null -> if (openIssues > 0) "Needs attention" else "Awaiting live ops signal"

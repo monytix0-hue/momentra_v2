@@ -50,6 +50,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.repository.PersonalSliceRepository
+import com.example.momentra.ui.shell.shared.loadPersonalCurrencyContext
+import com.example.momentra.ui.shell.shared.TravelCurrencyPickerRow
 import com.example.momentra.ui.shell.perf.ShellPerf
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
@@ -76,6 +78,8 @@ fun PersonalMasterExpenseSheet(
 
     var purpose by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
+    var currencyCode by remember { mutableStateOf("INR") }
+    var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var categoryCode by remember { mutableStateOf(PersonalExpenseCategoryCatalog.masterCategories.first().code) }
     var paidFrom by remember { mutableStateOf("Primary") }
     var whenCode by remember { mutableStateOf("Today") }
@@ -106,6 +110,9 @@ fun PersonalMasterExpenseSheet(
             },
             onFailure = { },
         )
+        val ctx = loadPersonalCurrencyContext(momentId)
+        currencyCode = ctx.primary
+        preferredCurrencyCodes = ctx.preferred
     }
 
     ModalBottomSheet(
@@ -283,6 +290,15 @@ fun PersonalMasterExpenseSheet(
                 }
             }
 
+            TravelCurrencyPickerRow(
+                selectedCode = currencyCode,
+                onSelected = { currencyCode = it },
+                preferredCodes = preferredCurrencyCodes,
+                accentColor = T.Accent,
+                textColor = T.Text,
+                secondaryColor = T.Muted,
+            )
+
             MeSectionLabel("Category")
             CategoryGrid(
                 selectedCode = categoryCode,
@@ -439,7 +455,7 @@ fun PersonalMasterExpenseSheet(
                                 repository.createExpense(
                                     momentId = momentId,
                                     amount = amount.trim(),
-                                    currencyCode = "INR",
+                                    currencyCode = currencyCode,
                                     merchantName = purpose.trim().ifBlank { null },
                                     description = notes.trim().ifBlank { null },
                                     categoryCode = categoryCode,
@@ -500,7 +516,7 @@ fun PersonalMasterExpenseSheet(
                                 repository.createExpense(
                                     momentId = momentId,
                                     amount = amount.trim(),
-                                    currencyCode = "INR",
+                                    currencyCode = currencyCode,
                                     merchantName = purpose.trim().ifBlank { null },
                                     description = description,
                                     categoryCode = categoryCode,

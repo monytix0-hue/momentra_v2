@@ -303,33 +303,27 @@ struct WeddingPulseActiveView: View {
             pulse = cached.pulse
             finance = cached.finance
             activities = cached.activities
+            insights = cached.insights
             loading = false
         } else {
             loading = true
         }
         do {
-            async let pulseResult = APIClient.shared.getGroupPulse(momentId: momentId)
-            async let financeResult = APIClient.shared.getGroupFinance(momentId: momentId)
-            async let activityResult = APIClient.shared.listGroupActivity(momentId: momentId, limit: 5)
-            async let insightsResult = APIClient.shared.listAnalyticsInsights(scopeType: "MOMENT", scopeId: momentId)
-            let loadedPulse = try await pulseResult
-            let finFacet = try await financeResult
-            let loadedActivity = try await activityResult
-            let loadedFinance = finFacet.payload ?? loadedPulse.payload?.finance
-            title = loadedPulse.title
-            pulse = loadedPulse
-            finance = loadedFinance
-            activities = loadedActivity
-            insights = (try? await insightsResult)?.items ?? []
-            GroupTabDataCache.putPulse(momentId, .init(
-                title: loadedPulse.title,
-                pulse: loadedPulse,
-                finance: loadedFinance,
-                activities: loadedActivity
-            ))
+            let tab = try await GroupTabLoad.loadPulseTab(momentId: momentId)
+            title = tab.title
+            pulse = tab.pulse
+            finance = tab.finance
+            activities = tab.activities
+            insights = tab.insights
+            loading = false
+            Task {
+                if let enriched = await GroupTabLoad.enrich(momentId: momentId) {
+                    await MainActor.run { insights = enriched.insights }
+                }
+            }
         } catch {
             self.error = error.localizedDescription
+            loading = false
         }
-        loading = false
     }
 }

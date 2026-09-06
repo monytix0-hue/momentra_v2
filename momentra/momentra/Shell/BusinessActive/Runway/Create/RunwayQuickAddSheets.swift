@@ -26,6 +26,8 @@ struct RunwayQuickAddSheet: View {
     var onClose: () -> Void
     var onSaved: () -> Void = {}
 
+    @State private var resolvedCurrency = "INR"
+
     var body: some View {
         NativeSheetScaffold(
             title: kind.label,
@@ -36,19 +38,19 @@ struct RunwayQuickAddSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     switch kind {
                     case .revenue:
-                        RunwayRevenueForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                        RunwayRevenueForm(momentId: momentId, currencyCode: resolvedCurrency, onDismiss: onClose, onSaved: onSaved)
                     case .expense, .spendEntry:
-                        RunwayExpenseForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                        RunwayExpenseForm(momentId: momentId, currencyCode: resolvedCurrency, onDismiss: onClose, onSaved: onSaved)
                     case .taxEntry:
-                        RunwayTaxForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                        RunwayTaxForm(momentId: momentId, currencyCode: resolvedCurrency, onDismiss: onClose, onSaved: onSaved)
                     case .investorUpdate:
                         RunwayInvestorForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
                     case .budgetAlert:
-                        RunwayBudgetForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                        RunwayBudgetForm(momentId: momentId, currencyCode: resolvedCurrency, onDismiss: onClose, onSaved: onSaved)
                     case .forecastUpdate:
-                        RunwayForecastForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                        RunwayForecastForm(momentId: momentId, currencyCode: resolvedCurrency, onDismiss: onClose, onSaved: onSaved)
                     case .invoice:
-                        RunwayInvoiceForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
+                        RunwayInvoiceForm(momentId: momentId, currencyCode: resolvedCurrency, onDismiss: onClose, onSaved: onSaved)
                     case .generalUpdate, .teamUpdate:
                         RunwayUpdateForm(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
                     case .memory:
@@ -63,6 +65,11 @@ struct RunwayQuickAddSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .task {
+            if let momentId {
+                resolvedCurrency = await MomentCurrencyContextLoader.loadBusiness(momentId: momentId).primary
+            }
+        }
     }
 }
 
@@ -70,6 +77,7 @@ struct RunwayQuickAddSheet: View {
 
 private struct RunwayRevenueForm: View {
     var momentId: String?
+    var currencyCode: String
     var onDismiss: () -> Void
     var onSaved: () -> Void
 
@@ -151,7 +159,7 @@ private struct RunwayRevenueForm: View {
             _ = try await APIClient.shared.createBusinessRevenue(
                 momentId: momentId,
                 amount: strippedAmount,
-                currencyCode: "INR",
+                currencyCode: currencyCode,
                 description: descParts.joined(separator: " · "),
                 categoryCode: source.isEmpty ? nil : source
             )
@@ -168,6 +176,7 @@ private struct RunwayRevenueForm: View {
 
 private struct RunwayExpenseForm: View {
     var momentId: String?
+    var currencyCode: String
     var onDismiss: () -> Void
     var onSaved: () -> Void
 
@@ -236,7 +245,7 @@ private struct RunwayExpenseForm: View {
             _ = try await APIClient.shared.createBusinessExpense(
                 momentId: momentId,
                 amount: strippedAmount,
-                currencyCode: "INR",
+                currencyCode: currencyCode,
                 description: descParts.isEmpty ? nil : descParts.joined(separator: " · "),
                 merchantName: merchant.isEmpty ? nil : merchant,
                 categoryCode: category.isEmpty ? nil : category
@@ -254,6 +263,7 @@ private struct RunwayExpenseForm: View {
 
 private struct RunwayTaxForm: View {
     var momentId: String?
+    var currencyCode: String
     var onDismiss: () -> Void
     var onSaved: () -> Void
 
@@ -332,7 +342,7 @@ private struct RunwayTaxForm: View {
                 title: "\(taxType) · \(period)",
                 taxType: taxType,
                 amount: strippedAmount.isEmpty ? nil : strippedAmount,
-                currencyCode: "INR",
+                currencyCode: currencyCode,
                 dueDate: dueDate,
                 notes: notesParts.isEmpty ? nil : notesParts.joined(separator: " · ")
             )
@@ -439,6 +449,7 @@ private struct RunwayInvestorForm: View {
 
 private struct RunwayBudgetForm: View {
     var momentId: String?
+    var currencyCode: String
     var onDismiss: () -> Void
     var onSaved: () -> Void
 
@@ -519,7 +530,7 @@ private struct RunwayBudgetForm: View {
                 title: "Budget alert: \(department.isEmpty ? "Dept" : department) / \(category.isEmpty ? "Category" : category)",
                 metricLabel: category.isEmpty ? nil : category,
                 thresholdValue: RunwayAmountFormat.strip(allocatedDisplay).isEmpty ? nil : RunwayAmountFormat.strip(allocatedDisplay),
-                currencyCode: "INR",
+                currencyCode: currencyCode,
                 severity: severity.uppercased(),
                 note: noteParts.isEmpty ? nil : noteParts.joined(separator: " · ")
             )
@@ -536,6 +547,7 @@ private struct RunwayBudgetForm: View {
 
 private struct RunwayForecastForm: View {
     var momentId: String?
+    var currencyCode: String
     var onDismiss: () -> Void
     var onSaved: () -> Void
 
@@ -602,10 +614,10 @@ private struct RunwayForecastForm: View {
         let revAmt = RunwayAmountFormat.strip(revenueProjDisplay)
         let expAmt = RunwayAmountFormat.strip(expenseProjDisplay)
         if !revAmt.isEmpty {
-            lines.append(APIClient.ForecastLineInput(lineLabel: "Revenue", amount: revAmt, currencyCode: "INR", periodLabel: period))
+            lines.append(APIClient.ForecastLineInput(lineLabel: "Revenue", amount: revAmt, currencyCode: currencyCode, periodLabel: period))
         }
         if !expAmt.isEmpty {
-            lines.append(APIClient.ForecastLineInput(lineLabel: "Expense", amount: expAmt, currencyCode: "INR", periodLabel: period))
+            lines.append(APIClient.ForecastLineInput(lineLabel: "Expense", amount: expAmt, currencyCode: currencyCode, periodLabel: period))
         }
         
         do {
@@ -629,6 +641,7 @@ private struct RunwayForecastForm: View {
 
 private struct RunwayInvoiceForm: View {
     var momentId: String?
+    var currencyCode: String
     var onDismiss: () -> Void
     var onSaved: () -> Void
 
@@ -701,7 +714,7 @@ private struct RunwayInvoiceForm: View {
                 invoiceNumber: invoiceNumber.trimmingCharacters(in: .whitespaces),
                 invoiceDate: issueDate,
                 dueDate: dueDate,
-                currencyCode: "INR",
+                currencyCode: currencyCode,
                 lines: [
                     APIClient.BusinessInvoiceLineInput(
                         description: client.trimmingCharacters(in: .whitespaces),

@@ -4,6 +4,7 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGovernanceAllowed } from '../governance/resolver';
 import { insertAudit, insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
+import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from './travel-currencies';
 import Decimal from 'decimal.js';
 import {
   derivePaymentMethodFromAccountType,
@@ -17,7 +18,7 @@ import { listExpenseAttachments } from './expense-attachments';
 export const createExpenseSchema = z
   .object({
     amount: z.string().regex(/^\d+(\.\d{1,4})?$/),
-    currencyCode: z.string().length(3).toUpperCase(),
+    currencyCode: travelCurrencyCodeSchema,
     description: z.string().max(500).optional(),
     merchantName: z.string().max(500).optional(),
     categoryCode: z.string().max(100).optional(),
@@ -41,7 +42,7 @@ export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 export const updateExpenseSchema = z
   .object({
     amount: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
-    currencyCode: z.string().length(3).toUpperCase().optional(),
+    currencyCode: optionalTravelCurrencyCodeSchema,
     description: z.string().max(500).nullable().optional(),
     merchantName: z.string().max(500).nullable().optional(),
     categoryCode: z.string().max(100).nullable().optional(),

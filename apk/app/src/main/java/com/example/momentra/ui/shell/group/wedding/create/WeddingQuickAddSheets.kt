@@ -75,6 +75,7 @@ import com.example.momentra.data.api.CreateGroupExpenseBody
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupExpenseSplitBuilder
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.empty.group.GroupBudgetUtils
 import com.example.momentra.ui.shell.group.shared.GroupExpenseCategoryCatalog
 import com.example.momentra.ui.shell.group.shared.GroupPlanningCategoryCatalog
 import com.example.momentra.ui.shell.group.shared.GroupSettlementSheet
@@ -83,6 +84,9 @@ import com.example.momentra.ui.shell.group.shared.encodeMemoryPhotoBytes
 import com.example.momentra.ui.shell.group.shared.tryTakePersistableReadPermission
 import com.example.momentra.ui.shell.group.shared.tripDateTimeToIso
 import com.example.momentra.ui.shell.group.shared.QuickAddDraftActions
+import com.example.momentra.ui.shell.group.shared.TravelCurrencyCatalog
+import com.example.momentra.ui.shell.shared.loadGroupCurrencyContext
+import com.example.momentra.ui.shell.shared.TravelCurrencyPickerRow
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.setup.SetupDateTimeUtils
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -609,6 +613,8 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
     var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
     var selected by remember { mutableStateOf(emptySet<String>()) }
     var paidBy by remember { mutableStateOf<String?>(null) }
+    var currency by remember { mutableStateOf("INR") }
+    var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var loading by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -618,6 +624,9 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
     LaunchedEffect(momentId) {
         if (momentId.isNullOrBlank()) return@LaunchedEffect
         loading = true
+        val ctx = loadGroupCurrencyContext(momentId)
+        currency = ctx.primary
+        preferredCurrencyCodes = ctx.preferred
         repository.getParticipants(momentId).fold(
             onSuccess = { dto ->
                 val active = dto.participants.filter {
@@ -642,7 +651,7 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.Bottom,
     ) {
-        Text("₹", color = accent.accent, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+        Text(TravelCurrencyCatalog.symbol(currency), color = accent.accent, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
         BasicTextField(
             value = amount,
             onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
@@ -659,6 +668,12 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
             modifier = Modifier.padding(start = 6.dp),
         )
     }
+    TravelCurrencyPickerRow(
+        selectedCode = currency,
+        onSelected = { currency = it },
+        preferredCodes = preferredCurrencyCodes,
+        accentColor = accent.accent,
+    )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("Description")
         SheetField(description, { description = it }, "What was this for?")
@@ -725,7 +740,7 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
                 error = null
                 val body = GroupExpenseSplitBuilder.equalSplit(
                     amount = amount,
-                    currencyCode = "INR",
+                    currencyCode = currency,
                     paidByParticipantId = payer,
                     participantIds = selected.toList(),
                     description = GroupExpenseCategoryCatalog.descriptionWithCategory(
@@ -746,7 +761,7 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
                 error = null
                 val draftBody = CreateGroupExpenseBody(
                     amount = amount.ifBlank { "0" },
-                    currencyCode = "INR",
+                    currencyCode = currency,
                     description = GroupExpenseCategoryCatalog.descriptionWithCategory(
                         category = category,
                         userDescription = description,
@@ -770,6 +785,8 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
 @Composable
 internal fun WeddingContributionSheetBody(momentId: String?, repository: GroupSliceRepository, onDismiss: () -> Unit, onSaved: () -> Unit, accent: SheetAccent = ContribAccent) {
     var amount by remember { mutableStateOf("") }
+    var currency by remember { mutableStateOf("INR") }
+    var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var pool by remember { mutableStateOf("") }
     var method by remember { mutableStateOf("UPI") }
     var status by remember { mutableStateOf("Paid") }
@@ -778,6 +795,13 @@ internal fun WeddingContributionSheetBody(momentId: String?, repository: GroupSl
     val scope = rememberCoroutineScope()
     val live = !momentId.isNullOrBlank()
 
+    LaunchedEffect(momentId) {
+        if (momentId.isNullOrBlank()) return@LaunchedEffect
+        val ctx = loadGroupCurrencyContext(momentId)
+        currency = ctx.primary
+        preferredCurrencyCodes = ctx.preferred
+    }
+
     SheetHeader(R.drawable.ic_qa_users, "Add Contribution", accent = accent, iconSize = 20)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("Amount Contributed")
@@ -785,8 +809,14 @@ internal fun WeddingContributionSheetBody(momentId: String?, repository: GroupSl
             amount,
             { amount = it.filter { c -> c.isDigit() || c == ',' || c == '.' } },
             "0.00",
-            leading = { Text("₹", color = accent.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans) },
+            leading = { Text(TravelCurrencyCatalog.symbol(currency), color = accent.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans) },
             keyboardType = KeyboardType.Decimal,
+        )
+        TravelCurrencyPickerRow(
+            selectedCode = currency,
+            onSelected = { currency = it },
+            preferredCodes = preferredCurrencyCodes,
+            accentColor = accent.accent,
         )
     }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -864,7 +894,7 @@ internal fun WeddingContributionSheetBody(momentId: String?, repository: GroupSl
                 repository.recordContribution(
                     momentId!!,
                     amount.replace(",", ""),
-                    "INR",
+                    currency,
                     pool.ifBlank { null },
                 ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
@@ -883,16 +913,19 @@ internal fun WeddingBudgetSheetBody(momentId: String?, repository: GroupSliceRep
     var error by remember { mutableStateOf<String?>(null) }
     var currentBudget by remember { mutableStateOf<String?>(null) }
     var spent by remember { mutableStateOf<String?>(null) }
+    var budgetCurrency by remember { mutableStateOf("INR") }
     val scope = rememberCoroutineScope()
     val live = !momentId.isNullOrBlank()
 
     LaunchedEffect(momentId) {
         if (momentId.isNullOrBlank()) return@LaunchedEffect
+        val ctx = loadGroupCurrencyContext(momentId)
+        budgetCurrency = ctx.primary
         repository.getFinance(momentId).onSuccess { facet ->
-            val total = facet.payload?.totals?.firstOrNull()
+            val total = facet.payload?.totals?.firstOrNull { it.currencyCode == budgetCurrency }
+                ?: facet.payload?.totals?.firstOrNull()
             currentBudget = total?.budgetTotal
             spent = total?.expenseTotal
-            // Keep amount empty for user input; status row shows live totals.
         }
     }
 
@@ -910,14 +943,16 @@ internal fun WeddingBudgetSheetBody(momentId: String?, repository: GroupSliceRep
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Current Budget Status", color = Wq.Muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
             Text(
-                currentBudget?.let { "₹$it" } ?: "No budget set",
+                currentBudget?.let { GroupBudgetUtils.formatApiAmountForDisplay(it, budgetCurrency) } ?: "No budget set",
                 color = Wq.Text,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
                 fontFamily = PlusJakartaSans,
             )
             Text(
-                spent?.let { "₹$it spent" } ?: "No expenses yet",
+                spent?.let {
+                    "${GroupBudgetUtils.formatApiAmountForDisplay(it, budgetCurrency)} spent"
+                } ?: "No expenses yet",
                 color = Wq.Handle,
                 fontSize = 11.sp,
                 fontFamily = PlusJakartaSans,
@@ -954,7 +989,7 @@ internal fun WeddingBudgetSheetBody(momentId: String?, repository: GroupSliceRep
                 repository.patchGroupBudget(
                     momentId!!,
                     budgetAmount = amount.replace(",", ""),
-                    budgetCurrencyCode = "INR",
+                    budgetCurrencyCode = budgetCurrency,
                 ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },

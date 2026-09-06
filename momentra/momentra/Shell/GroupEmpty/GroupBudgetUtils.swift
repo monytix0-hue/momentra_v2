@@ -27,12 +27,7 @@ enum GroupBudgetUtils {
 
     static func formatApiAmountForDisplay(_ amount: String, currencyCode: String = "INR") -> String {
         guard let value = Double(amount) else { return amount }
-        let prefix: String = switch currencyCode {
-        case "INR": "₹"
-        case "USD": "$"
-        case "EUR": "€"
-        default: "\(currencyCode) "
-        }
+        let prefix = TravelCurrencyCatalog.symbol(currencyCode)
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.groupingSeparator = ","

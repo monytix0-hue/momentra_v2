@@ -42,6 +42,8 @@ import androidx.compose.ui.text.TextStyle
 import com.example.momentra.domain.AppContext
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.shared.TravelCurrencyPickerRow
+import com.example.momentra.ui.shell.shared.loadGroupCurrencyContext
 import com.example.momentra.ui.shell.empty.group.GeBg
 import com.example.momentra.ui.shell.empty.group.GeBorder
 import com.example.momentra.ui.shell.empty.group.GeCard
@@ -79,6 +81,7 @@ fun GroupSettlementSheet(
     ).primary
     var amount by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("INR") }
+    var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
     var payerId by remember { mutableStateOf<String?>(null) }
     var payeeId by remember { mutableStateOf<String?>(null) }
@@ -93,6 +96,9 @@ fun GroupSettlementSheet(
         if (!visible) return@LaunchedEffect
         loading = true
         error = null
+        val ctx = loadGroupCurrencyContext(momentId)
+        currency = ctx.primary
+        preferredCurrencyCodes = ctx.preferred
         repository.getParticipants(momentId).fold(
             onSuccess = { dto ->
                 val active = dto.participants.filter {
@@ -161,11 +167,13 @@ fun GroupSettlementSheet(
                     placeholder = "0.00",
                     keyboardType = KeyboardType.Decimal,
                 )
-                FieldLabel("Currency")
-                SheetField(
-                    value = currency,
-                    onValueChange = { currency = it.uppercase().take(3) },
-                    placeholder = "INR",
+                TravelCurrencyPickerRow(
+                    selectedCode = currency,
+                    onSelected = { currency = it },
+                    preferredCodes = preferredCurrencyCodes,
+                    textColor = GeText,
+                    secondaryColor = GeSecondary,
+                    accentColor = accent,
                 )
                 FieldLabel("How paid (local only — not sent)")
                 FlowRow(

@@ -126,6 +126,43 @@ class AppPreferences(context: Context) {
             .apply()
     }
 
+    fun isTourPersonalDone(): Boolean =
+        prefs.getBoolean(KEY_TOUR_PERSONAL_V1, false)
+
+    fun setTourPersonalDone(done: Boolean) {
+        prefs.edit().putBoolean(KEY_TOUR_PERSONAL_V1, done).apply()
+    }
+
+    fun isTourGroupMiniDone(): Boolean =
+        prefs.getBoolean(KEY_TOUR_GROUP_MINI_V1, false)
+
+    fun setTourGroupMiniDone(done: Boolean) {
+        prefs.edit().putBoolean(KEY_TOUR_GROUP_MINI_V1, done).apply()
+    }
+
+    fun isTourBusinessMiniDone(): Boolean =
+        prefs.getBoolean(KEY_TOUR_BUSINESS_MINI_V1, false)
+
+    fun setTourBusinessMiniDone(done: Boolean) {
+        prefs.edit().putBoolean(KEY_TOUR_BUSINESS_MINI_V1, done).apply()
+    }
+
+    fun isTourPostQaHintSeen(): Boolean =
+        prefs.getBoolean(KEY_TOUR_POST_QA_HINT, false)
+
+    fun setTourPostQaHintSeen(seen: Boolean) {
+        prefs.edit().putBoolean(KEY_TOUR_POST_QA_HINT, seen).apply()
+    }
+
+    fun resetShellTours() {
+        prefs.edit()
+            .putBoolean(KEY_TOUR_PERSONAL_V1, false)
+            .putBoolean(KEY_TOUR_GROUP_MINI_V1, false)
+            .putBoolean(KEY_TOUR_BUSINESS_MINI_V1, false)
+            .putBoolean(KEY_TOUR_POST_QA_HINT, false)
+            .apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "momentra_app_prefs"
         private const val KEY_ONBOARDING_SEEN = "momentra_onboarding_seen"
@@ -133,6 +170,10 @@ class AppPreferences(context: Context) {
         private const val KEY_TELEMETRY_ANON_ID = "telemetry_anonymous_id"
         private const val KEY_TELEMETRY_SESSION_ID = "telemetry_session_id"
         private const val KEY_PENDING_JOIN_CODE = "pending_join_code"
+        private const val KEY_TOUR_PERSONAL_V1 = "tour_personal_v1_done"
+        private const val KEY_TOUR_GROUP_MINI_V1 = "tour_group_mini_v1_done"
+        private const val KEY_TOUR_BUSINESS_MINI_V1 = "tour_business_mini_v1_done"
+        private const val KEY_TOUR_POST_QA_HINT = "tour_post_qa_hint_seen"
 
         private fun selectedPersonalMomentKey(userId: String): String =
             "selected_personal_moment_$userId"

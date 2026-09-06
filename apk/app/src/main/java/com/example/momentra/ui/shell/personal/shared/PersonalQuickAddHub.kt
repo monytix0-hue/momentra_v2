@@ -43,6 +43,8 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.domain.AppContext
 import com.example.momentra.ui.shell.maestro.MaestroIds
+import com.example.momentra.ui.shell.tour.TourTargetId
+import com.example.momentra.ui.shell.tour.tourTarget
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.theme.shell.MomentThemes
 import com.example.momentra.ui.shell.personal.future.create.FutureQuickAddKind
@@ -309,13 +311,13 @@ fun PersonalQuickAddHub(
             )
             else -> actions.chunked(3)
         }
-        actionRows.forEach { row ->
+        actionRows.forEachIndexed { rowIndex, row ->
             val fillEmptySlots = !(useWideTiles && row.size == 2 && search.isBlank())
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(gridGap),
             ) {
-                row.forEach { action ->
+                row.forEachIndexed { colIndex, action ->
                     ActionCard(
                         label = action.label,
                         iconRes = action.iconRes,
@@ -327,6 +329,13 @@ fun PersonalQuickAddHub(
                         labelSizeSp = if (useWideTiles) 14 else 12,
                         modifier = Modifier
                             .weight(1f)
+                            .then(
+                                if (rowIndex == 0 && colIndex == 0) {
+                                    Modifier.tourTarget(TourTargetId.QA_HUB_TILE)
+                                } else {
+                                    Modifier
+                                },
+                            )
                             .testTag(qaTileTagForLabel(action.label)),
                     )
                 }

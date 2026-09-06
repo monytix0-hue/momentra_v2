@@ -1,6 +1,12 @@
 /**
  * Apply schema migrations from frds/migrations (V001–V029 + V031+).
  *
+ * Layout (product buckets for browsing; apply order is still global):
+ *   frds/migrations/{personal,group,business,shared}/V###__*.sql
+ * Flat files under frds/migrations/ are still resolved as a fallback.
+ *
+ * Ledger keys on basename only so path moves do not re-run applied migrations.
+ *
  * V030 is the final production-readiness validation gate and must NEVER execute
  * as part of normal feature development — even if listed in MIGRATION_ORDER.txt.
  * Use an explicit future ops path for V030 only when intentionally validating production.
@@ -16,10 +22,61 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 const FRDS = path.resolve(__dirname, '../../../frds');
 const MIGRATIONS = path.join(FRDS, 'migrations');
 const MANIFEST = path.join(FRDS, 'manifest', 'MIGRATION_ORDER.txt');
+const PRODUCT_BUCKETS = ['personal', 'group', 'business', 'shared'] as const;
 
 /** V030 production validation gate — blocked from all migrate runner paths. */
 function isV030Blocked(file: string): boolean {
-  return file.startsWith('V030');
+  return path.basename(file).startsWith('V030');
+}
+
+/** Resolve migration basename to an absolute path under product buckets or flat root. */
+function resolveMigrationPath(basename: string): string {
+  const name = path.basename(basename);
+  for (const bucket of PRODUCT_BUCKETS) {
+    const candidate = path.join(MIGRATIONS, bucket, name);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  const flat = path.join(MIGRATIONS, name);
+  if (fs.existsSync(flat)) return flat;
+  throw new Error(`Migration file not found under ${MIGRATIONS}: ${name}`);
+}
+
+/** All V*.sql files on disk (buckets + flat). */
+function listMigrationFilesOnDisk(): string[] {
+  const found = new Set<string>();
+  if (!fs.existsSync(MIGRATIONS)) return [];
+  for (const bucket of PRODUCT_BUCKETS) {
+    const dir = path.join(MIGRATIONS, bucket);
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir)) {
+      if (/^V\d{3}__.+\.sql$/i.test(f)) found.add(f);
+    }
+  }
+  for (const f of fs.readdirSync(MIGRATIONS)) {
+    if (/^V\d{3}__.+\.sql$/i.test(f)) found.add(f);
+  }
+  return [...found].sort();
+}
+
+/** Fail if any on-disk migration is missing from MIGRATION_ORDER.txt. */
+function assertOrderCoversDisk(order: string[]): void {
+  const orderSet = new Set(order.map((f) => path.basename(f)));
+  const onDisk = listMigrationFilesOnDisk();
+  const missing = onDisk.filter((f) => !orderSet.has(f));
+  if (missing.length > 0) {
+    throw new Error(
+      `MIGRATION_ORDER.txt missing ${missing.length} on-disk file(s):\n` +
+        missing.map((f) => `  - ${f}`).join('\n')
+    );
+  }
+}
+
+/** Forward pack: any V### with number >= 31 (except blocked V030 handled elsewhere). */
+function isForwardPackFile(file: string): boolean {
+  const m = path.basename(file).match(/^V(\d{3})__/);
+  if (!m) return false;
+  const n = parseInt(m[1]!, 10);
+  return n >= 31;
 }
 
 async function ensureLedger(client: PoolClient): Promise<void> {
@@ -41,7 +98,7 @@ async function isApplied(client: PoolClient, file: string): Promise<boolean> {
 }
 
 async function markApplied(client: PoolClient, file: string): Promise<void> {
-  const sql = fs.readFileSync(path.join(MIGRATIONS, file), 'utf8');
+  const sql = fs.readFileSync(resolveMigrationPath(file), 'utf8');
   const checksum = createHash('sha256').update(sql).digest('hex');
   await client.query(
     `INSERT INTO public.momentra_migration_ledger (migration_file, checksum)
@@ -96,8 +153,9 @@ async function runMigrationFile(client: PoolClient, file: string, opts?: { skipL
     return 'skip';
   }
 
-  const sql = fs.readFileSync(path.join(MIGRATIONS, file), 'utf8');
-  console.log('==>', file);
+  const abs = resolveMigrationPath(file);
+  const sql = fs.readFileSync(abs, 'utf8');
+  console.log('==>', file, `(${path.relative(MIGRATIONS, abs)})`);
   try {
     await client.query('BEGIN');
     await client.query(sql);
@@ -123,12 +181,21 @@ async function main(): Promise<void> {
   const installOnly = process.argv.includes('--install-only');
   const validationOnly = process.argv.includes('--validation-only');
   const repairLegacy = process.argv.includes('--repair-legacy') || process.env.REPAIR_LEGACY_SCHEMAS === '1';
+  const checkOnly = process.argv.includes('--check-order');
   const dbUrl = process.env.DATABASE_URL_DIRECT ?? process.env.DATABASE_URL;
+
+  const order = fs.readFileSync(MANIFEST, 'utf8').split('\n').map((l) => l.trim()).filter(Boolean);
+  assertOrderCoversDisk(order);
+
+  if (checkOnly) {
+    console.log(`Order OK: ${order.length} entries cover all on-disk migrations.`);
+    return;
+  }
+
   if (!dbUrl) throw new Error('DATABASE_URL_DIRECT or DATABASE_URL required');
 
   console.log('Connecting for migrations...');
 
-  const order = fs.readFileSync(MANIFEST, 'utf8').split('\n').map((l) => l.trim()).filter(Boolean);
   // V030 is never runnable via this tool. V034 forward validation remains optional.
   const blocked = order.filter((f) => isV030Blocked(f));
   for (const file of blocked) {
@@ -157,9 +224,7 @@ async function main(): Promise<void> {
     await repairPartialPlatform(client);
 
     if (!validationOnly) {
-      const installFiles = forwardOnly
-        ? install.filter((f) => /^V03[1-9]__|^V04[0-9]__|^V05[0-9]__|^V06[0-9]__|^V07[0-9]__/.test(f))
-        : install;
+      const installFiles = forwardOnly ? install.filter((f) => isForwardPackFile(f)) : install;
       for (const file of installFiles) {
         await runMigrationFile(client, file);
       }

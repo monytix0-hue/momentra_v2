@@ -374,6 +374,7 @@ struct PersonalSetupActivateBlock: View {
     }
 }
 
+@MainActor
 func personalHandleSetupDiscard(
     createModel: MomentCreateModel,
     editingMomentId: String?,
@@ -389,8 +390,6 @@ func personalHandleSetupDiscard(
 }
 
 func personalSelectionString(_ selections: [String: Any], _ key: String) -> String {
-    selections[key] as? String ?? "\(selections[key] ?? "")"
-}
     selections[key] as? String ?? "\(selections[key] ?? "")"
 }
 
@@ -522,6 +521,72 @@ struct PersonalSetupBorderedGroup<Content: View>: View {
         .background(PersonalSetupLongForm.surfaceDeep)
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(border))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+struct PersonalSetupToggleRow: View {
+    let title: String
+    let subtitle: String
+    @Binding var checked: Bool
+    var accent: Color = SetupTokens.accentPurple
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 14))
+                    .foregroundStyle(SetupTokens.textSecondary)
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundStyle(SetupTokens.textSecondary)
+            }
+            Spacer()
+            Toggle("", isOn: $checked)
+                .labelsHidden()
+                .tint(accent)
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+struct PersonalCurrencyPrefsBlock: View {
+    @Binding var selections: [String: Any]
+    var accent: Color = SetupTokens.accentPurple
+
+    private var multiOn: Bool {
+        selections["multiCurrency"] as? Bool ?? false
+    }
+
+    var body: some View {
+        PersonalSetupSectionCard(number: "₹", title: "Currency Preferences", accent: accent) {
+            PersonalSetupInlineDropdown(
+                label: "Primary currency",
+                hint: "Default currency for tracking",
+                key: "currency",
+                options: TravelCurrencyCatalog.codes,
+                selections: $selections,
+                accent: accent
+            )
+            PersonalSetupToggleRow(
+                title: "Multi-currency",
+                subtitle: "Track amounts in additional currencies",
+                checked: Binding(
+                    get: { multiOn },
+                    set: { selections["multiCurrency"] = $0 }
+                ),
+                accent: accent
+            )
+            if multiOn {
+                PersonalSetupMultiSelect(
+                    label: "Extra currencies",
+                    hint: "Select additional currencies to track",
+                    key: "extraCurrencies",
+                    options: TravelCurrencyCatalog.codes,
+                    selections: $selections,
+                    accent: accent
+                )
+            }
+        }
     }
 }
 

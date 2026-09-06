@@ -63,6 +63,9 @@ import com.example.momentra.data.repository.TransactionDomain
 import com.example.momentra.data.repository.TransactionRef
 import com.example.momentra.data.repository.TransactionResourceType
 import com.example.momentra.ui.shell.maestro.MaestroIds
+import com.example.momentra.ui.shell.group.shared.TravelCurrencyCatalog
+import com.example.momentra.ui.shell.shared.MomentCurrencyResolver
+import com.example.momentra.ui.shell.shared.TravelCurrencyPickerRow
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -336,7 +339,7 @@ private val Subtle = Color(0xFFABA3BA)
 /** Figma account type labels → API codes. */
 object PersonalFinancialAccountUi {
     val typeOptions = listOf("Bank" to "BANK", "Cash" to "CASH", "Credit" to "CARD")
-    val currencyOptions = listOf("INR", "USD", "EUR")
+    val currencyOptions: List<String> get() = TravelCurrencyCatalog.codes
 
     fun emojiForType(accountType: String): String = when (accountType.uppercase()) {
         "CASH" -> "💵"
@@ -394,11 +397,24 @@ fun PersonalAddAccountSheet(
     var accountName by remember { mutableStateOf("") }
     var openingBalance by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("INR") }
+    var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var setDefault by remember { mutableStateOf(true) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val idempotencyKey = remember { UUID.randomUUID().toString() }
+
+    LaunchedEffect(visible) {
+        if (!visible) return@LaunchedEffect
+        repository.listFinancialAccounts().fold(
+            onSuccess = { accounts ->
+                val preferred = accounts.map { it.currencyCode }.distinct()
+                preferredCurrencyCodes = if (preferred.isEmpty()) listOf("INR") else preferred
+                currency = preferredCurrencyCodes.first()
+            },
+            onFailure = { },
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -501,7 +517,16 @@ fun PersonalAddAccountSheet(
                     fontFamily = PlusJakartaSans,
                 )
                 AccountFieldLabel("CURRENCY")
-                CurrencyChips(currency) { currency = it }
+                TravelCurrencyPickerRow(
+                    selectedCode = currency,
+                    onSelected = { currency = it },
+                    preferredCodes = preferredCurrencyCodes,
+                    textColor = Color(0xFFF5F2FC),
+                    secondaryColor = Subtle,
+                    accentColor = Purple,
+                    symbolFontSize = 14.sp,
+                    showLabel = false,
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,

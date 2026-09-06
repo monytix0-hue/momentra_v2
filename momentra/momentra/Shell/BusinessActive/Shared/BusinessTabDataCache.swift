@@ -39,6 +39,29 @@ enum BusinessTabDataCache {
         memoryByMoment[momentId] = tab
     }
 
+    /// Merge life facet into warm pulse cache so Pulse/Moments can reuse it.
+    static func putLife(_ momentId: String, _ life: APIClient.BusinessLifePayload) {
+        guard let previous = pulseByMoment[momentId] else { return }
+        putPulse(momentId, PulseTab(
+            pulse: previous.pulse,
+            finance: previous.finance,
+            life: life,
+            activities: previous.activities,
+            businessFamily: previous.businessFamily,
+            facetStatus: previous.facetStatus,
+            capacity: previous.capacity,
+            workload: previous.workload
+        ))
+        if let mem = memoryByMoment[momentId] {
+            putMemory(momentId, MemoryTab(
+                memory: mem.memory,
+                pulse: mem.pulse,
+                finance: mem.finance,
+                life: life
+            ))
+        }
+    }
+
     /// Drop cached facets for one moment after a write so SWR reloads fresh data.
     static func invalidateMoment(_ momentId: String) {
         pulseByMoment.removeValue(forKey: momentId)

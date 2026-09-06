@@ -92,6 +92,7 @@ fun PersonalLifeOpsSetupContent(
             "stressCheckIn", "recoveryCheckIn", "reviewCadence",
         ),
         setOf("lifeFocus", "currentRhythm", "currentEnergy", "profile"),
+        setOf("currency", "multiCurrency", "extraCurrencies"),
     )
     val (sectionsConfigured, answersSaved) = setupStatusCounts(
         defaults = catalog.defaultPreferences,
@@ -351,6 +352,10 @@ fun PersonalLifeOpsSetupContent(
                     }
                 }
             }
+
+            PersonalSetupDiamondDivider(accent)
+
+            PersonalCurrencyPrefsBlock(selections, accent)
 
             PersonalSetupDiamondDivider(accent)
 

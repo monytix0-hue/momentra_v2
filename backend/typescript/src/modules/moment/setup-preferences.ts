@@ -11,12 +11,13 @@ import {
 import { TRAVEL_CURRENCY_CODES, isTravelCurrencyCode } from '../finance/travel-currencies';
 
 /** Preference keys that must be string[]. */
-const ARRAY_KEYS = new Set<string>([]);
+const ARRAY_KEYS = new Set<string>(['extraCurrencies']);
 
 /** Preference keys that must be boolean (Figma weekly remind toggles). */
 const BOOLEAN_KEYS = new Set([
   'reflectWeekly',
   'remindWeekly',
+  'multiCurrency',
 ]);
 
 function allowedKeysForCatalog(defaults: Record<string, unknown>): Set<string> {
@@ -39,6 +40,25 @@ function validatePreferenceValue(key: string, value: unknown): void {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
         `preferences.${key} must be an array of strings.`,
+        400
+      );
+    }
+    for (const code of value as string[]) {
+      if (!isTravelCurrencyCode(String(code).toUpperCase())) {
+        throw new AppError(
+          ErrorCode.VALIDATION_FAILED,
+          `preferences.${key} contains unsupported currency: ${code}`,
+          400
+        );
+      }
+    }
+    return;
+  }
+  if (key === 'currency') {
+    if (typeof value !== 'string' || !isTravelCurrencyCode(value.toUpperCase())) {
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        `preferences.currency must be a supported travel currency code.`,
         400
       );
     }
@@ -86,9 +106,7 @@ export function validateAndMergeBusinessPreferences(
     if (!allowed.has(key)) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, `Unknown preference key: ${key}`, 400);
     }
-    if (typeof prefs[key] !== 'string' && typeof prefs[key] !== 'boolean' && typeof prefs[key] !== 'number') {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `Invalid preference value for ${key}`, 400);
-    }
+    validatePreferenceValue(key, prefs[key]);
   }
   return { ...catalog.defaultPreferences, ...prefs };
 }

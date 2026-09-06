@@ -133,6 +133,7 @@ class AuthViewModel @JvmOverloads constructor(
                         }
                     }
                     is ApiResultException.Unauthenticated -> {
+                        ApiClient.clearAuthToken()
                         authRepository.signOut()
                         _state.update {
                             AuthUiState(phase = AuthPhase.SessionExpired, error = e.message)
@@ -145,6 +146,7 @@ class AuthViewModel @JvmOverloads constructor(
     }
 
     private fun failBootstrap(e: Throwable, restore: Boolean) {
+        ApiClient.clearAuthToken()
         authRepository.signOut()
         if (!restore) {
             MomentraAnalytics.get().trackAuthResult("bootstrap", success = false, errorCode = e.message)
@@ -339,6 +341,7 @@ class AuthViewModel @JvmOverloads constructor(
         prefs.clearUserScopedShell(momentraUserId)
         meRepository.clearBootstrapCache(momentraUserId)
         SecurityPreferences(getApplication()).clearUserScoped(momentraUserId)
+        ApiClient.clearAuthToken()
         authRepository.signOut()
         _state.value = AuthUiState(phase = AuthPhase.SignedOut)
     }
@@ -348,6 +351,7 @@ class AuthViewModel @JvmOverloads constructor(
         val momentraUserId = _state.value.identity?.userId
         prefs.clearCachedIdentity(firebaseUid)
         meRepository.clearBootstrapCache(momentraUserId)
+        ApiClient.clearAuthToken()
         authRepository.signOut()
         _state.value = AuthUiState(phase = AuthPhase.SessionExpired, error = "Session expired")
     }

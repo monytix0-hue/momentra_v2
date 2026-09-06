@@ -62,9 +62,9 @@ struct BusinessSetupWizardView: View {
                 ctaLabel: catalog.activateLabel,
                 onCta: { submit(status: "ACTIVE") },
                 submitting: createModel.state.submitting,
+                onSaveDraft: { submit(status: "DRAFT") },
                 accentGradient: kind.ctaGradient,
-                backgroundColor: SetupTokens.bizBg,
-                onSaveDraft: { submit(status: "DRAFT") }
+                backgroundColor: SetupTokens.bizBg
             )
             .accessibilityIdentifier("business.setup.submit")
         }

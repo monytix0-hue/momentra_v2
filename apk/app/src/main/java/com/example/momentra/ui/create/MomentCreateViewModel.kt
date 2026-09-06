@@ -16,8 +16,8 @@ import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.repository.MomentCreateRepository
 import com.example.momentra.data.repository.MomentLifecycleRepository
 import com.example.momentra.domain.CreateMomentOutcome
-import com.example.momentra.ui.shell.empty.BusinessSetupCatalog
-import com.example.momentra.ui.shell.empty.BusinessSetupKind
+import com.example.momentra.ui.shell.empty.business.BusinessSetupCatalog
+import com.example.momentra.ui.shell.empty.business.BusinessSetupKind
 import com.example.momentra.ui.shell.empty.personal.PersonalSetupCatalog
 import com.example.momentra.ui.shell.empty.personal.PersonalSetupKind
 import com.example.momentra.ui.setup.SetupPreferenceFilter

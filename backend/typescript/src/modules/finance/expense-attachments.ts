@@ -96,8 +96,30 @@ async function assertExpenseAccess(
 ): Promise<void> {
   const row = await client.query(
     `SELECT 1 FROM finance.expense e
-     JOIN finance.personal_expense_context pec ON pec.expense_id = e.expense_id
-     WHERE e.expense_id = $1 AND e.moment_id = $2 AND pec.user_id = $3 AND e.status = 'POSTED'`,
+     WHERE e.expense_id = $1 AND e.moment_id = $2 AND e.status IN ('POSTED', 'DRAFT')
+       AND (
+         EXISTS (
+           SELECT 1 FROM finance.personal_expense_context pec
+           WHERE pec.expense_id = e.expense_id AND pec.user_id = $3
+         )
+         OR EXISTS (
+           SELECT 1
+           FROM finance.business_expense_context bec
+           JOIN business.company_membership cm
+             ON cm.company_id = bec.company_id
+            AND cm.user_id = $3
+            AND cm.status = 'ACTIVE'
+           WHERE bec.expense_id = e.expense_id
+         )
+         OR EXISTS (
+           SELECT 1 FROM finance.group_expense_context gec
+           JOIN collaboration.moment_participant mp
+             ON mp.moment_id = gec.moment_id
+            AND mp.user_id = $3
+            AND mp.status = 'ACTIVE'
+           WHERE gec.expense_id = e.expense_id
+         )
+       )`,
     [expenseId, momentId, ctx.userId]
   );
   if (!row.rowCount) {

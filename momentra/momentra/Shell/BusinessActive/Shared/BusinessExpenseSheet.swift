@@ -9,6 +9,7 @@ struct BusinessExpenseSheet: View {
 
     @State private var amount = ""
     @State private var currencyCode = "INR"
+    @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var descriptionText = ""
     @State private var categoryCode = "PURCHASE"
     @State private var submitting = false
@@ -46,25 +47,29 @@ struct BusinessExpenseSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .task {
+            let ctx = await MomentCurrencyContextLoader.loadBusiness(momentId: momentId)
+            preferredCurrencyCodes = ctx.preferred
+            currencyCode = ctx.primary
+        }
     }
 
     private var formCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             fieldLabel("AMOUNT")
-            HStack(spacing: 10) {
-                TextField("INR", text: $currencyCode)
-                    .textInputAutocapitalization(.characters)
-                    .frame(width: 56)
-                    .foregroundStyle(Color(hex: "#C9C4D8"))
-                TextField("0.00", text: $amount)
-                    .keyboardType(.decimalPad)
-                    .font(.system(size: 26, weight: .heavy))
-                    .foregroundStyle(Color(hex: "#E5E0EE"))
-            }
-            .padding(12)
-            .background(Color(hex: "#201E28"))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#938EA1"), lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            TextField("0.00", text: $amount)
+                .keyboardType(.decimalPad)
+                .font(.system(size: 26, weight: .heavy))
+                .foregroundStyle(Color(hex: "#E5E0EE"))
+                .padding(12)
+                .background(Color(hex: "#201E28"))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#938EA1"), lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            TravelCurrencyPicker(
+                selectedCode: $currencyCode,
+                preferredCodes: preferredCurrencyCodes,
+                accentColor: accent
+            )
 
             fieldLabel("DESCRIPTION")
             TextField("AWS, ads, supplies…", text: $descriptionText)
@@ -221,6 +226,7 @@ struct BusinessRevenueSheet: View {
 
     @State private var amount = ""
     @State private var currencyCode = "INR"
+    @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var descriptionText = ""
     @State private var submitting = false
     @State private var error: String?
@@ -233,19 +239,18 @@ struct BusinessRevenueSheet: View {
                 Text("Log revenue")
                     .font(.system(size: 18, weight: .heavy))
                     .foregroundStyle(Color(hex: "#E5E0EE"))
-                HStack {
-                    TextField("INR", text: $currencyCode)
-                        .textInputAutocapitalization(.characters)
-                        .frame(width: 56)
-                        .foregroundStyle(Color(hex: "#C9C4D8"))
-                    TextField("0.00", text: $amount)
-                        .keyboardType(.decimalPad)
-                        .font(.system(size: 26, weight: .heavy))
-                        .foregroundStyle(Color(hex: "#E5E0EE"))
-                }
-                .padding(12)
-                .background(Color(hex: "#201E28"))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                TravelCurrencyPicker(
+                    selectedCode: $currencyCode,
+                    preferredCodes: preferredCurrencyCodes,
+                    accentColor: accent
+                )
+                TextField("0.00", text: $amount)
+                    .keyboardType(.decimalPad)
+                    .font(.system(size: 26, weight: .heavy))
+                    .foregroundStyle(Color(hex: "#E5E0EE"))
+                    .padding(12)
+                    .background(Color(hex: "#201E28"))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 TextField("Description (optional)", text: $descriptionText)
                     .foregroundStyle(Color(hex: "#E5E0EE"))
                     .padding(12)

@@ -456,31 +456,22 @@ struct GroupPulseActiveView: View {
             pulse = cached.pulse
             finance = cached.finance
             activity = cached.activities
+            insights = cached.insights
             loading = false
         } else {
             loading = true
         }
         do {
-            async let pulseResult = APIClient.shared.getGroupPulse(momentId: momentId)
-            async let financeResult = APIClient.shared.getGroupFinance(momentId: momentId)
-            async let activityResult = APIClient.shared.listGroupActivity(momentId: momentId, limit: 8)
+            async let tabResult = GroupTabLoad.loadPulseTab(momentId: momentId)
             async let partsResult = APIClient.shared.listGroupParticipants(momentId: momentId)
-            async let insightsResult = APIClient.shared.listAnalyticsInsights(scopeType: "MOMENT", scopeId: momentId)
-            async let metricsResult = APIClient.shared.listAnalyticsMetrics(scopeType: "MOMENT", scopeId: momentId)
-            async let refreshResult = APIClient.shared.refreshAnalytics(context: "GROUP_PULSE", momentId: momentId)
-            let loadedPulse = try await pulseResult
-            let finFacet = try await financeResult
-            let loadedActivity = try await activityResult
-            let loadedParts = (try? await partsResult) ?? []
-            let loadedFinance = finFacet.payload ?? loadedPulse.payload?.finance
-            pulse = loadedPulse
-            finance = loadedFinance
-            activity = loadedActivity
-            participants = loadedParts
-            insights = (try? await insightsResult)?.items ?? []
-            _ = try? await metricsResult
-            _ = try? await refreshResult
-            let widgetPlaces = TripPulseDestinations.fromWidget(loadedPulse.payload?.widgetPayload)
+            let tab = try await tabResult
+            pulse = tab.pulse
+            finance = tab.finance
+            activity = tab.activities
+            insights = tab.insights
+            loading = false
+            participants = (try? await partsResult) ?? []
+            let widgetPlaces = TripPulseDestinations.fromWidget(tab.pulse?.payload?.widgetPayload)
             if !widgetPlaces.isEmpty {
                 destinations = widgetPlaces
             } else if let prefill = try? await APIClient.shared.getGroupSetupPrefill(momentId: momentId) {
@@ -488,15 +479,14 @@ struct GroupPulseActiveView: View {
             } else {
                 destinations = []
             }
-            GroupTabDataCache.putPulse(momentId, .init(
-                title: loadedPulse.title,
-                pulse: loadedPulse,
-                finance: loadedFinance,
-                activities: loadedActivity
-            ))
+            Task {
+                if let enriched = await GroupTabLoad.enrich(momentId: momentId) {
+                    await MainActor.run { insights = enriched.insights }
+                }
+            }
         } catch {
             self.error = error.localizedDescription
+            loading = false
         }
-        loading = false
     }
 }

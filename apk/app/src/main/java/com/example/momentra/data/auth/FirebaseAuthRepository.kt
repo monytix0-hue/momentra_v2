@@ -2,6 +2,7 @@ package com.example.momentra.data.auth
 
 import android.app.Activity
 import android.content.Context
+import com.example.momentra.data.api.ApiClient
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -119,6 +120,7 @@ class FirebaseAuthRepository(
 
     fun signOut() {
         resetPhoneFlow()
+        ApiClient.clearAuthToken()
         firebaseAuth.signOut()
     }
 

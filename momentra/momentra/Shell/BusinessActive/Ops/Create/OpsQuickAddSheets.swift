@@ -90,6 +90,7 @@ private struct OpsSpendForm: View {
     @State private var notes = ""
     @State private var submitting = false
     @State private var error: String?
+    @State private var resolvedCurrency = "INR"
 
     private let categories = ["Operations & Logistics", "SaaS & Software", "Professional Services", "Marketing", "Office", "Travel", "Other"]
     private let frequencies = ["Recurring", "One-time", "Urgent"]
@@ -101,6 +102,9 @@ private struct OpsSpendForm: View {
                 OpsDropdownField(value: category, options: categories, onSelect: { category = $0 }, placeholder: "Select category")
             }
             OpsFieldBlock(label: "Amount") { OpsAmountField(displayValue: $amountDisplay) }
+            OpsFieldBlock(label: "Currency") {
+                TravelCurrencyPicker(selectedCode: $resolvedCurrency, preferredCodes: [resolvedCurrency])
+            }
             OpsFieldBlock(label: "Vendor") { OpsTextField(value: $vendor, placeholder: "Vendor name") }
             OpsFieldBlock(label: "Date") { OpsDateField(isoDate: $isoDate) }
             OpsFieldBlock(label: "Frequency") { OpsChipRow(options: frequencies, selected: $frequency) }
@@ -114,6 +118,10 @@ private struct OpsSpendForm: View {
                 loading: submitting,
                 footerHint: "Transaction will be posted"
             ) { Task { await submit() } }
+        }
+        .task(id: momentId) {
+            guard let momentId else { return }
+            resolvedCurrency = await MomentCurrencyContextLoader.loadBusiness(momentId: momentId).primary
         }
     }
 
@@ -136,7 +144,7 @@ private struct OpsSpendForm: View {
             _ = try await APIClient.shared.createBusinessExpense(
                 momentId: momentId,
                 amount: amount,
-                currencyCode: "INR",
+                currencyCode: resolvedCurrency,
                 description: parts.joined(separator: " · "),
                 merchantName: vendor.isEmpty ? nil : vendor,
                 categoryCode: String(category.uppercased().replacingOccurrences(of: " ", with: "_").prefix(32))
@@ -278,6 +286,7 @@ private struct OpsApprovalForm: View {
     @State private var justification = ""
     @State private var submitting = false
     @State private var error: String?
+    @State private var resolvedCurrency = "INR"
 
     private let categories = ["Spend", "Hiring", "Vendor", "Scope Change", "Other"]
     private let priorities = ["Normal", "High", "Urgent"]
@@ -302,6 +311,10 @@ private struct OpsApprovalForm: View {
                 footerHint: "Stakeholders will be notified"
             ) { Task { await submit() } }
         }
+        .task(id: momentId) {
+            guard let momentId else { return }
+            resolvedCurrency = await MomentCurrencyContextLoader.loadBusiness(momentId: momentId).primary
+        }
     }
 
     private func submit() async {
@@ -316,7 +329,7 @@ private struct OpsApprovalForm: View {
                 momentId: momentId,
                 title: title.trimmingCharacters(in: .whitespaces),
                 amount: amount.isEmpty ? nil : amount,
-                currencyCode: amount.isEmpty ? nil : "INR",
+                currencyCode: amount.isEmpty ? nil : resolvedCurrency,
                 note: noteParts.joined(separator: " · ")
             )
             onSaved(); onClose()

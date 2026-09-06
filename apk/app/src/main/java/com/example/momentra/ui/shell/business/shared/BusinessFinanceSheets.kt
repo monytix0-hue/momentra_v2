@@ -19,6 +19,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +40,8 @@ import com.example.momentra.data.api.BusinessInvoiceLineDto
 import com.example.momentra.data.api.CreateBusinessInvoiceBody
 import com.example.momentra.data.api.CreateBusinessRevenueBody
 import com.example.momentra.data.repository.BusinessSliceRepository
+import com.example.momentra.ui.shell.shared.TravelCurrencyPickerRow
+import com.example.momentra.ui.shell.shared.loadBusinessCurrencyContext
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
@@ -66,10 +69,18 @@ fun BusinessRevenueSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var amount by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("INR") }
+    var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var description by remember { mutableStateOf("") }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(momentId, visible) {
+        if (!visible) return@LaunchedEffect
+        val ctx = loadBusinessCurrencyContext(momentId)
+        currency = ctx.primary
+        preferredCurrencyCodes = ctx.preferred
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -100,10 +111,15 @@ fun BusinessRevenueSheet(
                 keyboardType = KeyboardType.Decimal,
                 testTag = MaestroIds.BUSINESS_REVENUE_AMOUNT,
             )
-            FinanceField(
-                value = currency,
-                onValueChange = { currency = it.uppercase().take(3) },
-                placeholder = "INR",
+            TravelCurrencyPickerRow(
+                selectedCode = currency,
+                onSelected = { currency = it },
+                preferredCodes = preferredCurrencyCodes,
+                textColor = TextPrimary,
+                secondaryColor = TextSecondary,
+                accentColor = Teal,
+                symbolFontSize = 14.sp,
+                showLabel = false,
             )
             FinanceField(
                 value = description,
@@ -126,7 +142,7 @@ fun BusinessRevenueSheet(
                             momentId = momentId,
                             body = CreateBusinessRevenueBody(
                                 amount = amount.trim(),
-                                currencyCode = currency.ifBlank { "INR" }.uppercase(),
+                                currencyCode = currency.uppercase(),
                                 description = description.takeIf { it.isNotBlank() },
                             ),
                         ).fold(
@@ -160,6 +176,7 @@ fun BusinessInvoiceSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var invoiceNumber by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("INR") }
+    var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var lineDescription by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("1") }
     var unitPrice by remember { mutableStateOf("") }
@@ -167,6 +184,13 @@ fun BusinessInvoiceSheet(
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val today = LocalDate.now().toString()
+
+    LaunchedEffect(momentId, visible) {
+        if (!visible) return@LaunchedEffect
+        val ctx = loadBusinessCurrencyContext(momentId)
+        currency = ctx.primary
+        preferredCurrencyCodes = ctx.preferred
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -211,10 +235,15 @@ fun BusinessInvoiceSheet(
                 onValueChange = { unitPrice = it.filter { c -> c.isDigit() || c == '.' } },
                 placeholder = "Unit price",
             )
-            FinanceField(
-                value = currency,
-                onValueChange = { currency = it.uppercase().take(3) },
-                placeholder = "INR",
+            TravelCurrencyPickerRow(
+                selectedCode = currency,
+                onSelected = { currency = it },
+                preferredCodes = preferredCurrencyCodes,
+                textColor = TextPrimary,
+                secondaryColor = TextSecondary,
+                accentColor = Teal,
+                symbolFontSize = 14.sp,
+                showLabel = false,
             )
             Text(
                 "Tax is server-authoritative (omit or 0).",

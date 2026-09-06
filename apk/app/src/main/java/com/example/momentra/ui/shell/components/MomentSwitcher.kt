@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.ui.shell.maestro.MaestroIds
+import com.example.momentra.ui.shell.tour.TourTargetId
+import com.example.momentra.ui.shell.tour.tourTarget
 import com.example.momentra.ui.theme.MomentraBrandColors
 import com.example.momentra.ui.theme.ShellTokens
 
@@ -87,6 +89,7 @@ fun MomentSwitcher(
             .padding(horizontal = 12.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(ShellTokens.ModuleCardBackground)
+            .tourTarget(TourTargetId.MOMENT_SWITCHER)
             .testTag(MaestroIds.MOMENT_SWITCHER)
             .semantics { contentDescription = "Moment switcher: $title" },
     ) {

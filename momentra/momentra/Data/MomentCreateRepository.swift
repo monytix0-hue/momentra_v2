@@ -9,7 +9,7 @@ protocol MomentCreateGateway {
         description: String?,
         momentTypeCode: String,
         preferences: [String: Any],
-        status: String? = nil
+        status: String?
     ) async throws -> CreateMomentOutcome
     func createBusinessSetup(
         draftKey: String,
@@ -19,7 +19,7 @@ protocol MomentCreateGateway {
         description: String?,
         momentTypeCode: String,
         preferences: [String: Any],
-        status: String? = nil
+        status: String?
     ) async throws -> CreateMomentOutcome
     func createGroupMoment(
         draftKey: String,

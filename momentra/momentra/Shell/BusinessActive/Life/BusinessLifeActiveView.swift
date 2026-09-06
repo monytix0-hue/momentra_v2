@@ -190,6 +190,9 @@ struct BusinessLifeActiveView: View {
         }
         do {
             life = try await APIClient.shared.getBusinessLife(momentId: momentId)
+            if let life {
+                BusinessTabDataCache.putLife(momentId, life)
+            }
         } catch {
             self.error = error.localizedDescription
         }

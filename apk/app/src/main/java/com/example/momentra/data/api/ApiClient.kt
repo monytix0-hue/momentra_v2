@@ -1,8 +1,11 @@
 package com.example.momentra.data.api
 
+import android.util.Log
 import com.example.momentra.BuildConfig
 import com.example.momentra.ui.shell.maestro.QaCorrelationHolder
+import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import okhttp3.Authenticator
@@ -21,8 +24,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import java.util.concurrent.atomic.AtomicReference
 
-/** Caches Firebase ID tokens so every API call does not block on getIdToken(). */
+/**
+ * Caches Firebase ID tokens so every API call does not block on getIdToken().
+ * Never throws on the OkHttp dispatcher — deleted/invalid users return null.
+ */
 private object AuthTokenCache {
+    private const val TAG = "AuthTokenCache"
     private val tokenRef = AtomicReference<String?>(null)
     private val fetchedAtMs = AtomicReference(0L)
     private const val TTL_MS = 55 * 60 * 1000L
@@ -34,8 +41,24 @@ private object AuthTokenCache {
                 return cached
             }
         }
-        val fresh = runBlocking {
-            FirebaseAuth.getInstance().currentUser?.getIdToken(forceRefresh)?.await()?.token
+        val user = FirebaseAuth.getInstance().currentUser ?: run {
+            clear()
+            return null
+        }
+        val fresh = try {
+            runBlocking {
+                user.getIdToken(forceRefresh).await().token
+            }
+        } catch (e: Throwable) {
+            // FirebaseAuthInvalidUserException (and siblings) must not crash OkHttp Dispatcher.
+            Log.w(TAG, "getIdToken failed: ${e.javaClass.simpleName}: ${e.message}")
+            clear()
+            if (e is FirebaseAuthException || e is FirebaseException) {
+                // Local session is stale (user deleted / disabled). Drop Firebase session
+                // so the next auth-state emission lands on SignedOut instead of looping.
+                runCatching { FirebaseAuth.getInstance().signOut() }
+            }
+            return null
         }
         if (fresh != null) {
             tokenRef.set(fresh)
@@ -55,6 +78,11 @@ object ApiClient {
     /** Prefetch Firebase ID token so the first API call does not block on auth. */
     fun warmAuthToken() {
         AuthTokenCache.get()
+    }
+
+    /** Drop cached token on sign-out / session expiry so in-flight calls do not refresh. */
+    fun clearAuthToken() {
+        AuthTokenCache.clear()
     }
 
     private val refreshing = AtomicBoolean(false)

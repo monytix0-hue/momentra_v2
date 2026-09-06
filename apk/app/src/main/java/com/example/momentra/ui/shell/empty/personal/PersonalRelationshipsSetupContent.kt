@@ -73,6 +73,7 @@ fun PersonalRelationshipsSetupContent(
             "connectionCheckIn", "reachOutReminder", "reviewCadence",
         ),
         setOf("relationshipFocus", "current", "primaryCircle", "profile"),
+        setOf("currency", "multiCurrency", "extraCurrencies"),
     )
     val (sectionsConfigured, answersSaved) = setupStatusCounts(
         defaults = catalog.defaultPreferences,
@@ -312,6 +313,10 @@ fun PersonalRelationshipsSetupContent(
                     )
                 }
             }
+
+            PersonalSetupDiamondDivider(accent)
+
+            PersonalCurrencyPrefsBlock(selections, accent)
 
             PersonalSetupDiamondDivider(accent)
 

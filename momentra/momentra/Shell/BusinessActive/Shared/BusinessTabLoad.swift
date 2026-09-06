@@ -1,8 +1,25 @@
 import Foundation
 
 enum BusinessTabLoad {
-    private static let lock = NSLock()
-    private static var inflight: [String: Task<BusinessTabDataCache.PulseTab, Error>] = [:]
+    private actor InflightGate {
+        var tasks: [String: Task<BusinessTabDataCache.PulseTab, Error>] = [:]
+
+        func begin(
+            momentId: String,
+            create: () -> Task<BusinessTabDataCache.PulseTab, Error>
+        ) -> (task: Task<BusinessTabDataCache.PulseTab, Error>, owner: Bool) {
+            if let existing = tasks[momentId] { return (existing, false) }
+            let task = create()
+            tasks[momentId] = task
+            return (task, true)
+        }
+
+        func end(momentId: String) {
+            tasks.removeValue(forKey: momentId)
+        }
+    }
+
+    private static let gate = InflightGate()
 
     /// Personal-parity pulse load: one bundled /pulse GET (finance + activity preview).
     /// Team Ops capacity/workload are a cheap follow-up and do not block first paint.
@@ -10,26 +27,24 @@ enum BusinessTabLoad {
         momentId: String,
         fetchTeamOpsMetrics: Bool = false
     ) async throws -> BusinessTabDataCache.PulseTab {
-        let owned: (task: Task<BusinessTabDataCache.PulseTab, Error>, owner: Bool) = {
-            lock.lock()
-            defer { lock.unlock() }
-            if let existing = inflight[momentId] { return (existing, false) }
-            let task = Task { try await fetchPulseTab(momentId: momentId) }
-            inflight[momentId] = task
-            return (task, true)
-        }()
-        defer {
-            if owned.owner {
-                lock.lock()
-                inflight.removeValue(forKey: momentId)
-                lock.unlock()
+        let owned = await gate.begin(momentId: momentId) {
+            Task { try await fetchPulseTab(momentId: momentId) }
+        }
+        do {
+            var tab = try await owned.task.value
+            if fetchTeamOpsMetrics {
+                tab = await enrichTeamOps(momentId: momentId, tab: tab)
             }
+            if owned.owner {
+                await gate.end(momentId: momentId)
+            }
+            return tab
+        } catch {
+            if owned.owner {
+                await gate.end(momentId: momentId)
+            }
+            throw error
         }
-        var tab = try await owned.task.value
-        if fetchTeamOpsMetrics {
-            tab = await enrichTeamOps(momentId: momentId, tab: tab)
-        }
-        return tab
     }
 
     private static func fetchPulseTab(momentId: String) async throws -> BusinessTabDataCache.PulseTab {

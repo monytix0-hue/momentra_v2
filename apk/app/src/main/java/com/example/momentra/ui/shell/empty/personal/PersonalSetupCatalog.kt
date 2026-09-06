@@ -54,6 +54,9 @@ object PersonalSetupCatalog {
             "recoveryCheckIn" to "Enabled",
             "reviewCadence" to "Every week",
             "profile" to "STRUCTURE SEEKER",
+            "currency" to "INR",
+            "multiCurrency" to false,
+            "extraCurrencies" to emptyList<String>(),
         ),
     )
 
@@ -81,6 +84,9 @@ object PersonalSetupCatalog {
             "focusTimeCheckIn" to "Enabled",
             "reviewCadence" to "Every week",
             "profile" to "Future Builder",
+            "currency" to "INR",
+            "multiCurrency" to false,
+            "extraCurrencies" to emptyList<String>(),
         ),
     )
 
@@ -109,6 +115,9 @@ object PersonalSetupCatalog {
             "balanceCheckIn" to "Enabled",
             "reviewCadence" to "Every week",
             "profile" to "Lifestyle Curator",
+            "currency" to "INR",
+            "multiCurrency" to false,
+            "extraCurrencies" to emptyList<String>(),
         ),
     )
 
@@ -137,6 +146,9 @@ object PersonalSetupCatalog {
             "reachOutReminder" to "Enabled",
             "reviewCadence" to "Every week",
             "profile" to "Connection Builder",
+            "currency" to "INR",
+            "multiCurrency" to false,
+            "extraCurrencies" to emptyList<String>(),
         ),
     )
 

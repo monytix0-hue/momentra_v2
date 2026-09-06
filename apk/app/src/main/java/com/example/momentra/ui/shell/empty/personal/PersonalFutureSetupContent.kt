@@ -69,6 +69,7 @@ fun PersonalFutureSetupContent(
             "learningCheckIn", "focusTimeCheckIn", "reviewCadence",
         ),
         setOf("building", "today", "futureFeel", "profile"),
+        setOf("currency", "multiCurrency", "extraCurrencies"),
     )
     val (sectionsConfigured, answersSaved) = setupStatusCounts(
         defaults = catalog.defaultPreferences,
@@ -295,6 +296,10 @@ fun PersonalFutureSetupContent(
                     )
                 }
             }
+
+            PersonalSetupDiamondDivider(accent)
+
+            PersonalCurrencyPrefsBlock(selections, accent)
 
             PersonalSetupDiamondDivider(accent)
 

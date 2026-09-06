@@ -1,0 +1,4 @@
+# Keep Syncthing temp/conflict files out of the Xcode synchronized folder.
+.syncthing*
+*.sync-conflict-*
+*.tmp

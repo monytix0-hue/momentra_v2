@@ -34,7 +34,14 @@ import com.example.momentra.domain.MomentSummary
 
 import com.example.momentra.domain.recentHistoryMoments
 
-import com.example.momentra.ui.shell.PersonalLifeEmptyContent
+import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
+import com.example.momentra.ui.shell.empty.business.BusinessCreateEmptyContent
+import com.example.momentra.ui.shell.empty.business.BusinessLifeEmptyContent
+import com.example.momentra.ui.shell.empty.business.BusinessMemoryEmptyContent
+import com.example.momentra.ui.shell.empty.business.BusinessMomentsEmptyContent
+import com.example.momentra.ui.shell.empty.business.BusinessPulseEmptyContent
+import com.example.momentra.ui.shell.empty.business.CompanySetupContent
+import com.example.momentra.ui.shell.empty.personal.PersonalLifeEmptyContent
 
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue

@@ -23,6 +23,7 @@ struct PersonalLifeOpsSetupView: View {
         ["lifeFocus", "currentRhythm", "primaryNeed", "healthEnergy", "timeBalance"],
         ["shapesFocus", "shapesRhythm", "mainPressure", "recoveryWindow", "checkInRhythm", "helpfulSupport", "recoveryStyle"],
         ["habit", "habit2", "currentEnergy", "reflectWeekly", "stressCheckIn", "recoveryCheckIn", "reviewCadence"],
+        ["currency", "multiCurrency", "extraCurrencies"],
     ]
 
     private let tabToSection: [String: String] = [
@@ -233,6 +234,10 @@ struct PersonalLifeOpsSetupView: View {
                         }
                     }
                     .id("03")
+
+                    PersonalSetupDiamondDivider(accent: accent)
+
+                    PersonalCurrencyPrefsBlock(selections: $selections, accent: accent)
 
                     PersonalSetupDiamondDivider(accent: accent)
 

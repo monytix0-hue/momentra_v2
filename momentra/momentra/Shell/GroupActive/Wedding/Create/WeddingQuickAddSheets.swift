@@ -49,7 +49,7 @@ struct WeddingGapQuickAddSheet: View {
 
 // MARK: - Tokens & Accents
 
-private enum Wq {
+enum Wq {
     static let sheet = Color(hex: "#1C1A24")
     static let field = Color(hex: "#252230")
     static let border = Color(hex: "#322E40")
@@ -462,6 +462,7 @@ struct WeddingExpenseBody: View {
     @State private var participants: [APIClient.GroupParticipantPayload] = []
     @State private var selected: Set<String> = []
     @State private var paidBy: String? = nil
+    @State private var currency = "INR"
     @State private var loading = false
     @State private var submitting = false
     @State private var error: String? = nil
@@ -479,7 +480,7 @@ struct WeddingExpenseBody: View {
             SheetHeader(icon: "creditcard.fill", title: "Add Expense", accent: accent)
             
             HStack(alignment: .bottom, spacing: 6) {
-                Text("₹")
+                Text(TravelCurrencyCatalog.symbol(currency))
                     .font(.plusJakarta(size: 28, weight: .bold))
                     .foregroundStyle(accent.accent)
                 ZStack(alignment: .leading) {
@@ -586,6 +587,7 @@ struct WeddingExpenseBody: View {
 
     private func loadParticipants(_ momentId: String) async {
         loading = true
+        currency = await MomentCurrencyContextLoader.loadGroup(momentId: momentId).primary
         do {
             let list = try await APIClient.shared.listGroupParticipants(momentId: momentId)
             let active = list.filter { $0.status == "ACTIVE" || $0.status == "INVITED" }
@@ -609,7 +611,7 @@ struct WeddingExpenseBody: View {
                     _ = try await APIClient.shared.createGroupExpense(
                         momentId: momentId,
                         amount: amount,
-                        currencyCode: "INR",
+                        currencyCode: currency,
                         description: GroupExpenseCategoryCatalog.descriptionWithCategory(
                             category: category,
                             userDescription: description
@@ -625,7 +627,7 @@ struct WeddingExpenseBody: View {
                     _ = try await APIClient.shared.createGroupExpense(
                         momentId: momentId,
                         amount: amount,
-                        currencyCode: "INR",
+                        currencyCode: currency,
                         description: GroupExpenseCategoryCatalog.descriptionWithCategory(
                             category: category,
                             userDescription: description
@@ -655,6 +657,7 @@ struct WeddingContributionBody: View {
     var onSaved: () -> Void
 
     @State private var amount = ""
+    @State private var currency = "INR"
     @State private var pool = ""
     @State private var method = "UPI"
     @State private var status = "Paid"
@@ -768,6 +771,13 @@ struct WeddingContributionBody: View {
                 submit()
             }
         }
+        .onAppear {
+            if let momentId {
+                Task {
+                    currency = await MomentCurrencyContextLoader.loadGroup(momentId: momentId).primary
+                }
+            }
+        }
     }
 
     private var isValid: Bool {
@@ -784,7 +794,7 @@ struct WeddingContributionBody: View {
                 _ = try await APIClient.shared.recordContribution(
                     momentId: momentId,
                     amount: amount.replacingOccurrences(of: ",", with: ""),
-                    currencyCode: "INR",
+                    currencyCode: currency,
                     label: pool.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : pool
                 )
                 submitting = false
@@ -811,6 +821,7 @@ struct WeddingBudgetBody: View {
     @State private var error: String? = nil
     @State private var currentBudget: String? = nil
     @State private var spent: String? = nil
+    @State private var budgetCurrency = "INR"
 
     var accent: SheetAccent = coralAccent
     private var live: Bool { momentId != nil }
@@ -824,7 +835,7 @@ struct WeddingBudgetBody: View {
                     Text("Current Budget Status")
                         .font(.plusJakarta(size: 12))
                         .foregroundStyle(Wq.muted)
-                    Text(currentBudget.map { "₹\($0)" } ?? "No budget set")
+                    Text(currentBudget.map { GroupBudgetUtils.formatApiAmountForDisplay($0, currencyCode: budgetCurrency) } ?? "No budget set")
                         .font(.plusJakarta(size: 20, weight: .heavy))
                         .foregroundStyle(Wq.text)
                     Text(spent.map { "₹\($0) spent" } ?? "No expenses yet")
@@ -888,9 +899,11 @@ struct WeddingBudgetBody: View {
     }
 
     private func loadFinance(_ momentId: String) async {
+        budgetCurrency = await MomentCurrencyContextLoader.loadGroup(momentId: momentId).primary
         do {
             let finance = try await APIClient.shared.getGroupFinance(momentId: momentId)
-            let total = finance.payload?.totals?.first
+            let total = finance.payload?.totals?.first(where: { $0.currencyCode.caseInsensitiveCompare(budgetCurrency) == .orderedSame })
+                ?? finance.payload?.totals?.first
             currentBudget = total?.budgetTotal
             spent = total?.expenseTotal
         } catch {
@@ -907,7 +920,7 @@ struct WeddingBudgetBody: View {
                 _ = try await APIClient.shared.patchGroupBudget(
                     momentId: momentId,
                     budgetAmount: amount.replacingOccurrences(of: ",", with: ""),
-                    budgetCurrencyCode: "INR"
+                    budgetCurrencyCode: budgetCurrency
                 )
                 submitting = false
                 onSaved()

@@ -19,6 +19,7 @@ struct AccountHubView: View {
     @State private var devices: [DeviceItemPayload] = []
     @State private var confirmDelete = false
     @State private var autoLockSec = AppLockStore.autoLockSeconds
+    @State private var apiBaseOverride = APIConfig.baseURLOverride
 
     private var currentDeviceId: String {
         UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
@@ -49,6 +50,7 @@ struct AccountHubView: View {
                         Button("Privacy & Consent") { section = "privacy" }
                         Button("Devices") { section = "devices" }
                         Button("Preferences") { section = "prefs" }
+                        Button("Developer / API server") { section = "developer" }
                         Button("Help & Legal") { section = "legal" }
                     }
                     Section {
@@ -123,6 +125,30 @@ struct AccountHubView: View {
                             }
                         Text("Currency / language / appearance deferred (FIGMA_GAP).")
                             .font(.caption)
+                        Button("Back") { section = "home" }
+                    }
+                case "developer":
+                    Section("API server") {
+                        Text("Active: \(APIConfig.baseURLDescription)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        TextField("Override URL (LAN IP)", text: $apiBaseOverride)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                        Text("Physical devices cannot reach 127.0.0.1. Use your Mac’s LAN IP, e.g. http://192.168.1.10:3000/")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Button("Save override") {
+                            APIConfig.baseURLOverride = apiBaseOverride
+                            apiBaseOverride = APIConfig.baseURLOverride
+                            status = "API base set to \(APIConfig.baseURLDescription). Restart shell or sign out/in if needed."
+                        }
+                        Button("Clear override", role: .destructive) {
+                            APIConfig.baseURLOverride = ""
+                            apiBaseOverride = ""
+                            status = "Override cleared. Active: \(APIConfig.baseURLDescription)"
+                        }
                         Button("Back") { section = "home" }
                     }
                 case "privacy":

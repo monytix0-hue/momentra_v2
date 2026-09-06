@@ -70,6 +70,8 @@ struct PersonalMoneyQuickAddSheet: View {
     @State private var frequency = "One-time"
     @State private var selectedGoalId = savingsGoals.first!.id
     @State private var whenCode = "Now"
+    @State private var currencyCode = "INR"
+    @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var submitting = false
     @State private var error: String?
     @State private var draftKey = UUID().uuidString
@@ -136,6 +138,9 @@ struct PersonalMoneyQuickAddSheet: View {
 
     @MainActor
     private func loadAccounts() async {
+        let ctx = await MomentCurrencyContextLoader.loadPersonal(momentId: momentId)
+        currencyCode = ctx.primary
+        preferredCurrencyCodes = ctx.preferred
         do {
             let list = try await APIClient.shared.listFinancialAccounts()
             accounts = list
@@ -242,6 +247,7 @@ struct PersonalMoneyQuickAddSheet: View {
             tabHeading(title: "Income", subtitle: "Track money coming in and financial relief.")
             titleField(value: $title, placeholder: "Salary deposit")
             amountField(value: $amount, accent: accent, testTag: "personal.income.amount")
+            TravelCurrencyPicker(selectedCode: $currencyCode, preferredCodes: preferredCurrencyCodes, accentColor: accent)
             PersonalAccountSelectRow(
                 label: "PAID FROM",
                 account: accounts.first(where: { $0.financialAccountId == fromAccountId }),
@@ -288,6 +294,7 @@ struct PersonalMoneyQuickAddSheet: View {
                 }
             )
             amountField(value: $amount, accent: accent, testTag: "personal.money.transfer.amount")
+            TravelCurrencyPicker(selectedCode: $currencyCode, preferredCodes: preferredCurrencyCodes, accentColor: accent)
             noteField(value: $note, testTag: "personal.money.transfer.note")
             fieldLabel("TRANSFER TYPE")
             simpleChips(options: ["One-time", "Recurring"], selected: $transferType, accent: accent)
@@ -315,6 +322,7 @@ struct PersonalMoneyQuickAddSheet: View {
             }
             fieldLabel("DEPOSIT AMOUNT")
             amountField(value: $amount, accent: accent, testTag: "personal.money.savings.amount")
+            TravelCurrencyPicker(selectedCode: $currencyCode, preferredCodes: preferredCurrencyCodes, accentColor: accent)
             PersonalAccountSelectRow(
                 label: "DEPOSIT FROM",
                 account: accounts.first(where: { $0.financialAccountId == fromAccountId }),
@@ -350,7 +358,7 @@ struct PersonalMoneyQuickAddSheet: View {
                     draftKey: draftKey,
                     momentId: momentId,
                     amount: trimmedAmount,
-                    currencyCode: "INR",
+                    currencyCode: currencyCode,
                     description: description,
                     merchantName: title.trimmingCharacters(in: .whitespaces).isEmpty ? nil : title.trimmingCharacters(in: .whitespaces),
                     categoryCode: category,
@@ -392,7 +400,7 @@ struct PersonalMoneyQuickAddSheet: View {
                     momentId: momentId,
                     movementType: "TRANSFER",
                     amount: trimmedAmount,
-                    currencyCode: "INR",
+                    currencyCode: currencyCode,
                     accountId: fromAccountId,
                     goalId: nil,
                     description: description,
@@ -421,7 +429,7 @@ struct PersonalMoneyQuickAddSheet: View {
                     momentId: momentId,
                     movementType: "SAVINGS_DEPOSIT",
                     amount: trimmedAmount,
-                    currencyCode: "INR",
+                    currencyCode: currencyCode,
                     accountId: fromAccountId,
                     goalId: nil,
                     description: description,

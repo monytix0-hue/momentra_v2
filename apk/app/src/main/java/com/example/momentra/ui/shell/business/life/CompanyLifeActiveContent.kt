@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.BusinessLifePayloadDto
 import com.example.momentra.data.api.WeeklyReportDto
 import com.example.momentra.data.repository.BusinessSliceRepository
+import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
 import com.example.momentra.ui.shell.business.life.components.CompanyLifeActivitySection
 import com.example.momentra.ui.shell.business.life.components.CompanyLifeColors
 import com.example.momentra.ui.shell.business.life.components.CompanyLifeFilter
@@ -74,8 +75,15 @@ fun CompanyLifeActiveContent(
         }
         loading = payload == null
         error = null
+        BusinessTabDataCache.peekPulse(momentId)?.life?.let {
+            payload = it
+            loading = false
+        }
         repository.getLife(momentId).fold(
-            onSuccess = { payload = it.payload },
+            onSuccess = {
+                payload = it.payload
+                BusinessTabDataCache.putLife(momentId, it.payload)
+            },
             onFailure = { error = it.message },
         )
         loading = false

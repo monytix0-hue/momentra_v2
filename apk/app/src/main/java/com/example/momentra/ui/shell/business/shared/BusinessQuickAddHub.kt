@@ -62,13 +62,21 @@ fun BusinessQuickAddHub(
     val theme = BusinessActiveTheme.forTypeCode(momentTypeCode)
     val isRunway = theme.typeLabel == BusinessActiveTheme.BusinessRunway.typeLabel
     val isOps = theme.typeLabel == BusinessActiveTheme.BusinessOperations.typeLabel
-    val useLegacyExpenseShortcuts = !isRunway && !isOps
+    val isTeamOps = !isRunway && !isOps
+    val useLegacyExpenseShortcuts = isTeamOps
     var search by remember { mutableStateOf("") }
     val tiles = remember(theme, search) {
         val all = businessHubTiles(theme)
         val q = search.trim().lowercase()
         if (q.isEmpty()) all else all.filter {
             it.label().lowercase().contains(q) || it.subtitle().lowercase().contains(q)
+        }
+    }
+    val tileRows = remember(tiles, isTeamOps, search) {
+        if (isTeamOps && search.isBlank() && tiles.size >= 13) {
+            tiles.take(9).chunked(3) + listOf(tiles.drop(9))
+        } else {
+            tiles.chunked(3)
         }
     }
 
@@ -190,7 +198,8 @@ fun BusinessQuickAddHub(
             )
         }
 
-        tiles.chunked(3).forEach { chunk ->
+        tileRows.forEach { chunk ->
+            val columns = chunk.size.coerceAtLeast(1)
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -221,8 +230,10 @@ fun BusinessQuickAddHub(
                         },
                     )
                 }
-                repeat(3 - chunk.size) {
-                    Box(modifier = Modifier.weight(1f))
+                if (columns < 3) {
+                    repeat(3 - columns) {
+                        Box(modifier = Modifier.weight(1f))
+                    }
                 }
             }
         }
@@ -286,7 +297,8 @@ private fun ActionTile(
     val tileHeight = if (
         kind == BusinessQuickAddKind.ACTIVITY_LOG ||
         kind == BusinessQuickAddKind.POLL ||
-        kind == BusinessQuickAddKind.MEMORY
+        kind == BusinessQuickAddKind.MEMORY ||
+        kind == BusinessQuickAddKind.EXPENSE
     ) 120.dp else 100.dp
     Box(
         modifier = modifier

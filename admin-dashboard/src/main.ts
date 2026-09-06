@@ -15,11 +15,29 @@ import {
   type WidgetRow,
   type GroupExperienceDetail,
   type GroupExperienceRow,
+  type LeanKpiCard,
+  type LeanVcMetric,
 } from './api';
 
-type Tab = 'overview' | 'users' | 'screens' | 'stuck' | 'widgets' | 'events' | 'sessions' | 'setups' | 'businessSetups' | 'groupExperiences';
+type Tab =
+  | 'founder'
+  | 'product'
+  | 'vc'
+  | 'overview'
+  | 'users'
+  | 'screens'
+  | 'stuck'
+  | 'widgets'
+  | 'events'
+  | 'sessions'
+  | 'setups'
+  | 'businessSetups'
+  | 'groupExperiences';
 
 const TABS: { id: Tab; label: string; ico: string }[] = [
+  { id: 'founder', label: 'Founder', ico: '🎯' },
+  { id: 'product', label: 'Product', ico: '🛠️' },
+  { id: 'vc', label: 'VC', ico: '📈' },
   { id: 'overview', label: 'Playground', ico: '✨' },
   { id: 'setups', label: 'Personal setups', ico: '🧭' },
   { id: 'businessSetups', label: 'Business setups', ico: '💼' },
@@ -32,7 +50,7 @@ const TABS: { id: Tab; label: string; ico: string }[] = [
   { id: 'sessions', label: 'Sessions', ico: '🚀' },
 ];
 
-let activeTab: Tab = 'overview';
+let activeTab: Tab = 'founder';
 let refreshTimer: number | undefined;
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -240,9 +258,9 @@ function renderApp(root: HTMLElement): void {
 
   const sidebar = el('aside', 'sidebar');
   const brand = el('div', 'brand');
-  brand.innerHTML = 'momentra <span>play</span>';
+  brand.innerHTML = 'momentra <span>lean</span>';
   sidebar.appendChild(brand);
-  sidebar.appendChild(el('div', 'brand-tag', 'first-party telemetry'));
+  sidebar.appendChild(el('div', 'brand-tag', 'Phase 13 · telemetry'));
 
   for (const tab of TABS) {
     const btn = el('button', `nav-btn${activeTab === tab.id ? ' active' : ''}`);
@@ -283,6 +301,15 @@ async function loadTab(main: HTMLElement, root: HTMLElement): Promise<void> {
   try {
     content.innerHTML = '';
     switch (activeTab) {
+      case 'founder':
+        await renderFounder(content, root);
+        break;
+      case 'product':
+        await renderProduct(content, root);
+        break;
+      case 'vc':
+        await renderVc(content);
+        break;
       case 'overview':
         await renderOverview(content, root);
         break;
@@ -322,6 +349,227 @@ async function loadTab(main: HTMLElement, root: HTMLElement): Promise<void> {
       renderLogin(document.getElementById('app')!);
     }
   }
+}
+
+function formatKpiValue(value: number | null, code?: string | null): string {
+  if (value == null || Number.isNaN(value)) return '—';
+  const rateLike =
+    code?.includes('RATE') ||
+    code?.includes('CONVERSION') ||
+    code?.includes('RETENTION') ||
+    code?.includes('COMPLETION');
+  if (rateLike && Math.abs(value) <= 1000) return `${value.toFixed(1)}%`;
+  if (Number.isInteger(value)) return String(value);
+  return value.toFixed(2);
+}
+
+function kpiCardEl(card: LeanKpiCard | LeanVcMetric, title?: string): HTMLElement {
+  const panel = el('div', 'panel kpi-card');
+  const name =
+    title ??
+    ('kpiName' in card && card.kpiName ? card.kpiName : null) ??
+    ('label' in card ? card.label : null) ??
+    ('kpiCode' in card ? card.kpiCode : 'KPI');
+  panel.appendChild(el('div', 'kpi-label', name));
+  const value = el('div', 'kpi-value', formatKpiValue(card.kpiValue, 'kpiCode' in card ? card.kpiCode : null));
+  panel.appendChild(value);
+  const meta = el('div', 'kpi-meta');
+  const bits: string[] = [];
+  if (card.numerator != null || card.denominator != null) {
+    bits.push(`n/d ${card.numerator ?? '—'} / ${card.denominator ?? '—'}`);
+  }
+  if (card.sampleSize != null) bits.push(`sample ${card.sampleSize}`);
+  if (card.periodStart) bits.push(card.periodStart);
+  meta.textContent = bits.length ? bits.join(' · ') : 'No data yet — refresh or await events';
+  panel.appendChild(meta);
+  return panel;
+}
+
+function wamSparkline(points: { periodStart: string; wam: number | null }[]): HTMLElement {
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h2', 'section-title', 'WAM · last 12 weeks'));
+  if (!points.length) {
+    panel.appendChild(el('p', 'page-sub', 'No weekly WAM rows yet. Hit Refresh KPIs.'));
+    return panel;
+  }
+  const vals = points.map((p) => p.wam ?? 0);
+  const max = Math.max(...vals, 1);
+  const chart = el('div', 'sparkline');
+  for (const p of points) {
+    const col = el('div', 'spark-col');
+    const bar = el('div', 'spark-bar');
+    const h = ((p.wam ?? 0) / max) * 100;
+    bar.style.height = `${Math.max(4, h)}%`;
+    col.appendChild(bar);
+    col.appendChild(el('div', 'spark-label', p.periodStart.slice(5)));
+    col.title = `${p.periodStart}: ${p.wam ?? 0}`;
+    chart.appendChild(col);
+  }
+  panel.appendChild(chart);
+  return panel;
+}
+
+async function renderFounder(parent: HTMLElement, _root: HTMLElement): Promise<void> {
+  const toolbar = el('div', 'lean-toolbar');
+  toolbar.appendChild(el('h1', 'page-title', 'Founder dashboard'));
+  const refreshBtn = el('button', 'btn', 'Refresh KPIs') as HTMLButtonElement;
+  refreshBtn.type = 'button';
+  toolbar.appendChild(refreshBtn);
+  parent.appendChild(toolbar);
+  parent.appendChild(
+    el(
+      'p',
+      'page-sub',
+      'Phase 13 Lean · 12 headline cards from analytics_mart. Values show numerator, denominator, and sample size.'
+    )
+  );
+
+  const host = el('div');
+  parent.appendChild(host);
+  host.appendChild(loadingBlock('Loading founder KPIs…'));
+
+  const load = async () => {
+    host.innerHTML = '';
+    host.appendChild(loadingBlock('Loading founder KPIs…'));
+    const [founder, wam, cohorts] = await Promise.all([
+      api.leanFounder(),
+      api.leanWamTrend(),
+      api.leanSecondMomentCohorts(),
+    ]);
+    host.innerHTML = '';
+    const grid = el('div', 'kpi-grid');
+    for (const card of founder.cards) grid.appendChild(kpiCardEl(card));
+    host.appendChild(grid);
+    host.appendChild(wamSparkline(wam.items));
+
+    const cohortPanel = el('div', 'panel');
+    cohortPanel.appendChild(el('h2', 'section-title', 'Second Moment cohorts'));
+    if (!cohorts.items.length) {
+      cohortPanel.appendChild(el('p', 'page-sub', 'No cohort rows yet.'));
+    } else {
+      const table = el('table');
+      const hr = el('tr');
+      for (const h of ['Month', 'First creators', 'Eligible', '2nd creators', 'Rate']) {
+        hr.appendChild(el('th', '', h));
+      }
+      table.appendChild(el('thead')).appendChild(hr);
+      const tbody = el('tbody');
+      for (const row of cohorts.items) {
+        const tr = el('tr');
+        tr.appendChild(el('td', '', row.cohortMonth));
+        tr.appendChild(el('td', '', String(row.firstTimeCreators)));
+        tr.appendChild(el('td', '', String(row.secondMomentEligible)));
+        tr.appendChild(el('td', '', String(row.secondMomentCreators)));
+        tr.appendChild(
+          el('td', '', row.secondMomentRate != null ? `${row.secondMomentRate.toFixed(1)}%` : '—')
+        );
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      const wrap = el('div', 'table-wrap');
+      wrap.appendChild(table);
+      cohortPanel.appendChild(wrap);
+    }
+    host.appendChild(cohortPanel);
+  };
+
+  refreshBtn.onclick = async () => {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = 'Refreshing…';
+    try {
+      await api.leanRefresh();
+      sprayConfetti();
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Refresh failed');
+    } finally {
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = 'Refresh KPIs';
+    }
+  };
+
+  await load();
+}
+
+async function renderProduct(parent: HTMLElement, _root: HTMLElement): Promise<void> {
+  parent.appendChild(el('h1', 'page-title', 'Product dashboard'));
+  parent.appendChild(
+    el('p', 'page-sub', 'Onboarding, Moment health, network, and reliability diagnostics (Phase 13 §3.2).')
+  );
+
+  const toolbar = el('div', 'lean-toolbar');
+  const refreshBtn = el('button', 'btn', 'Refresh KPIs') as HTMLButtonElement;
+  refreshBtn.type = 'button';
+  toolbar.appendChild(refreshBtn);
+  parent.appendChild(toolbar);
+
+  const host = el('div');
+  parent.appendChild(host);
+
+  const load = async () => {
+    host.innerHTML = '';
+    host.appendChild(loadingBlock('Loading product KPIs…'));
+    const data = await api.leanProduct();
+    host.innerHTML = '';
+
+    const section = (title: string, cards: LeanKpiCard[]) => {
+      host.appendChild(el('h2', 'section-title', title));
+      const grid = el('div', 'kpi-grid');
+      if (!cards.length) {
+        grid.appendChild(emptyState('📭', 'No KPIs', 'Refresh or wait for events.'));
+      } else {
+        for (const card of cards) grid.appendChild(kpiCardEl(card));
+      }
+      host.appendChild(grid);
+    };
+
+    section('Onboarding', data.sections.onboarding);
+    section('Moment health', data.sections.momentHealth);
+    section('Network', data.sections.network);
+    section('Reliability', data.sections.reliability);
+
+    host.appendChild(el('h2', 'section-title', 'Decision hints'));
+    const hints = el('div', 'hint-list');
+    for (const h of data.decisionHints) {
+      const card = el('div', 'panel hint-card');
+      card.appendChild(el('strong', '', h.signal));
+      card.appendChild(el('p', '', h.interpretation));
+      card.appendChild(el('p', 'page-sub', h.action));
+      hints.appendChild(card);
+    }
+    host.appendChild(hints);
+  };
+
+  refreshBtn.onclick = async () => {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = 'Refreshing…';
+    try {
+      await api.leanRefresh();
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Refresh failed');
+    } finally {
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = 'Refresh KPIs';
+    }
+  };
+
+  await load();
+}
+
+async function renderVc(parent: HTMLElement): Promise<void> {
+  parent.appendChild(el('h1', 'page-title', 'VC view'));
+  parent.appendChild(
+    el(
+      'p',
+      'page-sub',
+      'Traction / PMF slice — same production KPI definitions; numerator, denominator, and sample size retained.'
+    )
+  );
+  const data = await api.leanVc();
+  const grid = el('div', 'kpi-grid');
+  for (const m of data.metrics) grid.appendChild(kpiCardEl(m, m.label));
+  parent.appendChild(grid);
 }
 
 async function renderOverview(parent: HTMLElement, root: HTMLElement): Promise<void> {

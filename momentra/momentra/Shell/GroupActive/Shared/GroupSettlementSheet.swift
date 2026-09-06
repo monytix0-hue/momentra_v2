@@ -10,6 +10,7 @@ struct GroupSettlementSheet: View {
 
     @State private var amount = ""
     @State private var currencyCode = "INR"
+    @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var participants: [APIClient.GroupParticipantPayload] = []
     @State private var payerId: String?
     @State private var payeeId: String?
@@ -45,19 +46,18 @@ struct GroupSettlementSheet: View {
                             participantChips(selected: payeeId) { payeeId = $0 }
 
                             fieldLabel("Amount")
-                            HStack {
-                                TextField("INR", text: $currencyCode)
-                                    .textInputAutocapitalization(.characters)
-                                    .frame(width: 56)
-                                    .foregroundStyle(Color(hex: "#C9C4D8"))
-                                TextField("0.00", text: $amount)
-                                    .keyboardType(.decimalPad)
-                                    .font(.system(size: 26, weight: .heavy))
-                                    .foregroundStyle(Color(hex: "#E5E0EE"))
-                            }
-                            .padding(12)
-                            .background(Color(hex: "#201E28"))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            TravelCurrencyPicker(
+                                selectedCode: $currencyCode,
+                                preferredCodes: preferredCurrencyCodes,
+                                accentColor: accent
+                            )
+                            TextField("0.00", text: $amount)
+                                .keyboardType(.decimalPad)
+                                .font(.system(size: 26, weight: .heavy))
+                                .foregroundStyle(Color(hex: "#E5E0EE"))
+                                .padding(12)
+                                .background(Color(hex: "#201E28"))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
 
                             fieldLabel("How paid (local only)")
                             FlowLayout(spacing: 8) {
@@ -152,6 +152,9 @@ struct GroupSettlementSheet: View {
     private func loadParticipants() async {
         loading = true
         error = nil
+        let ctx = await MomentCurrencyContextLoader.loadGroup(momentId: momentId)
+        preferredCurrencyCodes = ctx.preferred
+        currencyCode = ctx.primary
         do {
             let list = try await APIClient.shared.listGroupParticipants(momentId: momentId)
             let active = list.filter {

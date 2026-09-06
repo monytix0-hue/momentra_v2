@@ -4,11 +4,12 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGovernanceAllowed } from '../governance/resolver';
 import { insertAudit, insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
+import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from './travel-currencies';
 
 export const patchGroupMomentBudgetSchema = z
   .object({
     budgetAmount: z.string().regex(/^\d+(\.\d{1,4})?$/),
-    budgetCurrencyCode: z.string().length(3).regex(/^[A-Z]{3}$/),
+    budgetCurrencyCode: travelCurrencyCodeSchema,
   })
   .strict();
 

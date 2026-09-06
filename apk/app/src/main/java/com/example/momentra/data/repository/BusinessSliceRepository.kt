@@ -12,8 +12,20 @@ import com.example.momentra.data.api.CreateBusinessMemoryResultDto
 import com.example.momentra.data.api.BusinessTimelineDto
 import com.example.momentra.data.api.CreateBusinessApprovalRequestBody
 import com.example.momentra.data.api.CreateBusinessApprovalRequestResultDto
+import com.example.momentra.data.api.AttachExpenseMediaBody
+import com.example.momentra.data.api.BusinessApprovalListDto
+import com.example.momentra.data.api.BusinessExpenseListDto
+import com.example.momentra.data.api.BusinessIssueListDto
+import com.example.momentra.data.api.BusinessRevenueListDto
 import com.example.momentra.data.api.CreateBusinessExpenseBody
 import com.example.momentra.data.api.CreateBusinessExpenseResultDto
+import com.example.momentra.data.api.ExpenseAttachmentDto
+import com.example.momentra.data.api.MediaUploadCompleteBody
+import com.example.momentra.data.api.MediaUploadIntentBody
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import com.example.momentra.data.api.CreateBusinessImprovementBody
 import com.example.momentra.data.api.CreateBusinessImprovementResultDto
 import com.example.momentra.data.api.CreateBusinessInvoiceBody
@@ -124,6 +136,65 @@ class BusinessSliceRepository(
         idempotencyKey: String = UUID.randomUUID().toString(),
     ): Result<CreateBusinessExpenseResultDto> = runCatching {
         api.createBusinessExpense(momentId = momentId, idempotencyKey = idempotencyKey, body = body).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listExpenses(momentId: String): Result<BusinessExpenseListDto> = runCatching {
+        api.listBusinessExpenses(momentId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun uploadAndAttachExpenseMedia(
+        momentId: String,
+        expenseId: String,
+        bytes: ByteArray,
+        contentType: String = "image/jpeg",
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<ExpenseAttachmentDto> = runCatching {
+        val uploadId = uploadMomentMedia(
+            momentId = momentId,
+            bytes = bytes,
+            contentType = contentType,
+            idempotencyKey = idempotencyKey,
+        ).getOrThrow()
+        api.attachExpenseMedia(
+            momentId = momentId,
+            expenseId = expenseId,
+            body = AttachExpenseMediaBody(uploadId = uploadId),
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    /** Upload bytes to moment-scoped media storage; returns uploadId. */
+    suspend fun uploadMomentMedia(
+        momentId: String,
+        bytes: ByteArray,
+        contentType: String = "application/octet-stream",
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<String> = runCatching {
+        val intent = api.createMediaUploadIntent(
+            idempotencyKey = idempotencyKey,
+            body = MediaUploadIntentBody(
+                contentType = contentType,
+                byteSize = bytes.size,
+                scopeType = "MOMENT",
+                scopeId = momentId,
+            ),
+        ).data
+        val storageKey = intent.storageKey ?: error("Upload intent missing storageKey")
+        val client = okhttp3.OkHttpClient()
+        val putReq = okhttp3.Request.Builder()
+            .url(intent.signedUrl)
+            .put(bytes.toRequestBody(contentType.toMediaType()))
+            .header("Content-Type", contentType)
+            .build()
+        val putOk = withContext(Dispatchers.IO) {
+            client.newCall(putReq).execute().use { it.isSuccessful }
+        }
+        if (!putOk) error("Failed to upload media bytes to storage")
+        api.completeMediaUpload(
+            uploadId = intent.uploadId,
+            idempotencyKey = UUID.randomUUID().toString(),
+            body = MediaUploadCompleteBody(storageKey = storageKey),
+        )
+        intent.uploadId
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun createRevenue(
@@ -393,6 +464,18 @@ class BusinessSliceRepository(
         companyId: String,
     ): Result<VendorListDto> = runCatching {
         api.listCompanyVendors(companyId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listIssues(momentId: String): Result<BusinessIssueListDto> = runCatching {
+        api.listBusinessIssues(momentId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listPendingApprovals(momentId: String): Result<BusinessApprovalListDto> = runCatching {
+        api.listBusinessApprovals(momentId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listRevenues(momentId: String): Result<BusinessRevenueListDto> = runCatching {
+        api.listBusinessRevenues(momentId).data
     }.recoverCatching { e -> throw mapError(e) }
 
     private fun mapError(e: Throwable): Throwable = when (e) {

@@ -6,15 +6,35 @@ struct SetupPrefField: View {
     var selectedChipColor: Color = SetupTokens.bizAccent
 
     var body: some View {
+        if field.key == "extraCurrencies", selections["multiCurrency"] as? Bool != true {
+            EmptyView()
+        } else {
+            fieldContent
+        }
+    }
+
+    @ViewBuilder
+    private var fieldContent: some View {
         switch field.kind {
         case .chips, .dropdown:
-            SetupDropdownField(
-                label: field.label,
-                options: field.options,
-                value: binding(for: field.key),
-                accent: selectedChipColor,
-                testTag: "setup.dropdown.\(field.key)"
-            )
+            if field.multiSelect {
+                PersonalSetupMultiSelect(
+                    label: field.label,
+                    hint: "Select additional currencies",
+                    key: field.key,
+                    options: field.options,
+                    selections: $selections,
+                    accent: selectedChipColor
+                )
+            } else {
+                SetupDropdownField(
+                    label: field.label,
+                    options: field.options,
+                    value: binding(for: field.key),
+                    accent: selectedChipColor,
+                    testTag: "setup.dropdown.\(field.key)"
+                )
+            }
         case .text:
             VStack(alignment: .leading, spacing: 8) {
                 Text(field.label)

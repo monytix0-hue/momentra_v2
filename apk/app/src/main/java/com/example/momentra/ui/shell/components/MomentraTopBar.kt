@@ -35,6 +35,8 @@ import com.example.momentra.R
 import com.example.momentra.domain.AppContext
 import com.example.momentra.domain.CompanySummary
 import com.example.momentra.ui.shell.maestro.MaestroIds
+import com.example.momentra.ui.shell.tour.TourTargetId
+import com.example.momentra.ui.shell.tour.tourTarget
 import com.example.momentra.ui.splash.MomentraWordmark
 import com.example.momentra.ui.theme.ShellTokens
 import com.example.momentra.ui.theme.shell.GlobalSurfaceTheme
@@ -112,19 +114,21 @@ fun MomentraTopBar(
                 modifier = Modifier.padding(end = 8.dp)
             ) {
                 if (showQr) {
-                    LabeledTopBarAction(
-                        label = "QR",
-                        background = actionBg,
-                        onClick = onQrScan,
-                        contentDescription = "Scan QR to join",
-                        testTag = MaestroIds.TOPBAR_QR,
-                        labelColor = Color.White.copy(alpha = 0.86f),
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_shell_qr),
-                            contentDescription = null,
-                            modifier = Modifier.size(12.dp),
-                        )
+                    Box(modifier = Modifier.tourTarget(TourTargetId.TOP_QR)) {
+                        LabeledTopBarAction(
+                            label = "QR",
+                            background = actionBg,
+                            onClick = onQrScan,
+                            contentDescription = "Scan QR to join",
+                            testTag = MaestroIds.TOPBAR_QR,
+                            labelColor = Color.White.copy(alpha = 0.86f),
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.ic_shell_qr),
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                            )
+                        }
                     }
                 }
                 if (config.life360Available) {

@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.domain.AppContext
 import com.example.momentra.ui.shell.maestro.MaestroIds
+import com.example.momentra.ui.shell.tour.TourTargetId
+import com.example.momentra.ui.shell.tour.tourTarget
 import com.example.momentra.ui.theme.ShellTokens
 import com.example.momentra.ui.theme.shell.ContextThemes
 import com.example.momentra.ui.theme.shell.GlobalTheme
@@ -50,6 +52,7 @@ fun ContextSwitcher(
             .padding(horizontal = 12.dp)
             .padding(top = 2.dp, bottom = 6.dp)
             .heightIn(min = ShellTokens.ContextSwitcherHeight)
+            .tourTarget(TourTargetId.CONTEXT_SWITCHER)
             .testTag(MaestroIds.CONTEXT_SWITCHER),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),

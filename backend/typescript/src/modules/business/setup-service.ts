@@ -48,6 +48,8 @@ export const BUSINESS_SETUP_CATALOG: BusinessSetupCatalogItem[] = [
       monitoring: 'Balanced',
       spendingApproval: 'Required',
       approvalThreshold: '₹50,000',
+      multiCurrency: false,
+      extraCurrencies: [],
     },
   },
   {
@@ -69,6 +71,8 @@ export const BUSINESS_SETUP_CATALOG: BusinessSetupCatalogItem[] = [
       revenueModel: 'Recurring',
       warningThreshold: '6 months',
       fundingSource: 'Bootstrapped + revenue',
+      currency: 'INR',
+      extraCurrencies: [],
     },
   },
   {
@@ -89,6 +93,9 @@ export const BUSINESS_SETUP_CATALOG: BusinessSetupCatalogItem[] = [
       monitoringStyle: 'Proactive',
       approvalModel: 'Threshold-based',
       approvalAlarm: '₹5,00,000',
+      currency: 'INR',
+      multiCurrency: false,
+      extraCurrencies: [],
     },
   },
 ];

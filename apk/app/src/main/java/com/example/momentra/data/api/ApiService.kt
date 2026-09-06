@@ -1200,16 +1200,16 @@ interface ApiService {
     ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
 
     @GET("v1/business/moments/{momentId}/expenses")
-    suspend fun listBusinessExpenses(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+    suspend fun listBusinessExpenses(@Path("momentId") momentId: String): SuccessEnvelope<BusinessExpenseListDto>
 
     @GET("v1/business/moments/{momentId}/revenues")
-    suspend fun listBusinessRevenues(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+    suspend fun listBusinessRevenues(@Path("momentId") momentId: String): SuccessEnvelope<BusinessRevenueListDto>
 
     @GET("v1/business/moments/{momentId}/invoices")
     suspend fun listBusinessInvoices(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
 
     @GET("v1/business/moments/{momentId}/issues")
-    suspend fun listBusinessIssues(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+    suspend fun listBusinessIssues(@Path("momentId") momentId: String): SuccessEnvelope<BusinessIssueListDto>
 
     @GET("v1/business/moments/{momentId}/improvements")
     suspend fun listBusinessImprovements(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
@@ -1218,7 +1218,7 @@ interface ApiService {
     suspend fun listBusinessUpdates(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
 
     @GET("v1/business/moments/{momentId}/approvals")
-    suspend fun listBusinessApprovals(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+    suspend fun listBusinessApprovals(@Path("momentId") momentId: String): SuccessEnvelope<BusinessApprovalListDto>
 
     @GET("v1/business/moments/{momentId}/memories")
     suspend fun listBusinessMemories(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>

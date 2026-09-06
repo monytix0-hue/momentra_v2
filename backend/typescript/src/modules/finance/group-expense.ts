@@ -4,6 +4,7 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertFailClosedPolicies, assertGovernanceAllowed } from '../governance/resolver';
 import { recordCommandSideEffects } from '../../platform/events/outbox';
 import { z } from 'zod';
+import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from './travel-currencies';
 import Decimal from 'decimal.js';
 import { parseMoney } from './service';
 import { assertGroupMember, assertParticipantsOnMoment } from '../collaboration/group-membership';
@@ -15,7 +16,7 @@ const percentString = z.string().regex(/^\d+(\.\d{1,6})?$/);
 export const createGroupExpenseSchema = z
   .object({
     amount: moneyString,
-    currencyCode: z.string().length(3).toUpperCase(),
+    currencyCode: travelCurrencyCodeSchema,
     description: z.string().max(500).optional(),
     paidByParticipantId: z.string().uuid(),
     splitStrategy: z.enum(['EQUAL', 'PERCENTAGE', 'EXACT', 'SHARES', 'POOLED']),
@@ -51,7 +52,7 @@ export const createSettlementSchema = z
     payerParticipantId: z.string().uuid(),
     payeeParticipantId: z.string().uuid(),
     amount: moneyString,
-    currencyCode: z.string().length(3).toUpperCase(),
+    currencyCode: travelCurrencyCodeSchema,
     obligationIds: z.array(z.string().uuid()).optional(),
   })
   .strict();

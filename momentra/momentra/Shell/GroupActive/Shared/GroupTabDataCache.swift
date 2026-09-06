@@ -7,6 +7,21 @@ enum GroupTabDataCache {
         let pulse: APIClient.GroupPulsePayload?
         let finance: APIClient.GroupFinancePayload?
         let activities: [APIClient.ActivityItemPayload]
+        var insights: [AnalyticsInsightItemPayload]
+
+        init(
+            title: String?,
+            pulse: APIClient.GroupPulsePayload?,
+            finance: APIClient.GroupFinancePayload?,
+            activities: [APIClient.ActivityItemPayload],
+            insights: [AnalyticsInsightItemPayload] = []
+        ) {
+            self.title = title
+            self.pulse = pulse
+            self.finance = finance
+            self.activities = activities
+            self.insights = insights
+        }
     }
 
     struct MemoryTab {
@@ -61,25 +76,9 @@ enum GroupTabDataCache {
 enum GroupTabPrefetch {
     static let activityLimit = 5
 
-    /// Warm pulse+finance+activity so Moments/Memory/Life paint without spinners.
+    /// Warm critical-path pulse+finance+activity (inflight-deduped via GroupTabLoad).
     static func run(momentId: String) async {
         guard !momentId.isEmpty else { return }
-        do {
-            async let pulseResult = APIClient.shared.getGroupPulse(momentId: momentId)
-            async let financeResult = APIClient.shared.getGroupFinance(momentId: momentId)
-            async let activityResult = APIClient.shared.listGroupActivity(momentId: momentId, limit: activityLimit)
-            let loadedPulse = try await pulseResult
-            let finFacet = try await financeResult
-            let loadedActivity = try await activityResult
-            let loadedFinance = finFacet.payload ?? loadedPulse.payload?.finance
-            GroupTabDataCache.putPulse(momentId, .init(
-                title: loadedPulse.title,
-                pulse: loadedPulse,
-                finance: loadedFinance,
-                activities: loadedActivity
-            ))
-        } catch {
-            // Prefetch is best-effort; visible tabs retry on their own .task.
-        }
+        _ = try? await GroupTabLoad.loadPulseTab(momentId: momentId)
     }
 }

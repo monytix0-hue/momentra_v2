@@ -20,8 +20,18 @@ export async function listBusinessExpenses(
     description: string | null;
     status: string;
     effective_at: Date;
+    paid_by_label: string | null;
+    receipt_upload_id: string | null;
   }>(
-    `SELECT e.expense_id, e.amount::text, e.currency_code, e.category_code, e.description, e.status, e.effective_at
+    `SELECT e.expense_id, e.amount::text, e.currency_code, e.category_code, e.description, e.status, e.effective_at,
+            bec.paid_by_label,
+            (
+              SELECT erl.resource_id::text
+              FROM finance.expense_resource_link erl
+              WHERE erl.expense_id = e.expense_id AND erl.resource_type = 'MEDIA'
+              ORDER BY erl.created_at ASC
+              LIMIT 1
+            ) AS receipt_upload_id
      FROM finance.expense e
      JOIN finance.business_expense_context bec ON bec.expense_id = e.expense_id
      WHERE bec.company_id = $1 AND bec.moment_id = $2
@@ -39,6 +49,8 @@ export async function listBusinessExpenses(
       description: r.description,
       status: r.status,
       effectiveAt: r.effective_at.toISOString(),
+      paidBy: r.paid_by_label,
+      receiptUploadId: r.receipt_upload_id,
     })),
   };
 }
@@ -251,11 +263,14 @@ export async function listPendingApprovals(
     title: string | null;
     status: string;
     resource_type: string;
+    urgency: string | null;
     created_at: Date;
   }>(
     `SELECT ar.approval_request_id,
             COALESCE(ar.context->>'title', ar.action_code) AS title,
-            ar.status, ar.resource_type, ar.created_at
+            ar.status, ar.resource_type,
+            ar.context->>'urgency' AS urgency,
+            ar.created_at
      FROM governance.approval_request ar
      WHERE ar.scope_id = $1::uuid AND ar.status IN ('PENDING','IN_REVIEW')
      ORDER BY ar.created_at DESC
@@ -270,6 +285,7 @@ export async function listPendingApprovals(
       title: r.title,
       status: r.status,
       resourceType: r.resource_type,
+      urgency: r.urgency,
       createdAt: r.created_at.toISOString(),
     })),
   };

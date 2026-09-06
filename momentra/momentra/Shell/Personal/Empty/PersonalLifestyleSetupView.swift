@@ -21,6 +21,7 @@ struct PersonalLifestyleSetupView: View {
         ["vision", "current", "primaryPriority", "workLifeBalance", "homeEnvironment"],
         ["healthEnergy", "socialRhythm", "homeRhythm", "topPriority", "neglectedArea"],
         ["habit", "habit2", "desiredFeeling", "remindWeekly", "energyCheckIn", "balanceCheckIn", "reviewCadence"],
+        ["currency", "multiCurrency", "extraCurrencies"],
     ]
 
     private var statusLine: String {
@@ -215,6 +216,10 @@ struct PersonalLifestyleSetupView: View {
                         )
                     }
                 }
+
+                PersonalSetupDiamondDivider(accent: accent)
+
+                PersonalCurrencyPrefsBlock(selections: $selections, accent: accent)
 
                 PersonalSetupDiamondDivider(accent: accent)
 

@@ -24,7 +24,7 @@ struct GroupExperienceSetupView: View {
         var contactPhone: String? = nil
     }
 
-    private struct ExperiencePlaceDraft: Identifiable {
+    private struct ExperiencePlaceDraft: Identifiable, Equatable {
         let id = UUID()
         var label: String = ""
         var startIso: String? = nil

@@ -16,8 +16,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.momentra.domain.AppContext
 import com.example.momentra.ui.create.MomentCreateViewModel
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
-import com.example.momentra.ui.shell.empty.BusinessSetupKind
-import com.example.momentra.ui.shell.empty.BusinessSetupWizardContent
+import com.example.momentra.ui.shell.empty.business.BusinessSetupKind
+import com.example.momentra.ui.shell.empty.business.BusinessSetupWizardContent
 import com.example.momentra.ui.shell.empty.group.GroupExperienceSetupContent
 import com.example.momentra.ui.shell.empty.group.GroupLivingSetupContent
 import com.example.momentra.ui.shell.empty.group.GroupPurchaseSetupContent
@@ -58,7 +58,7 @@ fun EditMomentSetupHost(
                 PersonalSetupWizardContent(
                     system = system,
                     onBack = onClose,
-                    onCreated = { _, _, _ -> onSaved() },
+                    onCreated = { _, _, _, _ -> onSaved() },
                     createViewModel = createViewModel,
                     editingMomentId = momentId,
                     initialTitle = momentTitle,

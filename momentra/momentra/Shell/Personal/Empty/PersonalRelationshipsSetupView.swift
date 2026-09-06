@@ -21,6 +21,7 @@ struct PersonalRelationshipsSetupView: View {
         ["relationshipFocus", "current", "primaryCircle", "partnerFamily", "friendsCommunity"],
         ["timeTogether", "reachOutRhythm", "communicationStyle", "strongestConnection", "needsInvestment"],
         ["ritual", "habit2", "desiredFeeling", "remindWeekly", "connectionCheckIn", "reachOutReminder", "reviewCadence"],
+        ["currency", "multiCurrency", "extraCurrencies"],
     ]
 
     private var statusLine: String {
@@ -215,6 +216,10 @@ struct PersonalRelationshipsSetupView: View {
                         )
                     }
                 }
+
+                PersonalSetupDiamondDivider(accent: accent)
+
+                PersonalCurrencyPrefsBlock(selections: $selections, accent: accent)
 
                 PersonalSetupDiamondDivider(accent: accent)
 

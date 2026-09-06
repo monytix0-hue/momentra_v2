@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
+import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from './travel-currencies';
 import Decimal from 'decimal.js';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
@@ -26,12 +27,21 @@ const moneyString = z.string().regex(/^\d+(\.\d{1,4})?$/);
 export const createBusinessExpenseSchema = z
   .object({
     amount: moneyString,
-    currencyCode: z.string().length(3).toUpperCase(),
+    currencyCode: travelCurrencyCodeSchema,
     description: z.string().max(500).optional(),
     merchantName: z.string().max(500).optional(),
-    /** Canonical category; use PURCHASE for Figma "Purchase". */
+    /** Canonical category; use SOFTWARE / TRAVEL / etc. for Team Ops Figma chips. */
     categoryCode: z.string().max(100).optional(),
     vendorId: z.string().uuid().optional(),
+    /** Who paid — display label (e.g. "You"). Stored on business_expense_context.paid_by_label. */
+    paidBy: z.string().min(1).max(200).optional(),
+    /** Expense date (ISO date or datetime). Maps to finance.expense.effective_at. */
+    effectiveAt: z
+      .string()
+      .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'Invalid date' })
+      .optional(),
+    /** Optional completed media upload to attach as receipt after create. */
+    receiptUploadId: z.string().uuid().optional(),
   })
   .strict();
 
@@ -40,7 +50,7 @@ export type CreateBusinessExpenseInput = z.infer<typeof createBusinessExpenseSch
 export const createBusinessRevenueSchema = z
   .object({
     amount: moneyString,
-    currencyCode: z.string().length(3).toUpperCase(),
+    currencyCode: travelCurrencyCodeSchema,
     description: z.string().max(500).optional(),
     categoryCode: z.string().max(100).optional(),
   })
@@ -51,7 +61,7 @@ export const createBusinessInvoiceSchema = z
     invoiceNumber: z.string().min(1).max(100),
     invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    currencyCode: z.string().length(3).toUpperCase(),
+    currencyCode: travelCurrencyCodeSchema,
     lines: z
       .array(
         z
@@ -266,6 +276,9 @@ export async function createBusinessExpense(
   status: string;
   approvalRequestId: string | null;
   version: number;
+  paidBy: string | null;
+  effectiveAt: string;
+  receiptUploadId: string | null;
 }> {
   const amount = parseMoney(body.amount);
   if (amount.lte(0)) {
@@ -290,6 +303,10 @@ export async function createBusinessExpense(
   const needsApproval = scope.required && scope.threshold != null && amount.gte(scope.threshold);
   const status = needsApproval ? 'DRAFT' : 'POSTED';
   const threshold = scope.threshold;
+  const effectiveAt = body.effectiveAt
+    ? new Date(body.effectiveAt).toISOString()
+    : new Date().toISOString();
+  const paidByLabel = body.paidBy?.trim() || null;
 
   const expenseInsert = await client.query<{ expense_id: string; version: string }>(
     needsApproval
@@ -297,28 +314,28 @@ export async function createBusinessExpense(
            INSERT INTO finance.expense (
              moment_id, domain_code, created_by_user_id, merchant_name, description, category_code,
              amount, currency_code, effective_at, status, posted_at, version
-           ) VALUES ($1, 'BUSINESS', $2, $3, $4, $5, $6, $7, now(), $8, $9, 1)
+           ) VALUES ($1, 'BUSINESS', $2, $3, $4, $5, $6, $7, $12::timestamptz, $8, $9, 1)
            RETURNING expense_id, version
          ),
          ctx AS (
            INSERT INTO finance.business_expense_context (
-             expense_id, moment_id, domain_code, company_id, vendor_id
+             expense_id, moment_id, domain_code, company_id, vendor_id, paid_by_label
            )
-           SELECT expense_id, $1::uuid, 'BUSINESS', $10::uuid, $11::uuid FROM e
+           SELECT expense_id, $1::uuid, 'BUSINESS', $10::uuid, $11::uuid, $13 FROM e
          )
          SELECT expense_id, version FROM e`
       : `WITH e AS (
            INSERT INTO finance.expense (
              moment_id, domain_code, created_by_user_id, merchant_name, description, category_code,
              amount, currency_code, effective_at, status, posted_at, version
-           ) VALUES ($1, 'BUSINESS', $2, $3, $4, $5, $6, $7, now(), $8, $9, 1)
+           ) VALUES ($1, 'BUSINESS', $2, $3, $4, $5, $6, $7, $12::timestamptz, $8, $9, 1)
            RETURNING expense_id, version
          ),
          ctx AS (
            INSERT INTO finance.business_expense_context (
-             expense_id, moment_id, domain_code, company_id, vendor_id
+             expense_id, moment_id, domain_code, company_id, vendor_id, paid_by_label
            )
-           SELECT expense_id, $1::uuid, 'BUSINESS', $10::uuid, $11::uuid FROM e
+           SELECT expense_id, $1::uuid, 'BUSINESS', $10::uuid, $11::uuid, $13 FROM e
          ),
          snap AS (
            INSERT INTO projection.business_finance_snapshot (
@@ -349,9 +366,18 @@ export async function createBusinessExpense(
       needsApproval ? null : new Date(),
       scope.companyId,
       body.vendorId ?? null,
+      effectiveAt,
+      paidByLabel,
     ]
   );
   const expenseId = expenseInsert.rows[0]!.expense_id;
+
+  let receiptUploadId: string | null = null;
+  if (body.receiptUploadId) {
+    const { attachExpenseMedia } = await import('./expense-attachments');
+    const attached = await attachExpenseMedia(client, ctx, momentId, expenseId, body.receiptUploadId);
+    receiptUploadId = attached.uploadId;
+  }
 
   let approvalRequestId: string | null = null;
   if (needsApproval) {
@@ -406,6 +432,9 @@ export async function createBusinessExpense(
     status,
     approvalRequestId,
     version: parseInt(expenseInsert.rows[0]!.version, 10),
+    paidBy: paidByLabel,
+    effectiveAt,
+    receiptUploadId,
   };
 
   await recordCommandSideEffects(client, ctx, {
@@ -439,8 +468,12 @@ export async function createBusinessExpense(
     title: body.description ?? 'Expense',
     category: body.categoryCode ?? 'Spend',
     description: body.description,
-    occurredAt: new Date().toISOString(),
-    payload: { amount: amount.toFixed(4), currencyCode: body.currencyCode },
+    occurredAt: effectiveAt,
+    payload: {
+      amount: amount.toFixed(4),
+      currencyCode: body.currencyCode,
+      paidBy: paidByLabel,
+    },
   });
 
   return result;
@@ -461,10 +494,11 @@ export async function decideBusinessApproval(
     approval_request_id: string;
     resource_type: string;
     resource_id: string;
+    scope_type: string;
     scope_id: string;
     status: string;
   }>(
-    `SELECT approval_request_id, resource_type, resource_id, scope_id::text, status
+    `SELECT approval_request_id, resource_type, resource_id, scope_type, scope_id::text, status
      FROM governance.approval_request WHERE approval_request_id = $1`,
     [approvalRequestId]
   );
@@ -475,12 +509,6 @@ export async function decideBusinessApproval(
   if (reqRow.status !== 'PENDING' && reqRow.status !== 'IN_REVIEW') {
     throw new AppError(ErrorCode.VERSION_CONFLICT, 'Approval request is not pending.', 409);
   }
-  if (reqRow.resource_type !== 'EXPENSE') {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Unsupported approval resource.', 400);
-  }
-
-  const companyId = reqRow.scope_id;
-  await assertCanApproveCompanyFinance(client, ctx, companyId);
 
   const step = await client.query<{ approval_step_id: string }>(
     `SELECT approval_step_id FROM governance.approval_step
@@ -490,6 +518,81 @@ export async function decideBusinessApproval(
   if (!step.rows[0]) {
     throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Approval step not found.', 404);
   }
+
+  const finalStatus = body.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+
+  // Moment-scoped Ops / Team Ops quick-add approvals (non-expense).
+  if (reqRow.resource_type === 'BUSINESS_OPS') {
+    if (reqRow.scope_type !== 'MOMENT') {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, 'Unsupported approval scope.', 400);
+    }
+    const momentScope = await assertCompanyMomentAccess(client, ctx, reqRow.scope_id);
+    await client.query(
+      `INSERT INTO governance.approval_decision (
+         approval_request_id, approval_step_id, decided_by_user_id, decision, reason, decided_at
+       ) VALUES ($1, $2, $3, $4, $5, now())`,
+      [
+        approvalRequestId,
+        step.rows[0].approval_step_id,
+        ctx.userId,
+        body.decision,
+        body.reason ?? null,
+      ]
+    );
+    await client.query(
+      `UPDATE governance.approval_request
+       SET status = $2, completed_at = now(), version = version + 1, updated_at = now()
+       WHERE approval_request_id = $1`,
+      [approvalRequestId, finalStatus]
+    );
+    await client.query(
+      `UPDATE governance.approval_step
+       SET status = $2, completed_at = now(), updated_at = now()
+       WHERE approval_step_id = $1`,
+      [step.rows[0].approval_step_id, finalStatus]
+    );
+    const result = {
+      approvalRequestId,
+      decision: body.decision,
+      expenseId: reqRow.resource_id,
+      expenseStatus: finalStatus,
+    };
+    const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+      eventName: body.decision === 'APPROVE' ? 'ApprovalApproved' : 'ApprovalRejected',
+      domainCode: 'BUSINESS',
+      aggregateType: 'APPROVAL_REQUEST',
+      aggregateId: approvalRequestId,
+      scopeType: 'MOMENT',
+      scopeId: reqRow.scope_id,
+      payload: { ...result, momentId: reqRow.scope_id, companyId: momentScope.companyId },
+    });
+    await insertAudit(
+      client,
+      ctx,
+      body.decision === 'APPROVE' ? 'APPROVAL_APPROVE' : 'APPROVAL_REJECT',
+      'APPROVAL_REQUEST',
+      approvalRequestId,
+      domainEventId,
+      result
+    );
+    await insertMomentActivity(
+      client,
+      ctx,
+      domainEventId,
+      reqRow.scope_id,
+      body.decision === 'APPROVE' ? 'APPROVAL_APPROVED' : 'APPROVAL_REJECTED',
+      body.decision === 'APPROVE' ? 'Approval granted' : 'Approval rejected',
+      result
+    );
+    return result;
+  }
+
+  if (reqRow.resource_type !== 'EXPENSE') {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Unsupported approval resource.', 400);
+  }
+
+  const companyId = reqRow.scope_id;
+  await assertCanApproveCompanyFinance(client, ctx, companyId);
 
   await client.query(
     `INSERT INTO governance.approval_decision (
@@ -504,7 +607,6 @@ export async function decideBusinessApproval(
     ]
   );
 
-  const finalStatus = body.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
   await client.query(
     `UPDATE governance.approval_request
      SET status = $2, completed_at = now(), version = version + 1, updated_at = now()

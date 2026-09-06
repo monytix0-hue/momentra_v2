@@ -9,13 +9,38 @@ import { createMemory } from '../collaboration/service';
 import { assertCompanyMomentAccess } from './membership';
 import { refreshBusinessMemoryProjection, refreshBusinessProjectionsAfterWrite } from './business-projection';
 
+const memoryTypeSchema = z.enum([
+  'GENERAL',
+  'EXPERIENCE',
+  'MILESTONE',
+  'DECISION',
+  'FINANCIAL',
+  'RELATIONSHIP',
+  'BUSINESS',
+  'LEARNING',
+  'OTHER',
+]);
+
+const dateOrDateTime = z
+  .string()
+  .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'Invalid date' });
+
 export const createBusinessMemorySchema = z
   .object({
     title: z.string().min(1).max(500),
     body: z.string().max(5000).optional(),
-    capturedAt: z.string().datetime().optional(),
+    capturedAt: dateOrDateTime.optional(),
+    /** Alias accepted from Ops/Runway Android clients. */
+    occurredAt: dateOrDateTime.optional(),
+    memoryType: memoryTypeSchema.optional(),
   })
-  .strict();
+  .strict()
+  .transform((b) => ({
+    title: b.title,
+    body: b.body,
+    capturedAt: b.capturedAt ?? b.occurredAt,
+    memoryType: b.memoryType,
+  }));
 
 export async function createBusinessMemory(
   client: PoolClient,
@@ -24,16 +49,29 @@ export async function createBusinessMemory(
   body: z.infer<typeof createBusinessMemorySchema>
 ): Promise<{ memoryId: string; momentId: string; companyId: string }> {
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
+  const capturedAt = body.capturedAt
+    ? new Date(body.capturedAt).toISOString()
+    : undefined;
   const result = await createMemory(client, ctx, momentId, {
     title: body.title,
-    capturedAt: body.capturedAt,
+    capturedAt,
   });
 
+  const patches: string[] = [];
+  const params: unknown[] = [result.memoryId];
   if (body.body) {
-    await client.query(`UPDATE memory.memory SET summary = $2 WHERE memory_id = $1`, [
-      result.memoryId,
-      body.body,
-    ]);
+    params.push(body.body);
+    patches.push(`summary = $${params.length}`);
+  }
+  if (body.memoryType) {
+    params.push(body.memoryType);
+    patches.push(`memory_type = $${params.length}`);
+  }
+  if (patches.length > 0) {
+    await client.query(
+      `UPDATE memory.memory SET ${patches.join(', ')}, updated_at = now() WHERE memory_id = $1`,
+      params
+    );
   }
 
   await recordCommandSideEffects(client, ctx, {
@@ -43,7 +81,12 @@ export async function createBusinessMemory(
     aggregateId: result.memoryId,
     scopeType: 'MOMENT',
     scopeId: momentId,
-    payload: { memoryId: result.memoryId, momentId, title: body.title },
+    payload: {
+      memoryId: result.memoryId,
+      momentId,
+      title: body.title,
+      memoryType: body.memoryType ?? null,
+    },
     auditActionCode: 'MEMORY_CREATE',
     auditResourceType: 'MEMORY',
     auditResourceId: result.memoryId,

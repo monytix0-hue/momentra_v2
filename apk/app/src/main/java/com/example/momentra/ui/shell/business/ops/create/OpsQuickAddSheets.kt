@@ -1,11 +1,19 @@
 package com.example.momentra.ui.shell.business.ops.create
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -20,6 +28,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
@@ -31,6 +41,7 @@ import com.example.momentra.data.api.CreateBusinessMemoryBody
 import com.example.momentra.data.api.CreateBusinessReviewBody
 import com.example.momentra.data.api.CreateBusinessUpdateBody
 import com.example.momentra.data.api.CreateBusinessVendorBody
+import com.example.momentra.data.api.CreateIssueEvidenceBody
 import com.example.momentra.data.api.CreateSlaCheckBody
 import com.example.momentra.data.api.CreateSlaDefinitionBody
 import com.example.momentra.data.api.UpdateBusinessVendorBody
@@ -50,9 +61,17 @@ import com.example.momentra.ui.shell.business.ops.components.OpsSheetHeader
 import com.example.momentra.ui.shell.business.ops.components.OpsSheetTokens
 import com.example.momentra.ui.shell.business.ops.components.OpsTextField
 import com.example.momentra.ui.shell.business.ops.components.opsStripAmount
+import com.example.momentra.ui.shell.shared.loadBusinessCurrencyContext
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+
+private fun mapOpsMemoryType(label: String): String = when (label.trim().lowercase()) {
+    "learning" -> "LEARNING"
+    "pattern" -> "OTHER"
+    "playbook" -> "BUSINESS"
+    else -> "GENERAL"
+}
 
 private val SpendCategories = listOf(
     "Operations & Logistics",
@@ -117,6 +136,11 @@ fun OpsGapQuickAddSheet(
 ) {
     if (!visible) return
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var resolvedCurrency by remember(momentId) { mutableStateOf("INR") }
+    LaunchedEffect(momentId) {
+        if (momentId.isNullOrBlank()) return@LaunchedEffect
+        resolvedCurrency = loadBusinessCurrencyContext(momentId).primary
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -137,11 +161,11 @@ fun OpsGapQuickAddSheet(
             OpsSheetHandle()
             when (kind) {
                 BusinessQuickAddKind.SPEND_ENTRY ->
-                    OpsSpendBody(momentId, repository, onDismiss, onSaved)
+                    OpsSpendBody(momentId, resolvedCurrency, repository, onDismiss, onSaved)
                 BusinessQuickAddKind.UPDATE_VENDOR ->
                     OpsVendorBody(companyId, repository, onDismiss, onSaved)
                 BusinessQuickAddKind.REQUEST_APPROVAL ->
-                    OpsApprovalBody(momentId, repository, onDismiss, onSaved)
+                    OpsApprovalBody(momentId, resolvedCurrency, repository, onDismiss, onSaved)
                 BusinessQuickAddKind.REPORT_ISSUE ->
                     OpsIssueBody(momentId, repository, onDismiss, onSaved)
                 BusinessQuickAddKind.LOG_IMPROVEMENT ->
@@ -175,6 +199,7 @@ private fun FieldBlock(label: String, content: @Composable () -> Unit) {
 @Composable
 private fun OpsSpendBody(
     momentId: String?,
+    currencyCode: String,
     repository: BusinessSliceRepository,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
@@ -234,7 +259,7 @@ private fun OpsSpendBody(
                     momentId = id,
                     body = CreateBusinessExpenseBody(
                         amount = amount,
-                        currencyCode = "INR",
+                        currencyCode = currencyCode,
                         description = noteParts.joinToString(" · "),
                         merchantName = vendor.takeIf { it.isNotBlank() },
                         categoryCode = category.uppercase().replace(' ', '_').take(32),
@@ -382,6 +407,7 @@ private fun OpsVendorBody(
 @Composable
 private fun OpsApprovalBody(
     momentId: String?,
+    currencyCode: String,
     repository: BusinessSliceRepository,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
@@ -430,16 +456,16 @@ private fun OpsApprovalBody(
             scope.launch {
                 val note = buildList {
                     add("Category: $category")
-                    add("Priority: $priority")
                     if (justification.isNotBlank()) add(justification.trim())
-                }.joinToString(" · ")
+                }.joinToString(" · ").ifBlank { null }
                 repository.createApprovalRequest(
                     momentId = id,
                     body = CreateBusinessApprovalRequestBody(
                         title = title.trim(),
                         amount = amount,
-                        currencyCode = if (amount != null) "INR" else null,
+                        currencyCode = if (amount != null) currencyCode else null,
                         note = note,
+                        urgency = priority.uppercase(),
                     ),
                 ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
@@ -461,9 +487,18 @@ private fun OpsIssueBody(
     var severity by remember { mutableStateOf("Medium") }
     var area by remember { mutableStateOf(AffectedAreas.first()) }
     var description by remember { mutableStateOf("") }
+    var evidenceUri by remember { mutableStateOf<Uri?>(null) }
+    var evidenceName by remember { mutableStateOf<String?>(null) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val pickEvidence = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+    ) { uri: Uri? ->
+        evidenceUri = uri
+        evidenceName = uri?.lastPathSegment?.substringAfterLast('/') ?: uri?.toString()?.takeLast(40)
+    }
 
     OpsSheetHeader(
         iconRes = R.drawable.ic_biz_create_trending,
@@ -484,7 +519,23 @@ private fun OpsIssueBody(
         OpsTextField(description, { description = it }, "Describe the issue...", singleLine = false, minHeight = 80)
     }
     FieldBlock("Attach Evidence") {
-        OpsTextField("", {}, "Optional — upload not available yet", singleLine = true)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, OpsSheetTokens.Border, RoundedCornerShape(12.dp))
+                .clickable { pickEvidence.launch("*/*") }
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(
+                evidenceName ?: "Attach PDF/Img (optional)",
+                color = if (evidenceName != null) OpsSheetTokens.Text else OpsSheetTokens.Muted,
+                fontSize = 14.sp,
+                fontFamily = PlusJakartaSans,
+            )
+        }
     }
     OpsErrorText(error)
     OpsPrimaryCta(
@@ -509,7 +560,32 @@ private fun OpsIssueBody(
                         severity = severity.uppercase(),
                     ),
                 ).fold(
-                    onSuccess = { submitting = false; onSaved(); onDismiss() },
+                    onSuccess = { created ->
+                        val uri = evidenceUri
+                        if (uri != null) {
+                            runCatching {
+                                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                    ?: error("Could not read evidence file")
+                                val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                                val uploadId = repository.uploadMomentMedia(
+                                    momentId = id,
+                                    bytes = bytes,
+                                    contentType = mime,
+                                ).getOrThrow()
+                                repository.createIssueEvidence(
+                                    momentId = id,
+                                    issueId = created.issueId,
+                                    body = CreateIssueEvidenceBody(
+                                        note = evidenceName?.let { "Attached: $it" },
+                                        uploadId = uploadId,
+                                    ),
+                                ).getOrThrow()
+                            }
+                        }
+                        submitting = false
+                        onSaved()
+                        onDismiss()
+                    },
                     onFailure = { submitting = false; error = it.message ?: "Could not report issue" },
                 )
             }
@@ -921,7 +997,8 @@ private fun OpsMemoryBody(
                     body = CreateBusinessMemoryBody(
                         title = title.trim(),
                         body = body,
-                        memoryType = memoryType.uppercase(),
+                        memoryType = mapOpsMemoryType(memoryType),
+                        occurredAt = LocalDate.now().toString(),
                     ),
                 ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },

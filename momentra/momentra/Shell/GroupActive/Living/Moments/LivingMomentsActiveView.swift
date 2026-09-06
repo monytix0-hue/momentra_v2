@@ -359,8 +359,12 @@ struct LivingMomentsActiveView: View {
             loading = true
         }
         do {
-            async let pulseResult = APIClient.shared.getGroupPulse(momentId: momentId)
-            async let financeResult = APIClient.shared.getGroupFinance(momentId: momentId)
+            let tab = try await GroupTabLoad.loadPulseTab(momentId: momentId)
+            title = tab.title
+            pulse = tab.pulse
+            finance = tab.finance
+            loading = false
+
             async let lifeResult = APIClient.shared.getGroupLife(momentId: momentId)
             async let plansResult = APIClient.shared.listPlanningItems(momentId: momentId)
             async let bookingsResult = APIClient.shared.listBookings(momentId: momentId)
@@ -373,13 +377,7 @@ struct LivingMomentsActiveView: View {
             async let memoriesResult = APIClient.shared.listGroupMemories(momentId: momentId)
             async let expensesResult = APIClient.shared.listGroupExpenses(momentId: momentId, limit: 10)
 
-            let loadedPulse = try await pulseResult
-            let finFacet = try await financeResult
             let loadedLife = try await lifeResult
-            let loadedFinance = finFacet.payload ?? loadedPulse.payload?.finance
-            title = loadedPulse.title
-            pulse = loadedPulse
-            finance = loadedFinance
             life = loadedLife
             listPlanning = (try? await plansResult)?.items ?? loadedLife.payload?.planningItems ?? []
             listBookings = (try? await bookingsResult)?.items ?? loadedLife.payload?.bookings ?? []
@@ -397,16 +395,18 @@ struct LivingMomentsActiveView: View {
                 listMemoryItems = (try? await APIClient.shared.getGroupMemory(momentId: momentId))?.payload?.items ?? []
                 memoryCount = listMemoryItems.count
             }
+            let prior = GroupTabDataCache.peekPulse(momentId)
             GroupTabDataCache.putPulse(momentId, .init(
-                title: loadedPulse.title,
-                pulse: loadedPulse,
-                finance: loadedFinance,
-                activities: GroupTabDataCache.peekPulse(momentId)?.activities ?? []
+                title: tab.title ?? prior?.title,
+                pulse: tab.pulse ?? prior?.pulse,
+                finance: tab.finance ?? prior?.finance,
+                activities: prior?.activities ?? tab.activities,
+                insights: prior?.insights ?? []
             ))
             GroupTabDataCache.putLife(momentId, loadedLife)
         } catch {
             self.error = error.localizedDescription
+            loading = false
         }
-        loading = false
     }
 }

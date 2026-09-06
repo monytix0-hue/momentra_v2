@@ -3,8 +3,10 @@ package com.example.momentra.ui.shell
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.momentra.data.api.ApiResultException
+import com.example.momentra.data.api.ProjectionUpdatedEvent
 import com.example.momentra.data.api.RedeemGroupInviteResultDto
 import com.example.momentra.data.local.AppPreferences
+import com.example.momentra.data.realtime.SseClient
 import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.repository.MeGateway
@@ -29,13 +31,19 @@ import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
 import com.example.momentra.ui.shell.business.shared.prefetchBusinessTabs
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.prefetchGroupTabs
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.withContext
 
 data class AppShellUiState(
     val identity: ShellIdentity? = null,
@@ -75,11 +83,13 @@ enum class BootstrapStatus { IDLE, CACHED, REFRESHING, READY, ERROR }
  * Authenticated shell controller.
  * Inventory from GET /v1/me bootstrap (SWR); tab datasets load separately.
  */
+@OptIn(FlowPreview::class)
 class AppShellViewModel(
     private val meRepository: MeGateway,
     private val prefs: AppPreferences? = null,
     private val groupRepository: GroupSliceRepository = GroupSliceRepository(),
     private val businessRepository: BusinessSliceRepository = BusinessSliceRepository(),
+    private val sseClient: SseClient = SseClient(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AppShellUiState())
@@ -89,6 +99,7 @@ class AppShellViewModel(
     private var bootstrapRefreshJob: Job? = null
     private var groupPrefetchJob: Job? = null
     private var businessPrefetchJob: Job? = null
+    private var sseCollectJob: Job? = null
     private var preferredPersonalMomentId: String? = null
     private var bootstrap: ShellBootstrap? = null
     private var bindStartedAtMs: Long = 0L
@@ -118,6 +129,7 @@ class AppShellViewModel(
         } else {
             refreshBootstrap()
         }
+        startRealtime()
     }
 
     /** SWR: avoid hammering /me right after AuthViewModel bootstrap wrote a fresh cache. */
@@ -130,6 +142,7 @@ class AppShellViewModel(
     }
 
     fun clearForLogout() {
+        stopRealtime()
         loadJob?.cancel()
         bootstrapRefreshJob?.cancel()
         groupPrefetchJob?.cancel()
@@ -141,6 +154,72 @@ class AppShellViewModel(
         _state.value.identity?.userId?.let { meRepository.clearBootstrapCache(it) }
         bootstrap = null
         _state.value = AppShellUiState()
+    }
+
+    override fun onCleared() {
+        stopRealtime()
+        super.onCleared()
+    }
+
+    private fun startRealtime() {
+        stopRealtime()
+        sseCollectJob = viewModelScope.launch {
+            launch {
+                val token = withContext(Dispatchers.IO) {
+                    runCatching {
+                        FirebaseAuth.getInstance().currentUser?.getIdToken(false)?.await()?.token
+                    }.getOrNull()
+                }
+                if (!token.isNullOrBlank()) {
+                    sseClient.connect(token)
+                }
+            }
+            sseClient.projectionUpdates
+                .debounce(400)
+                .collect { event -> onProjectionUpdated(event) }
+        }
+    }
+
+    private fun stopRealtime() {
+        sseCollectJob?.cancel()
+        sseCollectJob = null
+        sseClient.disconnect()
+    }
+
+    private fun onProjectionUpdated(event: ProjectionUpdatedEvent) {
+        ShellPerf.instant(
+            "sse_projection_updated",
+            mapOf(
+                "scopeType" to (event.scopeType ?: ""),
+                "scopeId" to (event.scopeId?.take(8) ?: ""),
+            ),
+        )
+        val scopeId = event.scopeId
+        val selectedMomentId = _state.value.selectedMomentId
+        if (!scopeId.isNullOrBlank() && scopeId == selectedMomentId) {
+            when (_state.value.selectedContext) {
+                AppContext.PERSONAL -> refreshVisiblePersonalTab()
+                AppContext.GROUP -> refreshVisibleGroupTab()
+                AppContext.BUSINESS -> refreshVisibleBusinessTab()
+                else -> Unit
+            }
+            return
+        }
+        // Off-scope: skip full bootstrap. Company/moment events for non-selected scopes
+        // are inventory-only; a deferred soft refresh keeps inventory eventually consistent.
+        val scopeType = event.scopeType?.uppercase().orEmpty()
+        if (scopeType == "MOMENT" || scopeType == "COMPANY") {
+            ShellPerf.instant(
+                "sse_off_scope_soft",
+                mapOf(
+                    "scopeType" to scopeType,
+                    "scopeId" to (scopeId?.take(8) ?: ""),
+                ),
+            )
+            scheduleDeferredBootstrapRefresh()
+            return
+        }
+        reloadCurrentContext()
     }
 
     fun restorePreferredPersonalMomentId(momentId: String?) {
@@ -420,8 +499,8 @@ class AppShellViewModel(
                 preferredPersonalMomentId = momentId
                 refreshVisiblePersonalTab()
             }
-            AppContext.GROUP -> refreshVisibleGroupTab()
-            AppContext.BUSINESS -> refreshVisibleBusinessTab()
+            AppContext.GROUP -> refreshVisibleGroupTab(forcePrefetch = true)
+            AppContext.BUSINESS -> refreshVisibleBusinessTab(forcePrefetch = true)
             else -> Unit
         }
         ShellPerf.end(mark, mapOf("momentId" to momentId.take(8)))
@@ -562,10 +641,21 @@ class AppShellViewModel(
         ShellPerf.instant("scoped_refresh_personal", mapOf("token" to _state.value.personalTabRefreshToken))
     }
 
-    fun refreshVisibleGroupTab() {
+    fun refreshVisibleGroupTab(forcePrefetch: Boolean = false) {
         val momentId = _state.value.selectedMomentId
-        prefetchGroupTabsFor(momentId)
+        val warm = !momentId.isNullOrBlank() && GroupTabDataCache.peekPulse(momentId) != null
+        if (forcePrefetch || !warm) {
+            prefetchGroupTabsFor(momentId)
+        }
         _state.update { it.copy(groupTabRefreshToken = it.groupTabRefreshToken + 1) }
+        ShellPerf.instant(
+            "scoped_refresh_group",
+            mapOf(
+                "token" to _state.value.groupTabRefreshToken,
+                "warm" to warm,
+                "prefetch" to (forcePrefetch || !warm),
+            ),
+        )
     }
 
     /** Warm pulse+finance+activity cache so Moments/Memory/Life paint without spinners. */
@@ -577,10 +667,21 @@ class AppShellViewModel(
         }
     }
 
-    fun refreshVisibleBusinessTab() {
+    fun refreshVisibleBusinessTab(forcePrefetch: Boolean = false) {
         val momentId = _state.value.selectedMomentId
-        prefetchBusinessTabsFor(momentId)
+        val warm = !momentId.isNullOrBlank() && BusinessTabDataCache.peekPulse(momentId) != null
+        if (forcePrefetch || !warm) {
+            prefetchBusinessTabsFor(momentId)
+        }
         _state.update { it.copy(businessTabRefreshToken = it.businessTabRefreshToken + 1) }
+        ShellPerf.instant(
+            "scoped_refresh_business",
+            mapOf(
+                "token" to _state.value.businessTabRefreshToken,
+                "warm" to warm,
+                "prefetch" to (forcePrefetch || !warm),
+            ),
+        )
     }
 
     /** Warm bundled pulse cache so Business tabs paint without spinners. */

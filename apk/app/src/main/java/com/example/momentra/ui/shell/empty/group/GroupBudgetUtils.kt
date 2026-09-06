@@ -31,12 +31,7 @@ object GroupBudgetUtils {
 
     fun formatApiAmountForDisplay(amount: String, currencyCode: String = "INR"): String {
         val value = amount.toDoubleOrNull() ?: return amount
-        val prefix = when (currencyCode) {
-            "INR" -> "₹"
-            "USD" -> "$"
-            "EUR" -> "€"
-            else -> "$currencyCode "
-        }
+        val prefix = com.example.momentra.ui.shell.group.shared.TravelCurrencyCatalog.symbol(currencyCode)
         val symbols = DecimalFormatSymbols(Locale.US).apply { groupingSeparator = ',' }
         val pattern = if (value % 1.0 == 0.0) "#,##0" else "#,##0.00"
         return prefix + DecimalFormat(pattern, symbols).format(value)

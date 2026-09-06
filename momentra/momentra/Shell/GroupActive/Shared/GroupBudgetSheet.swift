@@ -116,10 +116,12 @@ struct GroupBudgetSheet: View {
     }
 
     private func loadCurrent() async {
+        let ctx = await MomentCurrencyContextLoader.loadGroup(momentId: momentId)
+        currency = ctx.primary
         do {
             let finance = try await APIClient.shared.getGroupFinance(momentId: momentId)
-            let total = finance.payload?.totals?.first
-            currency = total?.currencyCode ?? "INR"
+            let total = finance.payload?.totals?.first(where: { $0.currencyCode.caseInsensitiveCompare(currency) == .orderedSame })
+                ?? finance.payload?.totals?.first
             if let budget = total?.budgetTotal {
                 amount = GroupBudgetUtils.formatApiAmountForDisplay(budget, currencyCode: currency)
                     .replacingOccurrences(of: "₹", with: "")

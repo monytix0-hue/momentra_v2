@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,10 +36,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ActivityItemDto
+import com.example.momentra.data.api.BusinessExpenseItemDto
 import com.example.momentra.data.api.BusinessTimelineItemDto
 import com.example.momentra.data.api.WorkloadDto
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
+import com.example.momentra.ui.shell.group.shared.TravelCurrencyCatalog
 import com.example.momentra.ui.theme.PlusJakartaSans
+import java.math.BigDecimal
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 
 object TeamOpsColors {
     val Emerald = Color(0xFF10B981)
@@ -958,6 +965,274 @@ fun TeamOpsMemoryListSection(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+        }
+    }
+}
+
+/** Figma `692:34967` Expense Tracker — live bind with honest empty. */
+@Composable
+fun TeamOpsExpenseTrackerSection(
+    theme: BusinessActiveTheme,
+    items: List<BusinessExpenseItemDto>,
+    onViewAll: () -> Unit,
+    onAddExpense: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val categoryColors = listOf(
+        TeamOpsColors.IndigoLight,
+        TeamOpsColors.Indigo,
+        TeamOpsColors.Emerald,
+        TeamOpsColors.Lavender,
+        TeamOpsColors.Amber,
+    )
+    val moneyFormat = remember {
+        DecimalFormat("#,##0", DecimalFormatSymbols(Locale.US))
+    }
+    val totalsByCategory = items
+        .groupBy { it.categoryCode?.trim()?.takeIf { c -> c.isNotEmpty() } ?: "Other" }
+        .mapValues { (_, rows) ->
+            rows.fold(BigDecimal.ZERO) { acc, row ->
+                acc + (row.amount.replace(",", "").toBigDecimalOrNull() ?: BigDecimal.ZERO)
+            }
+        }
+        .entries
+        .sortedByDescending { it.value }
+        .take(3)
+    val total = items.fold(BigDecimal.ZERO) { acc, row ->
+        acc + (row.amount.replace(",", "").toBigDecimalOrNull() ?: BigDecimal.ZERO)
+    }
+    val currency = items.firstOrNull()?.currencyCode?.takeIf { it.isNotBlank() } ?: "INR"
+    val symbol = TravelCurrencyCatalog.symbol(currency)
+    val totalLabel = if (items.isEmpty()) {
+        "—"
+    } else {
+        "$symbol${moneyFormat.format(total)}"
+    }
+
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                "Expense Tracker",
+                color = theme.text,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+            )
+            Text(
+                "This Month",
+                color = theme.secondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .border(1.dp, theme.border, RoundedCornerShape(999.dp))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(theme.card)
+                .border(1.dp, theme.border, RoundedCornerShape(16.dp))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "Total team expenses",
+                        color = theme.muted,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                    Text(
+                        totalLabel,
+                        color = theme.text,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
+                if (items.isNotEmpty()) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            "Live",
+                            color = TeamOpsColors.Emerald,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                        Text(
+                            "${items.size} logged",
+                            color = theme.muted,
+                            fontSize = 10.sp,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                }
+            }
+            if (totalsByCategory.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    totalsByCategory.forEachIndexed { index, (cat, amount) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(categoryColors[index % categoryColors.size]),
+                            )
+                            Text(
+                                "${cat.replaceFirstChar { it.titlecase() }} $symbol${moneyFormat.format(amount)}",
+                                color = theme.secondary,
+                                fontSize = 11.sp,
+                                fontFamily = PlusJakartaSans,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    "Expenses appear here after the team logs spend.",
+                    color = theme.secondary,
+                    fontSize = 13.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(theme.card)
+                .border(1.dp, theme.border, RoundedCornerShape(16.dp))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (items.isEmpty()) {
+                Text(
+                    "No recent expenses yet.",
+                    color = theme.secondary,
+                    fontSize = 13.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+                Text(
+                    "Add expense →",
+                    color = TeamOpsColors.LinkBlue,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .clickable(onClick = onAddExpense)
+                        .padding(top = 4.dp),
+                )
+            } else {
+                items.take(2).forEachIndexed { index, exp ->
+                    val cat = exp.categoryCode?.trim()?.takeIf { it.isNotEmpty() } ?: "Other"
+                    val tint = categoryColors[index % categoryColors.size]
+                    val title = exp.description?.trim()?.takeIf { it.isNotEmpty() } ?: cat
+                    val date = exp.effectiveAt.take(10).ifBlank { "—" }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(16.dp)
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(tint),
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.weight(1f, fill = false),
+                                ) {
+                                    Text(
+                                        title,
+                                        color = theme.text,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = PlusJakartaSans,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        cat.replaceFirstChar { it.titlecase() },
+                                        color = tint,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = PlusJakartaSans,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(tint.copy(alpha = 0.08f))
+                                            .border(1.dp, tint.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    )
+                                }
+                                Text(
+                                    "$symbol${moneyFormat.format(exp.amount.replace(",", "").toBigDecimalOrNull() ?: BigDecimal.ZERO)}",
+                                    color = theme.text,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = PlusJakartaSans,
+                                )
+                            }
+                            Text(
+                                listOfNotNull(
+                                    exp.paidBy?.takeIf { it.isNotBlank() },
+                                    date,
+                                ).joinToString(" • ").ifBlank { date },
+                                color = theme.muted,
+                                fontSize = 11.sp,
+                                fontFamily = PlusJakartaSans,
+                            )
+                        }
+                    }
+                }
+                Text(
+                    "View all expenses →",
+                    color = TeamOpsColors.LinkBlue,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .clickable(onClick = onViewAll)
+                        .padding(top = 8.dp),
+                )
             }
         }
     }

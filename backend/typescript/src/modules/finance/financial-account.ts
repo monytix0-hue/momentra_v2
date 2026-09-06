@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { z } from 'zod';
+import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from './travel-currencies';
 
 export const PAYMENT_METHOD_CODES = ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'WALLET', 'OTHER'] as const;
 export type PaymentMethodCode = (typeof PAYMENT_METHOD_CODES)[number];
@@ -12,7 +13,7 @@ export const createFinancialAccountSchema = z
   .object({
     accountType: z.enum(['CASH', 'BANK', 'CARD', 'WALLET', 'INVESTMENT', 'LOAN', 'OTHER']),
     accountName: z.string().min(1).max(200),
-    currencyCode: z.string().length(3).toUpperCase(),
+    currencyCode: travelCurrencyCodeSchema,
     institutionName: z.string().max(200).optional(),
   })
   .strict();

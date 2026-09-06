@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.shared.loadGroupCurrencyContext
 import com.example.momentra.ui.shell.group.wedding.create.WeddingActiveTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,14 +35,17 @@ fun GroupBudgetSheet(
 ) {
     if (!visible) return
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var resolvedCurrency by remember(currencyCode) { mutableStateOf(currencyCode) }
     var currentDisplay by remember { mutableStateOf<String?>(null) }
     val sheetBg = if (isWedding) WeddingActiveTheme.Card else TripSheetTokens.Bg
 
     LaunchedEffect(momentId, visible) {
         if (!visible) return@LaunchedEffect
+        val ctx = loadGroupCurrencyContext(momentId)
+        resolvedCurrency = ctx.primary
         repository.getFinance(momentId).fold(
             onSuccess = { facet ->
-                val total = facet.payload?.totals?.firstOrNull { it.currencyCode == currencyCode }
+                val total = facet.payload?.totals?.firstOrNull { it.currencyCode == resolvedCurrency }
                     ?: facet.payload?.totals?.firstOrNull()
                 currentDisplay = total?.budgetTotal?.let {
                     GroupFinanceFormat.formatMoney(it, total.currencyCode)
@@ -67,7 +71,7 @@ fun GroupBudgetSheet(
     ) {
         GroupBudgetEditSheet(
             momentId = momentId,
-            currencyCode = currencyCode,
+            currencyCode = resolvedCurrency,
             currentBudgetDisplay = currentDisplay,
             onDismiss = onDismiss,
             onSaved = {

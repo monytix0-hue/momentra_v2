@@ -55,6 +55,9 @@ enum PersonalSetupCatalog {
             "recoveryCheckIn": "Enabled",
             "reviewCadence": "Every week",
             "profile": "STRUCTURE SEEKER",
+            "currency": "INR",
+            "multiCurrency": false,
+            "extraCurrencies": [] as [String],
         ],
         emojiByOption: [:]
     )
@@ -87,6 +90,9 @@ enum PersonalSetupCatalog {
             "focusTimeCheckIn": "Enabled",
             "reviewCadence": "Every week",
             "profile": "Future Builder",
+            "currency": "INR",
+            "multiCurrency": false,
+            "extraCurrencies": [] as [String],
         ],
         emojiByOption: [:]
     )
@@ -120,6 +126,9 @@ enum PersonalSetupCatalog {
             "balanceCheckIn": "Enabled",
             "reviewCadence": "Every week",
             "profile": "Lifestyle Curator",
+            "currency": "INR",
+            "multiCurrency": false,
+            "extraCurrencies": [] as [String],
         ],
         emojiByOption: [:]
     )
@@ -153,6 +162,9 @@ enum PersonalSetupCatalog {
             "reachOutReminder": "Enabled",
             "reviewCadence": "Every week",
             "profile": "Connection Builder",
+            "currency": "INR",
+            "multiCurrency": false,
+            "extraCurrencies": [] as [String],
         ],
         emojiByOption: [:]
     )

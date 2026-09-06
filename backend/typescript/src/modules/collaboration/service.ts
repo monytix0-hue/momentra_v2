@@ -11,6 +11,7 @@ import { assertCallerIsOrganizer, assertGroupMember } from './group-membership';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { emitLeanBusinessEvent, loadMomentTaxonomy } from '../analytics/lean-events';
 import { z } from 'zod';
+import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from '../finance/travel-currencies';
 
 export const participantSchema = z
   .object({
@@ -442,7 +443,7 @@ export async function createBooking(
 export const contributionSchema = z
   .object({
     amount: z.string().regex(/^\d+(\.\d{1,4})?$/),
-    currencyCode: z.string().length(3).toUpperCase(),
+    currencyCode: travelCurrencyCodeSchema,
     label: z.string().max(200).optional(),
   })
   .strict();

@@ -171,16 +171,7 @@ enum BusinessQuickAddKind: String, Identifiable, CaseIterable {
     var id: String { rawValue }
 
     var isLive: Bool {
-        switch self {
-        case .expense, .spendEntry, .revenue, .invoice, .poll, .memory, .teamUpdate, .generalUpdate,
-             .decision, .blocker, .meeting, .recognition, .approval, .milestone, .retrospective,
-             .riskFlag, .activityLog,
-             .taxEntry, .investorUpdate, .budgetAlert, .forecastUpdate,
-             .updateVendor, .requestApproval, .reportIssue, .logImprovement, .budgetReview, .slaCheck:
-            return true
-        default:
-            return false
-        }
+        true
     }
 
     var label: String {

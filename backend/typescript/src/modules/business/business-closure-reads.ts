@@ -361,10 +361,11 @@ export const addIssueEvidenceSchema = z
   .object({
     note: z.string().max(5000).optional(),
     url: z.string().url().max(2000).optional(),
+    uploadId: z.string().uuid().optional(),
   })
   .strict()
-  .refine((b) => b.note != null || b.url != null, {
-    message: 'At least one of note or url is required.',
+  .refine((b) => b.note != null || b.url != null || b.uploadId != null, {
+    message: 'At least one of note, url, or uploadId is required.',
   });
 
 export async function addIssueEvidence(
@@ -373,10 +374,12 @@ export async function addIssueEvidence(
   momentId: string,
   issueId: string,
   body: z.infer<typeof addIssueEvidenceSchema>
-): Promise<{ issueId: string; momentId: string; updated: boolean }> {
+): Promise<{ issueId: string; momentId: string; updated: boolean; evidenceId: string }> {
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
 
-  const evidenceLine = [body.note, body.url].filter(Boolean).join(' — ');
+  const evidenceLine = [body.note, body.url, body.uploadId ? `upload:${body.uploadId}` : null]
+    .filter(Boolean)
+    .join(' — ');
   const appendText = `\n\n[Evidence ${new Date().toISOString()}] ${evidenceLine}`;
 
   const updated = await client.query(
@@ -392,7 +395,12 @@ export async function addIssueEvidence(
     throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Issue not found.', 404);
   }
 
-  return { issueId, momentId, updated: true };
+  return {
+    issueId,
+    momentId,
+    updated: true,
+    evidenceId: body.uploadId ?? issueId,
+  };
 }
 
 /* ------------------------------------------------------------------ */

@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /** ISO 4217 travel currencies commonly used for international trips. */
 export const TRAVEL_CURRENCY_CODES = [
   'USD',
@@ -73,3 +75,13 @@ export function assertTravelCurrencyCode(code: string): string {
   }
   return upper;
 }
+
+/** Zod schema for required 3-letter travel currency codes. */
+export const travelCurrencyCodeSchema = z
+  .string()
+  .length(3)
+  .toUpperCase()
+  .refine((c) => isTravelCurrencyCode(c), { message: 'Unsupported currency code' });
+
+/** Optional travel currency (empty/missing allowed). */
+export const optionalTravelCurrencyCodeSchema = travelCurrencyCodeSchema.optional();

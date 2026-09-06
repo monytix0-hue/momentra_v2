@@ -68,7 +68,7 @@ struct EditMomentSetupHost: View {
                 editingMomentId: momentId,
                 initialTitle: momentTitle,
                 onBack: onClose,
-                onCreated: { _, _, _ in onSaved() }
+                onCreated: { _, _, _, _ in onSaved() }
             )
         case .business(let kind):
             if let companyId, !companyId.isEmpty {

@@ -1,28 +1,108 @@
 package com.example.momentra.data.security
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import java.security.KeyStore
 import java.security.MessageDigest
 import java.util.UUID
+import javax.crypto.AEADBadTagException
 
 /**
  * Local App Lock — PIN verifier never leaves the device.
  * Stores only a salted hash in EncryptedSharedPreferences (Keystore-backed master key).
+ *
+ * If Keystore/master-key decryption fails (reinstall, OEM keystore wipe, AEADBadTag),
+ * wipe the corrupt prefs and recreate empty store so launch never crashes.
  */
 class AppLockStore(context: Context) {
     private val appContext = context.applicationContext
-    private val prefs by lazy {
+    private val prefs: SharedPreferences by lazy { openOrRecoverPrefs() }
+
+    private fun openOrRecoverPrefs(): SharedPreferences {
+        return try {
+            createEncryptedPrefs()
+        } catch (e: Throwable) {
+            if (!isCorruptCrypto(e)) throw e
+            Log.w(TAG, "Encrypted app-lock prefs unreadable; resetting. ${e.javaClass.simpleName}: ${e.message}")
+            wipeCorruptLockStorage()
+            try {
+                createEncryptedPrefs()
+            } catch (retry: Throwable) {
+                Log.e(TAG, "Encrypted prefs recreate failed; falling back to plain prefs", retry)
+                wipeCorruptLockStorage()
+                appContext.getSharedPreferences("${PREFS_NAME}_plain", Context.MODE_PRIVATE)
+            }
+        }
+    }
+
+    private fun createEncryptedPrefs(): SharedPreferences {
         val masterKey = MasterKey.Builder(appContext)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
-        EncryptedSharedPreferences.create(
+        return EncryptedSharedPreferences.create(
             appContext,
-            "momentra_app_lock",
+            PREFS_NAME,
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
         )
+    }
+
+    private fun wipeCorruptLockStorage() {
+        // Delete encrypted prefs file(s) under the app's shared_prefs.
+        runCatching {
+            appContext.deleteSharedPreferences(PREFS_NAME)
+        }
+        runCatching {
+            val dir = java.io.File(appContext.applicationInfo.dataDir, "shared_prefs")
+            listOf(
+                "$PREFS_NAME.xml",
+                "__androidx_security_crypto_encrypted_prefs_key_keyset__$PREFS_NAME.xml",
+                "__androidx_security_crypto_encrypted_prefs_value_keyset__$PREFS_NAME.xml",
+            ).forEach { name ->
+                java.io.File(dir, name).delete()
+            }
+        }
+        // Drop the default MasterKey alias so a fresh keyset can be minted.
+        runCatching {
+            val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            if (keyStore.containsAlias(MasterKey.DEFAULT_MASTER_KEY_ALIAS)) {
+                keyStore.deleteEntry(MasterKey.DEFAULT_MASTER_KEY_ALIAS)
+            }
+        }
+        // Also clear any leftover MasterKey prefs used by security-crypto.
+        runCatching {
+            appContext.getSharedPreferences(
+                MasterKey.DEFAULT_MASTER_KEY_ALIAS,
+                Context.MODE_PRIVATE,
+            ).edit().clear().commit()
+            appContext.deleteSharedPreferences(MasterKey.DEFAULT_MASTER_KEY_ALIAS)
+        }
+    }
+
+    private fun isCorruptCrypto(t: Throwable): Boolean {
+        var cur: Throwable? = t
+        while (cur != null) {
+            when (cur) {
+                is AEADBadTagException,
+                is javax.crypto.BadPaddingException,
+                is java.security.GeneralSecurityException,
+                -> return true
+            }
+            val msg = cur.message.orEmpty()
+            if (msg.contains("VERIFICATION_FAILED", ignoreCase = true) ||
+                msg.contains("AEADBadTag", ignoreCase = true) ||
+                msg.contains("KeystoreException", ignoreCase = true) ||
+                msg.contains("Signature/MAC verification failed", ignoreCase = true)
+            ) {
+                return true
+            }
+            cur = cur.cause
+        }
+        return false
     }
 
     fun isPinEnabled(): Boolean = !prefs.getString(KEY_PIN_HASH, null).isNullOrBlank()
@@ -72,6 +152,8 @@ class AppLockStore(context: Context) {
     }
 
     companion object {
+        private const val TAG = "AppLockStore"
+        private const val PREFS_NAME = "momentra_app_lock"
         private const val KEY_PIN_HASH = "pin_hash"
         private const val KEY_SALT = "pin_salt"
         private const val KEY_BIOMETRICS = "biometrics_enabled"

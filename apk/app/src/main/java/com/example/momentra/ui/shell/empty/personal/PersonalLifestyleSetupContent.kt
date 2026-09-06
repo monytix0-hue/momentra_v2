@@ -70,6 +70,7 @@ fun PersonalLifestyleSetupContent(
             "energyCheckIn", "balanceCheckIn", "reviewCadence",
         ),
         setOf("vision", "current", "topPriority", "profile"),
+        setOf("currency", "multiCurrency", "extraCurrencies"),
     )
     val (sectionsConfigured, answersSaved) = setupStatusCounts(
         defaults = catalog.defaultPreferences,
@@ -313,6 +314,10 @@ fun PersonalLifestyleSetupContent(
                     )
                 }
             }
+
+            PersonalSetupDiamondDivider(accent)
+
+            PersonalCurrencyPrefsBlock(selections, accent)
 
             PersonalSetupDiamondDivider(accent)
 

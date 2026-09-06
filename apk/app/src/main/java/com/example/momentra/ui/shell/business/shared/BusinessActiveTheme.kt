@@ -2,7 +2,7 @@ package com.example.momentra.ui.shell.business.shared
 
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import com.example.momentra.ui.shell.empty.BusinessSetupKind
+import com.example.momentra.ui.shell.empty.business.BusinessSetupKind
 
 /** B01–B03 Business active tokens — Team Ops / Runway / Operations. */
 data class BusinessActiveTheme(
@@ -194,7 +194,7 @@ fun BusinessQuickAddKind.label(): String = when (this) {
     BusinessQuickAddKind.POLL -> "Poll"
     BusinessQuickAddKind.MEMORY -> "Memory"
     BusinessQuickAddKind.REVENUE -> "Log Revenue"
-    BusinessQuickAddKind.EXPENSE -> "Log Expense"
+    BusinessQuickAddKind.EXPENSE -> "Expense"
     BusinessQuickAddKind.TAX_ENTRY -> "Tax Entry"
     BusinessQuickAddKind.INVESTOR_UPDATE -> "Investor Update"
     BusinessQuickAddKind.BUDGET_ALERT -> "Budget Alert"
@@ -224,7 +224,7 @@ fun BusinessQuickAddKind.subtitle(): String = when (this) {
     BusinessQuickAddKind.POLL -> "Gather input"
     BusinessQuickAddKind.MEMORY -> "Save learnings"
     BusinessQuickAddKind.REVENUE -> "Track income"
-    BusinessQuickAddKind.EXPENSE -> "Record spend"
+    BusinessQuickAddKind.EXPENSE -> "Track costs"
     BusinessQuickAddKind.TAX_ENTRY -> "File taxes"
     BusinessQuickAddKind.INVESTOR_UPDATE -> "Share metrics"
     BusinessQuickAddKind.BUDGET_ALERT -> "Flag overrun"
@@ -284,12 +284,12 @@ fun BusinessQuickAddKind.stripeColor(): Color = when (this) {
     BusinessQuickAddKind.BLOCKER, BusinessQuickAddKind.RISK_FLAG, BusinessQuickAddKind.BUDGET_ALERT,
     BusinessQuickAddKind.REPORT_ISSUE,
     -> Color(0xFFEF4444)
-    BusinessQuickAddKind.MEETING, BusinessQuickAddKind.REVENUE, BusinessQuickAddKind.EXPENSE,
+    BusinessQuickAddKind.MEETING, BusinessQuickAddKind.REVENUE,
     BusinessQuickAddKind.FORECAST_UPDATE, BusinessQuickAddKind.REQUEST_APPROVAL,
     BusinessQuickAddKind.RETROSPECTIVE,
     -> Color(0xFFF59E0B)
     BusinessQuickAddKind.RECOGNITION, BusinessQuickAddKind.TAX_ENTRY, BusinessQuickAddKind.LOG_IMPROVEMENT,
-    BusinessQuickAddKind.POLL,
+    BusinessQuickAddKind.POLL, BusinessQuickAddKind.EXPENSE,
     -> Color(0xFF10B981)
     BusinessQuickAddKind.MILESTONE, BusinessQuickAddKind.INVOICE, BusinessQuickAddKind.SLA_CHECK -> Color(0xFF14B8A6)
 }
@@ -308,6 +308,7 @@ fun BusinessQuickAddKind.teamOpsHubIconRes(): Int? = when (this) {
     BusinessQuickAddKind.ACTIVITY_LOG -> com.example.momentra.R.drawable.ic_teamops_qa_activity
     BusinessQuickAddKind.POLL -> com.example.momentra.R.drawable.ic_teamops_qa_poll
     BusinessQuickAddKind.MEMORY -> com.example.momentra.R.drawable.ic_teamops_qa_memory
+    BusinessQuickAddKind.EXPENSE -> com.example.momentra.R.drawable.ic_teamops_qa_expense
     else -> null
 }
 
@@ -347,5 +348,6 @@ fun businessHubTiles(theme: BusinessActiveTheme): List<BusinessQuickAddKind> = w
         BusinessQuickAddKind.ACTIVITY_LOG,
         BusinessQuickAddKind.POLL,
         BusinessQuickAddKind.MEMORY,
+        BusinessQuickAddKind.EXPENSE,
     )
 }

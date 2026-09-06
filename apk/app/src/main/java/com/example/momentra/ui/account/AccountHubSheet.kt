@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ConsentPurposeDto
 import com.example.momentra.data.api.DeviceItemDto
+import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.device.DeviceRegistrar
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.data.repository.AccountRepository
@@ -48,6 +49,7 @@ fun AccountHubSheet(
     onSignOut: () -> Unit,
     onClose: () -> Unit,
     onAccountDeleted: () -> Unit,
+    onReplayTour: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -114,6 +116,9 @@ fun AccountHubSheet(
                 TextButton(onClick = { hubSection = "devices" }) { Text("Devices") }
                 TextButton(onClick = { hubSection = "prefs" }) { Text("Preferences") }
                 TextButton(onClick = { hubSection = "legal" }) { Text("Help & Legal") }
+                if (onReplayTour != null) {
+                    TextButton(onClick = onReplayTour) { Text("Replay Personal tour") }
+                }
 
                 HorizontalDivider()
                 Button(
@@ -139,6 +144,7 @@ fun AccountHubSheet(
                                         runCatching {
                                             FirebaseAuth.getInstance().currentUser?.delete()?.await()
                                         }
+                                        ApiClient.clearAuthToken()
                                         onAccountDeleted()
                                     }
                                     .onFailure { statusMsg = it.message ?: "Delete failed" }

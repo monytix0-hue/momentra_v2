@@ -59,6 +59,11 @@ import com.example.momentra.domain.MomentSummary
 import com.example.momentra.domain.ShellContentState
 import com.example.momentra.domain.ShellIdentity
 import com.example.momentra.domain.isActiveStatus
+import com.example.momentra.ui.shell.tour.TourHost
+import com.example.momentra.ui.shell.tour.TourSignal
+import com.example.momentra.ui.shell.tour.TourWhereToLook
+import com.example.momentra.ui.shell.tour.rememberTourController
+import com.example.momentra.ui.shell.tour.rememberTourTargetRegistry
 import com.example.momentra.ui.shell.components.ContextSwitcher
 import com.example.momentra.ui.shell.components.EditMomentSetupHost
 import com.example.momentra.ui.shell.components.ManageMomentSheet
@@ -73,8 +78,8 @@ import com.example.momentra.ui.shell.empty.group.GroupCreatePhase
 import com.example.momentra.ui.shell.empty.group.GroupJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
 import com.example.momentra.ui.shell.empty.personal.PersonalCreateEmptyContent
-import com.example.momentra.ui.shell.empty.BusinessCreateFlow
-import com.example.momentra.ui.shell.empty.CompanySetupContent
+import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
+import com.example.momentra.ui.shell.empty.business.CompanySetupContent
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
 import com.example.momentra.ui.shell.business.shared.BusinessExpenseSheet
 import com.example.momentra.ui.shell.business.shared.BusinessGapQuickAddSheet
@@ -110,11 +115,11 @@ import com.example.momentra.ui.shell.group.shared.GroupSettlementSheet
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.life.GroupLifeActiveContent
 import com.example.momentra.ui.shell.group.life.GroupLifeQuickAction
-import com.example.momentra.ui.shell.group.shared.GroupMemoryActiveContent
-import com.example.momentra.ui.shell.group.shared.GroupMomentsActiveContent
+import com.example.momentra.ui.shell.group.trip.create.GroupQuickAddHub
+import com.example.momentra.ui.shell.group.trip.memory.GroupMemoryActiveContent
+import com.example.momentra.ui.shell.group.trip.moments.GroupMomentsActiveContent
+import com.example.momentra.ui.shell.group.trip.pulse.GroupPulseActiveContent
 import com.example.momentra.ui.shell.group.shared.GroupParticipantsSheet
-import com.example.momentra.ui.shell.group.shared.GroupPulseActiveContent
-import com.example.momentra.ui.shell.group.shared.GroupQuickAddHub
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSplitsFlow
 import com.example.momentra.ui.shell.group.shared.GroupFinanceDetailFlow
 import com.example.momentra.ui.shell.group.shared.GroupExperienceFamily
@@ -161,7 +166,8 @@ import com.example.momentra.ui.shell.personal.lifeops.create.PersonalLifeOpsQuic
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalMoneyQuickAddSheet
 import com.example.momentra.ui.shell.personal.lifeops.memory.PersonalLifeOpsMemoryActiveContent
 import com.example.momentra.ui.shell.personal.lifeops.moments.PersonalLifeOpsMomentsActiveContent
-import com.example.momentra.ui.shell.personal.lifeops.pulse.PersonalPulseActiveContent
+import com.example.momentra.ui.shell.personal.lifeops.pulse.PersonalLifeOpsPulseActiveContent
+import com.example.momentra.ui.shell.personal.lifestyle.pulse.PersonalLifestylePulseActiveContent
 import com.example.momentra.ui.shell.personal.lifestyle.create.PersonalLifestyleQuickAddSheet
 import com.example.momentra.ui.shell.personal.lifestyle.memory.PersonalLifestyleMemoryActiveContent
 import com.example.momentra.ui.shell.personal.lifestyle.moments.PersonalLifestyleMomentsActiveContent
@@ -195,6 +201,8 @@ fun AppShellScreen(
     val context = LocalContext.current
     val prefs = remember { AppPreferences(context) }
     val state by shellViewModel.state.collectAsState()
+    val tourController = rememberTourController(prefs)
+    val tourRegistry = rememberTourTargetRegistry()
 
     var pendingGroupJoinCode by remember { mutableStateOf<String?>(null) }
 
@@ -304,6 +312,39 @@ fun AppShellScreen(
             prefs.setSelectedPersonalMomentId(identity.userId, state.selectedMomentId)
         }
     }
+    LaunchedEffect(identity.userId, state.selectedContext, state.contextContent, state.selectedMomentId) {
+        if (state.identity?.userId == null) return@LaunchedEffect
+        when (state.selectedContext) {
+            AppContext.PERSONAL -> {
+                if (state.contextContent is ShellContentState.Loading ||
+                    state.contextContent is ShellContentState.Idle
+                ) {
+                    return@LaunchedEffect
+                }
+                val hasMoment = state.selectedMomentId != null ||
+                    state.moments.any { it.isActiveStatus() }
+                tourController.startPersonal(hasActiveMoment = hasMoment)
+            }
+            AppContext.GROUP -> tourController.startGroupMini()
+            AppContext.BUSINESS -> tourController.startBusinessMini()
+            AppContext.CIRCLE -> Unit
+        }
+    }
+
+    LaunchedEffect(state.bottomDestination) {
+        if (state.bottomDestination == BottomDestination.CREATE) {
+            tourController.onSignal(TourSignal.OPENED_CREATE_TAB)
+        }
+    }
+
+    TourHost(
+        controller = tourController,
+        registry = tourRegistry,
+        onNavigate = { dest ->
+            newMomentOpen = false
+            shellViewModel.selectBottomDestination(dest)
+        },
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -411,6 +452,7 @@ fun AppShellScreen(
                     onMomentCreated = { momentId, title, momentTypeCode, status ->
                         newMomentOpen = false
                         shellViewModel.onMomentCreated(momentId, title, momentTypeCode, status)
+                        tourController.onSignal(TourSignal.MOMENT_CREATED)
                     },
                     onOpenExisting = { momentId ->
                         newMomentOpen = false
@@ -427,9 +469,10 @@ fun AppShellScreen(
                     BusinessCreateFlow(
                         companyId = state.selectedCompany!!.companyId,
                         onCreateBack = { newMomentOpen = false },
-                        onMomentCreated = { momentId, title, momentTypeCode ->
+                        onMomentCreated = { momentId, title, momentTypeCode, status ->
                             newMomentOpen = false
-                            shellViewModel.onMomentCreated(momentId, title, momentTypeCode)
+                            shellViewModel.onMomentCreated(momentId, title, momentTypeCode, status)
+                            tourController.onSignal(TourSignal.MOMENT_CREATED)
                         },
                     )
                 }
@@ -469,6 +512,7 @@ fun AppShellScreen(
                         groupCreatePhase = GroupCreatePhase.CHOOSER
                         preferGroupCreateFlow = false
                         shellViewModel.onMomentCreated(id, title, momentTypeCode, status)
+                        tourController.onSignal(TourSignal.MOMENT_CREATED)
                     },
                     onJoinGroupCode = { code -> pendingGroupJoinCode = code },
                     preferGroupCreateFlow = preferGroupCreateFlow,
@@ -590,6 +634,7 @@ fun AppShellScreen(
                             onSaved = {
                                 moneyQa = null
                                 shellViewModel.refreshVisiblePersonalTab()
+                                tourController.showWhereToLook(TourWhereToLook.forMoney(kind))
                             },
                         )
                     }
@@ -602,6 +647,7 @@ fun AppShellScreen(
                             onSaved = {
                                 moneyQa = null
                                 shellViewModel.refreshVisiblePersonalTab()
+                                tourController.showWhereToLook(TourWhereToLook.forMoney(kind))
                             },
                         )
                     }
@@ -620,7 +666,10 @@ fun AppShellScreen(
                 momentId = state.selectedMomentId!!,
                 visible = groupExpenseSheetOpen,
                 onDismiss = { groupExpenseSheetOpen = false },
-                onSaved = { shellViewModel.refreshVisibleGroupTab() },
+                onSaved = {
+                    shellViewModel.refreshVisibleGroupTab()
+                    tourController.showWhereToLook(TourWhereToLook.forGroupGeneric("Expense saved"))
+                },
                 isWedding = isWeddingFinance,
                 momentTypeCode = groupExpenseTypeCode,
             )
@@ -628,7 +677,10 @@ fun AppShellScreen(
                 momentId = state.selectedMomentId!!,
                 visible = groupContributionSheetOpen,
                 onDismiss = { groupContributionSheetOpen = false },
-                onSaved = { shellViewModel.refreshVisibleGroupTab() },
+                onSaved = {
+                    shellViewModel.refreshVisibleGroupTab()
+                    tourController.showWhereToLook(TourWhereToLook.forGroupGeneric("Contribution saved"))
+                },
                 isWedding = isWeddingFinance,
             )
             GroupSettlementSheet(
@@ -840,14 +892,20 @@ fun AppShellScreen(
                         visible = true,
                         momentId = state.selectedMomentId,
                         onDismiss = { businessGapQa = null },
-                        onSaved = { shellViewModel.refreshVisibleBusinessTab() },
+                        onSaved = {
+                            shellViewModel.refreshVisibleBusinessTab()
+                            tourController.showWhereToLook(TourWhereToLook.forBusinessGeneric())
+                        },
                     )
                     isTeamOps -> TeamOpsGapQuickAddSheet(
                         kind = kind,
                         visible = true,
                         momentId = state.selectedMomentId,
                         onDismiss = { businessGapQa = null },
-                        onSaved = { shellViewModel.refreshVisibleBusinessTab() },
+                        onSaved = {
+                            shellViewModel.refreshVisibleBusinessTab()
+                            tourController.showWhereToLook(TourWhereToLook.forBusinessGeneric())
+                        },
                     )
                     isOps -> OpsGapQuickAddSheet(
                         kind = kind,
@@ -856,7 +914,10 @@ fun AppShellScreen(
                         companyId = state.selectedCompany?.companyId,
                         momentTitle = state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.title,
                         onDismiss = { businessGapQa = null },
-                        onSaved = { shellViewModel.refreshVisibleBusinessTab() },
+                        onSaved = {
+                            shellViewModel.refreshVisibleBusinessTab()
+                            tourController.showWhereToLook(TourWhereToLook.forBusinessGeneric())
+                        },
                         onExpense = { businessExpenseSheetOpen = true },
                     )
                     else -> BusinessGapQuickAddSheet(
@@ -865,7 +926,10 @@ fun AppShellScreen(
                         visible = true,
                         momentId = state.selectedMomentId,
                         onDismiss = { businessGapQa = null },
-                        onSaved = { shellViewModel.refreshVisibleBusinessTab() },
+                        onSaved = {
+                            shellViewModel.refreshVisibleBusinessTab()
+                            tourController.showWhereToLook(TourWhereToLook.forBusinessGeneric())
+                        },
                         onExpense = { businessExpenseSheetOpen = true },
                         onRevenue = { businessRevenueSheetOpen = true },
                         onInvoice = { businessInvoiceSheetOpen = true },
@@ -876,7 +940,10 @@ fun AppShellScreen(
                 momentId = state.selectedMomentId!!,
                 visible = businessExpenseSheetOpen,
                 onDismiss = { businessExpenseSheetOpen = false },
-                onSaved = { shellViewModel.refreshVisibleBusinessTab() },
+                onSaved = {
+                    shellViewModel.refreshVisibleBusinessTab()
+                    tourController.showWhereToLook(TourWhereToLook.forBusinessGeneric("Expense saved"))
+                },
             )
             BusinessRevenueSheet(
                 momentId = state.selectedMomentId!!,
@@ -914,6 +981,7 @@ fun AppShellScreen(
                         onSaved = {
                             lifeOpsQa = null
                             shellViewModel.refreshVisiblePersonalTab()
+                            tourController.showWhereToLook(TourWhereToLook.forLifeOps(kind))
                         },
                     )
                 }
@@ -935,6 +1003,7 @@ fun AppShellScreen(
                         onSaved = {
                             futureQa = null
                             shellViewModel.refreshVisiblePersonalTab()
+                            tourController.showWhereToLook(TourWhereToLook.forFuture(kind))
                         },
                     )
                 }
@@ -956,6 +1025,7 @@ fun AppShellScreen(
                         onSaved = {
                             lifestyleQa = null
                             shellViewModel.refreshVisiblePersonalTab()
+                            tourController.showWhereToLook(TourWhereToLook.forLifestyle(kind))
                         },
                     )
                 }
@@ -977,6 +1047,7 @@ fun AppShellScreen(
                         onSaved = {
                             relationshipsQa = null
                             shellViewModel.refreshVisiblePersonalTab()
+                            tourController.showWhereToLook(TourWhereToLook.forRelationships(kind))
                         },
                     )
                 }
@@ -1091,9 +1162,18 @@ fun AppShellScreen(
                     shellViewModel.openProfile(false)
                     onSignOut()
                 },
+                onReplayTour = {
+                    shellViewModel.openProfile(false)
+                    tourController.startPersonal(
+                        hasActiveMoment = state.selectedMomentId != null ||
+                            state.moments.any { it.isActiveStatus() },
+                        force = true,
+                    )
+                },
             )
         }
     }
+    } // TourHost
 }
 
 private fun shouldShowMomentSwitcher(
@@ -1602,6 +1682,7 @@ private fun ShellDestinationContent(
                                     refreshToken = businessTabRefreshToken,
                                     onLogDelivery = { onBusinessQuickAdd(BusinessQuickAddKind.TEAM_UPDATE) },
                                     onOpenQuickAdd = onOpenQuickAdd,
+                                    onAddExpense = onAddExpense,
                                 )
                                 code.contains("OPERATIONS") && !code.contains("TEAM") -> OpsPulseActiveContent(
                                     momentId = selectedMomentId,
@@ -1715,8 +1796,18 @@ private fun ShellDestinationContent(
                                 onOpenRecentActivity = onOpenRelationshipsActivity,
                             )
                         }
+                        context == AppContext.PERSONAL && destination == BottomDestination.PULSE && isLifestyle -> {
+                            PersonalLifestylePulseActiveContent(
+                                refreshToken = personalTabRefreshToken,
+                                momentTitle = selectedMomentTitle,
+                                momentId = selectedMomentId,
+                                onAddExpense = onAddExpense,
+                                onLifestyleQuickAdd = onLifestyleQuickAdd,
+                                onViewAllActivity = onViewAllActivity,
+                            )
+                        }
                         context == AppContext.PERSONAL && destination == BottomDestination.PULSE -> {
-                            PersonalPulseActiveContent(
+                            PersonalLifeOpsPulseActiveContent(
                                 refreshToken = personalTabRefreshToken,
                                 momentTitle = selectedMomentTitle,
                                 momentId = selectedMomentId,

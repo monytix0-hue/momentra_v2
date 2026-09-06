@@ -45,6 +45,7 @@ import com.example.momentra.ui.shell.group.shared.GroupPulseInsightsHeroCard
 import com.example.momentra.ui.shell.group.shared.GroupProgressBar
 import com.example.momentra.ui.shell.group.shared.GroupProgressRing
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.enrichGroupPulseTab
 import com.example.momentra.ui.shell.group.shared.loadGroupPulseTab
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -113,6 +114,9 @@ fun WeddingPulseActiveContent(
                 activity = data.activities
                 insights = data.insights
                 loading = false
+                enrichGroupPulseTab(repository, momentId).onSuccess { enriched ->
+                    insights = enriched.insights
+                }
             },
             onFailure = { e ->
                 error = e.message

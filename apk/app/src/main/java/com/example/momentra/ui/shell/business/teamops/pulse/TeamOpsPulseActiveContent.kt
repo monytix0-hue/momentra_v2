@@ -31,6 +31,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ActivityItemDto
+import com.example.momentra.data.api.BusinessApprovalItemDto
+import com.example.momentra.data.api.BusinessExpenseItemDto
 import com.example.momentra.data.api.BusinessLifePayloadDto
 import com.example.momentra.data.api.BusinessPulsePayloadDto
 import com.example.momentra.data.api.CapacityDto
@@ -41,11 +43,14 @@ import com.example.momentra.ui.shell.business.teamops.components.TeamOpsActivity
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsAttentionCard
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsBackgroundGlow
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsColors
+import com.example.momentra.ui.shell.business.teamops.components.TeamOpsExpenseTrackerSection
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsGradientPrimaryButton
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsHeroHealthRing
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsIntelligenceSection
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsOutlineButton
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsTintedMetricTile
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsWorkloadSection
 import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
 import com.example.momentra.ui.shell.business.shared.loadBusinessPulseTab
@@ -60,6 +65,7 @@ fun TeamOpsPulseActiveContent(
     refreshToken: Long,
     onLogDelivery: () -> Unit = {},
     onOpenQuickAdd: () -> Unit = {},
+    onAddExpense: () -> Unit = {},
     repository: BusinessSliceRepository = remember { BusinessSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
@@ -70,7 +76,11 @@ fun TeamOpsPulseActiveContent(
     var activities by remember { mutableStateOf<List<ActivityItemDto>>(emptyList()) }
     var capacityData by remember { mutableStateOf<CapacityDto?>(null) }
     var workloadData by remember { mutableStateOf<WorkloadDto?>(null) }
+    var expenses by remember { mutableStateOf<List<BusinessExpenseItemDto>>(emptyList()) }
+    var pendingApprovals by remember { mutableStateOf<List<BusinessApprovalItemDto>>(emptyList()) }
+    var decidingApprovalId by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -80,6 +90,8 @@ fun TeamOpsPulseActiveContent(
             activities = emptyList()
             capacityData = null
             workloadData = null
+            expenses = emptyList()
+            pendingApprovals = emptyList()
             error = "Select a Business Moment."
             return@LaunchedEffect
         }
@@ -109,6 +121,14 @@ fun TeamOpsPulseActiveContent(
                 error = e.message
                 loading = false
             },
+        )
+        repository.listExpenses(momentId).fold(
+            onSuccess = { expenses = it.items },
+            onFailure = { expenses = emptyList() },
+        )
+        repository.listPendingApprovals(momentId).fold(
+            onSuccess = { pendingApprovals = it.items },
+            onFailure = { pendingApprovals = emptyList() },
         )
     }
 
@@ -187,6 +207,39 @@ fun TeamOpsPulseActiveContent(
                 theme = theme,
                 attentionCount = attentionCount,
                 activities = attentionActs,
+            )
+
+            TeamOpsPendingApprovalsSection(
+                theme = theme,
+                items = pendingApprovals,
+                decidingId = decidingApprovalId,
+                onDecide = { approvalId, decision ->
+                    decidingApprovalId = approvalId
+                    scope.launch {
+                        repository.decideApproval(
+                            approvalRequestId = approvalId,
+                            decision = decision,
+                        ).fold(
+                            onSuccess = {
+                                pendingApprovals = pendingApprovals.filterNot {
+                                    it.approvalRequestId == approvalId
+                                }
+                                decidingApprovalId = null
+                            },
+                            onFailure = { e ->
+                                error = e.message ?: "Could not decide approval"
+                                decidingApprovalId = null
+                            },
+                        )
+                    }
+                },
+            )
+
+            TeamOpsExpenseTrackerSection(
+                theme = theme,
+                items = expenses,
+                onViewAll = onAddExpense,
+                onAddExpense = onAddExpense,
             )
 
             TeamOpsRecentDeliverySection(
@@ -307,6 +360,85 @@ private fun TeamOpsHealthHeroCard(
                 valueColor = TeamOpsColors.Amber,
                 modifier = Modifier.weight(1f),
             )
+        }
+    }
+}
+
+@Composable
+private fun TeamOpsPendingApprovalsSection(
+    theme: BusinessActiveTheme,
+    items: List<BusinessApprovalItemDto>,
+    decidingId: String?,
+    onDecide: (approvalRequestId: String, decision: String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "Pending Approvals",
+            color = theme.text,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
+        )
+        if (items.isEmpty()) {
+            Text(
+                "No pending approvals",
+                color = theme.secondary,
+                fontSize = 13.sp,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(theme.card)
+                    .border(1.dp, theme.border, RoundedCornerShape(16.dp))
+                    .padding(16.dp),
+            )
+        } else {
+            items.forEach { item ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(theme.card)
+                        .border(1.dp, theme.border, RoundedCornerShape(16.dp))
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        item.title?.ifBlank { null } ?: "Approval request",
+                        color = theme.text,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        listOfNotNull(
+                            item.urgency?.takeIf { it.isNotBlank() },
+                            item.status,
+                            item.createdAt?.take(10),
+                        ).joinToString(" · "),
+                        color = theme.secondary,
+                        fontSize = 12.sp,
+                        fontFamily = PlusJakartaSans,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TeamOpsOutlineButton(
+                            label = if (decidingId == item.approvalRequestId) "…" else "Reject",
+                            enabled = decidingId == null,
+                            onClick = { onDecide(item.approvalRequestId, "REJECT") },
+                            theme = theme,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TeamOpsGradientPrimaryButton(
+                            label = if (decidingId == item.approvalRequestId) "…" else "Approve",
+                            enabled = decidingId == null,
+                            onClick = { onDecide(item.approvalRequestId, "APPROVE") },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
         }
     }
 }

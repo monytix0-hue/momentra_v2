@@ -91,8 +91,15 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 
     // MARK: - MessagingDelegate
 
+    func messaging(_ messaging: Messaging, didReceiveRegistration installationId: String?) {
+        guard let installationId, !installationId.isEmpty else { return }
+        PushNotifications.notePushCredential(installationId)
+        Task { await PushNotifications.syncDeviceWithBackend(explicitToken: installationId) }
+    }
+
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
         guard let fcmToken, !fcmToken.isEmpty else { return }
+        PushNotifications.notePushCredential(fcmToken)
         Task { await PushNotifications.syncDeviceWithBackend(explicitToken: fcmToken) }
     }
 }

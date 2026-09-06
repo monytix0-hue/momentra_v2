@@ -40,6 +40,9 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.CreateMomentParticipantBody
 import com.example.momentra.data.api.GroupInviteDto
 import com.example.momentra.data.api.GroupSetupBlockDto
+import com.example.momentra.data.api.GroupSetupBudgetDto
+import com.example.momentra.ui.shell.group.shared.GroupTravelCurrencyCatalog
+import com.example.momentra.ui.shell.group.shared.TravelCurrencyCatalog
 import com.example.momentra.data.repository.AccountRepository
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.domain.CreateMomentOutcome
@@ -113,6 +116,83 @@ fun GroupLivingSetupContent(
 
 private enum class GroupLongFormFamily { PURCHASE, LIVING }
 
+private data class SectionExtraBudgetDraft(
+    val currencyCode: String,
+    val amount: String = "",
+)
+
+@Composable
+private fun GroupSectionMultiCurrencyBlock(
+    currency: String,
+    onCurrencyChange: (String) -> Unit,
+    multiCurrency: String,
+    onMultiCurrencyChange: (String) -> Unit,
+    extraBudgets: List<SectionExtraBudgetDraft>,
+    onExtraBudgetsChange: (List<SectionExtraBudgetDraft>) -> Unit,
+    accent: Color,
+) {
+    GroupLongFormPrefRow(
+        label = "Currency",
+        hint = "Default currency",
+        value = currency,
+        options = TravelCurrencyCatalog.codes,
+        onValueChange = onCurrencyChange,
+        testTag = MaestroIds.setupDropdown("currency"),
+    )
+    GroupLongFormPrefRow(
+        label = "Multi-currency",
+        hint = "Track expenses in other currencies",
+        value = multiCurrency,
+        options = listOf("Enabled", "Disabled"),
+        onValueChange = onMultiCurrencyChange,
+        testTag = MaestroIds.setupDropdown("multiCurrency"),
+    )
+    if (multiCurrency.equals("Enabled", ignoreCase = true)) {
+        extraBudgets.forEachIndexed { index, row ->
+            GroupLongFormPrefRow(
+                label = "Currency ${index + 2}",
+                hint = TravelCurrencyCatalog.display(row.currencyCode),
+                value = row.currencyCode,
+                options = TravelCurrencyCatalog.codes.filter { it != currency },
+                onValueChange = { code ->
+                    onExtraBudgetsChange(
+                        extraBudgets.toMutableList().also {
+                            it[index] = it[index].copy(currencyCode = code)
+                        },
+                    )
+                },
+                testTag = MaestroIds.setupDropdown("extraCurrency_$index"),
+            )
+            GroupBudgetCustomField(
+                value = row.amount,
+                onValueChange = { amt ->
+                    onExtraBudgetsChange(
+                        extraBudgets.toMutableList().also {
+                            it[index] = it[index].copy(amount = amt)
+                        },
+                    )
+                },
+                currencyCode = row.currencyCode,
+            )
+        }
+        Text(
+            "+ Add currency",
+            color = accent,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
+            modifier = Modifier
+                .clickable {
+                    val next = TravelCurrencyCatalog.codes.firstOrNull { c ->
+                        c != currency && extraBudgets.none { it.currencyCode == c }
+                    } ?: "USD"
+                    onExtraBudgetsChange(extraBudgets + SectionExtraBudgetDraft(currencyCode = next))
+                }
+                .padding(vertical = 8.dp),
+        )
+    }
+}
+
 @Composable
 private fun GroupSectionLongFormFlow(
     variant: GroupSetupVariant,
@@ -156,6 +236,7 @@ private fun GroupSectionLongFormFlow(
     var paymentPlan by remember(selectedCode) { mutableStateOf("Monthly") }
     var deadline by remember(selectedCode) { mutableStateOf("Before target date") }
     var multiCurrency by remember(selectedCode) { mutableStateOf("Enabled") }
+    var extraBudgets by remember(selectedCode) { mutableStateOf<List<SectionExtraBudgetDraft>>(emptyList()) }
     var approvalRule by remember(selectedCode) { mutableStateOf("Admin confirms") }
     var paymentReminders by remember(selectedCode) { mutableStateOf("Enabled") }
     var decisionCheckIn by remember(selectedCode) { mutableStateOf("On major changes") }
@@ -189,6 +270,33 @@ private fun GroupSectionLongFormFlow(
         createViewModel.getGroupSetupPrefill(mid)?.let { prefill ->
             editingMomentStatus = prefill.status
             prefill.title?.takeIf { it.isNotBlank() }?.let { name = it }
+            prefill.multiCurrencyEnabled?.let { multiCurrency = if (it) "Enabled" else "Disabled" }
+            val budgetRows = prefill.budgets.orEmpty()
+            if (budgetRows.isNotEmpty()) {
+                val primary = budgetRows.firstOrNull { it.isPrimary == true } ?: budgetRows.first()
+                currency = primary.currencyCode
+                val display = GroupBudgetUtils.formatApiAmountForDisplay(primary.amount, primary.currencyCode)
+                val options = if (family == GroupLongFormFamily.PURCHASE) {
+                    GroupBudgetUtils.PURCHASE_AMOUNT_OPTIONS
+                } else {
+                    GroupBudgetUtils.LIVING_BUDGET_OPTIONS
+                }
+                if (display in options) {
+                    amount = display
+                    amountCustom = ""
+                } else {
+                    amount = GroupBudgetUtils.CUSTOM_OPTION
+                    amountCustom = GroupBudgetUtils.formatCustomAmountInput(primary.amount)
+                }
+                extraBudgets = budgetRows
+                    .filterNot { it.isPrimary == true || it.currencyCode.equals(primary.currencyCode, true) }
+                    .map {
+                        SectionExtraBudgetDraft(
+                            currencyCode = it.currencyCode,
+                            amount = GroupBudgetUtils.formatCustomAmountInput(it.amount),
+                        )
+                    }
+            }
         }
         accountRepo.getMomentNotificationPreferences(mid).onSuccess { prefs ->
             val rem = prefs.reminderPreferences.orEmpty()
@@ -430,13 +538,14 @@ private fun GroupSectionLongFormFlow(
                         )
                     }
                     GroupLongFormGroupTitle("Money")
-                    GroupLongFormPrefRow(
-                        label = "Currency",
-                        hint = "Default currency",
-                        value = currency,
-                        options = listOf("INR", "USD", "EUR"),
-                        onValueChange = { currency = it },
-                        testTag = MaestroIds.setupDropdown("currency"),
+                    GroupSectionMultiCurrencyBlock(
+                        currency = currency,
+                        onCurrencyChange = { currency = it },
+                        multiCurrency = multiCurrency,
+                        onMultiCurrencyChange = { multiCurrency = it },
+                        extraBudgets = extraBudgets,
+                        onExtraBudgetsChange = { extraBudgets = it },
+                        accent = accent,
                     )
                     GroupLongFormPrefRow(
                         label = "Ownership split",
@@ -462,14 +571,6 @@ private fun GroupSectionLongFormFlow(
                         options = listOf("Before target date", "Flexible", "Hard deadline"),
                         onValueChange = { deadline = it },
                         testTag = MaestroIds.setupDropdown("deadline"),
-                    )
-                    GroupLongFormPrefRow(
-                        label = "Multi-currency",
-                        hint = "Allow other currencies",
-                        value = multiCurrency,
-                        options = listOf("Enabled", "Disabled"),
-                        onValueChange = { multiCurrency = it },
-                        testTag = MaestroIds.setupDropdown("multiCurrency"),
                     )
                     GroupLongFormLocalOnlyNote()
                 }
@@ -590,6 +691,15 @@ private fun GroupSectionLongFormFlow(
                             currencyCode = currency,
                         )
                     }
+                    GroupSectionMultiCurrencyBlock(
+                        currency = currency,
+                        onCurrencyChange = { currency = it },
+                        multiCurrency = multiCurrency,
+                        onMultiCurrencyChange = { multiCurrency = it },
+                        extraBudgets = extraBudgets,
+                        onExtraBudgetsChange = { extraBudgets = it },
+                        accent = accent,
+                    )
                     GroupLongFormPrefRow(
                         label = "Rent split",
                         hint = "How rent is divided",
@@ -745,11 +855,36 @@ private fun GroupSectionLongFormFlow(
                         "choreReminders" to choreReminders.equals("Enabled", ignoreCase = true),
                         "paymentReminders" to paymentReminders.equals("Enabled", ignoreCase = true),
                     )
-                    val groupSetup = budgetAmount?.let {
+                    val groupSetup = budgetAmount?.let { primaryAmount ->
+                        val budgetDtos = buildList {
+                            add(
+                                GroupSetupBudgetDto(
+                                    currencyCode = currency,
+                                    amount = primaryAmount,
+                                    isPrimary = true,
+                                ),
+                            )
+                            if (multiCurrency.equals("Enabled", ignoreCase = true)) {
+                                extraBudgets.forEach { row ->
+                                    val amt = row.amount.filter { it.isDigit() || it == '.' }
+                                        .takeIf { it.isNotBlank() } ?: return@forEach
+                                    if (row.currencyCode.equals(currency, ignoreCase = true)) return@forEach
+                                    add(
+                                        GroupSetupBudgetDto(
+                                            currencyCode = row.currencyCode,
+                                            amount = amt,
+                                            isPrimary = false,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
                         GroupSetupBlockDto(
-                            budgetAmount = it,
+                            budgetAmount = primaryAmount,
                             budgetCurrencyCode = currency,
                             destinationText = null,
+                            budgets = budgetDtos,
+                            multiCurrencyEnabled = multiCurrency.equals("Enabled", ignoreCase = true),
                             reminderPreferences = reminderPreferences,
                         )
                     }

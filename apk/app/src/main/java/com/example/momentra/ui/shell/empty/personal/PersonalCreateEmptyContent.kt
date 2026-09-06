@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +55,10 @@ import com.example.momentra.analytics.MomentraAnalytics
 import com.example.momentra.domain.MomentSummary
 import com.example.momentra.domain.isActiveStatus
 import com.example.momentra.ui.shell.personal.shared.personalPulseFamilyFor
+import com.example.momentra.ui.shell.tour.LocalTourController
+import com.example.momentra.ui.shell.tour.TourSignal
+import com.example.momentra.ui.shell.tour.TourTargetId
+import com.example.momentra.ui.shell.tour.tourTarget
 import com.example.momentra.ui.theme.PlusJakartaSans
 
 /**
@@ -70,6 +75,13 @@ fun PersonalCreateEmptyContent(
 ) {
     var wizard by remember { mutableStateOf<PersonalSetupSystem?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val tour = LocalTourController.current
+
+    LaunchedEffect(wizard) {
+        if (wizard != null) {
+            tour?.onSignal(TourSignal.SETUP_SHEET_OPEN)
+        }
+    }
 
     fun activeMoment(system: PersonalSetupSystem): MomentSummary? =
         history.firstOrNull {
@@ -173,7 +185,10 @@ private fun PersonalCreateChooser(
                 )
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.tourTarget(TourTargetId.CREATE_CHOOSER),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),

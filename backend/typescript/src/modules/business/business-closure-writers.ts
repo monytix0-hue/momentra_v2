@@ -5,6 +5,7 @@
  */
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
+import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from '../finance/travel-currencies';
 import type { RequestContext } from '../../platform/request-context/context';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { assertGovernanceAllowed } from '../governance/resolver';
@@ -50,7 +51,7 @@ export const createTaxObligationSchema = z
     title: z.string().min(1).max(500),
     taxType: z.string().max(100).optional(),
     amount: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
-    currencyCode: z.string().length(3).optional(),
+    currencyCode: optionalTravelCurrencyCodeSchema,
     dueDate: z.string().date().optional(),
     notes: z.string().max(5000).optional(),
   })
@@ -66,7 +67,7 @@ export const createForecastScenarioSchema = z
         z.object({
           lineLabel: z.string().min(1).max(300),
           amount: z.string().regex(/^\d+(\.\d{1,4})?$/),
-          currencyCode: z.string().length(3).optional(),
+          currencyCode: optionalTravelCurrencyCodeSchema,
           periodLabel: z.string().max(100).optional(),
         }).strict()
       )
@@ -91,7 +92,7 @@ export const createBudgetAlertSchema = z
     title: z.string().min(1).max(500),
     metricLabel: z.string().max(200).optional(),
     thresholdValue: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
-    currencyCode: z.string().length(3).optional(),
+    currencyCode: optionalTravelCurrencyCodeSchema,
     severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
     note: z.string().max(5000).optional(),
   })
@@ -110,6 +111,14 @@ export const createDecisionSchema = z
     title: z.string().min(1).max(500),
     decisionText: z.string().min(1).max(5000),
     rationale: z.string().max(5000).optional(),
+    /** Display label for who decided (e.g. You, Lead). */
+    decidedBy: z.string().min(1).max(200).optional(),
+    /** ISO date or datetime for decided_at. */
+    decidedAt: z
+      .string()
+      .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'Invalid date' })
+      .optional(),
+    impactArea: z.string().max(100).optional(),
   })
   .strict();
 
@@ -428,15 +437,26 @@ export async function createDecision(
     companyId: scope.companyId,
     momentId,
   });
+  const decidedAt = body.decidedAt
+    ? new Date(body.decidedAt).toISOString()
+    : new Date().toISOString();
+  const rationaleParts = [
+    body.decidedBy ? `Decided by: ${body.decidedBy}` : null,
+    body.impactArea ? `Impact: ${body.impactArea}` : null,
+    body.rationale ?? null,
+  ].filter(Boolean);
+  const rationale =
+    rationaleParts.length > 0 ? rationaleParts.join('\n') : null;
+
   const r = await client.query<{ decision_id: string }>(
     `INSERT INTO business.decision (
        company_id, moment_id, title, decision_text, rationale,
        decided_by_user_id, decided_at, status, version
-     ) VALUES ($1,$2,$3,$4,$5,$6,now(),'ACTIVE',1)
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7::timestamptz,'ACTIVE',1)
      RETURNING decision_id`,
     [
       scope.companyId, momentId, body.title, body.decisionText,
-      body.rationale ?? null, ctx.userId,
+      rationale, ctx.userId, decidedAt,
     ]
   );
   const decisionId = r.rows[0]!.decision_id;

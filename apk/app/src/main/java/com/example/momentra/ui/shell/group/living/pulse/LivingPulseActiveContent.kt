@@ -49,6 +49,7 @@ import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupPulseInsightsHeroCard
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.enrichGroupPulseTab
 import com.example.momentra.ui.shell.group.shared.loadGroupPulseTab
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.math.BigDecimal
@@ -112,6 +113,9 @@ fun LivingPulseActiveContent(
                 activities = data.activities
                 insights = data.insights
                 loading = false
+                enrichGroupPulseTab(repository, momentId).onSuccess { enriched ->
+                    insights = enriched.insights
+                }
             },
             onFailure = { e ->
                 error = e.message

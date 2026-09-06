@@ -44,6 +44,16 @@ object BusinessTabDataCache {
         memoryByMoment[momentId] = data
     }
 
+    /** Merge life facet into warm pulse cache so Pulse/Moments can reuse it. */
+    fun putLife(momentId: String, life: BusinessLifePayloadDto?) {
+        if (life == null) return
+        val previous = pulseByMoment[momentId] ?: return
+        pulseByMoment[momentId] = previous.copy(life = life)
+        memoryByMoment[momentId]?.let { mem ->
+            memoryByMoment[momentId] = mem.copy(life = life)
+        }
+    }
+
     /** Drop cached facets for one moment after a write so SWR reloads fresh data. */
     fun invalidateMoment(momentId: String) {
         pulseByMoment.remove(momentId)

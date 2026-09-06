@@ -35,6 +35,7 @@ final class AppShellModel: ObservableObject {
     private var bootstrapRefreshTask: Task<Void, Never>?
     private var groupPrefetchTask: Task<Void, Never>?
     private var businessPrefetchTask: Task<Void, Never>?
+    private var sseDebounceTask: Task<Void, Never>?
     private let gateway: ShellMeGatewaying
 
     init(gateway: ShellMeGatewaying? = nil) {
@@ -59,9 +60,11 @@ final class AppShellModel: ObservableObject {
         } else {
             refreshBootstrap()
         }
+        startRealtime()
     }
 
     func clearForLogout() {
+        stopRealtime()
         loadTask?.cancel()
         bootstrapRefreshTask?.cancel()
         gateway.clearBootstrapCache(userId: identity?.userId)
@@ -94,6 +97,63 @@ final class AppShellModel: ObservableObject {
         groupPrefetchTask?.cancel()
         businessPrefetchTask?.cancel()
         APIClient.shared.clearAuthTokenCache()
+    }
+
+    private func startRealtime() {
+        stopRealtime()
+        SseClient.shared.connect { [weak self] event in
+            Task { @MainActor in
+                self?.scheduleProjectionRefresh(event)
+            }
+        }
+    }
+
+    private func stopRealtime() {
+        sseDebounceTask?.cancel()
+        sseDebounceTask = nil
+        SseClient.shared.disconnect()
+    }
+
+    private func scheduleProjectionRefresh(_ event: ProjectionUpdatedEvent) {
+        sseDebounceTask?.cancel()
+        sseDebounceTask = Task {
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard !Task.isCancelled else { return }
+            onProjectionUpdated(event)
+        }
+    }
+
+    private func onProjectionUpdated(_ event: ProjectionUpdatedEvent) {
+        ShellPerf.instant(
+            "sse_projection_updated",
+            extras: [
+                "scopeType": event.scopeType ?? "",
+                "scopeId": String((event.scopeId ?? "").prefix(8)),
+            ]
+        )
+        if let scopeId = event.scopeId, !scopeId.isEmpty, scopeId == selectedMomentId {
+            switch selectedContext {
+            case .personal: refreshVisiblePersonalTab()
+            case .group: refreshVisibleGroupTab()
+            case .business: refreshVisibleBusinessTab()
+            case .circle: break
+            }
+            return
+        }
+        // Off-scope: skip full bootstrap; soft-defer inventory refresh for moment/company events.
+        let scopeType = (event.scopeType ?? "").uppercased()
+        if scopeType == "MOMENT" || scopeType == "COMPANY" {
+            ShellPerf.instant(
+                "sse_off_scope_soft",
+                extras: [
+                    "scopeType": scopeType,
+                    "scopeId": String((event.scopeId ?? "").prefix(8)),
+                ]
+            )
+            scheduleDeferredBootstrapRefresh()
+            return
+        }
+        reloadCurrentContext()
     }
 
     private func scheduleDeferredBootstrapRefresh(delaySeconds: Double = 15) {
@@ -345,10 +405,10 @@ final class AppShellModel: ObservableObject {
             refreshVisiblePersonalTab()
         }
         if selectedContext == .group {
-            refreshVisibleGroupTab()
+            refreshVisibleGroupTab(forcePrefetch: true)
         }
         if selectedContext == .business {
-            refreshVisibleBusinessTab()
+            refreshVisibleBusinessTab(forcePrefetch: true)
         }
         ShellPerf.end(mark, extras: ["momentId": String(id.prefix(8))])
     }
@@ -386,9 +446,20 @@ final class AppShellModel: ObservableObject {
         ShellPerf.instant("scoped_refresh_personal", extras: ["token": personalTabRefreshToken])
     }
 
-    func refreshVisibleGroupTab() {
-        prefetchGroupTabs(for: selectedMomentId)
+    func refreshVisibleGroupTab(forcePrefetch: Bool = false) {
+        let warm = selectedMomentId.map { GroupTabDataCache.peekPulse($0) != nil } ?? false
+        if forcePrefetch || !warm {
+            prefetchGroupTabs(for: selectedMomentId)
+        }
         groupTabRefreshToken &+= 1
+        ShellPerf.instant(
+            "scoped_refresh_group",
+            extras: [
+                "token": groupTabRefreshToken,
+                "warm": warm,
+                "prefetch": forcePrefetch || !warm,
+            ]
+        )
     }
 
     /// Warm pulse+finance+activity cache so Moments/Memory/Life paint without spinners.
@@ -400,9 +471,20 @@ final class AppShellModel: ObservableObject {
         }
     }
 
-    func refreshVisibleBusinessTab() {
-        prefetchBusinessTabs(for: selectedMomentId)
+    func refreshVisibleBusinessTab(forcePrefetch: Bool = false) {
+        let warm = selectedMomentId.map { BusinessTabDataCache.peekPulse($0) != nil } ?? false
+        if forcePrefetch || !warm {
+            prefetchBusinessTabs(for: selectedMomentId)
+        }
         businessTabRefreshToken &+= 1
+        ShellPerf.instant(
+            "scoped_refresh_business",
+            extras: [
+                "token": businessTabRefreshToken,
+                "warm": warm,
+                "prefetch": forcePrefetch || !warm,
+            ]
+        )
     }
 
     /// Warm bundled pulse so Business tabs paint without spinners.

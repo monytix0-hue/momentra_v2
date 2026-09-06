@@ -1,9 +1,52 @@
 # Momentra product-grouped SQL catalog
 
-Browse map for Supabase Table Editor, Node modules, and Prisma layout.
-Apply order remains V001–V030 from `manifest/MIGRATION_ORDER.txt`.
+Browse map for Supabase Table Editor and repo navigation.
 
-## personal
+**Apply order** is the global V-sequence in [`manifest/MIGRATION_ORDER.txt`](../manifest/MIGRATION_ORDER.txt) (V001–V075+).  
+**On-disk layout** groups files under `migrations/{personal,group,business,shared}/` for humans; the migrate runner resolves by **basename** only (ledger unchanged).
+
+Phase 11.9 checksums cover baseline **V001–V030** only. Forward pack is V031+ via the order file.
+
+## Migration file buckets
+
+### personal (`migrations/personal/`)
+
+- `V003__personal.sql`
+- `V025__rls_personal.sql`
+- `V036__personal_life_system_setup.sql`
+- `V042__personal_life_operations_setup_v2.sql`
+- `V044__personal_life_operations_observation_details_v2.sql`
+- `V045__finance_personal_ui_gap_closure_v2.sql`
+- `V046__personal_family_precision_profiles.sql`
+- `V050__personal_movement_record_capability.sql`
+- `V058__personal_phase7_pulse_metric_freeze.sql`
+
+### group (`migrations/group/`)
+
+- `V004__collaboration.sql`
+- `V026__rls_group.sql`
+- `V049__group_vendor_capability.sql`
+- `V056__shared_living_participant_manage.sql`
+- `V072__shared_experience_places_multi_currency_draft.sql`
+
+### business (`migrations/business/`)
+
+- `V005__business.sql`
+- `V027__rls_business.sql`
+- `V031__company_location_custom_label.sql`
+- `V037__business_system_setup.sql`
+- `V051__business_ops_improvement_capabilities.sql`
+- `V052__company_invite.sql`
+- `V055__business_life_api_parity.sql`
+- `V075__business_expense_paid_by.sql`
+
+### shared (`migrations/shared/`)
+
+Platform, finance core, projection, seeds, analytics, notifications, and mixed-domain files (e.g. `V054`, `V057`, `V073`). New cross-cutting work lands here; product-primary work lands in the matching bucket as **V076+**.
+
+---
+
+## personal — tables
 
 ### pulse
 
@@ -52,7 +95,7 @@ Apply order remains V001–V030 from `manifest/MIGRATION_ORDER.txt`.
 - `finance.budget_revision` (source: V007)
 - `projection.personal_finance_snapshot` (source: V014)
 
-## group
+## group — tables
 
 ### pulse
 
@@ -90,7 +133,7 @@ Apply order remains V001–V030 from `manifest/MIGRATION_ORDER.txt`.
 - `finance.settlement_allocation` (source: V007)
 - `projection.group_finance_snapshot` (source: V014)
 
-## business
+## business — tables
 
 ### pulse
 
@@ -118,14 +161,14 @@ Apply order remains V001–V030 from `manifest/MIGRATION_ORDER.txt`.
 
 ### finance
 
-- `finance.business_expense_context` (source: V007)
+- `finance.business_expense_context` (source: V007) — `paid_by_label` from V075
 - `finance.revenue` (source: V007)
 - `finance.invoice` (source: V007)
 - `finance.invoice_line` (source: V007)
 - `finance.invoice_payment` (source: V007)
 - `projection.business_finance_snapshot` (source: V014)
 
-## shared
+## shared — tables
 
 ### work
 

@@ -2032,12 +2032,14 @@ data class CreateBusinessMemoryBody(
     val body: String? = null,
     @SerializedName("memoryType") val memoryType: String? = null,
     @SerializedName("occurredAt") val occurredAt: String? = null,
+    @SerializedName("capturedAt") val capturedAt: String? = null,
 )
 
 data class CreateBusinessMemoryResultDto(
     @SerializedName("memoryId") val memoryId: String,
     @SerializedName("momentId") val momentId: String,
-    val title: String,
+    val title: String? = null,
+    @SerializedName("companyId") val companyId: String? = null,
 )
 
 data class CreateBusinessExpenseBody(
@@ -2047,6 +2049,9 @@ data class CreateBusinessExpenseBody(
     @SerializedName("merchantName") val merchantName: String? = null,
     @SerializedName("categoryCode") val categoryCode: String? = null,
     @SerializedName("vendorId") val vendorId: String? = null,
+    @SerializedName("paidBy") val paidBy: String? = null,
+    @SerializedName("effectiveAt") val effectiveAt: String? = null,
+    @SerializedName("receiptUploadId") val receiptUploadId: String? = null,
 )
 
 data class CreateBusinessExpenseResultDto(
@@ -2059,6 +2064,26 @@ data class CreateBusinessExpenseResultDto(
     val status: String,
     @SerializedName("approvalRequestId") val approvalRequestId: String? = null,
     val version: Long = 0,
+    @SerializedName("paidBy") val paidBy: String? = null,
+    @SerializedName("effectiveAt") val effectiveAt: String? = null,
+    @SerializedName("receiptUploadId") val receiptUploadId: String? = null,
+)
+
+data class BusinessExpenseItemDto(
+    @SerializedName("expenseId") val expenseId: String,
+    val amount: String,
+    @SerializedName("currencyCode") val currencyCode: String,
+    @SerializedName("categoryCode") val categoryCode: String? = null,
+    val description: String? = null,
+    val status: String = "",
+    @SerializedName("effectiveAt") val effectiveAt: String = "",
+    @SerializedName("paidBy") val paidBy: String? = null,
+    @SerializedName("receiptUploadId") val receiptUploadId: String? = null,
+)
+
+data class BusinessExpenseListDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<BusinessExpenseItemDto> = emptyList(),
 )
 
 data class CreateBusinessRevenueBody(
@@ -2208,6 +2233,7 @@ data class CreateBusinessApprovalRequestBody(
     val amount: String? = null,
     @SerializedName("currencyCode") val currencyCode: String? = null,
     val note: String? = null,
+    val urgency: String? = null,
 )
 
 data class CreateBusinessApprovalRequestResultDto(
@@ -2344,6 +2370,9 @@ data class CreateDecisionBody(
     val title: String,
     @SerializedName("decisionText") val decisionText: String,
     val rationale: String? = null,
+    @SerializedName("decidedBy") val decidedBy: String? = null,
+    @SerializedName("decidedAt") val decidedAt: String? = null,
+    @SerializedName("impactArea") val impactArea: String? = null,
 )
 
 data class CreateDecisionResultDto(
@@ -2399,11 +2428,14 @@ data class CreateActivityLogEntryResultDto(
 data class CreateIssueEvidenceBody(
     val note: String? = null,
     val url: String? = null,
+    @SerializedName("uploadId") val uploadId: String? = null,
 )
 
 data class CreateIssueEvidenceResultDto(
-    @SerializedName("evidenceId") val evidenceId: String,
+    @SerializedName("evidenceId") val evidenceId: String? = null,
     @SerializedName("issueId") val issueId: String? = null,
+    @SerializedName("momentId") val momentId: String? = null,
+    val updated: Boolean? = null,
 )
 
 data class ShareLinkResultDto(
@@ -2476,4 +2508,46 @@ data class VendorItemDto(
 
 data class VendorListDto(
     val items: List<VendorItemDto> = emptyList(),
+)
+
+data class BusinessIssueItemDto(
+    @SerializedName("issueId") val issueId: String,
+    val title: String,
+    val severity: String? = null,
+    val status: String? = null,
+    @SerializedName("openedAt") val openedAt: String? = null,
+)
+
+data class BusinessIssueListDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<BusinessIssueItemDto> = emptyList(),
+)
+
+data class BusinessApprovalItemDto(
+    @SerializedName("approvalRequestId") val approvalRequestId: String,
+    val title: String? = null,
+    val status: String? = null,
+    @SerializedName("resourceType") val resourceType: String? = null,
+    val urgency: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
+)
+
+data class BusinessApprovalListDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    @SerializedName("companyId") val companyId: String? = null,
+    val items: List<BusinessApprovalItemDto> = emptyList(),
+)
+
+data class BusinessRevenueItemDto(
+    @SerializedName("revenueId") val revenueId: String,
+    val amount: String,
+    @SerializedName("currencyCode") val currencyCode: String? = null,
+    @SerializedName("categoryCode") val categoryCode: String? = null,
+    val status: String? = null,
+    @SerializedName("effectiveAt") val effectiveAt: String? = null,
+)
+
+data class BusinessRevenueListDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<BusinessRevenueItemDto> = emptyList(),
 )

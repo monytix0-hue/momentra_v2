@@ -23,6 +23,8 @@ struct BusinessSetupCatalogEntry {
 }
 
 enum BusinessSetupCatalog {
+    private static let currencyCodes = TravelCurrencyCatalog.codes
+
     private static let teamOps = BusinessSetupCatalogEntry(
         defaultTitle: "Team Operations",
         subtitle: "Configure your team's operating system in one go.",
@@ -42,7 +44,9 @@ enum BusinessSetupCatalog {
                 title: "Locale & finance",
                 fields: [
                     PersonalSetupFieldSpec(key: "country", label: "Country", multiSelect: false, options: ["India", "United States", "United Kingdom", "Singapore"]),
-                    PersonalSetupFieldSpec(key: "currency", label: "Currency", multiSelect: false, options: ["INR", "USD", "GBP", "EUR"]),
+                    PersonalSetupFieldSpec(key: "currency", label: "Currency", multiSelect: false, options: currencyCodes, kind: .dropdown),
+                    PersonalSetupFieldSpec(key: "multiCurrency", label: "Multi-currency", multiSelect: false, options: [], kind: .toggle),
+                    PersonalSetupFieldSpec(key: "extraCurrencies", label: "Extra currencies", multiSelect: true, options: currencyCodes),
                     PersonalSetupFieldSpec(key: "timezone", label: "Timezone", multiSelect: false, options: ["IST (UTC+5:30)", "UTC", "EST (UTC-5)", "PST (UTC-8)"]),
                     PersonalSetupFieldSpec(key: "language", label: "Language", multiSelect: false, options: ["English", "Hindi", "Spanish", "French"]),
                     PersonalSetupFieldSpec(key: "financialYear", label: "Financial year", multiSelect: false, options: ["Apr - Mar", "Jan - Dec", "Jul - Jun"]),
@@ -69,6 +73,8 @@ enum BusinessSetupCatalog {
             "workMode": "Hybrid",
             "country": "India",
             "currency": "INR",
+            "multiCurrency": false,
+            "extraCurrencies": [] as [String],
             "timezone": "IST (UTC+5:30)",
             "language": "English",
             "financialYear": "Apr - Mar",
@@ -93,7 +99,9 @@ enum BusinessSetupCatalog {
                 fields: [
                     PersonalSetupFieldSpec(key: "businessStage", label: "Business stage", multiSelect: false, options: ["Early", "Scaling", "Mature", "Turnaround"]),
                     PersonalSetupFieldSpec(key: "goalHorizon", label: "Goal horizon", multiSelect: false, options: ["6-months goal", "12-months goal", "18-months goal", "24-months goal"]),
+                    PersonalSetupFieldSpec(key: "currency", label: "Primary currency", multiSelect: false, options: currencyCodes, kind: .dropdown),
                     PersonalSetupFieldSpec(key: "multiCurrency", label: "Multi-currency", multiSelect: false, options: [], kind: .toggle),
+                    PersonalSetupFieldSpec(key: "extraCurrencies", label: "Extra currencies", multiSelect: true, options: currencyCodes),
                     PersonalSetupFieldSpec(key: "revenueStage", label: "Revenue stage", multiSelect: false, options: ["Pre-revenue", "Growing", "Stable", "Declining"]),
                     PersonalSetupFieldSpec(key: "revenueModel", label: "Revenue model", multiSelect: false, options: ["Recurring", "Project-based", "Mixed", "Marketplace"]),
                     PersonalSetupFieldSpec(key: "warningThreshold", label: "Runway warning threshold", multiSelect: false, options: ["3 months", "6 months", "9 months", "12 months"]),
@@ -115,7 +123,9 @@ enum BusinessSetupCatalog {
         defaultPreferences: [
             "businessStage": "Scaling",
             "goalHorizon": "18-months goal",
+            "currency": "INR",
             "multiCurrency": true,
+            "extraCurrencies": [] as [String],
             "availableCash": "₹ 1,80,00,000",
             "monthlySpending": "₹ 12,50,000",
             "revenueStage": "Growing",
@@ -144,6 +154,14 @@ enum BusinessSetupCatalog {
                 ]
             ),
             BusinessSetupSectionSpec(
+                title: "Currency",
+                fields: [
+                    PersonalSetupFieldSpec(key: "currency", label: "Primary currency", multiSelect: false, options: currencyCodes, kind: .dropdown),
+                    PersonalSetupFieldSpec(key: "multiCurrency", label: "Multi-currency", multiSelect: false, options: [], kind: .toggle),
+                    PersonalSetupFieldSpec(key: "extraCurrencies", label: "Extra currencies", multiSelect: true, options: currencyCodes),
+                ]
+            ),
+            BusinessSetupSectionSpec(
                 title: "Budget & approvals",
                 fields: [
                     PersonalSetupFieldSpec(key: "allocationMethod", label: "Allocation method", multiSelect: false, options: ["Category-based", "Project-based", "Team-based"]),
@@ -161,6 +179,9 @@ enum BusinessSetupCatalog {
             "scope": "Company-wide",
             "model": "Centralized",
             "cadence": "Monthly",
+            "currency": "INR",
+            "multiCurrency": false,
+            "extraCurrencies": [] as [String],
             "monthlyBudget": "₹35,00,000",
             "allocationMethod": "Category-based",
             "monitoringStyle": "Proactive",

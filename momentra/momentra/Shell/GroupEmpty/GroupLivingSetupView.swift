@@ -49,6 +49,12 @@ struct GroupSectionSetupView: View {
         var contactPhone: String? = nil
     }
 
+    private struct ExtraBudgetDraft: Identifiable {
+        let id = UUID()
+        var currencyCode: String
+        var amount: String = ""
+    }
+
     @State private var selectedCode: String
     @State private var name: String
     @State private var tagline: String
@@ -63,6 +69,7 @@ struct GroupSectionSetupView: View {
     @State private var paymentPlan: String
     @State private var deadline: String
     @State private var multiCurrency: String
+    @State private var extraBudgets: [ExtraBudgetDraft] = []
     @State private var approvalRule: String
     @State private var paymentReminders: String
     @State private var decisionCheckIn: String
@@ -216,6 +223,30 @@ struct GroupSectionSetupView: View {
                 editingMomentStatus = prefill.status
                 if let title = prefill.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
                     name = title
+                }
+                if let enabled = prefill.multiCurrencyEnabled {
+                    multiCurrency = enabled ? "Enabled" : "Disabled"
+                }
+                if let budgets = prefill.budgets, !budgets.isEmpty {
+                    let primary = budgets.first(where: { $0.isPrimary == true }) ?? budgets[0]
+                    currency = primary.currencyCode
+                    let display = GroupBudgetUtils.formatApiAmountForDisplay(primary.amount, currencyCode: primary.currencyCode)
+                    let options = isPurchase ? GroupBudgetUtils.purchaseAmountOptions : GroupBudgetUtils.livingBudgetOptions
+                    if options.contains(display) {
+                        amount = display
+                        amountCustom = ""
+                    } else {
+                        amount = GroupBudgetUtils.customOption
+                        amountCustom = GroupBudgetUtils.formatCustomAmountInput(primary.amount)
+                    }
+                    extraBudgets = budgets
+                        .filter { $0.isPrimary != true && $0.currencyCode.caseInsensitiveCompare(primary.currencyCode) != .orderedSame }
+                        .map {
+                            ExtraBudgetDraft(
+                                currencyCode: $0.currencyCode,
+                                amount: GroupBudgetUtils.formatCustomAmountInput($0.amount)
+                            )
+                        }
                 }
             }
         }
@@ -386,14 +417,7 @@ struct GroupSectionSetupView: View {
                 GroupBudgetCustomField(value: $amountCustom, currencyCode: currency)
             }
             groupTitle("Money")
-            GroupLongFormPrefRow(
-                label: "Currency",
-                hint: "Default currency",
-                value: currency,
-                options: ["INR", "USD", "EUR"],
-                onValueChange: { currency = $0 },
-                testTag: "setup.dropdown.currency"
-            )
+            multiCurrencyBlock
             GroupLongFormPrefRow(
                 label: "Ownership split",
                 hint: "How ownership is divided",
@@ -418,14 +442,6 @@ struct GroupSectionSetupView: View {
                 options: ["Before target date", "Flexible", "Hard deadline"],
                 onValueChange: { deadline = $0 },
                 testTag: "setup.dropdown.deadline"
-            )
-            GroupLongFormPrefRow(
-                label: "Multi-currency",
-                hint: "Allow other currencies",
-                value: multiCurrency,
-                options: ["Enabled", "Disabled"],
-                onValueChange: { multiCurrency = $0 },
-                testTag: "setup.dropdown.multiCurrency"
             )
             GroupLongFormLocalOnlyNote()
         }
@@ -524,6 +540,7 @@ struct GroupSectionSetupView: View {
             if amount == GroupBudgetUtils.customOption {
                 GroupBudgetCustomField(value: $amountCustom, currencyCode: currency)
             }
+            multiCurrencyBlock
             GroupLongFormPrefRow(
                 label: "Rent split",
                 hint: "How rent is divided",
@@ -782,6 +799,61 @@ struct GroupSectionSetupView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var multiCurrencyBlock: some View {
+        Group {
+            GroupLongFormPrefRow(
+                label: "Currency",
+                hint: "Default currency",
+                value: currency,
+                options: TravelCurrencyCatalog.codes,
+                onValueChange: { currency = $0 },
+                testTag: "setup.dropdown.currency"
+            )
+            GroupLongFormPrefRow(
+                label: "Multi-currency",
+                hint: "Track expenses in other currencies",
+                value: multiCurrency,
+                options: ["Enabled", "Disabled"],
+                onValueChange: { multiCurrency = $0 },
+                testTag: "setup.dropdown.multiCurrency"
+            )
+            if multiCurrency.lowercased() == "enabled" {
+                ForEach(Array(extraBudgets.enumerated()), id: \.element.id) { index, row in
+                    GroupLongFormPrefRow(
+                        label: "Currency \(index + 2)",
+                        hint: TravelCurrencyCatalog.display(row.currencyCode),
+                        value: row.currencyCode,
+                        options: TravelCurrencyCatalog.codes.filter { $0 != currency },
+                        onValueChange: { code in
+                            extraBudgets[index].currencyCode = code
+                        },
+                        testTag: "setup.dropdown.extraCurrency_\(index)"
+                    )
+                    GroupBudgetCustomField(
+                        value: Binding(
+                            get: { extraBudgets[index].amount },
+                            set: { extraBudgets[index].amount = $0 }
+                        ),
+                        currencyCode: row.currencyCode
+                    )
+                }
+                Button {
+                    let next = TravelCurrencyCatalog.codes.first { c in
+                        c != currency && !extraBudgets.contains(where: { $0.currencyCode == c })
+                    } ?? "USD"
+                    extraBudgets.append(ExtraBudgetDraft(currencyCode: next))
+                } label: {
+                    Text("+ Add currency")
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(palette.accent)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     private func groupTitle(_ text: String) -> some View {
         Text(text)
             .font(.plusJakarta(size: 15, weight: .semibold))
@@ -827,11 +899,23 @@ struct GroupSectionSetupView: View {
             "choreReminders": choreReminders.lowercased() == "enabled",
             "paymentReminders": paymentReminders.lowercased() == "enabled",
         ]
-        let groupSetup = budgetAmount.map {
-            CreateMomentRequest.GroupSetupBlock(
-                budgetAmount: $0,
+        let groupSetup = budgetAmount.map { primaryAmount -> CreateMomentRequest.GroupSetupBlock in
+            var budgetBlocks: [CreateMomentRequest.GroupSetupBlock.BudgetBlock] = [
+                .init(currencyCode: currency, amount: primaryAmount, isPrimary: true),
+            ]
+            if multiCurrency.lowercased() == "enabled" {
+                for row in extraBudgets {
+                    let amt = row.amount.filter { $0.isNumber || $0 == "." }
+                    guard !amt.isEmpty, row.currencyCode.caseInsensitiveCompare(currency) != .orderedSame else { continue }
+                    budgetBlocks.append(.init(currencyCode: row.currencyCode, amount: amt, isPrimary: false))
+                }
+            }
+            return CreateMomentRequest.GroupSetupBlock(
+                budgetAmount: primaryAmount,
                 budgetCurrencyCode: currency,
                 destinationText: nil,
+                budgets: budgetBlocks,
+                multiCurrencyEnabled: multiCurrency.lowercased() == "enabled",
                 reminderPreferences: reminderPreferences
             )
         }

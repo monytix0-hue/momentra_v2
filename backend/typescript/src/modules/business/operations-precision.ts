@@ -4,6 +4,7 @@
 import { randomUUID } from 'crypto';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
+import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from '../finance/travel-currencies';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
@@ -58,7 +59,7 @@ export const createVendorContractSchema = z
     startDate: z.string().date().optional(),
     endDate: z.string().date().optional(),
     contractValue: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
-    currencyCode: z.string().length(3).optional(),
+    currencyCode: optionalTravelCurrencyCodeSchema,
   })
   .strict();
 
@@ -123,8 +124,9 @@ export const createApprovalRequestSchema = z
   .object({
     title: z.string().min(1).max(500),
     amount: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
-    currencyCode: z.string().length(3).optional(),
+    currencyCode: optionalTravelCurrencyCodeSchema,
     note: z.string().max(2000).optional(),
+    urgency: z.enum(['NORMAL', 'HIGH', 'URGENT']).optional(),
   })
   .strict();
 
@@ -547,6 +549,7 @@ export async function createApprovalRequest(
         amount: body.amount ?? null,
         currencyCode: body.currencyCode ?? null,
         note: body.note ?? null,
+        urgency: body.urgency ?? 'NORMAL',
         source: 'OPS_QUICK_ADD',
         companyId: scope.companyId,
       }),

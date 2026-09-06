@@ -13,15 +13,17 @@ export function clearApiKey(): void {
   sessionStorage.removeItem(STORAGE_KEY);
 }
 
-async function adminFetchPath<T>(path: string): Promise<T> {
+async function adminFetchPath<T>(path: string, init?: RequestInit): Promise<T> {
   const key = getApiKey();
   if (!key) throw new Error('Not authenticated');
 
   const res = await fetch(`${API_BASE.replace(/\/$/, '')}/admin/api${path}`, {
+    ...init,
     headers: {
       Accept: 'application/json',
       'X-Admin-Key': key,
       'ngrok-skip-browser-warning': 'true',
+      ...(init?.headers ?? {}),
     },
   });
 
@@ -64,6 +66,19 @@ export const api = {
     adminFetchPath<{ items: GroupExperienceRow[] }>('/group-experiences'),
   groupExperience: (momentId: string) =>
     adminFetchPath<GroupExperienceDetail>(`/group-experiences/${momentId}`),
+  leanFounder: () => adminFetchPath<{ cards: LeanKpiCard[] }>('/lean/founder'),
+  leanWamTrend: () => adminFetchPath<{ items: LeanWamPoint[] }>('/lean/wam-trend'),
+  leanSecondMomentCohorts: () =>
+    adminFetchPath<{ items: LeanSecondMomentCohort[] }>('/lean/second-moment-cohorts'),
+  leanProduct: () => adminFetchPath<LeanProductReport>('/lean/product'),
+  leanVc: () => adminFetchPath<{ metrics: LeanVcMetric[] }>('/lean/vc'),
+  leanGroupKpis: () => adminFetchPath<{ kpis: LeanGroupKpi[] }>('/lean/group-kpis'),
+  leanRefresh: () =>
+    adminFetchPath<{
+      founderCount: number;
+      groupCount: number;
+      cohortsUpserted: number;
+    }>('/lean/refresh', { method: 'POST' }),
 };
 
 export interface Overview {
@@ -230,4 +245,72 @@ export interface GroupExperienceDetail extends GroupExperienceRow {
     userId: string | null;
     displayName: string | null;
   }>;
+}
+
+export interface LeanKpiCard {
+  kpiCode: string;
+  kpiName: string | null;
+  category: string | null;
+  audience: string | null;
+  numerator: number | null;
+  denominator: number | null;
+  kpiValue: number | null;
+  sampleSize: number | null;
+  periodType: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  formulaVersion: number | null;
+  calculatedAt: string | null;
+  momentDomain: string | null;
+}
+
+export interface LeanWamPoint {
+  periodStart: string;
+  wam: number | null;
+  numerator: number | null;
+  denominator: number | null;
+}
+
+export interface LeanSecondMomentCohort {
+  cohortMonth: string;
+  firstTimeCreators: number;
+  secondMomentEligible: number;
+  secondMomentCreators: number;
+  secondMomentRate: number | null;
+}
+
+export interface LeanProductReport {
+  sections: {
+    onboarding: LeanKpiCard[];
+    momentHealth: LeanKpiCard[];
+    network: LeanKpiCard[];
+    reliability: LeanKpiCard[];
+  };
+  decisionHints: Array<{
+    signal: string;
+    interpretation: string;
+    action: string;
+  }>;
+}
+
+export interface LeanVcMetric {
+  id: string;
+  label: string;
+  kpiCode: string | null;
+  kpiValue: number | null;
+  numerator: number | null;
+  denominator: number | null;
+  sampleSize: number | null;
+  periodType: string | null;
+  periodStart: string | null;
+}
+
+export interface LeanGroupKpi {
+  kpiCode: string;
+  numerator: number | null;
+  denominator: number | null;
+  kpiValue: number | null;
+  sampleSize: number | null;
+  periodStart: string;
+  calculatedAt: string;
 }

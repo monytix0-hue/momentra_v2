@@ -55,7 +55,9 @@ import com.example.momentra.ui.shell.business.runway.components.RunwaySheetHeade
 import com.example.momentra.ui.shell.business.runway.components.RunwaySheetTokens
 import com.example.momentra.ui.shell.business.runway.components.RunwayTextField
 import com.example.momentra.ui.shell.business.runway.components.runwayStripAmount
+import com.example.momentra.ui.shell.shared.loadBusinessCurrencyContext
 import com.example.momentra.ui.shell.business.shared.subtitle
+import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -91,6 +93,11 @@ fun RunwayQuickAddSheet(
 ) {
     if (!visible) return
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var resolvedCurrency by remember(momentId) { mutableStateOf("INR") }
+    LaunchedEffect(momentId) {
+        if (momentId.isNullOrBlank()) return@LaunchedEffect
+        resolvedCurrency = loadBusinessCurrencyContext(momentId).primary
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -111,19 +118,19 @@ fun RunwayQuickAddSheet(
             RunwaySheetHandle()
             when (kind) {
                 BusinessQuickAddKind.REVENUE ->
-                    RunwayRevenueForm(momentId, onDismiss, onSaved, repository)
+                    RunwayRevenueForm(momentId, resolvedCurrency, onDismiss, onSaved, repository)
                 BusinessQuickAddKind.EXPENSE, BusinessQuickAddKind.SPEND_ENTRY ->
-                    RunwayExpenseForm(momentId, onDismiss, onSaved, repository)
+                    RunwayExpenseForm(momentId, resolvedCurrency, onDismiss, onSaved, repository)
                 BusinessQuickAddKind.TAX_ENTRY ->
-                    RunwayTaxForm(momentId, onDismiss, onSaved, repository)
+                    RunwayTaxForm(momentId, resolvedCurrency, onDismiss, onSaved, repository)
                 BusinessQuickAddKind.INVESTOR_UPDATE ->
                     RunwayInvestorForm(momentId, onDismiss, onSaved, repository)
                 BusinessQuickAddKind.BUDGET_ALERT ->
-                    RunwayBudgetForm(momentId, onDismiss, onSaved, repository)
+                    RunwayBudgetForm(momentId, resolvedCurrency, onDismiss, onSaved, repository)
                 BusinessQuickAddKind.FORECAST_UPDATE ->
-                    RunwayForecastForm(momentId, onDismiss, onSaved, repository)
+                    RunwayForecastForm(momentId, resolvedCurrency, onDismiss, onSaved, repository)
                 BusinessQuickAddKind.INVOICE ->
-                    RunwayInvoiceForm(momentId, onDismiss, onSaved, repository)
+                    RunwayInvoiceForm(momentId, resolvedCurrency, onDismiss, onSaved, repository)
                 BusinessQuickAddKind.GENERAL_UPDATE, BusinessQuickAddKind.TEAM_UPDATE ->
                     RunwayUpdateForm(momentId, onDismiss, onSaved, repository)
                 BusinessQuickAddKind.MEMORY ->
@@ -148,6 +155,7 @@ private fun FieldBlock(label: String, content: @Composable () -> Unit) {
 @Composable
 private fun RunwayRevenueForm(
     momentId: String?,
+    currencyCode: String,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
     repository: BusinessSliceRepository,
@@ -209,7 +217,7 @@ private fun RunwayRevenueForm(
                     momentId = id,
                     body = CreateBusinessRevenueBody(
                         amount = runwayStripAmount(amountDisplay),
-                        currencyCode = "INR",
+                        currencyCode = currencyCode,
                         categoryCode = source.ifBlank { null },
                         description = joinParts(
                             "Source: ${source.ifBlank { "—" }}",
@@ -232,6 +240,7 @@ private fun RunwayRevenueForm(
 @Composable
 private fun RunwayExpenseForm(
     momentId: String?,
+    currencyCode: String,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
     repository: BusinessSliceRepository,
@@ -283,7 +292,7 @@ private fun RunwayExpenseForm(
                     momentId = id,
                     body = CreateBusinessExpenseBody(
                         amount = runwayStripAmount(amountDisplay),
-                        currencyCode = "INR",
+                        currencyCode = currencyCode,
                         categoryCode = category.ifBlank { null },
                         merchantName = merchant.takeIf { it.isNotBlank() },
                         description = joinParts("Date: $date", notes.takeIf { it.isNotBlank() }),
@@ -300,6 +309,7 @@ private fun RunwayExpenseForm(
 @Composable
 private fun RunwayTaxForm(
     momentId: String?,
+    currencyCode: String,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
     repository: BusinessSliceRepository,
@@ -357,7 +367,7 @@ private fun RunwayTaxForm(
                         title = "$taxType · $period",
                         taxType = taxType,
                         amount = runwayStripAmount(amountDisplay).ifBlank { null },
-                        currencyCode = "INR",
+                        currencyCode = currencyCode,
                         dueDate = dueDate,
                         notes = joinParts("Status: $status", notes.takeIf { it.isNotBlank() }),
                     ),
@@ -460,6 +470,7 @@ private fun RunwayInvestorForm(
 @Composable
 private fun RunwayBudgetForm(
     momentId: String?,
+    currencyCode: String,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
     repository: BusinessSliceRepository,
@@ -527,8 +538,13 @@ private fun RunwayBudgetForm(
                         title = "Budget alert: ${department.ifBlank { "Dept" }} / ${category.ifBlank { "Category" }}",
                         metricLabel = category.ifBlank { null },
                         thresholdValue = runwayStripAmount(allocated).ifBlank { null },
-                        currencyCode = "INR",
-                        severity = severity.uppercase(),
+                        currencyCode = currencyCode,
+                        severity = when (severity) {
+                            "Warning" -> "MEDIUM"
+                            "Critical" -> "CRITICAL"
+                            "Overrun" -> "HIGH"
+                            else -> "MEDIUM"
+                        },
                         note = joinParts(
                             "Spend: ${runwayStripAmount(spend)}",
                             action.takeIf { it.isNotBlank() },
@@ -546,6 +562,7 @@ private fun RunwayBudgetForm(
 @Composable
 private fun RunwayForecastForm(
     momentId: String?,
+    currencyCode: String,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
     repository: BusinessSliceRepository,
@@ -604,10 +621,10 @@ private fun RunwayForecastForm(
                 val revAmt = runwayStripAmount(revenueProj)
                 val expAmt = runwayStripAmount(expenseProj)
                 if (revAmt.isNotBlank()) {
-                    lines.add(ForecastScenarioLineBody(lineLabel = "Revenue", amount = revAmt, currencyCode = "INR", periodLabel = period))
+                    lines.add(ForecastScenarioLineBody(lineLabel = "Revenue", amount = revAmt, currencyCode = currencyCode, periodLabel = period))
                 }
                 if (expAmt.isNotBlank()) {
-                    lines.add(ForecastScenarioLineBody(lineLabel = "Expense", amount = expAmt, currencyCode = "INR", periodLabel = period))
+                    lines.add(ForecastScenarioLineBody(lineLabel = "Expense", amount = expAmt, currencyCode = currencyCode, periodLabel = period))
                 }
                 repository.createForecastScenario(
                     momentId = id,
@@ -629,6 +646,7 @@ private fun RunwayForecastForm(
 @Composable
 private fun RunwayInvoiceForm(
     momentId: String?,
+    currencyCode: String,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
     repository: BusinessSliceRepository,
@@ -696,7 +714,7 @@ private fun RunwayInvoiceForm(
                         invoiceNumber = invoiceNumber.trim(),
                         invoiceDate = issueDate,
                         dueDate = dueDate,
-                        currencyCode = "INR",
+                        currencyCode = currencyCode,
                         lines = listOf(
                             BusinessInvoiceLineDto(
                                 description = client.trim(),

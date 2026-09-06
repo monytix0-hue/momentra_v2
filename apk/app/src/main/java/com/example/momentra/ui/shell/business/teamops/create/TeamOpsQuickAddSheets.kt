@@ -12,6 +12,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,7 @@ import com.example.momentra.ui.shell.business.shared.BusinessQuickAddKind
 import com.example.momentra.ui.shell.business.shared.emoji
 import com.example.momentra.ui.shell.business.shared.teamOpsHubIconRes
 import com.example.momentra.ui.shell.business.teamops.components.*
+import com.example.momentra.ui.shell.shared.loadBusinessCurrencyContext
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
@@ -88,6 +90,11 @@ fun TeamOpsGapQuickAddSheet(
 ) {
     if (!visible) return
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var resolvedCurrency by remember(momentId) { mutableStateOf("INR") }
+    LaunchedEffect(momentId) {
+        if (momentId.isNullOrBlank()) return@LaunchedEffect
+        resolvedCurrency = loadBusinessCurrencyContext(momentId).primary
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -118,7 +125,7 @@ fun TeamOpsGapQuickAddSheet(
                 BusinessQuickAddKind.RECOGNITION ->
                     RecognitionForm(momentId, onDismiss, onSaved, repository)
                 BusinessQuickAddKind.APPROVAL ->
-                    ApprovalForm(momentId, onDismiss, onSaved, repository)
+                    ApprovalForm(momentId, resolvedCurrency, onDismiss, onSaved, repository)
                 BusinessQuickAddKind.MILESTONE ->
                     MilestoneForm(momentId, onDismiss, onSaved, repository)
                 BusinessQuickAddKind.RETROSPECTIVE ->
@@ -269,18 +276,15 @@ private fun DecisionForm(
             submitting = true
             error = null
             scope.launch {
-                val rationale = buildString {
-                    appendLine("Decided by: $decidedBy")
-                    appendLine("Date: $isoDate")
-                    appendLine("Impact: $impact")
-                    if (context.isNotBlank()) append(context.trim())
-                }
                 repository.createDecision(
                     momentId = id,
                     body = CreateDecisionBody(
                         title = decision.trim(),
                         decisionText = context.trim().ifBlank { decision.trim() },
-                        rationale = rationale,
+                        rationale = context.trim().ifBlank { null },
+                        decidedBy = decidedBy,
+                        decidedAt = isoDate,
+                        impactArea = impact,
                     ),
                     idempotencyKey = UUID.randomUUID().toString(),
                 ).fold(
@@ -637,6 +641,7 @@ private fun RecognitionForm(
 @Composable
 private fun ApprovalForm(
     momentId: String?,
+    currencyCode: String,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
     repository: BusinessSliceRepository,
@@ -684,17 +689,14 @@ private fun ApprovalForm(
             submitting = true
             error = null
             scope.launch {
-                val noteBody = buildList {
-                    add("Urgency: $urgency")
-                    if (note.isNotBlank()) add(note.trim())
-                }.joinToString(" · ")
                 repository.createApprovalRequest(
                     momentId = id,
                     body = CreateBusinessApprovalRequestBody(
                         title = title.trim(),
                         amount = amount,
-                        currencyCode = "INR",
-                        note = noteBody,
+                        currencyCode = currencyCode,
+                        note = note.trim().ifBlank { null },
+                        urgency = urgency.uppercase(),
                     ),
                     idempotencyKey = UUID.randomUUID().toString(),
                 ).fold(

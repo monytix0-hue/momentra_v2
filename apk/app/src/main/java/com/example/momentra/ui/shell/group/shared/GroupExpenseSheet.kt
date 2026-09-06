@@ -53,6 +53,10 @@ import com.example.momentra.R
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupExpenseSplitBuilder
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.data.repository.MomentCreateRepository
+import com.example.momentra.ui.shell.shared.MomentCurrencyResolver
+import com.example.momentra.ui.shell.shared.TravelCurrencyPickerRow
+import com.example.momentra.ui.shell.group.shared.TravelCurrencyCatalog
 import com.example.momentra.ui.shell.empty.group.GeBorder
 import com.example.momentra.ui.shell.empty.group.GeCard
 import com.example.momentra.ui.shell.empty.group.GeSecondary
@@ -113,21 +117,17 @@ fun GroupExpenseSheet(
     var splitValues by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var paidById by remember { mutableStateOf<String?>(null) }
     var currencyMenuOpen by remember { mutableStateOf(false) }
+    var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var paidByMenuOpen by remember { mutableStateOf(false) }
     var expenseDate by remember { mutableStateOf("") }
     var loadingParticipants by remember { mutableStateOf(true) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val currencyOptions = remember { listOf("INR", "USD", "EUR", "GBP") }
-    val currencySymbol = remember(currency) {
-        when (currency) {
-            "USD" -> "$"
-            "EUR" -> "€"
-            "GBP" -> "£"
-            else -> "₹"
-        }
+    val currencyOptions = remember(preferredCurrencyCodes) {
+        MomentCurrencyResolver.pickerOptions(preferredCurrencyCodes)
     }
+    val currencySymbol = remember(currency) { TravelCurrencyCatalog.symbol(currency) }
     val figmaSplitLabels = remember(supportsPooled) {
         buildList {
             add("Equal" to "EQUAL")
@@ -156,6 +156,14 @@ fun GroupExpenseSheet(
             },
             onFailure = { error = it.message },
         )
+        if (expenseId == null) {
+            val financeTotals = repository.getFinance(momentId).getOrNull()?.payload?.totals.orEmpty()
+            val prefill = MomentCreateRepository().getGroupSetupPrefill(momentId).getOrNull()
+            val finance = MomentCurrencyResolver.fromGroupTotals(financeTotals)
+            val budgets = MomentCurrencyResolver.fromGroupSetupBudgets(prefill?.budgets.orEmpty())
+            preferredCurrencyCodes = MomentCurrencyResolver.resolveMomentCurrencies(finance, budgets)
+            currency = MomentCurrencyResolver.resolveMomentCurrency(finance, budgets)
+        }
         if (expenseId != null) {
             repository.getGroupExpense(momentId, expenseId).fold(
                 onSuccess = { detail ->
@@ -313,7 +321,12 @@ fun GroupExpenseSheet(
                     ) {
                         currencyOptions.forEach { code ->
                             DropdownMenuItem(
-                                text = { Text(code, fontFamily = PlusJakartaSans) },
+                                text = {
+                                    Text(
+                                        TravelCurrencyCatalog.display(code),
+                                        fontFamily = PlusJakartaSans,
+                                    )
+                                },
                                 onClick = {
                                     currency = code
                                     currencyMenuOpen = false
@@ -878,10 +891,21 @@ fun GroupContributionSheet(
     val ctaEnd = if (isWedding) sheetAccent else TripSheetTokens.AccentEnd
     var amount by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("INR") }
+    var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var label by remember { mutableStateOf("") }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(momentId, visible) {
+        if (!visible) return@LaunchedEffect
+        val financeTotals = repository.getFinance(momentId).getOrNull()?.payload?.totals.orEmpty()
+        val prefill = MomentCreateRepository().getGroupSetupPrefill(momentId).getOrNull()
+        val finance = MomentCurrencyResolver.fromGroupTotals(financeTotals)
+        val budgets = MomentCurrencyResolver.fromGroupSetupBudgets(prefill?.budgets.orEmpty())
+        preferredCurrencyCodes = MomentCurrencyResolver.resolveMomentCurrencies(finance, budgets)
+        currency = MomentCurrencyResolver.resolveMomentCurrency(finance, budgets)
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -948,17 +972,13 @@ fun GroupContributionSheet(
                 accent = sheetAccent,
                 cornerRadius = fieldRadius,
             )
-            FieldLabel("Currency", color = sheetSecondary)
-            SheetField(
-                value = currency,
-                onValueChange = { currency = it.uppercase().take(3) },
-                placeholder = "INR",
-                card = sheetCard,
-                border = sheetBorder,
-                text = sheetText,
-                secondary = sheetSecondary,
-                accent = sheetAccent,
-                cornerRadius = fieldRadius,
+            TravelCurrencyPickerRow(
+                selectedCode = currency,
+                onSelected = { currency = it },
+                preferredCodes = preferredCurrencyCodes,
+                textColor = sheetText,
+                secondaryColor = sheetSecondary,
+                accentColor = sheetAccent,
             )
             FieldLabel("Label (optional)", color = sheetSecondary)
             SheetField(

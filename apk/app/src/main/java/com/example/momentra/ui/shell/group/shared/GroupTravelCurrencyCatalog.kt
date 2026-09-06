@@ -81,3 +81,6 @@ object GroupTravelCurrencyCatalog {
         return "${c.code} · ${c.symbol} · ${c.name}"
     }
 }
+
+/** Alias for use outside Group (Personal / Business / shared money sheets). */
+typealias TravelCurrencyCatalog = GroupTravelCurrencyCatalog

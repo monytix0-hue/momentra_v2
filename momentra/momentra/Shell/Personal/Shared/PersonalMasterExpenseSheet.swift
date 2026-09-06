@@ -9,6 +9,8 @@ struct PersonalMasterExpenseSheet: View {
 
     @State private var purpose = ""
     @State private var amount = ""
+    @State private var currencyCode = "INR"
+    @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var categoryCode = PersonalExpenseCategoryCatalog.masterCategories.first?.code ?? "FOOD"
     @State private var paidFrom = "Primary"
     @State private var selectedAccountId: String?
@@ -39,6 +41,11 @@ struct PersonalMasterExpenseSheet: View {
                 smartBanner
                 purposeField
                 amountField
+                TravelCurrencyPicker(
+                    selectedCode: $currencyCode,
+                    preferredCodes: preferredCurrencyCodes,
+                    accentColor: PersonalMasterExpenseTheme.accent
+                )
                 categoryGrid
                 paidFromSection
                 whenSection
@@ -56,6 +63,9 @@ struct PersonalMasterExpenseSheet: View {
             accounts = (try? await APIClient.shared.listFinancialAccounts()) ?? []
             selectedAccountId = accounts.first?.financialAccountId
             paidFrom = accounts.first?.accountName ?? "Primary"
+            let ctx = await MomentCurrencyContextLoader.loadPersonal(momentId: momentId)
+            currencyCode = ctx.primary
+            preferredCurrencyCodes = ctx.preferred
         }
         .sheet(isPresented: $showAccountPicker) {
             PersonalAccountPickerSheet(
@@ -601,7 +611,7 @@ struct PersonalMasterExpenseSheet: View {
                     draftKey: draftKey,
                     momentId: momentId,
                     amount: amount.trimmingCharacters(in: .whitespacesAndNewlines),
-                    currencyCode: "INR",
+                    currencyCode: currencyCode,
                     description: description,
                     merchantName: purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : purpose.trimmingCharacters(in: .whitespacesAndNewlines),
                     categoryCode: categoryCode,

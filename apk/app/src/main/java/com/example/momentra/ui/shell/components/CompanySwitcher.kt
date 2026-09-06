@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.domain.CompanySummary
 import com.example.momentra.ui.shell.maestro.MaestroIds
+import com.example.momentra.ui.shell.tour.TourTargetId
+import com.example.momentra.ui.shell.tour.tourTarget
 
 /**
  * Independent Business CompanySwitcher (Context → Company → Moment).
@@ -51,6 +53,7 @@ fun CompanySwitcher(
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color(0xFF1E293B))
                 .clickable { onToggle(!menuOpen) }
+                .tourTarget(TourTargetId.COMPANY_CHIP)
                 .testTag(MaestroIds.COMPANY_SWITCHER)
                 .semantics { contentDescription = "Switch company" }
                 .padding(horizontal = 12.dp, vertical = 6.dp),

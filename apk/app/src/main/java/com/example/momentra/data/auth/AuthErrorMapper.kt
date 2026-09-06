@@ -42,6 +42,12 @@ object AuthErrorMapper {
             upper.contains("ERROR_USER_NOT_FOUND") ->
                 "No account found for that email. Register first."
 
+            upper.contains("NO USER RECORD") ||
+                upper.contains("USER_DISABLED") ||
+                upper.contains("INVALID_USER") ||
+                upper.contains("USER MAY HAVE BEEN DELETED") ->
+                "This account is no longer valid. Sign in again or create a new account."
+
             upper.contains("ERROR_EMAIL_ALREADY_IN_USE") ->
                 "That email is already registered. Sign in instead."
 

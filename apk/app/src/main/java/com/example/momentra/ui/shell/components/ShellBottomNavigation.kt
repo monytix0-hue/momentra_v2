@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.domain.BottomDestination
 import com.example.momentra.ui.shell.maestro.MaestroIds
+import com.example.momentra.ui.shell.tour.TourTargetId
+import com.example.momentra.ui.shell.tour.tourTarget
 import com.example.momentra.ui.theme.ShellTokens
 
 /**
@@ -45,6 +47,7 @@ fun ShellBottomNavigation(
 ) {
     NavigationBar(
         modifier = modifier
+            .tourTarget(TourTargetId.BOTTOM_NAV)
             .testTag(MaestroIds.BOTTOM_NAV),
         containerColor = ShellTokens.BottomBarBackground,
         tonalElevation = 0.dp
@@ -72,7 +75,9 @@ fun ShellBottomNavigation(
                 unselectedTextColor = ShellTokens.BottomUnselected,
                 indicatorColor = Color.Transparent
             ),
-            modifier = Modifier.testTag(MaestroIds.BOTTOM_PULSE)
+            modifier = Modifier
+                .tourTarget(TourTargetId.TAB_PULSE)
+                .testTag(MaestroIds.BOTTOM_PULSE)
         )
         NavigationBarItem(
             selected = selected == BottomDestination.MOMENTS,
@@ -97,7 +102,9 @@ fun ShellBottomNavigation(
                 unselectedTextColor = ShellTokens.BottomUnselected,
                 indicatorColor = Color.Transparent
             ),
-            modifier = Modifier.testTag(MaestroIds.BOTTOM_MOMENTS)
+            modifier = Modifier
+                .tourTarget(TourTargetId.TAB_MOMENTS)
+                .testTag(MaestroIds.BOTTOM_MOMENTS)
         )
         NavigationBarItem(
             selected = selected == BottomDestination.CREATE,
@@ -130,7 +137,9 @@ fun ShellBottomNavigation(
                 unselectedTextColor = ShellTokens.BottomUnselected,
                 indicatorColor = Color.Transparent
             ),
-            modifier = Modifier.testTag(MaestroIds.BOTTOM_QUICKADD)
+            modifier = Modifier
+                .tourTarget(TourTargetId.BOTTOM_CREATE)
+                .testTag(MaestroIds.BOTTOM_QUICKADD)
         )
         NavigationBarItem(
             selected = selected == BottomDestination.LIFE,
@@ -155,7 +164,9 @@ fun ShellBottomNavigation(
                 unselectedTextColor = ShellTokens.BottomUnselected,
                 indicatorColor = Color.Transparent
             ),
-            modifier = Modifier.testTag(MaestroIds.BOTTOM_LIFE)
+            modifier = Modifier
+                .tourTarget(TourTargetId.TAB_LIFE)
+                .testTag(MaestroIds.BOTTOM_LIFE)
         )
         NavigationBarItem(
             selected = selected == BottomDestination.MEMORY,
@@ -180,7 +191,9 @@ fun ShellBottomNavigation(
                 unselectedTextColor = ShellTokens.BottomUnselected,
                 indicatorColor = Color.Transparent
             ),
-            modifier = Modifier.testTag(MaestroIds.BOTTOM_MEMORY)
+            modifier = Modifier
+                .tourTarget(TourTargetId.TAB_MEMORY)
+                .testTag(MaestroIds.BOTTOM_MEMORY)
         )
     }
 }

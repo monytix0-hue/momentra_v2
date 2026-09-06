@@ -21,6 +21,7 @@ struct PersonalFutureSetupView: View {
         ["building", "today", "primaryValue", "valueGrowth", "valueSecurity"],
         ["futureFeel", "focusHorizon", "progressRhythm", "mainFriction", "supportStyle"],
         ["momentumDriver", "habit2", "remindWeekly", "learningCheckIn", "focusTimeCheckIn", "reviewCadence"],
+        ["currency", "multiCurrency", "extraCurrencies"],
     ]
 
     private var statusLine: String {
@@ -202,6 +203,10 @@ struct PersonalFutureSetupView: View {
                         )
                     }
                 }
+
+                PersonalSetupDiamondDivider(accent: accent)
+
+                PersonalCurrencyPrefsBlock(selections: $selections, accent: accent)
 
                 PersonalSetupDiamondDivider(accent: accent)
 

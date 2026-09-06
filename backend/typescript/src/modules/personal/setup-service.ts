@@ -56,6 +56,9 @@ export const PERSONAL_SETUP_CATALOG: PersonalSetupCatalogItem[] = [
       recoveryCheckIn: 'Enabled',
       reviewCadence: 'Every week',
       profile: 'STRUCTURE SEEKER',
+      currency: 'INR',
+      multiCurrency: false,
+      extraCurrencies: [],
     },
   },
   {
@@ -84,6 +87,9 @@ export const PERSONAL_SETUP_CATALOG: PersonalSetupCatalogItem[] = [
       focusTimeCheckIn: 'Enabled',
       reviewCadence: 'Every week',
       profile: 'Future Builder',
+      currency: 'INR',
+      multiCurrency: false,
+      extraCurrencies: [],
     },
   },
   {
@@ -113,6 +119,9 @@ export const PERSONAL_SETUP_CATALOG: PersonalSetupCatalogItem[] = [
       balanceCheckIn: 'Enabled',
       reviewCadence: 'Every week',
       profile: 'Lifestyle Curator',
+      currency: 'INR',
+      multiCurrency: false,
+      extraCurrencies: [],
     },
   },
   {
@@ -142,6 +151,9 @@ export const PERSONAL_SETUP_CATALOG: PersonalSetupCatalogItem[] = [
       reachOutReminder: 'Enabled',
       reviewCadence: 'Every week',
       profile: 'Connection Builder',
+      currency: 'INR',
+      multiCurrency: false,
+      extraCurrencies: [],
     },
   },
 ];
@@ -347,7 +359,8 @@ export async function patchPersonalSetup(
   let nextPreferences: Record<string, unknown> = row.preferences ?? {};
   if (body.preferences !== undefined) {
     const allowed = new Set(Object.keys(catalog.defaultPreferences));
-    const booleanKeys = new Set(['reflectWeekly', 'remindWeekly']);
+    const booleanKeys = new Set(['reflectWeekly', 'remindWeekly', 'multiCurrency']);
+    const arrayKeys = new Set(['extraCurrencies']);
     for (const key of Object.keys(body.preferences)) {
       if (!allowed.has(key)) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, `Unknown preference key: ${key}`, 400);
@@ -356,6 +369,10 @@ export async function patchPersonalSetup(
       if (booleanKeys.has(key)) {
         if (typeof value !== 'boolean') {
           throw new AppError(ErrorCode.VALIDATION_FAILED, `preferences.${key} must be a boolean.`, 400);
+        }
+      } else if (arrayKeys.has(key)) {
+        if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
+          throw new AppError(ErrorCode.VALIDATION_FAILED, `preferences.${key} must be a string array.`, 400);
         }
       } else if (typeof value !== 'string') {
         throw new AppError(ErrorCode.VALIDATION_FAILED, `preferences.${key} must be a string.`, 400);

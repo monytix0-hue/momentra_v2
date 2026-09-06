@@ -28,10 +28,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -46,7 +46,10 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.domain.CreateMomentOutcome
 import com.example.momentra.ui.create.MomentCreateViewModel
 import com.example.momentra.ui.setup.SetupDropdownField
+import com.example.momentra.ui.shell.group.shared.TravelCurrencyCatalog
 import com.example.momentra.ui.shell.maestro.MaestroIds
+import com.example.momentra.ui.shell.tour.TourTargetId
+import com.example.momentra.ui.shell.tour.tourTarget
 import com.example.momentra.ui.theme.PlusJakartaSans
 
 object PersonalSetupLongFormTokens {
@@ -522,6 +525,7 @@ fun PersonalSetupActivateFooter(
                 .height(56.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .background(ctaBrush)
+                .tourTarget(TourTargetId.SETUP_ACTIVATE)
                 .clickable(enabled = !submitting, onClick = onActivate)
                 .semantics {
                     role = Role.Button
@@ -544,6 +548,7 @@ fun PersonalSetupActivateFooter(
                 .height(48.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .border(1.dp, PersonalSetupLongFormTokens.Border, RoundedCornerShape(14.dp))
+                .tourTarget(TourTargetId.SETUP_DRAFT)
                 .clickable(enabled = !submitting, onClick = onSaveDraft)
                 .semantics {
                     role = Role.Button
@@ -763,5 +768,40 @@ fun PersonalSetupToggleRow(
                 checkedTrackColor = accent,
             ),
         )
+    }
+}
+
+@Composable
+fun PersonalCurrencyPrefsBlock(
+    selections: SnapshotStateMap<String, Any>,
+    accent: Color,
+) {
+    val multiOn = selections["multiCurrency"] as? Boolean == true
+    PersonalSetupSectionCard(number = "₹", title = "Currency Preferences", accent = accent) {
+        PersonalSetupInlineDropdown(
+            label = "Primary currency",
+            hint = "Default currency for tracking",
+            key = "currency",
+            options = TravelCurrencyCatalog.codes,
+            selections = selections,
+            accent = accent,
+        )
+        PersonalSetupToggleRow(
+            title = "Multi-currency",
+            subtitle = "Track amounts in additional currencies",
+            checked = multiOn,
+            onCheckedChange = { selections["multiCurrency"] = it },
+            accent = accent,
+        )
+        if (multiOn) {
+            PersonalSetupMultiSelect(
+                label = "Extra currencies",
+                hint = "Select additional currencies to track",
+                key = "extraCurrencies",
+                options = TravelCurrencyCatalog.codes,
+                selections = selections,
+                accent = accent,
+            )
+        }
     }
 }

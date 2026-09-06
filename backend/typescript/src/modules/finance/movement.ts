@@ -4,6 +4,7 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGovernanceAllowed } from '../governance/resolver';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
+import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from './travel-currencies';
 import { parseMoney } from './service';
 import { resolveUserAccount } from './financial-account';
 
@@ -11,7 +12,7 @@ export const createMovementSchema = z
   .object({
     movementType: z.enum(['TRANSFER', 'SAVINGS_DEPOSIT']),
     amount: z.string().regex(/^\d+(\.\d{1,4})?$/),
-    currencyCode: z.string().length(3).toUpperCase(),
+    currencyCode: travelCurrencyCodeSchema,
     accountId: z.string().uuid().optional(),
     goalId: z.string().uuid().optional(),
     description: z.string().max(2000).optional(),

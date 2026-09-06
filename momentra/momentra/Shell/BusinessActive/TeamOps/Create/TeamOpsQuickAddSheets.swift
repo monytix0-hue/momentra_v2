@@ -515,6 +515,7 @@ private struct TeamOpsApprovalForm: View {
     @State private var note = ""
     @State private var submitting = false
     @State private var error: String?
+    @State private var resolvedCurrency = "INR"
 
     private let accent = TeamOpsSheetAccent.indigo
     private let urgencies = ["Normal", "High", "Urgent"]
@@ -551,6 +552,10 @@ private struct TeamOpsApprovalForm: View {
                 accent: accent
             ) { Task { await submit() } }
         }
+        .task(id: momentId) {
+            guard let momentId else { return }
+            resolvedCurrency = await MomentCurrencyContextLoader.loadBusiness(momentId: momentId).primary
+        }
     }
 
     private func submit() async {
@@ -567,7 +572,7 @@ private struct TeamOpsApprovalForm: View {
                 momentId: momentId,
                 title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                 amount: amount,
-                currencyCode: "INR",
+                currencyCode: resolvedCurrency,
                 note: noteParts.joined(separator: " · ")
             )
             onSaved(); onClose()
