@@ -33,6 +33,8 @@ export const createGroupExpenseSchema = z
       )
       .default([]),
     asDraft: z.boolean().optional(),
+    /** Client Quick Add flow id; stamped onto expense_added for KPI_036 join. */
+    quickAddFlowId: z.string().uuid().optional(),
   })
   .strict()
   .superRefine((val, ctx) => {
@@ -460,6 +462,7 @@ export async function createGroupExpense(
         currency: body.currencyCode,
         expense_category: body.splitStrategy,
         participant_count_affected: shareRows.length,
+        ...(body.quickAddFlowId ? { quick_add_flow_id: body.quickAddFlowId } : {}),
       },
     });
   }

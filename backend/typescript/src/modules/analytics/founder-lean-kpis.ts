@@ -432,18 +432,6 @@ async function materializeSupportingKpis(
 ): Promise<void> {
   // KPI_015 — Moments per Active User (month)
   {
-    const r = await client.query<{ pairs: string; users: string }>(
-      `SELECT
-         COUNT(DISTINCT (moment_id::text || ':' || creator_user_id::text))::text AS pairs,
-         COUNT(DISTINCT creator_user_id)::text AS users
-       FROM analytics_core.moment_daily
-       WHERE activity_date >= $1::date
-         AND activity_date < $2::date
-         AND meaningfully_active_flag = TRUE
-         AND creator_user_id IS NOT NULL`,
-      [isoDate(monthStart), isoDate(monthEnd)]
-    );
-    // Better: count distinct user-moment from meaningful activity via user_daily + moment activity
     const u = await client.query<{ pairs: string; users: string }>(
       `WITH active_users AS (
          SELECT DISTINCT user_id
@@ -453,21 +441,42 @@ async function materializeSupportingKpis(
            AND meaningfully_active_flag = TRUE
        ),
        pairs AS (
-         SELECT COUNT(DISTINCT (md.moment_id, ul.user_id))::text AS n
-         FROM analytics_core.moment_daily md
-         JOIN analytics_core.user_lifecycle_fact ul ON ul.user_id = md.creator_user_id
-         JOIN active_users au ON au.user_id = ul.user_id
-         WHERE md.activity_date >= $1::date
-           AND md.activity_date < $2::date
-           AND md.meaningfully_active_flag = TRUE
+         SELECT DISTINCT e.moment_id, e.user_id
+         FROM analytics_raw.events e
+         LEFT JOIN analytics_core.activity_type_registry a
+           ON a.activity_type = e.properties->>'activity_type'
+          AND a.is_meaningful
+          AND a.active_from <= e.occurred_at
+          AND (a.active_to IS NULL OR a.active_to > e.occurred_at)
+         WHERE e.is_valid
+           AND e.user_id IS NOT NULL
+           AND e.moment_id IS NOT NULL
+           AND e.occurred_at >= $1::timestamptz
+           AND e.occurred_at < $2::timestamptz
+           AND (
+             e.event_name IN (
+               'moment_created',
+               'participant_invited',
+               'participant_joined',
+               'expense_added',
+               'contribution_recorded',
+               'split_created',
+               'memory_created',
+               'moment_completed'
+             )
+             OR (
+               e.event_name = 'moment_activity_completed'
+               AND a.activity_type IS NOT NULL
+             )
+           )
        )
        SELECT
-         (SELECT n FROM pairs) AS pairs,
+         (SELECT COUNT(*)::text FROM pairs) AS pairs,
          (SELECT COUNT(*)::text FROM active_users) AS users`,
-      [isoDate(monthStart), isoDate(monthEnd)]
+      [monthStart.toISOString(), monthEnd.toISOString()]
     );
-    const num = Number(u.rows[0]?.pairs ?? r.rows[0]?.pairs ?? 0);
-    const den = Number(u.rows[0]?.users ?? r.rows[0]?.users ?? 0);
+    const num = Number(u.rows[0]?.pairs ?? 0);
+    const den = Number(u.rows[0]?.users ?? 0);
     await upsertUndomainKpi(client, {
       kpiCode: 'KPI_015_MOMENTS_PER_ACTIVE_USER',
       periodType: 'month',
@@ -500,6 +509,46 @@ async function materializeSupportingKpis(
     const c = Number(created.rows[0]?.n ?? 0);
     await upsertUndomainKpi(client, {
       kpiCode: 'KPI_009_MOMENT_CREATION_COMPLETION_RATE',
+      periodType: 'day',
+      periodStart: dayStartStr,
+      periodEnd: dayEndStr,
+      numerator: c,
+      denominator: s,
+      kpiValue: s > 0 ? (c * 100) / s : null,
+      sampleSize: s,
+    });
+  }
+
+  // KPI_036 — Quick Add Completion Rate (join started→outcome on quick_add_flow_id)
+  {
+    const r = await client.query<{ started: string; completed: string }>(
+      `WITH s AS (
+         SELECT DISTINCT properties->>'quick_add_flow_id' AS flow_id
+         FROM analytics_raw.events
+         WHERE event_name = 'quick_add_started'
+           AND is_valid
+           AND properties->>'quick_add_flow_id' IS NOT NULL
+           AND occurred_at >= $1::date
+           AND occurred_at < $2::date
+       ),
+       c AS (
+         SELECT DISTINCT properties->>'quick_add_flow_id' AS flow_id
+         FROM analytics_raw.events
+         WHERE is_valid
+           AND properties->>'quick_add_flow_id' IS NOT NULL
+           AND event_name IN ('expense_added', 'contribution_recorded', 'moment_activity_completed')
+       )
+       SELECT
+         COUNT(s.flow_id)::text AS started,
+         COUNT(c.flow_id)::text AS completed
+       FROM s
+       LEFT JOIN c USING (flow_id)`,
+      [dayStartStr, dayEndStr]
+    );
+    const s = Number(r.rows[0]?.started ?? 0);
+    const c = Number(r.rows[0]?.completed ?? 0);
+    await upsertUndomainKpi(client, {
+      kpiCode: 'KPI_036_QUICK_ADD_COMPLETION_RATE',
       periodType: 'day',
       periodStart: dayStartStr,
       periodEnd: dayEndStr,

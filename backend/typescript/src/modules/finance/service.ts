@@ -44,6 +44,8 @@ export const createExpenseSchema = z
       .nullish(),
     recurringScheduleId: z.string().uuid().optional(),
     asDraft: z.boolean().optional(),
+    /** Client Quick Add flow id; stamped onto expense_added when lean emit is wired. */
+    quickAddFlowId: z.string().uuid().optional(),
   })
   .strict();
 

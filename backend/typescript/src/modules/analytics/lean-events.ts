@@ -24,17 +24,35 @@ export interface LeanBusinessEventInput {
   ingestionSource?: string;
 }
 
-const MEANINGFUL = new Set([
+const DEDICATED_MEANINGFUL = new Set([
   'moment_created',
   'participant_invited',
   'participant_joined',
-  'moment_activity_completed',
   'expense_added',
   'contribution_recorded',
   'split_created',
   'memory_created',
   'moment_completed',
 ]);
+
+async function isApprovedMeaningfulActivity(
+  client: PoolClient,
+  activityType: unknown,
+  occurredAt: Date
+): Promise<boolean> {
+  if (typeof activityType !== 'string' || !activityType) return false;
+  const r = await client.query<{ ok: boolean }>(
+    `SELECT TRUE AS ok
+     FROM analytics_core.activity_type_registry
+     WHERE activity_type = $1
+       AND is_meaningful = TRUE
+       AND active_from <= $2::timestamptz
+       AND (active_to IS NULL OR active_to > $2::timestamptz)
+     LIMIT 1`,
+    [activityType, occurredAt.toISOString()]
+  );
+  return Boolean(r.rows[0]?.ok);
+}
 
 /**
  * Non-blocking Lean product analytics write.
@@ -218,7 +236,7 @@ async function applyCoreFactUpserts(
     await markParticipantMeaningful(client, momentId, userId, occurredAt);
   }
 
-  if (MEANINGFUL.has(eventName) && userId) {
+  if (DEDICATED_MEANINGFUL.has(eventName) && userId) {
     await client.query(
       `INSERT INTO analytics_core.user_daily (
          activity_date, user_id, meaningful_action_count, active_flag, meaningfully_active_flag,
@@ -243,6 +261,40 @@ async function applyCoreFactUpserts(
          updated_at = now()`,
       [occurredAt.toISOString(), userId, eventName]
     );
+  }
+
+  if (eventName === 'moment_activity_completed' && userId) {
+    const approved = await isApprovedMeaningfulActivity(client, properties.activity_type, occurredAt);
+    if (approved) {
+      await client.query(
+        `INSERT INTO analytics_core.user_daily (
+           activity_date, user_id, meaningful_action_count, active_flag, meaningfully_active_flag
+         ) VALUES (
+           ($1::timestamptz AT TIME ZONE 'Asia/Kolkata')::date, $2, 1, TRUE, TRUE
+         )
+         ON CONFLICT (activity_date, user_id) DO UPDATE SET
+           meaningful_action_count = analytics_core.user_daily.meaningful_action_count + 1,
+           meaningfully_active_flag = TRUE,
+           active_flag = TRUE,
+           updated_at = now()`,
+        [occurredAt.toISOString(), userId]
+      );
+      if (momentId) {
+        await markParticipantMeaningful(client, momentId, userId, occurredAt);
+        await client.query(
+          `INSERT INTO analytics_core.moment_daily (
+             activity_date, moment_id, moment_domain, moment_type, creator_user_id,
+             meaningful_action_count, active_flag, meaningfully_active_flag
+           ) VALUES (($1::timestamptz AT TIME ZONE 'Asia/Kolkata')::date, $2, COALESCE($3,'group'), $4, $5,
+                     1, TRUE, TRUE)
+           ON CONFLICT (activity_date, moment_id) DO UPDATE SET
+             meaningful_action_count = analytics_core.moment_daily.meaningful_action_count + 1,
+             meaningfully_active_flag = TRUE,
+             updated_at = now()`,
+          [occurredAt.toISOString(), momentId, momentDomain, momentType ?? null, userId]
+        );
+      }
+    }
   }
 }
 

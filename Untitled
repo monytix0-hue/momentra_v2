@@ -1,17 +1,1613 @@
-.\.maestro\run-qa-android.ps1 -Class smoke          # physical preferred
-.\.maestro\run-qa-android.ps1 -Class smoke -AllowEmulator
 
+MOMENTRA
+Product AnalyticsImplementation Pack
+Lean Analytics V1  •  KPI Framework  •  Event Contract  •  PostgreSQL  •  Dashboards  •  QA
+Purpose
+A developer-ready implementation specification for measuring whether users understand Momentra, actively operate real Moments, complete them, return for another Moment, and generate new creators through participation.
 
-./.maestro/run-qa-ios.sh smoke   # Mac/CI only
+Pack
+Scope
+Business analytics story
+Why Momentra measures Moments, not just sessions and clicks
+42 KPI dictionary
+Definitions, formulas, audiences, priorities and decision mapping
+28 canonical events
+Authority, properties, meaningful-action classification and instrumentation
+PostgreSQL architecture
+Raw → Core → Mart data model with 10 migration scripts V059–V068
+KPI SQL
+Reference queries for the 42 Lean KPIs
+Jobs & views
+Incremental transformation jobs and dashboard-serving views
+Instrumentation & QA
+Frontend/backend checklist, data-quality tests and release gates
 
+Architecture position: follows the existing Momentra operational stack (V001–V058); lean analytics ships as V059–V068.
 
-# Fixtures first (same as Android)
-cd backend/typescript
-QA_FIXTURES_ENABLED=true ALLOW_DEV_AUTH=1 npm run qa:prepare-fixtures
+Contents
+1. Analytics Pack Story & Design Principles
+2. Lean KPI Framework — 42 KPIs
+3. Dashboard & Decision Mapping
+4. Lean Event Taxonomy — 28 Events
+5. Event Tracking Contract & Property Dictionary
+6. SQL/Data Model & Storage Architecture
+7. Migration SQL V059–V068
+8. Event Registry & Activity Registry Seeds
+9. Indexes, Views & Processing Jobs
+10. KPI SQL Reference — 42 KPIs
+11. Frontend & Backend Instrumentation Checklist
+12. QA, Data Quality & Production Readiness
+13. Deployment Sequence & Beta-Day Checklist
 
-# Smoke / critical
-./.maestro/run-qa-ios.sh smoke
-./.maestro/run-qa-ios.sh critical
+1. Analytics Pack Story & Design Principles
+Momentra should not be judged only by downloads, app opens, or time spent. Its product thesis is that a Moment is a persistent entity that is created, configured, participated in, executed, completed, remembered, and repeated. The analytics system therefore measures both the user and the Moment lifecycle.
+The measurement question
+Are users adopting Moments as a recurring way to coordinate life and money — and does participation in one Moment create the next creator?
 
-# Master certification
-./.maestro/run-qa-ios.sh cert
+Layer
+Question
+Signature signal
+Acquisition
+Are users entering Momentra?
+New Registered Users
+Activation
+Do users understand the product?
+User Activation Rate
+Moment Adoption
+Are real Moments alive?
+Weekly Active Moments (WAM)
+Outcome
+Do Moments reach a valid outcome?
+Moment Completion Rate
+Repeat
+Do users return for another Moment?
+Second Moment Rate
+Network
+Does participation create new creators?
+Participant → Creator Conversion
+Product Quality
+Where does the experience fail?
+Flow abandonment / failure / crash metrics
+
+1.1 Analytics architecture principles
+Moment-first and user-aware: every important behavior should be analyzable from both the user and Moment perspective.
+Meaningful actions are more important than clicks. Screen views diagnose UX; they do not prove product value.
+Backend owns persisted business truth; frontend owns views, attempts and navigation; system/state engine owns lifecycle transitions.
+Analytics is non-blocking. A telemetry failure must never cause Moment creation, joining, contribution or completion to fail.
+Raw events are append-oriented behavioral history. KPIs are derived centrally and versioned.
+Personal, Group and Business remain dimensions of the same analytics model, not separate event universes.
+No raw PII or user free text is written to standard analytics payloads.
+Every rate stores numerator and denominator so sample size is always visible.
+1.2 End-to-end analytical story
+Acquisition / Invite        ↓user_registered        ↓create OR join Moment        ↓qualifying meaningful activity        ↓User Activated        ↓Moment Activated / WAM        ↓Moment Completed        ↓Second Moment        ↓Participant becomes Creator        ↓New Moment + New Participants
+
+2. Lean KPI Framework — 42 KPIs
+The Lean Analytics V1 intentionally limits the active measurement set to 42 KPIs. The original larger catalogue remains a future reference, not an implementation requirement.
+North Star & signature KPIs
+North Star: Weekly Active Moments (WAM). PMF signal: Second Moment Rate. Network signal: Participant → Creator Conversion. Onboarding signal: User Activation Rate. Outcome signal: Moment Completion Rate.
+
+Acquisition
+#
+KPI
+Definition
+Formula
+Audience
+Priority
+1
+New Registered Users
+Count of distinct users successfully registered in the reporting period.
+Count(distinct user_id with registered_at in period)
+Both
+P0
+2
+User Growth Rate
+Growth in new registrations versus the previous comparable period.
+(Current new users - Previous new users) / Previous new users
+VC
+P0
+3
+Acquisition Source Mix
+Distribution of new registered users by acquisition source.
+New users by source / all new users
+Both
+P0
+4
+Invite-Sourced Users
+New registered users attributable to Moment invitations.
+Count(users with invite_sourced_flag=true)
+Both
+P0
+5
+Activated Acquisition Rate
+Share of eligible new users who activate within 14 days.
+Activated eligible new users / eligible new registered users
+Both
+P0
+
+Activation
+#
+KPI
+Definition
+Formula
+Audience
+Priority
+6
+User Activation Rate
+User creates or joins a Moment and performs a subsequent qualifying Moment activity within 14 days of registration.
+Activated users / eligible registered users
+Both
+P0
+7
+Median Time to First Moment
+Median elapsed time from registration to first Moment created.
+median(first_moment_created_at - registered_at)
+Product
+P0
+8
+Median Time to First Meaningful Action
+Median elapsed time from registration to first qualifying meaningful activity.
+median(first_meaningful_action_at - registered_at)
+Product
+P0
+9
+Moment Creation Completion Rate
+Share of creation-flow instances that successfully persist a Moment.
+created creation_flow_id / started creation_flow_id
+Product
+P0
+10
+Moment Creation Drop-Off
+Loss between consecutive creation steps.
+1 - step_n_flows / step_n_minus_1_flows
+Product
+P0
+11
+Join Activation Rate
+Joined invited users who perform a qualifying Moment activity within 7 days.
+activated joined invitees / eligible joined invitees
+Both
+P1
+
+Moment Adoption
+#
+KPI
+Definition
+Formula
+Audience
+Priority
+12
+Moments Created
+Distinct Moments successfully persisted in period.
+count(distinct moment_id created)
+Both
+P0
+13
+Weekly Active Moments (WAM)
+Distinct Moments with at least one post-creation qualifying activity in the week. Creation/view alone does not qualify.
+count(distinct meaningfully active moment_id)
+Both
+P0
+14
+Monthly Active Moments (MAM)
+Distinct Moments with at least one qualifying activity in the calendar month.
+count(distinct meaningfully active moment_id)
+Both
+P0
+15
+Moments per Active User
+Average distinct meaningfully active Moment-user relationships per meaningfully active user.
+active moment-user relationships / meaningfully active users
+Both
+P0
+16
+Moment Activation Rate
+Created Moments reaching the backend-defined activation state within the V1 7-day maturity window.
+activated eligible Moments / eligible created Moments
+Both
+P0
+17
+Moment Completion Rate
+Mature activated Moments reaching valid completion; V1 maturity window 30 days.
+completed mature activated / mature activated
+Both
+P0
+18
+Meaningful Actions per Active Moment
+Depth of orchestration inside active Moments.
+qualifying activity events / active Moments
+Both
+P0
+19
+Meaningful Actions per Active User
+Average qualifying actions performed by meaningfully active users.
+qualifying actions / meaningfully active users
+Product
+P1
+20
+Average Participants per Group Moment
+Average active participant relationships per eligible Group Moment.
+active participants / Group Moments
+Both
+P0
+21
+Moment Revisit Rate
+Eligible Moments viewed in a later session after first qualifying view.
+revisited Moments / eligible viewed Moments
+Product
+P1
+22
+Moment Type / Category Mix
+Distribution of created Moments by domain/category/type.
+created Moments of segment / all created Moments
+Both
+P0
+
+Retention
+#
+KPI
+Definition
+Formula
+Audience
+Priority
+23
+D7 Meaningful Retention
+Activated cohort users with meaningful activity during D7–D9.
+D7-D9 retained / eligible activated cohort
+Both
+P0
+24
+D30 Meaningful Retention
+Activated cohort users with meaningful activity during D30–D36.
+D30-D36 retained / eligible activated cohort
+Both
+P0
+
+Repeat
+#
+KPI
+Definition
+Formula
+Audience
+Priority
+25
+Second Moment Rate
+First-time creators who create a second Moment within 60 days.
+2nd Moment creators / mature first-time creator cohort
+Both
+P0
+26
+Repeat Moment Creator Rate
+Current eligible creator population with at least two created Moments.
+creators with >=2 Moments / eligible creators
+Both
+P0
+27
+Third+ Moment Creator Rate
+First-time creators reaching at least three Moments within 90 days.
+3+ creators / mature first-time creator cohort
+VC
+P1
+28
+Cross-Category Adoption Rate
+Repeat creators whose created Moments span at least two categories.
+repeat creators across >=2 categories / repeat creators
+Both
+P1
+29
+Moment Abandonment Rate
+Mature created Moments that never activate and have no qualifying activity after 14 days; cancellation excluded.
+abandoned / eligible created Moments
+Product
+P1
+
+Virality
+#
+KPI
+Definition
+Formula
+Audience
+Priority
+30
+Invitations per Group Moment
+Valid invitations issued per eligible Group Moment.
+distinct invite_id / eligible Group Moments
+Both
+P0
+31
+Invite Open Rate
+Unique issued invitations that are opened.
+unique invite opens / valid invites issued
+Product
+P1
+32
+Invite → Join Conversion
+Valid invitations resulting in successful participant joins within 14 days.
+joined invite IDs / valid invites issued
+Both
+P0
+33
+Invited User Activation Rate
+Joined invitees who perform qualifying activity within 7 days.
+activated invited users / eligible joined invited users
+Both
+P0
+34
+Participant → Creator Conversion
+Previously non-creator participants who create their first Moment within 60 days after participation.
+converted participants / mature eligible participants
+Both
+P0
+35
+Viral Coefficient
+Approximate new creators generated through participation per existing creator.
+invitees per creator × join rate × participant→creator rate
+VC
+P1
+
+Product Experience
+#
+KPI
+Definition
+Formula
+Audience
+Priority
+36
+Quick Add Completion Rate
+Quick Add flow instances reaching a successful business outcome.
+completed quick-add flows / started quick-add flows
+Product
+P0
+37
+Feature Adoption Rate
+Eligible active users using a specified feature at least once.
+feature users / eligible active users
+Product
+P0
+38
+Critical Flow Abandonment Rate
+Critical flow instances started but not successfully completed.
+abandoned flows / started flows
+Product
+P0
+39
+Median Session Duration
+Median elapsed time from session start to last qualifying session event.
+median(last_activity - session_start)
+Product
+P1
+40
+Sessions per Active User
+Average distinct sessions per active user in period.
+sessions / active users
+Product
+P1
+41
+Critical Operation Failure Rate
+Failed critical operations divided by total attempts/successes+failures for that operation.
+failures / operation attempts
+Product
+P0
+42
+Crash-Free Session Rate
+Sessions without an application crash.
+non-crash sessions / total sessions
+Product
+P0
+
+3. Dashboard & Decision Mapping
+Dashboard
+Purpose
+Primary content
+Founder
+Is Momentra working?
+12 headline KPIs + 4 trend/cohort views
+Product
+What should we improve?
+Onboarding, Moment health, feature health, network and reliability diagnostics
+VC
+Is Momentra demonstrating traction/PMF?
+9 selected metrics with mature cohorts, trends and sample sizes
+
+3.1 Founder dashboard — 12 cards
+#
+Card
+1
+New Registered Users
+2
+User Activation Rate
+3
+Moments Created
+4
+Weekly Active Moments
+5
+Monthly Active Moments
+6
+Moment Activation Rate
+7
+Moment Completion Rate
+8
+Meaningful Actions / Active Moment
+9
+D30 Meaningful Retention
+10
+Second Moment Rate
+11
+Invite → Join Conversion
+12
+Participant → Creator Conversion
+
+3.2 Product decision logic
+Signal
+Likely interpretation
+Action
+Registrations ↑, Activation ↓
+Acquisition quality/onboarding deteriorating
+Inspect source-level activation and onboarding/creation funnel
+Creation completion ↑, Moment activation ↓
+Users can create but do not know what to do next
+Improve post-create next action, prompts and collaboration setup
+Activation ↑, Completion ↓
+Moments become active but execution fails
+Inspect lifecycle steps and high-failure Moment types
+Completion ↑, Second Moment ↓
+One-time utility; weak repeat discovery
+Improve post-completion journey and cross-Moment discovery
+Group participation ↑, Participant→Creator ↓
+Participants use Momentra but do not become creators
+Improve participant onboarding and Create discovery
+WAM ↑, actions/Moment ↓
+Quantity rising but depth weakening
+Inspect Moment types, user quality and feature adoption
+
+3.3 VC view — 9 metrics
+Activated Users
+MAU (conventional reference metric)
+Weekly / Monthly Active Moments
+Moments per Active User
+Moment Activation Rate
+Moment Completion Rate
+D30 Meaningful Retention
+Second Moment Rate
+Participant → Creator Conversion
+Investor reporting rule
+Use the same production KPI definitions as internal dashboards. Never change denominator or maturity window to improve presentation. Always retain numerator, denominator, cohort window and formula version.
+
+4. Lean Event Taxonomy — 28 Events
+ID
+Event
+Authority
+Priority
+Meaningful
+Purpose
+E01
+acquisition_touch_recorded
+Client/System
+P0
+No
+Acquisition attribution touch
+E02
+user_registered
+Backend/Auth
+P0
+No
+Account successfully created
+E03
+user_onboarding_completed
+Backend
+P0
+No
+Official onboarding completion persisted
+E04
+session_started
+Client
+P0
+No
+New analytics session
+E05
+screen_viewed
+Client
+P0
+No
+Meaningful screen becomes visible
+E06
+critical_flow_started
+Client
+P0
+No
+Designated critical flow begins
+E07
+moment_creation_started
+Client
+P0
+No
+Moment creation workflow begins
+E08
+moment_type_selected
+Client
+P0
+No
+Valid Moment type selection
+E09
+moment_creation_step_completed
+Client
+P0
+No
+Defined creation step passed
+E10
+moment_created
+Backend
+P0
+Yes
+Moment successfully persisted
+E11
+moment_viewed
+Client
+P0
+No
+Moment workspace/detail viewed
+E12
+moment_activated
+Backend/System
+P0
+No*
+Moment reaches activation state
+E13
+moment_completed
+Backend
+P0
+Yes
+Moment reaches valid completed state
+E14
+moment_cancelled
+Backend
+P0
+No
+Moment explicitly cancelled
+E15
+participant_invited
+Backend
+P0
+Yes
+Valid invite issued
+E16
+invite_opened
+Client/System
+P0
+No
+Invite deep-link/token opened
+E17
+participant_joined
+Backend
+P0
+Yes
+Participant relationship becomes active
+E18
+participant_exited
+Backend
+P1
+No
+Participant left/removed/declined
+E19
+moment_activity_completed
+Backend
+P0
+Yes**
+Generic meaningful Moment activity completed
+E20
+quick_add_started
+Client
+P0
+No
+Quick Add flow started
+E21
+expense_added
+Backend
+P0
+Yes
+Expense persisted
+E22
+contribution_recorded
+Backend
+P0
+Yes
+Contribution persisted
+E23
+split_created
+Backend
+P1
+Yes
+Split persisted
+E24
+memory_created
+Backend
+P1
+Yes
+Memory persisted
+E25
+moment_reopened
+Backend
+P1
+No
+Operational lifecycle reopened
+E26
+critical_operation_failed
+System
+P0
+No
+Critical operation failed
+E27
+app_crashed
+Observability
+P0
+No
+App crash linked to session
+E28
+critical_flow_completed
+Client/Backend
+P0
+No
+Critical flow completed successfully
+
+* moment_activated is a lifecycle event and does not add another meaningful-action count. ** moment_activity_completed is meaningful only for approved activity_type values.
+4.1 Meaningful action registry
+moment_created
+participant_invited
+participant_joined
+moment_activity_completed (approved activity types only)
+expense_added
+contribution_recorded
+split_created
+memory_created
+moment_completed
+Double-counting rule
+A dedicated business event replaces the generic activity event for the same successful action. Example: Quick Add → Expense emits quick_add_started + expense_added, not an extra moment_activity_completed for expense.
+
+5. Event Tracking Contract & Property Dictionary
+5.1 Universal event envelope
+event_id UUIDevent_name VARCHAR(100)event_version SMALLINToccurred_at TIMESTAMPTZreceived_at TIMESTAMPTZuser_id UUID NULLanonymous_id UUID NULLsession_id UUID NULLmoment_id UUID NULLmoment_domain VARCHAR(20) NULLmoment_category VARCHAR(100) NULLmoment_type VARCHAR(100) NULLactor_role VARCHAR(50) NULLplatform VARCHAR(20) NULLapp_version VARCHAR(30) NULLsource_screen VARCHAR(100) NULLcorrelation_id UUID NULLproperties JSONBingestion_source VARCHAR(30)
+
+Property
+Rule
+event_id
+Globally unique. Frontend retries reuse same ID; backend links to underlying operation where possible.
+event_version
+Starts at 1. Material semantic changes create a new version.
+occurred_at
+Actual behavioral time in UTC.
+received_at
+Server/ingestion timestamp; never supplied authoritatively by client.
+anonymous_id
+Pre-registration identity for attribution continuity.
+moment_domain
+Controlled: personal | group | business.
+properties
+Event-specific structured fields only; no uncontrolled PII/free text.
+correlation_id
+Connects a multi-step flow across client/backend.
+NULL handling
+Use SQL/JSON null. Never store N/A/NA/empty-string as missing data.
+
+5.2 Event-specific property contract
+Event
+Required
+Properties
+acquisition_touch_recorded
+anonymous_id
+source, medium, campaign_id, invite_id, referrer_type, landing_context
+user_registered
+user_id
+registration_method, anonymous_id_linked, invite_id
+session_started
+session_id + user_id/anonymous_id
+platform, app_version, entry_source
+screen_viewed
+session_id + screen_name
+previous_screen, navigation_source, moment context
+critical_flow_started
+flow_name + flow_instance_id
+user_id, session_id
+moment_creation_started
+creation_flow_id
+entry_point
+moment_type_selected
+creation_flow_id + moment taxonomy
+—
+moment_creation_step_completed
+creation_flow_id + step_name + step_number
+moment_domain, moment_type
+moment_created
+moment_id + user_id + Moment taxonomy
+creation_flow_id, creation_method, has_budget, has_timeline, initial_participant_count, template_id
+moment_viewed
+moment_id + user_id + session_id
+entry_source, moment_state
+moment_activated
+moment_id
+activation_trigger, activation_rule_version
+moment_completed
+moment_id
+completion_method, completion_reason_code
+participant_invited
+moment_id + inviter_user_id + invite_id
+invite_channel, invitee_user_status, invited_role
+invite_opened
+invite_id + moment_id + user/anonymous
+open_channel
+participant_joined
+moment_id + user_id
+invite_id, participant_role, join_source, was_existing_user
+participant_exited
+moment_id + user_id
+exit_type, initiated_by_role
+moment_activity_completed
+moment_id + user_id + activity_type
+activity_subtype, actor_role, quick_add_flow_id when closing a Quick Add instance
+quick_add_started
+moment_id + quick_add_flow_id + quick_add_type
+source_screen
+expense_added
+moment_id + user_id + expense_id
+amount, currency, expense_category, participant_count_affected, quick_add_flow_id when closing a Quick Add instance
+contribution_recorded
+moment_id + user_id + contribution_id
+amount, currency, contribution_type, quick_add_flow_id when closing a Quick Add instance
+split_created
+moment_id + split_id + user_id
+split_type, participant_count
+memory_created
+memory_id + user_id
+moment_id where linked, memory_type
+critical_operation_failed
+operation_name
+error_code, failure_stage, retryable
+app_crashed
+session_id
+user_id, platform, app_version, crash_signature
+critical_flow_completed
+flow_name + flow_instance_id
+success source
+
+5.3 Privacy boundary
+Do not write user name, phone, email or address to standard analytics events.
+Do not write Moment title, free-text description, notes, messages, captions, image URLs or document contents.
+Do not write payment credentials, bank credentials, auth tokens or raw exception stacks.
+Structured amount + currency may be used where required for product analytics; operational finance remains the system of record.
+6. SQL/Data Model & Storage Architecture
+Momentra iOS / Android + TypeScript Backend + Workers                       ↓              canonical events                       ↓          analytics_raw.events                       ↓          validate / deduplicate                       ↓ analytics_core session/user/moment lifecycle facts                       ↓        analytics_mart cohorts + KPI period                       ↓      Founder / Product / VC reporting
+
+Schema
+Purpose
+Primary objects
+analytics_raw
+Immutable-ish event ingestion and quarantine
+events, event_quarantine
+analytics_core
+Validated facts, identities and registries
+event_registry, activity_type_registry, identity_map, session_fact, user_daily, moment_daily, user_lifecycle_fact, moment_lifecycle_fact, participant_fact
+analytics_mart
+Dashboard-ready KPI/cohort aggregates
+kpi_period, user_retention_cohort, moment_repeat_cohort, viral_funnel, funnel_daily
+
+7. Migration SQL V059–V068
+The SQL below is an implementation baseline. It should be applied through the same migration mechanism used for Momentra V001–V058. Pack script names map to repository files V059–V068 (V031–V040 version numbers are already used by unrelated product migrations). Database role creation may require elevated privileges; where Supabase/hosting policy manages roles externally, keep schema grants but provision roles through the environment instead.
+V059__lean_analytics_schemas_and_roles.sql
+BEGIN;CREATE SCHEMA IF NOT EXISTS analytics_raw;CREATE SCHEMA IF NOT EXISTS analytics_core;CREATE SCHEMA IF NOT EXISTS analytics_mart;-- Roles are optional when deployment IAM/role management is external.DO $$ BEGIN  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='analytics_ingest') THEN CREATE ROLE analytics_ingest NOLOGIN; END IF;  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='analytics_transform') THEN CREATE ROLE analytics_transform NOLOGIN; END IF;  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='analytics_read') THEN CREATE ROLE analytics_read NOLOGIN; END IF;EXCEPTION WHEN insufficient_privilege THEN  RAISE NOTICE 'Role creation skipped: insufficient privilege';END $$;REVOKE ALL ON SCHEMA analytics_raw, analytics_core, analytics_mart FROM PUBLIC;GRANT USAGE ON SCHEMA analytics_raw TO analytics_ingest, analytics_transform;GRANT USAGE ON SCHEMA analytics_core, analytics_mart TO analytics_transform, analytics_read;COMMIT;
+
+V060__lean_analytics_raw_events.sql
+BEGIN;CREATE TABLE IF NOT EXISTS analytics_raw.events (  event_id UUID PRIMARY KEY,  event_name VARCHAR(100) NOT NULL,  event_version SMALLINT NOT NULL DEFAULT 1,  occurred_at TIMESTAMPTZ NOT NULL,  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),  user_id UUID NULL,  anonymous_id UUID NULL,  session_id UUID NULL,  moment_id UUID NULL,  moment_domain VARCHAR(20) NULL CHECK (moment_domain IS NULL OR moment_domain IN ('personal','group','business')),  moment_category VARCHAR(100) NULL,  moment_type VARCHAR(100) NULL,  actor_role VARCHAR(50) NULL,  platform VARCHAR(20) NULL CHECK (platform IS NULL OR platform IN ('ios','android','web')),  app_version VARCHAR(30) NULL,  source_screen VARCHAR(100) NULL,  correlation_id UUID NULL,  properties JSONB NOT NULL DEFAULT '{}'::jsonb,  ingestion_source VARCHAR(30) NOT NULL,  is_valid BOOLEAN NOT NULL DEFAULT TRUE,  validation_error_code VARCHAR(100) NULL);CREATE TABLE IF NOT EXISTS analytics_raw.event_quarantine (  quarantine_id BIGSERIAL PRIMARY KEY,  event_id UUID NULL,  event_name VARCHAR(100) NULL,  payload JSONB NOT NULL,  failure_reason VARCHAR(200) NOT NULL,  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),  resolved_at TIMESTAMPTZ NULL);COMMIT;
+
+V061__lean_analytics_registries.sql
+BEGIN;CREATE TABLE IF NOT EXISTS analytics_core.event_registry (  event_name VARCHAR(100) NOT NULL,  event_version SMALLINT NOT NULL,  event_family VARCHAR(40) NOT NULL,  authority VARCHAR(30) NOT NULL,  priority VARCHAR(5) NOT NULL CHECK (priority IN ('P0','P1','P2')),  is_meaningful BOOLEAN NOT NULL DEFAULT FALSE,  is_active BOOLEAN NOT NULL DEFAULT TRUE,  description TEXT NOT NULL,  introduced_at TIMESTAMPTZ NOT NULL DEFAULT now(),  retired_at TIMESTAMPTZ NULL,  PRIMARY KEY (event_name,event_version));CREATE TABLE IF NOT EXISTS analytics_core.activity_type_registry (  activity_type VARCHAR(100) PRIMARY KEY,  is_meaningful BOOLEAN NOT NULL DEFAULT TRUE,  moment_domain VARCHAR(20) NULL,  feature_group VARCHAR(60) NULL,  active_from TIMESTAMPTZ NOT NULL DEFAULT now(),  active_to TIMESTAMPTZ NULL);COMMIT;
+
+V062__lean_analytics_identity_sessions.sql
+BEGIN;CREATE TABLE IF NOT EXISTS analytics_core.identity_map (  anonymous_id UUID NOT NULL,  user_id UUID NOT NULL,  linked_at TIMESTAMPTZ NOT NULL DEFAULT now(),  link_source VARCHAR(50) NOT NULL,  PRIMARY KEY (anonymous_id,user_id));CREATE TABLE IF NOT EXISTS analytics_core.session_fact (  session_id UUID PRIMARY KEY,  user_id UUID NULL,  anonymous_id UUID NULL,  session_started_at TIMESTAMPTZ NOT NULL,  session_last_activity_at TIMESTAMPTZ NOT NULL,  session_duration_seconds BIGINT NOT NULL DEFAULT 0,  platform VARCHAR(20) NULL,  app_version VARCHAR(30) NULL,  entry_source VARCHAR(50) NULL,  screen_view_count INTEGER NOT NULL DEFAULT 0,  meaningful_action_count INTEGER NOT NULL DEFAULT 0,  moment_count_touched INTEGER NOT NULL DEFAULT 0,  had_crash BOOLEAN NOT NULL DEFAULT FALSE,  had_critical_failure BOOLEAN NOT NULL DEFAULT FALSE,  updated_at TIMESTAMPTZ NOT NULL DEFAULT now());COMMIT;
+
+V063__lean_analytics_user_facts.sql
+BEGIN;CREATE TABLE IF NOT EXISTS analytics_core.user_daily (  activity_date DATE NOT NULL,  user_id UUID NOT NULL,  session_count INTEGER NOT NULL DEFAULT 0,  screen_view_count INTEGER NOT NULL DEFAULT 0,  moments_created INTEGER NOT NULL DEFAULT 0,  moments_joined INTEGER NOT NULL DEFAULT 0,  moments_viewed INTEGER NOT NULL DEFAULT 0,  meaningful_action_count INTEGER NOT NULL DEFAULT 0,  expenses_added INTEGER NOT NULL DEFAULT 0,  contributions_recorded INTEGER NOT NULL DEFAULT 0,  invites_sent INTEGER NOT NULL DEFAULT 0,  moments_completed INTEGER NOT NULL DEFAULT 0,  active_flag BOOLEAN NOT NULL DEFAULT FALSE,  meaningfully_active_flag BOOLEAN NOT NULL DEFAULT FALSE,  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),  PRIMARY KEY (activity_date,user_id));CREATE TABLE IF NOT EXISTS analytics_core.user_lifecycle_fact (  user_id UUID PRIMARY KEY,  registered_at TIMESTAMPTZ NOT NULL,  onboarding_completed_at TIMESTAMPTZ NULL,  acquisition_source VARCHAR(100) NULL,  acquisition_medium VARCHAR(100) NULL,  campaign_id VARCHAR(100) NULL,  invite_sourced_flag BOOLEAN NOT NULL DEFAULT FALSE,  first_moment_created_at TIMESTAMPTZ NULL,  first_moment_joined_at TIMESTAMPTZ NULL,  first_meaningful_action_at TIMESTAMPTZ NULL,  activated_at TIMESTAMPTZ NULL,  first_completed_moment_at TIMESTAMPTZ NULL,  second_moment_created_at TIMESTAMPTZ NULL,  third_moment_created_at TIMESTAMPTZ NULL,  total_moments_created INTEGER NOT NULL DEFAULT 0,  total_moments_joined INTEGER NOT NULL DEFAULT 0,  total_moments_completed INTEGER NOT NULL DEFAULT 0,  distinct_moment_categories INTEGER NOT NULL DEFAULT 0,  repeat_creator_flag BOOLEAN NOT NULL DEFAULT FALSE,  cross_category_flag BOOLEAN NOT NULL DEFAULT FALSE,  updated_at TIMESTAMPTZ NOT NULL DEFAULT now());COMMIT;
+
+V064__lean_analytics_moment_facts.sql
+BEGIN;CREATE TABLE IF NOT EXISTS analytics_core.moment_daily (  activity_date DATE NOT NULL,  moment_id UUID NOT NULL,  moment_domain VARCHAR(20) NOT NULL,  moment_category VARCHAR(100) NULL,  moment_type VARCHAR(100) NULL,  creator_user_id UUID NULL,  meaningful_action_count INTEGER NOT NULL DEFAULT 0,  unique_active_participants INTEGER NOT NULL DEFAULT 0,  views INTEGER NOT NULL DEFAULT 0,  invites_sent INTEGER NOT NULL DEFAULT 0,  expenses_added INTEGER NOT NULL DEFAULT 0,  expense_amount_total NUMERIC(18,2) NOT NULL DEFAULT 0,  contributions_recorded INTEGER NOT NULL DEFAULT 0,  contribution_amount_total NUMERIC(18,2) NOT NULL DEFAULT 0,  active_flag BOOLEAN NOT NULL DEFAULT FALSE,  meaningfully_active_flag BOOLEAN NOT NULL DEFAULT FALSE,  activated_flag BOOLEAN NOT NULL DEFAULT FALSE,  completed_flag BOOLEAN NOT NULL DEFAULT FALSE,  cancelled_flag BOOLEAN NOT NULL DEFAULT FALSE,  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),  PRIMARY KEY (activity_date,moment_id));CREATE TABLE IF NOT EXISTS analytics_core.moment_lifecycle_fact (  moment_id UUID PRIMARY KEY,  creator_user_id UUID NOT NULL,  moment_domain VARCHAR(20) NOT NULL,  moment_category VARCHAR(100) NULL,  moment_type VARCHAR(100) NULL,  created_at TIMESTAMPTZ NOT NULL,  activated_at TIMESTAMPTZ NULL,  completed_at TIMESTAMPTZ NULL,  cancelled_at TIMESTAMPTZ NULL,  reopened_at TIMESTAMPTZ NULL,  first_meaningful_action_at TIMESTAMPTZ NULL,  last_meaningful_action_at TIMESTAMPTZ NULL,  time_to_activation_seconds BIGINT NULL,  time_to_completion_seconds BIGINT NULL,  participant_peak_count INTEGER NOT NULL DEFAULT 0,  is_activated BOOLEAN NOT NULL DEFAULT FALSE,  is_completed BOOLEAN NOT NULL DEFAULT FALSE,  is_cancelled BOOLEAN NOT NULL DEFAULT FALSE,  current_analytics_state VARCHAR(30) NULL,  updated_at TIMESTAMPTZ NOT NULL DEFAULT now());CREATE TABLE IF NOT EXISTS analytics_core.participant_fact (  moment_id UUID NOT NULL,  user_id UUID NOT NULL,  invite_id UUID NULL,  invited_at TIMESTAMPTZ NULL,  invite_opened_at TIMESTAMPTZ NULL,  joined_at TIMESTAMPTZ NULL,  exited_at TIMESTAMPTZ NULL,  participant_role VARCHAR(50) NULL,  was_existing_user BOOLEAN NULL,  first_meaningful_action_at TIMESTAMPTZ NULL,  participant_activated_at TIMESTAMPTZ NULL,  later_became_creator_at TIMESTAMPTZ NULL,  is_active_participant BOOLEAN NOT NULL DEFAULT FALSE,  PRIMARY KEY (moment_id,user_id));COMMIT;
+
+V065__lean_analytics_cohort_marts.sql
+BEGIN;CREATE TABLE IF NOT EXISTS analytics_mart.user_retention_cohort (  cohort_date DATE NOT NULL,  cohort_type VARCHAR(30) NOT NULL,  cohort_users INTEGER NOT NULL,  d7_eligible INTEGER NOT NULL DEFAULT 0,  d7_retained INTEGER NOT NULL DEFAULT 0,  d7_rate NUMERIC(7,3) NULL,  d30_eligible INTEGER NOT NULL DEFAULT 0,  d30_retained INTEGER NOT NULL DEFAULT 0,  d30_rate NUMERIC(7,3) NULL,  formula_version SMALLINT NOT NULL DEFAULT 1,  calculated_at TIMESTAMPTZ NOT NULL DEFAULT now(),  PRIMARY KEY (cohort_date,cohort_type,formula_version));CREATE TABLE IF NOT EXISTS analytics_mart.moment_repeat_cohort (  cohort_month DATE NOT NULL,  first_time_creators INTEGER NOT NULL,  second_moment_eligible INTEGER NOT NULL DEFAULT 0,  second_moment_creators INTEGER NOT NULL DEFAULT 0,  second_moment_rate NUMERIC(7,3) NULL,  third_moment_eligible INTEGER NOT NULL DEFAULT 0,  third_plus_creators INTEGER NOT NULL DEFAULT 0,  third_plus_rate NUMERIC(7,3) NULL,  cross_category_creators INTEGER NOT NULL DEFAULT 0,  cross_category_rate NUMERIC(7,3) NULL,  formula_version SMALLINT NOT NULL DEFAULT 1,  calculated_at TIMESTAMPTZ NOT NULL DEFAULT now(),  PRIMARY KEY (cohort_month,formula_version));COMMIT;
+
+V066__lean_analytics_kpi_mart.sql
+BEGIN;CREATE TABLE IF NOT EXISTS analytics_core.kpi_registry (  kpi_code VARCHAR(80) PRIMARY KEY,  kpi_name VARCHAR(150) NOT NULL,  category VARCHAR(50) NOT NULL,  priority VARCHAR(5) NOT NULL,  audience VARCHAR(20) NOT NULL,  formula_description TEXT NOT NULL,  numerator_definition TEXT NULL,  denominator_definition TEXT NULL,  observation_window VARCHAR(100) NULL,  eligible_population_rule TEXT NULL,  formula_version SMALLINT NOT NULL DEFAULT 1,  is_active BOOLEAN NOT NULL DEFAULT TRUE,  value_kind VARCHAR(30) NOT NULL DEFAULT 'percent_bounded' CHECK (value_kind IN ('percent_bounded','percent_unbounded','count','ratio','duration_seconds')));CREATE TABLE IF NOT EXISTS analytics_mart.kpi_period (  period_type VARCHAR(20) NOT NULL,  period_start DATE NOT NULL,  period_end DATE NOT NULL,  kpi_code VARCHAR(80) NOT NULL REFERENCES analytics_core.kpi_registry(kpi_code),  numerator NUMERIC(20,4) NULL,  denominator NUMERIC(20,4) NULL,  kpi_value NUMERIC(20,4) NULL,  sample_size BIGINT NULL,  moment_domain VARCHAR(20) NULL,  moment_category VARCHAR(100) NULL,  moment_type VARCHAR(100) NULL,  acquisition_source VARCHAR(100) NULL,  formula_version SMALLINT NOT NULL DEFAULT 1,  calculated_at TIMESTAMPTZ NOT NULL DEFAULT now(),  kpi_period_id BIGSERIAL UNIQUE);COMMIT;
+
+V067__lean_analytics_indexes.sql
+BEGIN;CREATE INDEX IF NOT EXISTS idx_events_occurred ON analytics_raw.events (occurred_at);CREATE INDEX IF NOT EXISTS idx_events_user_time ON analytics_raw.events (user_id,occurred_at) WHERE user_id IS NOT NULL;CREATE INDEX IF NOT EXISTS idx_events_moment_time ON analytics_raw.events (moment_id,occurred_at) WHERE moment_id IS NOT NULL;CREATE INDEX IF NOT EXISTS idx_events_name_time ON analytics_raw.events (event_name,occurred_at);CREATE INDEX IF NOT EXISTS idx_events_session_time ON analytics_raw.events (session_id,occurred_at) WHERE session_id IS NOT NULL;CREATE INDEX IF NOT EXISTS idx_user_daily_user_date ON analytics_core.user_daily (user_id,activity_date);CREATE INDEX IF NOT EXISTS idx_moment_daily_moment_date ON analytics_core.moment_daily (moment_id,activity_date);CREATE INDEX IF NOT EXISTS idx_moment_daily_active_date ON analytics_core.moment_daily (activity_date,meaningfully_active_flag);CREATE INDEX IF NOT EXISTS idx_user_lifecycle_registered ON analytics_core.user_lifecycle_fact (registered_at);CREATE INDEX IF NOT EXISTS idx_moment_lifecycle_created ON analytics_core.moment_lifecycle_fact (created_at);CREATE INDEX IF NOT EXISTS idx_participant_joined ON analytics_core.participant_fact (joined_at) WHERE joined_at IS NOT NULL;CREATE INDEX IF NOT EXISTS idx_kpi_period_lookup ON analytics_mart.kpi_period (kpi_code,period_type,period_start DESC);CREATE UNIQUE INDEX IF NOT EXISTS uq_one_moment_created_eventON analytics_raw.events (moment_id) WHERE event_name='moment_created' AND is_valid=TRUE;CREATE UNIQUE INDEX IF NOT EXISTS uq_one_moment_activated_eventON analytics_raw.events (moment_id) WHERE event_name='moment_activated' AND is_valid=TRUE;COMMIT;
+
+V068__lean_analytics_views_group_kpis.sql
+BEGIN;CREATE OR REPLACE VIEW analytics_core.v_event_validation_summary ASSELECT  date_trunc('day',received_at)::date AS received_date,  COUNT(*) AS events_received,  COUNT(*) FILTER (WHERE is_valid) AS events_valid,  COUNT(*) FILTER (WHERE NOT is_valid) AS events_invalidFROM analytics_raw.eventsGROUP BY 1;-- value_kind on kpi_registry drives validity: percent_bounded (0–100 + numerator<=denominator), percent_unbounded (no clamp), count/ratio/duration_seconds (kpi_value>=0).CREATE OR REPLACE VIEW analytics_core.v_invalid_kpi_rates ASSELECT k.*FROM analytics_mart.kpi_period kJOIN analytics_core.kpi_registry r ON r.kpi_code = k.kpi_codeWHERE k.denominator IS NOT NULL  AND (    (r.value_kind = 'percent_bounded' AND (k.kpi_value < 0 OR k.kpi_value > 100 OR k.numerator > k.denominator))    OR (r.value_kind IN ('count','ratio','duration_seconds') AND k.kpi_value < 0)  );CREATE OR REPLACE VIEW analytics_core.v_lifecycle_anomalies ASSELECT *FROM analytics_core.moment_lifecycle_factWHERE (activated_at IS NOT NULL AND activated_at < created_at)   OR (completed_at IS NOT NULL AND completed_at < created_at)   OR (completed_at IS NOT NULL AND activated_at IS NOT NULL AND completed_at < activated_at);COMMIT;
+
+8. Event Registry & Activity Registry Seeds
+Seed: 28 canonical events
+INSERT INTO analytics_core.event_registry(event_name,event_version,event_family,authority,priority,is_meaningful,is_active,description) VALUES  ('acquisition_touch_recorded',1,'acquisition','Client/System','P0',FALSE,TRUE,'Acquisition attribution touch'),  ('user_registered',1,'identity','Backend/Auth','P0',FALSE,TRUE,'Account successfully created'),  ('user_onboarding_completed',1,'identity','Backend','P0',FALSE,TRUE,'Official onboarding completion persisted'),  ('session_started',1,'session_navigation','Client','P0',FALSE,TRUE,'New analytics session'),  ('screen_viewed',1,'session_navigation','Client','P0',FALSE,TRUE,'Meaningful screen becomes visible'),  ('critical_flow_started',1,'session_navigation','Client','P0',FALSE,TRUE,'Designated critical flow begins'),  ('moment_creation_started',1,'moment','Client','P0',FALSE,TRUE,'Moment creation workflow begins'),  ('moment_type_selected',1,'moment','Client','P0',FALSE,TRUE,'Valid Moment type selection'),  ('moment_creation_step_completed',1,'moment','Client','P0',FALSE,TRUE,'Defined creation step passed'),  ('moment_created',1,'moment','Backend','P0',TRUE,TRUE,'Moment successfully persisted'),  ('moment_viewed',1,'moment','Client','P0',FALSE,TRUE,'Moment workspace/detail viewed'),  ('moment_activated',1,'moment','Backend/System','P0',FALSE,TRUE,'Moment reaches activation state'),  ('moment_completed',1,'moment','Backend','P0',TRUE,TRUE,'Moment reaches valid completed state'),  ('moment_cancelled',1,'moment','Backend','P0',FALSE,TRUE,'Moment explicitly cancelled'),  ('participant_invited',1,'participation','Backend','P0',TRUE,TRUE,'Valid invite issued'),  ('invite_opened',1,'participation','Client/System','P0',FALSE,TRUE,'Invite deep-link/token opened'),  ('participant_joined',1,'participation','Backend','P0',TRUE,TRUE,'Participant relationship becomes active'),  ('participant_exited',1,'participation','Backend','P1',FALSE,TRUE,'Participant left/removed/declined'),  ('moment_activity_completed',1,'moment','Backend','P0',TRUE,TRUE,'Generic meaningful Moment activity completed'),  ('quick_add_started',1,'product','Client','P0',FALSE,TRUE,'Quick Add flow started'),  ('expense_added',1,'financial','Backend','P0',TRUE,TRUE,'Expense persisted'),  ('contribution_recorded',1,'financial','Backend','P0',TRUE,TRUE,'Contribution persisted'),  ('split_created',1,'financial','Backend','P1',TRUE,TRUE,'Split persisted'),  ('memory_created',1,'memory','Backend','P1',TRUE,TRUE,'Memory persisted'),  ('moment_reopened',1,'moment','Backend','P1',FALSE,TRUE,'Operational lifecycle reopened'),  ('critical_operation_failed',1,'reliability','System','P0',FALSE,TRUE,'Critical operation failed'),  ('app_crashed',1,'reliability','Observability','P0',FALSE,TRUE,'App crash linked to session'),  ('critical_flow_completed',1,'session_navigation','Client/Backend','P0',FALSE,TRUE,'Critical flow completed successfully')ON CONFLICT (event_name,event_version) DO UPDATE SET  authority=EXCLUDED.authority, priority=EXCLUDED.priority, is_meaningful=EXCLUDED.is_meaningful,  is_active=EXCLUDED.is_active, description=EXCLUDED.description;
+
+Seed: approved generic activity types
+INSERT INTO analytics_core.activity_type_registry (activity_type,is_meaningful,feature_group) VALUES  ('poll_created',TRUE,'poll'),  ('poll_vote',TRUE,'poll'),  ('approval_requested',TRUE,'approval'),  ('approval_responded',TRUE,'approval'),  ('milestone_updated',TRUE,'milestone'),  ('activity_added',TRUE,'activity'),  ('team_update',TRUE,'team'),  ('issue_created',TRUE,'issue'),  ('risk_created',TRUE,'risk'),  ('note_added',TRUE,'note'),  ('quick_add_completed',TRUE,'quick')ON CONFLICT (activity_type) DO UPDATE SET is_meaningful=EXCLUDED.is_meaningful, feature_group=EXCLUDED.feature_group;
+
+#
+KPI Code
+Name
+Category
+P
+Audience
+1
+KPI_001_NEW_REGISTERED_USERS
+New Registered Users
+Acquisition
+P0
+Both
+2
+KPI_002_USER_GROWTH_RATE
+User Growth Rate
+Acquisition
+P0
+VC
+3
+KPI_003_ACQUISITION_SOURCE_MIX
+Acquisition Source Mix
+Acquisition
+P0
+Both
+4
+KPI_004_INVITE_SOURCED_USERS
+Invite-Sourced Users
+Acquisition
+P0
+Both
+5
+KPI_005_ACTIVATED_ACQUISITION_RATE
+Activated Acquisition Rate
+Acquisition
+P0
+Both
+6
+KPI_006_USER_ACTIVATION_RATE
+User Activation Rate
+Activation
+P0
+Both
+7
+KPI_007_MEDIAN_TIME_TO_FIRST_MOMENT
+Median Time to First Moment
+Activation
+P0
+Product
+8
+KPI_008_MEDIAN_TIME_TO_FIRST_MEANINGFUL_ACTION
+Median Time to First Meaningful Action
+Activation
+P0
+Product
+9
+KPI_009_MOMENT_CREATION_COMPLETION_RATE
+Moment Creation Completion Rate
+Activation
+P0
+Product
+10
+KPI_010_MOMENT_CREATION_DROP_OFF
+Moment Creation Drop-Off
+Activation
+P0
+Product
+11
+KPI_011_JOIN_ACTIVATION_RATE
+Join Activation Rate
+Activation
+P1
+Both
+12
+KPI_012_MOMENTS_CREATED
+Moments Created
+Moment Adoption
+P0
+Both
+13
+KPI_013_WEEKLY_ACTIVE_MOMENTS_WAM
+Weekly Active Moments (WAM)
+Moment Adoption
+P0
+Both
+14
+KPI_014_MONTHLY_ACTIVE_MOMENTS_MAM
+Monthly Active Moments (MAM)
+Moment Adoption
+P0
+Both
+15
+KPI_015_MOMENTS_PER_ACTIVE_USER
+Moments per Active User
+Moment Adoption
+P0
+Both
+16
+KPI_016_MOMENT_ACTIVATION_RATE
+Moment Activation Rate
+Moment Adoption
+P0
+Both
+17
+KPI_017_MOMENT_COMPLETION_RATE
+Moment Completion Rate
+Moment Adoption
+P0
+Both
+18
+KPI_018_MEANINGFUL_ACTIONS_PER_ACTIVE_MOMENT
+Meaningful Actions per Active Moment
+Moment Adoption
+P0
+Both
+19
+KPI_019_MEANINGFUL_ACTIONS_PER_ACTIVE_USER
+Meaningful Actions per Active User
+Moment Adoption
+P1
+Product
+20
+KPI_020_AVERAGE_PARTICIPANTS_PER_GROUP_MOMENT
+Average Participants per Group Moment
+Moment Adoption
+P0
+Both
+21
+KPI_021_MOMENT_REVISIT_RATE
+Moment Revisit Rate
+Moment Adoption
+P1
+Product
+22
+KPI_022_MOMENT_TYPE__CATEGORY_MIX
+Moment Type / Category Mix
+Moment Adoption
+P0
+Both
+23
+KPI_023_D7_MEANINGFUL_RETENTION
+D7 Meaningful Retention
+Retention
+P0
+Both
+24
+KPI_024_D30_MEANINGFUL_RETENTION
+D30 Meaningful Retention
+Retention
+P0
+Both
+25
+KPI_025_SECOND_MOMENT_RATE
+Second Moment Rate
+Repeat
+P0
+Both
+26
+KPI_026_REPEAT_MOMENT_CREATOR_RATE
+Repeat Moment Creator Rate
+Repeat
+P0
+Both
+27
+KPI_027_THIRD_MOMENT_CREATOR_RATE
+Third+ Moment Creator Rate
+Repeat
+P1
+VC
+28
+KPI_028_CROSS_CATEGORY_ADOPTION_RATE
+Cross-Category Adoption Rate
+Repeat
+P1
+Both
+29
+KPI_029_MOMENT_ABANDONMENT_RATE
+Moment Abandonment Rate
+Repeat
+P1
+Product
+30
+KPI_030_INVITATIONS_PER_GROUP_MOMENT
+Invitations per Group Moment
+Virality
+P0
+Both
+31
+KPI_031_INVITE_OPEN_RATE
+Invite Open Rate
+Virality
+P1
+Product
+32
+KPI_032_INVITE__JOIN_CONVERSION
+Invite → Join Conversion
+Virality
+P0
+Both
+33
+KPI_033_INVITED_USER_ACTIVATION_RATE
+Invited User Activation Rate
+Virality
+P0
+Both
+34
+KPI_034_PARTICIPANT__CREATOR_CONVERSION
+Participant → Creator Conversion
+Virality
+P0
+Both
+35
+KPI_035_VIRAL_COEFFICIENT
+Viral Coefficient
+Virality
+P1
+VC
+36
+KPI_036_QUICK_ADD_COMPLETION_RATE
+Quick Add Completion Rate
+Product Experience
+P0
+Product
+37
+KPI_037_FEATURE_ADOPTION_RATE
+Feature Adoption Rate
+Product Experience
+P0
+Product
+38
+KPI_038_CRITICAL_FLOW_ABANDONMENT_RATE
+Critical Flow Abandonment Rate
+Product Experience
+P0
+Product
+39
+KPI_039_MEDIAN_SESSION_DURATION
+Median Session Duration
+Product Experience
+P1
+Product
+40
+KPI_040_SESSIONS_PER_ACTIVE_USER
+Sessions per Active User
+Product Experience
+P1
+Product
+41
+KPI_041_CRITICAL_OPERATION_FAILURE_RATE
+Critical Operation Failure Rate
+Product Experience
+P0
+Product
+42
+KPI_042_CRASH_FREE_SESSION_RATE
+Crash-Free Session Rate
+Product Experience
+P0
+Product
+
+Seed: 42 KPI registry rows
+INSERT INTO analytics_core.kpi_registry(kpi_code,kpi_name,category,priority,audience,formula_description,numerator_definition,denominator_definition,observation_window,eligible_population_rule,formula_version,is_active) VALUES  ('KPI_001_NEW_REGISTERED_USERS','New Registered Users','Acquisition','P0','Both','Count(distinct user_id with registered_at in period)',NULL,NULL,'',NULL,1,TRUE),  ('KPI_002_USER_GROWTH_RATE','User Growth Rate','Acquisition','P0','VC','(Current new users - Previous new users) / Previous new users',NULL,NULL,'',NULL,1,TRUE),  ('KPI_003_ACQUISITION_SOURCE_MIX','Acquisition Source Mix','Acquisition','P0','Both','New users by source / all new users',NULL,NULL,'',NULL,1,TRUE),  ('KPI_004_INVITE_SOURCED_USERS','Invite-Sourced Users','Acquisition','P0','Both','Count(users with invite_sourced_flag=true)',NULL,NULL,'',NULL,1,TRUE),  ('KPI_005_ACTIVATED_ACQUISITION_RATE','Activated Acquisition Rate','Acquisition','P0','Both','Activated eligible new users / eligible new registered users',NULL,NULL,'14 days',NULL,1,TRUE),  ('KPI_006_USER_ACTIVATION_RATE','User Activation Rate','Activation','P0','Both','Activated users / eligible registered users',NULL,NULL,'14 days',NULL,1,TRUE),  ('KPI_007_MEDIAN_TIME_TO_FIRST_MOMENT','Median Time to First Moment','Activation','P0','Product','median(first_moment_created_at - registered_at)',NULL,NULL,'',NULL,1,TRUE),  ('KPI_008_MEDIAN_TIME_TO_FIRST_MEANINGFUL_ACTION','Median Time to First Meaningful Action','Activation','P0','Product','median(first_meaningful_action_at - registered_at)',NULL,NULL,'',NULL,1,TRUE),  ('KPI_009_MOMENT_CREATION_COMPLETION_RATE','Moment Creation Completion Rate','Activation','P0','Product','created creation_flow_id / started creation_flow_id',NULL,NULL,'',NULL,1,TRUE),  ('KPI_010_MOMENT_CREATION_DROP_OFF','Moment Creation Drop-Off','Activation','P0','Product','1 - step_n_flows / step_n_minus_1_flows',NULL,NULL,'',NULL,1,TRUE),  ('KPI_011_JOIN_ACTIVATION_RATE','Join Activation Rate','Activation','P1','Both','activated joined invitees / eligible joined invitees',NULL,NULL,'7 days after join',NULL,1,TRUE),  ('KPI_012_MOMENTS_CREATED','Moments Created','Moment Adoption','P0','Both','count(distinct moment_id created)',NULL,NULL,'',NULL,1,TRUE),  ('KPI_013_WEEKLY_ACTIVE_MOMENTS_WAM','Weekly Active Moments (WAM)','Moment Adoption','P0','Both','count(distinct meaningfully active moment_id)',NULL,NULL,'',NULL,1,TRUE),  ('KPI_014_MONTHLY_ACTIVE_MOMENTS_MAM','Monthly Active Moments (MAM)','Moment Adoption','P0','Both','count(distinct meaningfully active moment_id)',NULL,NULL,'',NULL,1,TRUE),  ('KPI_015_MOMENTS_PER_ACTIVE_USER','Moments per Active User','Moment Adoption','P0','Both','active moment-user relationships / meaningfully active users',NULL,NULL,'',NULL,1,TRUE),  ('KPI_016_MOMENT_ACTIVATION_RATE','Moment Activation Rate','Moment Adoption','P0','Both','activated eligible Moments / eligible created Moments',NULL,NULL,'7 days after creation',NULL,1,TRUE),  ('KPI_017_MOMENT_COMPLETION_RATE','Moment Completion Rate','Moment Adoption','P0','Both','completed mature activated / mature activated',NULL,NULL,'30 days after activation',NULL,1,TRUE),  ('KPI_018_MEANINGFUL_ACTIONS_PER_ACTIVE_MOMENT','Meaningful Actions per Active Moment','Moment Adoption','P0','Both','qualifying activity events / active Moments',NULL,NULL,'',NULL,1,TRUE),  ('KPI_019_MEANINGFUL_ACTIONS_PER_ACTIVE_USER','Meaningful Actions per Active User','Moment Adoption','P1','Product','qualifying actions / meaningfully active users',NULL,NULL,'',NULL,1,TRUE),  ('KPI_020_AVERAGE_PARTICIPANTS_PER_GROUP_MOMENT','Average Participants per Group Moment','Moment Adoption','P0','Both','active participants / Group Moments',NULL,NULL,'',NULL,1,TRUE),  ('KPI_021_MOMENT_REVISIT_RATE','Moment Revisit Rate','Moment Adoption','P1','Product','revisited Moments / eligible viewed Moments',NULL,NULL,'',NULL,1,TRUE),  ('KPI_022_MOMENT_TYPE__CATEGORY_MIX','Moment Type / Category Mix','Moment Adoption','P0','Both','created Moments of segment / all created Moments',NULL,NULL,'',NULL,1,TRUE),  ('KPI_023_D7_MEANINGFUL_RETENTION','D7 Meaningful Retention','Retention','P0','Both','D7-D9 retained / eligible activated cohort',NULL,NULL,'D7-D9',NULL,1,TRUE),  ('KPI_024_D30_MEANINGFUL_RETENTION','D30 Meaningful Retention','Retention','P0','Both','D30-D36 retained / eligible activated cohort',NULL,NULL,'D30-D36',NULL,1,TRUE),  ('KPI_025_SECOND_MOMENT_RATE','Second Moment Rate','Repeat','P0','Both','2nd Moment creators / mature first-time creator cohort',NULL,NULL,'60 days',NULL,1,TRUE),  ('KPI_026_REPEAT_MOMENT_CREATOR_RATE','Repeat Moment Creator Rate','Repeat','P0','Both','creators with >=2 Moments / eligible creators',NULL,NULL,'',NULL,1,TRUE),  ('KPI_027_THIRD_MOMENT_CREATOR_RATE','Third+ Moment Creator Rate','Repeat','P1','VC','3+ creators / mature first-time creator cohort',NULL,NULL,'90 days',NULL,1,TRUE),  ('KPI_028_CROSS_CATEGORY_ADOPTION_RATE','Cross-Category Adoption Rate','Repeat','P1','Both','repeat creators across >=2 categories / repeat creators',NULL,NULL,'',NULL,1,TRUE),  ('KPI_029_MOMENT_ABANDONMENT_RATE','Moment Abandonment Rate','Repeat','P1','Product','abandoned / eligible created Moments',NULL,NULL,'14 days',NULL,1,TRUE),  ('KPI_030_INVITATIONS_PER_GROUP_MOMENT','Invitations per Group Moment','Virality','P0','Both','distinct invite_id / eligible Group Moments',NULL,NULL,'',NULL,1,TRUE),  ('KPI_031_INVITE_OPEN_RATE','Invite Open Rate','Virality','P1','Product','unique invite opens / valid invites issued',NULL,NULL,'',NULL,1,TRUE),  ('KPI_032_INVITE__JOIN_CONVERSION','Invite → Join Conversion','Virality','P0','Both','joined invite IDs / valid invites issued',NULL,NULL,'',NULL,1,TRUE),  ('KPI_033_INVITED_USER_ACTIVATION_RATE','Invited User Activation Rate','Virality','P0','Both','activated invited users / eligible joined invited users',NULL,NULL,'',NULL,1,TRUE),  ('KPI_034_PARTICIPANT__CREATOR_CONVERSION','Participant → Creator Conversion','Virality','P0','Both','converted participants / mature eligible participants',NULL,NULL,'60 days',NULL,1,TRUE),  ('KPI_035_VIRAL_COEFFICIENT','Viral Coefficient','Virality','P1','VC','invitees per creator × join rate × participant→creator rate',NULL,NULL,'',NULL,1,TRUE),  ('KPI_036_QUICK_ADD_COMPLETION_RATE','Quick Add Completion Rate','Product Experience','P0','Product','completed quick-add flows / started quick-add flows',NULL,NULL,'',NULL,1,TRUE),  ('KPI_037_FEATURE_ADOPTION_RATE','Feature Adoption Rate','Product Experience','P0','Product','feature users / eligible active users',NULL,NULL,'',NULL,1,TRUE),  ('KPI_038_CRITICAL_FLOW_ABANDONMENT_RATE','Critical Flow Abandonment Rate','Product Experience','P0','Product','abandoned flows / started flows',NULL,NULL,'',NULL,1,TRUE),  ('KPI_039_MEDIAN_SESSION_DURATION','Median Session Duration','Product Experience','P1','Product','median(last_activity - session_start)',NULL,NULL,'',NULL,1,TRUE),  ('KPI_040_SESSIONS_PER_ACTIVE_USER','Sessions per Active User','Product Experience','P1','Product','sessions / active users',NULL,NULL,'',NULL,1,TRUE),  ('KPI_041_CRITICAL_OPERATION_FAILURE_RATE','Critical Operation Failure Rate','Product Experience','P0','Product','failures / operation attempts',NULL,NULL,'',NULL,1,TRUE),  ('KPI_042_CRASH_FREE_SESSION_RATE','Crash-Free Session Rate','Product Experience','P0','Product','non-crash sessions / total sessions',NULL,NULL,'',NULL,1,TRUE)ON CONFLICT (kpi_code) DO UPDATE SET kpi_name=EXCLUDED.kpi_name, formula_description=EXCLUDED.formula_description, formula_version=EXCLUDED.formula_version, is_active=TRUE;
+
+9. Indexes, Views & Processing Jobs
+9.1 Processing jobs
+Job
+Cadence
+Responsibility
+analytics_event_validate
+Near real-time
+Validate registry/version/required IDs/enums; quarantine invalid events; preserve duplicate event_id idempotency.
+analytics_daily_fact_build
+Hourly current day + daily finalization
+Upsert user_daily and moment_daily for affected dates.
+analytics_lifecycle_build
+Hourly/daily
+Rebuild incremental user_lifecycle_fact, moment_lifecycle_fact and participant_fact.
+analytics_kpi_cohort_build
+Daily
+Refresh retention/repeat cohorts and kpi_period; monthly investor snapshot uses finalized mature cohorts.
+
+9.2 Dashboard-serving views
+CREATE OR REPLACE VIEW analytics_mart.v_founder_latest ASSELECT DISTINCT ON (kpi_code)  kpi_code, period_type, period_start, period_end, numerator, denominator, kpi_value, sample_size, formula_versionFROM analytics_mart.kpi_periodWHERE moment_domain IS NULL AND acquisition_source IS NULLORDER BY kpi_code, period_start DESC, calculated_at DESC;CREATE OR REPLACE VIEW analytics_mart.v_wam_12_weeks ASSELECT period_start, kpi_value AS wam, numerator, denominatorFROM analytics_mart.kpi_periodWHERE kpi_code LIKE 'KPI_013_%' AND period_type='week'ORDER BY period_start DESCLIMIT 12;CREATE OR REPLACE VIEW analytics_mart.v_second_moment_cohorts ASSELECT cohort_month, first_time_creators, second_moment_eligible, second_moment_creators, second_moment_rateFROM analytics_mart.moment_repeat_cohortORDER BY cohort_month;
+
+9.3 Transformation pattern — user_daily
+INSERT INTO analytics_core.user_daily (  activity_date,user_id,session_count,screen_view_count,moments_created,moments_joined,moments_viewed,  meaningful_action_count,expenses_added,contributions_recorded,invites_sent,moments_completed,active_flag,meaningfully_active_flag)SELECT  (e.occurred_at AT TIME ZONE 'Asia/Kolkata')::date AS activity_date,  e.user_id,  COUNT(DISTINCT e.session_id) FILTER (WHERE e.session_id IS NOT NULL),  COUNT(*) FILTER (WHERE e.event_name='screen_viewed'),  COUNT(*) FILTER (WHERE e.event_name='moment_created'),  COUNT(*) FILTER (WHERE e.event_name='participant_joined'),  COUNT(*) FILTER (WHERE e.event_name='moment_viewed'),  COUNT(*) FILTER (WHERE e.event_name IN ('moment_created','participant_invited','participant_joined','expense_added','contribution_recorded','split_created','memory_created','moment_completed') OR (e.event_name='moment_activity_completed' AND a.activity_type IS NOT NULL)),  COUNT(*) FILTER (WHERE e.event_name='expense_added'),  COUNT(*) FILTER (WHERE e.event_name='contribution_recorded'),  COUNT(*) FILTER (WHERE e.event_name='participant_invited'),  COUNT(*) FILTER (WHERE e.event_name='moment_completed'),  TRUE,  BOOL_OR(e.event_name IN ('moment_created','participant_invited','participant_joined','expense_added','contribution_recorded','split_created','memory_created','moment_completed') OR (e.event_name='moment_activity_completed' AND a.activity_type IS NOT NULL))FROM analytics_raw.events eLEFT JOIN analytics_core.activity_type_registry a  ON a.activity_type = e.properties->>'activity_type' AND a.is_meaningful AND a.active_from <= e.occurred_at AND (a.active_to IS NULL OR a.active_to > e.occurred_at)WHERE e.is_valid AND e.user_id IS NOT NULL  AND e.occurred_at >= :from_ts AND e.occurred_at < :to_tsGROUP BY 1,2ON CONFLICT (activity_date,user_id) DO UPDATE SET  session_count=EXCLUDED.session_count, screen_view_count=EXCLUDED.screen_view_count,  moments_created=EXCLUDED.moments_created, moments_joined=EXCLUDED.moments_joined,  moments_viewed=EXCLUDED.moments_viewed, meaningful_action_count=EXCLUDED.meaningful_action_count,  expenses_added=EXCLUDED.expenses_added, contributions_recorded=EXCLUDED.contributions_recorded,  invites_sent=EXCLUDED.invites_sent, moments_completed=EXCLUDED.moments_completed,  active_flag=EXCLUDED.active_flag, meaningfully_active_flag=EXCLUDED.meaningfully_active_flag, updated_at=now();
+
+10. KPI SQL Reference — 42 KPIs
+These are calculation templates. Production jobs should parameterize period boundaries and write finalized outputs to analytics_mart.kpi_period. Queries use Asia/Kolkata business-day boundaries where relevant; raw storage remains UTC.
+1. New Registered Users
+Definition: Count of distinct users successfully registered in the reporting period.
+Formula: Count(distinct user_id with registered_at in period)
+Reference SQL — KPI_001_NEW_REGISTERED_USERS
+SELECT COUNT(*) AS value FROM analytics_core.user_lifecycle_fact WHERE registered_at >= :start_ts AND registered_at < :end_ts;
+
+2. User Growth Rate
+Definition: Growth in new registrations versus the previous comparable period.
+Formula: (Current new users - Previous new users) / Previous new users
+Reference SQL — KPI_002_USER_GROWTH_RATE
+WITH c AS (SELECT COUNT(*)::numeric n FROM analytics_core.user_lifecycle_fact WHERE registered_at>=:start_ts AND registered_at<:end_ts), p AS (SELECT COUNT(*)::numeric n FROM analytics_core.user_lifecycle_fact WHERE registered_at>=:prev_start_ts AND registered_at<:prev_end_ts) SELECT (c.n-p.n)*100.0/NULLIF(p.n,0) AS value FROM c,p;
+
+3. Acquisition Source Mix
+Definition: Distribution of new registered users by acquisition source.
+Formula: New users by source / all new users
+Reference SQL — KPI_003_ACQUISITION_SOURCE_MIX
+SELECT COALESCE(acquisition_source,'unknown') source, COUNT(*) users, 100.0*COUNT(*)/SUM(COUNT(*)) OVER() pct FROM analytics_core.user_lifecycle_fact WHERE registered_at>=:start_ts AND registered_at<:end_ts GROUP BY 1;
+
+4. Invite-Sourced Users
+Definition: New registered users attributable to Moment invitations.
+Formula: Count(users with invite_sourced_flag=true)
+Reference SQL — KPI_004_INVITE_SOURCED_USERS
+SELECT COUNT(*) AS value FROM analytics_core.user_lifecycle_fact WHERE registered_at>=:start_ts AND registered_at<:end_ts AND invite_sourced_flag;
+
+5. Activated Acquisition Rate
+Definition: Share of eligible new users who activate within 14 days.
+Formula: Activated eligible new users / eligible new registered users
+Reference SQL — KPI_005_ACTIVATED_ACQUISITION_RATE
+SELECT COUNT(*) FILTER (WHERE activated_at IS NOT NULL AND activated_at<=registered_at+INTERVAL '14 days')*100.0/NULLIF(COUNT(*),0) value FROM analytics_core.user_lifecycle_fact WHERE registered_at>=:cohort_start AND registered_at<:cohort_end AND registered_at<=:as_of-INTERVAL '14 days';
+
+6. User Activation Rate
+Definition: User creates or joins a Moment and performs a subsequent qualifying Moment activity within 14 days of registration.
+Formula: Activated users / eligible registered users
+Reference SQL — KPI_006_USER_ACTIVATION_RATE
+SELECT COUNT(*) FILTER (WHERE activated_at IS NOT NULL AND activated_at<=registered_at+INTERVAL '14 days')*100.0/NULLIF(COUNT(*),0) value FROM analytics_core.user_lifecycle_fact WHERE registered_at>=:cohort_start AND registered_at<:cohort_end AND registered_at<=:as_of-INTERVAL '14 days';
+
+7. Median Time to First Moment
+Definition: Median elapsed time from registration to first Moment created.
+Formula: median(first_moment_created_at - registered_at)
+Reference SQL — KPI_007_MEDIAN_TIME_TO_FIRST_MOMENT
+SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (first_moment_created_at-registered_at))) value_seconds FROM analytics_core.user_lifecycle_fact WHERE first_moment_created_at IS NOT NULL;
+
+8. Median Time to First Meaningful Action
+Definition: Median elapsed time from registration to first qualifying meaningful activity.
+Formula: median(first_meaningful_action_at - registered_at)
+Reference SQL — KPI_008_MEDIAN_TIME_TO_FIRST_MEANINGFUL_ACTION
+SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (first_meaningful_action_at-registered_at))) value_seconds FROM analytics_core.user_lifecycle_fact WHERE first_meaningful_action_at IS NOT NULL;
+
+9. Moment Creation Completion Rate
+Definition: Share of creation-flow instances that successfully persist a Moment.
+Formula: created creation_flow_id / started creation_flow_id
+Reference SQL — KPI_009_MOMENT_CREATION_COMPLETION_RATE
+WITH s AS (SELECT COUNT(DISTINCT properties->>'creation_flow_id') n FROM analytics_raw.events WHERE event_name='moment_creation_started' AND occurred_at>=:start_ts AND occurred_at<:end_ts), c AS (SELECT COUNT(DISTINCT properties->>'creation_flow_id') n FROM analytics_raw.events WHERE event_name='moment_created' AND occurred_at>=:start_ts AND occurred_at<:end_ts) SELECT c.n*100.0/NULLIF(s.n,0) value FROM s,c;
+
+10. Moment Creation Drop-Off
+Definition: Loss between consecutive creation steps.
+Formula: 1 - step_n_flows / step_n_minus_1_flows
+Reference SQL — KPI_010_MOMENT_CREATION_DROP_OFF
+SELECT properties->>'step_name' step_name, COUNT(DISTINCT properties->>'creation_flow_id') flows FROM analytics_raw.events WHERE event_name='moment_creation_step_completed' AND occurred_at>=:start_ts AND occurred_at<:end_ts GROUP BY 1 ORDER BY MIN((properties->>'step_number')::int);
+
+11. Join Activation Rate
+Definition: Joined invited users who perform a qualifying Moment activity within 7 days.
+Formula: activated joined invitees / eligible joined invitees
+Reference SQL — KPI_011_JOIN_ACTIVATION_RATE
+SELECT COUNT(*) FILTER (WHERE participant_activated_at IS NOT NULL AND participant_activated_at<=joined_at+INTERVAL '7 days')*100.0/NULLIF(COUNT(*),0) value FROM analytics_core.participant_fact WHERE joined_at<=:as_of-INTERVAL '7 days';
+
+12. Moments Created
+Definition: Distinct Moments successfully persisted in period.
+Formula: count(distinct moment_id created)
+Reference SQL — KPI_012_MOMENTS_CREATED
+SELECT COUNT(*) value FROM analytics_core.moment_lifecycle_fact WHERE created_at>=:start_ts AND created_at<:end_ts;
+
+13. Weekly Active Moments (WAM)
+Definition: Distinct Moments with at least one post-creation qualifying activity in the week. Creation/view alone does not qualify.
+Formula: count(distinct meaningfully active moment_id)
+Reference SQL — KPI_013_WEEKLY_ACTIVE_MOMENTS_WAM
+SELECT COUNT(DISTINCT moment_id) value FROM analytics_core.moment_daily WHERE activity_date>=:week_start AND activity_date<:week_start+7 AND meaningfully_active_flag;
+
+14. Monthly Active Moments (MAM)
+Definition: Distinct Moments with at least one qualifying activity in the calendar month.
+Formula: count(distinct meaningfully active moment_id)
+Reference SQL — KPI_014_MONTHLY_ACTIVE_MOMENTS_MAM
+SELECT COUNT(DISTINCT moment_id) value FROM analytics_core.moment_daily WHERE activity_date>=:month_start AND activity_date<:month_end AND meaningfully_active_flag;
+
+15. Moments per Active User
+Definition: Average distinct meaningfully active Moment-user relationships per meaningfully active user.
+Formula: active moment-user relationships / meaningfully active users
+Reference SQL — KPI_015_MOMENTS_PER_ACTIVE_USER
+WITH active_users AS (SELECT DISTINCT user_id FROM analytics_core.user_daily WHERE activity_date>=:start_date AND activity_date<:end_date AND meaningfully_active_flag), pairs AS (SELECT DISTINCT e.moment_id, e.user_id FROM analytics_raw.events e LEFT JOIN analytics_core.activity_type_registry a ON a.activity_type = e.properties->>'activity_type' AND a.is_meaningful AND (a.active_to IS NULL OR a.active_to > e.occurred_at) AND a.active_from <= e.occurred_at WHERE e.is_valid AND e.user_id IS NOT NULL AND e.moment_id IS NOT NULL AND e.occurred_at>=:start_ts AND e.occurred_at<:end_ts AND (e.event_name IN ('moment_created','participant_invited','participant_joined','expense_added','contribution_recorded','split_created','memory_created','moment_completed') OR (e.event_name='moment_activity_completed' AND a.activity_type IS NOT NULL))) SELECT COUNT(*)::numeric/NULLIF((SELECT COUNT(*) FROM active_users),0) value FROM pairs;
+
+16. Moment Activation Rate
+Definition: Created Moments reaching the backend-defined activation state within the V1 7-day maturity window.
+Formula: activated eligible Moments / eligible created Moments
+Reference SQL — KPI_016_MOMENT_ACTIVATION_RATE
+SELECT COUNT(*) FILTER(WHERE activated_at IS NOT NULL AND activated_at<=created_at+INTERVAL '7 days')*100.0/NULLIF(COUNT(*),0) value FROM analytics_core.moment_lifecycle_fact WHERE created_at<=:as_of-INTERVAL '7 days' AND NOT is_cancelled;
+
+17. Moment Completion Rate
+Definition: Mature activated Moments reaching valid completion; V1 maturity window 30 days.
+Formula: completed mature activated / mature activated
+Reference SQL — KPI_017_MOMENT_COMPLETION_RATE
+SELECT COUNT(*) FILTER(WHERE completed_at IS NOT NULL)*100.0/NULLIF(COUNT(*),0) value FROM analytics_core.moment_lifecycle_fact WHERE activated_at<=:as_of-INTERVAL '30 days' AND NOT is_cancelled;
+
+18. Meaningful Actions per Active Moment
+Definition: Depth of orchestration inside active Moments.
+Formula: qualifying activity events / active Moments
+Reference SQL — KPI_018_MEANINGFUL_ACTIONS_PER_ACTIVE_MOMENT
+SELECT SUM(meaningful_action_count)::numeric/NULLIF(COUNT(DISTINCT moment_id),0) value FROM analytics_core.moment_daily WHERE activity_date>=:start_date AND activity_date<:end_date AND meaningfully_active_flag;
+
+19. Meaningful Actions per Active User
+Definition: Average qualifying actions performed by meaningfully active users.
+Formula: qualifying actions / meaningfully active users
+Reference SQL — KPI_019_MEANINGFUL_ACTIONS_PER_ACTIVE_USER
+SELECT SUM(meaningful_action_count)::numeric/NULLIF(COUNT(DISTINCT user_id) FILTER(WHERE meaningfully_active_flag),0) value FROM analytics_core.user_daily WHERE activity_date>=:start_date AND activity_date<:end_date;
+
+20. Average Participants per Group Moment
+Definition: Average active participant relationships per eligible Group Moment.
+Formula: active participants / Group Moments
+Reference SQL — KPI_020_AVERAGE_PARTICIPANTS_PER_GROUP_MOMENT
+SELECT AVG(cnt)::numeric value FROM (SELECT moment_id,COUNT(*) cnt FROM analytics_core.participant_fact pf JOIN analytics_core.moment_lifecycle_fact mf USING(moment_id) WHERE mf.moment_domain='group' AND pf.is_active_participant GROUP BY moment_id) x;
+
+21. Moment Revisit Rate
+Definition: Eligible Moments viewed in a later session after first qualifying view.
+Formula: revisited Moments / eligible viewed Moments
+Reference SQL — KPI_021_MOMENT_REVISIT_RATE
+WITH v AS (SELECT moment_id,COUNT(DISTINCT session_id) sessions FROM analytics_raw.events WHERE event_name='moment_viewed' AND is_valid GROUP BY moment_id) SELECT COUNT(*) FILTER(WHERE sessions>=2)*100.0/NULLIF(COUNT(*),0) value FROM v;
+
+22. Moment Type / Category Mix
+Definition: Distribution of created Moments by domain/category/type.
+Formula: created Moments of segment / all created Moments
+Reference SQL — KPI_022_MOMENT_TYPE__CATEGORY_MIX
+SELECT moment_domain,moment_category,moment_type,COUNT(*) moments,100.0*COUNT(*)/SUM(COUNT(*)) OVER() pct FROM analytics_core.moment_lifecycle_fact WHERE created_at>=:start_ts AND created_at<:end_ts GROUP BY 1,2,3;
+
+23. D7 Meaningful Retention
+Definition: Activated cohort users with meaningful activity during D7–D9.
+Formula: D7-D9 retained / eligible activated cohort
+Reference SQL — KPI_023_D7_MEANINGFUL_RETENTION
+SELECT d7_rate value FROM analytics_mart.user_retention_cohort WHERE cohort_type='activation' AND cohort_date=:cohort_date AND formula_version=1;
+
+24. D30 Meaningful Retention
+Definition: Activated cohort users with meaningful activity during D30–D36.
+Formula: D30-D36 retained / eligible activated cohort
+Reference SQL — KPI_024_D30_MEANINGFUL_RETENTION
+SELECT d30_rate value FROM analytics_mart.user_retention_cohort WHERE cohort_type='activation' AND cohort_date=:cohort_date AND formula_version=1;
+
+25. Second Moment Rate
+Definition: First-time creators who create a second Moment within 60 days.
+Formula: 2nd Moment creators / mature first-time creator cohort
+Reference SQL — KPI_025_SECOND_MOMENT_RATE
+SELECT COUNT(*) FILTER(WHERE second_moment_created_at IS NOT NULL AND second_moment_created_at<=first_moment_created_at+INTERVAL '60 days')*100.0/NULLIF(COUNT(*),0) value FROM analytics_core.user_lifecycle_fact WHERE first_moment_created_at<=:as_of-INTERVAL '60 days';
+
+26. Repeat Moment Creator Rate
+Definition: Current eligible creator population with at least two created Moments.
+Formula: creators with >=2 Moments / eligible creators
+Reference SQL — KPI_026_REPEAT_MOMENT_CREATOR_RATE
+SELECT COUNT(*) FILTER(WHERE total_moments_created>=2)*100.0/NULLIF(COUNT(*) FILTER(WHERE total_moments_created>=1),0) value FROM analytics_core.user_lifecycle_fact;
+
+27. Third+ Moment Creator Rate
+Definition: First-time creators reaching at least three Moments within 90 days.
+Formula: 3+ creators / mature first-time creator cohort
+Reference SQL — KPI_027_THIRD_MOMENT_CREATOR_RATE
+SELECT COUNT(*) FILTER(WHERE third_moment_created_at IS NOT NULL AND third_moment_created_at<=first_moment_created_at+INTERVAL '90 days')*100.0/NULLIF(COUNT(*),0) value FROM analytics_core.user_lifecycle_fact WHERE first_moment_created_at<=:as_of-INTERVAL '90 days';
+
+28. Cross-Category Adoption Rate
+Definition: Repeat creators whose created Moments span at least two categories.
+Formula: repeat creators across >=2 categories / repeat creators
+Reference SQL — KPI_028_CROSS_CATEGORY_ADOPTION_RATE
+SELECT COUNT(*) FILTER(WHERE cross_category_flag)*100.0/NULLIF(COUNT(*) FILTER(WHERE total_moments_created>=2),0) value FROM analytics_core.user_lifecycle_fact WHERE total_moments_created>=2;
+
+29. Moment Abandonment Rate
+Definition: Mature created Moments that never activate and have no qualifying activity after 14 days; cancellation excluded.
+Formula: abandoned / eligible created Moments
+Reference SQL — KPI_029_MOMENT_ABANDONMENT_RATE
+SELECT COUNT(*) FILTER(WHERE activated_at IS NULL AND first_meaningful_action_at IS NULL)*100.0/NULLIF(COUNT(*),0) value FROM analytics_core.moment_lifecycle_fact WHERE created_at<=:as_of-INTERVAL '14 days' AND NOT is_cancelled;
+
+30. Invitations per Group Moment
+Definition: Valid invitations issued per eligible Group Moment.
+Formula: distinct invite_id / eligible Group Moments
+Reference SQL — KPI_030_INVITATIONS_PER_GROUP_MOMENT
+SELECT COUNT(DISTINCT (properties->>'invite_id'))::numeric/NULLIF(COUNT(DISTINCT moment_id),0) value FROM analytics_raw.events WHERE event_name='participant_invited' AND moment_domain='group' AND occurred_at>=:start_ts AND occurred_at<:end_ts;
+
+31. Invite Open Rate
+Definition: Unique issued invitations that are opened.
+Formula: unique invite opens / valid invites issued
+Reference SQL — KPI_031_INVITE_OPEN_RATE
+WITH i AS (SELECT DISTINCT properties->>'invite_id' id FROM analytics_raw.events WHERE event_name='participant_invited'), o AS (SELECT DISTINCT properties->>'invite_id' id FROM analytics_raw.events WHERE event_name='invite_opened') SELECT (SELECT COUNT(*) FROM o)*100.0/NULLIF((SELECT COUNT(*) FROM i),0) value;
+
+32. Invite → Join Conversion
+Definition: Valid invitations resulting in successful participant joins within 14 days.
+Formula: joined invite IDs / valid invites issued
+Reference SQL — KPI_032_INVITE__JOIN_CONVERSION
+WITH i AS (SELECT DISTINCT properties->>'invite_id' id FROM analytics_raw.events WHERE event_name='participant_invited' AND occurred_at<=:as_of-INTERVAL '14 days'), j AS (SELECT DISTINCT properties->>'invite_id' id FROM analytics_raw.events WHERE event_name='participant_joined') SELECT COUNT(j.id)*100.0/NULLIF(COUNT(i.id),0) value FROM i LEFT JOIN j USING(id);
+
+33. Invited User Activation Rate
+Definition: Joined invitees who perform qualifying activity within 7 days.
+Formula: activated invited users / eligible joined invited users
+Reference SQL — KPI_033_INVITED_USER_ACTIVATION_RATE
+SELECT COUNT(*) FILTER(WHERE participant_activated_at IS NOT NULL AND participant_activated_at<=joined_at+INTERVAL '7 days')*100.0/NULLIF(COUNT(*),0) value FROM analytics_core.participant_fact WHERE joined_at<=:as_of-INTERVAL '7 days';
+
+34. Participant → Creator Conversion
+Definition: Previously non-creator participants who create their first Moment within 60 days after participation.
+Formula: converted participants / mature eligible participants
+Reference SQL — KPI_034_PARTICIPANT__CREATOR_CONVERSION
+WITH first_participation AS (SELECT user_id,MIN(joined_at) joined_at FROM analytics_core.participant_fact WHERE joined_at IS NOT NULL GROUP BY user_id), eligible AS (SELECT fp.user_id,fp.joined_at,u.first_moment_created_at FROM first_participation fp JOIN analytics_core.user_lifecycle_fact u USING(user_id) WHERE fp.joined_at<=:as_of-INTERVAL '60 days' AND (u.first_moment_created_at IS NULL OR u.first_moment_created_at>fp.joined_at)) SELECT COUNT(*) FILTER(WHERE first_moment_created_at<=joined_at+INTERVAL '60 days')*100.0/NULLIF(COUNT(*),0) value FROM eligible;
+
+35. Viral Coefficient
+Definition: Approximate new creators generated through participation per existing creator.
+Formula: invitees per creator × join rate × participant→creator rate
+Reference SQL — KPI_035_VIRAL_COEFFICIENT
+SELECT :invitees_per_creator * :join_rate * :participant_creator_rate AS value;
+
+36. Quick Add Completion Rate
+Definition: Quick Add flow instances reaching a successful business outcome.
+Formula: completed quick-add flows / started quick-add flows
+Reference SQL — KPI_036_QUICK_ADD_COMPLETION_RATE
+WITH s AS (SELECT DISTINCT properties->>'quick_add_flow_id' AS flow_id FROM analytics_raw.events WHERE event_name='quick_add_started' AND is_valid AND properties->>'quick_add_flow_id' IS NOT NULL AND occurred_at>=:start_ts AND occurred_at<:end_ts), c AS (SELECT DISTINCT properties->>'quick_add_flow_id' AS flow_id FROM analytics_raw.events WHERE is_valid AND properties->>'quick_add_flow_id' IS NOT NULL AND event_name IN ('expense_added','contribution_recorded','moment_activity_completed')) SELECT COUNT(c.flow_id)*100.0/NULLIF(COUNT(s.flow_id),0) value FROM s LEFT JOIN c USING (flow_id);
+
+37. Feature Adoption Rate
+Definition: Eligible active users using a specified feature at least once.
+Formula: feature users / eligible active users
+Reference SQL — KPI_037_FEATURE_ADOPTION_RATE
+SELECT :feature_name feature_name, COUNT(DISTINCT user_id) FILTER(WHERE event_name=:feature_event)*100.0/NULLIF(:eligible_active_users,0) value FROM analytics_raw.events WHERE occurred_at>=:start_ts AND occurred_at<:end_ts;
+
+38. Critical Flow Abandonment Rate
+Definition: Critical flow instances started but not successfully completed.
+Formula: abandoned flows / started flows
+Reference SQL — KPI_038_CRITICAL_FLOW_ABANDONMENT_RATE
+WITH s AS (SELECT COUNT(DISTINCT properties->>'flow_instance_id') n FROM analytics_raw.events WHERE event_name='critical_flow_started' AND properties->>'flow_name'=:flow_name), c AS (SELECT COUNT(DISTINCT properties->>'flow_instance_id') n FROM analytics_raw.events WHERE event_name='critical_flow_completed' AND properties->>'flow_name'=:flow_name) SELECT (s.n-c.n)*100.0/NULLIF(s.n,0) value FROM s,c;
+
+39. Median Session Duration
+Definition: Median elapsed time from session start to last qualifying session event.
+Formula: median(last_activity - session_start)
+Reference SQL — KPI_039_MEDIAN_SESSION_DURATION
+SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY session_duration_seconds) value_seconds FROM analytics_core.session_fact WHERE session_started_at>=:start_ts AND session_started_at<:end_ts;
+
+40. Sessions per Active User
+Definition: Average distinct sessions per active user in period.
+Formula: sessions / active users
+Reference SQL — KPI_040_SESSIONS_PER_ACTIVE_USER
+SELECT COUNT(*)::numeric/NULLIF(COUNT(DISTINCT user_id),0) value FROM analytics_core.session_fact WHERE session_started_at>=:start_ts AND session_started_at<:end_ts AND user_id IS NOT NULL;
+
+41. Critical Operation Failure Rate
+Definition: Failed critical operations divided by total attempts/successes+failures for that operation.
+Formula: failures / operation attempts
+Reference SQL — KPI_041_CRITICAL_OPERATION_FAILURE_RATE
+SELECT COUNT(*) FILTER(WHERE event_name='critical_operation_failed' AND properties->>'operation_name'=:operation_name)*100.0/NULLIF(COUNT(*) FILTER(WHERE (event_name='critical_operation_failed' AND properties->>'operation_name'=:operation_name) OR event_name=:success_event),0) value FROM analytics_raw.events WHERE occurred_at>=:start_ts AND occurred_at<:end_ts;
+
+42. Crash-Free Session Rate
+Definition: Sessions without an application crash.
+Formula: non-crash sessions / total sessions
+Reference SQL — KPI_042_CRASH_FREE_SESSION_RATE
+SELECT COUNT(*) FILTER(WHERE NOT had_crash)*100.0/NULLIF(COUNT(*),0) value FROM analytics_core.session_fact WHERE session_started_at>=:start_ts AND session_started_at<:end_ts;
+
+11. Frontend & Backend Instrumentation Checklist
+11.1 Frontend implementation
+Reference client API shape
+analytics.track(eventName, {  event_id,  occurred_at,  anonymous_id,  user_id,  session_id,  moment_id,  source_screen,  correlation_id,  properties});
+
+Area
+Required instrumentation
+App/session
+Generate stable anonymous_id; create session_id; emit session_started once per session; preserve event_id on retry.
+Navigation
+Emit screen_viewed only for meaningful screen visibility; avoid lifecycle redraw duplicates.
+Moment creation
+Generate creation_flow_id; emit moment_creation_started, moment_type_selected and step-completed events; backend moment_created carries same flow ID.
+Moment workspace
+Emit moment_viewed with Moment context and entry source.
+Invite entry
+Preserve invite_id across deep link → registration → participant join.
+Quick Add
+Generate quick_add_flow_id; emit quick_add_started; backend outcome closes flow by stamping the same quick_add_flow_id on expense_added / contribution_recorded / approved moment_activity_completed. correlation_id remains a request-trace field and is not the KPI join key.
+Critical flows
+Use flow_instance_id for participant_join, quick_add and contribution; creation uses dedicated funnel events.
+Offline
+Queue safely; retain original event_id and occurred_at; do not replace with sync time.
+
+11.2 Backend implementation
+Reference backend service contract
+emitBusinessEvent({  eventName,  userId,  momentId,  occurredAt,  correlationId,  properties})// Business transaction commits first.// Analytics event is written to outbox / processed asynchronously.
+
+Backend operation
+Event
+Account successfully created
+user_registered
+Moment persisted
+moment_created
+Moment reaches activation state
+moment_activated
+Moment completed
+moment_completed
+Moment cancelled
+moment_cancelled
+Invite issued
+participant_invited
+Participant relationship activated
+participant_joined
+Generic approved Moment activity persisted
+moment_activity_completed
+Expense persisted
+expense_added
+Contribution persisted
+contribution_recorded
+Split persisted (P1)
+split_created
+Memory persisted (P1)
+memory_created
+Critical business failure
+critical_operation_failed
+
+11.3 No-double-count checklist
+Expense Quick Add: quick_add_started + expense_added only.
+Contribution Quick Add: quick_add_started + contribution_recorded only.
+Poll Quick Add: quick_add_started + moment_activity_completed(activity_type=poll_created).
+moment_activated does not increment meaningful-action count.
+Retries reuse event_id; backend business retries must not produce duplicate canonical events.
+12. QA, Data Quality & Production Readiness
+12.1 Event validation rules
+Check
+Requirement
+V01
+event_name exists in registry
+V02
+event_version supported
+V03
+event_id valid and unique
+V04
+occurred_at valid
+V05
+required event-specific IDs/properties present
+V06
+controlled enums valid
+V07
+Moment business events contain moment_id
+V08
+Authenticated backend actions contain user_id where applicable
+V09
+Financial amount includes currency
+V10
+No prohibited PII/free-text keys
+
+12.2 End-to-end QA scenarios
+ID
+Scenario
+Expected result
+QA01
+Register User A
+Exactly one user_registered; New Users +1.
+QA02
+Create Moment M1
+Exactly one moment_created, including retry test.
+QA03
+Create-only WAM protection
+M1 does not qualify for WAM from creation/view alone.
+QA04
+Perform qualifying activity
+M1 reaches activation exactly once and qualifies for WAM.
+QA05
+Invite existing user B
+participant_invited → invite_opened → participant_joined linked by invite_id.
+QA06
+Invite new user
+anonymous_id → user_id → invite_id → moment_id continuity retained.
+QA07
+Create second Moment
+second_moment_created_at updated; cohort eligibility still respects 60-day window.
+QA08
+Participant becomes creator
+Previously non-creator participant converts after first own Moment.
+QA09
+Existing creator participates
+Must not count as participant→first-creator conversion.
+QA10
+Duplicate event retry
+Same event_id twice stores one canonical event.
+QA11
+Offline event
+occurred_at remains action time; received_at reflects later ingestion.
+QA12
+Crash session
+session_fact.had_crash=true; Crash-Free Session Rate changes correctly.
+
+12.3 KPI integrity tests
+Rate KPIs must stay between 0% and 100%.
+For rate KPIs numerator must not exceed denominator.
+D30 denominator must exclude users not old enough to reach D36.
+Second Moment numerator cannot exceed mature first-time creator cohort.
+Participant→Creator numerator cannot exceed mature eligible participant cohort.
+Moment lifecycle timestamps must not move backwards: created ≤ activated ≤ completed where applicable.
+Founder dashboard values must equal persisted mart values, not separate widget calculations.
+12.4 Production readiness gates
+Gate
+Pass condition
+A — Event Integrity
+All P0 events wired and registry-valid
+B — Deduplication
+Retry tests pass for client and backend
+C — Identity
+Anonymous → registered linkage verified
+D — Moment Linkage
+Moment-related events consistently contain moment_id
+E — KPI Calculation
+Five signature KPIs manually reconciled
+F — Performance
+Analytics outage does not block app operations
+G — Security
+End-user/mobile roles cannot query global analytics schemas
+H — Privacy
+No prohibited PII/free text in standard payloads
+I — Dashboard
+Dashboard values match SQL/mart records
+
+13. Deployment Sequence & Beta-Day Checklist
+13.1 Developer execution order
+Run V059–V061: schemas, raw event storage and registries.
+Implement analytics ingestion service and outbox/worker integration.
+Wire backend P0 business events.
+Wire frontend P0 navigation/funnel events.
+Run V062–V064: identity/session/user/Moment facts.
+Implement validation, daily-fact and lifecycle transformation workers.
+Run V065–V066: cohort marts and KPI mart.
+Implement the five signature KPIs first: Activation, WAM, Completion, Second Moment, Participant → Creator.
+Implement remaining KPI SQL modules.
+Run V067 indexes/constraints and V068 validation views.
+Build Founder dashboard, then Product dashboard.
+Generate controlled monthly VC snapshot from the same KPI mart.
+13.2 Beta Day 1 — mandatory capture
+user_registered
+session_started
+moment_creation_started / moment_type_selected / creation steps
+moment_created
+moment_viewed
+moment_activated
+moment_completed
+participant_invited
+invite_opened
+participant_joined
+moment_activity_completed
+quick_add_started
+expense_added
+contribution_recorded
+critical_operation_failed
+app_crashed
+Raw event history retained from the first beta session onward.
+13.3 Can follow after Beta starts
+participant_exited
+split_created analytics
+memory_created analytics
+moment_reopened
+advanced category drill-downs
+alerting and additional dashboard polish
+more sophisticated attribution and guidance analytics
+Final implementation target
+10 migrations (V059–V068) + 28 canonical events (24 P0 / 4 P1) + 4 processing jobs + 42 derived KPIs + Founder/Product dashboards + controlled VC reporting. This is intentionally lean enough to implement while preserving enough raw data to evolve the analytics later.
+
+Appendix A — Formula V1 Windows
+Metric
+V1 rule
+User Activation
+Create or join + subsequent qualifying activity within 14 days of registration
+Moment Activation maturity
+7 days after creation
+Moment Completion maturity
+30 days after activation
+D7 Meaningful Retention
+Meaningful activity during D7–D9 after activation
+D30 Meaningful Retention
+Meaningful activity during D30–D36 after activation
+Second Moment Rate
+Second Moment within 60 days of first Moment
+Participant → Creator
+First own Moment within 60 days after first eligible participation
+Third+ Moment Rate
+Third Moment within 90 days of first Moment
+Moment Abandonment
+No activation and no qualifying activity after 14 days; cancelled Moments excluded
+WAM
+At least one post-creation qualifying Moment activity; creation/view alone excluded
+
+Appendix B — Controlled V1 Enums
+Field
+Initial values
+moment_domain
+personal | group | business
+platform
+ios | android | web
+invitee_user_status
+existing_user | non_user | unknown
+participant exit_type
+left | removed | declined
+split_type
+equal | weighted | custom | role_based
+critical flow_name
+participant_join | quick_add | contribution
+moment creation entry_point
+create_tab | template | pulse | life | previous_moment
+
