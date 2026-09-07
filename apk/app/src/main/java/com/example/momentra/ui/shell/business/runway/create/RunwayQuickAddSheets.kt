@@ -295,10 +295,20 @@ private fun RunwayExpenseForm(
                         currencyCode = currencyCode,
                         categoryCode = category.ifBlank { null },
                         merchantName = merchant.takeIf { it.isNotBlank() },
-                        description = joinParts("Date: $date", notes.takeIf { it.isNotBlank() }),
+                        description = notes.takeIf { it.isNotBlank() },
+                        effectiveAt = "${date}T12:00:00.000Z",
                     ),
                 ).fold(
-                    onSuccess = { submitting = false; onSaved(); onDismiss() },
+                    onSuccess = { created ->
+                        submitting = false
+                        if (created.status.equals("DRAFT", ignoreCase = true)) {
+                            error = "Pending approval — burn updates after approve"
+                            onSaved()
+                        } else {
+                            onSaved()
+                            onDismiss()
+                        }
+                    },
                     onFailure = { submitting = false; error = it.message ?: "Could not log expense" },
                 )
             }

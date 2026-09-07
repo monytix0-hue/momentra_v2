@@ -583,7 +583,8 @@ fun AppShellScreen(
                                 else -> kind
                             }
                             kind == BusinessQuickAddKind.EXPENSE ||
-                                kind == BusinessQuickAddKind.REVENUE ||
+                                kind == BusinessQuickAddKind.SPEND_ENTRY -> businessExpenseSheetOpen = true
+                            kind == BusinessQuickAddKind.REVENUE ||
                                 kind == BusinessQuickAddKind.INVOICE -> Unit
                             else -> businessGapQa = kind
                         }

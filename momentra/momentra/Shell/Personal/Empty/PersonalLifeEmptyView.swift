@@ -114,8 +114,8 @@ struct PersonalLifeEmptyView: View {
 
             VStack(spacing: 12) {
                 pillarRow("▣", "Life Operations", "Money, routines, commitments", PersonalEmptyTokens.purple, PersonalEmptyTokens.deepIndigo)
-                pillarRow("↗", "Future Building", "Goals, growth, milestones", PersonalEmptyTokens.green, PersonalEmptyTokens.tealDeep)
-                pillarRow("◇", "Lifestyle", "Experiences, wellbeing, creativity", PersonalEmptyTokens.amber, PersonalEmptyTokens.orangeDeep)
+                pillarRow("↗", "Future Building", "Goals, growth, milestones", PersonalEmptyTokens.green, PersonalEmptyTokens.tealDeep, comingSoon: true)
+                pillarRow("◇", "Lifestyle", "Experiences, wellbeing, creativity", PersonalEmptyTokens.amber, PersonalEmptyTokens.orangeDeep, comingSoon: true)
                 pillarRow("♡", "Relationships", "Connections, care, shared moments", PersonalEmptyTokens.pink, PersonalEmptyTokens.pinkDeep)
             }
 
@@ -141,14 +141,28 @@ struct PersonalLifeEmptyView: View {
         _ title: String,
         _ subtitle: String,
         _ accent: Color,
-        _ deep: Color
+        _ deep: Color,
+        comingSoon: Bool = false
     ) -> some View {
         HStack(spacing: 12) {
             PersonalIconCircle(glyph: glyph, accent: accent, deep: deep, size: 32)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(PersonalEmptyTokens.text)
+                HStack(spacing: 8) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(PersonalEmptyTokens.text)
+                    if comingSoon {
+                        Text("Coming Soon")
+                            .font(.system(size: 9, weight: .semibold))
+                            .tracking(0.5)
+                            .foregroundStyle(Color(hex: "#98A3B8"))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Color(hex: "#4D4D59").opacity(0.75))
+                            .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                    }
+                }
                 Text(subtitle)
                     .font(.system(size: 11))
                     .foregroundStyle(PersonalEmptyTokens.subtle)
@@ -162,6 +176,7 @@ struct PersonalLifeEmptyView: View {
         .padding(12)
         .background(Color.white.opacity(0.02))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .opacity(comingSoon ? 0.7 : 1)
     }
 
     private var whatYoullDiscover: some View {

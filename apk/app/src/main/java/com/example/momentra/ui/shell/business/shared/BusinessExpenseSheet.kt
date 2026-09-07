@@ -357,7 +357,11 @@ fun BusinessExpenseSheet(
                                 }
                                 submitting = false
                                 onSaved()
-                                onDismiss()
+                                if (created.status.equals("DRAFT", ignoreCase = true)) {
+                                    error = "Pending approval — burn updates after approve"
+                                } else {
+                                    onDismiss()
+                                }
                             },
                             onFailure = {
                                 submitting = false

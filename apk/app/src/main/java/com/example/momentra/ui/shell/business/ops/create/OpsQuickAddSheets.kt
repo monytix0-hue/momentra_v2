@@ -253,7 +253,6 @@ private fun OpsSpendBody(
                 val noteParts = buildList {
                     if (notes.isNotBlank()) add(notes.trim())
                     add("Frequency: $frequency")
-                    add("Date: $isoDate")
                 }
                 repository.createExpense(
                     momentId = id,
@@ -263,9 +262,19 @@ private fun OpsSpendBody(
                         description = noteParts.joinToString(" · "),
                         merchantName = vendor.takeIf { it.isNotBlank() },
                         categoryCode = category.uppercase().replace(' ', '_').take(32),
+                        effectiveAt = "${isoDate}T12:00:00.000Z",
                     ),
                 ).fold(
-                    onSuccess = { submitting = false; onSaved(); onDismiss() },
+                    onSuccess = { created ->
+                        submitting = false
+                        if (created.status.equals("DRAFT", ignoreCase = true)) {
+                            error = "Pending approval — burn updates after approve"
+                            onSaved()
+                        } else {
+                            onSaved()
+                            onDismiss()
+                        }
+                    },
                     onFailure = { submitting = false; error = it.message ?: "Could not log spend" },
                 )
             }

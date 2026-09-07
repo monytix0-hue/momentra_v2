@@ -304,7 +304,7 @@ enum BusinessQuickAddKind: String, Identifiable, CaseIterable {
         case "Business Operations":
             return [.spendEntry, .updateVendor, .requestApproval, .reportIssue, .logImprovement, .budgetReview, .slaCheck, .generalUpdate, .memory]
         default:
-            return [.teamUpdate, .decision, .blocker, .meeting, .recognition, .approval, .milestone, .retrospective, .riskFlag, .activityLog, .poll, .memory]
+            return [.teamUpdate, .decision, .blocker, .meeting, .recognition, .approval, .milestone, .retrospective, .riskFlag, .activityLog, .poll, .memory, .expense]
         }
     }
 }

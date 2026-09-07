@@ -1,49 +1,133 @@
 import SwiftUI
+import PhotosUI
 import UIKit
 
-/// Log a company expense against the active Business Moment.
+/// Figma `1620:12158` — Add Expense bottom sheet (Team Ops / business).
 struct BusinessExpenseSheet: View {
     let momentId: String
     @Binding var isPresented: Bool
     var onSaved: () -> Void
 
-    @State private var amount = ""
+    @State private var amountDisplay = ""
     @State private var currencyCode = "INR"
     @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var descriptionText = ""
-    @State private var categoryCode = "PURCHASE"
+    @State private var categoryLabel = "Software"
+    @State private var paidBy = "You"
+    @State private var isoDate = SetupDateTimeUtils.localDateString(from: Date())
+    @State private var receiptItem: PhotosPickerItem?
+    @State private var receiptBytes: Data?
+    @State private var receiptName: String?
+    @State private var receiptContentType = "image/jpeg"
     @State private var submitting = false
     @State private var error: String?
     @State private var pendingApprovalId: String?
 
-    private let accent = Color(red: 0.506, green: 0.549, blue: 0.973)
-    private let categories = ["PURCHASE", "OPS", "SOFTWARE", "TRAVEL", "OTHER"]
+    private let accent = TeamOpsSheetAccent.indigo
+    private let categoryLabels = ["Software", "Travel", "Office", "Equipment", "Services", "Other"]
+    private let paidByOptions = ["You"]
+
+    private func categoryCode(_ label: String) -> String { label.uppercased() }
 
     var body: some View {
         NativeSheetScaffold(
-            title: "Log business expense",
+            title: "Add Expense",
             onClose: { isPresented = false },
-            background: Color(hex: "#14121B")
+            background: TeamOpsSheetTokens.sheetBg
         ) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    formCard
+                VStack(alignment: .leading, spacing: 14) {
+                    TeamOpsSheetHeader(
+                        emoji: "💳",
+                        title: "Add Expense",
+                        explanation: "Record team spend against this moment",
+                        accent: accent,
+                        onClose: { isPresented = false }
+                    )
+
+                    TeamOpsFieldLabel(text: "Amount")
+                    HStack(alignment: .bottom, spacing: 8) {
+                        TravelCurrencyPicker(
+                            selectedCode: $currencyCode,
+                            preferredCodes: preferredCurrencyCodes,
+                            accentColor: accent.accent
+                        )
+                        TextField("0.00", text: Binding(
+                            get: { amountDisplay },
+                            set: { raw in
+                                let stripped = TeamOpsAmountFormat.strip(raw)
+                                amountDisplay = TeamOpsAmountFormat.display(from: stripped)
+                            }
+                        ))
+                        .keyboardType(.decimalPad)
+                        .font(.plusJakarta(size: 36, weight: .heavy))
+                        .foregroundStyle(TeamOpsSheetTokens.text)
+                    }
+
+                    TeamOpsFieldLabel(text: "Description")
+                    TeamOpsTextField(value: $descriptionText, placeholder: "AWS, ads, supplies…", minHeight: 44)
+
+                    TeamOpsFieldLabel(text: "Category")
+                    TeamOpsChipRow(options: categoryLabels, selected: $categoryLabel, accent: accent)
+
+                    HStack(spacing: 14) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            TeamOpsFieldLabel(text: "Paid By")
+                            TeamOpsDropdownField(
+                                value: paidBy,
+                                options: paidByOptions,
+                                onSelect: { paidBy = $0 },
+                                placeholder: "You"
+                            )
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 8) {
+                            TeamOpsFieldLabel(text: "Date")
+                            TeamOpsDateField(isoDate: $isoDate)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    TeamOpsFieldLabel(text: "Receipt")
+                    PhotosPicker(selection: $receiptItem, matching: .images) {
+                        HStack {
+                            Text(receiptName ?? "Attach PDF/Img")
+                                .font(.plusJakarta(size: 14, weight: .medium))
+                                .foregroundStyle(receiptName != nil ? TeamOpsSheetTokens.text : TeamOpsSheetTokens.muted)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(height: 44)
+                        .background(TeamOpsSheetTokens.field)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(TeamOpsSheetTokens.border))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .onChange(of: receiptItem) { _, item in
+                        Task { await loadReceipt(item) }
+                    }
+
                     if let pendingApprovalId {
                         approvalCard(pendingApprovalId)
                     }
                     if let error {
                         Text(error)
-                            .font(.caption)
-                            .foregroundStyle(Color(hex: "#F87171"))
+                            .font(.plusJakarta(size: 12))
+                            .foregroundStyle(TeamOpsSheetTokens.error)
+                    }
+
+                    TeamOpsPrimaryCta(
+                        label: submitting ? "Saving…" : "Add Expense",
+                        enabled: canSubmit && !submitting && pendingApprovalId == nil,
+                        loading: submitting,
+                        footerHint: "Team will be notified",
+                        accent: accent
+                    ) {
+                        Task { await save() }
                     }
                 }
                 .padding(16)
             }
-        } footer: {
-            saveButton
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-                .background(Color(hex: "#14121B"))
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -54,68 +138,26 @@ struct BusinessExpenseSheet: View {
         }
     }
 
-    private var formCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            fieldLabel("AMOUNT")
-            TextField("0.00", text: $amount)
-                .keyboardType(.decimalPad)
-                .font(.system(size: 26, weight: .heavy))
-                .foregroundStyle(Color(hex: "#E5E0EE"))
-                .padding(12)
-                .background(Color(hex: "#201E28"))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#938EA1"), lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            TravelCurrencyPicker(
-                selectedCode: $currencyCode,
-                preferredCodes: preferredCurrencyCodes,
-                accentColor: accent
-            )
-
-            fieldLabel("DESCRIPTION")
-            TextField("AWS, ads, supplies…", text: $descriptionText)
-                .foregroundStyle(Color(hex: "#E5E0EE"))
-                .padding(12)
-                .background(Color(hex: "#201E28"))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#938EA1"), lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            fieldLabel("CATEGORY")
-            FlowLayout(spacing: 8) {
-                ForEach(categories, id: \.self) { code in
-                    let on = categoryCode == code
-                    Button { categoryCode = code } label: {
-                        Text(code.capitalized)
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(on ? .white : Color(hex: "#C9C4D8"))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(on ? accent : Color(hex: "#201E28"))
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .padding(12)
-        .background(Color.white.opacity(0.05))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08), lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+    private var canSubmit: Bool {
+        let amt = TeamOpsAmountFormat.strip(amountDisplay)
+        guard let value = Double(amt), value > 0 else { return false }
+        return currencyCode.count == 3
     }
 
     private func approvalCard(_ id: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Approval required")
-                .font(.system(size: 14, weight: .heavy))
+                .font(.plusJakarta(size: 14, weight: .heavy))
                 .foregroundStyle(Color(hex: "#FBBF24"))
-            Text("This expense is DRAFT pending approval.")
-                .font(.system(size: 12))
-                .foregroundStyle(Color(hex: "#C9C4D8"))
+            Text("This expense is DRAFT pending approval — burn updates after approve.")
+                .font(.plusJakarta(size: 12))
+                .foregroundStyle(TeamOpsSheetTokens.muted)
             HStack(spacing: 10) {
                 Button {
                     Task { await decide(id, decision: "APPROVE") }
                 } label: {
                     Text("Approve")
-                        .font(.system(size: 13, weight: .heavy))
+                        .font(.plusJakarta(size: 13, weight: .heavy))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -127,7 +169,7 @@ struct BusinessExpenseSheet: View {
                     Task { await decide(id, decision: "REJECT") }
                 } label: {
                     Text("Reject")
-                        .font(.system(size: 13, weight: .heavy))
+                        .font(.plusJakarta(size: 13, weight: .heavy))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -138,62 +180,61 @@ struct BusinessExpenseSheet: View {
             }
         }
         .padding(12)
-        .background(Color(hex: "#201E28"))
+        .background(TeamOpsSheetTokens.field)
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    private var saveButton: some View {
-        Button {
-            Task { await save() }
-        } label: {
-            HStack(spacing: 8) {
-                if submitting {
-                    ProgressView().tint(.white)
-                } else {
-                    Text("Save Expense")
-                        .font(.system(size: 15, weight: .heavy))
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 13, weight: .bold))
-                }
-            }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(accent)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+    private func loadReceipt(_ item: PhotosPickerItem?) async {
+        guard let item else {
+            receiptBytes = nil
+            receiptName = nil
+            return
         }
-        .buttonStyle(.plain)
-        .disabled(!canSubmit || submitting)
-        .opacity(!canSubmit ? 0.55 : 1)
-    }
-
-    private var canSubmit: Bool {
-        !amount.isEmpty && currencyCode.count == 3 && pendingApprovalId == nil
-    }
-
-    private func fieldLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .bold))
-            .tracking(0.8)
-            .foregroundStyle(accent)
+        do {
+            if let data = try await item.loadTransferable(type: Data.self) {
+                receiptBytes = data
+                receiptName = "Receipt.jpg"
+                receiptContentType = "image/jpeg"
+            }
+        } catch {
+            self.error = "Could not load receipt"
+        }
     }
 
     private func save() async {
+        let amt = TeamOpsAmountFormat.strip(amountDisplay).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !amt.isEmpty, amt != "0", amt != "0.00" else {
+            error = "Enter an amount"
+            return
+        }
         submitting = true
         error = nil
         do {
             let result = try await APIClient.shared.createBusinessExpense(
                 momentId: momentId,
-                amount: amount.trimmingCharacters(in: .whitespacesAndNewlines),
+                amount: amt,
                 currencyCode: currencyCode.uppercased(),
                 description: descriptionText.isEmpty ? nil : descriptionText,
-                categoryCode: categoryCode
+                categoryCode: categoryCode(categoryLabel),
+                paidBy: paidBy.isEmpty ? nil : paidBy,
+                effectiveAt: "\(isoDate)T12:00:00.000Z"
             )
-            if let approvalId = result.approvalRequestId, result.status.uppercased() == "DRAFT" {
+            if let bytes = receiptBytes, !bytes.isEmpty {
+                _ = try? await APIClient.shared.uploadAndAttachExpenseMedia(
+                    momentId: momentId,
+                    expenseId: result.expenseId,
+                    bytes: bytes,
+                    contentType: receiptContentType
+                )
+            }
+            onSaved()
+            if let approvalId = result.approvalRequestId, result.isDraft {
                 pendingApprovalId = approvalId
+                error = "Pending approval — burn updates after approve"
+            } else if result.isDraft {
+                error = "Pending approval — burn updates after approve"
             } else {
                 isPresented = false
-                onSaved()
             }
         } catch {
             self.error = error.localizedDescription

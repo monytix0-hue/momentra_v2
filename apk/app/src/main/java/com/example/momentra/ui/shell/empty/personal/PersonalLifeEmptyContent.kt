@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -205,12 +206,19 @@ private fun LifeStepCard(
 
 @Composable
 private fun LifePillarsSection() {
-    data class Pillar(val glyph: String, val title: String, val subtitle: String, val accent: Color, val deep: Color)
+    data class Pillar(
+        val glyph: String,
+        val title: String,
+        val subtitle: String,
+        val accent: Color,
+        val deep: Color,
+        val comingSoon: Boolean = false,
+    )
 
     val pillars = listOf(
         Pillar("▣", "Life Operations", "Money, routines, commitments", PePurple, Color(0xFF4F46E5)),
-        Pillar("↗", "Future Building", "Goals, growth, milestones", PeGreen, Color(0xFF0F766E)),
-        Pillar("◇", "Lifestyle", "Experiences, wellbeing, creativity", PeAmber, Color(0xFFEA580C)),
+        Pillar("↗", "Future Building", "Goals, growth, milestones", PeGreen, Color(0xFF0F766E), comingSoon = true),
+        Pillar("◇", "Lifestyle", "Experiences, wellbeing, creativity", PeAmber, Color(0xFFEA580C), comingSoon = true),
         Pillar("♡", "Relationships", "Connections, care, shared moments", PePink, Color(0xFFBE185D)),
     )
     Column(
@@ -241,13 +249,34 @@ private fun LifePillarsSection() {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color.White.copy(alpha = 0.02f))
+                    .then(if (pillar.comingSoon) Modifier.alpha(0.7f) else Modifier)
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 PeIconCircle(glyph = pillar.glyph, accent = pillar.accent, deep = pillar.deep, size = 32.dp)
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(pillar.title, color = PeText, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(pillar.title, color = PeText, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+                        if (pillar.comingSoon) {
+                            Text(
+                                text = "Coming Soon",
+                                color = Color(0xFF98A3B8),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = PlusJakartaSans,
+                                letterSpacing = 0.5.sp,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(Color(0xFF4D4D59).copy(alpha = 0.75f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(5.dp))
+                                    .padding(horizontal = 7.dp, vertical = 3.dp),
+                            )
+                        }
+                    }
                     Text(pillar.subtitle, color = PeSubtle, fontSize = 11.sp, fontFamily = PlusJakartaSans)
                 }
                 Box(

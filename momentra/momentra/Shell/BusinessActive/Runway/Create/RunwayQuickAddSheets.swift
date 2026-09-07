@@ -239,19 +239,23 @@ private struct RunwayExpenseForm: View {
         submitting = true
         error = nil
         let strippedAmount = RunwayAmountFormat.strip(amountDisplay)
-        let descParts = ["Date: \(date)", notes.isEmpty ? nil : notes].compactMap { $0 }
         
         do {
-            _ = try await APIClient.shared.createBusinessExpense(
+            let created = try await APIClient.shared.createBusinessExpense(
                 momentId: momentId,
                 amount: strippedAmount,
                 currencyCode: currencyCode,
-                description: descParts.isEmpty ? nil : descParts.joined(separator: " · "),
+                description: notes.isEmpty ? nil : notes,
                 merchantName: merchant.isEmpty ? nil : merchant,
-                categoryCode: category.isEmpty ? nil : category
+                categoryCode: category.isEmpty ? nil : category,
+                effectiveAt: "\(date)T12:00:00.000Z"
             )
             onSaved()
-            onDismiss()
+            if created.isDraft {
+                error = "Pending approval — burn updates after approve"
+            } else {
+                onDismiss()
+            }
         } catch {
             self.error = error.localizedDescription
         }

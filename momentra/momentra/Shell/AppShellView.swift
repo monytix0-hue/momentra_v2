@@ -433,6 +433,8 @@ struct AppShellView: View {
                     case .expense, .spendEntry:
                         if isOps {
                             businessGapQa = .spendEntry
+                        } else if code.contains("RUNWAY") {
+                            businessGapQa = .expense
                         } else {
                             businessExpenseSheetPresented = true
                         }

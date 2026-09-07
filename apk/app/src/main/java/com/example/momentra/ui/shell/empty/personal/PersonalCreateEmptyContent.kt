@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -89,6 +90,9 @@ fun PersonalCreateEmptyContent(
         }
 
     fun selectOrCreate(system: PersonalSetupSystem) {
+        if (system == PersonalSetupSystem.FUTURE_BUILDING || system == PersonalSetupSystem.LIFESTYLE) {
+            return
+        }
         val existing = activeMoment(system)
         if (existing != null) {
             onOpenExisting(existing.momentId)
@@ -210,17 +214,14 @@ private fun PersonalCreateChooser(
                     )
                     LifeSystemCard(
                         title = "Future Building",
-                        subtitle = if (activeMomentFor(PersonalSetupSystem.FUTURE_BUILDING) != null) {
-                            "Open existing"
-                        } else {
-                            "Goals, growth & progress"
-                        },
-                        subtitleAccent = activeMomentFor(PersonalSetupSystem.FUTURE_BUILDING) != null,
+                        subtitle = "Goals, growth & progress",
+                        subtitleAccent = false,
                         glyph = "↗",
                         accent = PeGreen,
                         accentDeep = Color(0xFF0F766E),
                         thumbRes = R.drawable.personal_create_thumb_future,
                         modifier = Modifier.weight(1f),
+                        comingSoon = true,
                         onClick = { onSelect(PersonalSetupSystem.FUTURE_BUILDING) },
                     )
                 }
@@ -230,17 +231,14 @@ private fun PersonalCreateChooser(
                 ) {
                     LifeSystemCard(
                         title = "Lifestyle",
-                        subtitle = if (activeMomentFor(PersonalSetupSystem.LIFESTYLE) != null) {
-                            "Open existing"
-                        } else {
-                            "Experiences & wellbeing"
-                        },
-                        subtitleAccent = activeMomentFor(PersonalSetupSystem.LIFESTYLE) != null,
+                        subtitle = "Experiences & wellbeing",
+                        subtitleAccent = false,
                         glyph = "◈",
                         accent = PeAmber,
                         accentDeep = Color(0xFFEA580C),
                         thumbRes = R.drawable.personal_create_thumb_lifestyle,
                         modifier = Modifier.weight(1f),
+                        comingSoon = true,
                         onClick = { onSelect(PersonalSetupSystem.LIFESTYLE) },
                     )
                     LifeSystemCard(
@@ -363,75 +361,101 @@ private fun LifeSystemCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     subtitleAccent: Boolean = false,
+    comingSoon: Boolean = false,
 ) {
-    Column(
+    Box(
         modifier = modifier
             .height(160.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(PeCard)
-            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
-            .semantics {
-                role = Role.Button
-                contentDescription = title
-            }
-            .clickable(onClick = onClick),
+            .then(if (comingSoon) Modifier.alpha(0.6f) else Modifier),
     ) {
-        Image(
-            painter = painterResource(thumbRes),
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp),
-            contentScale = ContentScale.Crop,
-        )
         Column(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .fillMaxSize()
+                .clip(RoundedCornerShape(16.dp))
+                .background(PeCard)
+                .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
+                .semantics {
+                    role = Role.Button
+                    contentDescription = if (comingSoon) "$title, Coming Soon" else title
+                }
+                .then(
+                    if (comingSoon) Modifier else Modifier.clickable(onClick = onClick),
+                ),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Image(
+                painter = painterResource(thumbRes),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp),
+                contentScale = ContentScale.Crop,
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Brush.radialGradient(listOf(accent, accentDeep))),
-                    contentAlignment = Alignment.Center,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(glyph, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Brush.radialGradient(listOf(accent, accentDeep))),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(glyph, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text(
+                        title,
+                        color = PeText,
+                        fontSize = 14.sp,
+                        lineHeight = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
                 Text(
-                    title,
-                    color = PeText,
-                    fontSize = 14.sp,
-                    lineHeight = 18.sp,
-                    fontWeight = FontWeight.Bold,
+                    subtitle,
+                    color = if (subtitleAccent) accent else PeSubtle,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
                     fontFamily = PlusJakartaSans,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
                 )
             }
-            Text(
-                subtitle,
-                color = if (subtitleAccent) accent else PeSubtle,
-                fontSize = 11.sp,
-                lineHeight = 14.sp,
-                fontFamily = PlusJakartaSans,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(accent),
             )
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(3.dp)
-                .background(accent),
-        )
+        if (comingSoon) {
+            Text(
+                text = "Coming Soon",
+                color = Color(0xFF98A3B8),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+                letterSpacing = 0.5.sp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 8.dp, end = 8.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF4D4D59).copy(alpha = 0.85f))
+                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
     }
 }
 

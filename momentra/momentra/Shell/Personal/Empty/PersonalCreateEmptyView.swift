@@ -32,11 +32,16 @@ struct PersonalCreateEmptyView: View {
     }
 
     private func selectOrCreate(_ system: PersonalSetupSystem) {
+        if system == .futureBuilding || system == .lifestyle { return }
         if let existing = activeMoment(for: system) {
             onOpenExisting(existing.momentId)
         } else {
             wizard = system
         }
+    }
+
+    private func isComingSoon(_ system: PersonalSetupSystem) -> Bool {
+        system == .futureBuilding || system == .lifestyle
     }
 
     private var chooser: some View {
@@ -168,51 +173,70 @@ struct PersonalCreateEmptyView: View {
         deep: Color,
         thumb: String
     ) -> some View {
-        let existing = activeMoment(for: system)
+        let comingSoon = isComingSoon(system)
+        let existing = comingSoon ? nil : activeMoment(for: system)
         return Button { selectOrCreate(system) } label: {
-            VStack(spacing: 0) {
-                Image(thumb)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: 80)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Text(glyph)
-                            .font(.plusJakarta(size: 14, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 32, height: 32)
-                            .background(
-                                RadialGradient(colors: [accent, deep], center: .center, startRadius: 0, endRadius: 20),
-                                in: Circle()
-                            )
-                        Text(system.label)
-                            .font(.plusJakarta(size: 14, weight: .bold))
-                            .foregroundStyle(PersonalEmptyTokens.text)
+            ZStack(alignment: .topTrailing) {
+                VStack(spacing: 0) {
+                    Image(thumb)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 80)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text(glyph)
+                                .font(.plusJakarta(size: 14, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 32, height: 32)
+                                .background(
+                                    RadialGradient(colors: [accent, deep], center: .center, startRadius: 0, endRadius: 20),
+                                    in: Circle()
+                                )
+                            Text(system.label)
+                                .font(.plusJakarta(size: 14, weight: .bold))
+                                .foregroundStyle(PersonalEmptyTokens.text)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        Text(existing != nil ? "Open existing" : subtitle)
+                            .font(.plusJakarta(size: 11))
+                            .foregroundStyle(existing != nil ? accent : PersonalEmptyTokens.subtle)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text(existing != nil ? "Open existing" : subtitle)
-                        .font(.plusJakarta(size: 11))
-                        .foregroundStyle(existing != nil ? accent : PersonalEmptyTokens.subtle)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+                    .padding(.bottom, 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    accent.frame(height: 3)
                 }
-                .padding(.horizontal, 12)
-                .padding(.top, 10)
-                .padding(.bottom, 8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                accent.frame(height: 3)
+                .frame(maxWidth: .infinity)
+                .frame(height: 160)
+                .background(PersonalEmptyTokens.card)
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.06), lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .opacity(comingSoon ? 0.6 : 1)
+
+                if comingSoon {
+                    Text("Coming Soon")
+                        .font(.system(size: 9, weight: .semibold))
+                        .tracking(0.5)
+                        .foregroundStyle(Color(hex: "#98A3B8"))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "#4D4D59").opacity(0.85))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .padding(.top, 8)
+                        .padding(.trailing, 8)
+                }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 160)
-            .background(PersonalEmptyTokens.card)
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.06), lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
+        .disabled(comingSoon)
     }
 
     private func quickRow(

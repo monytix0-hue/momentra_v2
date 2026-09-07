@@ -256,7 +256,7 @@ struct OpsPulseActiveView: View {
 
     private var ctaRow: some View {
         HStack(spacing: 12) {
-            OpsGradientPrimaryButton(label: "+ Log Delivery", enabled: momentId != nil, action: onLogSpend)
+            OpsGradientPrimaryButton(label: "+ Log Spend", enabled: momentId != nil, action: onLogSpend)
             OpsOutlineButton(label: "View Report", enabled: true, action: onOpenQuickAdd, theme: theme)
         }
     }

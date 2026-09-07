@@ -3691,6 +3691,12 @@ final class APIClient {
         let status: String
         let approvalRequestId: String?
         let version: Int?
+        let paidBy: String?
+        let effectiveAt: String?
+        let receiptUploadId: String?
+
+        var isDraft: Bool { status.uppercased() == "DRAFT" }
+        var isPosted: Bool { status.uppercased() == "POSTED" }
     }
 
     struct CreateBusinessRevenueResult: Decodable {
@@ -3935,6 +3941,9 @@ final class APIClient {
         merchantName: String? = nil,
         categoryCode: String? = nil,
         vendorId: String? = nil,
+        paidBy: String? = nil,
+        effectiveAt: String? = nil,
+        receiptUploadId: String? = nil,
         idempotencyKey: String = UUID().uuidString
     ) async throws -> CreateBusinessExpenseResult {
         struct Body: Encodable {
@@ -3944,6 +3953,9 @@ final class APIClient {
             let merchantName: String?
             let categoryCode: String?
             let vendorId: String?
+            let paidBy: String?
+            let effectiveAt: String?
+            let receiptUploadId: String?
         }
         return try await authorizedPost(
             path: "v1/moments/\(momentId)/business-expenses",
@@ -3953,7 +3965,10 @@ final class APIClient {
                 description: description,
                 merchantName: merchantName,
                 categoryCode: categoryCode,
-                vendorId: vendorId
+                vendorId: vendorId,
+                paidBy: paidBy,
+                effectiveAt: effectiveAt,
+                receiptUploadId: receiptUploadId
             ),
             idempotencyKey: idempotencyKey
         )

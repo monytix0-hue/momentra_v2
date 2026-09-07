@@ -138,18 +138,25 @@ private struct OpsSpendForm: View {
         error = nil
         do {
             var parts = [String]()
-            if !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { parts.append(notes.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            if !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                parts.append(notes.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
             parts.append("Frequency: \(frequency)")
-            parts.append("Date: \(isoDate)")
-            _ = try await APIClient.shared.createBusinessExpense(
+            let created = try await APIClient.shared.createBusinessExpense(
                 momentId: momentId,
                 amount: amount,
                 currencyCode: resolvedCurrency,
                 description: parts.joined(separator: " · "),
                 merchantName: vendor.isEmpty ? nil : vendor,
-                categoryCode: String(category.uppercased().replacingOccurrences(of: " ", with: "_").prefix(32))
+                categoryCode: String(category.uppercased().replacingOccurrences(of: " ", with: "_").prefix(32)),
+                effectiveAt: "\(isoDate)T12:00:00.000Z"
             )
-            onSaved(); onClose()
+            onSaved()
+            if created.isDraft {
+                error = "Pending approval — burn updates after approve"
+            } else {
+                onClose()
+            }
         } catch {
             self.error = error.localizedDescription
         }
