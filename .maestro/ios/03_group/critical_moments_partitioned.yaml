@@ -1,0 +1,48 @@
+appId: resolvingpoint.momentra
+tags: [critical, ios, group, finance, multicurrency]
+---
+# Moments shows partitioned Total spent + Your share (no Per-person split math)
+- runFlow: ../00_auth/smoke_email_login_group.yaml
+- tapOn:
+    id: "context.group"
+- tapOn:
+    id: "bottom.quickadd"
+- runFlow:
+    when:
+      visible: "Expense"
+    commands:
+      - tapOn: "Expense"
+- extendedWaitUntil:
+    visible:
+      id: "group.expense.amount"
+    timeout: 20000
+- tapOn:
+    id: "group.expense.note"
+- eraseText
+- inputText: "MAESTRO-PART-${MAESTRO_RUN_ID}"
+- tapOn:
+    id: "group.expense.amount"
+- eraseText
+- inputText: "88.00"
+- runFlow:
+    when:
+      visible:
+        id: "group.expense.split.equal"
+    commands:
+      - tapOn:
+          id: "group.expense.split.equal"
+- tapOn:
+    id: "group.expense.submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "group.expense.submit"
+    timeout: 45000
+- tapOn:
+    id: "bottom.moments"
+- extendedWaitUntil:
+    visible: "Total spent"
+    timeout: 30000
+- assertVisible: "Total spent"
+- assertVisible: "Your share"
+- assertNotVisible: "Per-person split"
+- takeScreenshot: ios_group_moments_partitioned

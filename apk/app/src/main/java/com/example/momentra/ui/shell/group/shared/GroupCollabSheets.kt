@@ -68,6 +68,7 @@ import androidx.core.content.FileProvider
 import com.example.momentra.R
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.setup.SetupDateTimeUtils
+import com.example.momentra.ui.shell.shared.loadGroupCurrencyContext
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -444,11 +445,15 @@ private fun BookingBody(
     var confirmed by remember { mutableStateOf(true) }
     var participants by remember { mutableStateOf<List<com.example.momentra.data.api.GroupParticipantDto>>(emptyList()) }
     var bookedById by remember { mutableStateOf<String?>(null) }
+    var currency by remember { mutableStateOf("INR") }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val costSymbol = remember(currency) { TravelCurrencyCatalog.symbol(currency) }
 
     LaunchedEffect(momentId) {
+        val ctx = loadGroupCurrencyContext(momentId)
+        currency = ctx.primary
         repository.getParticipants(momentId).fold(
             onSuccess = { dto ->
                 participants = dto.participants
@@ -470,7 +475,7 @@ private fun BookingBody(
             TripSheetField(confirmation, { confirmation = it }, "MMR-98402X")
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            TripFieldLabel("Cost (₹)")
+            TripFieldLabel("Cost ($costSymbol)")
             TripSheetField(cost, { cost = it }, "42,500")
         }
     }

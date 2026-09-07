@@ -1045,7 +1045,7 @@ export async function getGroupMomentProjection(
                  ) AS v
                  FROM projection.group_finance_position
                  WHERE moment_id = $1 AND participant_id = mp.participant_id
-                 ORDER BY currency_code
+                 ORDER BY ABS(net_position) DESC, ABS(paid_total) + ABS(allocated_total) DESC, currency_code
                  LIMIT 20
                ) y
               ) AS viewer,
@@ -1069,12 +1069,14 @@ export async function getGroupMomentProjection(
     const expenseCount = totalsRaw.reduce((acc, t) => acc + Number(t.expenseCount ?? 0), 0);
     const totals = totalsRaw.map(({ expenseCount: _e, ...rest }) => rest);
     const empty = totals.length === 0 && positionTotalCount === 0;
+    // viewerPosition = primary visual emphasis only (max abs net). Full positions[]/totals[] remain authoritative.
+    const viewerPosition = empty ? null : (viewerRows[0] ?? null);
     const financePayload = {
       dataQuality: empty ? ('EMPTY' as const) : ('OK' as const),
       expenseCount: empty ? 0 : expenseCount,
       totals: empty ? [] : totals,
       positions: empty ? [] : mappedPositions,
-      viewerPosition: empty ? null : (viewerRows[0] ?? null),
+      viewerPosition,
       positionTotalCount: empty ? 0 : positionTotalCount,
       positionsTruncated: !empty && positionTotalCount > mappedPositions.length,
       positionsSemantics: semantics,

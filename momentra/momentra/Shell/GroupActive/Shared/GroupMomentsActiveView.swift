@@ -538,25 +538,24 @@ struct GroupMomentsActiveView: View {
     // MARK: - Expenses
 
     private var expensesSection: some View {
-        let currency = finance?.totals?.first?.currencyCode ?? "INR"
-        let spent = finance?.totals?.first?.expenseTotal
-        let people = max(pulse?.payload?.participantCount ?? 0, 1)
-        let spentDecimal = GroupFinanceFormat.parseAmount(spent)
-        let perPerson: String = {
-            guard spentDecimal > 0 else { return "—" }
-            let share = spentDecimal / Decimal(people)
-            return GroupFinanceFormat.formatMoney(
-                (share as NSDecimalNumber).stringValue,
-                currencyCode: currency
-            )
-        }()
+        let allTotals = finance?.totals ?? []
+        let primary = GroupFinanceFormat.resolvePrimaryTotal(
+            allTotals,
+            preferredCurrency: finance?.viewerPosition?.currencyCode
+        )
+        let currency = primary?.currencyCode ?? "INR"
+        let spentLine = GroupFinanceFormat.expensePartitionLine(allTotals)
+        let yourShare = GroupFinanceFormat.viewerAllocatedPartitionLine(
+            viewer: finance?.viewerPosition,
+            allPositions: finance?.positions ?? []
+        )
 
         return VStack(alignment: .leading, spacing: 12) {
             sectionHeader("Expenses & Budget  💸")
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
-                    expenseSummaryTile("Total spent", GroupFinanceFormat.formatMoney(spent, currencyCode: currency))
-                    expenseSummaryTile("Per-person split", perPerson)
+                    expenseSummaryTile("Total spent", spentLine)
+                    expenseSummaryTile("Your share", yourShare)
                 }
                 if listExpenses.isEmpty {
                     GroupEmptySection(message: "No expenses yet", detail: "Add a group expense from Quick Add.")

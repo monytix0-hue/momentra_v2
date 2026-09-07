@@ -400,22 +400,13 @@ fun MomentsItineraryDayCard(
 
 @Composable
 fun MomentsExpensesCard(
-    spent: String?,
-    currency: String,
-    peopleCount: Int,
+    totals: List<com.example.momentra.data.api.GroupFinanceTotalDto>,
+    yourAllocatedLine: String,
     expenses: List<GroupExpenseListItemDto>,
     chrome: MomentsChrome,
+    fallbackCurrency: String = "INR",
 ) {
-    val people = maxOf(peopleCount, 1)
-    val spentDecimal = GroupFinanceFormat.parseAmount(spent)
-    val perPerson = if (spentDecimal > BigDecimal.ZERO) {
-        GroupFinanceFormat.formatMoney(
-            spentDecimal.divide(BigDecimal(people), 2, RoundingMode.HALF_UP).toPlainString(),
-            currency,
-        )
-    } else {
-        "—"
-    }
+    val spentLine = GroupFinanceFormat.expensePartitionLine(totals)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -426,8 +417,8 @@ fun MomentsExpensesCard(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MomentsExpenseSummaryTile("Total spent", GroupFinanceFormat.formatMoney(spent, currency), chrome, Modifier.weight(1f))
-            MomentsExpenseSummaryTile("Per-person split", perPerson, chrome, Modifier.weight(1f))
+            MomentsExpenseSummaryTile("Total spent", spentLine, chrome, Modifier.weight(1f))
+            MomentsExpenseSummaryTile("Your share", yourAllocatedLine.ifBlank { "—" }, chrome, Modifier.weight(1f))
         }
         if (expenses.isEmpty()) {
             GroupEmptySection("No expenses yet", "Add a group expense from Quick Add.")
@@ -461,7 +452,7 @@ fun MomentsExpensesCard(
                         )
                     }
                     Text(
-                        GroupFinanceFormat.formatMoney(expense.amount, expense.currencyCode ?: currency),
+                        GroupFinanceFormat.formatMoney(expense.amount, expense.currencyCode ?: fallbackCurrency),
                         color = chrome.text,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,

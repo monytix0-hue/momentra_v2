@@ -72,6 +72,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.example.momentra.R
 import com.example.momentra.data.api.CreateGroupExpenseBody
+import com.example.momentra.data.api.GroupExpenseSplitInputDto
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupExpenseSplitBuilder
 import com.example.momentra.data.repository.GroupSliceRepository
@@ -100,6 +101,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.abs
 
 /** Figma 589:8755 sheet surface tokens. */
 private object Wq {
@@ -608,7 +610,8 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var expenseDate by remember { mutableStateOf("") }
-    var splitType by remember { mutableStateOf("Equal") }
+    var splitStrategy by remember { mutableStateOf("EQUAL") }
+    var splitValues by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var category by remember { mutableStateOf(GroupExpenseCategoryCatalog.defaultCategory("WEDDING")) }
     var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
     var selected by remember { mutableStateOf(emptySet<String>()) }
@@ -620,6 +623,9 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val live = !momentId.isNullOrBlank()
+    val splitLabels = remember {
+        listOf("Equal" to "EQUAL", "Custom" to "EXACT", "% Percent" to "PERCENTAGE")
+    }
 
     LaunchedEffect(momentId) {
         if (momentId.isNullOrBlank()) return@LaunchedEffect
@@ -643,6 +649,31 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
 
     val people: List<Pair<String, String>> = participants.map {
         it.participantId to (it.displayName ?: it.participantId.take(8))
+    }
+
+    fun seedSplitValues(strategy: String, ids: Set<String>) {
+        splitValues = when (strategy) {
+            "PERCENTAGE" -> if (ids.isNotEmpty()) {
+                val even = 100.0 / ids.size
+                ids.associateWith { String.format(Locale.US, "%.2f", even) }
+            } else emptyMap()
+            "EXACT" -> {
+                val total = amount.toBigDecimalOrNull()
+                if (ids.isNotEmpty() && total != null && total > BigDecimal.ZERO) {
+                    val n = ids.size
+                    val sorted = ids.sorted()
+                    val base = total.divide(BigDecimal(n), 2, java.math.RoundingMode.DOWN)
+                    val allocated = base.multiply(BigDecimal(n - 1))
+                    val last = total.subtract(allocated)
+                    sorted.mapIndexed { index, id ->
+                        id to if (index == n - 1) last.toPlainString() else base.toPlainString()
+                    }.toMap()
+                } else {
+                    ids.associateWith { "" }
+                }
+            }
+            else -> emptyMap()
+        }
     }
 
     SheetHeader(R.drawable.ic_qa_wallet, "Add Expense", accent = accent)
@@ -707,14 +738,83 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
             Text("No participants yet", color = Wq.Muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         } else {
             AvatarPick(people, selected, accent) { id ->
-                selected = if (id in selected) selected - id else selected + id
+                val next = if (id in selected) selected - id else selected + id
+                selected = next
                 if (paidBy == null) paidBy = id
+                if (splitStrategy == "PERCENTAGE" || splitStrategy == "EXACT") {
+                    seedSplitValues(splitStrategy, next)
+                }
             }
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("Split Type")
-        Segmented(listOf("Equal", "Custom", "% Percent"), splitType, accent) { splitType = it }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Wq.Field)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            splitLabels.forEach { (label, strategy) ->
+                val on = splitStrategy == strategy
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (on) accent.accent else Color.Transparent)
+                        .clickable {
+                            splitStrategy = strategy
+                            seedSplitValues(strategy, selected)
+                        }
+                        .padding(horizontal = 8.dp, vertical = 10.dp)
+                        .testTag(MaestroIds.groupExpenseSplitStrategy(strategy)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        color = if (on) Color.White else Wq.Muted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
+            }
+        }
+    }
+    if (splitStrategy != "EQUAL" && selected.isNotEmpty()) {
+        val valueLabel = when (splitStrategy) {
+            "PERCENTAGE" -> "Percent (must sum to 100)"
+            "EXACT" -> "Exact amount per person"
+            else -> "Share"
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FieldLabel(valueLabel)
+            selected.sorted().forEach { id ->
+                val name = participants.firstOrNull { it.participantId == id }?.displayName ?: id.take(8)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("${MaestroIds.GROUP_EXPENSE_SPLIT_VALUE}.$id"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(name, color = Wq.Text, fontSize = 12.sp, fontFamily = PlusJakartaSans, modifier = Modifier.weight(1f))
+                    Box(modifier = Modifier.width(110.dp)) {
+                        SheetField(
+                            value = splitValues[id] ?: "",
+                            onValueChange = { v ->
+                                splitValues = splitValues + (id to v.filter { c -> c.isDigit() || c == '.' })
+                            },
+                            placeholder = if (splitStrategy == "PERCENTAGE") "%" else "0.00",
+                            keyboardType = KeyboardType.Decimal,
+                            minHeight = 42,
+                        )
+                    }
+                }
+            }
+        }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("Category")
@@ -735,14 +835,46 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
         footer = "Everyone will be notified",
         onSubmit = {
             val payer = paidBy ?: selected.firstOrNull() ?: return@QuickAddDraftActions
+            val ids = selected.sorted()
+            val inputs = when (splitStrategy) {
+                "EQUAL" -> ids.map { GroupExpenseSplitInputDto(participantId = it) }
+                "PERCENTAGE" -> {
+                    val pctSum = ids.sumOf { splitValues[it]?.toBigDecimalOrNull()?.toDouble() ?: 0.0 }
+                    if (abs(pctSum - 100.0) > 0.01) {
+                        error = "Percents must sum to 100 (now $pctSum)"
+                        return@QuickAddDraftActions
+                    }
+                    ids.map {
+                        GroupExpenseSplitInputDto(participantId = it, percent = splitValues[it])
+                    }
+                }
+                "EXACT" -> {
+                    val sum = ids.fold(BigDecimal.ZERO) { acc, id ->
+                        acc.add(splitValues[id]?.toBigDecimalOrNull() ?: BigDecimal.ZERO)
+                    }
+                    val total = amount.toBigDecimalOrNull()
+                    if (total == null || sum.compareTo(total) != 0) {
+                        error = "Exact amounts must equal expense amount"
+                        return@QuickAddDraftActions
+                    }
+                    ids.map {
+                        GroupExpenseSplitInputDto(participantId = it, amount = splitValues[it])
+                    }
+                }
+                else -> {
+                    error = "Unknown split strategy"
+                    return@QuickAddDraftActions
+                }
+            }
             scope.launch {
                 submitting = true
                 error = null
-                val body = GroupExpenseSplitBuilder.equalSplit(
+                val body = GroupExpenseSplitBuilder.build(
                     amount = amount,
                     currencyCode = currency,
                     paidByParticipantId = payer,
-                    participantIds = selected.toList(),
+                    splitStrategy = splitStrategy,
+                    splitInputs = inputs,
                     description = GroupExpenseCategoryCatalog.descriptionWithCategory(
                         category = category,
                         userDescription = description,

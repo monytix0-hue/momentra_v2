@@ -25,9 +25,9 @@ export const createGroupExpenseSchema = z
         z
           .object({
             participantId: z.string().uuid(),
-            amount: moneyString.optional(),
-            percent: percentString.optional(),
-            shares: z.number().positive().optional(),
+            amount: moneyString.nullish(),
+            percent: percentString.nullish(),
+            shares: z.number().positive().nullish(),
           })
           .strict()
       )
@@ -229,6 +229,37 @@ export function computeGroupShares(
     };
   });
   return applyLargestRemainder(provisional, amount);
+}
+
+/** Position deltas for one expense — net = paid − allocated (currency-partitioned). */
+export function computeExpensePositionDeltas(
+  paidByParticipantId: string,
+  amount: Decimal,
+  shares: ComputedShare[]
+): Array<{
+  participantId: string;
+  paidDelta: Decimal;
+  allocatedDelta: Decimal;
+  payableDelta: Decimal;
+  receivableDelta: Decimal;
+  netDelta: Decimal;
+}> {
+  return shares.map((s) => {
+    const isPayer = s.participantId === paidByParticipantId;
+    const paidDelta = isPayer ? amount : new Decimal(0);
+    const allocatedDelta = s.shareAmount;
+    const payableDelta = isPayer ? new Decimal(0) : s.shareAmount;
+    const receivableDelta = isPayer ? amount.minus(s.shareAmount) : new Decimal(0);
+    const netDelta = paidDelta.minus(allocatedDelta);
+    return {
+      participantId: s.participantId,
+      paidDelta,
+      allocatedDelta,
+      payableDelta,
+      receivableDelta,
+      netDelta,
+    };
+  });
 }
 
 export async function createGroupExpense(
@@ -998,13 +1029,10 @@ async function upsertGroupFinanceProjection(
           : new Decimal(0)
         ).toFixed(4)
       ),
+      // net = paid - allocated (payer: amount - share; others: -share)
       shares.map((s) =>
         (s.participantId === paidByParticipantId
-          ? amount.minus(
-              shares
-                .filter((x) => x.participantId !== paidByParticipantId)
-                .reduce((acc, x) => acc.plus(x.shareAmount), new Decimal(0))
-            )
+          ? amount.minus(s.shareAmount)
           : s.shareAmount.neg()
         ).toFixed(4)
       ),
@@ -1158,11 +1186,193 @@ export async function createSettlement(
   await client.query(
     `UPDATE projection.group_finance_snapshot SET
        outstanding_total = GREATEST(0, outstanding_total - $2),
+       settled_total = COALESCE(settled_total, 0) + $2,
        projection_version = projection_version + 1,
        updated_at = now()
      WHERE moment_id = $1 AND currency_code = $3`,
     [momentId, amount.toFixed(4), body.currencyCode]
   );
 
+  // Debtor pays → net rises; creditor receives → net falls. Partitioned by currency.
+  await applySettlementToPositions(
+    client,
+    momentId,
+    body.currencyCode,
+    body.payerParticipantId,
+    body.payeeParticipantId,
+    amount,
+    settlementId
+  );
+
   return result;
+}
+
+/**
+ * Apply a posted settlement to finance positions in one currency.
+ * Debtor (payer): payable −, net +; creditor (payee): receivable −, net −.
+ */
+export async function applySettlementToPositions(
+  client: PoolClient,
+  momentId: string,
+  currencyCode: string,
+  debtorParticipantId: string,
+  creditorParticipantId: string,
+  amount: Decimal,
+  sourceEventId: string
+): Promise<void> {
+  const amt = amount.toFixed(4);
+  // Debtor settles: owes less → payable down, net up.
+  await client.query(
+    `INSERT INTO projection.group_finance_position (
+       moment_id, participant_id, currency_code,
+       paid_total, allocated_total, payable_total, receivable_total, net_position,
+       source_event_id, projection_version
+     ) VALUES ($1, $2, $3, 0, 0, 0, 0, $4::numeric, $5::uuid, 1)
+     ON CONFLICT (moment_id, participant_id, currency_code) DO UPDATE SET
+       payable_total = GREATEST(0, projection.group_finance_position.payable_total - $4::numeric),
+       net_position = projection.group_finance_position.net_position + $4::numeric,
+       source_event_id = EXCLUDED.source_event_id,
+       projection_version = projection.group_finance_position.projection_version + 1,
+       updated_at = now()`,
+    [momentId, debtorParticipantId, currencyCode, amt, sourceEventId]
+  );
+  // Creditor receives: owed less → receivable down, net down.
+  await client.query(
+    `INSERT INTO projection.group_finance_position (
+       moment_id, participant_id, currency_code,
+       paid_total, allocated_total, payable_total, receivable_total, net_position,
+       source_event_id, projection_version
+     ) VALUES ($1, $2, $3, 0, 0, 0, 0, (0 - $4::numeric), $5::uuid, 1)
+     ON CONFLICT (moment_id, participant_id, currency_code) DO UPDATE SET
+       receivable_total = GREATEST(0, projection.group_finance_position.receivable_total - $4::numeric),
+       net_position = projection.group_finance_position.net_position - $4::numeric,
+       source_event_id = EXCLUDED.source_event_id,
+       projection_version = projection.group_finance_position.projection_version + 1,
+       updated_at = now()`,
+    [momentId, creditorParticipantId, currencyCode, amt, sourceEventId]
+  );
+}
+
+/**
+ * Canonical repair: wipe finance projections for a moment and replay POSTED expenses + settlements.
+ * Required after net_position formula fixes so historical balances heal from the ledger.
+ */
+export async function rebuildGroupFinanceProjection(
+  client: PoolClient,
+  momentId: string
+): Promise<{ currencies: string[]; expenseCount: number; settlementCount: number }> {
+  await client.query(
+    `DELETE FROM projection.group_finance_position WHERE moment_id = $1`,
+    [momentId]
+  );
+  await client.query(
+    `DELETE FROM projection.group_finance_snapshot WHERE moment_id = $1`,
+    [momentId]
+  );
+
+  const expenses = await client.query<{
+    expense_id: string;
+    amount: string;
+    currency_code: string;
+    paid_by_participant_id: string;
+    split_strategy: string;
+  }>(
+    `SELECT e.expense_id, e.amount::text, e.currency_code,
+            g.paid_by_participant_id, g.split_strategy
+     FROM finance.expense e
+     INNER JOIN finance.group_expense_context g ON g.expense_id = e.expense_id
+     WHERE e.moment_id = $1
+       AND e.domain_code = 'GROUP'
+       AND e.status = 'POSTED'
+     ORDER BY e.posted_at ASC NULLS LAST, e.created_at ASC, e.expense_id ASC`,
+    [momentId]
+  );
+
+  let expenseCount = 0;
+  for (const exp of expenses.rows) {
+    const amount = new Decimal(exp.amount);
+    const isPooled = exp.split_strategy === 'POOLED';
+    let shares: ComputedShare[] = [];
+    if (!isPooled) {
+      const shareRows = await client.query<{
+        participant_id: string;
+        share_amount: string;
+        share_percent: string | null;
+      }>(
+        `SELECT participant_id, share_amount::text, share_percent::text
+         FROM finance.expense_share
+         WHERE expense_id = $1 AND status <> 'VOIDED'
+         ORDER BY participant_id`,
+        [exp.expense_id]
+      );
+      shares = shareRows.rows.map((r) => ({
+        participantId: r.participant_id,
+        shareAmount: new Decimal(r.share_amount),
+        sharePercent: r.share_percent != null ? new Decimal(r.share_percent) : null,
+      }));
+    }
+    await upsertGroupFinanceProjection(
+      client,
+      momentId,
+      exp.currency_code,
+      exp.paid_by_participant_id,
+      amount,
+      shares,
+      exp.expense_id,
+      isPooled,
+      1
+    );
+    expenseCount += 1;
+  }
+
+  const settlements = await client.query<{
+    settlement_id: string;
+    amount: string;
+    currency_code: string;
+    payer_participant_id: string;
+    payee_participant_id: string;
+  }>(
+    `SELECT settlement_id, amount::text, currency_code,
+            payer_participant_id, payee_participant_id
+     FROM finance.settlement
+     WHERE moment_id = $1 AND status = 'POSTED'
+     ORDER BY settled_at ASC NULLS LAST, created_at ASC, settlement_id ASC`,
+    [momentId]
+  );
+
+  let settlementCount = 0;
+  for (const s of settlements.rows) {
+    const amount = new Decimal(s.amount);
+    await client.query(
+      `UPDATE projection.group_finance_snapshot SET
+         outstanding_total = GREATEST(0, outstanding_total - $2),
+         settled_total = COALESCE(settled_total, 0) + $2,
+         projection_version = projection_version + 1,
+         updated_at = now()
+       WHERE moment_id = $1 AND currency_code = $3`,
+      [momentId, amount.toFixed(4), s.currency_code]
+    );
+    await applySettlementToPositions(
+      client,
+      momentId,
+      s.currency_code,
+      s.payer_participant_id,
+      s.payee_participant_id,
+      amount,
+      s.settlement_id
+    );
+    settlementCount += 1;
+  }
+
+  const currencies = await client.query<{ currency_code: string }>(
+    `SELECT DISTINCT currency_code FROM projection.group_finance_snapshot WHERE moment_id = $1
+     ORDER BY currency_code`,
+    [momentId]
+  );
+
+  return {
+    currencies: currencies.rows.map((r) => r.currency_code),
+    expenseCount,
+    settlementCount,
+  };
 }

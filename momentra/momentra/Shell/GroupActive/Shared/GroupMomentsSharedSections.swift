@@ -328,24 +328,18 @@ struct MomentsItineraryDayCard: View {
 // MARK: - Expenses / Upcoming / CTA
 
 struct MomentsExpensesCard: View {
-    let spent: String?
-    let currency: String
-    let peopleCount: Int
+    let totals: [APIClient.GroupFinanceTotalsPayload]
+    let yourAllocatedLine: String
     let expenses: [APIClient.GroupExpenseListItemPayload]
     var chrome: MomentsChrome
+    var fallbackCurrency: String = "INR"
 
     var body: some View {
-        let people = max(peopleCount, 1)
-        let spentDecimal = GroupFinanceFormat.parseAmount(spent)
-        let perPerson: String = {
-            guard spentDecimal > 0 else { return "—" }
-            let share = spentDecimal / Decimal(people)
-            return GroupFinanceFormat.formatMoney((share as NSDecimalNumber).stringValue, currencyCode: currency)
-        }()
+        let spentLine = GroupFinanceFormat.expensePartitionLine(totals)
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                expenseTile("Total spent", GroupFinanceFormat.formatMoney(spent, currencyCode: currency))
-                expenseTile("Per-person split", perPerson)
+                expenseTile("Total spent", spentLine)
+                expenseTile("Your share", yourAllocatedLine.isEmpty ? "—" : yourAllocatedLine)
             }
             if expenses.isEmpty {
                 GroupEmptySection(message: "No expenses yet", detail: "Add a group expense from Quick Add.")
@@ -364,7 +358,7 @@ struct MomentsExpensesCard: View {
                                 .foregroundStyle(chrome.secondary)
                         }
                         Spacer()
-                        Text(GroupFinanceFormat.formatMoney(expense.amount, currencyCode: expense.currencyCode ?? currency))
+                        Text(GroupFinanceFormat.formatMoney(expense.amount, currencyCode: expense.currencyCode ?? fallbackCurrency))
                             .font(.plusJakarta(size: 13, weight: .bold))
                             .foregroundStyle(chrome.text)
                         Text(expense.paidByDisplayName ?? "—")

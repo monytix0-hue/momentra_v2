@@ -155,9 +155,17 @@ fun ExperienceMomentsActiveContent(
         return
     }
 
-    val budgetTotal = finance?.totals?.firstOrNull()?.budgetTotal
-    val expenseTotal = finance?.totals?.firstOrNull()?.expenseTotal
-    val currency = finance?.totals?.firstOrNull()?.currencyCode ?: "INR"
+    val allTotals = finance?.totals.orEmpty()
+    val primaryTotal = GroupFinanceFormat.resolvePrimaryTotal(
+        allTotals,
+        preferredCurrency = finance?.viewerPosition?.currencyCode,
+    )
+    val currency = primaryTotal?.currencyCode ?: "INR"
+    val budgetTotal = primaryTotal?.budgetTotal
+    val yourShareLine = GroupFinanceFormat.viewerAllocatedPartitionLine(
+        finance?.viewerPosition,
+        finance?.positions.orEmpty(),
+    )
     val peopleCount = pulse?.participantCount ?: 0
     val openTasks = pulse?.openTaskCount ?: lifeOpenTasks
     val confirmed = attendance.count {
@@ -313,11 +321,11 @@ fun ExperienceMomentsActiveContent(
 
         MomentsSectionHeader("Expenses & Budget  💸", chrome)
         MomentsExpensesCard(
-            spent = expenseTotal,
-            currency = currency,
-            peopleCount = peopleCount,
+            totals = allTotals,
+            yourAllocatedLine = yourShareLine,
             expenses = expenses,
             chrome = chrome,
+            fallbackCurrency = currency,
         )
 
         MomentsQuickAddCta(chrome = chrome, onClick = onOpenQuickAdd)

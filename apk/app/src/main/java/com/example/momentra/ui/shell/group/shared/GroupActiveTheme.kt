@@ -168,6 +168,25 @@ object GroupFinanceFormat {
         hide = hide,
     )
 
+    /** Viewer allocated totals across currencies — server-derived, no client equal-split. */
+    fun viewerAllocatedPartitionLine(
+        viewer: com.example.momentra.data.api.GroupFinancePositionDto?,
+        allPositions: List<com.example.momentra.data.api.GroupFinancePositionDto>,
+        compact: Boolean = false,
+        hide: Boolean = false,
+    ): String {
+        val rows = if (viewer == null) {
+            emptyList()
+        } else {
+            positionsForParticipant(allPositions, viewer.participantId).ifEmpty { listOf(viewer) }
+        }
+        return formatPartitionedAmounts(
+            rows.map { it.currencyCode to (it.allocatedTotal ?: "0") },
+            compact = compact,
+            hide = hide,
+        )
+    }
+
     fun positionsForParticipant(
         positions: List<com.example.momentra.data.api.GroupFinancePositionDto>,
         participantId: String?,

@@ -363,7 +363,7 @@ struct GroupExpenseSheet: View {
     }
 
     private func seedSplitValues(for strategy: String) {
-        let ids = Array(selectedParticipantIds)
+        let ids = Array(selectedParticipantIds).sorted()
         switch strategy {
         case "PERCENTAGE":
             let even = ids.isEmpty ? 0.0 : 100.0 / Double(ids.count)
@@ -371,7 +371,28 @@ struct GroupExpenseSheet: View {
         case "SHARES":
             splitValues = Dictionary(uniqueKeysWithValues: ids.map { ($0, "1") })
         case "EXACT":
-            splitValues = Dictionary(uniqueKeysWithValues: ids.map { ($0, "") })
+            guard let total = Decimal(string: amount.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  total > 0, !ids.isEmpty else {
+                splitValues = Dictionary(uniqueKeysWithValues: ids.map { ($0, "") })
+                return
+            }
+            let n = ids.count
+            let base = (total as NSDecimalNumber).dividing(
+                by: NSDecimalNumber(value: n),
+                withBehavior: NSDecimalNumberHandler(
+                    roundingMode: .down,
+                    scale: 2,
+                    raiseOnExactness: false,
+                    raiseOnOverflow: false,
+                    raiseOnUnderflow: false,
+                    raiseOnDivideByZero: false
+                )
+            )
+            let allocated = base.multiplying(by: NSDecimalNumber(value: n - 1))
+            let last = (total as NSDecimalNumber).subtracting(allocated)
+            splitValues = Dictionary(uniqueKeysWithValues: ids.enumerated().map { index, id in
+                (id, index == n - 1 ? last.stringValue : base.stringValue)
+            })
         default:
             splitValues = [:]
         }

@@ -115,10 +115,19 @@ struct PurchaseMomentsActiveView: View {
 
     @ViewBuilder
     private var content: some View {
-        let budgetTotal = finance?.totals?.first?.budgetTotal
-        let contributionTotal = finance?.totals?.first?.contributionTotal
-        let currency = finance?.totals?.first?.currencyCode ?? "INR"
+        let allTotals = finance?.totals ?? []
+        let primary = GroupFinanceFormat.resolvePrimaryTotal(
+            allTotals,
+            preferredCurrency: finance?.viewerPosition?.currencyCode
+        )
+        let budgetTotal = primary?.budgetTotal
+        let contributionTotal = primary?.contributionTotal
+        let currency = primary?.currencyCode ?? "INR"
         let peopleCount = pulse?.payload?.participantCount ?? 0
+        let yourShareLine = GroupFinanceFormat.viewerAllocatedPartitionLine(
+            viewer: finance?.viewerPosition,
+            allPositions: finance?.positions ?? []
+        )
         let moments = memoryCount > 0 ? memoryCount : listMemoryItems.count
         let funded = PurchaseFinanceMath.fundedPercent(
             contributionTotal: contributionTotal,
@@ -326,11 +335,11 @@ struct PurchaseMomentsActiveView: View {
 
                     MomentsSectionHeader(title: "Expenses & Budget  💸", chrome: chrome)
                     MomentsExpensesCard(
-                        spent: finance?.totals?.first?.expenseTotal,
-                        currency: currency,
-                        peopleCount: peopleCount,
+                        totals: allTotals,
+                        yourAllocatedLine: yourShareLine,
                         expenses: listExpenses,
-                        chrome: chrome
+                        chrome: chrome,
+                        fallbackCurrency: currency
                     )
 
                     MomentsQuickAddCta(

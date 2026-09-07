@@ -32,6 +32,7 @@ struct GroupCollabSheet: View {
     @State private var bookingType = "Hotel"
     @State private var confirmationNumber = ""
     @State private var bookingCost = ""
+    @State private var bookingCurrency = "INR"
     @State private var bookedById: String?
     @State private var priority = "Medium"
     @State private var planCategory = ""
@@ -288,7 +289,7 @@ struct GroupCollabSheet: View {
                     TripSheetField(value: $confirmationNumber, placeholder: "MMR-98402X")
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    TripFieldLabel(text: "Cost (₹)")
+                    TripFieldLabel(text: "Cost (\(TravelCurrencyCatalog.symbol(bookingCurrency)))")
                     TripSheetField(value: $bookingCost, placeholder: "42,500", keyboardType: .decimalPad)
                 }
             }
@@ -542,6 +543,7 @@ struct GroupCollabSheet: View {
     }
 
     private func loadParticipants() async {
+        bookingCurrency = await MomentCurrencyContextLoader.loadGroup(momentId: momentId).primary
         do {
             let list = try await APIClient.shared.listGroupParticipants(momentId: momentId)
             participants = list.filter {

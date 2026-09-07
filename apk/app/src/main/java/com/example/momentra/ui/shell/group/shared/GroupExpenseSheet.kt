@@ -597,7 +597,21 @@ fun GroupExpenseSheet(
                                             String.format("%.2f", even)
                                         }
                                     }
-                                    "EXACT" -> splitValues = selectedSplitIds.associateWith { "" }
+                                    "EXACT" -> {
+                                        val total = amount.toBigDecimalOrNull()
+                                        if (selectedSplitIds.isNotEmpty() && total != null && total > BigDecimal.ZERO) {
+                                            val n = selectedSplitIds.size
+                                            val base = total.divide(BigDecimal(n), 2, RoundingMode.DOWN)
+                                            val ids = selectedSplitIds.sorted()
+                                            val allocated = base.multiply(BigDecimal(n - 1))
+                                            val last = total.subtract(allocated)
+                                            splitValues = ids.mapIndexed { index, id ->
+                                                id to if (index == n - 1) last.toPlainString() else base.toPlainString()
+                                            }.toMap()
+                                        } else {
+                                            splitValues = selectedSplitIds.associateWith { "" }
+                                        }
+                                    }
                                     else -> splitValues = emptyMap()
                                 }
                             }

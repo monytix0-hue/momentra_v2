@@ -116,6 +116,23 @@ enum GroupFinanceFormat {
         )
     }
 
+    /// Viewer allocated totals across currencies — server-derived, no client equal-split.
+    static func viewerAllocatedPartitionLine(
+        viewer: APIClient.GroupFinancePositionPayload?,
+        allPositions: [APIClient.GroupFinancePositionPayload],
+        compact: Bool = false,
+        hide: Bool = false
+    ) -> String {
+        guard let viewer else { return "—" }
+        let rows = positionsForParticipant(allPositions, participantId: viewer.participantId)
+        let source = rows.isEmpty ? [viewer] : rows
+        return formatPartitionedAmounts(
+            source.map { ($0.currencyCode, $0.allocatedTotal ?? "0") },
+            compact: compact,
+            hide: hide
+        )
+    }
+
     static func positionsForParticipant(
         _ positions: [APIClient.GroupFinancePositionPayload],
         participantId: String?

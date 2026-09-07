@@ -457,7 +457,8 @@ struct WeddingExpenseBody: View {
     @State private var amount = ""
     @State private var description = ""
     @State private var expenseDate = ""
-    @State private var splitType = "Equal"
+    @State private var splitStrategy = "EQUAL"
+    @State private var splitValues: [String: String] = [:]
     @State private var category = GroupExpenseCategoryCatalog.defaultCategory(for: "WEDDING")
     @State private var participants: [APIClient.GroupParticipantPayload] = []
     @State private var selected: Set<String> = []
@@ -474,6 +475,12 @@ struct WeddingExpenseBody: View {
     }
 
     private var live: Bool { momentId != nil }
+
+    private let splitLabels: [(label: String, strategy: String)] = [
+        ("Equal", "EQUAL"),
+        ("Custom", "EXACT"),
+        ("% Percent", "PERCENTAGE"),
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -537,13 +544,61 @@ struct WeddingExpenseBody: View {
                             selected.insert(id)
                         }
                         if paidBy == nil { paidBy = id }
+                        seedSplitValues(for: splitStrategy)
                     }
                 }
             }
 
             VStack(alignment: .leading, spacing: 8) {
                 FieldLabel(text: "Split Type")
-                Segmented(options: ["Equal", "Custom", "% Percent"], selected: $splitType, accent: accent)
+                HStack(spacing: 4) {
+                    ForEach(splitLabels, id: \.strategy) { item in
+                        let on = splitStrategy == item.strategy
+                        Button {
+                            splitStrategy = item.strategy
+                            seedSplitValues(for: item.strategy)
+                        } label: {
+                            Text(item.label)
+                                .font(.plusJakarta(size: 12, weight: .semibold))
+                                .foregroundStyle(on ? .white : Wq.muted)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(on ? accent.accent : Color.clear)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("group.expense.split.\(item.strategy.lowercased())")
+                    }
+                }
+                .padding(4)
+                .background(Wq.field)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+
+            if splitStrategy != "EQUAL" && !selected.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    FieldLabel(text: splitValueLabel)
+                    ForEach(Array(selected).sorted(), id: \.self) { id in
+                        HStack {
+                            Text(participants.first(where: { $0.participantId == id })?.displayName ?? String(id.prefix(8)))
+                                .font(.plusJakarta(size: 12, weight: .semibold))
+                                .foregroundStyle(Wq.text)
+                            Spacer()
+                            TextField(splitValuePlaceholder, text: Binding(
+                                get: { splitValues[id] ?? "" },
+                                set: { splitValues[id] = $0.filter { $0.isNumber || $0 == "." } }
+                            ))
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 96)
+                            .foregroundStyle(Wq.text)
+                            .padding(8)
+                            .background(Wq.field)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .accessibilityIdentifier("group.expense.split.value.\(id)")
+                        }
+                    }
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -585,6 +640,52 @@ struct WeddingExpenseBody: View {
         return true
     }
 
+    private var splitValueLabel: String {
+        switch splitStrategy {
+        case "PERCENTAGE": return "Percent (must sum to 100)"
+        case "EXACT": return "Exact amount per person"
+        default: return "Share"
+        }
+    }
+
+    private var splitValuePlaceholder: String {
+        splitStrategy == "PERCENTAGE" ? "%" : "0.00"
+    }
+
+    private func seedSplitValues(for strategy: String) {
+        let ids = Array(selected).sorted()
+        switch strategy {
+        case "PERCENTAGE":
+            guard !ids.isEmpty else { splitValues = [:]; return }
+            let even = 100.0 / Double(ids.count)
+            splitValues = Dictionary(uniqueKeysWithValues: ids.map { ($0, String(format: "%.2f", even)) })
+        case "EXACT":
+            guard let total = Decimal(string: amount), total > 0, !ids.isEmpty else {
+                splitValues = Dictionary(uniqueKeysWithValues: ids.map { ($0, "") })
+                return
+            }
+            let n = ids.count
+            let base = (total as NSDecimalNumber).dividing(
+                by: NSDecimalNumber(value: n),
+                withBehavior: NSDecimalNumberHandler(
+                    roundingMode: .down,
+                    scale: 2,
+                    raiseOnExactness: false,
+                    raiseOnOverflow: false,
+                    raiseOnUnderflow: false,
+                    raiseOnDivideByZero: false
+                )
+            )
+            let allocated = base.multiplying(by: NSDecimalNumber(value: n - 1))
+            let last = (total as NSDecimalNumber).subtracting(allocated)
+            splitValues = Dictionary(uniqueKeysWithValues: ids.enumerated().map { index, id in
+                (id, index == n - 1 ? last.stringValue : base.stringValue)
+            })
+        default:
+            splitValues = [:]
+        }
+    }
+
     private func loadParticipants(_ momentId: String) async {
         loading = true
         currency = await MomentCurrencyContextLoader.loadGroup(momentId: momentId).primary
@@ -622,8 +723,35 @@ struct WeddingExpenseBody: View {
                         asDraft: true
                     )
                 } else {
-                    guard splitType == "Equal" else { return }
-                    let splits = selected.map { APIClient.GroupSplitInput(participantId: $0, shares: 1.0) }
+                    let ids = Array(selected).sorted()
+                    let inputs: [APIClient.GroupSplitInput]
+                    switch splitStrategy {
+                    case "EQUAL":
+                        inputs = GroupActionRegistry.equalSplitInputs(participantIds: ids)
+                    case "PERCENTAGE":
+                        let sum = ids.reduce(0.0) { $0 + (Double(splitValues[$1] ?? "0") ?? 0) }
+                        if abs(sum - 100) > 0.01 {
+                            error = "Percents must sum to 100 (now \(sum))"
+                            submitting = false
+                            return
+                        }
+                        inputs = ids.map { APIClient.GroupSplitInput(participantId: $0, percent: splitValues[$0]) }
+                    case "EXACT":
+                        let sum = ids.reduce(Decimal.zero) { acc, id in
+                            acc + (Decimal(string: splitValues[id] ?? "0") ?? 0)
+                        }
+                        let total = Decimal(string: amount) ?? -1
+                        if sum != total {
+                            error = "Exact amounts must equal expense amount"
+                            submitting = false
+                            return
+                        }
+                        inputs = ids.map { APIClient.GroupSplitInput(participantId: $0, amount: splitValues[$0]) }
+                    default:
+                        error = "Unknown split strategy"
+                        submitting = false
+                        return
+                    }
                     _ = try await APIClient.shared.createGroupExpense(
                         momentId: momentId,
                         amount: amount,
@@ -633,8 +761,8 @@ struct WeddingExpenseBody: View {
                             userDescription: description
                         ),
                         paidByParticipantId: payer,
-                        splitStrategy: "EQUAL",
-                        splitInputs: splits,
+                        splitStrategy: splitStrategy,
+                        splitInputs: inputs,
                         asDraft: nil
                     )
                 }

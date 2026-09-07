@@ -36,6 +36,7 @@
     "qa:seed-fixtures": "tsx scripts/qa/seed-maestro-fixtures.ts",
     "qa:prepare-fixtures": "tsx scripts/qa/prepare-maestro-fixtures.ts",
     "qa:verify-finance": "tsx scripts/qa/verify-maestro-finance.ts",
+    "finance:rebuild-group-projections": "tsx scripts/rebuild-group-finance-projections.ts",
     "qa:build-catalog": "tsx scripts/qa/build-certification-catalog.ts",
     "qa:build-input-catalog": "tsx scripts/qa/build-input-catalog.ts",
     "qa:sync-ledger-data": "tsx scripts/qa/sync-ledger-maestro-data.ts",
