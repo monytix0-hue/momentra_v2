@@ -51,6 +51,7 @@ import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupActiveTheme
 import com.example.momentra.ui.shell.group.shared.GroupCtaButton
 import com.example.momentra.ui.shell.group.shared.GroupEmptySection
+import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupMetricTile
 import com.example.momentra.ui.shell.group.shared.GroupProgressBar
@@ -87,6 +88,8 @@ fun GroupPulseActiveContent(
     onOpenMemory: () -> Unit = {},
     onOpenChat: () -> Unit = {},
     onOpenItinerary: () -> Unit = {},
+    onViewAllActivity: () -> Unit = {},
+    momentTypeCode: String? = null,
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
@@ -99,8 +102,10 @@ fun GroupPulseActiveContent(
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var destinations by remember { mutableStateOf<List<String>>(emptyList()) }
+    var editingExpenseId by remember { mutableStateOf<String?>(null) }
+    var reloadNonce by remember { mutableStateOf(0) }
 
-    LaunchedEffect(refreshToken, momentId) {
+    LaunchedEffect(refreshToken, momentId, reloadNonce) {
         if (momentId.isNullOrBlank()) {
             loading = false
             pulse = null
@@ -384,8 +389,11 @@ fun GroupPulseActiveContent(
                 } else {
                     GroupFinanceFormat.groupPositionsByParticipant(positions).take(6).forEach { (_, rows) ->
                         val primary = rows.first()
+                        val resolvedName = primary.displayName?.takeIf { it.isNotBlank() }
+                            ?: nameById[primary.participantId]
+                            ?: primary.participantId.take(8)
                         ParticipationRow(
-                            name = nameById[primary.participantId] ?: primary.participantId.take(8),
+                            name = resolvedName,
                             positions = rows,
                             hide = hideBalances,
                             barPercent = participationBarPercent(primary.netPosition, maxAbsNet, positions.size),
@@ -472,7 +480,27 @@ fun GroupPulseActiveContent(
                 if (activity.isEmpty()) {
                     GroupEmptySection(message = "No recent activity", detail = "Expenses and contributions will show here.")
                 } else {
-                    activity.forEach { ActivityChromeRow(it) }
+                    activity.forEach { item ->
+                        ActivityChromeRow(
+                            item = item,
+                            onClick = {
+                                val expenseId = item.activityPayload?.expenseId
+                                if (!expenseId.isNullOrBlank()) {
+                                    editingExpenseId = expenseId
+                                }
+                            },
+                        )
+                    }
+                    Text(
+                        "View all activity →",
+                        color = GroupActiveTheme.AccentOrange,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .clickable(onClick = onViewAllActivity),
+                    )
                 }
             }
         }
@@ -482,6 +510,28 @@ fun GroupPulseActiveContent(
         }
 
         GroupCtaButton(label = "Add Expense", enabled = true, onClick = onAddExpense)
+    }
+
+    val mid = momentId
+    val editId = editingExpenseId
+    if (mid != null && editId != null) {
+        GroupExpenseSheet(
+            momentId = mid,
+            visible = true,
+            onDismiss = { editingExpenseId = null },
+            onSaved = {
+                editingExpenseId = null
+                reloadNonce += 1
+            },
+            onDeleted = {
+                editingExpenseId = null
+                reloadNonce += 1
+            },
+            expenseId = editId,
+            isWedding = false,
+            momentTypeCode = momentTypeCode,
+            repository = repository,
+        )
     }
 }
 
@@ -707,10 +757,14 @@ private fun ParticipationRow(
 }
 
 @Composable
-private fun ActivityChromeRow(item: ActivityItemDto) {
+private fun ActivityChromeRow(item: ActivityItemDto, onClick: (() -> Unit)? = null) {
+    val expenseId = item.activityPayload?.expenseId
+    val canEdit = !expenseId.isNullOrBlank() &&
+        (item.activityCode.contains("EXPENSE", ignoreCase = true) || expenseId != null)
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (canEdit && onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -728,6 +782,9 @@ private fun ActivityChromeRow(item: ActivityItemDto) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(item.title, color = GroupActiveTheme.Text, fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
             Text(formatOccurredAt(item.occurredAt), color = GroupActiveTheme.Secondary, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+        }
+        if (canEdit) {
+            Text("›", color = GroupActiveTheme.Secondary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

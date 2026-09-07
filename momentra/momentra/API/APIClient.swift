@@ -166,6 +166,7 @@ struct CompanyItemPayload: Decodable {
 
 private struct CursorPagePayload<T: Decodable>: Decodable {
     let items: [T]
+    let nextCursor: String?
 }
 
 private struct GroupMomentItemPayload: Decodable {
@@ -2173,6 +2174,7 @@ final class APIClient {
     struct GroupFinancePositionPayload: Decodable, Identifiable {
         var id: String { "\(participantId)-\(currencyCode)" }
         let participantId: String
+        let displayName: String?
         let currencyCode: String
         let paidTotal: String?
         let allocatedTotal: String?
@@ -2506,13 +2508,28 @@ final class APIClient {
         return page.participants
     }
 
-    func listGroupActivity(momentId: String, limit: Int = 20) async throws -> [ActivityItemPayload] {
+    struct ActivityPagePayload {
+        let items: [ActivityItemPayload]
+        let nextCursor: String?
+    }
+
+    func listGroupActivityPage(
+        momentId: String,
+        cursor: String? = nil,
+        limit: Int = 20
+    ) async throws -> ActivityPagePayload {
+        var query: [String: String] = ["limit": String(limit)]
+        if let cursor, !cursor.isEmpty { query["cursor"] = cursor }
         let page: CursorPagePayload<ActivityItemPayload> =
             try await authorizedGet(
                 path: "v1/group/moments/\(momentId)/activity",
-                query: ["limit": String(limit)]
+                query: query
             )
-        return page.items
+        return ActivityPagePayload(items: page.items, nextCursor: page.nextCursor)
+    }
+
+    func listGroupActivity(momentId: String, limit: Int = 20) async throws -> [ActivityItemPayload] {
+        try await listGroupActivityPage(momentId: momentId, limit: limit).items
     }
 
     func createGroupExpense(

@@ -1263,6 +1263,7 @@ data class GroupFinancePayloadDto(
 
 data class GroupFinancePositionDto(
     @SerializedName("participantId") val participantId: String,
+    @SerializedName("displayName") val displayName: String? = null,
     @SerializedName("currencyCode") val currencyCode: String,
     @SerializedName("paidTotal") val paidTotal: String = "0",
     @SerializedName("allocatedTotal") val allocatedTotal: String = "0",

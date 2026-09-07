@@ -80,6 +80,7 @@ fun ExperiencePulseActiveContent(
     onViewSplits: () -> Unit = onAddExpense,
     onOpenFinance: () -> Unit = onViewSplits,
     onQuickAddKind: (ExperienceQuickAddKind) -> Unit = {},
+    onViewAllActivity: () -> Unit = {},
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
@@ -346,7 +347,7 @@ fun ExperiencePulseActiveContent(
             if (activities.isEmpty()) {
                 ExperienceEmptyBlock(theme, "No recent activity", "Expenses, plans, and updates will show here.")
             } else {
-                activities.forEach { item ->
+                    activities.forEach { item ->
                     val expenseId = item.activityPayload?.expenseId
                     val canEdit = !expenseId.isNullOrBlank()
                     Column(
@@ -362,13 +363,23 @@ fun ExperiencePulseActiveContent(
                         Text(item.occurredAt, color = theme.secondary, fontSize = 11.sp, fontFamily = PlusJakartaSans)
                     }
                 }
+                    Text(
+                        "View all activity →",
+                        color = theme.accent,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .clickable(onClick = onViewAllActivity),
+                    )
+                }
             }
-        }
 
-        GroupPulseInsightsHeroCard(
-            headerTitle = "🧠 ${theme.insightsTitle}",
-            insights = insights,
-            gradient = theme.heroGradient,
+            GroupPulseInsightsHeroCard(
+                headerTitle = "🧠 ${theme.insightsTitle}",
+                insights = insights,
+                gradient = theme.heroGradient,
         )
     }
 

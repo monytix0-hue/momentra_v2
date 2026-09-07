@@ -12,6 +12,7 @@ struct PurchasePulseActiveView: View {
     var onViewSplits: () -> Void = {}
     var onOpenFinance: () -> Void = {}
     var onQuickAddKind: (PurchaseQuickAddKind) -> Void = { _ in }
+    var onViewAllActivity: () -> Void = {}
 
     @State private var pulse: APIClient.GroupPulsePayload?
     @State private var finance: APIClient.GroupFinancePayload?
@@ -201,6 +202,14 @@ struct PurchasePulseActiveView: View {
                             .buttonStyle(.plain)
                             .disabled(!canEdit)
                         }
+                        Button(action: onViewAllActivity) {
+                            Text("View all activity →")
+                                .font(.plusJakarta(size: 13, weight: .semibold))
+                                .foregroundStyle(theme.accent)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.top, 4)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
@@ -260,6 +269,7 @@ struct PurchasePulseActiveView: View {
         positions: [APIClient.GroupFinancePositionPayload],
         currency: String
     ) -> some View {
+        let nameById = GroupParticipantNameMap.build(participants)
         if !positions.isEmpty {
             let maxContribution = positions
                 .map { GroupFinanceFormat.parseAmount($0.contributionTotal ?? $0.paidTotal) }
@@ -267,8 +277,11 @@ struct PurchasePulseActiveView: View {
                 .max() ?? 0
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(Array(positions.prefix(8).enumerated()), id: \.element.id) { idx, pos in
-                    let name = participants.first(where: { $0.participantId == pos.participantId })?.displayName
-                        ?? String(pos.participantId.prefix(8)) + "…"
+                    let name = GroupParticipantNameMap.resolve(
+                        participantId: pos.participantId,
+                        positionDisplayName: pos.displayName,
+                        nameById: nameById
+                    )
                     let amountRaw = pos.contributionTotal ?? pos.paidTotal
                     let amount = GroupFinanceFormat.parseAmount(amountRaw)
                     let amountLabel: String = {
@@ -293,7 +306,11 @@ struct PurchasePulseActiveView: View {
                 ForEach(Array(participants.prefix(8).enumerated()), id: \.element.id) { idx, p in
                     PurchaseCrewRow(
                         theme: theme,
-                        name: p.displayName ?? String(p.participantId.prefix(8)),
+                        name: GroupParticipantNameMap.resolve(
+                            participantId: p.participantId,
+                            positionDisplayName: p.displayName,
+                            nameById: nameById
+                        ),
                         amountLabel: "—",
                         percent: 0,
                         featured: idx == 0
@@ -332,7 +349,12 @@ struct PurchasePulseActiveView: View {
             activities = tab.activities
             insights = tab.insights
             loading = false
-            participants = (try? await participantsResult) ?? []
+            do {
+                participants = try await participantsResult
+            } catch is CancellationError {
+            } catch {
+                if participants.isEmpty { participants = [] }
+            }
             Task {
                 if let enriched = await GroupTabLoad.enrich(momentId: momentId) {
                     await MainActor.run { insights = enriched.insights }

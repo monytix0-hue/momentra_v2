@@ -40,6 +40,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import com.example.momentra.domain.AppContext
+import com.example.momentra.data.api.GroupFinancePositionDto
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.shared.TravelCurrencyPickerRow
@@ -54,8 +55,7 @@ import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.theme.shell.MomentThemes
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
-import com.example.momentra.ui.shell.group.wedding.create.FieldLabel
-import com.example.momentra.ui.shell.group.wedding.create.SheetField
+import java.math.RoundingMode
 
 private val Red = Color(0xFFF87171)
 
@@ -83,6 +83,7 @@ fun GroupSettlementSheet(
     var currency by remember { mutableStateOf("INR") }
     var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
+    var positions by remember { mutableStateOf<List<GroupFinancePositionDto>>(emptyList()) }
     var payerId by remember { mutableStateOf<String?>(null) }
     var payeeId by remember { mutableStateOf<String?>(null) }
     /** LOCAL_ONLY — how settlement happened; not sent (no schema column). */
@@ -90,15 +91,96 @@ fun GroupSettlementSheet(
     var loading by remember { mutableStateOf(true) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var amountEditedByUser by remember { mutableStateOf(false) }
+    var lastSuggestedAmount by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+
+    fun formatSuggestionAmount(value: BigDecimal): String =
+        value.setScale(4, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+
+    fun outstandingForPayer(
+        payer: String?,
+        currencyCode: String? = null,
+    ): Pair<BigDecimal, String>? {
+        if (payer == null) return null
+        val rows = positions.filter { it.participantId == payer }
+        val candidates = rows.mapNotNull { pos ->
+            val payable = GroupFinanceFormat.parseAmount(pos.payableTotal)
+            when {
+                payable > BigDecimal.ZERO -> payable to pos.currencyCode
+                else -> {
+                    val net = GroupFinanceFormat.parseAmount(pos.netPosition)
+                    if (net < BigDecimal.ZERO) net.abs() to pos.currencyCode else null
+                }
+            }
+        }
+        if (currencyCode != null) {
+            val code = currencyCode.uppercase()
+            return candidates.firstOrNull { it.second.equals(code, ignoreCase = true) }
+        }
+        return candidates.maxByOrNull { it.first }
+    }
+
+    fun applySuggestionForPayer(payer: String?) {
+        amountEditedByUser = false
+        val suggestion = outstandingForPayer(payer) ?: return
+        currency = suggestion.second
+        if (preferredCurrencyCodes.none { it.equals(suggestion.second, ignoreCase = true) }) {
+            preferredCurrencyCodes = listOf(suggestion.second) + preferredCurrencyCodes
+        }
+        val formatted = formatSuggestionAmount(suggestion.first)
+        lastSuggestedAmount = formatted
+        amount = formatted
+    }
+
+    fun applySuggestionForCurrency(currencyCode: String) {
+        if (amountEditedByUser) return
+        val suggestion = outstandingForPayer(payerId, currencyCode) ?: return
+        val formatted = formatSuggestionAmount(suggestion.first)
+        lastSuggestedAmount = formatted
+        amount = formatted
+    }
+
+    fun defaultDebtorId(active: List<GroupParticipantDto>): String? {
+        for (p in active) {
+            val rows = positions.filter { it.participantId == p.participantId }
+            if (rows.any {
+                    GroupFinanceFormat.parseAmount(it.payableTotal) > BigDecimal.ZERO ||
+                        GroupFinanceFormat.parseAmount(it.netPosition) < BigDecimal.ZERO
+                }
+            ) {
+                return p.participantId
+            }
+        }
+        return active.getOrNull(1)?.participantId ?: active.firstOrNull()?.participantId
+    }
+
+    fun defaultCreditorId(active: List<GroupParticipantDto>, payer: String?): String? {
+        for (p in active) {
+            if (p.participantId == payer) continue
+            val rows = positions.filter { it.participantId == p.participantId }
+            if (rows.any {
+                    GroupFinanceFormat.parseAmount(it.receivableTotal) > BigDecimal.ZERO ||
+                        GroupFinanceFormat.parseAmount(it.netPosition) > BigDecimal.ZERO
+                }
+            ) {
+                return p.participantId
+            }
+        }
+        return active.firstOrNull { it.participantId != payer }?.participantId
+    }
 
     LaunchedEffect(momentId, visible) {
         if (!visible) return@LaunchedEffect
         loading = true
         error = null
+        amountEditedByUser = false
+        lastSuggestedAmount = ""
+        amount = ""
         val ctx = loadGroupCurrencyContext(momentId)
         currency = ctx.primary
         preferredCurrencyCodes = ctx.preferred
+        positions = repository.getFinance(momentId).getOrNull()?.payload?.positions.orEmpty()
         repository.getParticipants(momentId).fold(
             onSuccess = { dto ->
                 val active = dto.participants.filter {
@@ -106,8 +188,11 @@ fun GroupSettlementSheet(
                         it.status.equals("INVITED", ignoreCase = true)
                 }.ifEmpty { dto.participants }
                 participants = active
-                payerId = active.getOrNull(1)?.participantId ?: active.firstOrNull()?.participantId
-                payeeId = active.firstOrNull()?.participantId
+                val debtor = defaultDebtorId(active)
+                val creditor = defaultCreditorId(active, debtor)
+                payerId = debtor
+                payeeId = creditor
+                applySuggestionForPayer(debtor)
             },
             onFailure = { error = it.message },
         )
@@ -150,7 +235,10 @@ fun GroupSettlementSheet(
                 ParticipantChips(
                     participants = participants,
                     selectedId = payerId,
-                    onSelect = { payerId = it },
+                    onSelect = {
+                        payerId = it
+                        applySuggestionForPayer(it)
+                    },
                     accent = accent,
                 )
                 FieldLabel("Payee (receiving)")
@@ -163,13 +251,22 @@ fun GroupSettlementSheet(
                 FieldLabel("Amount")
                 SheetField(
                     value = amount,
-                    onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
+                    onValueChange = {
+                        val filtered = it.filter { c -> c.isDigit() || c == '.' }
+                        amount = filtered
+                        if (filtered != lastSuggestedAmount) {
+                            amountEditedByUser = true
+                        }
+                    },
                     placeholder = "0.00",
                     keyboardType = KeyboardType.Decimal,
                 )
                 TravelCurrencyPickerRow(
                     selectedCode = currency,
-                    onSelected = { currency = it },
+                    onSelected = {
+                        currency = it
+                        applySuggestionForCurrency(it)
+                    },
                     preferredCodes = preferredCurrencyCodes,
                     textColor = GeText,
                     secondaryColor = GeSecondary,

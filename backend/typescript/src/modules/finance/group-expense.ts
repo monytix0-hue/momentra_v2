@@ -964,12 +964,13 @@ async function upsertGroupFinanceProjection(
   await client.query(
     `WITH snap AS (
        INSERT INTO projection.group_finance_snapshot (
-         moment_id, currency_code, expense_total, outstanding_total,
+         moment_id, currency_code, expense_total, outstanding_total, contribution_total,
          snapshot_payload, source_event_id, projection_version
-       ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, 1)
+       ) VALUES ($1, $2, $3, $4, $3, $5::jsonb, $6, 1)
        ON CONFLICT (moment_id, currency_code) DO UPDATE SET
          expense_total = projection.group_finance_snapshot.expense_total + EXCLUDED.expense_total,
          outstanding_total = projection.group_finance_snapshot.outstanding_total + EXCLUDED.outstanding_total,
+         contribution_total = COALESCE(projection.group_finance_snapshot.contribution_total, 0) + EXCLUDED.contribution_total,
          snapshot_payload = COALESCE(projection.group_finance_snapshot.snapshot_payload, '{}'::jsonb)
            || jsonb_build_object(
                 'expenseCount',
@@ -1149,7 +1150,8 @@ export async function createSettlement(
     allocations,
   };
 
-  await recordCommandSideEffects(client, ctx, {
+  // Must be a domain_event_id (FK on group_finance_position) — never settlement_id.
+  const { domainEventId } = await recordCommandSideEffects(client, ctx, {
     eventName: 'SettlementRecorded',
     domainCode: 'GROUP',
     aggregateType: 'SETTLEMENT',
@@ -1201,7 +1203,7 @@ export async function createSettlement(
     body.payerParticipantId,
     body.payeeParticipantId,
     amount,
-    settlementId
+    domainEventId
   );
 
   return result;

@@ -33,6 +33,7 @@ struct AppShellView: View {
     @State private var relationshipsQa: RelationshipsQuickAddKind? = nil
     @State private var relationshipsActivityOpen = false
     @State private var recentActivityOpen = false
+    @State private var groupRecentActivityOpen = false
     @State private var newMomentOpen = false
     @State private var groupCreatePhase: GroupCreatePhase = .chooser
     @State private var showManageMoment = false
@@ -583,6 +584,17 @@ struct AppShellView: View {
                 onChanged: { model.refreshVisiblePersonalTab() }
             )
         }
+        .sheet(isPresented: $groupRecentActivityOpen) {
+            if let momentId = model.selectedMomentId {
+                GroupRecentActivityFlow(
+                    momentId: momentId,
+                    momentTypeCode: model.selectedMomentTypeCode
+                        ?? model.moments.first(where: { $0.momentId == momentId })?.momentTypeCode,
+                    isPresented: $groupRecentActivityOpen,
+                    onChanged: { model.refreshVisibleGroupTab(forcePrefetch: true) }
+                )
+            }
+        }
         .sheet(isPresented: Binding(
             get: { model.life360Open },
             set: { model.openLife360($0) }
@@ -949,7 +961,8 @@ struct AppShellView: View {
                             onOpenQuickAdd: { model.selectBottomDestination(.create) },
                             onViewSplits: { groupSplitsPresented = true },
                             onOpenFinance: { groupFinancePresented = true },
-                            onQuickAddKind: { kind in weddingGapQa = kind }
+                            onQuickAddKind: { kind in weddingGapQa = kind },
+                            onViewAllActivity: { groupRecentActivityOpen = true }
                         )
                     } else if isExperience {
                         ExperiencePulseActiveView(
@@ -968,7 +981,8 @@ struct AppShellView: View {
                                 } else {
                                     experienceGapQa = kind
                                 }
-                            }
+                            },
+                            onViewAllActivity: { groupRecentActivityOpen = true }
                         )
                     } else if isPurchase {
                         PurchasePulseActiveView(
@@ -987,7 +1001,8 @@ struct AppShellView: View {
                                 } else {
                                     purchaseGapQa = kind
                                 }
-                            }
+                            },
+                            onViewAllActivity: { groupRecentActivityOpen = true }
                         )
                     } else if isLiving {
                         LivingPulseActiveView(
@@ -1006,19 +1021,22 @@ struct AppShellView: View {
                                 } else {
                                     livingGapQa = kind
                                 }
-                            }
+                            },
+                            onViewAllActivity: { groupRecentActivityOpen = true }
                         )
                     } else {
                         GroupPulseActiveView(
                             refreshToken: model.groupTabRefreshToken,
                             momentTitle: model.selectedMomentTitle,
                             momentId: model.selectedMomentId,
+                            momentTypeCode: groupTypeCode,
                             onAddExpense: { groupExpenseSheetPresented = true },
                             onViewSplits: { groupSplitsPresented = true },
                             onOpenFinance: { groupFinancePresented = true },
                             onOpenMemory: { groupCollabKind = .memory },
                             onOpenChat: { groupCollabKind = .update },
-                            onOpenItinerary: { groupCollabKind = .planning }
+                            onOpenItinerary: { groupCollabKind = .planning },
+                            onViewAllActivity: { groupRecentActivityOpen = true }
                         )
                     }
                 } else if model.selectedContext == .group, model.bottomDestination == .moments {

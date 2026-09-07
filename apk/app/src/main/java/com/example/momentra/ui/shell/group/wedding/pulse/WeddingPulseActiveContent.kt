@@ -75,6 +75,7 @@ fun WeddingPulseActiveContent(
     onViewSplits: () -> Unit = onAddExpense,
     onOpenFinance: () -> Unit = onViewSplits,
     onQuickAddKind: (WeddingQuickAddKind) -> Unit = {},
+    onViewAllActivity: () -> Unit = {},
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
@@ -347,7 +348,7 @@ fun WeddingPulseActiveContent(
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             Text(
-                                pos.participantId.take(8),
+                                pos.displayName?.takeIf { it.isNotBlank() } ?: pos.participantId.take(8),
                                 color = WeddingActiveTheme.Text,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -437,6 +438,16 @@ fun WeddingPulseActiveContent(
                             WeddingActivityRow("📌", item.title, formatOccurredAt(item.occurredAt))
                         }
                     }
+                    Text(
+                        "View all activity →",
+                        color = WeddingActiveTheme.Accent,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .clickable(onClick = onViewAllActivity),
+                    )
                 }
             }
 

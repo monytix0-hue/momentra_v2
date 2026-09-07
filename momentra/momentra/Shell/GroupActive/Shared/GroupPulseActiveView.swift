@@ -5,12 +5,14 @@ struct GroupPulseActiveView: View {
     let refreshToken: UInt64
     let momentTitle: String?
     let momentId: String?
+    var momentTypeCode: String? = nil
     var onAddExpense: () -> Void = {}
     var onViewSplits: () -> Void = {}
     var onOpenFinance: () -> Void = {}
     var onOpenMemory: () -> Void = {}
     var onOpenChat: () -> Void = {}
     var onOpenItinerary: () -> Void = {}
+    var onViewAllActivity: () -> Void = {}
 
     @State private var pulse: APIClient.GroupPulsePayload?
     @State private var finance: APIClient.GroupFinancePayload?
@@ -20,6 +22,8 @@ struct GroupPulseActiveView: View {
     @State private var loading = true
     @State private var error: String?
     @State private var destinations: [String] = []
+    @State private var editingExpenseId: String?
+    @State private var editExpensePresented = false
 
     private var hideBalances: Bool {
         UserDefaults.standard.bool(forKey: "momentra_hide_balances")
@@ -54,9 +58,7 @@ struct GroupPulseActiveView: View {
         return max(expense, contribution, budget, 1)
     }
     private var nameById: [String: String] {
-        Dictionary(uniqueKeysWithValues: participants.map {
-            ($0.participantId, $0.displayName ?? String($0.participantId.prefix(8)))
-        })
+        GroupParticipantNameMap.build(participants)
     }
 
     var body: some View {
@@ -162,7 +164,11 @@ struct GroupPulseActiveView: View {
                                 )
                             } else if positions.isEmpty {
                                 ForEach(participants.prefix(6)) { person in
-                                    Text(person.displayName ?? String(person.participantId.prefix(8)))
+                                    Text(GroupParticipantNameMap.resolve(
+                                        participantId: person.participantId,
+                                        positionDisplayName: person.displayName,
+                                        nameById: nameById
+                                    ))
                                         .font(.plusJakarta(size: 13, weight: .semibold))
                                         .foregroundStyle(GroupActiveTheme.text)
                                 }
@@ -216,6 +222,14 @@ struct GroupPulseActiveView: View {
                                 ForEach(activity) { item in
                                     activityRow(item)
                                 }
+                                Button(action: onViewAllActivity) {
+                                    Text("View all activity →")
+                                        .font(.plusJakarta(size: 13, weight: .semibold))
+                                        .foregroundStyle(GroupActiveTheme.accentOrange)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.top, 8)
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
 
@@ -232,6 +246,28 @@ struct GroupPulseActiveView: View {
         }
         .background(GroupActiveTheme.bg)
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
+        .sheet(isPresented: $editExpensePresented) {
+            if let momentId, let editingExpenseId {
+                GroupExpenseSheet(
+                    momentId: momentId,
+                    isPresented: $editExpensePresented,
+                    expenseId: editingExpenseId,
+                    isWedding: false,
+                    momentTypeCode: momentTypeCode,
+                    onSaved: {
+                        editExpensePresented = false
+                        Task { await load() }
+                    },
+                    onDeleted: {
+                        editExpensePresented = false
+                        Task { await load() }
+                    }
+                )
+            }
+        }
+        .onChange(of: editExpensePresented) { _, open in
+            if !open { editingExpenseId = nil }
+        }
     }
 
     private var tripHeroHeader: some View {
@@ -349,7 +385,11 @@ struct GroupPulseActiveView: View {
 
     private func participationRow(_ rows: [APIClient.GroupFinancePositionPayload]) -> some View {
         let primary = rows[0]
-        let name = nameById[primary.participantId] ?? String(primary.participantId.prefix(8))
+        let name = GroupParticipantNameMap.resolve(
+            participantId: primary.participantId,
+            positionDisplayName: primary.displayName,
+            nameById: nameById
+        )
         let netLine = GroupFinanceFormat.formatPartitionedAmounts(
             rows.map { ($0.currencyCode, $0.netPosition ?? "0") },
             compact: true,
@@ -407,23 +447,40 @@ struct GroupPulseActiveView: View {
     }
 
     private func activityRow(_ item: APIClient.ActivityItemPayload) -> some View {
-        HStack(spacing: 12) {
-            Text(activityGlyph(item.activityCode))
-                .font(.system(size: 14))
-                .frame(width: 36, height: 36)
-                .background(GroupActiveTheme.brandSoft)
-                .overlay(Circle().stroke(GroupActiveTheme.border, lineWidth: 1))
-                .clipShape(Circle())
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
-                    .font(.plusJakarta(size: 13, weight: .medium))
-                    .foregroundStyle(GroupActiveTheme.text)
-                Text(formatOccurredAt(item.occurredAt))
-                    .font(.plusJakarta(size: 11))
-                    .foregroundStyle(GroupActiveTheme.secondary)
+        let expenseId = item.activityPayload?.expenseId
+        let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
+        return Button {
+            guard let expenseId else { return }
+            editingExpenseId = expenseId
+            editExpensePresented = true
+        } label: {
+            HStack(spacing: 12) {
+                Text(activityGlyph(item.activityCode))
+                    .font(.system(size: 14))
+                    .frame(width: 36, height: 36)
+                    .background(GroupActiveTheme.brandSoft)
+                    .overlay(Circle().stroke(GroupActiveTheme.border, lineWidth: 1))
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.title)
+                        .font(.plusJakarta(size: 13, weight: .medium))
+                        .foregroundStyle(GroupActiveTheme.text)
+                    Text(formatOccurredAt(item.occurredAt))
+                        .font(.plusJakarta(size: 11))
+                        .foregroundStyle(GroupActiveTheme.secondary)
+                }
+                Spacer(minLength: 8)
+                if canEdit {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(GroupActiveTheme.secondary)
+                }
             }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 6)
+        .buttonStyle(.plain)
+        .disabled(!canEdit)
     }
 
     private func maskMoney(_ value: String) -> String {
@@ -470,7 +527,16 @@ struct GroupPulseActiveView: View {
             activity = tab.activities
             insights = tab.insights
             loading = false
-            participants = (try? await partsResult) ?? []
+            do {
+                participants = try await partsResult
+            } catch is CancellationError {
+                // Keep prior participants on task cancel.
+            } catch {
+                // Soft-fail: finance may still carry displayName on positions.
+                if participants.isEmpty {
+                    participants = []
+                }
+            }
             let widgetPlaces = TripPulseDestinations.fromWidget(tab.pulse?.payload?.widgetPayload)
             if !widgetPlaces.isEmpty {
                 destinations = widgetPlaces

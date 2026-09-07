@@ -12,6 +12,7 @@ struct GroupSettlementSheet: View {
     @State private var currencyCode = "INR"
     @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var participants: [APIClient.GroupParticipantPayload] = []
+    @State private var positions: [APIClient.GroupFinancePositionPayload] = []
     @State private var payerId: String?
     @State private var payeeId: String?
     /// LOCAL_ONLY — how paid; not sent (no settlement method column).
@@ -19,6 +20,8 @@ struct GroupSettlementSheet: View {
     @State private var loading = true
     @State private var submitting = false
     @State private var error: String?
+    @State private var amountEditedByUser = false
+    @State private var lastSuggestedAmount = ""
 
     private var accent: Color {
         MomentThemes.resolve(context: .group, momentTypeCode: momentTypeCode).primary
@@ -40,7 +43,10 @@ struct GroupSettlementSheet: View {
                                 .foregroundStyle(Color(hex: "#A8A3B5"))
 
                             fieldLabel("Payer (debtor)")
-                            participantChips(selected: payerId) { payerId = $0 }
+                            participantChips(selected: payerId) { id in
+                                payerId = id
+                                applySuggestionForPayer()
+                            }
 
                             fieldLabel("Payee (creditor)")
                             participantChips(selected: payeeId) { payeeId = $0 }
@@ -58,6 +64,11 @@ struct GroupSettlementSheet: View {
                                 .padding(12)
                                 .background(Color(hex: "#201E28"))
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .onChange(of: amount) { _, newValue in
+                                    if newValue != lastSuggestedAmount {
+                                        amountEditedByUser = true
+                                    }
+                                }
 
                             fieldLabel("How paid (local only)")
                             FlowLayout(spacing: 8) {
@@ -115,6 +126,9 @@ struct GroupSettlementSheet: View {
         .presentationDetents([.medium, .large])
         .accessibilityIdentifier("qa.tile.settle.sheet")
         .task { await loadParticipants() }
+        .onChange(of: currencyCode) { _, _ in
+            applySuggestionForCurrency()
+        }
     }
 
     private var canSubmit: Bool {
@@ -152,21 +166,109 @@ struct GroupSettlementSheet: View {
     private func loadParticipants() async {
         loading = true
         error = nil
+        amountEditedByUser = false
+        lastSuggestedAmount = ""
         let ctx = await MomentCurrencyContextLoader.loadGroup(momentId: momentId)
         preferredCurrencyCodes = ctx.preferred
         currencyCode = ctx.primary
         do {
-            let list = try await APIClient.shared.listGroupParticipants(momentId: momentId)
+            async let participantsTask = APIClient.shared.listGroupParticipants(momentId: momentId)
+            async let financeTask = APIClient.shared.getGroupFinance(momentId: momentId)
+            let list = try await participantsTask
+            let finance = try? await financeTask
+            positions = finance?.payload?.positions ?? []
+
             let active = list.filter {
                 ($0.status ?? "").uppercased() == "ACTIVE" || ($0.status ?? "").uppercased() == "INVITED"
             }
             participants = active.isEmpty ? list : active
-            payeeId = participants.first?.participantId
-            payerId = participants.dropFirst().first?.participantId ?? participants.first?.participantId
+
+            let debtor = defaultDebtorId()
+            let creditor = defaultCreditorId(excluding: debtor)
+            payerId = debtor
+            payeeId = creditor
+            applySuggestionForPayer()
         } catch {
             self.error = error.localizedDescription
         }
         loading = false
+    }
+
+    private func defaultDebtorId() -> String? {
+        for p in participants {
+            let rows = positions.filter { $0.participantId == p.participantId }
+            if rows.contains(where: {
+                GroupFinanceFormat.parseAmount($0.payableTotal) > 0
+                    || GroupFinanceFormat.parseAmount($0.netPosition) < 0
+            }) {
+                return p.participantId
+            }
+        }
+        return participants.dropFirst().first?.participantId ?? participants.first?.participantId
+    }
+
+    private func defaultCreditorId(excluding payer: String?) -> String? {
+        for p in participants where p.participantId != payer {
+            let rows = positions.filter { $0.participantId == p.participantId }
+            if rows.contains(where: {
+                GroupFinanceFormat.parseAmount($0.receivableTotal) > 0
+                    || GroupFinanceFormat.parseAmount($0.netPosition) > 0
+            }) {
+                return p.participantId
+            }
+        }
+        return participants.first(where: { $0.participantId != payer })?.participantId
+    }
+
+    /// Best open outstanding for the payer: prefer payableTotal > 0, else abs(negative net).
+    private func outstandingForPayer(currency: String? = nil) -> (amount: Decimal, currency: String)? {
+        guard let payerId else { return nil }
+        let rows = positions.filter { $0.participantId == payerId }
+        let candidates: [(Decimal, String)] = rows.compactMap { pos in
+            let payable = GroupFinanceFormat.parseAmount(pos.payableTotal)
+            if payable > 0 { return (payable, pos.currencyCode) }
+            let net = GroupFinanceFormat.parseAmount(pos.netPosition)
+            if net < 0 { return (-net, pos.currencyCode) }
+            return nil
+        }
+        if let currency {
+            let code = currency.uppercased()
+            return candidates.first { $0.1.uppercased() == code }.map { ($0.0, $0.1) }
+        }
+        return candidates.max(by: { $0.0 < $1.0 })
+    }
+
+    private func formatSuggestionAmount(_ value: Decimal) -> String {
+        var v = value
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &v, 4, .plain)
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = false
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 4
+        return formatter.string(from: rounded as NSDecimalNumber) ?? "0"
+    }
+
+    private func applySuggestionForPayer() {
+        amountEditedByUser = false
+        guard let suggestion = outstandingForPayer() else { return }
+        currencyCode = suggestion.currency
+        if !preferredCurrencyCodes.contains(where: { $0.uppercased() == suggestion.currency.uppercased() }) {
+            preferredCurrencyCodes.insert(suggestion.currency, at: 0)
+        }
+        let formatted = formatSuggestionAmount(suggestion.amount)
+        lastSuggestedAmount = formatted
+        amount = formatted
+    }
+
+    private func applySuggestionForCurrency() {
+        guard !amountEditedByUser else { return }
+        guard let suggestion = outstandingForPayer(currency: currencyCode) else { return }
+        let formatted = formatSuggestionAmount(suggestion.amount)
+        lastSuggestedAmount = formatted
+        amount = formatted
     }
 
     private func save() async {

@@ -12,6 +12,7 @@ struct ExperiencePulseActiveView: View {
     var onViewSplits: () -> Void = {}
     var onOpenFinance: () -> Void = {}
     var onQuickAddKind: (ExperienceQuickAddKind) -> Void = { _ in }
+    var onViewAllActivity: () -> Void = {}
 
     @State private var pulse: APIClient.GroupPulsePayload?
     @State private var finance: APIClient.GroupFinancePayload?
@@ -166,6 +167,7 @@ struct ExperiencePulseActiveView: View {
                 }
 
                 ExperienceSectionCard(theme: theme, title: theme.crewTitle) {
+                    let nameById = GroupParticipantNameMap.build(participants)
                     if participants.isEmpty && positions.isEmpty {
                         ExperienceEmptyBlock(
                             theme: theme,
@@ -177,7 +179,11 @@ struct ExperiencePulseActiveView: View {
                             ForEach(Array(participants.prefix(5).enumerated()), id: \.element.id) { idx, p in
                                 ExperienceCrewRow(
                                     theme: theme,
-                                    name: p.displayName ?? String(p.participantId.prefix(8)),
+                                    name: GroupParticipantNameMap.resolve(
+                                        participantId: p.participantId,
+                                        positionDisplayName: p.displayName,
+                                        nameById: nameById
+                                    ),
                                     role: p.roleCode ?? "Member",
                                     percent: max(20, 90 - idx * 10),
                                     featured: idx == 0
@@ -188,7 +194,11 @@ struct ExperiencePulseActiveView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(Array(positions.prefix(5))) { pos in
                                 HStack {
-                                    Text(String(pos.participantId.prefix(8)) + "…")
+                                    Text(GroupParticipantNameMap.resolve(
+                                        participantId: pos.participantId,
+                                        positionDisplayName: pos.displayName,
+                                        nameById: nameById
+                                    ))
                                         .font(.plusJakarta(size: 13, weight: .semibold))
                                         .foregroundStyle(theme.text)
                                     Spacer()
@@ -292,6 +302,14 @@ struct ExperiencePulseActiveView: View {
                             .buttonStyle(.plain)
                             .disabled(!canEdit)
                         }
+                        Button(action: onViewAllActivity) {
+                            Text("View all activity →")
+                                .font(.plusJakarta(size: 13, weight: .semibold))
+                                .foregroundStyle(theme.accent)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.top, 8)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
@@ -341,7 +359,12 @@ struct ExperiencePulseActiveView: View {
             activities = tab.activities
             insights = tab.insights
             loading = false
-            participants = (try? await participantsResult) ?? []
+            do {
+                participants = try await participantsResult
+            } catch is CancellationError {
+            } catch {
+                if participants.isEmpty { participants = [] }
+            }
             Task {
                 if let enriched = await GroupTabLoad.enrich(momentId: momentId) {
                     await MainActor.run { insights = enriched.insights }

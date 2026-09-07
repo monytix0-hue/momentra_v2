@@ -75,6 +75,7 @@ fun LivingPulseActiveContent(
     onViewSplits: () -> Unit = onAddExpense,
     onOpenFinance: () -> Unit = onViewSplits,
     onQuickAddKind: (LivingQuickAddKind) -> Unit = {},
+    onViewAllActivity: () -> Unit = {},
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
@@ -297,7 +298,9 @@ fun LivingPulseActiveContent(
                             ?: pos.paidTotal.takeIf { it.isNotBlank() && it != "0" }
                         LivingCrewRow(
                             theme = theme,
-                            name = nameById[pos.participantId] ?: pos.participantId.take(8),
+                            name = pos.displayName?.takeIf { it.isNotBlank() }
+                                ?: nameById[pos.participantId]
+                                ?: pos.participantId.take(8),
                             role = participants.find { it.participantId == pos.participantId }?.roleCode ?: "Member",
                             amountLabel = if (amount != null) {
                                 BalanceMask.mask(GroupFinanceFormat.formatMoney(amount, pos.currencyCode), hideBalances)
@@ -414,7 +417,7 @@ fun LivingPulseActiveContent(
             if (activities.isEmpty()) {
                 LivingEmptyBlock(theme, "No recent activity", "Expenses, tasks, and updates will show here.")
             } else {
-                activities.forEach { item ->
+                    activities.forEach { item ->
                     val expenseId = item.activityPayload?.expenseId
                     val canEdit = !expenseId.isNullOrBlank()
                     Column(
@@ -431,13 +434,23 @@ fun LivingPulseActiveContent(
                         Text(item.occurredAt, color = theme.secondary, fontSize = 11.sp, fontFamily = PlusJakartaSans)
                     }
                 }
+                    Text(
+                        "View all activity →",
+                        color = theme.accent,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .padding(top = 4.dp)
+                            .clickable(onClick = onViewAllActivity),
+                    )
+                }
             }
-        }
 
-        GroupPulseInsightsHeroCard(
-            headerTitle = "🧠 ${theme.insightsTitle}",
-            insights = insights,
-            gradient = theme.pulseHeroGradient,
+            GroupPulseInsightsHeroCard(
+                headerTitle = "🧠 ${theme.insightsTitle}",
+                insights = insights,
+                gradient = theme.pulseHeroGradient,
             footerLabel = "+ Open Quick Add",
             onFooterClick = onOpenQuickAdd,
         )

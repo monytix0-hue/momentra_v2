@@ -120,6 +120,7 @@ import com.example.momentra.ui.shell.group.trip.memory.GroupMemoryActiveContent
 import com.example.momentra.ui.shell.group.trip.moments.GroupMomentsActiveContent
 import com.example.momentra.ui.shell.group.trip.pulse.GroupPulseActiveContent
 import com.example.momentra.ui.shell.group.shared.GroupParticipantsSheet
+import com.example.momentra.ui.shell.group.shared.GroupRecentActivityFlow
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSplitsFlow
 import com.example.momentra.ui.shell.group.shared.GroupFinanceDetailFlow
 import com.example.momentra.ui.shell.group.shared.GroupExperienceFamily
@@ -263,6 +264,7 @@ fun AppShellScreen(
     var relationshipsQa by remember { mutableStateOf<RelationshipsQuickAddKind?>(null) }
     var relationshipsActivityOpen by remember { mutableStateOf(false) }
     var recentActivityOpen by remember { mutableStateOf(false) }
+    var groupRecentActivityOpen by remember { mutableStateOf(false) }
     var newMomentOpen by remember { mutableStateOf(false) }
     var groupCreatePhase by remember { mutableStateOf(GroupCreatePhase.CHOOSER) }
     var preferGroupCreateFlow by remember { mutableStateOf(false) }
@@ -600,6 +602,7 @@ fun AppShellScreen(
                     onRelationshipsQuickAdd = { relationshipsQa = it },
                     onOpenRelationshipsActivity = { relationshipsActivityOpen = true },
                     onViewAllActivity = { recentActivityOpen = true },
+                    onViewAllGroupActivity = { groupRecentActivityOpen = true },
                 )
             }
             if (
@@ -1065,6 +1068,14 @@ fun AppShellScreen(
             onDismiss = { recentActivityOpen = false },
             onChanged = { shellViewModel.refreshVisiblePersonalTab() },
         )
+        GroupRecentActivityFlow(
+            momentId = state.selectedMomentId,
+            visible = groupRecentActivityOpen,
+            onDismiss = { groupRecentActivityOpen = false },
+            onChanged = { shellViewModel.refreshVisibleGroupTab(forcePrefetch = true) },
+            momentTypeCode = state.selectedMomentTypeCode
+                ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.momentTypeCode,
+        )
         if (showManageMoment) {
             val momentId = state.selectedMomentId
             if (momentId != null) {
@@ -1251,6 +1262,7 @@ private fun ShellDestinationContent(
     onRelationshipsQuickAdd: (RelationshipsQuickAddKind) -> Unit = {},
     onOpenRelationshipsActivity: () -> Unit = {},
     onViewAllActivity: () -> Unit = {},
+    onViewAllGroupActivity: () -> Unit = {},
 ) {
     when (content) {
         ShellContentState.Loading, ShellContentState.Idle -> {
@@ -1470,6 +1482,7 @@ private fun ShellDestinationContent(
                                     onViewSplits = onViewSplits,
                                     onOpenFinance = onOpenGroupFinance,
                                     onQuickAddKind = onWeddingQuickAdd,
+                                    onViewAllActivity = onViewAllGroupActivity,
                                 )
                             } else if (isExperience) {
                                 ExperiencePulseActiveContent(
@@ -1483,6 +1496,7 @@ private fun ShellDestinationContent(
                                     onViewSplits = onViewSplits,
                                     onOpenFinance = onOpenGroupFinance,
                                     onQuickAddKind = onExperienceQuickAdd,
+                                    onViewAllActivity = onViewAllGroupActivity,
                                 )
                             } else if (isPurchase) {
                                 PurchasePulseActiveContent(
@@ -1496,6 +1510,7 @@ private fun ShellDestinationContent(
                                     onViewSplits = onViewSplits,
                                     onOpenFinance = onOpenGroupFinance,
                                     onQuickAddKind = onPurchaseQuickAdd,
+                                    onViewAllActivity = onViewAllGroupActivity,
                                 )
                             } else if (isLiving) {
                                 LivingPulseActiveContent(
@@ -1509,18 +1524,21 @@ private fun ShellDestinationContent(
                                     onViewSplits = onViewSplits,
                                     onOpenFinance = onOpenGroupFinance,
                                     onQuickAddKind = onLivingQuickAdd,
+                                    onViewAllActivity = onViewAllGroupActivity,
                                 )
                             } else {
                                 GroupPulseActiveContent(
                                     momentId = selectedMomentId,
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = groupTabRefreshToken,
+                                    momentTypeCode = groupTypeCode,
                                     onAddExpense = onAddExpense,
                                     onViewSplits = onViewSplits,
                                     onOpenFinance = onOpenGroupFinance,
                                     onOpenMemory = onAddMemory,
                                     onOpenChat = onAddUpdate,
                                     onOpenItinerary = onAddPlanning,
+                                    onViewAllActivity = onViewAllGroupActivity,
                                 )
                             }
                         }

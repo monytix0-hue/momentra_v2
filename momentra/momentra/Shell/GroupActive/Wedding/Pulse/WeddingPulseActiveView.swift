@@ -11,10 +11,12 @@ struct WeddingPulseActiveView: View {
     var onViewSplits: () -> Void = {}
     var onOpenFinance: () -> Void = {}
     var onQuickAddKind: (WeddingQuickAddKind) -> Void = { _ in }
+    var onViewAllActivity: () -> Void = {}
 
     @State private var pulse: APIClient.GroupPulsePayload?
     @State private var finance: APIClient.GroupFinancePayload?
     @State private var activities: [APIClient.ActivityItemPayload] = []
+    @State private var participants: [APIClient.GroupParticipantPayload] = []
     @State private var insights: [AnalyticsInsightItemPayload] = []
     @State private var title: String?
     @State private var loading = true
@@ -64,11 +66,12 @@ struct WeddingPulseActiveView: View {
             expenseTotal: total?.expenseTotal,
             budgetTotal: total?.budgetTotal
         )
-        let people = pulse?.payload?.participantCount ?? 0
+        let people = pulse?.payload?.participantCount ?? participants.count
         let expenseCount = finance?.expenseCount ?? 0
         let attentionCount = pulse?.payload?.attentionCount ?? 0
         let openTasks = pulse?.payload?.openTaskCount ?? 0
         let positions = finance?.positions ?? []
+        let nameById = GroupParticipantNameMap.build(participants)
         NativeDashboardScaffold(background: WeddingActiveTheme.bg) {
 
             NativeListSection {
@@ -195,7 +198,11 @@ struct WeddingPulseActiveView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(Array(positions.prefix(5))) { pos in
                                 HStack {
-                                    Text(String(pos.participantId.prefix(8)) + "…")
+                                    Text(GroupParticipantNameMap.resolve(
+                                        participantId: pos.participantId,
+                                        positionDisplayName: pos.displayName,
+                                        nameById: nameById
+                                    ))
                                         .font(.plusJakarta(size: 13, weight: .semibold))
                                         .foregroundStyle(WeddingActiveTheme.text)
                                     Spacer()
@@ -278,6 +285,14 @@ struct WeddingPulseActiveView: View {
                             .buttonStyle(.plain)
                             .disabled(!canEdit)
                         }
+                        Button(action: onViewAllActivity) {
+                            Text("View all activity →")
+                                .font(.plusJakarta(size: 13, weight: .semibold))
+                                .foregroundStyle(WeddingActiveTheme.accent)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.top, 8)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
@@ -309,13 +324,21 @@ struct WeddingPulseActiveView: View {
             loading = true
         }
         do {
-            let tab = try await GroupTabLoad.loadPulseTab(momentId: momentId)
+            async let tabResult = GroupTabLoad.loadPulseTab(momentId: momentId)
+            async let participantsResult = APIClient.shared.listGroupParticipants(momentId: momentId)
+            let tab = try await tabResult
             title = tab.title
             pulse = tab.pulse
             finance = tab.finance
             activities = tab.activities
             insights = tab.insights
             loading = false
+            do {
+                participants = try await participantsResult
+            } catch is CancellationError {
+            } catch {
+                if participants.isEmpty { participants = [] }
+            }
             Task {
                 if let enriched = await GroupTabLoad.enrich(momentId: momentId) {
                     await MainActor.run { insights = enriched.insights }
