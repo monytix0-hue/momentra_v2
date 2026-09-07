@@ -112,6 +112,8 @@ class PersonalSliceRepository(
         effectiveAt: String? = null,
         recurringScheduleId: String? = null,
         asDraft: Boolean? = null,
+        sharedExperienceCode: String? = null,
+        sharedExperienceLabel: String? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ): Result<CreateExpenseResultDto> = runCatching {
         api.createExpense(
@@ -129,6 +131,8 @@ class PersonalSliceRepository(
                 effectiveAt = effectiveAt,
                 recurringScheduleId = recurringScheduleId,
                 asDraft = asDraft,
+                sharedExperienceCode = sharedExperienceCode,
+                sharedExperienceLabel = sharedExperienceLabel,
             ),
         ).data
     }.recoverCatching { e -> throw mapError(e) }
@@ -492,6 +496,8 @@ class PersonalSliceRepository(
         paymentMethodCode: String? = null,
         effectiveAt: String? = null,
         recurringScheduleId: String? = null,
+        sharedExperienceCode: String? = null,
+        sharedExperienceLabel: String? = null,
     ): Result<CreateExpenseResultDto> = runCatching {
         api.updateExpense(
             momentId = momentId,
@@ -507,6 +513,8 @@ class PersonalSliceRepository(
                 paymentMethodCode = paymentMethodCode,
                 effectiveAt = effectiveAt,
                 recurringScheduleId = recurringScheduleId,
+                sharedExperienceCode = sharedExperienceCode,
+                sharedExperienceLabel = sharedExperienceLabel,
             ),
         ).data
     }.recoverCatching { e -> throw mapError(e) }

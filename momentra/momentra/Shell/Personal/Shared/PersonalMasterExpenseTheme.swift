@@ -38,7 +38,20 @@ enum PersonalMasterExpenseTheme {
         .init(id: "Disappointed", emoji: "😞", label: "Disappointed"),
     ]
 
-    static let sharedWithOptions = ["Spouse", "Parents", "Family", "Friends", "Custom"]
+    struct SharedExperienceOption: Identifiable {
+        var id: String { code }
+        let code: String
+        let label: String
+    }
+
+    static let sharedExperienceOptions: [SharedExperienceOption] = [
+        .init(code: "SELF", label: "Self"),
+        .init(code: "SPOUSE", label: "Spouse / Partner"),
+        .init(code: "FAMILY", label: "Family"),
+        .init(code: "FRIEND", label: "Friend"),
+        .init(code: "COLLEAGUE", label: "Colleague"),
+        .init(code: "OTHER", label: "Other"),
+    ]
 
     static let relationshipImpactOptions: [RelationshipImpactOption] = [
         .init(id: "Strengthened Connection", emoji: "💪", label: "Strengthened Connection"),

@@ -1148,6 +1148,8 @@ final class APIClient {
         paymentMethodCode: String? = nil,
         effectiveAt: String? = nil,
         recurringScheduleId: String? = nil,
+        sharedExperienceCode: String? = nil,
+        sharedExperienceLabel: String? = nil,
         idempotencyKey: String = UUID().uuidString
     ) async throws -> CreateExpenseResult {
         struct Body: Encodable {
@@ -1161,6 +1163,8 @@ final class APIClient {
             let paymentMethodCode: String?
             let effectiveAt: String?
             let recurringScheduleId: String?
+            let sharedExperienceCode: String?
+            let sharedExperienceLabel: String?
         }
         return try await authorizedPost(
             path: "v1/moments/\(momentId)/expenses",
@@ -1174,7 +1178,9 @@ final class APIClient {
                 financialAccountId: financialAccountId,
                 paymentMethodCode: paymentMethodCode,
                 effectiveAt: effectiveAt,
-                recurringScheduleId: recurringScheduleId
+                recurringScheduleId: recurringScheduleId,
+                sharedExperienceCode: sharedExperienceCode,
+                sharedExperienceLabel: sharedExperienceLabel
             ),
             idempotencyKey: idempotencyKey
         )
@@ -1567,6 +1573,8 @@ final class APIClient {
         let paymentMethodCode: String?
         let effectiveAt: String?
         let recurringScheduleId: String?
+        let sharedExperienceCode: String?
+        let sharedExperienceLabel: String?
         let attachmentIds: [String]?
     }
 
@@ -1797,7 +1805,9 @@ final class APIClient {
         financialAccountId: String? = nil,
         paymentMethodCode: String? = nil,
         effectiveAt: String? = nil,
-        recurringScheduleId: String? = nil
+        recurringScheduleId: String? = nil,
+        sharedExperienceCode: String? = nil,
+        sharedExperienceLabel: String? = nil
     ) async throws -> UpdateExpenseResult {
         struct Body: Encodable {
             let amount: String?
@@ -1810,6 +1820,8 @@ final class APIClient {
             let paymentMethodCode: String?
             let effectiveAt: String?
             let recurringScheduleId: String?
+            let sharedExperienceCode: String?
+            let sharedExperienceLabel: String?
         }
         return try await authorizedPatch(
             path: "v1/moments/\(momentId)/expenses/\(expenseId)",
@@ -1823,7 +1835,9 @@ final class APIClient {
                 financialAccountId: financialAccountId,
                 paymentMethodCode: paymentMethodCode,
                 effectiveAt: effectiveAt,
-                recurringScheduleId: recurringScheduleId
+                recurringScheduleId: recurringScheduleId,
+                sharedExperienceCode: sharedExperienceCode,
+                sharedExperienceLabel: sharedExperienceLabel
             )
         )
     }
@@ -2422,6 +2436,18 @@ final class APIClient {
             self.amount = amount
             self.percent = percent
             self.shares = shares
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(participantId, forKey: .participantId)
+            try container.encodeIfPresent(amount, forKey: .amount)
+            try container.encodeIfPresent(percent, forKey: .percent)
+            try container.encodeIfPresent(shares, forKey: .shares)
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case participantId, amount, percent, shares
         }
     }
 

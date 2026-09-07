@@ -26,7 +26,9 @@ final class PersonalTransactionRepository {
         financialAccountId: String? = nil,
         paymentMethodCode: String? = nil,
         effectiveAt: String? = nil,
-        recurringScheduleId: String? = nil
+        recurringScheduleId: String? = nil,
+        sharedExperienceCode: String? = nil,
+        sharedExperienceLabel: String? = nil
     ) async throws -> APIClient.UpdateExpenseResult {
         guard ref.resourceType == .expense else {
             throw NSError(domain: "PersonalTransactionRepository", code: 400, userInfo: [NSLocalizedDescriptionKey: "Use income endpoints for INCOME resources."])
@@ -43,7 +45,9 @@ final class PersonalTransactionRepository {
             financialAccountId: financialAccountId,
             paymentMethodCode: paymentMethodCode,
             effectiveAt: effectiveAt,
-            recurringScheduleId: recurringScheduleId
+            recurringScheduleId: recurringScheduleId,
+            sharedExperienceCode: sharedExperienceCode,
+            sharedExperienceLabel: sharedExperienceLabel
         )
     }
 

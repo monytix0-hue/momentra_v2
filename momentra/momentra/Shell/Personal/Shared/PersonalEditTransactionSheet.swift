@@ -19,6 +19,8 @@ struct PersonalEditTransactionSheet: View {
     @State private var selectedAccountId: String?
     @State private var paymentMethod = "CASH"
     @State private var effectiveAtIso: String
+    @State private var sharedExperienceCode = "SELF"
+    @State private var sharedExperienceLabel = ""
     @State private var showCategoryPicker = false
     @State private var showAccountPicker = false
     @State private var categoryPickerMode: PersonalCategoryPickerSheet.Mode = .category
@@ -111,6 +113,7 @@ struct PersonalEditTransactionSheet: View {
                     txnField("Date (ISO)", text: $effectiveAtIso)
                     chevronField("Account", value: accountLabel) { showAccountPicker = true }
                     paymentMethodRow()
+                    sharedExperienceRow()
                 }
                 .padding(14)
                 .background(Color(hex: "#201E28"))
@@ -266,6 +269,8 @@ struct PersonalEditTransactionSheet: View {
                 selectedAccountId = detail.financialAccountId
                 paymentMethod = detail.paymentMethodCode ?? paymentMethod
                 effectiveAtIso = detail.effectiveAt ?? item.occurredAt
+                sharedExperienceCode = detail.sharedExperienceCode ?? "SELF"
+                sharedExperienceLabel = detail.sharedExperienceLabel ?? ""
                 attachments = detail.attachmentIds ?? []
             }
             accounts = try await APIClient.shared.listFinancialAccounts()
@@ -273,6 +278,30 @@ struct PersonalEditTransactionSheet: View {
             self.error = error.localizedDescription
         }
         loadingDetail = false
+    }
+
+    @ViewBuilder
+    private func sharedExperienceRow() -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Shared experience").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(hex: "#64748B"))
+            FlowLayout(spacing: 8) {
+                ForEach(PersonalMasterExpenseTheme.sharedExperienceOptions) { opt in
+                    let selected = sharedExperienceCode == opt.code
+                    Text(opt.label)
+                        .font(.system(size: 11))
+                        .foregroundStyle(selected ? accent : Color(hex: "#E5E0EE"))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(selected ? accent.opacity(0.2) : Color(hex: "#201E28"))
+                        .overlay(Capsule().stroke(selected ? accent : Color.white.opacity(0.08)))
+                        .clipShape(Capsule())
+                        .onTapGesture { sharedExperienceCode = opt.code }
+                }
+            }
+            if sharedExperienceCode == "OTHER" {
+                txnField("Shared with", text: $sharedExperienceLabel)
+            }
+        }
     }
 
     @ViewBuilder
@@ -397,7 +426,11 @@ struct PersonalEditTransactionSheet: View {
                     subcategoryCode: subcategoryCode,
                     financialAccountId: selectedAccountId,
                     paymentMethodCode: paymentMethod,
-                    effectiveAt: effectiveAtIso
+                    effectiveAt: effectiveAtIso,
+                    sharedExperienceCode: sharedExperienceCode,
+                    sharedExperienceLabel: sharedExperienceCode == "OTHER" && !sharedExperienceLabel.isEmpty
+                        ? sharedExperienceLabel
+                        : nil
                 )
                 await MainActor.run {
                     submitting = false

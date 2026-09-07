@@ -736,6 +736,8 @@ data class CreateExpenseBody(
     @SerializedName("effectiveAt") val effectiveAt: String? = null,
     @SerializedName("recurringScheduleId") val recurringScheduleId: String? = null,
     @SerializedName("asDraft") val asDraft: Boolean? = null,
+    @SerializedName("sharedExperienceCode") val sharedExperienceCode: String? = null,
+    @SerializedName("sharedExperienceLabel") val sharedExperienceLabel: String? = null,
 )
 
 data class CreateExpenseResultDto(
@@ -1077,6 +1079,8 @@ data class UpdateExpenseBody(
     @SerializedName("paymentMethodCode") val paymentMethodCode: String? = null,
     @SerializedName("effectiveAt") val effectiveAt: String? = null,
     @SerializedName("recurringScheduleId") val recurringScheduleId: String? = null,
+    @SerializedName("sharedExperienceCode") val sharedExperienceCode: String? = null,
+    @SerializedName("sharedExperienceLabel") val sharedExperienceLabel: String? = null,
 )
 
 data class ExpenseDetailDto(
@@ -1094,6 +1098,8 @@ data class ExpenseDetailDto(
     @SerializedName("paymentMethodCode") val paymentMethodCode: String? = null,
     @SerializedName("effectiveAt") val effectiveAt: String? = null,
     @SerializedName("recurringScheduleId") val recurringScheduleId: String? = null,
+    @SerializedName("sharedExperienceCode") val sharedExperienceCode: String? = null,
+    @SerializedName("sharedExperienceLabel") val sharedExperienceLabel: String? = null,
     @SerializedName("attachmentIds") val attachmentIds: List<String> = emptyList(),
 )
 

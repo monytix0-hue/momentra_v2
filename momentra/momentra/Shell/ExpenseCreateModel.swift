@@ -80,7 +80,9 @@ final class ExpenseCreateModel: ObservableObject {
                     subcategoryCode: nil,
                     financialAccountId: nil,
                     paymentMethodCode: nil,
-                    effectiveAt: nil
+                    effectiveAt: nil,
+                    sharedExperienceCode: nil,
+                    sharedExperienceLabel: nil
                 )
                 state.submitting = false
                 onSuccess(outcome)

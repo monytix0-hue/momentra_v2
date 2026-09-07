@@ -13,6 +13,13 @@ import {
   resolveUserAccount,
 } from './financial-account';
 import { listExpenseAttachments } from './expense-attachments';
+import {
+  resolveCanonicalExpenseMomentId,
+  SHARED_EXPERIENCE_CODES,
+  syncExpenseAnalyticalContributions,
+} from './expense-dimensions';
+
+const sharedExperienceCodeSchema = z.enum(SHARED_EXPERIENCE_CODES);
 
 /** Personal Expense.Create — matches OpenAPI ExpenseCreateRequest (splits write deferred). */
 export const createExpenseSchema = z
@@ -28,6 +35,8 @@ export const createExpenseSchema = z
     planningClassCode: z.enum(['ESSENTIAL', 'PLANNED', 'UNPLANNED']).optional(),
     note: z.string().max(2000).optional(),
     tags: z.array(z.string().min(1).max(80)).max(20).optional(),
+    sharedExperienceCode: sharedExperienceCodeSchema.optional(),
+    sharedExperienceLabel: z.string().max(200).optional(),
     effectiveAt: z
       .string()
       .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'Invalid ISO datetime' })
@@ -55,6 +64,8 @@ export const updateExpenseSchema = z
       .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'Invalid ISO datetime' })
       .nullish(),
     recurringScheduleId: z.string().uuid().nullable().optional(),
+    sharedExperienceCode: sharedExperienceCodeSchema.optional(),
+    sharedExperienceLabel: z.string().max(200).nullable().optional(),
     transactionType: z.never().optional(),
   })
   .strict()
@@ -69,7 +80,9 @@ export const updateExpenseSchema = z
       b.financialAccountId !== undefined ||
       b.paymentMethodCode !== undefined ||
       b.effectiveAt != null ||
-      b.recurringScheduleId !== undefined,
+      b.recurringScheduleId !== undefined ||
+      b.sharedExperienceCode !== undefined ||
+      b.sharedExperienceLabel !== undefined,
     { message: 'At least one field is required.' }
   );
 
@@ -93,6 +106,8 @@ export interface ExpenseDetail extends ExpenseResult {
   paymentMethodCode: string | null;
   effectiveAt: string;
   recurringScheduleId: string | null;
+  sharedExperienceCode: string;
+  sharedExperienceLabel: string | null;
   attachmentIds: string[];
 }
 
@@ -153,6 +168,7 @@ async function loadOwnedExpense(
   expenseId: string
 ): Promise<{
   expense_id: string;
+  moment_id: string;
   amount: string;
   currency_code: string;
   description: string | null;
@@ -163,17 +179,23 @@ async function loadOwnedExpense(
   payment_method_code: string | null;
   effective_at: Date;
   recurring_schedule_id: string | null;
+  shared_experience_code: string;
+  shared_experience_label: string | null;
   version: string;
   status: string;
 }> {
+  // Path moment must be an owned personal moment (auth gate); expense may live on LO home.
+  await assertPersonalMoment(client, ctx, momentId);
   const existing = await client.query(
-    `SELECT e.expense_id, e.amount::text AS amount, e.currency_code, e.description, e.merchant_name,
+    `SELECT e.expense_id, e.moment_id, e.amount::text AS amount, e.currency_code, e.description, e.merchant_name,
             e.category_code, e.subcategory_code, e.financial_account_id, e.payment_method_code,
-            e.effective_at, e.recurring_schedule_id, e.version::text AS version, e.status
+            e.effective_at, e.recurring_schedule_id, e.version::text AS version, e.status,
+            COALESCE(e.shared_experience_code, 'SELF') AS shared_experience_code,
+            e.shared_experience_label
      FROM finance.expense e
      JOIN finance.personal_expense_context pec ON pec.expense_id = e.expense_id
-     WHERE e.expense_id = $1 AND e.moment_id = $2 AND pec.user_id = $3`,
-    [expenseId, momentId, ctx.userId]
+     WHERE e.expense_id = $1 AND pec.user_id = $2`,
+    [expenseId, ctx.userId]
   );
   if (!existing.rows[0]) {
     throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Expense not found.', 404);
@@ -188,7 +210,7 @@ export async function getExpense(
   expenseId: string
 ): Promise<ExpenseDetail> {
   const row = await loadOwnedExpense(client, ctx, momentId, expenseId);
-  const attachments = await listExpenseAttachments(client, ctx, momentId, expenseId);
+  const attachments = await listExpenseAttachments(client, ctx, row.moment_id, expenseId);
   let paymentMethod = row.payment_method_code;
   if (!paymentMethod && row.financial_account_id) {
     const accountType = await getAccountType(client, row.financial_account_id);
@@ -196,7 +218,7 @@ export async function getExpense(
   }
   return {
     expenseId: row.expense_id,
-    momentId,
+    momentId: row.moment_id,
     amount: row.amount,
     currencyCode: row.currency_code,
     status: row.status,
@@ -209,6 +231,8 @@ export async function getExpense(
     paymentMethodCode: paymentMethod,
     effectiveAt: row.effective_at.toISOString(),
     recurringScheduleId: row.recurring_schedule_id,
+    sharedExperienceCode: row.shared_experience_code,
+    sharedExperienceLabel: row.shared_experience_label,
     attachmentIds: attachments.map((a) => a.uploadId),
   };
 }
@@ -228,23 +252,31 @@ export async function createExpense(
   });
   await assertPersonalMoment(client, ctx, momentId);
 
+  // Canonical financial home: Life Operations setup moment when present.
+  const canonicalMomentId = await resolveCanonicalExpenseMomentId(client, ctx.userId, momentId);
+  await assertPersonalMoment(client, ctx, canonicalMomentId);
+
   const accountId = await resolveUserAccount(client, ctx, body.currencyCode, body.financialAccountId ?? null);
   const accountType = await getAccountType(client, accountId);
   const paymentMethod =
     body.paymentMethodCode ?? (accountType ? derivePaymentMethodFromAccountType(accountType) : 'OTHER');
   const effectiveAt = body.effectiveAt ?? new Date().toISOString();
+  const sharedExperienceCode = body.sharedExperienceCode ?? 'SELF';
+  const sharedExperienceLabel = body.sharedExperienceLabel ?? null;
 
   const expenseStatus = body.asDraft ? 'DRAFT' : 'POSTED';
   const expenseInsert = await client.query<{ expense_id: string; version: string }>(
     `INSERT INTO finance.expense (
        moment_id, domain_code, financial_account_id, created_by_user_id, merchant_name, description,
        category_code, subcategory_code, payment_method_code, amount, currency_code, effective_at,
-       recurring_schedule_id, status, posted_at, version
+       recurring_schedule_id, status, posted_at, version,
+       shared_experience_code, shared_experience_label
      ) VALUES ($1, 'PERSONAL', $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11::timestamptz, now()),
-               $12, $13, CASE WHEN $13 = 'POSTED' THEN now() ELSE NULL END, 1)
+               $12, $13, CASE WHEN $13 = 'POSTED' THEN now() ELSE NULL END, 1,
+               $14, $15)
      RETURNING expense_id, version`,
     [
-      momentId,
+      canonicalMomentId,
       accountId,
       ctx.userId,
       body.merchantName ?? null,
@@ -257,6 +289,8 @@ export async function createExpense(
       body.effectiveAt ?? null,
       body.recurringScheduleId ?? null,
       expenseStatus,
+      sharedExperienceCode,
+      sharedExperienceLabel,
     ]
   );
   const expenseId = expenseInsert.rows[0].expense_id;
@@ -289,7 +323,7 @@ export async function createExpense(
   await client.query(
     `INSERT INTO finance.personal_expense_context (expense_id, moment_id, user_id)
      VALUES ($1, $2, $3)`,
-    [expenseId, momentId, ctx.userId]
+    [expenseId, canonicalMomentId, ctx.userId]
   );
 
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
@@ -298,19 +332,20 @@ export async function createExpense(
     aggregateType: 'EXPENSE',
     aggregateId: expenseId,
     scopeType: 'MOMENT',
-    scopeId: momentId,
+    scopeId: canonicalMomentId,
     payload: {
       expenseId,
-      momentId,
+      momentId: canonicalMomentId,
       amount: amount.toFixed(4),
       currencyCode: body.currencyCode,
       userId: ctx.userId,
+      sharedExperienceCode,
     },
   });
 
   const result: ExpenseResult = {
     expenseId,
-    momentId,
+    momentId: canonicalMomentId,
     amount: amount.toFixed(4),
     currencyCode: body.currencyCode,
     status: expenseStatus,
@@ -330,7 +365,7 @@ export async function createExpense(
     [
       ctx.userId,
       domainEventId,
-      momentId,
+      canonicalMomentId,
       title,
       effectiveAt,
       JSON.stringify(
@@ -355,9 +390,15 @@ export async function createExpense(
 
   try {
     const { refreshPersonalFinanceSnapshot } = await import('../personal/life-ops-precision');
-    await refreshPersonalFinanceSnapshot(client, ctx.userId, momentId);
+    await refreshPersonalFinanceSnapshot(client, ctx.userId, canonicalMomentId);
   } catch {
     // Snapshot writer optional until V045 applied
+  }
+
+  try {
+    await syncExpenseAnalyticalContributions(client, ctx, expenseId, { sourceEventId: domainEventId });
+  } catch {
+    // V076 contribution table may be absent
   }
   }
 
@@ -411,6 +452,12 @@ export async function updateExpense(
 
   const nextRecurring =
     body.recurringScheduleId !== undefined ? body.recurringScheduleId : row.recurring_schedule_id;
+  const nextShared =
+    body.sharedExperienceCode !== undefined ? body.sharedExperienceCode : row.shared_experience_code;
+  const nextSharedLabel =
+    body.sharedExperienceLabel !== undefined ? body.sharedExperienceLabel : row.shared_experience_label;
+
+  const canonicalMomentId = row.moment_id;
 
   const updated = await client.query<{ expense_id: string; version: string }>(
     `UPDATE finance.expense SET
@@ -424,6 +471,8 @@ export async function updateExpense(
        payment_method_code = $9,
        effective_at = $10::timestamptz,
        recurring_schedule_id = $11,
+       shared_experience_code = $12,
+       shared_experience_label = $13,
        version = version + 1,
        updated_at = now()
      WHERE expense_id = $1
@@ -440,6 +489,8 @@ export async function updateExpense(
       nextPaymentMethod,
       nextEffectiveAt,
       nextRecurring,
+      nextShared,
+      nextSharedLabel,
     ]
   );
 
@@ -449,8 +500,8 @@ export async function updateExpense(
     aggregateType: 'EXPENSE',
     aggregateId: expenseId,
     scopeType: 'MOMENT',
-    scopeId: momentId,
-    payload: { expenseId, momentId, amount: nextAmount },
+    scopeId: canonicalMomentId,
+    payload: { expenseId, momentId: canonicalMomentId, amount: nextAmount },
   });
   await insertAudit(client, ctx, 'EXPENSE_UPDATE', 'EXPENSE', expenseId, domainEventId, { expenseId });
 
@@ -465,7 +516,7 @@ export async function updateExpense(
        AND activity_payload->>'expenseId' = $6`,
     [
       ctx.userId,
-      momentId,
+      canonicalMomentId,
       title,
       nextEffectiveAt,
       JSON.stringify(
@@ -499,9 +550,15 @@ export async function updateExpense(
     );
   }
 
+  try {
+    await syncExpenseAnalyticalContributions(client, ctx, expenseId, { sourceEventId: domainEventId });
+  } catch {
+    // V076 optional
+  }
+
   return {
     expenseId,
-    momentId,
+    momentId: canonicalMomentId,
     amount: nextAmount,
     currencyCode: nextCurrency,
     status: row.status,
@@ -526,6 +583,8 @@ export async function voidExpense(
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Expense already voided.', 400);
   }
 
+  const canonicalMomentId = row.moment_id;
+
   await client.query(
     `UPDATE finance.expense SET status = 'VOIDED', reversed_at = now(), version = version + 1, updated_at = now()
      WHERE expense_id = $1`,
@@ -538,8 +597,8 @@ export async function voidExpense(
     aggregateType: 'EXPENSE',
     aggregateId: expenseId,
     scopeType: 'MOMENT',
-    scopeId: momentId,
-    payload: { expenseId, momentId },
+    scopeId: canonicalMomentId,
+    payload: { expenseId, momentId: canonicalMomentId },
   });
   await insertAudit(client, ctx, 'EXPENSE_VOID', 'EXPENSE', expenseId, domainEventId, { expenseId });
 
@@ -548,14 +607,23 @@ export async function voidExpense(
        activity_payload = COALESCE(activity_payload, '{}'::jsonb) || '{"status":"VOIDED"}'::jsonb,
        projection_version = projection_version + 1
      WHERE user_id = $1 AND scope_id = $2 AND activity_payload->>'expenseId' = $3`,
-    [ctx.userId, momentId, expenseId]
+    [ctx.userId, canonicalMomentId, expenseId]
   );
 
   await reversePersonalPulseSpend(client, ctx.userId, domainEventId, row.currency_code, row.amount);
 
+  try {
+    await syncExpenseAnalyticalContributions(client, ctx, expenseId, {
+      deactivateAll: true,
+      sourceEventId: domainEventId,
+    });
+  } catch {
+    // V076 optional
+  }
+
   return {
     expenseId,
-    momentId,
+    momentId: canonicalMomentId,
     amount: row.amount,
     currencyCode: row.currency_code,
     status: 'VOIDED',

@@ -17,9 +17,11 @@ object PersonalExpenseCategoryCatalog {
     val masterCategories: List<Category> = listOf(
         Category("FOOD", "Food", "🍕", listOf(
             Subcategory("FOOD_DINING", "Food & Dining"),
-            Subcategory("CAFE", "Cafe"),
+            Subcategory("DINING_OUT", "Dining Out"),
+            Subcategory("TAKEAWAY", "Takeaway"),
+            Subcategory("COFFEE", "Coffee"),
+            Subcategory("CELEBRATIONS", "Celebrations"),
             Subcategory("GROCERIES", "Groceries"),
-            Subcategory("RESTAURANT", "Restaurant"),
         )),
         Category("TRANSPORT", "Transport", "🚗", listOf(
             Subcategory("TRANSPORT", "Transport"),

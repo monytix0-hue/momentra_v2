@@ -27,6 +27,8 @@ class PersonalTransactionRepository(
         paymentMethodCode: String? = null,
         effectiveAt: String? = null,
         recurringScheduleId: String? = null,
+        sharedExperienceCode: String? = null,
+        sharedExperienceLabel: String? = null,
     ): Result<CreateExpenseResultDto> {
         require(ref.resourceType == TransactionResourceType.EXPENSE) { "Use income endpoints for INCOME resources." }
         return slice.updateExpense(
@@ -42,6 +44,8 @@ class PersonalTransactionRepository(
             paymentMethodCode = paymentMethodCode,
             effectiveAt = effectiveAt,
             recurringScheduleId = recurringScheduleId,
+            sharedExperienceCode = sharedExperienceCode,
+            sharedExperienceLabel = sharedExperienceLabel,
         )
     }
 

@@ -18,9 +18,11 @@ enum PersonalExpenseCategoryCatalog {
     static let masterCategories: [Category] = [
         Category(id: "FOOD", code: "FOOD", label: "Food", emoji: "🍕", subcategories: [
             Subcategory(id: "FOOD_DINING", code: "FOOD_DINING", label: "Food & Dining"),
-            Subcategory(id: "CAFE", code: "CAFE", label: "Cafe"),
+            Subcategory(id: "DINING_OUT", code: "DINING_OUT", label: "Dining Out"),
+            Subcategory(id: "TAKEAWAY", code: "TAKEAWAY", label: "Takeaway"),
+            Subcategory(id: "COFFEE", code: "COFFEE", label: "Coffee"),
+            Subcategory(id: "CELEBRATIONS", code: "CELEBRATIONS", label: "Celebrations"),
             Subcategory(id: "GROCERIES", code: "GROCERIES", label: "Groceries"),
-            Subcategory(id: "RESTAURANT", code: "RESTAURANT", label: "Restaurant"),
         ]),
         Category(id: "TRANSPORT", code: "TRANSPORT", label: "Transport", emoji: "🚗", subcategories: [
             Subcategory(id: "TRANSPORT", code: "TRANSPORT", label: "Transport"),

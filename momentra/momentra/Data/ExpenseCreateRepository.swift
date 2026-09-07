@@ -12,7 +12,9 @@ protocol ExpenseCreateGateway {
         subcategoryCode: String?,
         financialAccountId: String?,
         paymentMethodCode: String?,
-        effectiveAt: String?
+        effectiveAt: String?,
+        sharedExperienceCode: String?,
+        sharedExperienceLabel: String?
     ) async throws -> CreateExpenseOutcome
 }
 
@@ -36,7 +38,9 @@ final class ExpenseCreateRepository: ExpenseCreateGateway {
         subcategoryCode: String? = nil,
         financialAccountId: String? = nil,
         paymentMethodCode: String? = nil,
-        effectiveAt: String?
+        effectiveAt: String?,
+        sharedExperienceCode: String? = nil,
+        sharedExperienceLabel: String? = nil
     ) async throws -> CreateExpenseOutcome {
         let key = idempotency.keyFor(draftKey: draftKey)
         let response = try await client.createExpense(
@@ -50,6 +54,8 @@ final class ExpenseCreateRepository: ExpenseCreateGateway {
             financialAccountId: financialAccountId,
             paymentMethodCode: paymentMethodCode,
             effectiveAt: effectiveAt.flatMap { $0.isEmpty ? nil : $0 },
+            sharedExperienceCode: sharedExperienceCode,
+            sharedExperienceLabel: sharedExperienceLabel,
             idempotencyKey: key
         )
         idempotency.clear(draftKey: draftKey)

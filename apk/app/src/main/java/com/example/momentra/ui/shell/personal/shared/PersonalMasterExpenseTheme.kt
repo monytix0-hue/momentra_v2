@@ -32,7 +32,17 @@ object PersonalMasterExpenseTheme {
         EmotionalOption("😞", "Disappointed"),
     )
 
-    val sharedWithOptions = listOf("Spouse", "Parents", "Family", "Friends", "Custom")
+    data class SharedExperienceOption(val code: String, val label: String)
+
+    /** Structured Shared Experience — drives Relationships contribution (not Lifestyle). */
+    val sharedExperienceOptions = listOf(
+        SharedExperienceOption("SELF", "Self"),
+        SharedExperienceOption("SPOUSE", "Spouse / Partner"),
+        SharedExperienceOption("FAMILY", "Family"),
+        SharedExperienceOption("FRIEND", "Friend"),
+        SharedExperienceOption("COLLEAGUE", "Colleague"),
+        SharedExperienceOption("OTHER", "Other"),
+    )
 
     val relationshipImpactOptions = listOf(
         RelationshipImpactOption("💪", "Strengthened Connection"),

@@ -73,3 +73,4 @@ V072__shared_experience_places_multi_currency_draft.sql
 V073__personal_business_moment_draft.sql
 V074__quick_add_entity_drafts.sql
 V075__business_expense_paid_by.sql
+V076__expense_shared_experience_dimensions.sql

@@ -109,6 +109,8 @@ fun PersonalEditTransactionSheet(
     var selectedAccountId by remember(item) { mutableStateOf<String?>(payload?.financialAccountId) }
     var paymentMethod by remember(item) { mutableStateOf(payload?.paymentMethodCode ?: "CASH") }
     var effectiveAtIso by remember(item) { mutableStateOf(item.occurredAt) }
+    var sharedExperienceCode by remember { mutableStateOf("SELF") }
+    var sharedExperienceLabel by remember { mutableStateOf("") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var loadingDetail by remember { mutableStateOf(true) }
     var showCategoryPicker by remember { mutableStateOf(false) }
@@ -134,6 +136,8 @@ fun PersonalEditTransactionSheet(
                 selectedAccountId = detail.financialAccountId
                 paymentMethod = detail.paymentMethodCode ?: paymentMethod
                 effectiveAtIso = detail.effectiveAt ?: item.occurredAt
+                sharedExperienceCode = detail.sharedExperienceCode ?: "SELF"
+                sharedExperienceLabel = detail.sharedExperienceLabel.orEmpty()
                 attachments = detail.attachmentIds
                 loadingDetail = false
             },
@@ -217,6 +221,9 @@ fun PersonalEditTransactionSheet(
                                 financialAccountId = selectedAccountId,
                                 paymentMethodCode = paymentMethod,
                                 effectiveAt = effectiveAtIso,
+                                sharedExperienceCode = sharedExperienceCode,
+                                sharedExperienceLabel = sharedExperienceLabel
+                                    .takeIf { sharedExperienceCode == "OTHER" && it.isNotBlank() },
                             )
                             submitting = false
                             result.fold(
@@ -331,6 +338,27 @@ fun PersonalEditTransactionSheet(
                             Text(method, color = if (selected) TxnPurple else TxnText, fontSize = 11.sp, fontFamily = PlusJakartaSans)
                         }
                     }
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Shared experience", color = TxnDim, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PersonalMasterExpenseTheme.sharedExperienceOptions.forEach { opt ->
+                        val selected = sharedExperienceCode == opt.code
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(if (selected) TxnPurple.copy(alpha = 0.2f) else TxnField)
+                                .border(1.dp, if (selected) TxnPurple else TxnBorder, RoundedCornerShape(999.dp))
+                                .clickable { sharedExperienceCode = opt.code }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                            Text(opt.label, color = if (selected) TxnPurple else TxnText, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+                        }
+                    }
+                }
+                if (sharedExperienceCode == "OTHER") {
+                    TxnFieldRow("Shared with", sharedExperienceLabel, { sharedExperienceLabel = it })
                 }
             }
         }

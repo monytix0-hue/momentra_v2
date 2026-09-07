@@ -12,6 +12,7 @@ struct PersonalMasterExpenseSheet: View {
     @State private var currencyCode = "INR"
     @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var categoryCode = PersonalExpenseCategoryCatalog.masterCategories.first?.code ?? "FOOD"
+    @State private var subcategoryCode = PersonalExpenseCategoryCatalog.masterCategories.first?.subcategories.first?.code ?? "FOOD_DINING"
     @State private var paidFrom = "Primary"
     @State private var selectedAccountId: String?
     @State private var showAccountPicker = false
@@ -22,8 +23,8 @@ struct PersonalMasterExpenseSheet: View {
     @State private var selectedFeelings: Set<String> = []
     @State private var meaningfulness = "Medium"
     @State private var memorability = "High"
-    @State private var sharedExperience = true
-    @State private var sharedWith: Set<String> = []
+    @State private var sharedExperienceCode = "SELF"
+    @State private var sharedExperienceLabel = ""
     @State private var relationshipImpact: Set<String> = []
     @State private var reasoning: Set<String> = []
     @State private var notes = ""
@@ -47,6 +48,7 @@ struct PersonalMasterExpenseSheet: View {
                     accentColor: PersonalMasterExpenseTheme.accent
                 )
                 categoryGrid
+                subcategoryChips
                 paidFromSection
                 whenSection
                 moreDetailsSection
@@ -232,6 +234,7 @@ struct PersonalMasterExpenseSheet: View {
         let selected = categoryCode == cat.code
         return Button {
             categoryCode = cat.code
+            subcategoryCode = cat.subcategories.first?.code ?? subcategoryCode
         } label: {
             VStack(spacing: 4) {
                 MeIcon(
@@ -254,6 +257,24 @@ struct PersonalMasterExpenseSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
+    }
+
+    private var subcategoryChips: some View {
+        let subs = PersonalExpenseCategoryCatalog.masterCategories.first(where: { $0.code == categoryCode })?.subcategories ?? []
+        return Group {
+            if !subs.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    sectionLabel("Subcategory")
+                    FlowLayout(spacing: 8) {
+                        ForEach(subs) { sub in
+                            meChip(sub.label, selected: subcategoryCode == sub.code) {
+                                subcategoryCode = sub.code
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private var paidFromSection: some View {
@@ -326,31 +347,26 @@ struct PersonalMasterExpenseSheet: View {
                     onSelect: { memorability = $0 }
                 )
                 HStack {
-                    HStack(spacing: 8) {
-                        Text("✨")
-                        Text("Shared experience")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(PersonalMasterExpenseTheme.textMain)
-                    }
+                    Text("Shared experience")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(PersonalMasterExpenseTheme.textMain)
                     Spacer()
-                    Text(sharedExperience ? "ON" : "OFF")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background(sharedExperience ? PersonalMasterExpenseTheme.accent : PersonalMasterExpenseTheme.categoryUnselected)
-                        .clipShape(Capsule())
-                        .onTapGesture { sharedExperience.toggle() }
                 }
-                if sharedExperience {
-                    Text("Shared with").font(.system(size: 12)).foregroundStyle(PersonalMasterExpenseTheme.muted)
-                    FlowLayout(spacing: 8) {
-                        ForEach(PersonalMasterExpenseTheme.sharedWithOptions, id: \.self) { label in
-                            meChip(label, selected: sharedWith.contains(label)) {
-                                toggleSet(label, in: &sharedWith)
-                            }
+                Text("Was this shared with another person?")
+                    .font(.system(size: 12))
+                    .foregroundStyle(PersonalMasterExpenseTheme.muted)
+                FlowLayout(spacing: 8) {
+                    ForEach(PersonalMasterExpenseTheme.sharedExperienceOptions) { opt in
+                        meChip(opt.label, selected: sharedExperienceCode == opt.code) {
+                            sharedExperienceCode = opt.code
                         }
                     }
+                }
+                if sharedExperienceCode == "OTHER" {
+                    TextField("Who?", text: $sharedExperienceLabel)
+                        .foregroundStyle(PersonalMasterExpenseTheme.textMain)
+                }
+                if sharedExperienceCode != "SELF" {
                     Text("What was the impact on this relationship?")
                         .font(.system(size: 12))
                         .foregroundStyle(PersonalMasterExpenseTheme.muted)
@@ -577,15 +593,16 @@ struct PersonalMasterExpenseSheet: View {
         purpose = ""
         amount = ""
         categoryCode = PersonalExpenseCategoryCatalog.masterCategories.first?.code ?? "FOOD"
+        subcategoryCode = PersonalExpenseCategoryCatalog.masterCategories.first?.subcategories.first?.code ?? "FOOD_DINING"
         notes = ""
         selectedFeelings = []
         relationshipImpact = []
-        sharedWith = []
         reasoning = []
         whenCode = "Today"
         meaningfulness = "Medium"
         memorability = "High"
-        sharedExperience = true
+        sharedExperienceCode = "SELF"
+        sharedExperienceLabel = ""
     }
 
     private func effectiveAtIso() -> String? {
@@ -615,9 +632,14 @@ struct PersonalMasterExpenseSheet: View {
                     description: description,
                     merchantName: purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : purpose.trimmingCharacters(in: .whitespacesAndNewlines),
                     categoryCode: categoryCode,
+                    subcategoryCode: subcategoryCode,
                     financialAccountId: selectedAccountId,
                     paymentMethodCode: nil,
-                    effectiveAt: effectiveAtIso()
+                    effectiveAt: effectiveAtIso(),
+                    sharedExperienceCode: sharedExperienceCode,
+                    sharedExperienceLabel: sharedExperienceCode == "OTHER" && !sharedExperienceLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? sharedExperienceLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+                        : nil
                 )
                 await MainActor.run {
                     submitting = false
@@ -638,11 +660,16 @@ struct PersonalMasterExpenseSheet: View {
         if !trimmedNotes.isEmpty { parts.append(trimmedNotes) }
         if !selectedFeelings.isEmpty { parts.append("Feelings: \(selectedFeelings.sorted().joined(separator: ", "))") }
         parts.append("Meaning: \(meaningfulness) · Memory: \(memorability)")
-        if sharedExperience {
-            parts.append("Shared experience")
-            if !sharedWith.isEmpty { parts.append("Shared with: \(sharedWith.sorted().joined(separator: ", "))") }
+        let sharedLabel = PersonalMasterExpenseTheme.sharedExperienceOptions.first(where: { $0.code == sharedExperienceCode })?.label
+            ?? sharedExperienceCode
+        parts.append("Shared experience: \(sharedLabel)")
+        if sharedExperienceCode == "OTHER" {
+            let who = sharedExperienceLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !who.isEmpty { parts.append("Shared with: \(who)") }
         }
-        if !relationshipImpact.isEmpty { parts.append("Relationship impact: \(relationshipImpact.sorted().joined(separator: ", "))") }
+        if sharedExperienceCode != "SELF", !relationshipImpact.isEmpty {
+            parts.append("Relationship impact: \(relationshipImpact.sorted().joined(separator: ", "))")
+        }
         if !reasoning.isEmpty { parts.append("Reason: \(reasoning.sorted().joined(separator: ", "))") }
         parts.append("When: \(whenCode) · Paid from: \(paidFrom)")
         return parts.joined(separator: " · ")

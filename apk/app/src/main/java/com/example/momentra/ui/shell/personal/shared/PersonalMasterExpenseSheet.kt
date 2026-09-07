@@ -81,14 +81,17 @@ fun PersonalMasterExpenseSheet(
     var currencyCode by remember { mutableStateOf("INR") }
     var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var categoryCode by remember { mutableStateOf(PersonalExpenseCategoryCatalog.masterCategories.first().code) }
+    var subcategoryCode by remember {
+        mutableStateOf(PersonalExpenseCategoryCatalog.masterCategories.first().subcategories.first().code)
+    }
     var paidFrom by remember { mutableStateOf("Primary") }
     var whenCode by remember { mutableStateOf("Today") }
     var showDetails by remember { mutableStateOf(true) }
     var selectedFeelings by remember { mutableStateOf(setOf<String>()) }
     var meaningfulness by remember { mutableStateOf("Medium") }
     var memorability by remember { mutableStateOf("High") }
-    var sharedExperience by remember { mutableStateOf(true) }
-    var sharedWith by remember { mutableStateOf(setOf<String>()) }
+    var sharedExperienceCode by remember { mutableStateOf("SELF") }
+    var sharedExperienceLabel by remember { mutableStateOf("") }
     var relationshipImpact by remember { mutableStateOf(setOf<String>()) }
     var reasoning by remember { mutableStateOf(setOf<String>()) }
     var notes by remember { mutableStateOf("") }
@@ -135,15 +138,16 @@ fun PersonalMasterExpenseSheet(
                     purpose = ""
                     amount = ""
                     categoryCode = PersonalExpenseCategoryCatalog.masterCategories.first().code
+                    subcategoryCode = PersonalExpenseCategoryCatalog.masterCategories.first().subcategories.first().code
                     notes = ""
                     selectedFeelings = emptySet()
                     relationshipImpact = emptySet()
-                    sharedWith = emptySet()
                     reasoning = emptySet()
                     whenCode = "Today"
                     meaningfulness = "Medium"
                     memorability = "High"
-                    sharedExperience = true
+                    sharedExperienceCode = "SELF"
+                    sharedExperienceLabel = ""
                 },
             )
 
@@ -302,8 +306,45 @@ fun PersonalMasterExpenseSheet(
             MeSectionLabel("Category")
             CategoryGrid(
                 selectedCode = categoryCode,
-                onSelect = { categoryCode = it },
+                onSelect = {
+                    categoryCode = it
+                    subcategoryCode = PersonalExpenseCategoryCatalog.masterCategories
+                        .firstOrNull { c -> c.code == it }
+                        ?.subcategories?.firstOrNull()?.code
+                        ?: subcategoryCode
+                },
             )
+
+            val subs = PersonalExpenseCategoryCatalog.masterCategories
+                .firstOrNull { it.code == categoryCode }
+                ?.subcategories
+                .orEmpty()
+            if (subs.isNotEmpty()) {
+                MeSectionLabel("Subcategory")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    subs.forEach { sub ->
+                        val on = sub.code == subcategoryCode
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(if (on) T.Accent else T.CategoryUnselected)
+                                .border(1.dp, if (on) T.Accent else T.CategoryBorder, RoundedCornerShape(999.dp))
+                                .clickable { subcategoryCode = sub.code }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
+                            Text(
+                                sub.label,
+                                color = T.Text,
+                                fontSize = 12.sp,
+                                fontFamily = PlusJakartaSans,
+                            )
+                        }
+                    }
+                }
+            }
 
             MeSectionLabel("Paid From")
             MeRowCard(
@@ -349,12 +390,10 @@ fun PersonalMasterExpenseSheet(
                 onMeaningfulness = { meaningfulness = it },
                 memorability = memorability,
                 onMemorability = { memorability = it },
-                sharedExperience = sharedExperience,
-                onSharedExperience = { sharedExperience = it },
-                sharedWith = sharedWith,
-                onSharedWithToggle = { label ->
-                    sharedWith = if (label in sharedWith) sharedWith - label else sharedWith + label
-                },
+                sharedExperienceCode = sharedExperienceCode,
+                onSharedExperienceCode = { sharedExperienceCode = it },
+                sharedExperienceLabel = sharedExperienceLabel,
+                onSharedExperienceLabel = { sharedExperienceLabel = it },
                 relationshipImpact = relationshipImpact,
                 onRelationshipToggle = { label ->
                     relationshipImpact = if (label in relationshipImpact) relationshipImpact - label else relationshipImpact + label
@@ -501,8 +540,8 @@ fun PersonalMasterExpenseSheet(
                                 feelings = selectedFeelings,
                                 meaningfulness = meaningfulness,
                                 memorability = memorability,
-                                shared = sharedExperience,
-                                sharedWith = sharedWith,
+                                sharedExperienceCode = sharedExperienceCode,
+                                sharedExperienceLabel = sharedExperienceLabel,
                                 relationship = relationshipImpact,
                                 reasoning = reasoning,
                                 whenCode = whenCode,
@@ -510,9 +549,6 @@ fun PersonalMasterExpenseSheet(
                             )
                             scope.launch {
                                 val submitMark = ShellPerf.start("expense_submit")
-                                val sub = PersonalExpenseCategoryCatalog.masterCategories
-                                    .firstOrNull { it.code == categoryCode }
-                                    ?.subcategories?.firstOrNull()?.code
                                 repository.createExpense(
                                     momentId = momentId,
                                     amount = amount.trim(),
@@ -520,11 +556,14 @@ fun PersonalMasterExpenseSheet(
                                     merchantName = purpose.trim().ifBlank { null },
                                     description = description,
                                     categoryCode = categoryCode,
-                                    subcategoryCode = sub,
+                                    subcategoryCode = subcategoryCode,
                                     financialAccountId = selectedAccountId,
                                     paymentMethodCode = paymentMethod,
                                     effectiveAt = effectiveAtFromWhen(whenCode),
                                     asDraft = false,
+                                    sharedExperienceCode = sharedExperienceCode,
+                                    sharedExperienceLabel = sharedExperienceLabel
+                                        .takeIf { sharedExperienceCode == "OTHER" && it.isNotBlank() },
                                 ).fold(
                                     onSuccess = {
                                         submitting = false
@@ -787,10 +826,10 @@ private fun MoreDetailsSection(
     onMeaningfulness: (String) -> Unit,
     memorability: String,
     onMemorability: (String) -> Unit,
-    sharedExperience: Boolean,
-    onSharedExperience: (Boolean) -> Unit,
-    sharedWith: Set<String>,
-    onSharedWithToggle: (String) -> Unit,
+    sharedExperienceCode: String,
+    onSharedExperienceCode: (String) -> Unit,
+    sharedExperienceLabel: String,
+    onSharedExperienceLabel: (String) -> Unit,
     relationshipImpact: Set<String>,
     onRelationshipToggle: (String) -> Unit,
     reasoning: Set<String>,
@@ -869,50 +908,53 @@ private fun MoreDetailsSection(
                 onSelect = onMemorability,
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            Text(
+                "Shared experience",
+                color = T.TextMain,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+            )
+            Text(
+                "Was this shared with another person?",
+                color = T.Muted,
+                fontSize = 12.sp,
+                fontFamily = PlusJakartaSans,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("✨", fontSize = 16.sp)
-                    Text(
-                        "Shared experience",
-                        color = T.TextMain,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = PlusJakartaSans,
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(if (sharedExperience) T.Accent else T.CategoryUnselected)
-                        .clickable { onSharedExperience(!sharedExperience) }
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
-                ) {
-                    Text(
-                        if (sharedExperience) "ON" else "OFF",
-                        color = T.Text,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = PlusJakartaSans,
-                    )
+                T.sharedExperienceOptions.forEach { opt ->
+                    val on = opt.code == sharedExperienceCode
+                    MeChip(opt.label, on) { onSharedExperienceCode(opt.code) }
                 }
             }
+            if (sharedExperienceCode == "OTHER") {
+                BasicTextField(
+                    value = sharedExperienceLabel,
+                    onValueChange = onSharedExperienceLabel,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(T.CategoryUnselected)
+                        .border(1.dp, T.Border, RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = T.Text,
+                        fontSize = 14.sp,
+                        fontFamily = PlusJakartaSans,
+                    ),
+                    decorationBox = { inner ->
+                        if (sharedExperienceLabel.isBlank()) {
+                            Text("Who?", color = T.Muted, fontSize = 14.sp, fontFamily = PlusJakartaSans)
+                        }
+                        inner()
+                    },
+                )
+            }
 
-            if (sharedExperience) {
-                Text("Shared with", color = T.Muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    T.sharedWithOptions.forEach { label ->
-                        val on = label in sharedWith
-                        MeChip(label, on) { onSharedWithToggle(label) }
-                    }
-                }
-
+            if (sharedExperienceCode != "SELF") {
                 Text(
                     "What was the impact on this relationship?",
                     color = T.Muted,
@@ -1072,22 +1114,26 @@ private fun buildMasterDescription(
     feelings: Set<String>,
     meaningfulness: String,
     memorability: String,
-    shared: Boolean,
-    sharedWith: Set<String>,
+    sharedExperienceCode: String,
+    sharedExperienceLabel: String,
     relationship: Set<String>,
     reasoning: Set<String>,
     whenCode: String,
     paidFrom: String,
 ): String? {
+    val sharedLabel = T.sharedExperienceOptions.firstOrNull { it.code == sharedExperienceCode }?.label
+        ?: sharedExperienceCode
     val parts = buildList {
         if (notes.isNotBlank()) add(notes)
         if (feelings.isNotEmpty()) add("Feelings: ${feelings.joinToString(", ")}")
         add("Meaning: $meaningfulness · Memory: $memorability")
-        if (shared) {
-            add("Shared experience")
-            if (sharedWith.isNotEmpty()) add("Shared with: ${sharedWith.joinToString(", ")}")
+        add("Shared experience: $sharedLabel")
+        if (sharedExperienceCode == "OTHER" && sharedExperienceLabel.isNotBlank()) {
+            add("Shared with: $sharedExperienceLabel")
         }
-        if (relationship.isNotEmpty()) add("Relationship impact: ${relationship.joinToString(", ")}")
+        if (sharedExperienceCode != "SELF" && relationship.isNotEmpty()) {
+            add("Relationship impact: ${relationship.joinToString(", ")}")
+        }
         if (reasoning.isNotEmpty()) add("Reason: ${reasoning.joinToString(", ")}")
         add("When: $whenCode · Paid from: $paidFrom")
     }
