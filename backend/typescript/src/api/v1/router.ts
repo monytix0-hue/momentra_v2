@@ -2813,6 +2813,25 @@ v1Router.post('/moments/:momentId/relationship-activities', requireIdempotencyKe
   }
 });
 
+v1Router.delete('/moments/:momentId/relationship-activities/:activityId', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      relationshipsPrecision.voidRelationshipActivity(
+        client,
+        ctx,
+        param(req.params.momentId),
+        param(req.params.activityId)
+      )
+    );
+    const hints = ['personal.activity', 'personal.pulse'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
 // --- S3 Group membership + finance foundations ---
 v1Router.get('/group/moments/:momentId/participants', async (req, res, next) => {
   try {

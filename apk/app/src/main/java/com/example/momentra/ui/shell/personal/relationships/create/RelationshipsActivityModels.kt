@@ -14,20 +14,28 @@ data class RelationshipsActivityItem(
     val notes: String = "",
     val tags: List<String> = emptyList(),
     val filter: String = "Partner",
+    /** MANUAL (deletable) vs MASTER_EXPENSE (manage via expense). */
+    val source: String = "MANUAL",
+    val canDelete: Boolean = true,
 )
 
 fun mapActivityDtosToRelationships(items: List<ActivityItemDto>): List<RelationshipsActivityItem> {
     if (items.isEmpty()) return emptyList()
-    return items.map { dto ->
+    return items.mapNotNull { dto ->
+        val activityId = dto.activityPayload?.activityId?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        val source = dto.activityPayload?.source?.uppercase() ?: "MANUAL"
+        val fromExpense = source == "MASTER_EXPENSE"
         val meta = relationshipsActivityVisual(dto.activityCode, dto.title)
         RelationshipsActivityItem(
-            id = dto.occurredAt + dto.title,
+            id = activityId,
             title = dto.title.ifBlank { meta.title },
             whenLabel = formatRelationshipsOccurredAt(dto.occurredAt),
             impact = meta.impact,
             emoji = meta.emoji,
             relationship = meta.filter,
             filter = meta.filter,
+            source = if (fromExpense) "MASTER_EXPENSE" else "MANUAL",
+            canDelete = !fromExpense,
         )
     }
 }

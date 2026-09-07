@@ -229,6 +229,7 @@ async function bumpBusinessPulse(
   companyId: string,
   attentionDelta: number
 ): Promise<void> {
+  // open_risk_count placeholder (0) — do not expose via Pulse API until computed.
   await client.query(
     `INSERT INTO projection.business_pulse (
        company_id, active_moment_count, attention_count, open_issue_count, open_risk_count,

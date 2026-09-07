@@ -1,100 +1,72 @@
 # Master Expense dimensional routing — verification report
 
-## A. Root cause
-Master Expense originally posted solely to shell `selectedMomentId`. Shared Experience lived as prose in `description`. There was no Relationships/Lifestyle precision feed. Classification was shell selection, not independent dimensional rules.
+## A. Relationships activity delete — root cause
 
-## B. Architecture implemented
+View Activity showed a trash/delete control, but Android/iOS only filtered **local list state**. There was no `DELETE` relationship-activity API (unlike Lifestyle). Refresh restored rows. Android item ids were often `occurredAt+title` without `activityId`.
+
+## B. Delete architecture
+
 ```
-Master Expense UI (structured sharedExperienceCode, default SELF)
+View Activity → DELETE /v1/moments/:momentId/relationship-activities/:activityId
+  → voidRelationshipActivity (status VOIDED)
+  → recent_activity payload status VOIDED
+  → refreshRelationshipsBondAxes + recomputeOverallWellbeing
+  → GET activity / Pulse / Life Rel chip
+```
+
+Master-Expense-derived activities (ACTIVE `expense_dimension_contribution` link) return **409** — edit/void the expense instead.
+
+## C. Master Expense fan-out — root cause (runtime “not appearing”)
+
+Analytical Rel/Lifestyle rows were created and axes refreshed, but Master Expense did **not** write `projection.recent_activity` on Rel/Lifestyle moments. Moments View Activity reads that feed → empty. Silent INACTIVE when setups missing also violated §1E.
+
+**Fix:** upsert Rel/Lifestyle `recent_activity` with `source: MASTER_EXPENSE`; error if non-SELF without Rel setup or Lifestyle-eligible without Lifestyle setup.
+
+## D. Architecture (unchanged financial model)
+
+```
+Master Expense UI (sharedExperienceCode)
   → POST/PATCH/void /v1/moments/:momentId/expenses
-  → finance.expense (one row; moment_id = LIFE_OPERATIONS setup when present)
-  → finance.expense_dimension_contribution (LO / Rel / Lifestyle / FB)
-  → relationship_activity (non-SELF; investment_value mirrored from amount)
-    + lifestyle_activity (eligible category)
-  → refreshRelationshipsBondAxes / refreshLifestylePulseAxes
-  → spendByCurrency + personal_finance_snapshot on create/update/void
-     (canonical amount once — never summed across contributions)
+  → finance.expense (one row; LO home)
+  → expense_dimension_contribution (LO / Rel / Lifestyle / FB)
+  → relationship_activity / lifestyle_activity
+  → recent_activity on Rel/Lifestyle moments (feed visibility)
+  → bond / lifestyle axes + wellbeing blend
 ```
 
-Gap-closure hardening (this pass):
-- Dimensional sync is **mandatory** (no silent try/catch swallow).
-- Finance snapshot refreshes on **update and void**, not only create.
-- V077 grants + RLS on `expense_dimension_contribution`.
-- Expense GET returns `contributions[]`.
-- Rel activity stores `investment_value` from the canonical expense amount.
+## E. Files changed (this pass)
 
-## C. Mobile UI — SELF
-- Android: `PersonalMasterExpenseTheme.sharedExperienceOptions` includes Self; default `SELF` in create + edit.
-- iOS: same. Codes: `SELF`, `SPOUSE` (label Spouse / Partner), `FAMILY`, `FRIEND`, `COLLEAGUE`, `OTHER`.
-- DTOs accept optional `contributions` on expense detail (no form UI required).
-
-## D. API / data model
-- Create/update: `sharedExperienceCode`, `sharedExperienceLabel`.
-- GET expense: same fields + `contributions[]` (`dimensionCode`, `status`, `targetMomentId`, `linkedResourceType`, `linkedResourceId`).
-- OpenAPI: `ExpenseCreateRequest`, `ExpenseUpdateRequest`, `ExpenseDetail`, `ExpenseDimensionContribution` in `schemas/common.yaml`; paths wired in `momentra-v1.yaml`.
-
-## E. Database
-| Migration | Purpose |
-|-----------|---------|
-| V076 | `shared_experience_*` on expense; `expense_dimension_contribution`; resource link types |
-| V077 | Grants + RLS for `expense_dimension_contribution` |
-
-## F. Lifestyle eligibility mapping
-From `lifestyleEligibilityCatalog()` / `lifestyle-eligibility.ts`:
-
-| Category | Subcategory | Lifestyle? | Rule |
-|----------|-------------|------------|------|
-| FOOD | DINING_OUT / FOOD_DINING / TAKEAWAY / COFFEE / CELEBRATIONS | YES | dining subcategory |
-| FOOD | GROCERIES | NO | groceries exclusion |
-| FOOD | (null) | YES | FOOD default without GROCERIES |
-| CAFE | — | YES | category allowlist |
-| ENTERTAINMENT | — | YES | category allowlist |
-| HEALTH / SHOPPING / TRANSPORT / OTHER | — | NO | ambiguous → NO |
-| HOUSING / BILLS | — | NO | ops spend |
-
-## G. Relationship routing
-`shared_experience_code != SELF` **and** Relationships setup moment exists → ACTIVE RELATIONSHIPS + `SHARED_EXPERIENCE` activity (`investment_value` = expense amount).  
-`SELF` → RELATIONSHIPS INACTIVE (prior activity voided).
-
-## H. Future Building exclusion
-Ordinary Master Expense always sets FUTURE_BUILDING **INACTIVE** (no investment/keyword path).
-
-## I. Key files changed (gap closure)
-| File | Change | Reason |
-|------|--------|--------|
-| `finance/service.ts` | Mandatory sync; snapshot on update/void; GET contributions | RTF §19–§22 |
-| `finance/expense-dimensions.ts` | Require V076; Rel `investment_value`; list contributions | Sync + Rel mirror |
-| `V077__…grants_rls.sql` + `MIGRATION_ORDER.txt` | Grants/RLS | Ops hardening |
-| `openapi/schemas/common.yaml`, `momentra-v1.yaml` | sharedExperience + contributions | Contract sync |
-| `Dto.kt` / `APIClient.swift` | contributions on expense detail | Client decode |
-
-## J. Tests
-`npx tsx --test tests/expense-dimensions.test.ts` → **9/9 pass** (eligibility + T1–T10 + four-dinner).
-
-| Test | Result |
+| File | Change |
 |------|--------|
-| Lifestyle eligibility mapping | PASS |
-| T1 Self dinner | PASS |
-| T2 Self groceries | PASS |
-| T3–T5 Spouse/Family/Friend dinners | PASS |
-| T6–T7 SELF↔FRIEND edit | PASS |
-| T8 Dinner→Bills category | PASS |
-| T9 idempotent retry | PASS |
-| T10 void | PASS |
-| Four-dinner total 9000 | PASS |
+| `finance/expense-dimensions.ts` | recent_activity upsert/void; missing-setup errors |
+| `personal/relationships-precision.ts` | `voidRelationshipActivity` |
+| `api/v1/router.ts` + `openapi/momentra-v1.yaml` | DELETE relationship-activities |
+| APK/iOS Rel activity sheets + API | stable activityId; call DELETE; hide ME-derived delete |
+| `tests/master-expense-rel-fix.test.ts` | R1–R10 coverage |
 
-## K–L. Four-dinner / double-count
-Four POSTED expenses sum to **9000**. Contribution rows are associations only — financial aggregation uses `finance.expense` once via `spendByCurrency` / snapshots.
+## F. API
 
-| Expense | LO | Relationships | Lifestyle | FB |
-|---------|----|---------------|-----------|-----|
-| Family ₹3000 | YES | YES | YES | NO |
-| Friends ₹2000 | YES | YES | YES | NO |
-| Wife ₹1500 | YES | YES | YES | NO |
-| Self ₹2500 | YES | NO | YES | NO |
+- `DELETE /v1/moments/{momentId}/relationship-activities/{activityId}` → `{ activityId, title, status }`
 
-## M. Remaining limitations
-- Rel/Lifestyle activities skipped (contribution INACTIVE) if those life-system setups are missing.
-- HEALTH/SHOPPING/TRANSPORT/OTHER treated Lifestyle NO (ambiguous by design).
-- Bundled OpenAPI (`momentra-v1.bundled.yaml`) may lag until regenerate; source `common.yaml` / `momentra-v1.yaml` updated.
-- LO feed is spend + `EXPENSE_RECORDED` + LO contribution (no separate `life_operation_observation` from Master Expense).
+## G. Database
+
+No new migrations. Uses existing `VOIDED` status + contribution links.
+
+## H–I. Controlled tests (`master-expense-rel-fix.test.ts`)
+
+| ID | Result |
+|----|--------|
+| R6 FRIEND dining + Rel/LS feeds | PASS |
+| R7 SELF dining | PASS |
+| R8 SELF utility | PASS |
+| R9 FRIEND→SELF | PASS |
+| R10 void expense | PASS |
+| Missing Rel setup → 400 | PASS |
+| R1–R5 delete / idempotent / ownership / ME 409 | PASS |
+
+## J. Remaining limitations
+
+- Rel/Lifestyle Moments list only shows rows with `activityPayload.activityId` (intentional for deletable identity).
+- HEALTH/SHOPPING/TRANSPORT/OTHER still Lifestyle NO by design.
+- Edit Transaction category encoding on mobile can still affect Lifestyle eligibility on PATCH (pre-existing).
+- Bundled OpenAPI may lag until regenerate.

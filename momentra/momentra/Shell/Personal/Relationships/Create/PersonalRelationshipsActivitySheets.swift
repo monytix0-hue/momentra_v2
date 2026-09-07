@@ -69,12 +69,7 @@ struct PersonalRelationshipsActivityFlow: View {
             }
             .background(bg)
             .task {
-                do {
-                    let acts = try await APIClient.shared.listPersonalActivity(momentId: momentId, limit: 30)
-                    items = RelationshipsActivityModels.from(api: acts)
-                } catch {
-                    items = []
-                }
+                await reload()
             }
             .sheet(item: $editing) { item in
                 RelationshipsEditActivitySheet(
@@ -86,9 +81,8 @@ struct PersonalRelationshipsActivityFlow: View {
                         onChanged()
                     },
                     onDelete: {
-                        items.removeAll { $0.id == item.id }
                         editing = nil
-                        onChanged()
+                        Task { await deleteActivity(item) }
                     }
                 )
                 .presentationDetents([.large])
@@ -96,41 +90,57 @@ struct PersonalRelationshipsActivityFlow: View {
         }
     }
 
+    private func reload() async {
+        do {
+            let acts = try await APIClient.shared.listPersonalActivity(momentId: momentId, limit: 30)
+            items = RelationshipsActivityModels.from(api: acts)
+        } catch {
+            items = []
+        }
+    }
+
+    private func deleteActivity(_ item: RelationshipsActivityItem) async {
+        guard let momentId, item.canDelete else { return }
+        do {
+            _ = try await APIClient.shared.voidRelationshipActivity(momentId: momentId, activityId: item.id)
+            await reload()
+            onChanged()
+        } catch {
+            // keep list; user can retry
+        }
+    }
+
     private func row(_ item: RelationshipsActivityItem) -> some View {
         HStack(spacing: 8) {
+            Text(item.emoji)
+                .frame(width: 32, height: 32)
+                .background(pink)
+                .clipShape(Circle())
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
-                    Text(item.emoji).frame(width: 32, height: 32).background(pink).clipShape(RoundedRectangle(cornerRadius: 16))
-                    Text(item.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(text)
-                }
+                Text(item.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(text)
                 Text(item.whenLabel).font(.system(size: 11)).foregroundStyle(muted)
+                if !item.canDelete {
+                    Text("From Master Expense").font(.system(size: 10)).foregroundStyle(Color(hex: "#64748B"))
+                }
             }
             Spacer()
-            if item.impact.isEmpty {
-                Text("Logged")
-                    .font(.system(size: 12, weight: .heavy))
-                    .foregroundStyle(bg)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(pink)
-                    .clipShape(Capsule())
-            } else {
-                Text(item.impact)
-                    .font(.system(size: 12, weight: .heavy))
-                    .foregroundStyle(bg)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(pink)
-                    .clipShape(Capsule())
-            }
-            Button { editing = item } label: {
-                Text("✏️").frame(width: 28, height: 28).background(Color(hex: "#2A2834")).clipShape(RoundedRectangle(cornerRadius: 8))
-            }
             Button {
-                items.removeAll { $0.id == item.id }
-                onChanged()
+                editing = item
             } label: {
-                Text("🗑️").frame(width: 28, height: 28).background(Color(hex: "#3C1E1E")).clipShape(RoundedRectangle(cornerRadius: 8))
+                Text("✏️").frame(width: 28, height: 28)
+                    .background(Color(hex: "#2A2834"))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            if item.canDelete {
+                Button {
+                    Task { await deleteActivity(item) }
+                } label: {
+                    Text("🗑️").frame(width: 28, height: 28)
+                        .background(Color(hex: "#3C1E1E"))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.vertical, 8)
@@ -259,7 +269,9 @@ struct RelationshipsEditActivitySheet: View {
                         relationship: relationship,
                         notes: notes,
                         tags: Array(selectedTags),
-                        filter: relationship
+                        filter: relationship,
+                        source: item.source,
+                        canDelete: item.canDelete
                     ))
                 } label: {
                     Text("Save Changes")
@@ -271,8 +283,14 @@ struct RelationshipsEditActivitySheet: View {
                         .clipShape(Capsule())
                 }
 
-                Button("Delete Activity", role: .destructive, action: onDelete)
-                    .font(.system(size: 14, weight: .semibold))
+                if item.canDelete {
+                    Button("Delete Activity", role: .destructive, action: onDelete)
+                        .font(.system(size: 14, weight: .semibold))
+                } else {
+                    Text("From Master Expense — edit or void the expense to remove")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(hex: "#64748B"))
+                }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)

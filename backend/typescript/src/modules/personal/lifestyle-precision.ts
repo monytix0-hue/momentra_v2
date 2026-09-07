@@ -3,6 +3,7 @@ import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
+import { recomputeOverallWellbeing } from './personal-wellbeing';
 
 /** Lifestyle precision (PX-2) — PER-LS widgets over lifestyle_activity + V046 profile. */
 
@@ -221,23 +222,23 @@ export async function refreshLifestylePulseAxes(
   if (existing.rows[0]) {
     await client.query(
       `UPDATE projection.personal_pulse SET
-         wellbeing_score = COALESCE($2, wellbeing_score),
-         widget_payload = $3::jsonb,
-         source_event_id = $4,
+         widget_payload = $2::jsonb,
+         source_event_id = $3,
          projection_version = projection_version + 1,
          updated_at = now()
        WHERE user_id = $1`,
-      [userId, axes.vitalityScore, JSON.stringify(payload), sourceEventId]
+      [userId, JSON.stringify(payload), sourceEventId]
     );
   } else {
     await client.query(
       `INSERT INTO projection.personal_pulse (
          user_id, attention_count, recovery_score, mood_state, rhythm_score, wellbeing_score,
          widget_payload, source_event_id, projection_version
-       ) VALUES ($1, 0, NULL, NULL, NULL, $2, $3::jsonb, $4, 1)`,
-      [userId, axes.vitalityScore, JSON.stringify(payload), sourceEventId]
+       ) VALUES ($1, 0, NULL, NULL, NULL, NULL, $2::jsonb, $3, 1)`,
+      [userId, JSON.stringify(payload), sourceEventId]
     );
   }
+  await recomputeOverallWellbeing(client, userId, sourceEventId);
 }
 
 export async function getLifestyleRuntimeSummary(client: PoolClient, ctx: RequestContext, momentId: string) {

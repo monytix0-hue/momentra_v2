@@ -137,20 +137,28 @@ struct PersonalLifeActiveView: View {
                         .font(.plusJakarta(size: 11, weight: .semibold))
                         .foregroundStyle(dim)
                     HStack(alignment: .bottom, spacing: 2) {
-                        Text("\(life?.score ?? 82)")
-                            .font(.plusJakarta(size: 48, weight: .bold))
-                            .foregroundStyle(text)
-                        Text("/\(life?.scoreMax ?? 100)")
-                            .font(.plusJakarta(size: 16))
-                            .foregroundStyle(muted)
-                            .padding(.bottom, 10)
+                        if let score = life?.score {
+                            Text("\(score)")
+                                .font(.plusJakarta(size: 48, weight: .bold))
+                                .foregroundStyle(text)
+                            Text("/\(life?.scoreMax ?? 100)")
+                                .font(.plusJakarta(size: 16))
+                                .foregroundStyle(muted)
+                                .padding(.bottom, 10)
+                        } else {
+                            Text("—")
+                                .font(.plusJakarta(size: 48, weight: .bold))
+                                .foregroundStyle(text)
+                        }
                     }
-                    Text(life?.statusLabel ?? "Stable and Growing")
+                    Text(life?.statusLabel ?? "No areas yet")
                         .font(.plusJakarta(size: 14))
                         .foregroundStyle(text)
-                    Text(life?.trendLabel ?? "▲ +6 this month")
-                        .font(.plusJakarta(size: 12, weight: .semibold))
-                        .foregroundStyle(green)
+                    if let trend = life?.trendLabel, !trend.isEmpty {
+                        Text(trend)
+                            .font(.plusJakarta(size: 12, weight: .semibold))
+                            .foregroundStyle(green)
+                    }
                 }
                 Spacer()
                 scoreRing
@@ -165,7 +173,7 @@ struct PersonalLifeActiveView: View {
                 ForEach(areas, id: \.code) { area in
                     HStack(spacing: 8) {
                         Circle().fill(Color(hex: area.color)).frame(width: 8, height: 8)
-                        Text("\(area.label): \(area.score)")
+                        Text("\(area.label): \(area.score.map(String.init) ?? "—")")
                             .font(.plusJakarta(size: 12))
                             .foregroundStyle(text)
                     }
@@ -194,16 +202,16 @@ struct PersonalLifeActiveView: View {
     private var scoreRing: some View {
         let colors = (life?.areaScores ?? []).map { Color(hex: $0.color) }
         let palette = colors.isEmpty ? [blue, green, amber, pink] : colors
-        let score = life?.score ?? 82
+        let score = life?.score
         return ZStack {
             ForEach(Array(palette.enumerated()), id: \.offset) { i, c in
                 Circle()
-                    .trim(from: 0, to: 0.72)
-                    .stroke(c.opacity(0.85), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .trim(from: 0, to: score != nil ? 0.72 : 0.55)
+                    .stroke(c.opacity(score != nil ? 0.85 : 0.35), style: StrokeStyle(lineWidth: 8, lineCap: .round))
                     .rotationEffect(.degrees(-90 + Double(i) * 20))
                     .padding(CGFloat(i) * 12)
             }
-            Text("\(score)")
+            Text(score.map(String.init) ?? "—")
                 .font(.plusJakarta(size: 18, weight: .bold))
                 .foregroundStyle(text)
         }

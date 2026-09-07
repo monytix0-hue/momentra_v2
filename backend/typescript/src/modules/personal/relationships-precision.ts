@@ -3,6 +3,7 @@ import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
+import { recomputeOverallWellbeing } from './personal-wellbeing';
 
 /** Relationships precision (PX-3) — PER-RE widgets; bond axes from activity_type counts only. */
 
@@ -194,6 +195,84 @@ export async function recordRelationshipActivityPrecision(
   return { activityId, connectionId, activityKind: body.activityKind };
 }
 
+/**
+ * Soft-delete a manually created Relationships activity.
+ * Master-Expense-derived activities must be edited/voided via the expense, not here (§2G).
+ */
+export async function voidRelationshipActivity(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  activityId: string
+): Promise<{ activityId: string; title: string; status: string }> {
+  await assertPersonalMoment(client, ctx, momentId);
+
+  const existing = await client.query<{
+    relationship_activity_id: string;
+    title: string;
+    status: string;
+    user_id: string;
+  }>(
+    `SELECT relationship_activity_id, title, status, user_id
+     FROM personal.relationship_activity
+     WHERE relationship_activity_id = $1 AND moment_id = $2`,
+    [activityId, momentId]
+  );
+  if (!existing.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Relationship activity not found.', 404);
+  }
+  if (existing.rows[0].user_id !== ctx.userId) {
+    throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Not allowed to delete this activity.', 403);
+  }
+  if (existing.rows[0].status === 'VOIDED') {
+    return { activityId, title: existing.rows[0].title, status: 'VOIDED' };
+  }
+
+  const derived = await client.query<{ expense_id: string }>(
+    `SELECT expense_id FROM finance.expense_dimension_contribution
+     WHERE linked_resource_id = $1
+       AND linked_resource_type = 'RELATIONSHIP_ACTIVITY'
+       AND status = 'ACTIVE'
+     LIMIT 1`,
+    [activityId]
+  );
+  if (derived.rows[0]) {
+    throw new AppError(
+      ErrorCode.GOVERNANCE_DENIED,
+      'This activity comes from a Master Expense. Edit or void the expense instead.',
+      409
+    );
+  }
+
+  await client.query(
+    `UPDATE personal.relationship_activity SET status = 'VOIDED', updated_at = now()
+     WHERE relationship_activity_id = $1`,
+    [activityId]
+  );
+
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'RelationshipActivityVoided',
+    domainCode: 'PERSONAL',
+    aggregateType: 'RELATIONSHIP_ACTIVITY',
+    aggregateId: activityId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: { activityId, momentId },
+  });
+
+  await client.query(
+    `UPDATE projection.recent_activity SET
+       activity_payload = COALESCE(activity_payload, '{}'::jsonb) || '{"status":"VOIDED"}'::jsonb,
+       projection_version = projection_version + 1
+     WHERE user_id = $1 AND scope_id = $2::uuid AND activity_payload->>'activityId' = $3`,
+    [ctx.userId, momentId, activityId]
+  );
+
+  await refreshRelationshipsBondAxes(client, ctx.userId, momentId, domainEventId);
+
+  return { activityId, title: existing.rows[0].title, status: 'VOIDED' };
+}
+
 async function computeBondAxes(client: PoolClient, userId: string, momentId: string) {
   const row = await client.query<{
     interaction: string;
@@ -260,23 +339,23 @@ export async function refreshRelationshipsBondAxes(
     await client.query(
       `UPDATE projection.personal_pulse SET
          attention_count = $2,
-         wellbeing_score = COALESCE($3, wellbeing_score),
-         widget_payload = $4::jsonb,
-         source_event_id = $5,
+         widget_payload = $3::jsonb,
+         source_event_id = $4,
          projection_version = projection_version + 1,
          updated_at = now()
        WHERE user_id = $1`,
-      [userId, attention, axes.bondIndex, JSON.stringify(payload), sourceEventId]
+      [userId, attention, JSON.stringify(payload), sourceEventId]
     );
   } else {
     await client.query(
       `INSERT INTO projection.personal_pulse (
          user_id, attention_count, recovery_score, mood_state, rhythm_score, wellbeing_score,
          widget_payload, source_event_id, projection_version
-       ) VALUES ($1, $2, NULL, NULL, NULL, $3, $4::jsonb, $5, 1)`,
-      [userId, attention, axes.bondIndex, JSON.stringify(payload), sourceEventId]
+       ) VALUES ($1, $2, NULL, NULL, NULL, NULL, $3::jsonb, $4, 1)`,
+      [userId, attention, JSON.stringify(payload), sourceEventId]
     );
   }
+  await recomputeOverallWellbeing(client, userId, sourceEventId);
 }
 
 export async function getRelationshipsRuntimeSummary(client: PoolClient, ctx: RequestContext, momentId: string) {

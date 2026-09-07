@@ -230,6 +230,8 @@ export async function refreshBusinessPulseProjection(
     revenueTotal: revenueTotal > 0 ? revenueTotal.toFixed(2) : null,
   };
 
+  // open_risk_count is a DB placeholder (always 0 until a real risk engine exists).
+  // Must NOT be selected into Business Pulse API payloads — false zero must never be user-visible.
   await client.query(
     `INSERT INTO projection.business_pulse (
        company_id, active_moment_count, attention_count, open_issue_count, open_risk_count,

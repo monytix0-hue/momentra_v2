@@ -648,6 +648,10 @@ async function bumpPersonalPulseAfterExpense(
   const prev = spendByCurrency[currencyCode] ?? '0';
   spendByCurrency[currencyCode] = new Decimal(prev).plus(amountStr).toFixed(4);
   payload.spendByCurrency = spendByCurrency;
+  // LO-visible money signal (Master Expense → Life Ops intelligence path).
+  const lifeOpsSpend = { ...((payload.lifeOpsSpendByCurrency as Record<string, string>) ?? {}) };
+  lifeOpsSpend[currencyCode] = new Decimal(lifeOpsSpend[currencyCode] ?? '0').plus(amountStr).toFixed(4);
+  payload.lifeOpsSpendByCurrency = lifeOpsSpend;
   payload.lastExpenseAt = new Date().toISOString();
 
   if (existing.rows[0]) {
@@ -698,6 +702,9 @@ async function reversePersonalPulseSpend(
   const spendByCurrency = { ...((payload.spendByCurrency as Record<string, string>) ?? {}) };
   spendByCurrency[currencyCode] = new Decimal(spendByCurrency[currencyCode] ?? '0').minus(amountStr).toFixed(4);
   payload.spendByCurrency = spendByCurrency;
+  const lifeOpsSpend = { ...((payload.lifeOpsSpendByCurrency as Record<string, string>) ?? {}) };
+  lifeOpsSpend[currencyCode] = new Decimal(lifeOpsSpend[currencyCode] ?? '0').minus(amountStr).toFixed(4);
+  payload.lifeOpsSpendByCurrency = lifeOpsSpend;
   await client.query(
     `UPDATE projection.personal_pulse SET widget_payload = $2::jsonb, source_event_id = $3,
        projection_version = projection_version + 1, updated_at = now() WHERE user_id = $1`,

@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.repository.PersonalSliceRepository
 import com.example.momentra.ui.theme.PlusJakartaSans
+import kotlinx.coroutines.launch
 
 private val SheetBg = Color(0xFF14121B)
 private val SheetElevated = Color(0xFF1C1926)
@@ -84,6 +86,30 @@ fun PersonalRelationshipsActivityFlow(
     var editing by remember { mutableStateOf<RelationshipsActivityItem?>(null) }
     val recentSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    fun reload() {
+        scope.launch {
+            repository.getActivity(momentId = momentId, limit = 30).fold(
+                onSuccess = { items = mapActivityDtosToRelationships(it.items) },
+                onFailure = { items = emptyList() },
+            )
+        }
+    }
+
+    fun deleteActivity(item: RelationshipsActivityItem) {
+        val mid = momentId ?: return
+        if (!item.canDelete) return
+        scope.launch {
+            repository.voidRelationshipActivity(mid, item.id).fold(
+                onSuccess = {
+                    reload()
+                    onChanged()
+                },
+                onFailure = { /* keep list; user can retry */ },
+            )
+        }
+    }
 
     LaunchedEffect(momentId, visible) {
         if (!visible) return@LaunchedEffect
@@ -106,8 +132,7 @@ fun PersonalRelationshipsActivityFlow(
             onClose = onDismiss,
             onEdit = { editing = it },
             onDelete = { id ->
-                items = items.filterNot { it.id == id }
-                onChanged()
+                items.find { it.id == id }?.let { deleteActivity(it) }
             },
         )
     }
@@ -128,9 +153,8 @@ fun PersonalRelationshipsActivityFlow(
                     onChanged()
                 },
                 onDelete = {
-                    items = items.filterNot { it.id == item.id }
                     editing = null
-                    onChanged()
+                    deleteActivity(item)
                 },
             )
         }
@@ -239,6 +263,7 @@ private fun RelationshipsRecentActivityBody(
                     item = item,
                     onEdit = { onEdit(item) },
                     onDelete = { onDelete(item.id) },
+                    canDelete = item.canDelete,
                 )
             }
             Spacer(Modifier.height(24.dp))
@@ -251,6 +276,7 @@ private fun RelationshipsActivityManageRow(
     item: RelationshipsActivityItem,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    canDelete: Boolean = true,
 ) {
     Row(
         modifier = Modifier
@@ -282,6 +308,14 @@ private fun RelationshipsActivityManageRow(
                 )
             }
             Text(item.whenLabel, color = SheetMuted, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+            if (!canDelete) {
+                Text(
+                    "From Master Expense",
+                    color = SheetDim,
+                    fontSize = 10.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
         }
         Box(
             modifier = Modifier
@@ -307,15 +341,17 @@ private fun RelationshipsActivityManageRow(
         ) {
             Text("✏️", fontSize = 12.sp)
         }
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFF3C1E1E))
-                .clickable(onClick = onDelete),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("🗑️", fontSize = 12.sp)
+        if (canDelete) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF3C1E1E))
+                    .clickable(onClick = onDelete),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("🗑️", fontSize = 12.sp)
+            }
         }
     }
 }
@@ -497,16 +533,26 @@ private fun RelationshipsEditActivityBody(
             Text("Save Changes", color = SheetBg, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         }
 
-        Text(
-            "Delete Activity",
-            color = SheetRed,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = PlusJakartaSans,
-            modifier = Modifier
-                .clickable(onClick = onDelete)
-                .padding(8.dp),
-        )
+        if (item.canDelete) {
+            Text(
+                "Delete Activity",
+                color = SheetRed,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier
+                    .clickable(onClick = onDelete)
+                    .padding(8.dp),
+            )
+        } else {
+            Text(
+                "From Master Expense — edit or void the expense to remove",
+                color = SheetDim,
+                fontSize = 12.sp,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier.padding(8.dp),
+            )
+        }
     }
 }
 

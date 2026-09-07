@@ -2494,6 +2494,43 @@ paths:
           $ref: './schemas/responses.yaml#/Error409Version'
         '500':
           $ref: './schemas/responses.yaml#/Error500'
+  /moments/{momentId}/relationship-activities/{activityId}:
+    delete:
+      operationId: voidRelationshipActivity
+      summary: Void (soft-delete) a manually created relationship activity
+      tags: ["Personal"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - name: activityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ProjectionEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '409':
+          $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
   /moments/{momentId}/residents:
     post:
       operationId: addResident

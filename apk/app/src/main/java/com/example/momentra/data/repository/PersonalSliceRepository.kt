@@ -483,6 +483,13 @@ class PersonalSliceRepository(
         api.voidLifestyleActivity(momentId = momentId, activityId = activityId).data
     }.recoverCatching { e -> throw mapError(e) }
 
+    suspend fun voidRelationshipActivity(
+        momentId: String,
+        activityId: String,
+    ): Result<VoidRelationshipActivityResultDto> = runCatching {
+        api.voidRelationshipActivity(momentId = momentId, activityId = activityId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
     suspend fun updateExpense(
         momentId: String,
         expenseId: String,

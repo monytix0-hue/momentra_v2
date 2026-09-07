@@ -352,4 +352,50 @@ describe('Master Expense dimensional contributions', () => {
     const fb = await contributions(viaFuture.expenseId);
     assert.equal(fb.FUTURE_BUILDING, 'INACTIVE');
   });
+
+  it('Expense → dimensions → Rel/Lifestyle axes → overall wellbeing + LO spend signal', async () => {
+    const uid = `dim-pulse-${randomUUID().slice(0, 8)}`;
+    const userId = userIdFor(uid);
+    await ensureUser(userId, `${uid}@dim.local`);
+    const lo = await createSetupMoment(uid, 'LIFE_OPERATIONS');
+    await createSetupMoment(uid, 'RELATIONSHIPS');
+    await createSetupMoment(uid, 'LIFESTYLE');
+
+    await createExpense(uid, lo, {
+      amount: '1200.00',
+      currencyCode: 'INR',
+      merchantName: 'Pulse dinner',
+      categoryCode: 'FOOD',
+      subcategoryCode: 'DINING_OUT',
+      sharedExperienceCode: 'SPOUSE',
+    });
+
+    const pulse = await getPool().query<{
+      wellbeing_score: string | null;
+      widget_payload: Record<string, unknown>;
+    }>(
+      `SELECT wellbeing_score::text, widget_payload
+       FROM projection.personal_pulse WHERE user_id = $1`,
+      [userId]
+    );
+    assert.ok(pulse.rows[0], 'personal_pulse row expected');
+    const payload = pulse.rows[0].widget_payload ?? {};
+    assert.ok(
+      Number(payload.bondIndex) > 0 || Number(payload.trustScore) > 0 || Number(payload.presenceScore) > 0,
+      'Relationships axes should move'
+    );
+    assert.ok(
+      Number(payload.vitalityScore) > 0 ||
+        Number(payload.joyScore) > 0 ||
+        Number(payload.fulfillmentScore) > 0,
+      'Lifestyle axes should move'
+    );
+    const loSpend = payload.lifeOpsSpendByCurrency as Record<string, string> | undefined;
+    assert.ok(loSpend?.INR, 'lifeOpsSpendByCurrency.INR expected');
+    assert.ok(Number(loSpend!.INR) >= 1200, `LO spend signal ${loSpend!.INR}`);
+    assert.ok(
+      pulse.rows[0].wellbeing_score != null && Number(pulse.rows[0].wellbeing_score) > 0,
+      'overall wellbeing should recompute from family axes'
+    );
+  });
 });

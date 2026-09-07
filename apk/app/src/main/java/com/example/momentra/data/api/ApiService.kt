@@ -274,6 +274,12 @@ interface ApiService {
         @Path("activityId") activityId: String,
     ): SuccessEnvelope<VoidLifestyleActivityResultDto>
 
+    @DELETE("v1/moments/{momentId}/relationship-activities/{activityId}")
+    suspend fun voidRelationshipActivity(
+        @Path("momentId") momentId: String,
+        @Path("activityId") activityId: String,
+    ): SuccessEnvelope<VoidRelationshipActivityResultDto>
+
     @GET("v1/moments/{momentId}/expenses/{expenseId}")
     suspend fun getExpense(
         @Path("momentId") momentId: String,

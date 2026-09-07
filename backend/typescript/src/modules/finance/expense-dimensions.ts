@@ -83,13 +83,19 @@ async function getContributionLink(
   client: PoolClient,
   expenseId: string,
   dimension: DimensionCode
-): Promise<{ linked_resource_id: string | null; linked_resource_type: string; status: string } | null> {
+): Promise<{
+  linked_resource_id: string | null;
+  linked_resource_type: string;
+  status: string;
+  target_moment_id: string | null;
+} | null> {
   const row = await client.query<{
     linked_resource_id: string | null;
     linked_resource_type: string;
     status: string;
+    target_moment_id: string | null;
   }>(
-    `SELECT linked_resource_id, linked_resource_type, status
+    `SELECT linked_resource_id, linked_resource_type, status, target_moment_id
      FROM finance.expense_dimension_contribution
      WHERE expense_id = $1 AND dimension_code = $2`,
     [expenseId, dimension]
@@ -147,6 +153,74 @@ async function mirrorResourceLink(
   }
 }
 
+/** Mark Rel/Lifestyle Moments feed rows VOIDED so View Activity hides them. */
+export async function voidRecentActivityByActivityId(
+  client: PoolClient,
+  userId: string,
+  momentId: string,
+  activityId: string
+): Promise<void> {
+  await client.query(
+    `UPDATE projection.recent_activity SET
+       activity_payload = COALESCE(activity_payload, '{}'::jsonb) || '{"status":"VOIDED"}'::jsonb,
+       projection_version = projection_version + 1
+     WHERE user_id = $1 AND scope_id = $2::uuid AND activity_payload->>'activityId' = $3`,
+    [userId, momentId, activityId]
+  );
+}
+
+/**
+ * Ensure Master Expense–derived activities appear on Rel/Lifestyle Moments feeds
+ * (GET /v1/personal/activity?momentId=…).
+ */
+async function upsertMasterExpenseRecentActivity(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  activityCode: string,
+  title: string,
+  activityId: string,
+  expenseId: string,
+  aggregateType: 'RELATIONSHIP_ACTIVITY' | 'LIFESTYLE_ACTIVITY'
+): Promise<void> {
+  const payload = {
+    activityId,
+    expenseId,
+    source: 'MASTER_EXPENSE',
+    status: 'POSTED',
+  };
+  const updated = await client.query(
+    `UPDATE projection.recent_activity SET
+       title = $4,
+       activity_code = $5,
+       activity_payload = $6::jsonb,
+       occurred_at = now(),
+       projection_version = projection_version + 1
+     WHERE user_id = $1 AND scope_id = $2::uuid AND activity_payload->>'activityId' = $3
+     RETURNING recent_activity_id`,
+    [ctx.userId, momentId, activityId, title, activityCode, JSON.stringify(payload)]
+  );
+  if (updated.rowCount && updated.rowCount > 0) return;
+
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'MasterExpenseDimensionActivityVisible',
+    domainCode: 'PERSONAL',
+    aggregateType,
+    aggregateId: activityId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: { activityId, expenseId, activityCode },
+  });
+  await client.query(
+    `INSERT INTO projection.recent_activity (
+       user_id, source_event_id, domain_code, scope_type, scope_id,
+       activity_code, title, occurred_at, activity_payload, projection_version
+     ) VALUES ($1,$2,'PERSONAL','MOMENT',$3::uuid,$4,$5,now(),$6::jsonb,1)
+     ON CONFLICT (user_id, source_event_id) DO NOTHING`,
+    [ctx.userId, domainEventId, momentId, activityCode, title, JSON.stringify(payload)]
+  );
+}
+
 async function upsertRelationshipContribution(
   client: PoolClient,
   ctx: RequestContext,
@@ -161,7 +235,15 @@ async function upsertRelationshipContribution(
   const relMomentId = await resolveSetupMomentId(client, ctx.userId, 'RELATIONSHIPS');
   const existing = await getContributionLink(client, expenseId, 'RELATIONSHIPS');
 
-  if (shared === 'SELF' || !relMomentId) {
+  if (shared !== 'SELF' && !relMomentId) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      'Activate Relationships setup before logging a shared-experience expense.',
+      400
+    );
+  }
+
+  if (shared === 'SELF') {
     if (existing?.linked_resource_id && existing.linked_resource_type === 'RELATIONSHIP_ACTIVITY') {
       await client.query(
         `UPDATE personal.relationship_activity SET status = 'VOIDED', updated_at = now()
@@ -169,6 +251,12 @@ async function upsertRelationshipContribution(
         [existing.linked_resource_id, ctx.userId]
       );
       if (relMomentId) {
+        await voidRecentActivityByActivityId(
+          client,
+          ctx.userId,
+          relMomentId,
+          existing.linked_resource_id
+        );
         await refreshRelationshipsBondAxes(client, ctx.userId, relMomentId, sourceEventId);
       }
     }
@@ -184,12 +272,7 @@ async function upsertRelationshipContribution(
     return;
   }
 
-  const connectionId = await ensureRelationshipConnection(
-    client,
-    ctx,
-    shared,
-    label
-  );
+  const connectionId = await ensureRelationshipConnection(client, ctx, shared, label);
   const title = merchantName?.trim() || RELATIONSHIP_DISPLAY[shared];
   let activityId = existing?.linked_resource_id ?? null;
 
@@ -247,7 +330,17 @@ async function upsertRelationshipContribution(
     activityId
   );
   await mirrorResourceLink(client, expenseId, 'RELATIONSHIP_ACTIVITY', activityId!);
-  await refreshRelationshipsBondAxes(client, ctx.userId, relMomentId, sourceEventId);
+  await upsertMasterExpenseRecentActivity(
+    client,
+    ctx,
+    relMomentId!,
+    'RELATIONSHIP_SHARED_EXPERIENCE',
+    title,
+    activityId!,
+    expenseId,
+    'RELATIONSHIP_ACTIVITY'
+  );
+  await refreshRelationshipsBondAxes(client, ctx.userId, relMomentId!, sourceEventId);
 }
 
 async function upsertLifestyleContribution(
@@ -265,7 +358,15 @@ async function upsertLifestyleContribution(
   const eligible = isLifestyleEligible(categoryCode, subcategoryCode);
   const existing = await getContributionLink(client, expenseId, 'LIFESTYLE');
 
-  if (!eligible || !lsMomentId) {
+  if (eligible && !lsMomentId) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      'Activate Lifestyle setup before logging a lifestyle-eligible expense.',
+      400
+    );
+  }
+
+  if (!eligible) {
     if (existing?.linked_resource_id && existing.linked_resource_type === 'LIFESTYLE_ACTIVITY') {
       await client.query(
         `UPDATE personal.lifestyle_activity SET status = 'CANCELLED', updated_at = now()
@@ -273,6 +374,12 @@ async function upsertLifestyleContribution(
         [existing.linked_resource_id, ctx.userId]
       );
       if (lsMomentId) {
+        await voidRecentActivityByActivityId(
+          client,
+          ctx.userId,
+          lsMomentId,
+          existing.linked_resource_id
+        );
         await refreshLifestylePulseAxes(client, ctx.userId, lsMomentId, sourceEventId);
       }
     }
@@ -325,7 +432,17 @@ async function upsertLifestyleContribution(
     activityId
   );
   await mirrorResourceLink(client, expenseId, 'LIFESTYLE_ACTIVITY', activityId!);
-  await refreshLifestylePulseAxes(client, ctx.userId, lsMomentId, sourceEventId);
+  await upsertMasterExpenseRecentActivity(
+    client,
+    ctx,
+    lsMomentId!,
+    'LIFESTYLE_EXPERIENCE',
+    title,
+    activityId!,
+    expenseId,
+    'LIFESTYLE_ACTIVITY'
+  );
+  await refreshLifestylePulseAxes(client, ctx.userId, lsMomentId!, sourceEventId);
 }
 
 export async function syncExpenseAnalyticalContributions(
@@ -391,6 +508,12 @@ export async function syncExpenseAnalyticalContributions(
            WHERE relationship_activity_id = $1`,
           [existing.linked_resource_id]
         );
+        const relM =
+          existing.target_moment_id ??
+          (await resolveSetupMomentId(client, ctx.userId, 'RELATIONSHIPS'));
+        if (relM) {
+          await voidRecentActivityByActivityId(client, ctx.userId, relM, existing.linked_resource_id);
+        }
       }
       if (existing?.linked_resource_id && existing.linked_resource_type === 'LIFESTYLE_ACTIVITY') {
         await client.query(
@@ -398,6 +521,12 @@ export async function syncExpenseAnalyticalContributions(
            WHERE lifestyle_activity_id = $1`,
           [existing.linked_resource_id]
         );
+        const lsM =
+          existing.target_moment_id ??
+          (await resolveSetupMomentId(client, ctx.userId, 'LIFESTYLE'));
+        if (lsM) {
+          await voidRecentActivityByActivityId(client, ctx.userId, lsM, existing.linked_resource_id);
+        }
       }
       await upsertContribution(
         client,

@@ -3,6 +3,7 @@ import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
+import { recomputeOverallWellbeing } from './personal-wellbeing';
 
 /** Future Building precision (PX-1) — PER-FU widgets over V003 Future tables + V046 profile. */
 
@@ -222,36 +223,27 @@ export async function refreshFuturePulseAxes(
   payload.futureAxisSource = 'PRECISION_V046';
   payload.lastFutureRefreshAt = new Date().toISOString();
 
-  const wellbeing = averageNullable([axes.visionScore, axes.growthScore, axes.momentumScore, axes.disciplineScore]);
-
+  // Future axes live only in widget_payload — never overwrite LO recovery/rhythm columns.
   if (existing.rows[0]) {
     await client.query(
       `UPDATE projection.personal_pulse SET
-         recovery_score = COALESCE($2, recovery_score),
-         rhythm_score = COALESCE($3, rhythm_score),
-         wellbeing_score = COALESCE($4, wellbeing_score),
-         widget_payload = $5::jsonb,
-         source_event_id = $6,
+         widget_payload = $2::jsonb,
+         source_event_id = $3,
          projection_version = projection_version + 1,
          updated_at = now()
        WHERE user_id = $1`,
-      [userId, axes.growthScore, axes.momentumScore, wellbeing, JSON.stringify(payload), sourceEventId]
+      [userId, JSON.stringify(payload), sourceEventId]
     );
   } else {
     await client.query(
       `INSERT INTO projection.personal_pulse (
          user_id, attention_count, recovery_score, mood_state, rhythm_score, wellbeing_score,
          widget_payload, source_event_id, projection_version
-       ) VALUES ($1, 0, $2, NULL, $3, $4, $5::jsonb, $6, 1)`,
-      [userId, axes.growthScore, axes.momentumScore, wellbeing, JSON.stringify(payload), sourceEventId]
+       ) VALUES ($1, 0, NULL, NULL, NULL, NULL, $2::jsonb, $3, 1)`,
+      [userId, JSON.stringify(payload), sourceEventId]
     );
   }
-}
-
-function averageNullable(parts: Array<number | null>): number | null {
-  const nums = parts.filter((n): n is number => n != null);
-  if (!nums.length) return null;
-  return clampScore(nums.reduce((a, b) => a + b, 0) / nums.length);
+  await recomputeOverallWellbeing(client, userId, sourceEventId);
 }
 
 async function computeFutureAxes(client: PoolClient, userId: string, momentId: string) {

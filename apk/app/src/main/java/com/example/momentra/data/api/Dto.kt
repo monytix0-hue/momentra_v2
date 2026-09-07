@@ -1062,6 +1062,12 @@ data class VoidLifestyleActivityResultDto(
     val status: String,
 )
 
+data class VoidRelationshipActivityResultDto(
+    @SerializedName("activityId") val activityId: String,
+    val title: String,
+    val status: String,
+)
+
 data class UpdateLifestyleActivityBody(
     val title: String? = null,
     val description: String? = null,
@@ -1240,6 +1246,7 @@ data class ActivityPayloadDto(
     @SerializedName("incomeId") val incomeId: String? = null,
     val status: String? = null,
     @SerializedName("wellbeingRating") val wellbeingRating: Double? = null,
+    @SerializedName("source") val source: String? = null,
 )
 
 /** Group facet envelope — GET /v1/group/moments/:id/{pulse|life|memory|finance}. */

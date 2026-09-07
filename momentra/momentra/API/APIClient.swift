@@ -868,6 +868,7 @@ final class APIClient {
             let paymentMethodCode: String?
             let status: String?
             let wellbeingRating: Double?
+            let source: String?
         }
     }
 
@@ -1548,6 +1549,16 @@ final class APIClient {
 
     func voidLifestyleActivity(momentId: String, activityId: String) async throws -> VoidLifestyleActivityResult {
         try await authorizedDelete(path: "v1/moments/\(momentId)/lifestyle-activities/\(activityId)")
+    }
+
+    struct VoidRelationshipActivityResult: Decodable {
+        let activityId: String
+        let title: String
+        let status: String
+    }
+
+    func voidRelationshipActivity(momentId: String, activityId: String) async throws -> VoidRelationshipActivityResult {
+        try await authorizedDelete(path: "v1/moments/\(momentId)/relationship-activities/\(activityId)")
     }
 
     struct UpdateExpenseResult: Decodable {

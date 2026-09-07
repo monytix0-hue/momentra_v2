@@ -258,12 +258,13 @@ export interface PersonalLifeDto {
   /** REAL after Personal join — honest empties / area counts; no invented Figma scores. */
   dataQuality: 'FIGMA_SEEDED' | 'REAL';
   sectionQuality: Record<string, LifeSectionQuality>;
-  score: number;
+  /** Null until Life pattern scoring exists — never invent 0 as health. */
+  score: number | null;
   scoreMax: number;
   statusLabel: string;
   trendLabel: string;
   insight: string;
-  areaScores: { code: string; label: string; score: number; color: string }[];
+  areaScores: { code: string; label: string; score: number | null; color: string }[];
   drift: {
     title: string;
     headline: string;
@@ -315,14 +316,14 @@ const LIFE_HONEST_EMPTY_SECTION_QUALITY: Record<string, LifeSectionQuality> = {
   activeAreaCount: 'REAL_DATA',
 };
 
-/** Honest Life shell — no invented Figma scores. */
+/** Honest Life shell — no invented Figma scores. Overall score null until Life pattern scoring exists. */
 function honestEmptyLife(userId: string, activeAreaCount: number): PersonalLifeDto {
   return {
     userId,
     activeAreaCount,
     dataQuality: 'REAL',
     sectionQuality: { ...LIFE_HONEST_EMPTY_SECTION_QUALITY },
-    score: 0,
+    score: null,
     scoreMax: 100,
     statusLabel: activeAreaCount > 0 ? 'Active' : 'No areas yet',
     trendLabel: '',
@@ -360,6 +361,63 @@ function honestEmptyLife(userId: string, activeAreaCount: number): PersonalLifeD
   };
 }
 
+function numPayload(v: unknown): number | null {
+  if (v == null) return null;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+function avgNums(parts: Array<number | null>): number | null {
+  const nums = parts.filter((n): n is number => n != null);
+  if (!nums.length) return null;
+  return Math.round(nums.reduce((a, b) => a + b, 0) / nums.length);
+}
+
+/** Family pattern chips for Life — from Pulse axes when present; not a Pulse rollup overall score. */
+function areaScoreFromPulse(
+  systemCode: string,
+  pulse: {
+    recovery_score: string | null;
+    rhythm_score: string | null;
+    widget_payload: Record<string, unknown> | null;
+  } | undefined
+): number | null {
+  if (!pulse) return null;
+  const p = pulse.widget_payload ?? {};
+  switch (systemCode) {
+    case 'LIFE_OPERATIONS':
+      return avgNums([
+        pulse.recovery_score != null ? Number(pulse.recovery_score) : null,
+        pulse.rhythm_score != null ? Number(pulse.rhythm_score) : null,
+        numPayload(p.lifeOpsWellbeingScore),
+      ]);
+    case 'FUTURE_BUILDING':
+      return avgNums([
+        numPayload(p.visionScore),
+        numPayload(p.growthScore),
+        numPayload(p.momentumScore),
+        numPayload(p.disciplineScore),
+      ]);
+    case 'LIFESTYLE':
+      return (
+        numPayload(p.vitalityScore) ??
+        avgNums([numPayload(p.joyScore), numPayload(p.fulfillmentScore), numPayload(p.explorationScore)])
+      );
+    case 'RELATIONSHIPS':
+      return (
+        numPayload(p.bondIndex) ??
+        avgNums([
+          numPayload(p.trustScore),
+          numPayload(p.careScore),
+          numPayload(p.supportScore),
+          numPayload(p.presenceScore),
+        ])
+      );
+    default:
+      return null;
+  }
+}
+
 export async function getPersonalLife(client: PoolClient, userId: string): Promise<PersonalLifeDto> {
   const areas = await client
     .query<{ system_code: string }>(
@@ -374,6 +432,23 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
   const activeAreaCount = Math.min(4, areas.rows.length);
   const base = honestEmptyLife(userId, activeAreaCount);
 
+  const pulse = await client
+    .query<{
+      recovery_score: string | null;
+      rhythm_score: string | null;
+      widget_payload: Record<string, unknown> | null;
+    }>(
+      `SELECT recovery_score, rhythm_score, widget_payload
+       FROM projection.personal_pulse WHERE user_id = $1`,
+      [userId]
+    )
+    .catch(() => ({ rows: [] as Array<{
+      recovery_score: string | null;
+      rhythm_score: string | null;
+      widget_payload: Record<string, unknown> | null;
+    }> }));
+  const pulseRow = pulse.rows[0];
+
   const areaLabel: Record<string, { label: string; color: string }> = {
     LIFE_OPERATIONS: { label: 'Life Ops', color: '#3B82F6' },
     FUTURE_BUILDING: { label: 'Future', color: '#10B981' },
@@ -382,7 +457,12 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
   };
   const areaScores = areas.rows.slice(0, 4).map((r) => {
     const meta = areaLabel[r.system_code] ?? { label: r.system_code, color: '#8C8C9E' };
-    return { code: r.system_code, label: meta.label, score: 0, color: meta.color };
+    return {
+      code: r.system_code,
+      label: meta.label,
+      score: areaScoreFromPulse(r.system_code, pulseRow),
+      color: meta.color,
+    };
   });
 
   const journeyRows = await client
@@ -405,10 +485,12 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
     tone: 'neutral' as const,
   }));
 
+  const hasAreaScores = areaScores.some((a) => a.score != null);
   const sectionQuality: Record<string, LifeSectionQuality> = {
     ...LIFE_HONEST_EMPTY_SECTION_QUALITY,
     activeAreaCount: 'REAL_DATA',
-    areaScores: areaScores.length ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
+    score: 'EMPTY_SUPPORTED',
+    areaScores: areaScores.length ? (hasAreaScores ? 'REAL_DATA' : 'EMPTY_SUPPORTED') : 'EMPTY_SUPPORTED',
     journey: journeyItems.length ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
   };
 
@@ -809,10 +891,15 @@ export async function getGroupMomentProjection(
           ['Needs Attention', 'Stable', 'Healthy', 'Optimal']
         ),
         contribution: lifeBalanceBar(
-          hasFinanceSignal || contributionTotal > 0,
-          contributionTotal > 0 || expenseTotal > 0
-            ? 50 + Math.min(20, Math.round((contributionTotal / Math.max(expenseTotal, 1)) * 30))
-            : 45,
+          hasFinanceSignal || contributionTotal > 0 || expenseTotal > 0,
+          (() => {
+            const funded = Math.max(contributionTotal, expenseTotal);
+            if (funded <= 0) return 45;
+            if (budgetTotal > 0) {
+              return 50 + Math.min(40, Math.round((funded / budgetTotal) * 40));
+            }
+            return 50 + Math.min(20, Math.round((contributionTotal / Math.max(expenseTotal, 1)) * 30));
+          })(),
           ['Needs Attention', 'Stable', 'Healthy', 'Optimal']
         ),
         coordination: lifeBalanceBar(
@@ -1014,38 +1101,48 @@ export async function getGroupMomentProjection(
               (SELECT COALESCE(jsonb_agg(p), '[]'::jsonb)
                FROM (
                  SELECT jsonb_build_object(
-                   'participantId', participant_id,
-                   'currencyCode', currency_code,
-                   'paidTotal', paid_total::text,
-                   'allocatedTotal', allocated_total::text,
-                   'contributionTotal', contribution_total::text,
-                   'payableTotal', payable_total::text,
-                   'receivableTotal', receivable_total::text,
-                   'settledTotal', settled_total::text,
-                   'netPosition', net_position::text
+                   'participantId', gfp.participant_id,
+                   'displayName', COALESCE(up.display_name, ep.display_name, mp_pos.metadata->>'displayName'),
+                   'currencyCode', gfp.currency_code,
+                   'paidTotal', gfp.paid_total::text,
+                   'allocatedTotal', gfp.allocated_total::text,
+                   'contributionTotal', gfp.contribution_total::text,
+                   'payableTotal', gfp.payable_total::text,
+                   'receivableTotal', gfp.receivable_total::text,
+                   'settledTotal', gfp.settled_total::text,
+                   'netPosition', gfp.net_position::text
                  ) AS p
-                 FROM projection.group_finance_position
-                 WHERE moment_id = $1
-                 ORDER BY ABS(net_position) DESC, currency_code, participant_id
+                 FROM projection.group_finance_position gfp
+                 LEFT JOIN collaboration.moment_participant mp_pos
+                   ON mp_pos.moment_id = gfp.moment_id AND mp_pos.participant_id = gfp.participant_id
+                 LEFT JOIN core.user_profile up ON up.user_id = mp_pos.user_id
+                 LEFT JOIN core.external_party ep ON ep.external_party_id = mp_pos.external_party_id
+                 WHERE gfp.moment_id = $1
+                 ORDER BY ABS(gfp.net_position) DESC, gfp.currency_code, gfp.participant_id
                  LIMIT $3
                ) x
               ) AS positions,
               (SELECT COALESCE(jsonb_agg(v), '[]'::jsonb)
                FROM (
                  SELECT jsonb_build_object(
-                   'participantId', participant_id,
-                   'currencyCode', currency_code,
-                   'paidTotal', paid_total::text,
-                   'allocatedTotal', allocated_total::text,
-                   'contributionTotal', contribution_total::text,
-                   'payableTotal', payable_total::text,
-                   'receivableTotal', receivable_total::text,
-                   'settledTotal', settled_total::text,
-                   'netPosition', net_position::text
+                   'participantId', gfp.participant_id,
+                   'displayName', COALESCE(up.display_name, ep.display_name, mp_view.metadata->>'displayName'),
+                   'currencyCode', gfp.currency_code,
+                   'paidTotal', gfp.paid_total::text,
+                   'allocatedTotal', gfp.allocated_total::text,
+                   'contributionTotal', gfp.contribution_total::text,
+                   'payableTotal', gfp.payable_total::text,
+                   'receivableTotal', gfp.receivable_total::text,
+                   'settledTotal', gfp.settled_total::text,
+                   'netPosition', gfp.net_position::text
                  ) AS v
-                 FROM projection.group_finance_position
-                 WHERE moment_id = $1 AND participant_id = mp.participant_id
-                 ORDER BY ABS(net_position) DESC, ABS(paid_total) + ABS(allocated_total) DESC, currency_code
+                 FROM projection.group_finance_position gfp
+                 LEFT JOIN collaboration.moment_participant mp_view
+                   ON mp_view.moment_id = gfp.moment_id AND mp_view.participant_id = gfp.participant_id
+                 LEFT JOIN core.user_profile up ON up.user_id = mp_view.user_id
+                 LEFT JOIN core.external_party ep ON ep.external_party_id = mp_view.external_party_id
+                 WHERE gfp.moment_id = $1 AND gfp.participant_id = mp.participant_id
+                 ORDER BY ABS(gfp.net_position) DESC, ABS(gfp.paid_total) + ABS(gfp.allocated_total) DESC, gfp.currency_code
                  LIMIT 20
                ) y
               ) AS viewer,

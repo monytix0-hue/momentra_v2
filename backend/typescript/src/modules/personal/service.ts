@@ -3,6 +3,7 @@ import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { insertAudit, insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
+import { clampScore, recomputeOverallWellbeing } from './personal-wellbeing';
 
 const OBS_TYPES = ['RECOVERY', 'MOOD', 'RHYTHM', 'WELLBEING'] as const;
 const LIFESTYLE_CONTEXTS = ['EXPERIENCE', 'WELLBEING', 'DISCOVERY', 'CREATION', 'LIFESTYLE'] as const;
@@ -175,10 +176,6 @@ function observationActivityTitle(body: z.infer<typeof observationSchema>): stri
   }
 }
 
-function clampScore(value: number): number {
-  return Math.max(0, Math.min(100, Math.round(value)));
-}
-
 function scoreFromNumeric(numericValue: number | undefined): number {
   if (numericValue == null || Number.isNaN(numericValue)) return 70;
   // Accept 0–10 sliders or 0–100 scores from clients.
@@ -197,10 +194,9 @@ async function bumpPersonalPulseAfterObservation(
     recovery_score: string | null;
     mood_state: string | null;
     rhythm_score: string | null;
-    wellbeing_score: string | null;
     widget_payload: Record<string, unknown> | null;
   }>(
-    `SELECT attention_count, recovery_score, mood_state, rhythm_score, wellbeing_score, widget_payload
+    `SELECT attention_count, recovery_score, mood_state, rhythm_score, widget_payload
      FROM projection.personal_pulse WHERE user_id = $1 FOR UPDATE`,
     [userId]
   );
@@ -209,7 +205,6 @@ async function bumpPersonalPulseAfterObservation(
   let recoveryScore = existing.rows[0]?.recovery_score != null ? Number(existing.rows[0].recovery_score) : null;
   let moodState = existing.rows[0]?.mood_state ?? null;
   let rhythmScore = existing.rows[0]?.rhythm_score != null ? Number(existing.rows[0].rhythm_score) : null;
-  let wellbeingScore = existing.rows[0]?.wellbeing_score != null ? Number(existing.rows[0].wellbeing_score) : null;
   const payload = { ...(existing.rows[0]?.widget_payload ?? {}) };
 
   switch (body.observationType) {
@@ -231,19 +226,10 @@ async function bumpPersonalPulseAfterObservation(
       break;
     }
     case 'WELLBEING': {
-      wellbeingScore = scoreFromNumeric(body.numericValue);
+      // LO-only input for overall blend — never last-writer master overwrite.
+      payload.lifeOpsWellbeingScore = scoreFromNumeric(body.numericValue);
       payload.lastAdjustAt = new Date().toISOString();
       break;
-    }
-  }
-
-  // Blend recovery + rhythm when either changes; keep explicit WELLBEING if set alone.
-  if (body.observationType === 'RECOVERY' || body.observationType === 'RHYTHM') {
-    const parts: number[] = [];
-    if (recoveryScore != null) parts.push(recoveryScore);
-    if (rhythmScore != null) parts.push(rhythmScore);
-    if (parts.length > 0) {
-      wellbeingScore = clampScore(parts.reduce((a, b) => a + b, 0) / parts.length);
     }
   }
 
@@ -254,9 +240,8 @@ async function bumpPersonalPulseAfterObservation(
          recovery_score = $3,
          mood_state = $4,
          rhythm_score = $5,
-         wellbeing_score = $6,
-         widget_payload = $7::jsonb,
-         source_event_id = $8,
+         widget_payload = $6::jsonb,
+         source_event_id = $7,
          projection_version = projection_version + 1,
          updated_at = now()
        WHERE user_id = $1`,
@@ -266,7 +251,6 @@ async function bumpPersonalPulseAfterObservation(
         recoveryScore,
         moodState,
         rhythmScore,
-        wellbeingScore,
         JSON.stringify(payload),
         sourceEventId,
       ]
@@ -276,19 +260,19 @@ async function bumpPersonalPulseAfterObservation(
       `INSERT INTO projection.personal_pulse (
          user_id, attention_count, recovery_score, mood_state, rhythm_score, wellbeing_score,
          widget_payload, source_event_id, projection_version
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 1)`,
+       ) VALUES ($1, $2, $3, $4, $5, NULL, $6::jsonb, $7, 1)`,
       [
         userId,
         attentionCount,
         recoveryScore,
         moodState,
         rhythmScore,
-        wellbeingScore,
         JSON.stringify(payload),
         sourceEventId,
       ]
     );
   }
+  await recomputeOverallWellbeing(client, userId, sourceEventId);
 }
 
 export async function createFutureItem(
@@ -387,109 +371,65 @@ async function bumpPersonalPulseAfterFutureItem(
 ): Promise<void> {
   const existing = await client.query<{
     attention_count: number;
-    recovery_score: string | null;
-    mood_state: string | null;
-    rhythm_score: string | null;
-    wellbeing_score: string | null;
     widget_payload: Record<string, unknown> | null;
   }>(
-    `SELECT attention_count, recovery_score, mood_state, rhythm_score, wellbeing_score, widget_payload
+    `SELECT attention_count, widget_payload
      FROM projection.personal_pulse WHERE user_id = $1 FOR UPDATE`,
     [userId]
   );
 
   let attentionCount = existing.rows[0]?.attention_count ?? 0;
-  let recoveryScore = existing.rows[0]?.recovery_score != null ? Number(existing.rows[0].recovery_score) : null;
-  let moodState = existing.rows[0]?.mood_state ?? null;
-  let rhythmScore = existing.rows[0]?.rhythm_score != null ? Number(existing.rows[0].rhythm_score) : null;
-  let wellbeingScore = existing.rows[0]?.wellbeing_score != null ? Number(existing.rows[0].wellbeing_score) : null;
   const payload = { ...(existing.rows[0]?.widget_payload ?? {}) };
-
   const bump = body.progressValue != null ? scoreFromNumeric(body.progressValue) : 72;
+  const prevAxis = (key: string): number => {
+    const v = Number(payload[key]);
+    return Number.isFinite(v) && v > 0 ? v : 60;
+  };
 
   switch (body.kind) {
     case 'MILESTONE':
     case 'PROGRESS':
-      // Vision ← wellbeing_score; Momentum ← rhythm_score
-      wellbeingScore = bump;
-      rhythmScore = clampScore(((rhythmScore ?? 60) + bump) / 2);
+      payload.visionScore = clampScore((prevAxis('visionScore') + bump) / 2);
+      payload.momentumScore = clampScore((prevAxis('momentumScore') + bump) / 2);
       payload.lastMilestoneAt = new Date().toISOString();
       payload.lastFutureKind = body.kind;
       break;
     case 'LEARNING':
     case 'OPPORTUNITY':
-      // Growth ← recovery_score; Discipline via attention
-      recoveryScore = bump;
+      payload.growthScore = clampScore((prevAxis('growthScore') + bump) / 2);
       attentionCount += 1;
+      payload.disciplineScore = clampScore(40 + attentionCount * 8);
       payload.lastLearningAt = new Date().toISOString();
       payload.lastFutureKind = body.kind;
       break;
     case 'PIVOT':
-      // Momentum ← rhythm_score
-      rhythmScore = bump;
+      payload.momentumScore = bump;
       payload.lastPivotAt = new Date().toISOString();
       payload.lastFutureKind = body.kind;
       break;
   }
 
-  // Blended Future Score into wellbeing when axes exist
-  const parts: number[] = [];
-  if (wellbeingScore != null) parts.push(wellbeingScore);
-  if (recoveryScore != null) parts.push(recoveryScore);
-  if (rhythmScore != null) parts.push(rhythmScore);
-  if (attentionCount > 0) parts.push(clampScore(40 + attentionCount * 8));
-  if (parts.length > 0) {
-    wellbeingScore = clampScore(parts.reduce((a, b) => a + b, 0) / parts.length);
-  }
-
-  // Store Future axis aliases in widget for clients that prefer explicit keys
-  if (wellbeingScore != null) payload.visionScore = wellbeingScore;
-  if (recoveryScore != null) payload.growthScore = recoveryScore;
-  if (rhythmScore != null) payload.momentumScore = rhythmScore;
-  if (attentionCount > 0) payload.disciplineScore = clampScore(40 + attentionCount * 8);
-
   if (existing.rows[0]) {
     await client.query(
       `UPDATE projection.personal_pulse SET
          attention_count = $2,
-         recovery_score = $3,
-         mood_state = $4,
-         rhythm_score = $5,
-         wellbeing_score = $6,
-         widget_payload = $7::jsonb,
-         source_event_id = $8,
+         widget_payload = $3::jsonb,
+         source_event_id = $4,
          projection_version = projection_version + 1,
          updated_at = now()
        WHERE user_id = $1`,
-      [
-        userId,
-        attentionCount,
-        recoveryScore,
-        moodState,
-        rhythmScore,
-        wellbeingScore,
-        JSON.stringify(payload),
-        sourceEventId,
-      ]
+      [userId, attentionCount, JSON.stringify(payload), sourceEventId]
     );
   } else {
     await client.query(
       `INSERT INTO projection.personal_pulse (
          user_id, attention_count, recovery_score, mood_state, rhythm_score, wellbeing_score,
          widget_payload, source_event_id, projection_version
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 1)`,
-      [
-        userId,
-        attentionCount,
-        recoveryScore,
-        moodState,
-        rhythmScore,
-        wellbeingScore,
-        JSON.stringify(payload),
-        sourceEventId,
-      ]
+       ) VALUES ($1, $2, NULL, NULL, NULL, NULL, $3::jsonb, $4, 1)`,
+      [userId, attentionCount, JSON.stringify(payload), sourceEventId]
     );
   }
+  await recomputeOverallWellbeing(client, userId, sourceEventId);
 }
 
 export async function createLifestyleActivity(
@@ -703,72 +643,58 @@ async function bumpPersonalPulseAfterLifestyleActivity(
 ): Promise<void> {
   const existing = await client.query<{
     attention_count: number;
-    recovery_score: string | null;
-    mood_state: string | null;
-    rhythm_score: string | null;
-    wellbeing_score: string | null;
     widget_payload: Record<string, unknown> | null;
   }>(
-    `SELECT attention_count, recovery_score, mood_state, rhythm_score, wellbeing_score, widget_payload
+    `SELECT attention_count, widget_payload
      FROM projection.personal_pulse WHERE user_id = $1 FOR UPDATE`,
     [userId]
   );
 
   let attentionCount = existing.rows[0]?.attention_count ?? 0;
-  let recoveryScore = existing.rows[0]?.recovery_score != null ? Number(existing.rows[0].recovery_score) : null;
-  let moodState = existing.rows[0]?.mood_state ?? null;
-  let rhythmScore = existing.rows[0]?.rhythm_score != null ? Number(existing.rows[0].rhythm_score) : null;
-  let wellbeingScore = existing.rows[0]?.wellbeing_score != null ? Number(existing.rows[0].wellbeing_score) : null;
   const payload = { ...(existing.rows[0]?.widget_payload ?? {}) };
-
   const bump =
     body.wellbeingRating != null ? scoreFromNumeric(body.wellbeingRating * 10) : 72;
+  const prevAxis = (key: string): number => {
+    const v = Number(payload[key]);
+    return Number.isFinite(v) && v > 0 ? v : 60;
+  };
 
   switch (body.lifestyleContext) {
     case 'EXPERIENCE':
-      // Joy ← recovery_score; Fulfillment ← wellbeing
-      recoveryScore = bump;
-      wellbeingScore = clampScore(((wellbeingScore ?? 60) + bump) / 2);
-      moodState = body.title.slice(0, 40);
+      payload.joyScore = clampScore((prevAxis('joyScore') + bump) / 2);
+      payload.fulfillmentScore = clampScore((prevAxis('fulfillmentScore') + bump) / 2);
       payload.lastExperienceAt = new Date().toISOString();
       break;
     case 'WELLBEING':
-      // Joy + Vitality
-      recoveryScore = bump;
-      rhythmScore = clampScore(((rhythmScore ?? 60) + bump) / 2);
+      payload.joyScore = clampScore((prevAxis('joyScore') + bump) / 2);
+      payload.vitalityScore = clampScore((prevAxis('vitalityScore') + bump) / 2);
       payload.lastWellbeingAt = new Date().toISOString();
       break;
     case 'DISCOVERY':
     case 'CREATION':
-      // Exploration via attention; Vitality bump
       attentionCount += 1;
-      rhythmScore = bump;
+      payload.explorationScore = clampScore((prevAxis('explorationScore') + bump) / 2);
+      payload.vitalityScore = clampScore((prevAxis('vitalityScore') + bump) / 2);
       payload.lastExplorationAt = new Date().toISOString();
       break;
     case 'LIFESTYLE':
-      // Adjust → Fulfillment / Vitality blend
-      wellbeingScore = bump;
-      rhythmScore = clampScore(((rhythmScore ?? 60) + bump) / 2);
+      payload.fulfillmentScore = bump;
+      payload.vitalityScore = clampScore((prevAxis('vitalityScore') + bump) / 2);
       payload.lastLifestyleAdjustAt = new Date().toISOString();
       break;
   }
 
   payload.lastLifestyleContext = body.lifestyleContext;
-
-  const parts: number[] = [];
-  if (recoveryScore != null) parts.push(recoveryScore);
-  if (wellbeingScore != null) parts.push(wellbeingScore);
-  if (rhythmScore != null) parts.push(rhythmScore);
-  if (attentionCount > 0) parts.push(clampScore(40 + attentionCount * 8));
-  if (parts.length > 0) {
-    wellbeingScore = clampScore(parts.reduce((a, b) => a + b, 0) / parts.length);
+  const vitalityParts = [
+    Number(payload.joyScore),
+    Number(payload.fulfillmentScore),
+    Number(payload.explorationScore),
+  ].filter((n) => Number.isFinite(n) && n > 0);
+  if (vitalityParts.length > 0 && payload.vitalityScore == null) {
+    payload.vitalityScore = clampScore(
+      vitalityParts.reduce((a, b) => a + b, 0) / vitalityParts.length
+    );
   }
-
-  // Lifestyle axis aliases
-  if (recoveryScore != null) payload.joyScore = recoveryScore;
-  if (wellbeingScore != null) payload.fulfillmentScore = wellbeingScore;
-  if (rhythmScore != null) payload.vitalityScore = rhythmScore;
-  if (attentionCount > 0) payload.explorationScore = clampScore(40 + attentionCount * 8);
 
   const experienceCount = Number(payload.experienceCount ?? 0) + (body.lifestyleContext === 'EXPERIENCE' ? 1 : 0);
   if (body.lifestyleContext === 'EXPERIENCE') payload.experienceCount = experienceCount;
@@ -777,44 +703,23 @@ async function bumpPersonalPulseAfterLifestyleActivity(
     await client.query(
       `UPDATE projection.personal_pulse SET
          attention_count = $2,
-         recovery_score = $3,
-         mood_state = $4,
-         rhythm_score = $5,
-         wellbeing_score = $6,
-         widget_payload = $7::jsonb,
-         source_event_id = $8,
+         widget_payload = $3::jsonb,
+         source_event_id = $4,
          projection_version = projection_version + 1,
          updated_at = now()
        WHERE user_id = $1`,
-      [
-        userId,
-        attentionCount,
-        recoveryScore,
-        moodState,
-        rhythmScore,
-        wellbeingScore,
-        JSON.stringify(payload),
-        sourceEventId,
-      ]
+      [userId, attentionCount, JSON.stringify(payload), sourceEventId]
     );
   } else {
     await client.query(
       `INSERT INTO projection.personal_pulse (
          user_id, attention_count, recovery_score, mood_state, rhythm_score, wellbeing_score,
          widget_payload, source_event_id, projection_version
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 1)`,
-      [
-        userId,
-        attentionCount,
-        recoveryScore,
-        moodState,
-        rhythmScore,
-        wellbeingScore,
-        JSON.stringify(payload),
-        sourceEventId,
-      ]
+       ) VALUES ($1, $2, NULL, NULL, NULL, NULL, $3::jsonb, $4, 1)`,
+      [userId, attentionCount, JSON.stringify(payload), sourceEventId]
     );
   }
+  await recomputeOverallWellbeing(client, userId, sourceEventId);
 }
 
 const ACTIVITY_TYPE_MAP: Record<string, string> = {
@@ -936,14 +841,10 @@ async function bumpPersonalPulseAfterRelationshipActivity(
 ): Promise<void> {
   const existing = await client.query<{
     attention_count: number;
-    recovery_score: string | null;
-    mood_state: string | null;
-    rhythm_score: string | null;
-    wellbeing_score: string | null;
     widget_payload: Record<string, unknown> | null;
   }>(
-    `SELECT attention_count, recovery_score, mood_state, rhythm_score, wellbeing_score, widget_payload
-     FROM projection.personal_pulse WHERE user_id = $1`,
+    `SELECT attention_count, widget_payload
+     FROM projection.personal_pulse WHERE user_id = $1 FOR UPDATE`,
     [userId]
   );
   const row = existing.rows[0];
@@ -953,10 +854,6 @@ async function bumpPersonalPulseAfterRelationshipActivity(
     lastRelationshipActivityKind: activityKind,
   };
   const bump = 72;
-  let wellbeingScore =
-    row?.wellbeing_score != null ? parseFloat(row.wellbeing_score) : null;
-  const rhythmScore =
-    row?.rhythm_score != null ? parseFloat(row.rhythm_score) : null;
   const prevAxis = (key: string): number => {
     const v = Number(payload[key]);
     return Number.isFinite(v) && v > 0 ? v : 60;
@@ -977,7 +874,7 @@ async function bumpPersonalPulseAfterRelationshipActivity(
       break;
     case 'INVESTMENT':
     case 'RELATIONSHIP_INVESTMENT':
-      wellbeingScore = clampScore(((wellbeingScore ?? 60) + bump) / 2);
+      payload.supportScore = clampScore((prevAxis('supportScore') + bump) / 2);
       break;
     default:
       break;
@@ -988,14 +885,8 @@ async function bumpPersonalPulseAfterRelationshipActivity(
     const v = Number(payload[key]);
     if (Number.isFinite(v) && v > 0) bondParts.push(v);
   }
-  if (wellbeingScore != null) bondParts.push(wellbeingScore);
   if (bondParts.length > 0) {
-    payload.bondIndex = clampScore(
-      bondParts.reduce((a, b) => a + b, 0) / bondParts.length
-    );
-    if (wellbeingScore == null) {
-      wellbeingScore = payload.bondIndex as number;
-    }
+    payload.bondIndex = clampScore(bondParts.reduce((a, b) => a + b, 0) / bondParts.length);
   }
 
   const attentionCount = (row?.attention_count ?? 0) + 1;
@@ -1003,29 +894,21 @@ async function bumpPersonalPulseAfterRelationshipActivity(
     await client.query(
       `UPDATE projection.personal_pulse SET
          attention_count = $2,
-         rhythm_score = $3,
-         wellbeing_score = $4,
-         widget_payload = $5::jsonb,
-         source_event_id = $6,
+         widget_payload = $3::jsonb,
+         source_event_id = $4,
          projection_version = projection_version + 1,
          updated_at = now()
        WHERE user_id = $1`,
-      [
-        userId,
-        attentionCount,
-        rhythmScore,
-        wellbeingScore,
-        JSON.stringify(payload),
-        sourceEventId,
-      ]
+      [userId, attentionCount, JSON.stringify(payload), sourceEventId]
     );
   } else {
     await client.query(
       `INSERT INTO projection.personal_pulse (
          user_id, attention_count, recovery_score, mood_state, rhythm_score, wellbeing_score,
          widget_payload, source_event_id, projection_version
-       ) VALUES ($1, $2, NULL, NULL, NULL, $3, $4::jsonb, $5, 1)`,
-      [userId, attentionCount, wellbeingScore, JSON.stringify(payload), sourceEventId]
+       ) VALUES ($1, $2, NULL, NULL, NULL, NULL, $3::jsonb, $4, 1)`,
+      [userId, attentionCount, JSON.stringify(payload), sourceEventId]
     );
   }
+  await recomputeOverallWellbeing(client, userId, sourceEventId);
 }

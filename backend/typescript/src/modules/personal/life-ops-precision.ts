@@ -3,6 +3,7 @@ import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
+import { recomputeOverallWellbeing } from './personal-wellbeing';
 
 /** Life Ops precision writers + RP-01..05 reads (pack V042–V045 / UI-frozen PER-LO). */
 
@@ -391,46 +392,44 @@ export async function recordLifeOpsAdjust(
     ]
   );
 
-  // Soft wellbeing bump for adjust.
+  // Soft LO adjust bias — applied only to LO family contribution in overall wellbeing blend.
   const existing = await client.query<{
-    wellbeing_score: string | null;
     widget_payload: Record<string, unknown> | null;
   }>(
-    `SELECT wellbeing_score, widget_payload FROM projection.personal_pulse WHERE user_id = $1 FOR UPDATE`,
+    `SELECT widget_payload FROM projection.personal_pulse WHERE user_id = $1 FOR UPDATE`,
     [ctx.userId]
   );
   const payload = { ...(existing.rows[0]?.widget_payload ?? {}) };
   payload.lastAdjustAt = new Date().toISOString();
   if (body.rhythmActionCode) payload.lastRhythmAction = body.rhythmActionCode;
   if (body.signalDirectionCode) payload.lastSignalDirection = body.signalDirectionCode;
-  const wellbeing =
-    body.signalDirectionCode === 'DECREASE_PRESSURE'
-      ? clampScore((existing.rows[0]?.wellbeing_score != null ? Number(existing.rows[0].wellbeing_score) : 60) + 5)
-      : body.signalDirectionCode === 'INCREASE_PRESSURE'
-        ? clampScore((existing.rows[0]?.wellbeing_score != null ? Number(existing.rows[0].wellbeing_score) : 60) - 5)
-        : existing.rows[0]?.wellbeing_score != null
-          ? Number(existing.rows[0].wellbeing_score)
-          : 65;
+  const prevBias = Number(payload.lifeOpsAdjustBias);
+  const baseBias = Number.isFinite(prevBias) ? prevBias : 0;
+  if (body.signalDirectionCode === 'DECREASE_PRESSURE') {
+    payload.lifeOpsAdjustBias = Math.max(-40, Math.min(40, baseBias + 5));
+  } else if (body.signalDirectionCode === 'INCREASE_PRESSURE') {
+    payload.lifeOpsAdjustBias = Math.max(-40, Math.min(40, baseBias - 5));
+  }
 
   if (existing.rows[0]) {
     await client.query(
       `UPDATE projection.personal_pulse
-       SET wellbeing_score = $2,
-           widget_payload = $3::jsonb,
-           source_event_id = $4,
+       SET widget_payload = $2::jsonb,
+           source_event_id = $3,
            projection_version = projection_version + 1,
            updated_at = now()
        WHERE user_id = $1`,
-      [ctx.userId, wellbeing, JSON.stringify(payload), domainEventId]
+      [ctx.userId, JSON.stringify(payload), domainEventId]
     );
   } else {
     await client.query(
       `INSERT INTO projection.personal_pulse (
          user_id, attention_count, active_moment_count, wellbeing_score, widget_payload, source_event_id, projection_version
-       ) VALUES ($1,0,1,$2,$3::jsonb,$4,1)`,
-      [ctx.userId, wellbeing, JSON.stringify(payload), domainEventId]
+       ) VALUES ($1,0,1,NULL,$2::jsonb,$3,1)`,
+      [ctx.userId, JSON.stringify(payload), domainEventId]
     );
   }
+  await recomputeOverallWellbeing(client, ctx.userId, domainEventId);
 
   return { adjustmentId, momentId };
 }

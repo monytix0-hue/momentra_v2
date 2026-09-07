@@ -267,20 +267,30 @@ private fun LifeHealthSummaryCard(data: PersonalLifeDto) {
                         fontFamily = PlusJakartaSans,
                     )
                     Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            "${data.score}",
-                            color = LifeText,
-                            fontSize = 48.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = PlusJakartaSans,
-                        )
-                        Text(
-                            "/${data.scoreMax}",
-                            color = LifeMuted,
-                            fontSize = 16.sp,
-                            fontFamily = PlusJakartaSans,
-                            modifier = Modifier.padding(bottom = 10.dp, start = 2.dp),
-                        )
+                        if (data.score != null) {
+                            Text(
+                                "${data.score}",
+                                color = LifeText,
+                                fontSize = 48.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = PlusJakartaSans,
+                            )
+                            Text(
+                                "/${data.scoreMax}",
+                                color = LifeMuted,
+                                fontSize = 16.sp,
+                                fontFamily = PlusJakartaSans,
+                                modifier = Modifier.padding(bottom = 10.dp, start = 2.dp),
+                            )
+                        } else {
+                            Text(
+                                "—",
+                                color = LifeText,
+                                fontSize = 48.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = PlusJakartaSans,
+                            )
+                        }
                     }
                     Text(
                         data.statusLabel,
@@ -341,7 +351,7 @@ private fun AreaScoreChip(area: LifeAreaScoreDto, modifier: Modifier = Modifier)
                 .background(parseHexColor(area.color)),
         )
         Text(
-            "${area.label}: ${area.score}",
+            "${area.label}: ${area.score?.toString() ?: "—"}",
             color = LifeText,
             fontSize = 12.sp,
             fontFamily = PlusJakartaSans,
@@ -350,10 +360,11 @@ private fun AreaScoreChip(area: LifeAreaScoreDto, modifier: Modifier = Modifier)
 }
 
 @Composable
-private fun LifeScoreRing(score: Int, areas: List<LifeAreaScoreDto>) {
+private fun LifeScoreRing(score: Int?, areas: List<LifeAreaScoreDto>) {
     val colors = areas.map { parseHexColor(it.color) }.ifEmpty {
         listOf(LifeBlue, LifeGreen, LifeAmber, LifePink)
     }
+    val ringScore = score ?: 0
     Box(modifier = Modifier.size(110.dp), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.size(110.dp)) {
             val stroke = 8.dp.toPx()
@@ -361,9 +372,9 @@ private fun LifeScoreRing(score: Int, areas: List<LifeAreaScoreDto>) {
             colors.forEachIndexed { i, c ->
                 val inset = i * (stroke + 4.dp.toPx())
                 drawArc(
-                    color = c.copy(alpha = 0.85f),
+                    color = c.copy(alpha = if (score != null) 0.85f else 0.35f),
                     startAngle = -90f + i * 20f,
-                    sweepAngle = 220f + (score / 100f) * 40f,
+                    sweepAngle = if (score != null) 220f + (ringScore / 100f) * 40f else 200f,
                     useCenter = false,
                     topLeft = Offset(pad + inset, pad + inset),
                     size = Size(size.width - 2 * (pad + inset), size.height - 2 * (pad + inset)),
@@ -372,7 +383,7 @@ private fun LifeScoreRing(score: Int, areas: List<LifeAreaScoreDto>) {
             }
         }
         Text(
-            "$score",
+            score?.toString() ?: "—",
             color = LifeText,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,

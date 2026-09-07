@@ -11,15 +11,20 @@ struct RelationshipsActivityItem: Identifiable, Equatable {
     var notes: String
     var tags: [String]
     var filter: String
+    var source: String
+    var canDelete: Bool
 }
 
 enum RelationshipsActivityModels {
     /// Empty API / failure → empty list. Never invent demo rows (S2 G2).
     static func from(api items: [APIClient.ActivityItemPayload]) -> [RelationshipsActivityItem] {
-        items.map { dto in
+        items.compactMap { dto in
+            guard let activityId = dto.activityPayload?.activityId, !activityId.isEmpty else { return nil }
+            let source = (dto.activityPayload?.source ?? "MANUAL").uppercased()
+            let fromExpense = source == "MASTER_EXPENSE"
             let meta = visual(for: dto.activityCode, title: dto.title)
             return RelationshipsActivityItem(
-                id: dto.occurredAt + dto.title + (dto.activityPayload?.activityId ?? ""),
+                id: activityId,
                 title: dto.title.isEmpty ? meta.title : dto.title,
                 whenLabel: formatOccurred(dto.occurredAt),
                 impact: "",
@@ -27,7 +32,9 @@ enum RelationshipsActivityModels {
                 relationship: meta.filter,
                 notes: "",
                 tags: [],
-                filter: meta.filter
+                filter: meta.filter,
+                source: fromExpense ? "MASTER_EXPENSE" : "MANUAL",
+                canDelete: !fromExpense
             )
         }
     }
