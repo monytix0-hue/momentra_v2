@@ -423,21 +423,315 @@ export async function createPlanningItem(
   return { planningItemId: r.rows[0]!.planning_item_id, momentId, status };
 }
 
+export type CreateBookingInput = {
+  title: string;
+  bookingType?: 'HOTEL' | 'FLIGHT' | 'TRANSPORT' | 'ACTIVITY' | 'RESTAURANT' | 'OTHER';
+  referenceCode?: string | null;
+  amount?: string | null;
+  currencyCode?: string | null;
+  startAt?: string | null;
+  endAt?: string | null;
+  bookedAt?: string | null;
+  status?: string | null;
+  bookedByParticipantId?: string | null;
+  paidByParticipantId?: string | null;
+  placeIds?: string[];
+  stays?: Array<{
+    hotelName: string;
+    referenceCode?: string | null;
+    amount?: string | null;
+    currencyCode?: string | null;
+    startAt?: string | null;
+    endAt?: string | null;
+  }>;
+  flightSegments?: Array<{
+    legLabel?: 'OUTBOUND' | 'RETURN' | 'CONNECTING' | 'OTHER';
+    airline?: string | null;
+    flightNumber?: string | null;
+    originCode?: string | null;
+    destinationCode?: string | null;
+    seatClass?: string | null;
+    seatNumber?: string | null;
+    departAt?: string | null;
+    arriveAt?: string | null;
+  }>;
+  linkExpense?: boolean;
+  splitStrategy?: 'EQUAL' | 'PERCENTAGE' | 'EXACT' | 'SHARES' | 'POOLED';
+  splitInputs?: Array<{
+    participantId: string;
+    amount?: string | null;
+    percent?: string | null;
+    shares?: number | null;
+  }>;
+  /** @deprecated Prefer linkExpense + splitStrategy + splitInputs */
+  equalSplit?: boolean;
+  /** @deprecated Prefer splitInputs */
+  splitParticipantIds?: string[];
+  attachmentUploadIds?: string[];
+  asDraft?: boolean;
+};
+
 export async function createBooking(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  body: { title: string; bookedAt?: string | null; asDraft?: boolean }
-): Promise<{ bookingId: string; momentId: string; status: string }> {
+  body: CreateBookingInput
+): Promise<{
+  bookingId: string;
+  momentId: string;
+  status: string;
+  linkedExpenseId?: string | null;
+}> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'BOOKING_CREATE', resourceType: 'BOOKING', momentId });
-  const status = body.asDraft ? 'DRAFT' : 'PLANNED';
+
+  const bookingType = body.bookingType ?? 'OTHER';
+  const stays = body.stays ?? [];
+  const flightSegments = body.flightSegments ?? [];
+  const placeIds = body.placeIds ?? [];
+  const attachmentUploadIds = body.attachmentUploadIds ?? [];
+
+  let status: string;
+  if (body.asDraft) {
+    status = 'DRAFT';
+  } else if (body.status) {
+    status = body.status;
+  } else {
+    status = 'PLANNED';
+  }
+
+  // Derive header dates/amount from children when omitted.
+  let startAt = body.startAt ?? null;
+  let endAt = body.endAt ?? null;
+  let amount = body.amount ?? null;
+  let currencyCode = body.currencyCode ?? null;
+  let referenceCode = body.referenceCode ?? null;
+
+  if (!startAt && stays.length > 0) {
+    startAt = stays.map((s) => s.startAt).find((v) => !!v) ?? null;
+  }
+  if (!endAt && stays.length > 0) {
+    endAt = [...stays].reverse().map((s) => s.endAt).find((v) => !!v) ?? null;
+  }
+  if (!startAt && flightSegments.length > 0) {
+    startAt = flightSegments.map((s) => s.departAt).find((v) => !!v) ?? null;
+  }
+  if (!endAt && flightSegments.length > 0) {
+    endAt = [...flightSegments].reverse().map((s) => s.arriveAt).find((v) => !!v) ?? null;
+  }
+  if (!amount && stays.length === 1 && stays[0]?.amount) {
+    amount = stays[0].amount;
+    currencyCode = currencyCode ?? stays[0].currencyCode ?? null;
+  }
+  if (!referenceCode && stays.length === 1 && stays[0]?.referenceCode) {
+    referenceCode = stays[0].referenceCode;
+  }
+
+  const incomingSplitInputs = body.splitInputs ?? [];
+  const participantIds = [
+    body.bookedByParticipantId,
+    body.paidByParticipantId,
+    ...(body.splitParticipantIds ?? []),
+    ...incomingSplitInputs.map((s) => s.participantId),
+  ].filter((id): id is string => !!id);
+  if (participantIds.length > 0) {
+    const { assertParticipantsOnMoment } = await import('./group-membership');
+    await assertParticipantsOnMoment(client, momentId, [...new Set(participantIds)]);
+  }
+
+  const resolvedSplitStrategy: CreateBookingInput['splitStrategy'] =
+    body.splitStrategy ??
+    (body.equalSplit === false && body.linkExpense !== true ? undefined : 'EQUAL');
+
+  if (placeIds.length > 0) {
+    const placeCheck = await client.query<{ place_id: string }>(
+      `SELECT place_id FROM collaboration.shared_experience_place
+       WHERE moment_id = $1 AND place_id = ANY($2::uuid[])`,
+      [momentId, placeIds]
+    );
+    if (placeCheck.rows.length !== placeIds.length) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, 'One or more places are not on this moment.', 400);
+    }
+  }
+
+  if (attachmentUploadIds.length > 0) {
+    const uploadCheck = await client.query<{ media_upload_id: string; status: string; user_id: string }>(
+      `SELECT media_upload_id, status, user_id FROM platform.media_upload
+       WHERE media_upload_id = ANY($1::uuid[])`,
+      [attachmentUploadIds]
+    );
+    if (uploadCheck.rows.length !== attachmentUploadIds.length) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, 'One or more attachment uploads were not found.', 400);
+    }
+    for (const u of uploadCheck.rows) {
+      if (u.user_id !== ctx.userId) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, 'Attachment upload must belong to the caller.', 400);
+      }
+      if (u.status !== 'COMPLETED') {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, 'Attachment uploads must be completed first.', 400);
+      }
+    }
+  }
+
   const r = await client.query<{ booking_id: string }>(
-    `INSERT INTO collaboration.booking (moment_id, booking_type, provider_name, booked_at, status, version)
-     VALUES ($1, 'OTHER', $2, $3::timestamptz, $4, 1)
+    `INSERT INTO collaboration.booking (
+       moment_id, booking_type, provider_name, reference_code,
+       booked_at, start_at, end_at, amount, currency_code, status, version,
+       booked_by_participant_id, paid_by_participant_id, split_strategy
+     )
+     VALUES (
+       $1, $2, $3, $4,
+       $5::timestamptz, $6::timestamptz, $7::timestamptz, $8::numeric, $9, $10, 1,
+       $11, $12, $13
+     )
      RETURNING booking_id`,
-    [momentId, body.title, body.bookedAt ?? null, status]
+    [
+      momentId,
+      bookingType,
+      body.title,
+      referenceCode,
+      body.bookedAt ?? startAt,
+      startAt,
+      endAt,
+      amount,
+      currencyCode,
+      status,
+      body.bookedByParticipantId ?? null,
+      body.paidByParticipantId ?? null,
+      resolvedSplitStrategy ?? null,
+    ]
   );
-  return { bookingId: r.rows[0]!.booking_id, momentId, status };
+  const bookingId = r.rows[0]!.booking_id;
+
+  for (let i = 0; i < stays.length; i++) {
+    const s = stays[i]!;
+    await client.query(
+      `INSERT INTO collaboration.booking_stay (
+         booking_id, sort_order, hotel_name, reference_code, amount, currency_code, start_at, end_at
+       ) VALUES ($1, $2, $3, $4, $5::numeric, $6, $7::timestamptz, $8::timestamptz)`,
+      [
+        bookingId,
+        i,
+        s.hotelName,
+        s.referenceCode ?? null,
+        s.amount ?? null,
+        s.currencyCode ?? null,
+        s.startAt ?? null,
+        s.endAt ?? null,
+      ]
+    );
+  }
+
+  for (let i = 0; i < flightSegments.length; i++) {
+    const s = flightSegments[i]!;
+    await client.query(
+      `INSERT INTO collaboration.booking_flight_segment (
+         booking_id, sort_order, leg_label, airline, flight_number,
+         origin_code, destination_code, seat_class, seat_number, depart_at, arrive_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::timestamptz, $11::timestamptz)`,
+      [
+        bookingId,
+        i,
+        s.legLabel ?? (i === 0 ? 'OUTBOUND' : i === 1 ? 'RETURN' : 'CONNECTING'),
+        s.airline ?? null,
+        s.flightNumber ?? null,
+        s.originCode ?? null,
+        s.destinationCode ?? null,
+        s.seatClass ?? null,
+        s.seatNumber ?? null,
+        s.departAt ?? null,
+        s.arriveAt ?? null,
+      ]
+    );
+  }
+
+  for (const placeId of placeIds) {
+    await client.query(
+      `INSERT INTO collaboration.booking_place (booking_id, place_id) VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [bookingId, placeId]
+    );
+  }
+
+  for (const uploadId of attachmentUploadIds) {
+    await client.query(
+      `INSERT INTO collaboration.booking_attachment (booking_id, upload_id) VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [bookingId, uploadId]
+    );
+  }
+
+  let linkedExpenseId: string | null = null;
+  const linkExpense =
+    body.linkExpense !== undefined
+      ? body.linkExpense
+      : body.equalSplit !== false;
+  const shouldCreateExpense =
+    linkExpense &&
+    !body.asDraft &&
+    status !== 'DRAFT' &&
+    !!amount &&
+    !!currencyCode &&
+    !!body.paidByParticipantId &&
+    !!resolvedSplitStrategy;
+
+  if (shouldCreateExpense) {
+    const splitStrategy = resolvedSplitStrategy!;
+    let splitInputs = (body.splitInputs ?? []).map((s) => ({
+      participantId: s.participantId,
+      amount: s.amount ?? undefined,
+      percent: s.percent ?? undefined,
+      shares: s.shares ?? undefined,
+    }));
+
+    if (splitInputs.length === 0 && splitStrategy !== 'POOLED') {
+      let splitIds = body.splitParticipantIds;
+      if (!splitIds || splitIds.length === 0) {
+        const active = await client.query<{ participant_id: string }>(
+          `SELECT participant_id FROM collaboration.moment_participant
+           WHERE moment_id = $1 AND status = 'ACTIVE'
+           ORDER BY participant_id ASC`,
+          [momentId]
+        );
+        splitIds = active.rows.map((row) => row.participant_id);
+      }
+      if (splitIds.length === 0) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, 'No participants available for split.', 400);
+      }
+      splitInputs = splitIds.map((participantId) => ({
+        participantId,
+        amount: undefined,
+        percent: undefined,
+        shares: undefined,
+      }));
+    }
+
+    const { createGroupExpense } = await import('../finance/group-expense');
+    const expenseAmount = amount as string;
+    const expenseCurrency = currencyCode as string;
+    const expense = await createGroupExpense(client, ctx, momentId, {
+      amount: expenseAmount,
+      currencyCode: expenseCurrency as Parameters<typeof createGroupExpense>[3]['currencyCode'],
+      description: body.title,
+      paidByParticipantId: body.paidByParticipantId!,
+      splitStrategy,
+      splitInputs,
+    });
+    linkedExpenseId = expense.expenseId;
+    await client.query(
+      `UPDATE collaboration.booking
+       SET linked_expense_id = $1, split_strategy = $2, updated_at = now()
+       WHERE booking_id = $3`,
+      [linkedExpenseId, splitStrategy, bookingId]
+    );
+    await client.query(
+      `INSERT INTO finance.expense_resource_link (expense_id, resource_type, resource_id, relation_type)
+       VALUES ($1, 'BOOKING', $2, 'RELATED')
+       ON CONFLICT (expense_id, resource_type, resource_id, relation_type) DO NOTHING`,
+      [linkedExpenseId, bookingId]
+    );
+  }
+
+  return { bookingId, momentId, status, linkedExpenseId };
 }
 
 export const contributionSchema = z

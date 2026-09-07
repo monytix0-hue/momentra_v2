@@ -75,3 +75,5 @@ V074__quick_add_entity_drafts.sql
 V075__business_expense_paid_by.sql
 V076__expense_shared_experience_dimensions.sql
 V077__expense_dimension_contribution_grants_rls.sql
+V078__booking_stays_segments_places.sql
+V079__booking_split_strategy.sql

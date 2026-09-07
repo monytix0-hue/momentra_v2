@@ -768,7 +768,7 @@ final class APIClient {
         struct LifeAreaScore: Decodable {
             let code: String
             let label: String
-            let score: Int
+            let score: Int?
             let color: String
         }
         struct LifeDrift: Decodable {
@@ -2945,9 +2945,134 @@ final class APIClient {
         try await authorizedGet(path: "v1/group/moments/\(momentId)/memories")
     }
 
-    func createBooking(momentId: String, title: String, bookedAt: String? = nil, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {
-        struct Body: Encodable { let title: String; let bookedAt: String? }
-        return try await authorizedPost(path: "v1/moments/\(momentId)/bookings", body: Body(title: title, bookedAt: bookedAt), idempotencyKey: idempotencyKey)
+    func createBooking(
+        momentId: String,
+        title: String,
+        bookingType: String? = nil,
+        referenceCode: String? = nil,
+        amount: String? = nil,
+        currencyCode: String? = nil,
+        startAt: String? = nil,
+        endAt: String? = nil,
+        bookedAt: String? = nil,
+        status: String? = nil,
+        bookedByParticipantId: String? = nil,
+        paidByParticipantId: String? = nil,
+        placeIds: [String]? = nil,
+        stays: [BookingStayBody]? = nil,
+        flightSegments: [BookingFlightSegmentBody]? = nil,
+        linkExpense: Bool? = nil,
+        splitStrategy: String? = nil,
+        splitInputs: [GroupSplitInput]? = nil,
+        equalSplit: Bool? = nil,
+        splitParticipantIds: [String]? = nil,
+        attachmentUploadIds: [String]? = nil,
+        asDraft: Bool? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CollabIdResult {
+        struct Body: Encodable {
+            let title: String
+            let bookingType: String?
+            let referenceCode: String?
+            let amount: String?
+            let currencyCode: String?
+            let startAt: String?
+            let endAt: String?
+            let bookedAt: String?
+            let status: String?
+            let bookedByParticipantId: String?
+            let paidByParticipantId: String?
+            let placeIds: [String]?
+            let stays: [BookingStayBody]?
+            let flightSegments: [BookingFlightSegmentBody]?
+            let linkExpense: Bool?
+            let splitStrategy: String?
+            let splitInputs: [GroupSplitInput]?
+            let equalSplit: Bool?
+            let splitParticipantIds: [String]?
+            let attachmentUploadIds: [String]?
+            let asDraft: Bool?
+        }
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/bookings",
+            body: Body(
+                title: title,
+                bookingType: bookingType,
+                referenceCode: referenceCode,
+                amount: amount,
+                currencyCode: currencyCode,
+                startAt: startAt,
+                endAt: endAt,
+                bookedAt: bookedAt,
+                status: status,
+                bookedByParticipantId: bookedByParticipantId,
+                paidByParticipantId: paidByParticipantId,
+                placeIds: placeIds,
+                stays: stays,
+                flightSegments: flightSegments,
+                linkExpense: linkExpense,
+                splitStrategy: splitStrategy,
+                splitInputs: splitInputs,
+                equalSplit: equalSplit,
+                splitParticipantIds: splitParticipantIds,
+                attachmentUploadIds: attachmentUploadIds,
+                asDraft: asDraft
+            ),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    struct BookingStayBody: Encodable {
+        let hotelName: String
+        let referenceCode: String?
+        let amount: String?
+        let currencyCode: String?
+        let startAt: String?
+        let endAt: String?
+    }
+
+    struct BookingFlightSegmentBody: Encodable {
+        let legLabel: String?
+        let airline: String?
+        let flightNumber: String?
+        let originCode: String?
+        let destinationCode: String?
+        let seatClass: String?
+        let seatNumber: String?
+        let departAt: String?
+        let arriveAt: String?
+    }
+
+    /// Upload media for booking attachment; returns completed uploadId.
+    func uploadBookingMedia(
+        momentId: String,
+        bytes: Data,
+        contentType: String = "application/octet-stream"
+    ) async throws -> String {
+        struct IntentBody: Encodable {
+            let contentType: String
+            let byteSize: Int
+            let scopeType: String
+            let scopeId: String
+        }
+        struct CompleteBody: Encodable {
+            let storageKey: String
+        }
+        let intent: MediaUploadIntentResult = try await authorizedPost(
+            path: "v1/media/uploads",
+            body: IntentBody(contentType: contentType, byteSize: bytes.count, scopeType: "MOMENT", scopeId: momentId),
+            idempotencyKey: UUID().uuidString
+        )
+        guard let storageKey = intent.storageKey else {
+            throw URLError(.badServerResponse)
+        }
+        try await putBytesToSignedUrl(signedUrl: intent.signedUrl, bytes: bytes, contentType: contentType)
+        let _: MediaUploadCompleteResult = try await authorizedPost(
+            path: "v1/media/uploads/\(intent.uploadId)/complete",
+            body: CompleteBody(storageKey: storageKey),
+            idempotencyKey: UUID().uuidString
+        )
+        return intent.uploadId
     }
 
     func createPoll(momentId: String, question: String, options: [String], closesAt: String? = nil, pollType: String? = nil, asDraft: Bool? = nil, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {

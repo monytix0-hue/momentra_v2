@@ -10,6 +10,7 @@ import { recordCommandSideEffects } from '../../platform/events/outbox';
 import { assertGroupMember } from './group-membership';
 import * as collaborationService from './service';
 import { listMediaForMemories } from '../memory/memory-attachments';
+import { travelCurrencyCodeSchema } from '../finance/travel-currencies';
 
 /**
  * Mobile clients send local-offset ISO (e.g. +05:30). Zod .datetime() defaults to Z-only.
@@ -31,10 +32,73 @@ export const planningItemSchema = z
   })
   .strict();
 
+const moneyString = z.string().regex(/^\d+(\.\d{1,4})?$/);
+
+const bookingStaySchema = z
+  .object({
+    hotelName: z.string().min(1).max(500),
+    referenceCode: z.string().max(120).nullish(),
+    amount: moneyString.nullish(),
+    currencyCode: travelCurrencyCodeSchema.nullish(),
+    startAt: clientIsoDatetime.nullish(),
+    endAt: clientIsoDatetime.nullish(),
+  })
+  .strict();
+
+const bookingFlightSegmentSchema = z
+  .object({
+    legLabel: z.enum(['OUTBOUND', 'RETURN', 'CONNECTING', 'OTHER']).optional().default('OUTBOUND'),
+    airline: z.string().max(200).nullish(),
+    flightNumber: z.string().max(40).nullish(),
+    originCode: z.string().max(16).nullish(),
+    destinationCode: z.string().max(16).nullish(),
+    seatClass: z.string().max(40).nullish(),
+    seatNumber: z.string().max(20).nullish(),
+    departAt: clientIsoDatetime.nullish(),
+    arriveAt: clientIsoDatetime.nullish(),
+  })
+  .strict();
+
 export const bookingSchema = z
   .object({
     title: z.string().min(1).max(500),
+    bookingType: z
+      .enum(['HOTEL', 'FLIGHT', 'TRANSPORT', 'ACTIVITY', 'RESTAURANT', 'OTHER'])
+      .optional()
+      .default('OTHER'),
+    referenceCode: z.string().max(120).nullish(),
+    amount: moneyString.nullish(),
+    currencyCode: travelCurrencyCodeSchema.nullish(),
+    startAt: clientIsoDatetime.nullish(),
+    endAt: clientIsoDatetime.nullish(),
     bookedAt: clientIsoDatetime.nullish(),
+    status: z.enum(['DRAFT', 'PLANNED', 'BOOKED', 'CONFIRMED', 'CANCELLED', 'COMPLETED']).nullish(),
+    bookedByParticipantId: z.string().uuid().nullish(),
+    paidByParticipantId: z.string().uuid().nullish(),
+    placeIds: z.array(z.string().uuid()).max(50).optional().default([]),
+    stays: z.array(bookingStaySchema).max(20).optional().default([]),
+    flightSegments: z.array(bookingFlightSegmentSchema).max(40).optional().default([]),
+    linkExpense: z.boolean().optional(),
+    splitStrategy: z.enum(['EQUAL', 'PERCENTAGE', 'EXACT', 'SHARES', 'POOLED']).optional(),
+    splitInputs: z
+      .array(
+        z
+          .object({
+            participantId: z.string().uuid(),
+            amount: moneyString.nullish(),
+            percent: z.string().regex(/^\d+(\.\d{1,6})?$/).nullish(),
+            shares: z.number().positive().nullish(),
+          })
+          .strict()
+      )
+      .optional()
+      .default([]),
+    /** @deprecated Prefer linkExpense + splitStrategy + splitInputs */
+    equalSplit: z.boolean().optional(),
+    /** @deprecated Prefer splitInputs */
+    splitParticipantIds: z.array(z.string().uuid()).max(100).optional(),
+    attachmentUploadIds: z.array(z.string().uuid()).max(20).optional().default([]),
+    asDraft: z.boolean().optional(),
   })
   .strict();
 
@@ -159,7 +223,14 @@ export async function createBookingCommand(
     aggregateId: result.bookingId,
     scopeType: 'MOMENT',
     scopeId: momentId,
-    payload: { bookingId: result.bookingId, momentId, title: body.title },
+    payload: {
+      bookingId: result.bookingId,
+      momentId,
+      title: body.title,
+      bookingType: body.bookingType,
+      status: result.status,
+      linkedExpenseId: result.linkedExpenseId ?? null,
+    },
     auditActionCode: 'BOOKING_CREATE',
     auditResourceType: 'BOOKING',
     auditResourceId: result.bookingId,
@@ -169,7 +240,11 @@ export async function createBookingCommand(
       momentId,
       activityCode: 'GROUP_BOOKING_CREATED',
       title: body.title,
-      payload: { bookingId: result.bookingId },
+      payload: {
+        bookingId: result.bookingId,
+        bookingType: body.bookingType,
+        linkedExpenseId: result.linkedExpenseId ?? null,
+      },
     },
   });
   return result;
@@ -483,28 +558,147 @@ export async function listBookings(client: PoolClient, ctx: RequestContext, mome
     booking_id: string;
     booking_type: string;
     provider_name: string | null;
+    reference_code: string | null;
+    amount: string | null;
+    currency_code: string | null;
     booked_at: Date | null;
     start_at: Date | null;
     end_at: Date | null;
     status: string;
+    booked_by_participant_id: string | null;
+    paid_by_participant_id: string | null;
+    linked_expense_id: string | null;
+    split_strategy: string | null;
   }>(
-    `SELECT booking_id, booking_type, provider_name, booked_at, start_at, end_at, status
+    `SELECT booking_id, booking_type, provider_name, reference_code, amount::text, currency_code,
+            booked_at, start_at, end_at, status,
+            booked_by_participant_id, paid_by_participant_id, linked_expense_id, split_strategy
      FROM collaboration.booking
      WHERE moment_id = $1
      ORDER BY COALESCE(start_at, booked_at, created_at) ASC
      LIMIT 200`,
     [momentId]
   );
+  const bookingIds = rows.rows.map((r) => r.booking_id);
+  const staysByBooking = new Map<string, Array<Record<string, unknown>>>();
+  const segmentsByBooking = new Map<string, Array<Record<string, unknown>>>();
+  const placesByBooking = new Map<string, string[]>();
+  const attachmentsByBooking = new Map<string, string[]>();
+
+  if (bookingIds.length > 0) {
+    const stays = await client.query<{
+      booking_id: string;
+      stay_id: string;
+      sort_order: number;
+      hotel_name: string;
+      reference_code: string | null;
+      amount: string | null;
+      currency_code: string | null;
+      start_at: Date | null;
+      end_at: Date | null;
+    }>(
+      `SELECT booking_id, stay_id, sort_order, hotel_name, reference_code, amount::text, currency_code, start_at, end_at
+       FROM collaboration.booking_stay
+       WHERE booking_id = ANY($1::uuid[])
+       ORDER BY sort_order ASC`,
+      [bookingIds]
+    );
+    for (const s of stays.rows) {
+      const list = staysByBooking.get(s.booking_id) ?? [];
+      list.push({
+        stayId: s.stay_id,
+        sortOrder: s.sort_order,
+        hotelName: s.hotel_name,
+        referenceCode: s.reference_code,
+        amount: s.amount,
+        currencyCode: s.currency_code,
+        startAt: s.start_at?.toISOString() ?? null,
+        endAt: s.end_at?.toISOString() ?? null,
+      });
+      staysByBooking.set(s.booking_id, list);
+    }
+
+    const segments = await client.query<{
+      booking_id: string;
+      segment_id: string;
+      sort_order: number;
+      leg_label: string;
+      airline: string | null;
+      flight_number: string | null;
+      origin_code: string | null;
+      destination_code: string | null;
+      seat_class: string | null;
+      seat_number: string | null;
+      depart_at: Date | null;
+      arrive_at: Date | null;
+    }>(
+      `SELECT booking_id, segment_id, sort_order, leg_label, airline, flight_number,
+              origin_code, destination_code, seat_class, seat_number, depart_at, arrive_at
+       FROM collaboration.booking_flight_segment
+       WHERE booking_id = ANY($1::uuid[])
+       ORDER BY sort_order ASC`,
+      [bookingIds]
+    );
+    for (const s of segments.rows) {
+      const list = segmentsByBooking.get(s.booking_id) ?? [];
+      list.push({
+        segmentId: s.segment_id,
+        sortOrder: s.sort_order,
+        legLabel: s.leg_label,
+        airline: s.airline,
+        flightNumber: s.flight_number,
+        originCode: s.origin_code,
+        destinationCode: s.destination_code,
+        seatClass: s.seat_class,
+        seatNumber: s.seat_number,
+        departAt: s.depart_at?.toISOString() ?? null,
+        arriveAt: s.arrive_at?.toISOString() ?? null,
+      });
+      segmentsByBooking.set(s.booking_id, list);
+    }
+
+    const places = await client.query<{ booking_id: string; place_id: string }>(
+      `SELECT booking_id, place_id FROM collaboration.booking_place WHERE booking_id = ANY($1::uuid[])`,
+      [bookingIds]
+    );
+    for (const p of places.rows) {
+      const list = placesByBooking.get(p.booking_id) ?? [];
+      list.push(p.place_id);
+      placesByBooking.set(p.booking_id, list);
+    }
+
+    const attachments = await client.query<{ booking_id: string; upload_id: string }>(
+      `SELECT booking_id, upload_id FROM collaboration.booking_attachment WHERE booking_id = ANY($1::uuid[])`,
+      [bookingIds]
+    );
+    for (const a of attachments.rows) {
+      const list = attachmentsByBooking.get(a.booking_id) ?? [];
+      list.push(a.upload_id);
+      attachmentsByBooking.set(a.booking_id, list);
+    }
+  }
+
   return {
     momentId,
     items: rows.rows.map((r) => ({
       bookingId: r.booking_id,
       title: r.provider_name,
       bookingType: r.booking_type,
+      referenceCode: r.reference_code,
+      amount: r.amount,
+      currencyCode: r.currency_code,
       bookedAt: r.booked_at?.toISOString() ?? null,
       startAt: r.start_at?.toISOString() ?? null,
       endAt: r.end_at?.toISOString() ?? null,
       status: r.status,
+      bookedByParticipantId: r.booked_by_participant_id,
+      paidByParticipantId: r.paid_by_participant_id,
+      linkedExpenseId: r.linked_expense_id,
+      splitStrategy: r.split_strategy,
+      stays: staysByBooking.get(r.booking_id) ?? [],
+      flightSegments: segmentsByBooking.get(r.booking_id) ?? [],
+      placeIds: placesByBooking.get(r.booking_id) ?? [],
+      attachmentUploadIds: attachmentsByBooking.get(r.booking_id) ?? [],
     })),
   };
 }

@@ -1608,7 +1608,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: './schemas/common.yaml#/BookingCreateRequest'
       responses:
         '201':
           description: Success

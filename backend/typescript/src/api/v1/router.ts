@@ -3232,7 +3232,7 @@ v1Router.post('/moments/:momentId/bookings', requireIdempotencyKey, async (req, 
         return { result: r, resourceId: r.bookingId };
       },
     });
-    const hints = ['group.activity', 'group.pulse', 'group.moments'] as const;
+    const hints = ['group.activity', 'group.pulse', 'group.moments', 'group.finance'] as const;
     publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
     res.status(201).json(commandEnvelope(result, ctx.correlationId, { projectionHints: toProjectionHints([...hints], 'refresh') }));
   } catch (e) {

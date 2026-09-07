@@ -376,15 +376,37 @@ class GroupSliceRepository(
 
     suspend fun createBooking(
         momentId: String,
-        title: String,
-        bookedAt: String? = null,
+        body: CreateBookingBody,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ) = runCatching {
-        api.createBooking(
-            momentId,
-            idempotencyKey,
-            CreateBookingBody(title = title, bookedAt = bookedAt),
+        api.createBooking(momentId, idempotencyKey, body).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    /** Upload media for a booking attachment; returns completed uploadId. */
+    suspend fun uploadBookingMedia(
+        momentId: String,
+        bytes: ByteArray,
+        contentType: String = "application/octet-stream",
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ) = runCatching {
+        val intent = api.createMediaUploadIntent(
+            idempotencyKey = idempotencyKey,
+            body = MediaUploadIntentBody(
+                contentType = contentType,
+                byteSize = bytes.size,
+                scopeType = "MOMENT",
+                scopeId = momentId,
+            ),
         ).data
+        val storageKey = intent.storageKey ?: error("Upload intent missing storageKey")
+        val putOk = putBytesToSignedUrl(intent.signedUrl, bytes, contentType)
+        if (!putOk) error("Failed to upload media bytes to storage")
+        api.completeMediaUpload(
+            uploadId = intent.uploadId,
+            idempotencyKey = UUID.randomUUID().toString(),
+            body = MediaUploadCompleteBody(storageKey = storageKey),
+        )
+        intent.uploadId
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun createPoll(

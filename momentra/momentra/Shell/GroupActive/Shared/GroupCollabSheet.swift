@@ -1,10 +1,35 @@
 import PhotosUI
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 enum GroupCollabKind: String, Identifiable {
     case planning, booking, poll, update, memory, purchaseItem, resident
     var id: String { rawValue }
+}
+
+private struct HotelStayDraft: Identifiable {
+    let id = UUID()
+    var hotelName = ""
+    var referenceCode = ""
+    var amount = ""
+    var startDate = ""
+    var endDate = ""
+}
+
+private struct FlightSegmentDraft: Identifiable {
+    let id = UUID()
+    var legLabel = "OUTBOUND"
+    var airline = ""
+    var flightNumber = ""
+    var originCode = ""
+    var destinationCode = ""
+    var seatClass = "Economy"
+    var seatNumber = ""
+    var departDate = ""
+    var departTime = ""
+    var arriveDate = ""
+    var arriveTime = ""
 }
 
 /// Figma Trip Quick Add sheets — native pickers + full Figma field layout.
@@ -33,7 +58,24 @@ struct GroupCollabSheet: View {
     @State private var confirmationNumber = ""
     @State private var bookingCost = ""
     @State private var bookingCurrency = "INR"
+    @State private var preferredCurrencies: [String] = ["INR", "JPY", "USD"]
     @State private var bookedById: String?
+    @State private var paidById: String?
+    @State private var linkExpense = true
+    @State private var splitStrategy = "EQUAL"
+    @State private var splitIds: Set<String> = []
+    @State private var splitValues: [String: String] = [:]
+    @State private var bookingPlaces: [GroupSetupPlacePrefill] = []
+    @State private var selectedPlaceIds: Set<String> = []
+    @State private var hotelStays: [HotelStayDraft] = [HotelStayDraft()]
+    @State private var flightSegments: [FlightSegmentDraft] = [
+        FlightSegmentDraft(legLabel: "OUTBOUND"),
+        FlightSegmentDraft(legLabel: "RETURN"),
+    ]
+    @State private var attachmentUploadIds: [String] = []
+    @State private var attachmentNames: [String] = []
+    @State private var showDocImporter = false
+    @State private var uploadingDoc = false
     @State private var priority = "Medium"
     @State private var planCategory = ""
     @State private var mood = "🍁"
@@ -125,7 +167,7 @@ struct GroupCollabSheet: View {
     private var titleText: String {
         switch kind {
         case .planning: return "Add Plan"
-        case .booking: return "Add Booking"
+        case .booking: return bookingType == "Flight" ? "Add Flight" : "Add Booking"
         case .poll: return "Create Poll"
         case .update: return "Post Update"
         case .memory: return "Capture Memory"
@@ -172,7 +214,7 @@ struct GroupCollabSheet: View {
     private var ctaLabel: String {
         switch kind {
         case .planning: return "Add Plan"
-        case .booking: return "Add Booking"
+        case .booking: return bookingType == "Flight" ? "Add Flight" : "Add Booking"
         case .poll: return "Create Poll"
         case .update: return "Post Update"
         case .memory: return "Save Memory"
@@ -209,6 +251,16 @@ struct GroupCollabSheet: View {
                 && !optionB.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .memory:
             return !trimmed.isEmpty || selectedImageData != nil
+        case .booking:
+            if !trimmed.isEmpty { return true }
+            if bookingType == "Hotel" { return hotelStays.contains { !$0.hotelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } }
+            if bookingType == "Flight" {
+                return flightSegments.contains {
+                    !$0.airline.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || !$0.flightNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }
+            }
+            return false
         default:
             return !trimmed.isEmpty
         }
@@ -273,30 +325,208 @@ struct GroupCollabSheet: View {
     }
 
     private var bookingFields: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let seatClasses = ["Economy", "Premium Economy", "Business", "First"]
+        let livingTypes: Set<String> = ["FAMILY_HOUSEHOLD", "FLATMATES", "CO_LIVING", "SHARED_LIVING", "COMMUNITY_LIVING"]
+        let supportsPooled = livingTypes.contains((momentTypeCode ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
+        var splitLabels: [(String, String)] = [("Equal", "EQUAL"), ("Custom", "EXACT"), ("% Percent", "PERCENTAGE")]
+        if supportsPooled { splitLabels.append(("Pooled", "POOLED")) }
+        return VStack(alignment: .leading, spacing: 12) {
             TripChipRow(
                 options: ["Hotel", "Flight", "Transport", "Activity", "Restaurant"],
                 selected: $bookingType,
                 accent: TripForm.accent
             )
             VStack(alignment: .leading, spacing: 6) {
-                TripFieldLabel(text: "Booking Name")
-                TripSheetField(value: $primary, placeholder: "MIMARU Kyoto Stay")
+                TripFieldLabel(text: bookingType == "Flight" ? "Trip / Booking Name" : "Booking Name")
+                TripSheetField(
+                    value: $primary,
+                    placeholder: bookingType == "Flight" ? "DEL → KIX Round Trip" : "MIMARU Kyoto Stay"
+                )
             }
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    TripFieldLabel(text: "Confirmation #")
-                    TripSheetField(value: $confirmationNumber, placeholder: "MMR-98402X")
+
+            if bookingType == "Hotel" {
+                ForEach(Array(hotelStays.indices), id: \.self) { index in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Stay \(index + 1)")
+                            .font(.plusJakarta(size: 12, weight: .semibold))
+                            .foregroundStyle(TripForm.muted)
+                        VStack(alignment: .leading, spacing: 6) {
+                            TripFieldLabel(text: "Hotel Name")
+                            TripSheetField(value: $hotelStays[index].hotelName, placeholder: "MIMARU Kyoto")
+                        }
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                TripFieldLabel(text: "Confirmation #")
+                                TripSheetField(value: $hotelStays[index].referenceCode, placeholder: "MMR-98402X")
+                            }
+                            VStack(alignment: .leading, spacing: 6) {
+                                TripFieldLabel(text: "Cost (\(TravelCurrencyCatalog.symbol(bookingCurrency)))")
+                                TripSheetField(value: $hotelStays[index].amount, placeholder: "42,500", keyboardType: .decimalPad)
+                            }
+                        }
+                        VStack(alignment: .leading, spacing: 6) {
+                            TripFieldLabel(text: "Check-In / Check-Out")
+                            TripDateRangeField(start: $hotelStays[index].startDate, end: $hotelStays[index].endDate)
+                        }
+                    }
+                    .padding(12)
+                    .background(TripForm.field)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(TripForm.border))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                Button { hotelStays.append(HotelStayDraft()) } label: {
+                    Text("+ Add Stay")
+                        .font(.plusJakarta(size: 13, weight: .semibold))
+                        .foregroundStyle(TripForm.accent)
+                }
+                .buttonStyle(.plain)
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        TripFieldLabel(text: "Total Cost (\(TravelCurrencyCatalog.symbol(bookingCurrency)))")
+                        TripSheetField(value: $bookingCost, placeholder: "42,500", keyboardType: .decimalPad)
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        TripFieldLabel(text: "Currency")
+                        TripCurrencyMenuField(code: $bookingCurrency, preferred: preferredCurrencies)
+                    }
+                }
+            } else if bookingType == "Flight" {
+                ForEach(Array(flightSegments.indices), id: \.self) { index in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(flightSegments[index].legLabel == "RETURN" ? "Return" : flightSegments[index].legLabel == "CONNECTING" ? "Connecting" : "Outbound")
+                            .font(.plusJakarta(size: 12, weight: .semibold))
+                            .foregroundStyle(TripForm.muted)
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                TripFieldLabel(text: "Airline")
+                                TripSheetField(value: $flightSegments[index].airline, placeholder: "IndiGo")
+                            }
+                            VStack(alignment: .leading, spacing: 6) {
+                                TripFieldLabel(text: "Flight #")
+                                TripSheetField(value: $flightSegments[index].flightNumber, placeholder: "6E 214")
+                            }
+                        }
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                TripFieldLabel(text: "From")
+                                TripSheetField(value: $flightSegments[index].originCode, placeholder: "DEL")
+                            }
+                            VStack(alignment: .leading, spacing: 6) {
+                                TripFieldLabel(text: "To")
+                                TripSheetField(value: $flightSegments[index].destinationCode, placeholder: "KIX")
+                            }
+                        }
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                TripFieldLabel(text: "Class")
+                                Menu {
+                                    ForEach(seatClasses, id: \.self) { c in
+                                        Button(c) { flightSegments[index].seatClass = c }
+                                    }
+                                } label: {
+                                    HStack {
+                                        Text(flightSegments[index].seatClass)
+                                            .font(.plusJakarta(size: 14))
+                                            .foregroundStyle(TripForm.text)
+                                        Spacer()
+                                        Image(systemName: "chevron.down")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(TripForm.muted)
+                                    }
+                                    .frame(minHeight: 44)
+                                    .padding(.horizontal, 16)
+                                    .background(TripForm.field.opacity(0.5))
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(TripForm.border))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                }
+                            }
+                            VStack(alignment: .leading, spacing: 6) {
+                                TripFieldLabel(text: "Seat")
+                                TripSheetField(value: $flightSegments[index].seatNumber, placeholder: "12A")
+                            }
+                        }
+                        VStack(alignment: .leading, spacing: 6) {
+                            TripFieldLabel(text: "Departure")
+                            TripDateTimePickField(date: $flightSegments[index].departDate, time: $flightSegments[index].departTime, placeholder: "Depart")
+                        }
+                        VStack(alignment: .leading, spacing: 6) {
+                            TripFieldLabel(text: "Arrival")
+                            TripDateTimePickField(date: $flightSegments[index].arriveDate, time: $flightSegments[index].arriveTime, placeholder: "Arrive")
+                        }
+                    }
+                    .padding(12)
+                    .background(TripForm.field)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(TripForm.border))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                Button {
+                    flightSegments.append(FlightSegmentDraft(legLabel: flightSegments.count == 1 ? "RETURN" : "CONNECTING"))
+                } label: {
+                    Text("+ Add Segment")
+                        .font(.plusJakarta(size: 13, weight: .semibold))
+                        .foregroundStyle(TripForm.accent)
+                }
+                .buttonStyle(.plain)
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        TripFieldLabel(text: "Confirmation #")
+                        TripSheetField(value: $confirmationNumber, placeholder: "6E-CONF-4421")
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        TripFieldLabel(text: "Total Cost (\(TravelCurrencyCatalog.symbol(bookingCurrency)))")
+                        TripSheetField(value: $bookingCost, placeholder: "28,400", keyboardType: .decimalPad)
+                    }
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    TripFieldLabel(text: "Cost (\(TravelCurrencyCatalog.symbol(bookingCurrency)))")
-                    TripSheetField(value: $bookingCost, placeholder: "42,500", keyboardType: .decimalPad)
+                    TripFieldLabel(text: "Currency")
+                    TripCurrencyMenuField(code: $bookingCurrency, preferred: preferredCurrencies)
+                }
+            } else {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        TripFieldLabel(text: "Confirmation #")
+                        TripSheetField(value: $confirmationNumber, placeholder: "REF-12345")
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        TripFieldLabel(text: "Cost (\(TravelCurrencyCatalog.symbol(bookingCurrency)))")
+                        TripSheetField(value: $bookingCost, placeholder: "5,000", keyboardType: .decimalPad)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    TripFieldLabel(text: "Currency")
+                    TripCurrencyMenuField(code: $bookingCurrency, preferred: preferredCurrencies)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    TripFieldLabel(text: "Date Range")
+                    TripDateRangeField(start: $dateIso, end: $endDateIso)
                 }
             }
-            VStack(alignment: .leading, spacing: 6) {
-                TripFieldLabel(text: "Date Range (Check-In / Check-Out)")
-                TripDateRangeField(start: $dateIso, end: $endDateIso)
+
+            if !bookingPlaces.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    TripFieldLabel(text: "Places")
+                    FlowLayout(spacing: 8) {
+                        ForEach(bookingPlaces.filter { $0.placeId != nil }, id: \.placeId) { place in
+                            let id = place.placeId!
+                            let on = selectedPlaceIds.contains(id)
+                            Button {
+                                if on { selectedPlaceIds.remove(id) } else { selectedPlaceIds.insert(id) }
+                            } label: {
+                                Text(place.label ?? String(id.prefix(8)))
+                                    .font(.plusJakarta(size: 12, weight: .semibold))
+                                    .foregroundStyle(on ? TripForm.accent : TripForm.muted)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(on ? TripForm.accent.opacity(0.15) : TripForm.field)
+                                    .overlay(Capsule().stroke(on ? TripForm.accent : TripForm.border))
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
             }
+
             if !participants.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     TripFieldLabel(text: "Booked By")
@@ -327,12 +557,164 @@ struct GroupCollabSheet: View {
                     }
                 }
             }
+
             TripToggleRow(
                 title: "Status: Confirmed",
                 subtitle: "Mark booking immediately as secured",
                 isOn: $bookingConfirmed,
                 accent: TripForm.accent
             )
+            TripToggleRow(
+                title: "Link as group expense",
+                subtitle: "Split the booking cost with members",
+                isOn: $linkExpense,
+                accent: TripForm.accent
+            )
+            if linkExpense && !participants.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    TripFieldLabel(text: "Paid By")
+                    Menu {
+                        ForEach(participants, id: \.participantId) { p in
+                            Button(p.displayName ?? String(p.participantId.prefix(8))) {
+                                paidById = p.participantId
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text(
+                                participants.first(where: { $0.participantId == paidById })?.displayName
+                                    ?? participants.first?.displayName
+                                    ?? "You"
+                            )
+                            .font(.plusJakarta(size: 13, weight: .semibold))
+                            .foregroundStyle(TripForm.text)
+                            Spacer()
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(TripForm.muted)
+                        }
+                        .padding(12)
+                        .background(TripForm.field)
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(TripForm.border))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    TripFieldLabel(text: "Split Type")
+                    HStack(spacing: 4) {
+                        ForEach(splitLabels, id: \.1) { item in
+                            let on = splitStrategy == item.1
+                            Button {
+                                splitStrategy = item.1
+                                let ids = Array(splitIds).sorted()
+                                switch item.1 {
+                                case "PERCENTAGE":
+                                    if !ids.isEmpty {
+                                        let even = String(format: "%.2f", 100.0 / Double(ids.count))
+                                        splitValues = Dictionary(uniqueKeysWithValues: ids.map { ($0, even) })
+                                    }
+                                case "EXACT":
+                                    if let total = Decimal(string: bookingCost.replacingOccurrences(of: ",", with: "")),
+                                       !ids.isEmpty, total > 0 {
+                                        let n = Decimal(ids.count)
+                                        let base = (total / n as NSDecimalNumber).rounding(accordingToBehavior: NSDecimalNumberHandler(
+                                            roundingMode: .down, scale: 2,
+                                            raiseOnExactness: false, raiseOnOverflow: false,
+                                            raiseOnUnderflow: false, raiseOnDivideByZero: false
+                                        )).decimalValue
+                                        var map: [String: String] = [:]
+                                        var allocated = Decimal(0)
+                                        for (i, id) in ids.enumerated() {
+                                            if i == ids.count - 1 {
+                                                map[id] = "\(total - allocated)"
+                                            } else {
+                                                map[id] = "\(base)"
+                                                allocated += base
+                                            }
+                                        }
+                                        splitValues = map
+                                    } else {
+                                        splitValues = Dictionary(uniqueKeysWithValues: ids.map { ($0, "") })
+                                    }
+                                default:
+                                    splitValues = [:]
+                                }
+                            } label: {
+                                Text(item.0)
+                                    .font(.plusJakarta(size: 12, weight: .semibold))
+                                    .foregroundStyle(on ? .white : TripForm.muted)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(on ? TripForm.accent : Color.clear)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(4)
+                    .background(TripForm.field)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                if splitStrategy == "POOLED" {
+                    Text("Household spend — no per-member split.")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(TripForm.muted)
+                } else {
+                    TripParticipantPicker(participants: participants, selectedIds: $splitIds, accent: TripForm.accent)
+                }
+                if splitStrategy != "EQUAL" && splitStrategy != "POOLED" && !splitIds.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        TripFieldLabel(text: splitStrategy == "PERCENTAGE" ? "Percent (must sum to 100)" : "Exact amount per person")
+                        ForEach(Array(splitIds).sorted(), id: \.self) { id in
+                            let name = participants.first(where: { $0.participantId == id })?.displayName ?? String(id.prefix(8))
+                            HStack {
+                                Text(name)
+                                    .font(.plusJakarta(size: 12))
+                                    .foregroundStyle(TripForm.text)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                TripSheetField(
+                                    value: Binding(
+                                        get: { splitValues[id] ?? "" },
+                                        set: { splitValues[id] = $0 }
+                                    ),
+                                    placeholder: splitStrategy == "PERCENTAGE" ? "%" : "0.00",
+                                    keyboardType: .decimalPad
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                        }
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                TripFieldLabel(text: "Documents")
+                Button { showDocImporter = true } label: {
+                    HStack {
+                        Text(
+                            uploadingDoc
+                                ? "Uploading…"
+                                : (attachmentNames.isEmpty ? "Upload confirmation / ticket" : attachmentNames.joined(separator: ", "))
+                        )
+                        .font(.plusJakarta(size: 13))
+                        .foregroundStyle(TripForm.muted)
+                        Spacer()
+                        Text("+ Add")
+                            .font(.plusJakarta(size: 12, weight: .bold))
+                            .foregroundStyle(TripForm.accent)
+                    }
+                    .padding(12)
+                    .background(TripForm.field)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(TripForm.border))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .disabled(uploadingDoc)
+            }
+        }
+        .fileImporter(isPresented: $showDocImporter, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            Task { await uploadBookingDocument(url: url) }
         }
     }
 
@@ -543,7 +925,12 @@ struct GroupCollabSheet: View {
     }
 
     private func loadParticipants() async {
-        bookingCurrency = await MomentCurrencyContextLoader.loadGroup(momentId: momentId).primary
+        let currencyCtx = await MomentCurrencyContextLoader.loadGroup(momentId: momentId)
+        bookingCurrency = currencyCtx.primary
+        preferredCurrencies = {
+            var seen = Set<String>()
+            return ([currencyCtx.primary] + currencyCtx.preferred).filter { seen.insert($0).inserted }
+        }()
         do {
             let list = try await APIClient.shared.listGroupParticipants(momentId: momentId)
             participants = list.filter {
@@ -551,17 +938,88 @@ struct GroupCollabSheet: View {
             }
             assignedIds = Set(participants.map(\.participantId))
             taggedIds = Set(participants.prefix(3).map(\.participantId))
+            splitIds = Set(participants.map(\.participantId))
             if bookedById == nil {
                 bookedById = participants.first?.participantId
+            }
+            if paidById == nil {
+                paidById = participants.first?.participantId
             }
         } catch {
             // best-effort
         }
+        if let prefill = try? await APIClient.shared.getGroupSetupPrefill(momentId: momentId) {
+            bookingPlaces = (prefill.places ?? []).filter { $0.placeId != nil }
+        }
+    }
+
+    private func uploadBookingDocument(url: URL) async {
+        uploadingDoc = true
+        defer { uploadingDoc = false }
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let data = try Data(contentsOf: url)
+            let mime = "application/octet-stream"
+            let uploadId = try await APIClient.shared.uploadBookingMedia(momentId: momentId, bytes: data, contentType: mime)
+            attachmentUploadIds.append(uploadId)
+            attachmentNames.append(url.lastPathComponent)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func normalizeMoney(_ raw: String) -> String? {
+        let cleaned = raw.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
+        guard cleaned.range(of: #"^\d+(\.\d{1,4})?$"#, options: .regularExpression) != nil else { return nil }
+        return cleaned
+    }
+
+    private func bookingTypeCode() -> String {
+        switch bookingType {
+        case "Hotel": return "HOTEL"
+        case "Flight": return "FLIGHT"
+        case "Transport": return "TRANSPORT"
+        case "Activity": return "ACTIVITY"
+        case "Restaurant": return "RESTAURANT"
+        default: return "OTHER"
+        }
+    }
+
+    private func dateTimeIso(date: String, time: String) -> String? {
+        guard !date.isEmpty || !time.isEmpty else { return nil }
+        let cal = Calendar.current
+        var comps = DateComponents()
+        let daySource = !date.isEmpty ? SetupDateTimeUtils.dateFromIso(date) : Date()
+        let day = cal.dateComponents([.year, .month, .day], from: daySource)
+        comps.year = day.year
+        comps.month = day.month
+        comps.day = day.day
+        if !time.isEmpty {
+            let t = cal.dateComponents([.hour, .minute], from: SetupDateTimeUtils.timeFromIso(time))
+            comps.hour = t.hour
+            comps.minute = t.minute
+        } else {
+            comps.hour = 0
+            comps.minute = 0
+        }
+        comps.second = 0
+        guard let combined = cal.date(from: comps) else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        formatter.timeZone = .current
+        return formatter.string(from: combined)
     }
 
     private func save() async {
         let trimmed = primary.trimmingCharacters(in: .whitespacesAndNewlines)
-        if kind != .memory {
+        if kind == .booking {
+            guard canSubmit else {
+                error = "Required"
+                return
+            }
+        } else if kind != .memory {
             guard !trimmed.isEmpty else {
                 error = "Required"
                 return
@@ -590,10 +1048,128 @@ struct GroupCollabSheet: View {
                     description: note.isEmpty ? nil : note
                 )
             case .booking:
+                let stayBodies: [APIClient.BookingStayBody] = bookingType == "Hotel"
+                    ? hotelStays.compactMap { s in
+                        let name = s.hotelName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !name.isEmpty else { return nil }
+                        return APIClient.BookingStayBody(
+                            hotelName: name,
+                            referenceCode: s.referenceCode.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+                            amount: normalizeMoney(s.amount),
+                            currencyCode: bookingCurrency,
+                            startAt: dateTimeIso(date: s.startDate, time: ""),
+                            endAt: dateTimeIso(date: s.endDate, time: "")
+                        )
+                    }
+                    : []
+                let segmentBodies: [APIClient.BookingFlightSegmentBody] = bookingType == "Flight"
+                    ? flightSegments.map { s in
+                        APIClient.BookingFlightSegmentBody(
+                            legLabel: s.legLabel,
+                            airline: s.airline.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+                            flightNumber: s.flightNumber.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+                            originCode: s.originCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased().nilIfEmpty,
+                            destinationCode: s.destinationCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased().nilIfEmpty,
+                            seatClass: s.seatClass.nilIfEmpty,
+                            seatNumber: s.seatNumber.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+                            departAt: dateTimeIso(date: s.departDate, time: s.departTime),
+                            arriveAt: dateTimeIso(date: s.arriveDate, time: s.arriveTime)
+                        )
+                    }
+                    : []
+                let amount = normalizeMoney(bookingCost) ?? stayBodies.compactMap(\.amount).first
+                if linkExpense, let amount {
+                    let ids = Array(splitIds).sorted()
+                    switch splitStrategy {
+                    case "PERCENTAGE":
+                        let sum = ids.reduce(0.0) { $0 + (Double(splitValues[$1] ?? "0") ?? 0) }
+                        if abs(sum - 100) > 0.01 {
+                            error = "Percents must sum to 100 (now \(sum))"
+                            busy = false
+                            return
+                        }
+                    case "EXACT":
+                        let sum = ids.reduce(Decimal.zero) { acc, id in
+                            acc + (Decimal(string: splitValues[id] ?? "0") ?? 0)
+                        }
+                        let total = Decimal(string: amount) ?? -1
+                        if sum != total {
+                            error = "Exact amounts must equal booking cost"
+                            busy = false
+                            return
+                        }
+                    default:
+                        break
+                    }
+                    if splitStrategy != "POOLED" && ids.isEmpty {
+                        error = "Select at least one member for the split"
+                        busy = false
+                        return
+                    }
+                    if paidById == nil {
+                        error = "Select who paid"
+                        busy = false
+                        return
+                    }
+                }
+                let resolvedTitle = trimmed.isEmpty
+                    ? (stayBodies.first?.hotelName
+                        ?? [segmentBodies.first?.airline, segmentBodies.first?.flightNumber].compactMap { $0 }.joined(separator: " ")
+                        .nilIfEmpty
+                        ?? bookingType)
+                    : trimmed
+                let headerStart: String? = {
+                    switch bookingType {
+                    case "Hotel": return stayBodies.first?.startAt
+                    case "Flight": return segmentBodies.first?.departAt
+                    default: return dateTimeIso(date: dateIso, time: "")
+                    }
+                }()
+                let headerEnd: String? = {
+                    switch bookingType {
+                    case "Hotel": return stayBodies.last?.endAt
+                    case "Flight": return segmentBodies.last?.arriveAt
+                    default: return dateTimeIso(date: endDateIso, time: "")
+                    }
+                }()
+                let ref = confirmationNumber.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                    ?? stayBodies.first?.referenceCode
+                let ids = Array(splitIds).sorted()
+                let splitInputs: [APIClient.GroupSplitInput]? = {
+                    guard linkExpense, amount != nil else { return nil }
+                    switch splitStrategy {
+                    case "POOLED":
+                        return []
+                    case "EQUAL":
+                        return GroupActionRegistry.equalSplitInputs(participantIds: ids)
+                    case "PERCENTAGE":
+                        return ids.map { APIClient.GroupSplitInput(participantId: $0, percent: splitValues[$0]) }
+                    case "EXACT":
+                        return ids.map { APIClient.GroupSplitInput(participantId: $0, amount: splitValues[$0]) }
+                    default:
+                        return ids.map { APIClient.GroupSplitInput(participantId: $0) }
+                    }
+                }()
                 _ = try await APIClient.shared.createBooking(
                     momentId: momentId,
-                    title: trimmed,
-                    bookedAt: combinedIso() ?? SetupDateTimeUtils.isoDateToStartInstant(dateIso)
+                    title: resolvedTitle,
+                    bookingType: bookingTypeCode(),
+                    referenceCode: ref,
+                    amount: amount,
+                    currencyCode: amount == nil ? nil : bookingCurrency,
+                    startAt: headerStart,
+                    endAt: headerEnd,
+                    bookedAt: headerStart,
+                    status: bookingConfirmed ? "CONFIRMED" : "PLANNED",
+                    bookedByParticipantId: bookedById,
+                    paidByParticipantId: (linkExpense && amount != nil) ? paidById : nil,
+                    placeIds: selectedPlaceIds.isEmpty ? nil : Array(selectedPlaceIds),
+                    stays: stayBodies.isEmpty ? nil : stayBodies,
+                    flightSegments: segmentBodies.isEmpty ? nil : segmentBodies,
+                    linkExpense: linkExpense && amount != nil,
+                    splitStrategy: (linkExpense && amount != nil) ? splitStrategy : nil,
+                    splitInputs: splitInputs,
+                    attachmentUploadIds: attachmentUploadIds.isEmpty ? nil : attachmentUploadIds
                 )
             case .poll:
                 var opts = [

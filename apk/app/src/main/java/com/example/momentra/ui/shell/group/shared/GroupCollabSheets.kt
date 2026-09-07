@@ -164,7 +164,7 @@ fun GroupCollabSheet(
         ) {
             when (kind) {
                 GroupCollabKind.PLANNING -> PlanningBody(momentId, repository, onDismiss, onSaved, momentTypeCode)
-                GroupCollabKind.BOOKING -> BookingBody(momentId, repository, onDismiss, onSaved)
+                GroupCollabKind.BOOKING -> BookingBody(momentId, repository, onDismiss, onSaved, momentTypeCode)
                 GroupCollabKind.POLL -> PollBody(momentId, repository, onDismiss, onSaved)
                 GroupCollabKind.UPDATE -> UpdateBody(momentId, repository, onDismiss, onSaved)
                 GroupCollabKind.MEMORY -> MemoryBody(momentId, repository, onDismiss, onSaved)
@@ -429,13 +429,36 @@ private fun PlanningBody(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BookingBody(
     momentId: String,
     repository: GroupSliceRepository,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
+    momentTypeCode: String? = null,
 ) {
+    data class StayDraft(
+        var hotelName: String = "",
+        var referenceCode: String = "",
+        var amount: String = "",
+        var startDate: String = "",
+        var endDate: String = "",
+    )
+    data class SegmentDraft(
+        var legLabel: String = "OUTBOUND",
+        var airline: String = "",
+        var flightNumber: String = "",
+        var originCode: String = "",
+        var destinationCode: String = "",
+        var seatClass: String = "Economy",
+        var seatNumber: String = "",
+        var departDate: String = "",
+        var departTime: String = "",
+        var arriveDate: String = "",
+        var arriveTime: String = "",
+    )
+
     var bookingType by remember { mutableStateOf("Hotel") }
     var title by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
@@ -443,67 +466,358 @@ private fun BookingBody(
     var startDate by remember { mutableStateOf("") }
     var endDate by remember { mutableStateOf("") }
     var confirmed by remember { mutableStateOf(true) }
+    var linkExpense by remember { mutableStateOf(true) }
+    var splitStrategy by remember { mutableStateOf("EQUAL") }
     var participants by remember { mutableStateOf<List<com.example.momentra.data.api.GroupParticipantDto>>(emptyList()) }
     var bookedById by remember { mutableStateOf<String?>(null) }
+    var paidById by remember { mutableStateOf<String?>(null) }
+    var splitIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var splitValues by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var places by remember { mutableStateOf<List<com.example.momentra.data.api.GroupSetupPlacePrefillDto>>(emptyList()) }
+    var selectedPlaceIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var preferredCurrencies by remember { mutableStateOf(listOf("INR", "JPY", "USD")) }
     var currency by remember { mutableStateOf("INR") }
+    val stays = remember { mutableStateListOf(StayDraft()) }
+    val segments = remember {
+        mutableStateListOf(
+            SegmentDraft(legLabel = "OUTBOUND"),
+            SegmentDraft(legLabel = "RETURN"),
+        )
+    }
+    val attachmentIds = remember { mutableStateListOf<String>() }
+    var attachmentNames by remember { mutableStateOf<List<String>>(emptyList()) }
     var submitting by remember { mutableStateOf(false) }
+    var uploadingDoc by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val costSymbol = remember(currency) { TravelCurrencyCatalog.symbol(currency) }
+    val seatClasses = listOf("Economy", "Premium Economy", "Business", "First")
+
+    val docPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            uploadingDoc = true
+            error = null
+            runCatching {
+                val bytes = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: error("Could not read document")
+                }
+                val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                val name = uri.lastPathSegment ?: "document"
+                repository.uploadBookingMedia(momentId, bytes, mime).getOrThrow().also { id ->
+                    attachmentIds.add(id)
+                    attachmentNames = attachmentNames + name
+                }
+            }.onFailure { error = it.message }
+            uploadingDoc = false
+        }
+    }
 
     LaunchedEffect(momentId) {
         val ctx = loadGroupCurrencyContext(momentId)
         currency = ctx.primary
+        preferredCurrencies = (listOf(ctx.primary) + ctx.preferred).distinct()
         repository.getParticipants(momentId).fold(
             onSuccess = { dto ->
                 participants = dto.participants
                 bookedById = dto.participants.firstOrNull()?.participantId
+                paidById = dto.participants.firstOrNull()?.participantId
+                splitIds = dto.participants.map { it.participantId }.toSet()
+            },
+            onFailure = { /* best-effort */ },
+        )
+        com.example.momentra.data.repository.MomentCreateRepository().getGroupSetupPrefill(momentId).fold(
+            onSuccess = { prefill ->
+                places = prefill.places.orEmpty().filter { !it.placeId.isNullOrBlank() }
             },
             onFailure = { /* best-effort */ },
         )
     }
 
-    TripSheetHeaderRow("Add Booking", "Attach reservations to your Kyoto timeline", R.drawable.ic_group_qa_ticket, TripSheet.Orange)
+    fun bookingTypeCode(): String = when (bookingType) {
+        "Hotel" -> "HOTEL"
+        "Flight" -> "FLIGHT"
+        "Transport" -> "TRANSPORT"
+        "Activity" -> "ACTIVITY"
+        "Restaurant" -> "RESTAURANT"
+        else -> "OTHER"
+    }
+
+    fun normalizeAmount(raw: String): String? {
+        val cleaned = raw.replace(",", "").trim()
+        if (cleaned.isBlank()) return null
+        return cleaned.takeIf { it.matches(Regex("""^\d+(\.\d{1,4})?$""")) }
+    }
+
+    val livingTypes = remember {
+        setOf("FAMILY_HOUSEHOLD", "FLATMATES", "CO_LIVING", "SHARED_LIVING", "COMMUNITY_LIVING")
+    }
+    val supportsPooled = remember(momentTypeCode) {
+        livingTypes.contains((momentTypeCode ?: "").trim().uppercase())
+    }
+    val figmaSplitLabels = remember(supportsPooled) {
+        buildList {
+            add("Equal" to "EQUAL")
+            add("Custom" to "EXACT")
+            add("% Percent" to "PERCENTAGE")
+            if (supportsPooled) add("Pooled" to "POOLED")
+        }
+    }
+
+    val previewShares = remember(cost, splitIds, splitStrategy, splitValues, linkExpense) {
+        if (!linkExpense) return@remember emptyList<Pair<String, String>>()
+        val total = normalizeAmount(cost)?.toBigDecimalOrNull() ?: return@remember emptyList()
+        if (splitIds.isEmpty() || total <= java.math.BigDecimal.ZERO) return@remember emptyList()
+        val ids = splitIds.sorted()
+        when (splitStrategy) {
+            "EQUAL" -> {
+                val n = ids.size
+                val base = total.divide(java.math.BigDecimal(n), 4, java.math.RoundingMode.DOWN)
+                val allocated = base.multiply(java.math.BigDecimal(n))
+                val remainder = total.subtract(allocated)
+                ids.mapIndexed { index, id ->
+                    val share = if (index == 0) base.add(remainder) else base
+                    id to share.toPlainString()
+                }
+            }
+            "PERCENTAGE" -> ids.map { id ->
+                val pct = splitValues[id]?.toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
+                id to total.multiply(pct).divide(java.math.BigDecimal(100), 4, java.math.RoundingMode.HALF_UP).toPlainString()
+            }
+            "EXACT" -> ids.map { id -> id to (splitValues[id] ?: "0") }
+            else -> emptyList()
+        }
+    }
+
+    val canSubmit = when (bookingType) {
+        "Hotel" -> title.isNotBlank() || stays.any { it.hotelName.isNotBlank() }
+        "Flight" -> title.isNotBlank() || segments.any { it.airline.isNotBlank() || it.flightNumber.isNotBlank() }
+        else -> title.isNotBlank()
+    }
+
+    TripSheetHeaderRow(
+        if (bookingType == "Flight") "Add Flight" else "Add Booking",
+        "Attach reservations to your trip timeline",
+        R.drawable.ic_group_qa_ticket,
+        TripSheet.Orange,
+    )
     TripChipRow(listOf("Hotel", "Flight", "Transport", "Activity", "Restaurant"), bookingType, { bookingType = it }, TripSheet.Orange)
+
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        TripFieldLabel("Booking Name")
-        TripSheetField(title, { title = it }, "MIMARU Kyoto Stay")
+        TripFieldLabel(if (bookingType == "Flight") "Trip / Booking Name" else "Booking Name")
+        TripSheetField(title, { title = it }, if (bookingType == "Flight") "DEL → KIX Round Trip" else "MIMARU Kyoto Stay")
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            TripFieldLabel("Confirmation #")
-            TripSheetField(confirmation, { confirmation = it }, "MMR-98402X")
+
+    when (bookingType) {
+        "Hotel" -> {
+            stays.forEachIndexed { index, stay ->
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(TripSheet.Field)
+                        .border(1.dp, TripSheet.Border, RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                ) {
+                    Text("Stay ${index + 1}", color = TripSheet.Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+                    TripFieldLabel("Hotel Name")
+                    TripSheetField(stay.hotelName, { stays[index] = stay.copy(hotelName = it) }, "MIMARU Kyoto")
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TripFieldLabel("Confirmation #")
+                            TripSheetField(stay.referenceCode, { stays[index] = stay.copy(referenceCode = it) }, "MMR-98402X")
+                        }
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TripFieldLabel("Cost ($costSymbol)")
+                            TripSheetField(stay.amount, { stays[index] = stay.copy(amount = it) }, "42,500")
+                        }
+                    }
+                    TripFieldLabel("Check-In / Check-Out")
+                    TripDateRangeField(
+                        stay.startDate,
+                        stay.endDate,
+                        { stays[index] = stay.copy(startDate = it) },
+                        { stays[index] = stay.copy(endDate = it) },
+                    )
+                }
+            }
+            Text(
+                "+ Add Stay",
+                color = TripSheet.Orange,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier.clickable { stays.add(StayDraft()) },
+            )
+            // Sync top-level cost from first stay when empty
+            if (cost.isBlank() && stays.firstOrNull()?.amount?.isNotBlank() == true) {
+                // display-only hint via primary cost row below for split
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TripFieldLabel("Total Cost ($costSymbol)")
+                    TripSheetField(cost, { cost = it }, stays.firstOrNull()?.amount?.ifBlank { "42,500" } ?: "42,500")
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TripFieldLabel("Currency")
+                    TripCurrencyDropdown(currency, preferredCurrencies) { currency = it }
+                }
+            }
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            TripFieldLabel("Cost ($costSymbol)")
-            TripSheetField(cost, { cost = it }, "42,500")
+        "Flight" -> {
+            segments.forEachIndexed { index, seg ->
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(TripSheet.Field)
+                        .border(1.dp, TripSheet.Border, RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                ) {
+                    Text(
+                        when (seg.legLabel) {
+                            "RETURN" -> "Return"
+                            "CONNECTING" -> "Connecting"
+                            else -> "Outbound"
+                        },
+                        color = TripSheet.Muted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TripFieldLabel("Airline")
+                            TripSheetField(seg.airline, { segments[index] = seg.copy(airline = it) }, "IndiGo")
+                        }
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TripFieldLabel("Flight #")
+                            TripSheetField(seg.flightNumber, { segments[index] = seg.copy(flightNumber = it) }, "6E 214")
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TripFieldLabel("From")
+                            TripSheetField(seg.originCode, { segments[index] = seg.copy(originCode = it.uppercase()) }, "DEL")
+                        }
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TripFieldLabel("To")
+                            TripSheetField(seg.destinationCode, { segments[index] = seg.copy(destinationCode = it.uppercase()) }, "KIX")
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TripFieldLabel("Class")
+                            TripDropdownField(seg.seatClass, seatClasses, { segments[index] = seg.copy(seatClass = it) })
+                        }
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TripFieldLabel("Seat")
+                            TripSheetField(seg.seatNumber, { segments[index] = seg.copy(seatNumber = it) }, "12A")
+                        }
+                    }
+                    TripFieldLabel("Departure")
+                    TripDateTimePickField(
+                        seg.departDate,
+                        seg.departTime,
+                        { segments[index] = seg.copy(departDate = it) },
+                        { segments[index] = seg.copy(departTime = it) },
+                        "Depart",
+                    )
+                    TripFieldLabel("Arrival")
+                    TripDateTimePickField(
+                        seg.arriveDate,
+                        seg.arriveTime,
+                        { segments[index] = seg.copy(arriveDate = it) },
+                        { segments[index] = seg.copy(arriveTime = it) },
+                        "Arrive",
+                    )
+                }
+            }
+            Text(
+                "+ Add Segment",
+                color = TripSheet.Orange,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier.clickable {
+                    segments.add(SegmentDraft(legLabel = if (segments.size == 1) "RETURN" else "CONNECTING"))
+                },
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TripFieldLabel("Confirmation #")
+                    TripSheetField(confirmation, { confirmation = it }, "6E-CONF-4421")
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TripFieldLabel("Total Cost ($costSymbol)")
+                    TripSheetField(cost, { cost = it }, "28,400")
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                TripFieldLabel("Currency")
+                TripCurrencyDropdown(currency, preferredCurrencies) { currency = it }
+            }
+        }
+        else -> {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TripFieldLabel("Confirmation #")
+                    TripSheetField(confirmation, { confirmation = it }, "REF-12345")
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TripFieldLabel("Cost ($costSymbol)")
+                    TripSheetField(cost, { cost = it }, "5,000")
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                TripFieldLabel("Currency")
+                TripCurrencyDropdown(currency, preferredCurrencies) { currency = it }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                TripFieldLabel("Date Range")
+                TripDateRangeField(startDate, endDate, { startDate = it }, { endDate = it })
+            }
         }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        TripFieldLabel("Date Range (Check-In / Check-Out)")
-        TripDatePickField(startDate, { startDate = it }, "Check-in")
-        if (startDate.isNotBlank()) {
-            TripDatePickField(endDate, { endDate = it }, "Check-out")
+
+    if (places.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            TripFieldLabel("Places")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                places.forEach { place ->
+                    val id = place.placeId ?: return@forEach
+                    val on = selectedPlaceIds.contains(id)
+                    Text(
+                        place.label ?: id.take(8),
+                        color = if (on) TripSheet.Orange else TripSheet.Muted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(if (on) TripSheet.Orange.copy(alpha = 0.15f) else TripSheet.Field)
+                            .border(1.dp, if (on) TripSheet.Orange else TripSheet.Border, RoundedCornerShape(999.dp))
+                            .clickable {
+                                selectedPlaceIds = if (on) selectedPlaceIds - id else selectedPlaceIds + id
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
+            }
         }
     }
-  if (participants.isNotEmpty()) {
-        val bookedName = participants.firstOrNull { it.participantId == bookedById }?.displayName ?: "You"
+
+    if (participants.isNotEmpty()) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             TripFieldLabel("Booked By")
-            Text(bookedName, color = TripSheet.Text, fontSize = 14.sp, fontFamily = PlusJakartaSans,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(TripSheet.Field)
-                    .border(1.dp, TripSheet.Border, RoundedCornerShape(10.dp))
-                    .clickable {
-                        val idx = participants.indexOfFirst { it.participantId == bookedById }
-                        val next = participants[(idx + 1) % participants.size]
-                        bookedById = next.participantId
-                    }
-                    .padding(12.dp))
+            TripPaidByField(participants, bookedById, { bookedById = it }, TripSheet.Orange)
         }
     }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -515,17 +829,314 @@ private fun BookingBody(
         }
         Switch(checked = confirmed, onCheckedChange = { confirmed = it }, colors = SwitchDefaults.colors(checkedTrackColor = TripSheet.Orange))
     }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column {
+            Text("Link as group expense", color = TripSheet.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+            Text("Split the booking cost with members", color = TripSheet.Muted, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+        }
+        Switch(checked = linkExpense, onCheckedChange = { linkExpense = it }, colors = SwitchDefaults.colors(checkedTrackColor = TripSheet.Orange))
+    }
+    if (linkExpense && participants.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            TripFieldLabel("Paid By")
+            TripPaidByField(participants, paidById, { paidById = it }, TripSheet.Orange)
+        }
+        TripFieldLabel("Split Type")
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(TripSheet.Field)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            figmaSplitLabels.forEach { (label, strategy) ->
+                val on = splitStrategy == strategy
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (on) TripSheet.Orange else Color.Transparent)
+                        .clickable {
+                            splitStrategy = strategy
+                            when (strategy) {
+                                "PERCENTAGE" -> if (splitIds.isNotEmpty()) {
+                                    val even = 100.0 / splitIds.size
+                                    splitValues = splitIds.associateWith { String.format("%.2f", even) }
+                                }
+                                "EXACT" -> {
+                                    val total = normalizeAmount(cost)?.toBigDecimalOrNull()
+                                    if (splitIds.isNotEmpty() && total != null && total > java.math.BigDecimal.ZERO) {
+                                        val n = splitIds.size
+                                        val base = total.divide(java.math.BigDecimal(n), 2, java.math.RoundingMode.DOWN)
+                                        val ids = splitIds.sorted()
+                                        val allocated = base.multiply(java.math.BigDecimal(n - 1))
+                                        val last = total.subtract(allocated)
+                                        splitValues = ids.mapIndexed { index, id ->
+                                            id to if (index == n - 1) last.toPlainString() else base.toPlainString()
+                                        }.toMap()
+                                    } else {
+                                        splitValues = splitIds.associateWith { "" }
+                                    }
+                                }
+                                else -> splitValues = emptyMap()
+                            }
+                        }
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        color = if (on) Color.White else TripSheet.Muted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
+            }
+        }
+        if (splitStrategy == "POOLED") {
+            Text(
+                "Household spend — no per-member split.",
+                color = TripSheet.Muted,
+                fontSize = 12.sp,
+                fontFamily = PlusJakartaSans,
+            )
+        } else {
+            TripParticipantPicker(
+                participants = participants,
+                selectedIds = splitIds,
+                onToggle = { id ->
+                    splitIds = if (splitIds.contains(id)) {
+                        if (splitIds.size <= 1) splitIds else splitIds - id
+                    } else {
+                        splitIds + id
+                    }
+                },
+                accent = TripSheet.Orange,
+            )
+        }
+        if (splitStrategy != "EQUAL" && splitStrategy != "POOLED" && splitIds.isNotEmpty()) {
+            TripFieldLabel(
+                when (splitStrategy) {
+                    "PERCENTAGE" -> "Percent (must sum to 100)"
+                    "EXACT" -> "Exact amount per person"
+                    else -> "Share"
+                },
+            )
+            splitIds.sorted().forEach { id ->
+                val name = participants.firstOrNull { it.participantId == id }?.displayName ?: id.take(8)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(name, color = TripSheet.Text, fontSize = 12.sp, fontFamily = PlusJakartaSans, modifier = Modifier.weight(1f))
+                    Box(modifier = Modifier.weight(1f)) {
+                        TripSheetField(
+                            splitValues[id].orEmpty(),
+                            { splitValues = splitValues + (id to it) },
+                            if (splitStrategy == "PERCENTAGE") "%" else "0.00",
+                        )
+                    }
+                }
+            }
+        }
+        if (previewShares.isNotEmpty() && splitStrategy != "POOLED") {
+            TripFieldLabel(
+                when (splitStrategy) {
+                    "EQUAL" -> "Equal split preview"
+                    "PERCENTAGE" -> "Percent preview"
+                    else -> "Custom split preview"
+                },
+            )
+            previewShares.forEach { (id, share) ->
+                val name = participants.firstOrNull { it.participantId == id }?.displayName ?: id.take(8)
+                Text(
+                    "$name · $costSymbol$share",
+                    color = TripSheet.Muted,
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        TripFieldLabel("Documents")
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(TripSheet.Field)
+                .border(1.dp, TripSheet.Border, RoundedCornerShape(10.dp))
+                .clickable(enabled = !uploadingDoc) { docPicker.launch("*/*") }
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                when {
+                    uploadingDoc -> "Uploading…"
+                    attachmentNames.isEmpty() -> "Upload confirmation / ticket"
+                    else -> attachmentNames.joinToString(", ")
+                },
+                color = TripSheet.Muted,
+                fontSize = 13.sp,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier.weight(1f),
+            )
+            if (uploadingDoc) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = TripSheet.Orange)
+            } else {
+                Text("+ Add", color = TripSheet.Orange, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+            }
+        }
+    }
+
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
     TripPrimaryCta(
-        label = "Add Booking",
-        enabled = title.isNotBlank(),
+        label = if (bookingType == "Flight") "Add Flight" else "Add Booking",
+        enabled = canSubmit,
         loading = submitting,
         gradient = listOf(TripSheet.Orange, Color(0xFFE85940)),
         onClick = {
             scope.launch {
                 submitting = true
                 error = null
-                repository.createBooking(momentId = momentId, title = title.trim(), bookedAt = tripDateTimeToIso(startDate, null)).fold(
+                val amount = normalizeAmount(cost)
+                    ?: stays.mapNotNull { normalizeAmount(it.amount) }.firstOrNull()
+                if (linkExpense && amount != null) {
+                    when (splitStrategy) {
+                        "PERCENTAGE" -> {
+                            val sum = splitIds.sumOf { (splitValues[it]?.toDoubleOrNull() ?: 0.0) }
+                            if (kotlin.math.abs(sum - 100.0) > 0.01) {
+                                submitting = false
+                                error = "Percents must sum to 100 (now $sum)"
+                                return@launch
+                            }
+                        }
+                        "EXACT" -> {
+                            val total = amount.toBigDecimalOrNull()
+                            val sum = splitIds.fold(java.math.BigDecimal.ZERO) { acc, id ->
+                                acc.add(splitValues[id]?.toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO)
+                            }
+                            if (total == null || sum.compareTo(total) != 0) {
+                                submitting = false
+                                error = "Exact amounts must equal booking cost"
+                                return@launch
+                            }
+                        }
+                        else -> Unit
+                    }
+                    if (splitStrategy != "POOLED" && splitIds.isEmpty()) {
+                        submitting = false
+                        error = "Select at least one member for the split"
+                        return@launch
+                    }
+                    if (paidById == null) {
+                        submitting = false
+                        error = "Select who paid"
+                        return@launch
+                    }
+                }
+                val stayBodies = if (bookingType == "Hotel") {
+                    stays.filter { it.hotelName.isNotBlank() }.map { s ->
+                        com.example.momentra.data.api.BookingStayBody(
+                            hotelName = s.hotelName.trim(),
+                            referenceCode = s.referenceCode.trim().ifBlank { null },
+                            amount = normalizeAmount(s.amount),
+                            currencyCode = currency,
+                            startAt = tripDateTimeToIso(s.startDate, null),
+                            endAt = tripDateTimeToIso(s.endDate, null),
+                        )
+                    }
+                } else emptyList()
+                val segmentBodies = if (bookingType == "Flight") {
+                    segments.map { s ->
+                        com.example.momentra.data.api.BookingFlightSegmentBody(
+                            legLabel = s.legLabel,
+                            airline = s.airline.trim().ifBlank { null },
+                            flightNumber = s.flightNumber.trim().ifBlank { null },
+                            originCode = s.originCode.trim().ifBlank { null },
+                            destinationCode = s.destinationCode.trim().ifBlank { null },
+                            seatClass = s.seatClass.ifBlank { null },
+                            seatNumber = s.seatNumber.trim().ifBlank { null },
+                            departAt = tripDateTimeToIso(s.departDate, s.departTime),
+                            arriveAt = tripDateTimeToIso(s.arriveDate, s.arriveTime),
+                        )
+                    }
+                } else emptyList()
+                val resolvedTitle = title.trim().ifBlank {
+                    stayBodies.firstOrNull()?.hotelName
+                        ?: listOfNotNull(segmentBodies.firstOrNull()?.airline, segmentBodies.firstOrNull()?.flightNumber)
+                            .joinToString(" ")
+                            .ifBlank { bookingType }
+                }
+                val headerStart = when (bookingType) {
+                    "Hotel" -> stayBodies.firstOrNull()?.startAt
+                    "Flight" -> segmentBodies.firstOrNull()?.departAt
+                    else -> tripDateTimeToIso(startDate, null)
+                }
+                val headerEnd = when (bookingType) {
+                    "Hotel" -> stayBodies.lastOrNull()?.endAt
+                    "Flight" -> segmentBodies.lastOrNull()?.arriveAt
+                    else -> tripDateTimeToIso(endDate, null)
+                }
+                val ref = confirmation.trim().ifBlank {
+                    stayBodies.firstOrNull()?.referenceCode
+                }
+                val ids = splitIds.sorted()
+                val splitInputs = when {
+                    !linkExpense || amount == null -> null
+                    splitStrategy == "POOLED" -> emptyList()
+                    splitStrategy == "EQUAL" -> ids.map {
+                        com.example.momentra.data.api.GroupExpenseSplitInputDto(participantId = it)
+                    }
+                    splitStrategy == "PERCENTAGE" -> ids.map {
+                        com.example.momentra.data.api.GroupExpenseSplitInputDto(
+                            participantId = it,
+                            percent = splitValues[it],
+                        )
+                    }
+                    splitStrategy == "EXACT" -> ids.map {
+                        com.example.momentra.data.api.GroupExpenseSplitInputDto(
+                            participantId = it,
+                            amount = splitValues[it],
+                        )
+                    }
+                    else -> ids.map {
+                        com.example.momentra.data.api.GroupExpenseSplitInputDto(participantId = it)
+                    }
+                }
+                repository.createBooking(
+                    momentId = momentId,
+                    body = com.example.momentra.data.api.CreateBookingBody(
+                        title = resolvedTitle,
+                        bookingType = bookingTypeCode(),
+                        referenceCode = ref,
+                        amount = amount,
+                        currencyCode = if (amount != null) currency else null,
+                        startAt = headerStart,
+                        endAt = headerEnd,
+                        bookedAt = headerStart,
+                        status = if (confirmed) "CONFIRMED" else "PLANNED",
+                        bookedByParticipantId = bookedById,
+                        paidByParticipantId = if (linkExpense && amount != null) paidById else null,
+                        placeIds = selectedPlaceIds.toList().ifEmpty { null },
+                        stays = stayBodies.ifEmpty { null },
+                        flightSegments = segmentBodies.ifEmpty { null },
+                        linkExpense = linkExpense && amount != null,
+                        splitStrategy = if (linkExpense && amount != null) splitStrategy else null,
+                        splitInputs = splitInputs,
+                        attachmentUploadIds = attachmentIds.toList().ifEmpty { null },
+                    ),
+                ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )

@@ -43,7 +43,7 @@ data class PersonalLifeDto(
     /** FIGMA_SEEDED | REAL — never treat seeded sections as production PASS (S2 G3). */
     @SerializedName("dataQuality") val dataQuality: String = "REAL",
     @SerializedName("sectionQuality") val sectionQuality: Map<String, String> = emptyMap(),
-    val score: Int = 0,
+    val score: Int? = null,
     @SerializedName("scoreMax") val scoreMax: Int = 100,
     @SerializedName("statusLabel") val statusLabel: String = "",
     @SerializedName("trendLabel") val trendLabel: String = "",
@@ -64,7 +64,7 @@ data class PersonalLifeDto(
 data class LifeAreaScoreDto(
     val code: String,
     val label: String,
-    val score: Int,
+    val score: Int? = null,
     val color: String,
 )
 
@@ -1563,7 +1563,50 @@ data class CreatePlanningItemBody(
     val description: String? = null,
     @SerializedName("asDraft") val asDraft: Boolean? = null,
 )
-data class CreateBookingBody(val title: String, @SerializedName("bookedAt") val bookedAt: String? = null)
+data class CreateBookingBody(
+    val title: String,
+    @SerializedName("bookingType") val bookingType: String? = null,
+    @SerializedName("referenceCode") val referenceCode: String? = null,
+    val amount: String? = null,
+    @SerializedName("currencyCode") val currencyCode: String? = null,
+    @SerializedName("startAt") val startAt: String? = null,
+    @SerializedName("endAt") val endAt: String? = null,
+    @SerializedName("bookedAt") val bookedAt: String? = null,
+    val status: String? = null,
+    @SerializedName("bookedByParticipantId") val bookedByParticipantId: String? = null,
+    @SerializedName("paidByParticipantId") val paidByParticipantId: String? = null,
+    @SerializedName("placeIds") val placeIds: List<String>? = null,
+    val stays: List<BookingStayBody>? = null,
+    @SerializedName("flightSegments") val flightSegments: List<BookingFlightSegmentBody>? = null,
+    @SerializedName("linkExpense") val linkExpense: Boolean? = null,
+    @SerializedName("splitStrategy") val splitStrategy: String? = null,
+    @SerializedName("splitInputs") val splitInputs: List<GroupExpenseSplitInputDto>? = null,
+    @SerializedName("equalSplit") val equalSplit: Boolean? = null,
+    @SerializedName("splitParticipantIds") val splitParticipantIds: List<String>? = null,
+    @SerializedName("attachmentUploadIds") val attachmentUploadIds: List<String>? = null,
+    @SerializedName("asDraft") val asDraft: Boolean? = null,
+)
+
+data class BookingStayBody(
+    @SerializedName("hotelName") val hotelName: String,
+    @SerializedName("referenceCode") val referenceCode: String? = null,
+    val amount: String? = null,
+    @SerializedName("currencyCode") val currencyCode: String? = null,
+    @SerializedName("startAt") val startAt: String? = null,
+    @SerializedName("endAt") val endAt: String? = null,
+)
+
+data class BookingFlightSegmentBody(
+    @SerializedName("legLabel") val legLabel: String? = null,
+    val airline: String? = null,
+    @SerializedName("flightNumber") val flightNumber: String? = null,
+    @SerializedName("originCode") val originCode: String? = null,
+    @SerializedName("destinationCode") val destinationCode: String? = null,
+    @SerializedName("seatClass") val seatClass: String? = null,
+    @SerializedName("seatNumber") val seatNumber: String? = null,
+    @SerializedName("departAt") val departAt: String? = null,
+    @SerializedName("arriveAt") val arriveAt: String? = null,
+)
 data class CreatePollBody(
     val question: String,
     val options: List<String>,

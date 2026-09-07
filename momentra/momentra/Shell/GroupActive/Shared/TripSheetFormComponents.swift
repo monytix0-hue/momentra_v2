@@ -399,6 +399,62 @@ struct TripDateRangeField: View {
     }
 }
 
+struct TripDateTimePickField: View {
+    @Binding var date: String
+    @Binding var time: String
+    var placeholder: String = "Select date · time"
+
+    private var display: String {
+        let d = date.isEmpty ? "" : SetupDateTimeUtils.formatDateDisplay(date)
+        let t = time.isEmpty ? "" : SetupDateTimeUtils.formatTimeDisplay(time)
+        if d.isEmpty && t.isEmpty { return "" }
+        if t.isEmpty { return d }
+        if d.isEmpty { return t }
+        return "\(d) · \(t)"
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TripDatePickField(value: $date, placeholder: display.isEmpty ? placeholder : "Date")
+            TripTimePickField(value: $time, placeholder: "Time")
+        }
+    }
+}
+
+struct TripCurrencyMenuField: View {
+    @Binding var code: String
+    var preferred: [String] = []
+
+    private var options: [String] {
+        let base = preferred.isEmpty ? Array(TravelCurrencyCatalog.codes.prefix(8)) : preferred
+        var seen = Set<String>()
+        return (base + TravelCurrencyCatalog.codes).filter { seen.insert($0).inserted }
+    }
+
+    var body: some View {
+        Menu {
+            ForEach(options, id: \.self) { c in
+                Button(TravelCurrencyCatalog.display(c)) { code = c }
+            }
+        } label: {
+            HStack {
+                Text(TravelCurrencyCatalog.display(code))
+                    .font(.plusJakarta(size: 14))
+                    .foregroundStyle(TripForm.text)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TripForm.muted)
+            }
+            .frame(minHeight: 44)
+            .padding(.horizontal, 16)
+            .background(TripForm.field)
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(TripForm.border))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+}
+
 struct TripChipRow: View {
     let options: [String]
     @Binding var selected: String

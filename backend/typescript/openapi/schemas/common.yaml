@@ -814,6 +814,150 @@ MediaUploadCompleteRequest:
     checksumSha256:
       type: string
 
+BookingStayInput:
+  type: object
+  required: [hotelName]
+  properties:
+    hotelName:
+      type: string
+    referenceCode:
+      type: string
+      nullable: true
+    amount:
+      type: string
+      nullable: true
+    currencyCode:
+      type: string
+      nullable: true
+    startAt:
+      type: string
+      nullable: true
+    endAt:
+      type: string
+      nullable: true
+
+BookingFlightSegmentInput:
+  type: object
+  properties:
+    legLabel:
+      type: string
+      enum: [OUTBOUND, RETURN, CONNECTING, OTHER]
+    airline:
+      type: string
+      nullable: true
+    flightNumber:
+      type: string
+      nullable: true
+    originCode:
+      type: string
+      nullable: true
+    destinationCode:
+      type: string
+      nullable: true
+    seatClass:
+      type: string
+      nullable: true
+    seatNumber:
+      type: string
+      nullable: true
+    departAt:
+      type: string
+      nullable: true
+    arriveAt:
+      type: string
+      nullable: true
+
+BookingCreateRequest:
+  type: object
+  required: [title]
+  properties:
+    title:
+      type: string
+    bookingType:
+      type: string
+      enum: [HOTEL, FLIGHT, TRANSPORT, ACTIVITY, RESTAURANT, OTHER]
+    referenceCode:
+      type: string
+      nullable: true
+    amount:
+      type: string
+      nullable: true
+    currencyCode:
+      type: string
+      nullable: true
+    startAt:
+      type: string
+      nullable: true
+    endAt:
+      type: string
+      nullable: true
+    bookedAt:
+      type: string
+      nullable: true
+    status:
+      type: string
+      enum: [DRAFT, PLANNED, BOOKED, CONFIRMED, CANCELLED, COMPLETED]
+    bookedByParticipantId:
+      type: string
+      format: uuid
+      nullable: true
+    paidByParticipantId:
+      type: string
+      format: uuid
+      nullable: true
+    placeIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+    stays:
+      type: array
+      items:
+        $ref: '#/BookingStayInput'
+    flightSegments:
+      type: array
+      items:
+        $ref: '#/BookingFlightSegmentInput'
+    linkExpense:
+      type: boolean
+    splitStrategy:
+      type: string
+      enum: [EQUAL, PERCENTAGE, EXACT, SHARES, POOLED]
+    splitInputs:
+      type: array
+      items:
+        type: object
+        required: [participantId]
+        properties:
+          participantId:
+            type: string
+            format: uuid
+          amount:
+            type: string
+            nullable: true
+          percent:
+            type: string
+            nullable: true
+          shares:
+            type: number
+            nullable: true
+    equalSplit:
+      type: boolean
+      description: Deprecated — prefer linkExpense + splitStrategy + splitInputs
+    splitParticipantIds:
+      type: array
+      description: Deprecated — prefer splitInputs
+      items:
+        type: string
+        format: uuid
+    attachmentUploadIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+    asDraft:
+      type: boolean
+
 PersonalPulseResponse:
   type: object
   properties:

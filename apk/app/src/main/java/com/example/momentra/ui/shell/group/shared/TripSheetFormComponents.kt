@@ -721,6 +721,173 @@ internal fun TripParticipantPicker(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun TripDateRangeField(
+    startDate: String,
+    endDate: String,
+    onStartChange: (String) -> Unit,
+    onEndChange: (String) -> Unit,
+    placeholder: String = "Check-in → Check-out",
+) {
+    var picking by remember { mutableStateOf<String?>(null) } // "start" | "end"
+    val startDisplay = startDate.takeIf { it.isNotBlank() }?.let {
+        runCatching { LocalDate.parse(it.take(10)).format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)) }.getOrDefault(it)
+    }.orEmpty()
+    val endDisplay = endDate.takeIf { it.isNotBlank() }?.let {
+        runCatching { LocalDate.parse(it.take(10)).format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)) }.getOrDefault(it)
+    }.orEmpty()
+    val display = when {
+        startDisplay.isBlank() && endDisplay.isBlank() -> ""
+        endDisplay.isBlank() -> startDisplay
+        startDisplay.isBlank() -> endDisplay
+        else -> "$startDisplay → $endDisplay"
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(TripSheetTokens.Field)
+            .border(1.dp, TripSheetTokens.Border, RoundedCornerShape(8.dp))
+            .clickable { picking = if (startDate.isBlank()) "start" else "end" }
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            if (display.isBlank()) placeholder else display,
+            color = if (display.isBlank()) TripSheetTokens.Muted.copy(alpha = 0.7f) else TripSheetTokens.Text,
+            fontSize = 14.sp,
+            fontFamily = PlusJakartaSans,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "Change",
+            color = TripSheetTokens.Accent,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = PlusJakartaSans,
+            modifier = Modifier.clickable { picking = "start" },
+        )
+    }
+    if (picking != null) {
+        val isStart = picking == "start"
+        val initial = SetupDateTimeUtils.parseIsoDate(if (isStart) startDate else endDate) ?: LocalDate.now()
+        val state = rememberDatePickerState(initialSelectedDateMillis = SetupDateTimeUtils.localDateToMillis(initial))
+        DatePickerDialog(
+            onDismissRequest = { picking = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { millis ->
+                        val iso = SetupDateTimeUtils.localDateToIso(SetupDateTimeUtils.millisToLocalDate(millis))
+                        if (isStart) {
+                            onStartChange(iso)
+                            picking = "end"
+                        } else {
+                            onEndChange(iso)
+                            picking = null
+                        }
+                    } ?: run { picking = null }
+                }) { Text(if (isStart) "Next" else "OK") }
+            },
+            dismissButton = { TextButton(onClick = { picking = null }) { Text("Cancel") } },
+        ) { DatePicker(state = state) }
+    }
+}
+
+@Composable
+internal fun TripDateTimePickField(
+    date: String,
+    time: String,
+    onDateChange: (String) -> Unit,
+    onTimeChange: (String) -> Unit,
+    placeholder: String = "Select date · time",
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.weight(1f)) {
+            TripDatePickField(date, onDateChange, placeholder)
+        }
+        Box(modifier = Modifier.weight(1f)) {
+            TripTimePickField(time, onTimeChange, "Time")
+        }
+    }
+}
+
+@Composable
+internal fun TripDropdownField(
+    value: String,
+    options: List<String>,
+    onSelect: (String) -> Unit,
+    placeholder: String = "Select",
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(TripSheetTokens.Field)
+                .border(1.dp, TripSheetTokens.Border, RoundedCornerShape(8.dp))
+                .clickable { expanded = true }
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                value.ifBlank { placeholder },
+                color = if (value.isBlank()) TripSheetTokens.Muted.copy(alpha = 0.7f) else TripSheetTokens.Text,
+                fontSize = 14.sp,
+                fontFamily = PlusJakartaSans,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                painter = painterResource(com.example.momentra.R.drawable.ic_biz_create_chevron),
+                contentDescription = null,
+                tint = TripSheetTokens.Muted,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { opt ->
+                DropdownMenuItem(
+                    text = { Text(opt, fontFamily = PlusJakartaSans) },
+                    onClick = {
+                        onSelect(opt)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun TripCurrencyDropdown(
+    selectedCode: String,
+    preferredCodes: List<String>,
+    onSelect: (String) -> Unit,
+) {
+    val options = remember(preferredCodes) {
+        val base = preferredCodes.ifEmpty { TravelCurrencyCatalog.codes.take(8) }
+        (base + TravelCurrencyCatalog.codes).distinct()
+    }
+    TripDropdownField(
+        value = TravelCurrencyCatalog.display(selectedCode),
+        options = options.map { TravelCurrencyCatalog.display(it) },
+        onSelect = { display ->
+            val code = options.firstOrNull { TravelCurrencyCatalog.display(it) == display } ?: selectedCode
+            onSelect(code)
+        },
+        placeholder = "Currency",
+    )
+}
+
 @Composable
 internal fun TripSheetHeaderRow(
     title: String,
