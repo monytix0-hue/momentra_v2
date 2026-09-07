@@ -1083,6 +1083,14 @@ data class UpdateExpenseBody(
     @SerializedName("sharedExperienceLabel") val sharedExperienceLabel: String? = null,
 )
 
+data class ExpenseDimensionContributionDto(
+    @SerializedName("dimensionCode") val dimensionCode: String,
+    val status: String,
+    @SerializedName("targetMomentId") val targetMomentId: String? = null,
+    @SerializedName("linkedResourceType") val linkedResourceType: String? = null,
+    @SerializedName("linkedResourceId") val linkedResourceId: String? = null,
+)
+
 data class ExpenseDetailDto(
     @SerializedName("expenseId") val expenseId: String,
     @SerializedName("momentId") val momentId: String,
@@ -1101,6 +1109,7 @@ data class ExpenseDetailDto(
     @SerializedName("sharedExperienceCode") val sharedExperienceCode: String? = null,
     @SerializedName("sharedExperienceLabel") val sharedExperienceLabel: String? = null,
     @SerializedName("attachmentIds") val attachmentIds: List<String> = emptyList(),
+    val contributions: List<ExpenseDimensionContributionDto> = emptyList(),
 )
 
 data class FinancialAccountDto(

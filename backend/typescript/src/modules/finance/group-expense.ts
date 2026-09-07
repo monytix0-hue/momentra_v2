@@ -941,7 +941,7 @@ async function upsertGroupFinanceProjection(
   paidByParticipantId: string,
   amount: Decimal,
   shares: ComputedShare[],
-  sourceEventId: string,
+  sourceEventId: string | null,
   isPooled = false,
   expenseCountDelta = 1
 ): Promise<void> {
@@ -1218,7 +1218,7 @@ export async function applySettlementToPositions(
   debtorParticipantId: string,
   creditorParticipantId: string,
   amount: Decimal,
-  sourceEventId: string
+  sourceEventId: string | null
 ): Promise<void> {
   const amt = amount.toFixed(4);
   // Debtor settles: owes less → payable down, net up.
@@ -1257,6 +1257,22 @@ export async function applySettlementToPositions(
  * Canonical repair: wipe finance projections for a moment and replay POSTED expenses + settlements.
  * Required after net_position formula fixes so historical balances heal from the ledger.
  */
+async function resolveDomainEventId(
+  client: PoolClient,
+  aggregateType: string,
+  aggregateId: string
+): Promise<string | null> {
+  const row = await client.query<{ domain_event_id: string }>(
+    `SELECT domain_event_id
+     FROM events.domain_event
+     WHERE aggregate_type = $1 AND aggregate_id = $2
+     ORDER BY occurred_at DESC NULLS LAST, created_at DESC NULLS LAST
+     LIMIT 1`,
+    [aggregateType, aggregateId]
+  );
+  return row.rows[0]?.domain_event_id ?? null;
+}
+
 export async function rebuildGroupFinanceProjection(
   client: PoolClient,
   momentId: string
@@ -1311,6 +1327,8 @@ export async function rebuildGroupFinanceProjection(
         sharePercent: r.share_percent != null ? new Decimal(r.share_percent) : null,
       }));
     }
+    // Must be a domain_event_id (FK) — never the expense_id itself.
+    const sourceEventId = await resolveDomainEventId(client, 'EXPENSE', exp.expense_id);
     await upsertGroupFinanceProjection(
       client,
       momentId,
@@ -1318,7 +1336,7 @@ export async function rebuildGroupFinanceProjection(
       exp.paid_by_participant_id,
       amount,
       shares,
-      exp.expense_id,
+      sourceEventId,
       isPooled,
       1
     );
@@ -1352,6 +1370,7 @@ export async function rebuildGroupFinanceProjection(
        WHERE moment_id = $1 AND currency_code = $3`,
       [momentId, amount.toFixed(4), s.currency_code]
     );
+    const sourceEventId = await resolveDomainEventId(client, 'SETTLEMENT', s.settlement_id);
     await applySettlementToPositions(
       client,
       momentId,
@@ -1359,7 +1378,7 @@ export async function rebuildGroupFinanceProjection(
       s.payer_participant_id,
       s.payee_participant_id,
       amount,
-      s.settlement_id
+      sourceEventId
     );
     settlementCount += 1;
   }

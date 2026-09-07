@@ -154,6 +154,7 @@ async function upsertRelationshipContribution(
   shared: SharedExperienceCode,
   label: string | null,
   merchantName: string | null,
+  amount: string,
   effectiveAt: string,
   sourceEventId: string
 ): Promise<void> {
@@ -201,9 +202,10 @@ async function upsertRelationshipContribution(
          occurred_at = $4::timestamptz,
          title = $5,
          note = $6,
+         investment_value = $7::numeric,
          status = 'ACTIVE',
          updated_at = now()
-       WHERE relationship_activity_id = $1 AND user_id = $7`,
+       WHERE relationship_activity_id = $1 AND user_id = $8`,
       [
         activityId,
         relMomentId,
@@ -211,6 +213,7 @@ async function upsertRelationshipContribution(
         effectiveAt,
         title,
         `Master Expense shared experience: ${shared}`,
+        amount,
         ctx.userId,
       ]
     );
@@ -218,8 +221,8 @@ async function upsertRelationshipContribution(
     const inserted = await client.query<{ relationship_activity_id: string }>(
       `INSERT INTO personal.relationship_activity (
          moment_id, user_id, relationship_connection_id, activity_type, occurred_at,
-         title, note, status
-       ) VALUES ($1,$2,$3,'SHARED_EXPERIENCE',$4::timestamptz,$5,$6,'ACTIVE')
+         title, note, investment_value, status
+       ) VALUES ($1,$2,$3,'SHARED_EXPERIENCE',$4::timestamptz,$5,$6,$7::numeric,'ACTIVE')
        RETURNING relationship_activity_id`,
       [
         relMomentId,
@@ -228,6 +231,7 @@ async function upsertRelationshipContribution(
         effectiveAt,
         title,
         `Master Expense shared experience: ${shared}`,
+        amount,
       ]
     );
     activityId = inserted.rows[0]!.relationship_activity_id;
@@ -330,11 +334,16 @@ export async function syncExpenseAnalyticalContributions(
   expenseId: string,
   opts?: { deactivateAll?: boolean; sourceEventId?: string }
 ): Promise<void> {
-  // Table may be absent pre-V076 — no-op.
-  const table = await client.query(
+  const table = await client.query<{ ok: boolean }>(
     `SELECT to_regclass('finance.expense_dimension_contribution') IS NOT NULL AS ok`
   );
-  if (!table.rows[0]?.ok) return;
+  if (!table.rows[0]?.ok) {
+    throw new AppError(
+      ErrorCode.INFRASTRUCTURE_UNAVAILABLE,
+      'finance.expense_dimension_contribution is required (apply V076).',
+      500
+    );
+  }
 
   const expense = await client.query<{
     moment_id: string;
@@ -345,11 +354,12 @@ export async function syncExpenseAnalyticalContributions(
     subcategory_code: string | null;
     shared_experience_code: string;
     shared_experience_label: string | null;
+    amount: string;
     effective_at: Date;
   }>(
     `SELECT moment_id, status, merchant_name, description, category_code, subcategory_code,
             COALESCE(shared_experience_code, 'SELF') AS shared_experience_code,
-            shared_experience_label, effective_at
+            shared_experience_label, amount::text AS amount, effective_at
      FROM finance.expense WHERE expense_id = $1`,
     [expenseId]
   );
@@ -394,17 +404,19 @@ export async function syncExpenseAnalyticalContributions(
         expenseId,
         dim,
         'INACTIVE',
-        existing ? (await resolveSetupMomentId(
-          client,
-          ctx.userId,
-          dim === 'LIFE_OPERATIONS'
-            ? 'LIFE_OPERATIONS'
-            : dim === 'RELATIONSHIPS'
-              ? 'RELATIONSHIPS'
-              : dim === 'LIFESTYLE'
-                ? 'LIFESTYLE'
-                : 'FUTURE_BUILDING'
-        )) : null,
+        existing
+          ? await resolveSetupMomentId(
+              client,
+              ctx.userId,
+              dim === 'LIFE_OPERATIONS'
+                ? 'LIFE_OPERATIONS'
+                : dim === 'RELATIONSHIPS'
+                  ? 'RELATIONSHIPS'
+                  : dim === 'LIFESTYLE'
+                    ? 'LIFESTYLE'
+                    : 'FUTURE_BUILDING'
+            )
+          : null,
         existing?.linked_resource_type === 'RELATIONSHIP_ACTIVITY' ||
           existing?.linked_resource_type === 'LIFESTYLE_ACTIVITY'
           ? (existing.linked_resource_type as 'RELATIONSHIP_ACTIVITY' | 'LIFESTYLE_ACTIVITY')
@@ -445,6 +457,7 @@ export async function syncExpenseAnalyticalContributions(
     shared,
     row.shared_experience_label,
     row.merchant_name,
+    row.amount,
     effectiveAt,
     sourceEventId
   );
@@ -462,23 +475,54 @@ export async function syncExpenseAnalyticalContributions(
   );
 }
 
-export async function listActiveContributions(
+export async function listExpenseDimensionContributions(
   client: PoolClient,
   expenseId: string
-): Promise<Array<{ dimensionCode: string; status: string; targetMomentId: string | null }>> {
+): Promise<
+  Array<{
+    dimensionCode: string;
+    status: string;
+    targetMomentId: string | null;
+    linkedResourceType: string;
+    linkedResourceId: string | null;
+  }>
+> {
+  const table = await client.query<{ ok: boolean }>(
+    `SELECT to_regclass('finance.expense_dimension_contribution') IS NOT NULL AS ok`
+  );
+  if (!table.rows[0]?.ok) return [];
+
   const rows = await client.query<{
     dimension_code: string;
     status: string;
     target_moment_id: string | null;
+    linked_resource_type: string;
+    linked_resource_id: string | null;
   }>(
-    `SELECT dimension_code, status, target_moment_id
+    `SELECT dimension_code, status, target_moment_id, linked_resource_type, linked_resource_id
      FROM finance.expense_dimension_contribution
-     WHERE expense_id = $1`,
+     WHERE expense_id = $1
+     ORDER BY dimension_code`,
     [expenseId]
   );
   return rows.rows.map((r) => ({
     dimensionCode: r.dimension_code,
     status: r.status,
     targetMomentId: r.target_moment_id,
+    linkedResourceType: r.linked_resource_type,
+    linkedResourceId: r.linked_resource_id,
+  }));
+}
+
+/** @deprecated Use listExpenseDimensionContributions */
+export async function listActiveContributions(
+  client: PoolClient,
+  expenseId: string
+): Promise<Array<{ dimensionCode: string; status: string; targetMomentId: string | null }>> {
+  const rows = await listExpenseDimensionContributions(client, expenseId);
+  return rows.map(({ dimensionCode, status, targetMomentId }) => ({
+    dimensionCode,
+    status,
+    targetMomentId,
   }));
 }

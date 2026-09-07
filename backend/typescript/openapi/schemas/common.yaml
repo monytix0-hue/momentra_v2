@@ -410,17 +410,162 @@ ExpenseCreateRequest:
       type: string
     categoryCode:
       type: string
+    subcategoryCode:
+      type: string
     financialAccountId:
       type: string
       format: uuid
       description: Optional paid-from financial account (Personal).
+    paymentMethodCode:
+      type: string
     effectiveAt:
       type: string
       format: date-time
+    recurringScheduleId:
+      type: string
+      format: uuid
+    asDraft:
+      type: boolean
+    sharedExperienceCode:
+      type: string
+      enum: [SELF, SPOUSE, FAMILY, FRIEND, COLLEAGUE, OTHER]
+      description: Structured Shared Experience; SELF means no Relationships contribution.
+    sharedExperienceLabel:
+      type: string
+      maxLength: 200
+      description: Optional label when sharedExperienceCode is OTHER.
     splits:
       type: array
       items:
         $ref: '#/ExpenseSplitLine'
+
+ExpenseUpdateRequest:
+  type: object
+  properties:
+    amount:
+      type: string
+      pattern: '^[0-9]+(\.[0-9]{1,4})?$'
+    currencyCode:
+      type: string
+      minLength: 3
+      maxLength: 3
+    description:
+      type: string
+      maxLength: 500
+      nullable: true
+    merchantName:
+      type: string
+      nullable: true
+    categoryCode:
+      type: string
+      nullable: true
+    subcategoryCode:
+      type: string
+      nullable: true
+    financialAccountId:
+      type: string
+      format: uuid
+      nullable: true
+    paymentMethodCode:
+      type: string
+      nullable: true
+    effectiveAt:
+      type: string
+      format: date-time
+    recurringScheduleId:
+      type: string
+      format: uuid
+      nullable: true
+    sharedExperienceCode:
+      type: string
+      enum: [SELF, SPOUSE, FAMILY, FRIEND, COLLEAGUE, OTHER]
+    sharedExperienceLabel:
+      type: string
+      maxLength: 200
+      nullable: true
+
+ExpenseDimensionContribution:
+  type: object
+  required: [dimensionCode, status]
+  properties:
+    dimensionCode:
+      type: string
+      enum: [LIFE_OPERATIONS, RELATIONSHIPS, LIFESTYLE, FUTURE_BUILDING]
+    status:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+    targetMomentId:
+      type: string
+      format: uuid
+      nullable: true
+    linkedResourceType:
+      type: string
+      enum: [NONE, RELATIONSHIP_ACTIVITY, LIFESTYLE_ACTIVITY]
+    linkedResourceId:
+      type: string
+      format: uuid
+      nullable: true
+
+ExpenseDetail:
+  type: object
+  required: [expenseId, momentId, amount, currencyCode, status, version, sharedExperienceCode, contributions]
+  properties:
+    expenseId:
+      type: string
+      format: uuid
+    momentId:
+      type: string
+      format: uuid
+    amount:
+      type: string
+    currencyCode:
+      type: string
+    status:
+      type: string
+    version:
+      type: integer
+    description:
+      type: string
+      nullable: true
+    merchantName:
+      type: string
+      nullable: true
+    categoryCode:
+      type: string
+      nullable: true
+    subcategoryCode:
+      type: string
+      nullable: true
+    financialAccountId:
+      type: string
+      format: uuid
+      nullable: true
+    paymentMethodCode:
+      type: string
+      nullable: true
+    effectiveAt:
+      type: string
+      format: date-time
+    recurringScheduleId:
+      type: string
+      format: uuid
+      nullable: true
+    sharedExperienceCode:
+      type: string
+      enum: [SELF, SPOUSE, FAMILY, FRIEND, COLLEAGUE, OTHER]
+    sharedExperienceLabel:
+      type: string
+      nullable: true
+    attachmentIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+    contributions:
+      type: array
+      items:
+        $ref: '#/ExpenseDimensionContribution'
+      description: Analytical dimensions for this canonical expense (does not multiply spend).
 
 ExpenseSplitLine:
   type: object

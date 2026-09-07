@@ -26,9 +26,9 @@ import {
   shouldDigest,
   shouldSkipPushForPayload,
   type DomainEventRow,
-} from '../../typescript/src/platform/notifications/dispatch';
-import { startNotificationWorker } from '../../typescript/src/platform/queue/notification-queue';
-import type { NotificationJobPayload } from '../../typescript/src/platform/queue/notification-queue';
+} from '../../../typescript/src/platform/notifications/dispatch';
+import { startNotificationWorker } from '../../../typescript/src/platform/queue/notification-queue';
+import type { NotificationJobPayload } from '../../../typescript/src/platform/queue/notification-queue';
 
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 

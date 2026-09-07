@@ -14,6 +14,7 @@ import {
 } from './financial-account';
 import { listExpenseAttachments } from './expense-attachments';
 import {
+  listExpenseDimensionContributions,
   resolveCanonicalExpenseMomentId,
   SHARED_EXPERIENCE_CODES,
   syncExpenseAnalyticalContributions,
@@ -97,6 +98,14 @@ export interface ExpenseResult {
   version: number;
 }
 
+export interface ExpenseDimensionContributionDto {
+  dimensionCode: string;
+  status: string;
+  targetMomentId: string | null;
+  linkedResourceType: string;
+  linkedResourceId: string | null;
+}
+
 export interface ExpenseDetail extends ExpenseResult {
   description: string | null;
   merchantName: string | null;
@@ -109,6 +118,7 @@ export interface ExpenseDetail extends ExpenseResult {
   sharedExperienceCode: string;
   sharedExperienceLabel: string | null;
   attachmentIds: string[];
+  contributions: ExpenseDimensionContributionDto[];
 }
 
 export function parseMoney(amount: string): Decimal {
@@ -211,6 +221,7 @@ export async function getExpense(
 ): Promise<ExpenseDetail> {
   const row = await loadOwnedExpense(client, ctx, momentId, expenseId);
   const attachments = await listExpenseAttachments(client, ctx, row.moment_id, expenseId);
+  const contributions = await listExpenseDimensionContributions(client, expenseId);
   let paymentMethod = row.payment_method_code;
   if (!paymentMethod && row.financial_account_id) {
     const accountType = await getAccountType(client, row.financial_account_id);
@@ -234,6 +245,7 @@ export async function getExpense(
     sharedExperienceCode: row.shared_experience_code,
     sharedExperienceLabel: row.shared_experience_label,
     attachmentIds: attachments.map((a) => a.uploadId),
+    contributions,
   };
 }
 
@@ -388,18 +400,9 @@ export async function createExpense(
 
   await bumpPersonalPulseAfterExpense(client, ctx.userId, domainEventId, body.currencyCode, amount.toFixed(4));
 
-  try {
-    const { refreshPersonalFinanceSnapshot } = await import('../personal/life-ops-precision');
-    await refreshPersonalFinanceSnapshot(client, ctx.userId, canonicalMomentId);
-  } catch {
-    // Snapshot writer optional until V045 applied
-  }
-
-  try {
-    await syncExpenseAnalyticalContributions(client, ctx, expenseId, { sourceEventId: domainEventId });
-  } catch {
-    // V076 contribution table may be absent
-  }
+  const { refreshPersonalFinanceSnapshot } = await import('../personal/life-ops-precision');
+  await refreshPersonalFinanceSnapshot(client, ctx.userId, canonicalMomentId);
+  await syncExpenseAnalyticalContributions(client, ctx, expenseId, { sourceEventId: domainEventId });
   }
 
   return result;
@@ -550,11 +553,10 @@ export async function updateExpense(
     );
   }
 
-  try {
-    await syncExpenseAnalyticalContributions(client, ctx, expenseId, { sourceEventId: domainEventId });
-  } catch {
-    // V076 optional
-  }
+  await syncExpenseAnalyticalContributions(client, ctx, expenseId, { sourceEventId: domainEventId });
+
+  const { refreshPersonalFinanceSnapshot } = await import('../personal/life-ops-precision');
+  await refreshPersonalFinanceSnapshot(client, ctx.userId, canonicalMomentId);
 
   return {
     expenseId,
@@ -612,14 +614,13 @@ export async function voidExpense(
 
   await reversePersonalPulseSpend(client, ctx.userId, domainEventId, row.currency_code, row.amount);
 
-  try {
-    await syncExpenseAnalyticalContributions(client, ctx, expenseId, {
-      deactivateAll: true,
-      sourceEventId: domainEventId,
-    });
-  } catch {
-    // V076 optional
-  }
+  await syncExpenseAnalyticalContributions(client, ctx, expenseId, {
+    deactivateAll: true,
+    sourceEventId: domainEventId,
+  });
+
+  const { refreshPersonalFinanceSnapshot } = await import('../personal/life-ops-precision');
+  await refreshPersonalFinanceSnapshot(client, ctx.userId, canonicalMomentId);
 
   return {
     expenseId,

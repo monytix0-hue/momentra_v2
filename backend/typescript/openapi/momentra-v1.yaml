@@ -1765,7 +1765,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: './schemas/common.yaml#/ExpenseCreateRequest'
       responses:
         '201':
           description: Success
@@ -1783,6 +1783,80 @@ paths:
           $ref: './schemas/responses.yaml#/Error404'
         '409':
           $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /moments/{momentId}/expenses/{expenseId}:
+    get:
+      operationId: getExpense
+      summary: Get personal expense detail with dimensional contributions
+      tags: ["Finance"]
+      x-momentra-kind: query
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - name: expenseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Expense detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: './schemas/common.yaml#/ExpenseDetail'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+    patch:
+      operationId: updateExpense
+      summary: Update personal expense and recompute dimensional contributions
+      tags: ["Finance"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - name: expenseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/idempotencyKeyHeader'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schemas/common.yaml#/ExpenseUpdateRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
         '500':
           $ref: './schemas/responses.yaml#/Error500'
   /moments/{momentId}/future-items:
@@ -2920,6 +2994,12 @@ components:
       $ref: './schemas/common.yaml#/MomentCreateRequest'
     ExpenseCreateRequest:
       $ref: './schemas/common.yaml#/ExpenseCreateRequest'
+    ExpenseUpdateRequest:
+      $ref: './schemas/common.yaml#/ExpenseUpdateRequest'
+    ExpenseDetail:
+      $ref: './schemas/common.yaml#/ExpenseDetail'
+    ExpenseDimensionContribution:
+      $ref: './schemas/common.yaml#/ExpenseDimensionContribution'
     PollResponse:
       $ref: './schemas/common.yaml#/PollResponse'
     CompanyLocationResponse:

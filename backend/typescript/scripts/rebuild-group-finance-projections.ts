@@ -18,7 +18,6 @@ async function main(): Promise<void> {
   const pool = getPool();
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
     let momentIds: string[] = [];
     if (momentId) {
       momentIds = [momentId];
@@ -35,16 +34,20 @@ async function main(): Promise<void> {
 
     console.log(`Rebuilding finance projections for ${momentIds.length} moment(s)…`);
     for (const id of momentIds) {
-      const result = await rebuildGroupFinanceProjection(client, id);
-      console.log(
-        `  ${id}: expenses=${result.expenseCount} settlements=${result.settlementCount} currencies=[${result.currencies.join(',')}]`
-      );
+      // Per-moment transaction: avoids one giant lock across all moments.
+      await client.query('BEGIN');
+      try {
+        const result = await rebuildGroupFinanceProjection(client, id);
+        await client.query('COMMIT');
+        console.log(
+          `  ${id}: expenses=${result.expenseCount} settlements=${result.settlementCount} currencies=[${result.currencies.join(',')}]`
+        );
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      }
     }
-    await client.query('COMMIT');
     console.log('Done.');
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
   } finally {
     client.release();
     await closePool();

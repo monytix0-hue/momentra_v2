@@ -1558,6 +1558,14 @@ final class APIClient {
         let version: Int
     }
 
+    struct ExpenseDimensionContribution: Decodable {
+        let dimensionCode: String
+        let status: String
+        let targetMomentId: String?
+        let linkedResourceType: String?
+        let linkedResourceId: String?
+    }
+
     struct ExpenseDetail: Decodable {
         let expenseId: String
         let momentId: String
@@ -1576,6 +1584,7 @@ final class APIClient {
         let sharedExperienceCode: String?
         let sharedExperienceLabel: String?
         let attachmentIds: [String]?
+        let contributions: [ExpenseDimensionContribution]?
     }
 
     func getExpense(momentId: String, expenseId: String) async throws -> ExpenseDetail {
