@@ -2,7 +2,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { Pool } from 'pg';
-import { runReminderTick } from '../../typescript/src/modules/notifications/reminders';
+import { runReminderTick } from '../../../typescript/src/modules/notifications/reminders';
 
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
