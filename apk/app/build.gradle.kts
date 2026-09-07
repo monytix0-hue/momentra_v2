@@ -11,7 +11,7 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
-val apiBaseUrl = localProperties.getProperty("API_BASE_URL", "https://api.mallaapp.org")
+val apiBaseUrl = localProperties.getProperty("API_BASE_URL", "https://api.mallaapp.org/")
 val googleWebClientId = localProperties.getProperty(
         "GOOGLE_WEB_CLIENT_ID",
         "315259659778-vhau66jfi22k27rc8lbgueo3os92knrl.apps.googleusercontent.com",

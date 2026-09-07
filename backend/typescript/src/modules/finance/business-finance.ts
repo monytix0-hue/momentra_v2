@@ -22,6 +22,36 @@ function isUniqueViolation(err: unknown, constraint?: string): boolean {
   return e.constraint === constraint;
 }
 
+/** Normalize client chip labels to catalogue codes and ensure FK row exists. */
+export function normalizeExpenseCategoryCode(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const code = trimmed
+    .toUpperCase()
+    .replace(/&/g, ' AND ')
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 100);
+  return code || null;
+}
+
+async function ensureExpenseCategory(
+  client: PoolClient,
+  raw: string | null | undefined
+): Promise<string | null> {
+  const code = normalizeExpenseCategoryCode(raw);
+  if (!code) return null;
+  const label = code.replace(/_/g, ' ');
+  await client.query(
+    `INSERT INTO finance.expense_category(category_code, label, sort_order)
+     VALUES ($1, $2, 500)
+     ON CONFLICT (category_code) DO NOTHING`,
+    [code, label]
+  );
+  return code;
+}
+
 const moneyString = z.string().regex(/^\d+(\.\d{1,4})?$/);
 
 export const createBusinessExpenseSchema = z
@@ -308,6 +338,7 @@ export async function createBusinessExpense(
     ? new Date(body.effectiveAt).toISOString()
     : new Date().toISOString();
   const paidByLabel = body.paidBy?.trim() || null;
+  const categoryCode = await ensureExpenseCategory(client, body.categoryCode);
 
   const expenseInsert = await client.query<{ expense_id: string; version: string }>(
     needsApproval
@@ -360,7 +391,7 @@ export async function createBusinessExpense(
       ctx.userId,
       body.merchantName ?? null,
       body.description ?? null,
-      body.categoryCode ?? null,
+      categoryCode,
       amount.toFixed(4),
       body.currencyCode,
       status,
@@ -429,7 +460,7 @@ export async function createBusinessExpense(
     companyId: scope.companyId,
     amount: amount.toFixed(4),
     currencyCode: body.currencyCode,
-    categoryCode: body.categoryCode ?? null,
+    categoryCode,
     status,
     approvalRequestId,
     version: parseInt(expenseInsert.rows[0]!.version, 10),
@@ -467,7 +498,7 @@ export async function createBusinessExpense(
     eventId: expenseId,
     eventType: 'EXPENSE',
     title: body.description ?? 'Expense',
-    category: body.categoryCode ?? 'Spend',
+    category: categoryCode ?? 'Spend',
     description: body.description,
     occurredAt: effectiveAt,
     payload: {

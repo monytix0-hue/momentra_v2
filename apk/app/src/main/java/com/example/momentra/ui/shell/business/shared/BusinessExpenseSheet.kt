@@ -74,7 +74,8 @@ import java.time.LocalDate
 private val CategoryLabels = listOf("Software", "Travel", "Office", "Equipment", "Services", "Other")
 private val PaidByOptions = listOf("You")
 
-private fun categoryCode(label: String): String = label.uppercase()
+private fun categoryCode(label: String): String =
+    label.trim().uppercase().replace(Regex("[^A-Z0-9]+"), "_").trim('_')
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable

@@ -26,6 +26,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -41,17 +43,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.analytics.AnalyticsScreens
-import com.example.momentra.ui.shell.empty.business.CompanyJoinCodeSheet
-import com.example.momentra.ui.shell.empty.business.CompanyJoinLink
 import com.example.momentra.analytics.MomentraAnalytics
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.CreateCompanyBody
@@ -64,7 +66,6 @@ import com.example.momentra.ui.shell.empty.group.inviteMessage
 import com.example.momentra.ui.shell.empty.group.looksLikeInvitePhone
 import com.example.momentra.ui.shell.empty.group.sendInviteSms
 import com.example.momentra.ui.shell.empty.group.sendInviteWhatsApp
-import androidx.compose.ui.platform.LocalContext
 import java.util.UUID
 import kotlinx.coroutines.launch
 
@@ -76,6 +77,31 @@ private val CoMuted = Color(0xFF94A3B8)
 private val CoDim = Color(0xFF64748B)
 private val CoGreen = Color(0xFF10B981)
 private val CoAmber = Color(0xFFF59E0B)
+
+private val CoCurrencyOptions = listOf(
+    "₹ INR — Indian Rupee",
+    "$ USD — US Dollar",
+    "€ EUR — Euro",
+    "£ GBP — British Pound",
+    "د.إ AED — UAE Dirham",
+    "S$ SGD — Singapore Dollar",
+)
+
+private val CoTimezoneOptions = listOf(
+    "IST (UTC+5:30)",
+    "UTC (UTC+0)",
+    "EST (UTC-5)",
+    "PST (UTC-8)",
+    "GST (UTC+4)",
+)
+
+private fun coTimezoneToIana(label: String): String = when {
+    label.contains("IST", ignoreCase = true) -> "Asia/Kolkata"
+    label.contains("EST", ignoreCase = true) -> "America/New_York"
+    label.contains("PST", ignoreCase = true) -> "America/Los_Angeles"
+    label.contains("GST", ignoreCase = true) -> "Asia/Dubai"
+    else -> "UTC"
+}
 
 private data class CoLocation(
     val name: String,
@@ -183,9 +209,11 @@ fun CompanySetupContent(
                 gstin = gstin,
                 onGstin = { gstin = it },
                 currency = currency,
+                onCurrency = { currency = it },
                 fyCycle = fyCycle,
                 onFyCycle = { fyCycle = it },
                 timezone = timezone,
+                onTimezone = { timezone = it },
                 onContinue = { step = 3 },
                 onBack = { step = 1 },
             )
@@ -193,6 +221,7 @@ fun CompanySetupContent(
                 structure = structure,
                 onStructure = { structure = it },
                 locations = locations,
+                currency = currency,
                 onContinue = { step = 4 },
                 onBack = { step = 2 },
             )
@@ -222,10 +251,7 @@ fun CompanySetupContent(
                     activating = true
                     scope.launch {
                         try {
-                            val tz = when {
-                                timezone.contains("IST", true) -> "Asia/Kolkata"
-                                else -> "UTC"
-                            }
+                            val tz = coTimezoneToIana(timezone)
                             val created = ApiClient.apiService.createCompany(
                                 idempotencyKey = UUID.randomUUID().toString(),
                                 body = CreateCompanyBody(
@@ -289,6 +315,7 @@ fun CompanySetupContent(
                         }
                     }
                 },
+                onBack = { step = 3 },
                 onDraft = onClose,
             )
             }
@@ -353,6 +380,54 @@ private fun CoHeader(step: Int, onClose: () -> Unit) {
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
         )
+    }
+}
+
+@Composable
+private fun CoDropdownField(
+    value: String,
+    options: List<String>,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(CoBg)
+                .border(1.dp, CoBorder, RoundedCornerShape(10.dp))
+                .clickable { expanded = true }
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(value, color = Color.White, fontSize = 14.sp)
+                Text("▼", color = CoDim, fontSize = 14.sp)
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(CoCard),
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            option,
+                            color = if (option == value) CoAccent else Color.White,
+                            fontSize = 14.sp,
+                        )
+                    },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    },
+                )
+            }
+        }
     }
 }
 
@@ -627,12 +702,18 @@ private fun CoCompanyForm(
     gstin: String,
     onGstin: (String) -> Unit,
     currency: String,
+    onCurrency: (String) -> Unit,
     fyCycle: String,
     onFyCycle: (String) -> Unit,
     timezone: String,
+    onTimezone: (String) -> Unit,
     onContinue: () -> Unit,
     onBack: () -> Unit,
 ) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
     CoStepStrip(active = 2)
     CoSectionCard("01", "COMPANY PROFILE") {
         CoFieldLabel("COMPANY NAME")
@@ -681,21 +762,7 @@ private fun CoCompanyForm(
         CoFieldLabel("GSTIN")
         CoTextField(gstin, onGstin, placeholder = "Enter 15-digit GSTIN")
         CoFieldLabel("PRIMARY CURRENCY")
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(44.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(CoBg)
-                .border(1.dp, CoBorder, RoundedCornerShape(10.dp))
-                .padding(horizontal = 12.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(currency, color = Color.White, fontSize = 14.sp)
-                Text("▼", color = CoDim, fontSize = 14.sp)
-            }
-        }
+        CoDropdownField(value = currency, options = CoCurrencyOptions, onSelect = onCurrency)
         CoFieldLabel("FINANCIAL YEAR CYCLE")
         Row(
             modifier = Modifier
@@ -729,21 +796,7 @@ private fun CoCompanyForm(
             }
         }
         CoFieldLabel("TIMEZONE")
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(44.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(CoBg)
-                .border(1.dp, CoBorder, RoundedCornerShape(10.dp))
-                .padding(horizontal = 12.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(timezone, color = Color.White, fontSize = 14.sp)
-                Text("▼", color = CoDim, fontSize = 14.sp)
-            }
-        }
+        CoDropdownField(value = timezone, options = CoTimezoneOptions, onSelect = onTimezone)
     }
     CoPrimaryButton("Continue", onClick = onContinue)
     Text(
@@ -751,11 +804,13 @@ private fun CoCompanyForm(
         color = CoDim,
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
+        textAlign = TextAlign.Center,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onBack)
             .padding(8.dp),
     )
+    }
 }
 
 @Composable
@@ -763,9 +818,14 @@ private fun CoLocationsForm(
     structure: String,
     onStructure: (String) -> Unit,
     locations: List<CoLocation>,
+    currency: String,
     onContinue: () -> Unit,
     onBack: () -> Unit,
 ) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
     CoStepStrip(active = 3)
     CoSectionCard("01", "BUSINESS STRUCTURE") {
         Text("How is your business organized?", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -852,7 +912,7 @@ private fun CoLocationsForm(
         ) {
             Text("Locations inherit company defaults", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                "Currency: ₹ INR · Budget: Company default · Reporting: Consolidated",
+                "Currency: $currency · Budget: Company default · Reporting: Consolidated",
                 color = CoMuted,
                 fontSize = 10.sp,
             )
@@ -864,8 +924,13 @@ private fun CoLocationsForm(
         color = CoDim,
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onBack).padding(8.dp),
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onBack)
+            .padding(8.dp),
     )
+    }
 }
 
 @Composable
@@ -877,8 +942,13 @@ private fun CoLaunchForm(
     onAddInvite: () -> Unit,
     activating: Boolean,
     onActivate: () -> Unit,
+    onBack: () -> Unit,
     onDraft: () -> Unit,
 ) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
     CoStepStrip(active = 4)
     CoSectionCard("01", "INVITE YOUR TEAM") {
         Text("Add team members to get started", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -1017,16 +1087,29 @@ private fun CoLaunchForm(
         }
     }
     CoPrimaryButton(
-        label = "Activate ${companyName.ifBlank { "Company" }} →",
+        label = if (companyName.isBlank()) "Activate Company →" else "Activate $companyName →",
         onClick = onActivate,
         color = CoGreen,
         enabled = !activating,
+    )
+    Text(
+        "Back",
+        color = CoDim,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !activating, onClick = onBack)
+            .padding(8.dp),
     )
     Text(
         "Save as draft",
         color = CoDim,
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
+        textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth().clickable(enabled = !activating, onClick = onDraft).padding(8.dp),
     )
+    }
 }

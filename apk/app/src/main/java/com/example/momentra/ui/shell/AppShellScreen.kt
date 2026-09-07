@@ -79,6 +79,7 @@ import com.example.momentra.ui.shell.empty.group.GroupJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
 import com.example.momentra.ui.shell.empty.personal.PersonalCreateEmptyContent
 import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
+import com.example.momentra.ui.shell.empty.business.BusinessSetupBottomSheet
 import com.example.momentra.ui.shell.empty.business.CompanySetupContent
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
 import com.example.momentra.ui.shell.business.shared.BusinessExpenseSheet
@@ -463,10 +464,12 @@ fun AppShellScreen(
                 )
             } else if (newMomentOpen && state.selectedContext == AppContext.BUSINESS) {
                 if (state.selectedCompany == null) {
-                    CompanySetupContent(
-                        onClose = { newMomentOpen = false },
-                        onActivated = shellViewModel::onCompanyCreated,
-                    )
+                    BusinessSetupBottomSheet(onDismiss = { newMomentOpen = false }) {
+                        CompanySetupContent(
+                            onClose = { newMomentOpen = false },
+                            onActivated = shellViewModel::onCompanyCreated,
+                        )
+                    }
                 } else {
                     BusinessCreateFlow(
                         companyId = state.selectedCompany!!.companyId,

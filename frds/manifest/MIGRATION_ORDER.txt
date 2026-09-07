@@ -78,3 +78,4 @@ V077__expense_dimension_contribution_grants_rls.sql
 V078__booking_stays_segments_places.sql
 V079__booking_split_strategy.sql
 V080__lean_analytics_kpi_value_kind.sql
+V081__business_expense_categories.sql

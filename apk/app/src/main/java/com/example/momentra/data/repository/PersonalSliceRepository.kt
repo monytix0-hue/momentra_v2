@@ -43,6 +43,7 @@ import com.example.momentra.data.api.PersonalPulseDto
 import com.example.momentra.data.api.UpdateExpenseBody
 import com.example.momentra.data.api.UpdateLifestyleActivityBody
 import com.example.momentra.data.api.VoidLifestyleActivityResultDto
+import com.example.momentra.data.api.VoidRelationshipActivityResultDto
 import com.example.momentra.data.api.mapHttpFailure
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

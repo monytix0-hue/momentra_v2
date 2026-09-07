@@ -40,6 +40,7 @@ import com.example.momentra.ui.shell.empty.business.BusinessLifeEmptyContent
 import com.example.momentra.ui.shell.empty.business.BusinessMemoryEmptyContent
 import com.example.momentra.ui.shell.empty.business.BusinessMomentsEmptyContent
 import com.example.momentra.ui.shell.empty.business.BusinessPulseEmptyContent
+import com.example.momentra.ui.shell.empty.business.BusinessSetupBottomSheet
 import com.example.momentra.ui.shell.empty.business.CompanySetupContent
 import com.example.momentra.ui.shell.empty.personal.PersonalLifeEmptyContent
 
@@ -416,10 +417,12 @@ private fun BusinessEmpty(
             modifier = modifier,
         ) { companyReady ->
             if (!companyReady) {
-                CompanySetupContent(
-                    onClose = onCreateBack,
-                    onActivated = onCompanyActivated,
-                )
+                BusinessSetupBottomSheet(onDismiss = onCreateBack) {
+                    CompanySetupContent(
+                        onClose = onCreateBack,
+                        onActivated = onCompanyActivated,
+                    )
+                }
             } else {
                 BusinessCreateFlow(
                     companyId = companyId,

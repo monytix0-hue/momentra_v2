@@ -44,6 +44,8 @@ export function createApp(): express.Express {
 
   app.use('/admin/api', adminRouter);
   app.use('/v1', v1Router);
+  // Compatibility: some clients/proxies prefix with /api — same router as /v1.
+  app.use('/api/v1', v1Router);
   attachSseRoutes(app);
 
   app.use(errorHandler);

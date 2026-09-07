@@ -27,7 +27,16 @@ struct BusinessExpenseSheet: View {
     private let categoryLabels = ["Software", "Travel", "Office", "Equipment", "Services", "Other"]
     private let paidByOptions = ["You"]
 
-    private func categoryCode(_ label: String) -> String { label.uppercased() }
+    private func categoryCode(_ label: String) -> String {
+        let upper = label.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let mapped = upper.replacingOccurrences(of: "&", with: " AND ")
+        let cleaned = mapped.replacingOccurrences(
+            of: "[^A-Z0-9]+",
+            with: "_",
+            options: .regularExpression
+        )
+        return cleaned.trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+    }
 
     var body: some View {
         NativeSheetScaffold(
