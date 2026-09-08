@@ -221,6 +221,65 @@ describe('GX2-C Group collaboration', () => {
     assert.equal(deniedWrite.status, 403);
   });
 
+  it('accepts asDraft on planning/update/memory and keeps drafts out of open counts', async () => {
+    const orgUid = `gx2-draft-org-${randomUUID()}`;
+    const memUid = `gx2-draft-mem-${randomUUID()}`;
+    const { momentId } = await createGroupMomentWithTwoMembers(orgUid, memUid, 'HOUSE_PARTY');
+
+    // Quick Add submit path — clients always send asDraft, including false.
+    const live = await request(app)
+      .post(`/v1/moments/${momentId}/planning-items`)
+      .set('X-Dev-Firebase-Uid', orgUid)
+      .set('Idempotency-Key', `gx2-draft-live-${randomUUID()}`)
+      .send({ title: 'Playlist ready', categoryCode: 'MUSIC', priorityCode: 'MEDIUM', asDraft: false });
+    assert.equal(live.status, 201, JSON.stringify(live.body));
+    assert.equal(live.body.data.status, 'OPEN');
+
+    const beforeDraft = await request(app)
+      .get(`/v1/group/moments/${momentId}/planning-items`)
+      .set('X-Dev-Firebase-Uid', orgUid);
+    assert.equal(beforeDraft.status, 200, JSON.stringify(beforeDraft.body));
+    const openCountBefore = beforeDraft.body.data.openCount as number;
+    assert.ok(openCountBefore >= 1);
+
+    const draft = await request(app)
+      .post(`/v1/moments/${momentId}/planning-items`)
+      .set('X-Dev-Firebase-Uid', orgUid)
+      .set('Idempotency-Key', `gx2-draft-save-${randomUUID()}`)
+      .send({ title: 'Decor ideas', categoryCode: 'DECOR', asDraft: true });
+    assert.equal(draft.status, 201, JSON.stringify(draft.body));
+    assert.equal(draft.body.data.status, 'DRAFT');
+
+    const draftRow = await getPool().query<{ status: string }>(
+      `SELECT status FROM collaboration.planning_item WHERE planning_item_id = $1`,
+      [draft.body.data.planningItemId]
+    );
+    assert.equal(draftRow.rows[0]?.status, 'DRAFT');
+
+    const afterDraft = await request(app)
+      .get(`/v1/group/moments/${momentId}/planning-items`)
+      .set('X-Dev-Firebase-Uid', orgUid);
+    assert.equal(afterDraft.status, 200, JSON.stringify(afterDraft.body));
+    assert.equal(afterDraft.body.data.openCount, openCountBefore);
+
+    const updateDraft = await request(app)
+      .post(`/v1/moments/${momentId}/updates`)
+      .set('X-Dev-Firebase-Uid', orgUid)
+      .set('Idempotency-Key', `gx2-draft-upd-${randomUUID()}`)
+      .send({ message: 'Draft announcement', notifyMembers: false, urgencyCode: 'NORMAL', asDraft: true });
+    assert.equal(updateDraft.status, 201, JSON.stringify(updateDraft.body));
+    assert.equal(updateDraft.body.data.status, 'DRAFT');
+    assert.equal(updateDraft.body.data.notifyMembers, false);
+
+    const memoryDraft = await request(app)
+      .post(`/v1/moments/${momentId}/memories`)
+      .set('X-Dev-Firebase-Uid', orgUid)
+      .set('Idempotency-Key', `gx2-draft-mem-${randomUUID()}`)
+      .send({ title: 'Rooftop shot', asDraft: true });
+    assert.equal(memoryDraft.status, 201, JSON.stringify(memoryDraft.body));
+    assert.equal(memoryDraft.body.data.status, 'DRAFT');
+  });
+
   it('allows poll creator (non-organizer) to close their own poll', async () => {
     const orgUid = `gx2-pc-org-${randomUUID()}`;
     const memUid = `gx2-pc-mem-${randomUUID()}`;

@@ -29,6 +29,7 @@ export const planningItemSchema = z
     location: z.string().max(500).nullish(),
     priorityCode: z.enum(['LOW', 'MEDIUM', 'HIGH']).nullish(),
     description: z.string().max(5000).nullish(),
+    asDraft: z.boolean().optional(),
   })
   .strict();
 
@@ -107,6 +108,7 @@ export const updateSchema = z
     message: z.string().min(1).max(5000),
     notifyMembers: z.boolean().optional().default(true),
     urgencyCode: z.enum(['NORMAL', 'URGENT']).optional().default('NORMAL'),
+    asDraft: z.boolean().optional(),
   })
   .strict();
 
@@ -152,6 +154,7 @@ export const memorySchema = z
   .object({
     title: z.string().min(1).max(500),
     capturedAt: clientIsoDatetime.nullish(),
+    asDraft: z.boolean().optional(),
   })
   .strict();
 
@@ -175,25 +178,29 @@ export async function createPlanningItemCommand(
     auditResourceType: 'PLANNING_ITEM',
     auditResourceId: result.planningItemId,
     afterSnapshot: result,
-    activity: {
-      domainCode: 'GROUP',
-      momentId,
-      activityCode: 'GROUP_PLANNING_ITEM_CREATED',
-      title: body.title,
-      payload: { planningItemId: result.planningItemId },
-    },
+    activity: body.asDraft
+      ? undefined
+      : {
+          domainCode: 'GROUP',
+          momentId,
+          activityCode: 'GROUP_PLANNING_ITEM_CREATED',
+          title: body.title,
+          payload: { planningItemId: result.planningItemId },
+        },
   });
-  await client
-    .query(
-      `INSERT INTO projection.group_pulse (moment_id, participant_count, attention_count, task_open_count, projection_version, updated_at)
-       VALUES ($1, 0, 0, 1, 1, now())
-       ON CONFLICT (moment_id) DO UPDATE
-         SET task_open_count = projection.group_pulse.task_open_count + 1,
-             projection_version = projection.group_pulse.projection_version + 1,
-             updated_at = now()`,
-      [momentId]
-    )
-    .catch(() => undefined);
+  if (!body.asDraft) {
+    await client
+      .query(
+        `INSERT INTO projection.group_pulse (moment_id, participant_count, attention_count, task_open_count, projection_version, updated_at)
+         VALUES ($1, 0, 0, 1, 1, now())
+         ON CONFLICT (moment_id) DO UPDATE
+           SET task_open_count = projection.group_pulse.task_open_count + 1,
+               projection_version = projection.group_pulse.projection_version + 1,
+               updated_at = now()`,
+        [momentId]
+      )
+      .catch(() => undefined);
+  }
   await client
     .query(
       `INSERT INTO projection.group_life (moment_id, planning_payload, projection_version, updated_at)
@@ -319,13 +326,15 @@ export async function postUpdateCommand(
     auditResourceType: 'UPDATE',
     auditResourceId: result.updateId,
     afterSnapshot: result,
-    activity: {
-      domainCode: 'GROUP',
-      momentId,
-      activityCode: 'GROUP_UPDATE_POSTED',
-      title: body.message.slice(0, 120),
-      payload: { updateId: result.updateId, notifyMembers: result.notifyMembers },
-    },
+    activity: body.asDraft
+      ? undefined
+      : {
+          domainCode: 'GROUP',
+          momentId,
+          activityCode: 'GROUP_UPDATE_POSTED',
+          title: body.message.slice(0, 120),
+          payload: { updateId: result.updateId, notifyMembers: result.notifyMembers },
+        },
   });
   return result;
 }
@@ -489,28 +498,32 @@ export async function createMemoryCommand(
     auditResourceType: 'MEMORY',
     auditResourceId: result.memoryId,
     afterSnapshot: result,
-    activity: {
-      domainCode: 'GROUP',
-      momentId,
-      activityCode: 'GROUP_MEMORY_CREATED',
-      title: body.title,
-      payload: { memoryId: result.memoryId },
-    },
+    activity: body.asDraft
+      ? undefined
+      : {
+          domainCode: 'GROUP',
+          momentId,
+          activityCode: 'GROUP_MEMORY_CREATED',
+          title: body.title,
+          payload: { memoryId: result.memoryId },
+        },
   });
   // Keep memory facet non-empty: upsert a thin projection row if table supports it.
-  await client
-    .query(
-      `INSERT INTO projection.group_memory (
-         moment_id, memory_count, recent_memory_payload, projection_version, updated_at
-       ) VALUES ($1, 1, $2::jsonb, 1, now())
-       ON CONFLICT (moment_id) DO UPDATE
-         SET memory_count = projection.group_memory.memory_count + 1,
-             recent_memory_payload = $2::jsonb,
-             projection_version = projection.group_memory.projection_version + 1,
-             updated_at = now()`,
-      [momentId, JSON.stringify({ lastMemoryId: result.memoryId, title: body.title })]
-    )
-    .catch(() => undefined);
+  if (!body.asDraft) {
+    await client
+      .query(
+        `INSERT INTO projection.group_memory (
+           moment_id, memory_count, recent_memory_payload, projection_version, updated_at
+         ) VALUES ($1, 1, $2::jsonb, 1, now())
+         ON CONFLICT (moment_id) DO UPDATE
+           SET memory_count = projection.group_memory.memory_count + 1,
+               recent_memory_payload = $2::jsonb,
+               projection_version = projection.group_memory.projection_version + 1,
+               updated_at = now()`,
+        [momentId, JSON.stringify({ lastMemoryId: result.memoryId, title: body.title })]
+      )
+      .catch(() => undefined);
+  }
   return result;
 }
 
