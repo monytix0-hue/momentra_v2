@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.google.firebase.crashlytics)
 }
 
 val localProperties = Properties()
@@ -79,6 +80,7 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.firebase.crashlytics)
     implementation(libs.googleid)
     implementation(libs.material)
     implementation(libs.androidx.activity.compose)

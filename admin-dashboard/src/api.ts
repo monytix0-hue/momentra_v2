@@ -152,6 +152,9 @@ export interface UserRow {
   last_seen_at: string;
   app_version: string | null;
   device_model: string | null;
+  display_name: string | null;
+  email: string | null;
+  session_count: number;
 }
 
 export interface WidgetRow {
@@ -159,6 +162,24 @@ export interface WidgetRow {
   screen_name: string;
   tap_count: number;
   unique_users: number;
+}
+
+/** One person and the moments they activated, newest first. */
+export interface SetupUserGroup {
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  activationCount: number;
+  lastActivatedAt: string;
+  moments: Array<{
+    momentId: string;
+    momentTitle: string;
+    code: string;
+    companyId: string | null;
+    companyName: string | null;
+    activationCount: number;
+    lastActivatedAt: string;
+  }>;
 }
 
 export interface PersonalSetupReport {
@@ -172,16 +193,10 @@ export interface PersonalSetupReport {
   activations: Array<{
     systemCode: string;
     activationCount: number;
+    userCount: number;
     lastActivatedAt: string | null;
   }>;
-  recent: Array<{
-    setupId: string;
-    systemCode: string;
-    title: string;
-    momentId: string;
-    userId: string;
-    createdAt: string;
-  }>;
+  people: SetupUserGroup[];
   screenTime: Array<{
     screenName: string;
     secondsOnScreen: number;
@@ -200,17 +215,10 @@ export interface BusinessSetupReport {
   activations: Array<{
     familyCode: string;
     activationCount: number;
+    userCount: number;
     lastActivatedAt: string | null;
   }>;
-  recent: Array<{
-    setupId: string;
-    familyCode: string;
-    title: string;
-    momentId: string;
-    companyId: string;
-    userId: string;
-    createdAt: string;
-  }>;
+  people: SetupUserGroup[];
   screenTime: Array<{
     screenName: string;
     secondsOnScreen: number;

@@ -1,5 +1,10 @@
 import type { PoolClient } from 'pg';
 import { refreshGroupLeanKpis, type GroupLeanKpiRow } from './group-lean-kpis';
+import {
+  REAL_CREATOR_MOMENT_DAILY_FILTER,
+  REAL_CREATOR_MOMENT_DAILY_JOIN,
+  realUserExists,
+} from './real-users';
 
 export interface FounderLeanKpiRow {
   kpiCode: string;
@@ -54,8 +59,9 @@ export async function refreshFounderLeanKpis(client: PoolClient): Promise<Founde
   {
     const r = await client.query<{ n: string }>(
       `SELECT COUNT(*)::text AS n
-       FROM analytics_core.user_lifecycle_fact
-       WHERE registered_at >= $1::timestamptz AND registered_at < $2::timestamptz`,
+       FROM analytics_core.user_lifecycle_fact ulf
+       WHERE ulf.registered_at >= $1::timestamptz AND ulf.registered_at < $2::timestamptz
+         AND ${realUserExists('ulf.user_id')}`,
       [dayStart.toISOString(), dayEnd.toISOString()]
     );
     const n = Number(r.rows[0]?.n ?? 0);
@@ -82,8 +88,9 @@ export async function refreshFounderLeanKpis(client: PoolClient): Promise<Founde
              AND activated_at <= registered_at + INTERVAL '14 days'
          )::text AS activated,
          COUNT(*)::text AS eligible
-       FROM analytics_core.user_lifecycle_fact
-       WHERE registered_at <= now() - INTERVAL '14 days'`
+       FROM analytics_core.user_lifecycle_fact ulf
+       WHERE ulf.registered_at <= now() - INTERVAL '14 days'
+         AND ${realUserExists('ulf.user_id')}`
     );
     const num = Number(r.rows[0]?.activated ?? 0);
     const den = Number(r.rows[0]?.eligible ?? 0);
@@ -105,8 +112,9 @@ export async function refreshFounderLeanKpis(client: PoolClient): Promise<Founde
   {
     const r = await client.query<{ n: string }>(
       `SELECT COUNT(*)::text AS n
-       FROM analytics_core.moment_lifecycle_fact
-       WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz`,
+       FROM analytics_core.moment_lifecycle_fact mlf
+       WHERE mlf.created_at >= $1::timestamptz AND mlf.created_at < $2::timestamptz
+         AND ${realUserExists('mlf.creator_user_id')}`,
       [dayStart.toISOString(), dayEnd.toISOString()]
     );
     const n = Number(r.rows[0]?.n ?? 0);
@@ -129,11 +137,13 @@ export async function refreshFounderLeanKpis(client: PoolClient): Promise<Founde
     const ws = addDays(weekStart, -7 * i);
     const we = addDays(ws, 7);
     const r = await client.query<{ n: string }>(
-      `SELECT COUNT(DISTINCT moment_id)::text AS n
-       FROM analytics_core.moment_daily
-       WHERE activity_date >= $1::date
-         AND activity_date < $2::date
-         AND meaningfully_active_flag = TRUE`,
+      `SELECT COUNT(DISTINCT md.moment_id)::text AS n
+       FROM analytics_core.moment_daily md
+       ${REAL_CREATOR_MOMENT_DAILY_JOIN}
+       WHERE md.activity_date >= $1::date
+         AND md.activity_date < $2::date
+         AND md.meaningfully_active_flag = TRUE
+         AND ${REAL_CREATOR_MOMENT_DAILY_FILTER}`,
       [isoDate(ws), isoDate(we)]
     );
     const n = Number(r.rows[0]?.n ?? 0);
@@ -153,11 +163,13 @@ export async function refreshFounderLeanKpis(client: PoolClient): Promise<Founde
   // KPI_014 — MAM (current calendar month)
   {
     const r = await client.query<{ n: string }>(
-      `SELECT COUNT(DISTINCT moment_id)::text AS n
-       FROM analytics_core.moment_daily
-       WHERE activity_date >= $1::date
-         AND activity_date < $2::date
-         AND meaningfully_active_flag = TRUE`,
+      `SELECT COUNT(DISTINCT md.moment_id)::text AS n
+       FROM analytics_core.moment_daily md
+       ${REAL_CREATOR_MOMENT_DAILY_JOIN}
+       WHERE md.activity_date >= $1::date
+         AND md.activity_date < $2::date
+         AND md.meaningfully_active_flag = TRUE
+         AND ${REAL_CREATOR_MOMENT_DAILY_FILTER}`,
       [isoDate(monthStart), isoDate(monthEnd)]
     );
     const n = Number(r.rows[0]?.n ?? 0);
@@ -184,9 +196,10 @@ export async function refreshFounderLeanKpis(client: PoolClient): Promise<Founde
              AND activated_at <= created_at + INTERVAL '7 days'
          )::text AS activated,
          COUNT(*)::text AS eligible
-       FROM analytics_core.moment_lifecycle_fact
-       WHERE created_at <= now() - INTERVAL '7 days'
-         AND cancelled_at IS NULL`
+       FROM analytics_core.moment_lifecycle_fact mlf
+       WHERE mlf.created_at <= now() - INTERVAL '7 days'
+         AND mlf.cancelled_at IS NULL
+         AND ${realUserExists('mlf.creator_user_id')}`
     );
     const num = Number(r.rows[0]?.activated ?? 0);
     const den = Number(r.rows[0]?.eligible ?? 0);
@@ -210,10 +223,11 @@ export async function refreshFounderLeanKpis(client: PoolClient): Promise<Founde
       `SELECT
          COUNT(*) FILTER (WHERE completed_at IS NOT NULL)::text AS completed,
          COUNT(*)::text AS eligible
-       FROM analytics_core.moment_lifecycle_fact
-       WHERE activated_at IS NOT NULL
-         AND activated_at <= now() - INTERVAL '30 days'
-         AND cancelled_at IS NULL`
+       FROM analytics_core.moment_lifecycle_fact mlf
+       WHERE mlf.activated_at IS NOT NULL
+         AND mlf.activated_at <= now() - INTERVAL '30 days'
+         AND mlf.cancelled_at IS NULL
+         AND ${realUserExists('mlf.creator_user_id')}`
     );
     const num = Number(r.rows[0]?.completed ?? 0);
     const den = Number(r.rows[0]?.eligible ?? 0);
@@ -235,10 +249,12 @@ export async function refreshFounderLeanKpis(client: PoolClient): Promise<Founde
   {
     const r = await client.query<{ actions: string; moments: string }>(
       `SELECT
-         COALESCE(SUM(meaningful_action_count), 0)::text AS actions,
-         COUNT(*) FILTER (WHERE meaningfully_active_flag)::text AS moments
-       FROM analytics_core.moment_daily
-       WHERE activity_date = $1::date`,
+         COALESCE(SUM(md.meaningful_action_count), 0)::text AS actions,
+         COUNT(*) FILTER (WHERE md.meaningfully_active_flag)::text AS moments
+       FROM analytics_core.moment_daily md
+       ${REAL_CREATOR_MOMENT_DAILY_JOIN}
+       WHERE md.activity_date = $1::date
+         AND ${REAL_CREATOR_MOMENT_DAILY_FILTER}`,
       [dayStartStr]
     );
     const num = Number(r.rows[0]?.actions ?? 0);
@@ -280,10 +296,11 @@ export async function refreshFounderLeanKpis(client: PoolClient): Promise<Founde
     if (den === 0) {
       const computed = await client.query<{ retained: string; eligible: string }>(
         `WITH eligible AS (
-           SELECT user_id, activated_at
-           FROM analytics_core.user_lifecycle_fact
-           WHERE activated_at IS NOT NULL
-             AND activated_at <= now() - INTERVAL '30 days'
+           SELECT ulf.user_id, ulf.activated_at
+           FROM analytics_core.user_lifecycle_fact ulf
+           WHERE ulf.activated_at IS NOT NULL
+             AND ulf.activated_at <= now() - INTERVAL '30 days'
+             AND ${realUserExists('ulf.user_id')}
          ),
          retained AS (
            SELECT DISTINCT e.user_id
@@ -344,9 +361,10 @@ export async function refreshFounderLeanKpis(client: PoolClient): Promise<Founde
                AND second_moment_created_at <= first_moment_created_at + INTERVAL '60 days'
            )::text AS creators,
            COUNT(*)::text AS eligible
-         FROM analytics_core.user_lifecycle_fact
-         WHERE first_moment_created_at IS NOT NULL
-           AND first_moment_created_at <= now() - INTERVAL '60 days'`
+         FROM analytics_core.user_lifecycle_fact ulf
+         WHERE ulf.first_moment_created_at IS NOT NULL
+           AND ulf.first_moment_created_at <= now() - INTERVAL '60 days'
+           AND ${realUserExists('ulf.user_id')}`
       );
       num = Number(computed.rows[0]?.creators ?? 0);
       den = Number(computed.rows[0]?.eligible ?? 0);
@@ -434,11 +452,12 @@ async function materializeSupportingKpis(
   {
     const u = await client.query<{ pairs: string; users: string }>(
       `WITH active_users AS (
-         SELECT DISTINCT user_id
-         FROM analytics_core.user_daily
-         WHERE activity_date >= $1::date
-           AND activity_date < $2::date
-           AND meaningfully_active_flag = TRUE
+         SELECT DISTINCT ud.user_id
+         FROM analytics_core.user_daily ud
+         WHERE ud.activity_date >= $1::date
+           AND ud.activity_date < $2::date
+           AND ud.meaningfully_active_flag = TRUE
+           AND ${realUserExists('ud.user_id')}
        ),
        pairs AS (
          SELECT DISTINCT e.moment_id, e.user_id
@@ -453,6 +472,7 @@ async function materializeSupportingKpis(
            AND e.moment_id IS NOT NULL
            AND e.occurred_at >= $1::timestamptz
            AND e.occurred_at < $2::timestamptz
+           AND ${realUserExists('e.user_id')}
            AND (
              e.event_name IN (
                'moment_created',
@@ -568,7 +588,7 @@ async function upsertSecondMomentCohorts(client: PoolClient): Promise<number> {
     second_moment_creators: string;
   }>(
     `SELECT
-       date_trunc('month', first_moment_created_at)::date::text AS cohort_month,
+       date_trunc('month', ulf.first_moment_created_at)::date::text AS cohort_month,
        COUNT(*)::text AS first_time_creators,
        COUNT(*) FILTER (WHERE first_moment_created_at <= now() - INTERVAL '60 days')::text AS second_moment_eligible,
        COUNT(*) FILTER (
@@ -576,8 +596,9 @@ async function upsertSecondMomentCohorts(client: PoolClient): Promise<number> {
            AND second_moment_created_at IS NOT NULL
            AND second_moment_created_at <= first_moment_created_at + INTERVAL '60 days'
        )::text AS second_moment_creators
-     FROM analytics_core.user_lifecycle_fact
-     WHERE first_moment_created_at IS NOT NULL
+     FROM analytics_core.user_lifecycle_fact ulf
+     WHERE ulf.first_moment_created_at IS NOT NULL
+       AND ${realUserExists('ulf.user_id')}
      GROUP BY 1
      ORDER BY 1`
   );
@@ -602,6 +623,16 @@ async function upsertSecondMomentCohorts(client: PoolClient): Promise<number> {
     );
     n += 1;
   }
+
+  // Drop cohorts left behind by earlier refreshes (e.g. a month whose only
+  // creators turned out to be dev/placeholder accounts).
+  await client.query(
+    `DELETE FROM analytics_mart.moment_repeat_cohort
+     WHERE formula_version = 1
+       AND NOT (cohort_month = ANY($1::date[]))`,
+    [rows.rows.map((r) => r.cohort_month)]
+  );
+
   return n;
 }
 

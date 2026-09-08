@@ -10,13 +10,18 @@ import { v1Router } from './api/v1/router';
 import { adminRouter } from './api/admin/router';
 import { attachSseRoutes } from './realtime/sse';
 
+/** Admin surface lives on its own origin (ADMIN_CORS_ORIGINS) in every environment, prod included. */
+export function adminCors(origins: string[] = config.admin.corsOrigins) {
+  return cors({ origin: origins, credentials: true });
+}
+
 export function createApp(): express.Express {
   const app = express();
-  const corsOrigins = config.isProduction
-    ? config.corsOrigins
-    : [...new Set([...config.corsOrigins, ...config.admin.corsOrigins])];
+  const corsOrigins = config.corsOrigins;
 
   app.disable('x-powered-by');
+  // Mounted ahead of the global layer so it owns the /admin/api preflight.
+  app.use('/admin/api', adminCors());
   app.use(
     cors({
       origin: config.isProduction && corsOrigins.includes('*') ? false : corsOrigins,

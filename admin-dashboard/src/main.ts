@@ -17,6 +17,7 @@ import {
   type GroupExperienceRow,
   type LeanKpiCard,
   type LeanVcMetric,
+  type SetupUserGroup,
 } from './api';
 
 type Tab =
@@ -85,6 +86,57 @@ function platformBadge(platform: string): HTMLElement {
   return el('span', `badge badge-${platform}`, platform);
 }
 
+/** LIFE_OPERATIONS → Life operations */
+function humanizeCode(code: string): string {
+  const words = code.replace(/_/g, ' ').toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`;
+}
+
+function peopleCount(n: number): string {
+  return `${n} ${n === 1 ? 'person' : 'people'}`;
+}
+
+/** Person header + their nested moments, used by the setup views. */
+function personGroupBlock(
+  person: SetupUserGroup,
+  opts: { showCompany?: boolean } = {}
+): HTMLElement {
+  const block = el('div', 'group-block panel');
+
+  const head = el('div', 'group-head');
+  const who = el('div');
+  who.appendChild(el('strong', '', person.userName ?? 'Unknown person'));
+  if (person.userEmail) who.appendChild(el('div', 'group-sub', person.userEmail));
+  head.appendChild(who);
+  head.appendChild(
+    el(
+      'span',
+      'group-pill',
+      `${plural(person.activationCount, 'activation')} · last ${relativeTime(person.lastActivatedAt)}`
+    )
+  );
+  block.appendChild(head);
+
+  const list = el('ul', 'group-items');
+  for (const moment of person.moments) {
+    const item = el('li');
+    item.title = `Moment ${moment.momentId}`;
+    item.appendChild(el('span', 'group-item-title', moment.momentTitle));
+    const bits = [humanizeCode(moment.code)];
+    if (opts.showCompany && moment.companyName) bits.push(moment.companyName);
+    if (moment.activationCount > 1) bits.push(`×${moment.activationCount}`);
+    bits.push(relativeTime(moment.lastActivatedAt));
+    item.appendChild(el('span', 'group-item-meta', bits.join(' · ')));
+    list.appendChild(item);
+  }
+  block.appendChild(list);
+  return block;
+}
+
 function animateCount(node: HTMLElement, target: number, duration = 900): void {
   const start = performance.now();
   const from = 0;
@@ -112,9 +164,14 @@ function loadingBlock(msg = 'Fetching vibes…'): HTMLElement {
   return wrap;
 }
 
-function userDisplay(snapshot: UserSnapshot, userId: string | null, anonymousId: string): HTMLElement {
+function userDisplay(
+  snapshot: UserSnapshot,
+  userId: string | null,
+  anonymousId: string,
+  opts: { name?: string | null; showId?: boolean } = {}
+): HTMLElement {
   const wrap = el('div', 'user-cell');
-  const name = snapshot.userName || (userId ? 'User' : 'Anonymous explorer');
+  const name = opts.name || snapshot.userName || (userId ? 'User' : 'Anonymous explorer');
   const initial = name.charAt(0).toUpperCase();
 
   if (snapshot.photoUrl && snapshot.hasPhoto) {
@@ -128,7 +185,9 @@ function userDisplay(snapshot: UserSnapshot, userId: string | null, anonymousId:
 
   const meta = el('div');
   meta.appendChild(el('strong', '', name));
-  meta.appendChild(el('div', 'mono', userId ?? `${anonymousId.slice(0, 8)}…`));
+  if (opts.showId !== false) {
+    meta.appendChild(el('div', 'mono', userId ?? `${anonymousId.slice(0, 8)}…`));
+  }
   wrap.appendChild(meta);
   return wrap;
 }
@@ -669,7 +728,11 @@ async function renderUsers(parent: HTMLElement): Promise<void> {
   const { items } = await api.users(100);
   parent.appendChild(el('h1', 'page-title', 'People in the room'));
   parent.appendChild(
-    el('p', 'page-sub', 'Demographics snapshot — name, email, age, sex, photo when available.')
+    el(
+      'p',
+      'page-sub',
+      'One card per person — signed-in people first, device-only installs collapsed below.'
+    )
   );
 
   if (!items.length) {
@@ -687,28 +750,72 @@ async function renderUsers(parent: HTMLElement): Promise<void> {
   const host = el('div');
   parent.appendChild(host);
 
+  const userCard = (row: UserRow): HTMLElement => {
+    const s = row.user_snapshot ?? {};
+    const card = el('div', 'user-card');
+    card.title = row.user_id ?? row.anonymous_id;
+    card.appendChild(
+      userDisplay(s, row.user_id, row.anonymous_id, { name: row.display_name, showId: false })
+    );
+    const meta = el('div', 'meta-row');
+    meta.appendChild(el('span', '', row.email ?? 'no email'));
+    meta.appendChild(platformBadge(row.platform));
+    card.appendChild(meta);
+    const meta2 = el('div', 'meta-row');
+    meta2.appendChild(el('span', '', `Age ${s.userAge ?? '?'} · ${s.userSex ?? 'unknown'}`));
+    meta2.appendChild(el('span', '', relativeTime(row.last_seen_at)));
+    card.appendChild(meta2);
+    const meta3 = el('div', 'meta-row');
+    meta3.appendChild(el('span', '', row.device_model ?? 'unknown device'));
+    meta3.appendChild(el('span', '', plural(row.session_count, 'session')));
+    card.appendChild(meta3);
+    return card;
+  };
+
+  const cardGrid = (rows: UserRow[]): HTMLElement => {
+    const grid = el('div', 'user-grid');
+    for (const row of rows) grid.appendChild(userCard(row));
+    return grid;
+  };
+
+  let anonymousOpen = false;
+
   const paint = (list: UserRow[]) => {
     host.innerHTML = '';
     if (!list.length) {
       host.appendChild(emptyState('🔎', 'No matches', 'Try another filter.'));
       return;
     }
-    const grid = el('div', 'user-grid');
-    for (const row of list) {
-      const s = row.user_snapshot ?? {};
-      const card = el('div', 'user-card');
-      card.appendChild(userDisplay(s, row.user_id, row.anonymous_id));
-      const meta = el('div', 'meta-row');
-      meta.appendChild(el('span', '', s.userEmail ?? 'no email'));
-      meta.appendChild(platformBadge(row.platform));
-      card.appendChild(meta);
-      const meta2 = el('div', 'meta-row');
-      meta2.appendChild(el('span', '', `Age ${s.userAge ?? '?'} · ${s.userSex ?? 'unknown'}`));
-      meta2.appendChild(el('span', '', relativeTime(row.last_seen_at)));
-      card.appendChild(meta2);
-      grid.appendChild(card);
+
+    const named = list.filter((row) => row.display_name);
+    const anonymous = list.filter((row) => !row.display_name);
+
+    if (named.length) {
+      host.appendChild(el('h2', 'section-title', `Signed in · ${peopleCount(named.length)}`));
+      host.appendChild(cardGrid(named));
     }
-    host.appendChild(grid);
+
+    if (anonymous.length) {
+      const toggle = el('button', 'group-toggle') as HTMLButtonElement;
+      toggle.type = 'button';
+      const body = el('div');
+      const paintToggle = () => {
+        toggle.innerHTML = '';
+        toggle.appendChild(
+          el('strong', '', `Anonymous devices · ${plural(anonymous.length, 'install')}`)
+        );
+        toggle.appendChild(el('span', 'group-pill', anonymousOpen ? 'Hide' : 'Show'));
+        body.style.display = anonymousOpen ? 'block' : 'none';
+      };
+      toggle.onclick = () => {
+        anonymousOpen = !anonymousOpen;
+        paintToggle();
+      };
+      body.appendChild(cardGrid(anonymous));
+      paintToggle();
+      host.appendChild(toggle);
+      host.appendChild(body);
+    }
   };
 
   search.oninput = () => {
@@ -716,7 +823,7 @@ async function renderUsers(parent: HTMLElement): Promise<void> {
     paint(
       items.filter((row) => {
         const s = row.user_snapshot ?? {};
-        return [s.userName, s.userEmail, s.userAge, s.userSex, row.platform]
+        return [row.display_name, row.email, s.userAge, s.userSex, row.platform, row.device_model]
           .filter(Boolean)
           .join(' ')
           .toLowerCase()
@@ -1045,7 +1152,7 @@ async function renderPersonalSetups(parent: HTMLElement): Promise<void> {
         'p',
         '',
         stats
-          ? `${stats.activationCount} activation${stats.activationCount === 1 ? '' : 's'}${
+          ? `${peopleCount(stats.userCount)} · ${plural(stats.activationCount, 'activation')}${
               stats.lastActivatedAt ? ` · last ${relativeTime(stats.lastActivatedAt)}` : ''
             }`
           : 'No activations yet'
@@ -1064,31 +1171,16 @@ async function renderPersonalSetups(parent: HTMLElement): Promise<void> {
     )
   );
 
-  parent.appendChild(el('h2', 'section-title', 'Recent activations'));
-  if (!data.recent.length) {
+  parent.appendChild(el('h2', 'section-title', 'Who activated what'));
+  if (!data.people.length) {
     parent.appendChild(emptyState('🧭', 'No setups activated yet', 'Activate from Personal → Create in the apps.'));
     return;
   }
-  const wrap = el('div', 'table-wrap panel');
-  const table = el('table');
-  const hr = el('tr');
-  for (const h of ['When', 'System', 'Title', 'Moment', 'User']) {
-    hr.appendChild(el('th', '', h));
+  const groups = el('div', 'group-list');
+  for (const person of data.people) {
+    groups.appendChild(personGroupBlock(person));
   }
-  table.appendChild(el('thead')).appendChild(hr);
-  const tbody = el('tbody');
-  for (const row of data.recent) {
-    const tr = el('tr');
-    tr.appendChild(el('td', '', formatTs(row.createdAt)));
-    tr.appendChild(el('td', '', row.systemCode));
-    tr.appendChild(el('td', '', row.title));
-    tr.appendChild(el('td', 'mono', row.momentId.slice(0, 8) + '…'));
-    tr.appendChild(el('td', 'mono', row.userId.slice(0, 8) + '…'));
-    tbody.appendChild(tr);
-  }
-  table.appendChild(tbody);
-  wrap.appendChild(table);
-  parent.appendChild(wrap);
+  parent.appendChild(groups);
 }
 
 async function renderBusinessSetups(parent: HTMLElement): Promise<void> {
@@ -1119,7 +1211,7 @@ async function renderBusinessSetups(parent: HTMLElement): Promise<void> {
         'p',
         '',
         stats
-          ? `${stats.activationCount} activation${stats.activationCount === 1 ? '' : 's'}${
+          ? `${peopleCount(stats.userCount)} · ${plural(stats.activationCount, 'activation')}${
               stats.lastActivatedAt ? ` · last ${relativeTime(stats.lastActivatedAt)}` : ''
             }`
           : 'No activations yet'
@@ -1138,32 +1230,16 @@ async function renderBusinessSetups(parent: HTMLElement): Promise<void> {
     )
   );
 
-  parent.appendChild(el('h2', 'section-title', 'Recent activations'));
-  if (!data.recent.length) {
+  parent.appendChild(el('h2', 'section-title', 'Who activated what'));
+  if (!data.people.length) {
     parent.appendChild(emptyState('💼', 'No setups activated yet', 'Activate from Business → Create after company setup.'));
     return;
   }
-  const wrap = el('div', 'table-wrap panel');
-  const table = el('table');
-  const hr = el('tr');
-  for (const h of ['When', 'Family', 'Title', 'Company', 'Moment', 'User']) {
-    hr.appendChild(el('th', '', h));
+  const groups = el('div', 'group-list');
+  for (const person of data.people) {
+    groups.appendChild(personGroupBlock(person, { showCompany: true }));
   }
-  table.appendChild(el('thead')).appendChild(hr);
-  const tbody = el('tbody');
-  for (const row of data.recent) {
-    const tr = el('tr');
-    tr.appendChild(el('td', '', formatTs(row.createdAt)));
-    tr.appendChild(el('td', '', row.familyCode));
-    tr.appendChild(el('td', '', row.title));
-    tr.appendChild(el('td', 'mono', row.companyId.slice(0, 8) + '…'));
-    tr.appendChild(el('td', 'mono', row.momentId.slice(0, 8) + '…'));
-    tr.appendChild(el('td', 'mono', row.userId.slice(0, 8) + '…'));
-    tbody.appendChild(tr);
-  }
-  table.appendChild(tbody);
-  wrap.appendChild(table);
-  parent.appendChild(wrap);
+  parent.appendChild(groups);
 }
 
 async function renderGroupExperiences(parent: HTMLElement): Promise<void> {
@@ -1185,15 +1261,8 @@ async function renderGroupExperiences(parent: HTMLElement): Promise<void> {
   }
 
   const layout = el('div', 'split');
-  const listWrap = el('div', 'table-wrap panel');
-  const table = el('table');
-  const hr = el('tr');
-  for (const h of ['When', 'Title', 'Type', 'Status', 'People', 'Organizer']) {
-    hr.appendChild(el('th', '', h));
-  }
-  table.appendChild(el('thead')).appendChild(hr);
-  const tbody = el('tbody');
-  const detailHost = el('div', 'panel');
+  const listWrap = el('div');
+  const detailHost = el('div', 'panel group-detail');
   detailHost.appendChild(el('p', 'page-sub', 'Select a row for detail.'));
 
   const showDetail = async (row: GroupExperienceRow) => {
@@ -1212,7 +1281,6 @@ async function renderGroupExperiences(parent: HTMLElement): Promise<void> {
           }`
         )
       );
-      detailHost.appendChild(el('p', 'mono', detail.momentId));
       if (detail.description) detailHost.appendChild(el('p', '', detail.description));
       detailHost.appendChild(
         el(
@@ -1221,9 +1289,7 @@ async function renderGroupExperiences(parent: HTMLElement): Promise<void> {
           `Dates: ${detail.startAt ? formatTs(detail.startAt) : '—'} → ${detail.endAt ? formatTs(detail.endAt) : '—'}`
         )
       );
-      detailHost.appendChild(
-        el('p', '', `Organizer: ${detail.organizerName ?? detail.organizerUserId.slice(0, 8) + '…'}`)
-      );
+      detailHost.appendChild(el('p', '', `Organizer: ${detail.organizerName ?? 'Unknown'}`));
       detailHost.appendChild(el('h3', 'section-title', 'People'));
       const plist = el('ul');
       for (const p of detail.participants) {
@@ -1238,22 +1304,77 @@ async function renderGroupExperiences(parent: HTMLElement): Promise<void> {
     }
   };
 
+  // One block per organizer, their experiences nested underneath.
+  const byOrganizer = new Map<string, GroupExperienceRow[]>();
   for (const row of list.items) {
-    const tr = el('tr');
-    tr.style.cursor = 'pointer';
-    tr.appendChild(el('td', '', formatTs(row.createdAt)));
-    tr.appendChild(el('td', '', row.title));
-    tr.appendChild(el('td', '', row.momentTypeCode));
-    tr.appendChild(el('td', '', row.status === 'ACTIVE' ? 'Activated' : row.status));
-    tr.appendChild(el('td', '', String(row.participantCount)));
-    tr.appendChild(el('td', '', row.organizerName ?? row.organizerUserId.slice(0, 8) + '…'));
-    tr.addEventListener('click', () => {
-      void showDetail(row);
-    });
-    tbody.appendChild(tr);
+    const key = row.organizerName ?? 'Unknown organizer';
+    const bucket = byOrganizer.get(key);
+    if (bucket) bucket.push(row);
+    else byOrganizer.set(key, [row]);
   }
-  table.appendChild(tbody);
-  listWrap.appendChild(table);
+
+  const groups = el('div', 'group-list');
+  for (const [organizer, rows] of byOrganizer) {
+    const block = el('div', 'group-block panel');
+    const head = el('div', 'group-head');
+    head.appendChild(el('strong', '', organizer));
+    head.appendChild(
+      el(
+        'span',
+        'group-pill',
+        `${plural(rows.length, 'experience')} · last ${relativeTime(rows[0].createdAt)}`
+      )
+    );
+    block.appendChild(head);
+
+    const items = el('ul', 'group-items');
+    const COLLAPSED = 6;
+    const experienceItem = (row: GroupExperienceRow): HTMLElement => {
+      const item = el('li');
+      item.style.cursor = 'pointer';
+      item.title = `Moment ${row.momentId}`;
+      item.appendChild(el('span', 'group-item-title', row.title));
+      const bits = [
+        humanizeCode(row.experienceKind ?? row.momentTypeCode),
+        row.status === 'ACTIVE' ? 'Activated' : humanizeCode(row.status),
+        peopleCount(row.participantCount),
+        relativeTime(row.createdAt),
+      ];
+      item.appendChild(el('span', 'group-item-meta', bits.join(' · ')));
+      item.addEventListener('click', () => {
+        void showDetail(row);
+      });
+      return item;
+    };
+
+    for (const row of rows.slice(0, COLLAPSED)) items.appendChild(experienceItem(row));
+    block.appendChild(items);
+
+    if (rows.length > COLLAPSED) {
+      const more = el('ul', 'group-items');
+      more.style.display = 'none';
+      for (const row of rows.slice(COLLAPSED)) more.appendChild(experienceItem(row));
+      block.appendChild(more);
+
+      const toggle = el('button', 'group-more') as HTMLButtonElement;
+      toggle.type = 'button';
+      let open = false;
+      const paintToggle = () => {
+        toggle.textContent = open ? 'Show less' : `Show ${rows.length - COLLAPSED} more`;
+        more.style.display = open ? 'grid' : 'none';
+      };
+      toggle.onclick = () => {
+        open = !open;
+        paintToggle();
+      };
+      paintToggle();
+      block.appendChild(toggle);
+    }
+
+    groups.appendChild(block);
+  }
+
+  listWrap.appendChild(groups);
   layout.appendChild(listWrap);
   layout.appendChild(detailHost);
   parent.appendChild(layout);

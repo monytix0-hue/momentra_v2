@@ -38,7 +38,13 @@ CORS_ORIGINS=https://momentra.app
 PUBLIC_APP_ORIGIN=https://momentra.app
 SCHEMA_RELEASE=V001-V058
 MOMENTRA_AI_INTERNAL_KEY=<random-secret>
+ADMIN_API_KEY=<long-random-secret>
+ADMIN_CORS_ORIGINS=https://admin.momentra.tech
 ```
+
+`ADMIN_CORS_ORIGINS` gates the telemetry admin dashboard (`/admin/api/*`) and is separate from
+`CORS_ORIGINS`. List origins comma-separated with **no trailing slash** — browsers never send one
+in the `Origin` header, and unmatched origins fail preflight with no `Access-Control-Allow-Origin`.
 
 ## Domain
 

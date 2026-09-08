@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getPool } from '../../platform/database/pool';
 import { refreshFounderLeanKpis } from '../../modules/analytics/founder-lean-kpis';
+import { realUserExists } from '../../modules/analytics/real-users';
 
 export const adminLeanAnalyticsRouter = Router();
 
@@ -423,15 +424,17 @@ adminLeanAnalyticsRouter.get('/vc', async (_req, res, next) => {
       const byCode = new Map(latest.rows.map((row) => [row.kpi_code, row]));
 
       const mau = await client.query<{ n: string }>(
-        `SELECT COUNT(DISTINCT user_id)::text AS n
-         FROM analytics_core.user_daily
-         WHERE activity_date >= date_trunc('month', now())::date
-           AND meaningfully_active_flag = TRUE`
+        `SELECT COUNT(DISTINCT ud.user_id)::text AS n
+         FROM analytics_core.user_daily ud
+         WHERE ud.activity_date >= date_trunc('month', now())::date
+           AND ud.meaningfully_active_flag = TRUE
+           AND ${realUserExists('ud.user_id')}`
       );
       const activatedUsers = await client.query<{ n: string }>(
         `SELECT COUNT(*)::text AS n
-         FROM analytics_core.user_lifecycle_fact
-         WHERE activated_at IS NOT NULL`
+         FROM analytics_core.user_lifecycle_fact ulf
+         WHERE ulf.activated_at IS NOT NULL
+           AND ${realUserExists('ulf.user_id')}`
       );
 
       const pick = (code: string, label: string) => {

@@ -16,6 +16,17 @@ function envFlag(name: string): boolean {
   return process.env[name] === '1' || process.env[name] === 'true';
 }
 
+/**
+ * Browser Origin headers never carry a trailing slash, and `cors` string-matches exactly —
+ * so normalize here and accept `;` as a separator to keep env typos from silently denying.
+ */
+export function normalizeOrigins(raw: string | undefined, fallback: string): string[] {
+  return (raw ?? fallback)
+    .split(/[,;]/)
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}
+
 export interface AppConfig {
   port: number;
   nodeEnv: string;
@@ -94,12 +105,12 @@ function loadConfig(): AppConfig {
       statementTimeoutMs: parseInt(process.env.DB_STATEMENT_TIMEOUT_MS ?? '30000', 10),
       connectionTimeoutMs: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS ?? '10000', 10),
     },
-    corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(',').map((s) => s.trim()),
+    corsOrigins: normalizeOrigins(process.env.CORS_ORIGINS, 'http://localhost:3000'),
     publicAppOrigin: process.env.PUBLIC_APP_ORIGIN ?? 'https://momentra.app',
     schemaRelease: process.env.SCHEMA_RELEASE ?? 'V001-V049',
     admin: {
       apiKey: process.env.ADMIN_API_KEY ?? '',
-      corsOrigins: (process.env.ADMIN_CORS_ORIGINS ?? 'http://localhost:5180').split(',').map((s) => s.trim()),
+      corsOrigins: normalizeOrigins(process.env.ADMIN_CORS_ORIGINS, 'http://localhost:5180'),
     },
   };
 }

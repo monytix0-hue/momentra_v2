@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { userDisplayNameSql, userEmailSql } from '../analytics/real-users';
 
 export async function getTelemetryOverview(client: PoolClient) {
   const result = await client.query<{
@@ -138,7 +139,18 @@ export async function getStuckPointsReport(client: PoolClient) {
 
 export async function listTelemetryUsers(client: PoolClient, limit: number) {
   const capped = Math.min(Math.max(limit, 1), 200);
-  const result = await client.query(
+  const result = await client.query<{
+    user_id: string | null;
+    anonymous_id: string;
+    platform: string;
+    user_snapshot: Record<string, unknown> | null;
+    last_seen_at: Date;
+    app_version: string | null;
+    device_model: string | null;
+    profile_name: string | null;
+    profile_email: string | null;
+    session_count: number;
+  }>(
     `SELECT DISTINCT ON (COALESCE(cs.user_id::text, cs.anonymous_id::text))
        cs.user_id,
        cs.anonymous_id,
@@ -146,13 +158,51 @@ export async function listTelemetryUsers(client: PoolClient, limit: number) {
        cs.user_snapshot,
        cs.started_at AS last_seen_at,
        cs.app_version,
-       cs.device_model
+       cs.device_model,
+       ${userDisplayNameSql('up')} AS profile_name,
+       ${userEmailSql('up')} AS profile_email,
+       (
+         SELECT COUNT(*)::int FROM analytics.client_session s
+         WHERE COALESCE(s.user_id::text, s.anonymous_id::text)
+             = COALESCE(cs.user_id::text, cs.anonymous_id::text)
+       ) AS session_count
      FROM analytics.client_session cs
+     LEFT JOIN core.user_profile up ON up.user_id = cs.user_id
      ORDER BY COALESCE(cs.user_id::text, cs.anonymous_id::text), cs.started_at DESC
      LIMIT $1`,
     [capped]
   );
-  return { items: result.rows };
+
+  // Named people first (a signed-in profile or a client-sent name); the rest are
+  // device-only installs the UI collapses into one section.
+  const isPlaceholderEmail = (email?: string | null) =>
+    !email || /@(users|dev)\.momentra\.local$/i.test(email);
+
+  const items = result.rows
+    .map((row) => {
+      const snapshot = (row.user_snapshot ?? {}) as { userName?: string; userEmail?: string };
+      const snapshotEmail = isPlaceholderEmail(snapshot.userEmail) ? null : snapshot.userEmail;
+      return {
+        user_id: row.user_id,
+        anonymous_id: row.anonymous_id,
+        platform: row.platform,
+        user_snapshot: row.user_snapshot ?? {},
+        last_seen_at: row.last_seen_at,
+        app_version: row.app_version,
+        device_model: row.device_model,
+        display_name: row.profile_name ?? snapshot.userName ?? null,
+        email: row.profile_email ?? snapshotEmail ?? null,
+        session_count: row.session_count,
+      };
+    })
+    .sort((a, b) => {
+      const aNamed = a.display_name ? 0 : 1;
+      const bNamed = b.display_name ? 0 : 1;
+      if (aNamed !== bNamed) return aNamed - bNamed;
+      return b.last_seen_at.getTime() - a.last_seen_at.getTime();
+    });
+
+  return { items };
 }
 
 export async function getWidgetInteractions(client: PoolClient, limit: number) {
@@ -173,6 +223,77 @@ export async function getWidgetInteractions(client: PoolClient, limit: number) {
   return { items: result.rows };
 }
 
+interface SetupGroupRow {
+  user_id: string;
+  user_name: string | null;
+  user_email: string | null;
+  moment_id: string;
+  moment_title: string;
+  group_code: string;
+  company_id?: string | null;
+  company_name?: string | null;
+  activation_count: string;
+  last_activated_at: Date;
+}
+
+/**
+ * Collapse setup rows into one entry per person, with their moments nested —
+ * a person who activated four life systems is one card, not four table rows.
+ */
+function groupSetupsByUser(rows: SetupGroupRow[], userLimit: number) {
+  const byUser = new Map<
+    string,
+    {
+      userId: string;
+      userName: string | null;
+      userEmail: string | null;
+      activationCount: number;
+      lastActivatedAt: string;
+      moments: Array<{
+        momentId: string;
+        momentTitle: string;
+        code: string;
+        companyId: string | null;
+        companyName: string | null;
+        activationCount: number;
+        lastActivatedAt: string;
+      }>;
+    }
+  >();
+
+  for (const row of rows) {
+    const activationCount = Number(row.activation_count);
+    const lastActivatedAt = row.last_activated_at.toISOString();
+    let group = byUser.get(row.user_id);
+    if (!group) {
+      group = {
+        userId: row.user_id,
+        userName: row.user_name,
+        userEmail: row.user_email,
+        activationCount: 0,
+        lastActivatedAt,
+        moments: [],
+      };
+      byUser.set(row.user_id, group);
+    }
+    group.activationCount += activationCount;
+    if (lastActivatedAt > group.lastActivatedAt) group.lastActivatedAt = lastActivatedAt;
+    group.moments.push({
+      momentId: row.moment_id,
+      momentTitle: row.moment_title,
+      code: row.group_code,
+      companyId: row.company_id ?? null,
+      companyName: row.company_name ?? null,
+      activationCount,
+      lastActivatedAt,
+    });
+  }
+
+  return [...byUser.values()]
+    .sort((a, b) => b.lastActivatedAt.localeCompare(a.lastActivatedAt))
+    .slice(0, userLimit);
+}
+
 const SETUP_SCREENS = [
   'screen_personal_setup_life_ops',
   'screen_personal_setup_future',
@@ -185,36 +306,40 @@ export async function getPersonalSetupReport(client: PoolClient) {
   const activations = await client.query<{
     system_code: string;
     activation_count: string;
+    user_count: string;
     last_activated_at: Date | null;
   }>(
     `SELECT system_code,
             COUNT(*)::text AS activation_count,
+            COUNT(DISTINCT user_id)::text AS user_count,
             MAX(created_at) AS last_activated_at
      FROM personal.life_system_setup
      GROUP BY system_code
      ORDER BY system_code`
-  ).catch(() => ({ rows: [] as Array<{ system_code: string; activation_count: string; last_activated_at: Date | null }> }));
-
-  const recent = await client.query<{
-    life_system_setup_id: string;
-    system_code: string;
-    title: string;
-    moment_id: string;
-    user_id: string;
-    created_at: Date;
-  }>(
-    `SELECT life_system_setup_id, system_code, title, moment_id, user_id, created_at
-     FROM personal.life_system_setup
-     ORDER BY created_at DESC
-     LIMIT 30`
   ).catch(() => ({ rows: [] as Array<{
-    life_system_setup_id: string;
     system_code: string;
-    title: string;
-    moment_id: string;
-    user_id: string;
-    created_at: Date;
+    activation_count: string;
+    user_count: string;
+    last_activated_at: Date | null;
   }> }));
+
+  const grouped = await client.query<SetupGroupRow>(
+    `SELECT lss.user_id,
+            ${userDisplayNameSql('up')} AS user_name,
+            ${userEmailSql('up')} AS user_email,
+            lss.moment_id,
+            COALESCE(NULLIF(m.title, ''), lss.title) AS moment_title,
+            lss.system_code AS group_code,
+            COUNT(*)::text AS activation_count,
+            MAX(lss.created_at) AS last_activated_at
+     FROM personal.life_system_setup lss
+     LEFT JOIN core.user_profile up ON up.user_id = lss.user_id
+     LEFT JOIN core.moment m ON m.moment_id = lss.moment_id
+     GROUP BY lss.user_id, up.display_name, up.email, lss.moment_id,
+              COALESCE(NULLIF(m.title, ''), lss.title), lss.system_code
+     ORDER BY MAX(lss.created_at) DESC
+     LIMIT 300`
+  ).catch(() => ({ rows: [] as SetupGroupRow[] }));
 
   const screenTime = await client.query<{
     screen_name: string;
@@ -266,16 +391,10 @@ export async function getPersonalSetupReport(client: PoolClient) {
     activations: activations.rows.map((r) => ({
       systemCode: r.system_code,
       activationCount: Number(r.activation_count),
+      userCount: Number(r.user_count),
       lastActivatedAt: r.last_activated_at?.toISOString() ?? null,
     })),
-    recent: recent.rows.map((r) => ({
-      setupId: r.life_system_setup_id,
-      systemCode: r.system_code,
-      title: r.title,
-      momentId: r.moment_id,
-      userId: r.user_id,
-      createdAt: r.created_at.toISOString(),
-    })),
+    people: groupSetupsByUser(grouped.rows, 40),
     screenTime: screenTime.rows.map((r) => ({
       screenName: r.screen_name,
       secondsOnScreen: Number(r.seconds_on_screen),
@@ -297,10 +416,12 @@ export async function getBusinessSetupReport(client: PoolClient) {
     .query<{
       family_code: string;
       activation_count: string;
+      user_count: string;
       last_activated_at: Date | null;
     }>(
       `SELECT family_code,
               COUNT(*)::text AS activation_count,
+              COUNT(DISTINCT user_id)::text AS user_count,
               MAX(created_at) AS last_activated_at
        FROM business.business_system_setup
        GROUP BY family_code
@@ -309,39 +430,38 @@ export async function getBusinessSetupReport(client: PoolClient) {
     .catch(
       () =>
         ({
-          rows: [] as Array<{ family_code: string; activation_count: string; last_activated_at: Date | null }>,
-        }) as const
-    );
-
-  const recent = await client
-    .query<{
-      business_system_setup_id: string;
-      family_code: string;
-      title: string;
-      moment_id: string;
-      company_id: string;
-      user_id: string;
-      created_at: Date;
-    }>(
-      `SELECT business_system_setup_id, family_code, title, moment_id, company_id, user_id, created_at
-       FROM business.business_system_setup
-       ORDER BY created_at DESC
-       LIMIT 30`
-    )
-    .catch(
-      () =>
-        ({
           rows: [] as Array<{
-            business_system_setup_id: string;
             family_code: string;
-            title: string;
-            moment_id: string;
-            company_id: string;
-            user_id: string;
-            created_at: Date;
+            activation_count: string;
+            user_count: string;
+            last_activated_at: Date | null;
           }>,
         }) as const
     );
+
+  const grouped = await client
+    .query<SetupGroupRow>(
+      `SELECT bss.user_id,
+              ${userDisplayNameSql('up')} AS user_name,
+              ${userEmailSql('up')} AS user_email,
+              bss.moment_id,
+              COALESCE(NULLIF(m.title, ''), bss.title) AS moment_title,
+              bss.family_code AS group_code,
+              bss.company_id,
+              c.display_name AS company_name,
+              COUNT(*)::text AS activation_count,
+              MAX(bss.created_at) AS last_activated_at
+       FROM business.business_system_setup bss
+       LEFT JOIN core.user_profile up ON up.user_id = bss.user_id
+       LEFT JOIN core.moment m ON m.moment_id = bss.moment_id
+       LEFT JOIN business.company c ON c.company_id = bss.company_id
+       GROUP BY bss.user_id, up.display_name, up.email, bss.moment_id,
+                COALESCE(NULLIF(m.title, ''), bss.title), bss.family_code,
+                bss.company_id, c.display_name
+       ORDER BY MAX(bss.created_at) DESC
+       LIMIT 300`
+    )
+    .catch(() => ({ rows: [] as SetupGroupRow[] }) as const);
 
   const screenTime = await client.query<{
     screen_name: string;
@@ -386,17 +506,10 @@ export async function getBusinessSetupReport(client: PoolClient) {
     activations: activations.rows.map((r) => ({
       familyCode: r.family_code,
       activationCount: Number(r.activation_count),
+      userCount: Number(r.user_count),
       lastActivatedAt: r.last_activated_at?.toISOString() ?? null,
     })),
-    recent: recent.rows.map((r) => ({
-      setupId: r.business_system_setup_id,
-      familyCode: r.family_code,
-      title: r.title,
-      momentId: r.moment_id,
-      companyId: r.company_id,
-      userId: r.user_id,
-      createdAt: r.created_at.toISOString(),
-    })),
+    people: groupSetupsByUser(grouped.rows, 40),
     screenTime: screenTime.rows.map((r) => ({
       screenName: r.screen_name,
       secondsOnScreen: Number(r.seconds_on_screen),
