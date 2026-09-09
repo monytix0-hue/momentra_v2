@@ -428,11 +428,11 @@ final class APIClient {
     }
 
     func listMyNotifications(limit: Int = 30, unreadOnly: Bool? = nil) async throws -> NotificationInboxPayload {
-        var path = "v1/me/notifications?limit=\(limit)"
+        var query: [String: String] = ["limit": String(limit)]
         if let unreadOnly {
-            path += "&unreadOnly=\(unreadOnly)"
+            query["unreadOnly"] = String(unreadOnly)
         }
-        return try await authorizedGet(path: path)
+        return try await authorizedGet(path: "v1/me/notifications", query: query)
     }
 
     @discardableResult
