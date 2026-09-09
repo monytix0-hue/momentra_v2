@@ -38,6 +38,11 @@ final class PushDeepLinkStore: ObservableObject {
         return link?.isEmpty == false ? link : nil
     }
 
+    static func isInboxLink(_ raw: String) -> Bool {
+        guard let url = URL(string: raw), url.scheme?.lowercased() == "momentra" else { return false }
+        return url.host?.lowercased() == "inbox"
+    }
+
     static func parseMomentId(_ raw: String) -> String? {
         guard let url = URL(string: raw) else { return nil }
         let scheme = url.scheme?.lowercased() ?? ""

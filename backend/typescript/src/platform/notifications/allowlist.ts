@@ -49,6 +49,7 @@ export const PEER_PUSH_EVENT_NAMES = new Set<string>([
   'InvestorUpdateCreated',
   'MeetingRecordCreated',
   'WeeklyReminder',
+  'DailyPersonalReminder',
   'BillReminder',
   'ChoreReminder',
   'ExpenseReminder',
@@ -91,6 +92,7 @@ const CATEGORY_BY_EVENT: Record<string, NotificationCategory> = {
   InvestorUpdateCreated: 'approvals',
   MeetingRecordCreated: 'approvals',
   WeeklyReminder: 'reminders',
+  DailyPersonalReminder: 'reminders',
   DigestReady: 'reminders',
   PurchaseItemAdded: 'social',
   ResidentAdded: 'social',
@@ -109,6 +111,8 @@ const PRIORITY_BY_EVENT: Record<string, NotificationPriority> = {
   TaskDueReminder: 'HIGH',
   BillReminder: 'HIGH',
   BusinessIssueCreated: 'HIGH',
+  // HIGH so the daily nudge is never swallowed by digest batching or quiet hours.
+  DailyPersonalReminder: 'HIGH',
   PollVoted: 'LOW',
   GroupParticipantRoleUpdated: 'LOW',
   DigestReady: 'NORMAL',
@@ -138,11 +142,12 @@ export function bullmqPriority(priority: NotificationPriority): number {
   }
 }
 
-/** Skip push when GroupUpdatePosted was posted with notifyMembers=false. */
+/** Skip push for drafts, and for GroupUpdatePosted posted with notifyMembers=false. */
 export function shouldSkipPushForPayload(
   eventName: string,
   payload?: Record<string, unknown> | null
 ): boolean {
+  if (payload && payload.asDraft === true) return true;
   if (eventName !== 'GroupUpdatePosted') return false;
   if (payload && payload.notifyMembers === false) return true;
   return false;
@@ -281,6 +286,14 @@ export function notificationCopy(
       return {
         title: 'Weekly check-in',
         body: typeof payload?.body === 'string' ? payload.body : 'Time for your weekly Momentra check-in.',
+      };
+    case 'DailyPersonalReminder':
+      return {
+        title: 'Your daily Personal check-in',
+        body:
+          typeof payload?.body === 'string'
+            ? payload.body
+            : 'Open Personal and log one thing from today.',
       };
     case 'BillReminder':
       return { title: 'Bill reminder', body: 'A shared bill may need attention.' };

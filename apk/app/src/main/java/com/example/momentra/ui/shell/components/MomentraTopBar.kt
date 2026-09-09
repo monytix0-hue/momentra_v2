@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -59,6 +62,7 @@ data class MomentraTopBarConfig(
     val globalCreateAvailable: Boolean = true,
     val qrScanAvailable: Boolean = false,
     val referAvailable: Boolean = true,
+    val unreadNotificationCount: Int = 0,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,6 +75,7 @@ fun MomentraTopBar(
     onLife360: () -> Unit = {},
     onNewMoment: () -> Unit = {},
     onRefer: () -> Unit = {},
+    onInbox: () -> Unit = {},
     onAvatar: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -161,6 +166,35 @@ fun MomentraTopBar(
                             contentDescription = null,
                             modifier = Modifier.size(10.dp),
                         )
+                    }
+                }
+                LabeledTopBarAction(
+                    label = "Alerts",
+                    background = actionBg,
+                    onClick = onInbox,
+                    contentDescription = if (config.unreadNotificationCount > 0) {
+                        "Notifications, ${config.unreadNotificationCount} unread"
+                    } else {
+                        "Notifications"
+                    },
+                    testTag = MaestroIds.TOPBAR_INBOX,
+                    labelColor = labelMuted,
+                ) {
+                    Box(contentAlignment = Alignment.TopEnd) {
+                        Icon(
+                            imageVector = Icons.Filled.Notifications,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        if (config.unreadNotificationCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF43F5E)),
+                            )
+                        }
                     }
                 }
                 if (config.referAvailable) {

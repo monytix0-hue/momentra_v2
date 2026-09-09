@@ -28,9 +28,16 @@ object DeviceRegistrar {
         return id
     }
 
-    /** Resolves FCM token when [pushToken] is null, then POSTs `/me/devices`. */
+    /**
+     * Resolves the FCM token when [pushToken] is null, then POSTs `/me/devices`.
+     * A tokenless registration is skipped — `onNewToken` re-registers once FCM issues one.
+     */
     suspend fun register(context: Context, pushToken: String? = null): Result<Unit> = runCatching {
         val token = pushToken?.takeIf { it.isNotBlank() } ?: fetchFcmToken()
+        if (token.isNullOrBlank()) {
+            Log.w(TAG, "No FCM token yet; skipping device registration")
+            return@runCatching
+        }
         val id = deviceId(context)
         ApiClient.apiService.registerDevice(
             idempotencyKey = UUID.randomUUID().toString(),
@@ -41,12 +48,7 @@ object DeviceRegistrar {
                 appVersion = Build.VERSION.RELEASE,
             ),
         )
-        if (token.isNullOrBlank()) {
-            Log.w(TAG, "Registered device without FCM token")
-        } else {
-            Log.i(TAG, "Registered device with FCM token")
-        }
-        Unit
+        Log.i(TAG, "Registered device with FCM token")
     }
 
     private suspend fun fetchFcmToken(): String? = runCatching {

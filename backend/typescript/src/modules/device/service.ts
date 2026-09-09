@@ -64,10 +64,14 @@ export async function registerDevice(
      VALUES ($1, $2, $3, $4, $5, now())
      ON CONFLICT (user_id, device_id) DO UPDATE SET
        platform = EXCLUDED.platform,
-       push_token = EXCLUDED.push_token,
+       -- A tokenless re-register (permission denied, FCM not ready) must not wipe a good token.
+       push_token = COALESCE(NULLIF(EXCLUDED.push_token, ''), platform.user_device.push_token),
        app_version = EXCLUDED.app_version,
        last_seen_at = now(),
-       revoked_at = NULL,
+       revoked_at = CASE
+         WHEN NULLIF(EXCLUDED.push_token, '') IS NULL THEN platform.user_device.revoked_at
+         ELSE NULL
+       END,
        updated_at = now()
      RETURNING user_device_id`,
     [ctx.userId, deviceId, body.platform, body.pushToken ?? '', body.appVersion ?? null]

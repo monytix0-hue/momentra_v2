@@ -43,6 +43,8 @@ struct AppShellView: View {
     @State private var pendingGroupJoin: PendingGroupJoin?
     @State private var companyMenuOpen = false
     @State private var joinFeedbackMessage: String?
+    @State private var inboxOpen = false
+    @StateObject private var inboxBadge = NotificationInboxBadge.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -52,10 +54,14 @@ struct AppShellView: View {
                 if let pending = JoinInviteStore.shared.consume() {
                     pendingGroupJoin = PendingGroupJoin(id: pending)
                 }
-                if let link = PushDeepLinkStore.shared.consume(),
-                   let momentId = PushDeepLinkStore.parseMomentId(link) {
-                    model.selectMoment(id: momentId)
+                if let link = PushDeepLinkStore.shared.consume() {
+                    if let momentId = PushDeepLinkStore.parseMomentId(link) {
+                        model.selectMoment(id: momentId)
+                    } else if PushDeepLinkStore.isInboxLink(link) {
+                        inboxOpen = true
+                    }
                 }
+                Task { await inboxBadge.refresh() }
             }
             .onReceive(JoinInviteStore.shared.$pendingCode) { code in
                 guard let code, !code.isEmpty else { return }
@@ -66,9 +72,14 @@ struct AppShellView: View {
             }
             .onReceive(PushDeepLinkStore.shared.$pendingLink) { link in
                 guard let link, !link.isEmpty else { return }
-                guard let momentId = PushDeepLinkStore.parseMomentId(link) else { return }
-                _ = PushDeepLinkStore.shared.consume()
-                model.selectMoment(id: momentId)
+                if let momentId = PushDeepLinkStore.parseMomentId(link) {
+                    _ = PushDeepLinkStore.shared.consume()
+                    model.selectMoment(id: momentId)
+                } else if PushDeepLinkStore.isInboxLink(link) {
+                    _ = PushDeepLinkStore.shared.consume()
+                    inboxOpen = true
+                }
+                Task { await inboxBadge.refresh() }
             }
             .onChange(of: identity.userId) { _, _ in
                 model.bindIdentity(identity)
@@ -85,6 +96,7 @@ struct AppShellView: View {
             }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
+                Task { await inboxBadge.refresh() }
                 if model.selectedContext == .group {
                     model.refreshVisibleGroupTab()
                 }
@@ -605,6 +617,12 @@ struct AppShellView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $inboxOpen) {
+            NotificationInboxView(
+                onOpenMoment: { momentId in model.selectMoment(id: momentId) },
+                onClose: { inboxOpen = false }
+            )
+        }
         .sheet(isPresented: Binding(
             get: { model.profileOpen },
             set: { model.openProfile($0) }
@@ -770,7 +788,9 @@ struct AppShellView: View {
                 onLife360: { model.openLife360(true) },
                 onNewMoment: openNewMoment,
                 onRefer: { showReferComingSoon = true },
-                onAvatar: { model.openProfile(true) }
+                onInbox: { inboxOpen = true },
+                onAvatar: { model.openProfile(true) },
+                unreadNotificationCount: inboxBadge.unreadCount
             )
 
             if !shellNavigationTitle.isEmpty {

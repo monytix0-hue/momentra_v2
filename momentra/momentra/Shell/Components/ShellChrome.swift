@@ -12,8 +12,10 @@ struct MomentraTopBar: View {
     var onLife360: () -> Void = {}
     var onNewMoment: () -> Void = {}
     var onRefer: () -> Void = {}
+    var onInbox: () -> Void = {}
     var onAvatar: () -> Void
     var referAvailable: Bool = true
+    var unreadNotificationCount: Int = 0
 
     /// Figma: company chip only when Business + selected company (`692:34971`).
     private var showCompanyChip: Bool {
@@ -90,6 +92,29 @@ struct MomentraTopBar: View {
                         .renderingMode(.template)
                         .foregroundStyle(.white)
                         .frame(width: 10, height: 10)
+                }
+                labeledAction(
+                    caption: "Alerts",
+                    bg: actionBg,
+                    a11y: unreadNotificationCount > 0
+                        ? "Notifications, \(unreadNotificationCount) unread"
+                        : "Notifications",
+                    id: "topbar.inbox",
+                    captionColor: labelMuted,
+                    action: onInbox
+                ) {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "bell.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                        if unreadNotificationCount > 0 {
+                            Circle()
+                                .fill(Color(hex: "#F43F5E"))
+                                .frame(width: 7, height: 7)
+                                .offset(x: 4, y: -3)
+                                .accessibilityIdentifier("topbar.inbox.badge")
+                        }
+                    }
                 }
                 if referAvailable {
                     labeledAction(

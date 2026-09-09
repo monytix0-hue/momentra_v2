@@ -67,6 +67,28 @@ export async function assertGroupMember(
   };
 }
 
+/**
+ * Peer notification targets: other ACTIVE members who have an account and have not
+ * muted this moment. Guests (external party, no user_id) cannot receive notifications.
+ */
+export async function listOtherMemberUserIds(
+  client: PoolClient,
+  momentId: string,
+  actorUserId: string
+): Promise<string[]> {
+  const rows = await client.query<{ user_id: string }>(
+    `SELECT user_id
+     FROM collaboration.moment_participant
+     WHERE moment_id = $1
+       AND status = 'ACTIVE'
+       AND user_id IS NOT NULL
+       AND user_id <> $2
+       AND notify_on_changes = true`,
+    [momentId, actorUserId]
+  );
+  return rows.rows.map((r) => r.user_id);
+}
+
 /** List participants for a GROUP moment when caller is an active member. */
 export async function listGroupParticipants(
   client: PoolClient,

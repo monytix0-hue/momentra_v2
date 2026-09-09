@@ -4,15 +4,15 @@ import Foundation
 import UIKit
 import UserNotifications
 
-/// Requests notification permission, syncs APNs→FCM, and POSTs `/me/devices` with the push credential.
+/// Requests notification permission, syncs APNs→FCM, and POSTs `/me/devices` with the FCM token.
 @MainActor
 enum PushNotifications {
     private static var deviceId: String {
         UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
     }
 
-    /// Latest FCM token or FID delivered by `MessagingDelegate`.
-    private static var cachedPushCredential: String?
+    /// Latest FCM registration token. Never an installation id — FCM cannot send to an FID.
+    private static var cachedFcmToken: String?
 
     static func configure(delegate: UNUserNotificationCenterDelegate & MessagingDelegate) {
         UNUserNotificationCenter.current().delegate = delegate
@@ -34,42 +34,39 @@ enum PushNotifications {
     static func handleApnsToken(_ deviceToken: Data) {
         Auth.auth().setAPNSToken(deviceToken, type: .unknown)
         Messaging.messaging().apnsToken = deviceToken
-        Task { await ensureRegisteredAndSync() }
+        Task { await syncDeviceWithBackend() }
     }
 
-    /// Called from MessagingDelegate when FCM/FID registration is available.
-    static func notePushCredential(_ credential: String?) {
-        guard let credential, !credential.isEmpty else { return }
-        cachedPushCredential = credential
+    /// Called from `MessagingDelegate` when an FCM registration token is issued or refreshed.
+    static func noteFcmToken(_ token: String?) {
+        guard let token, !token.isEmpty else { return }
+        cachedFcmToken = token
     }
 
     static func syncDeviceWithBackend(explicitToken: String? = nil) async {
         if let explicitToken, !explicitToken.isEmpty {
-            cachedPushCredential = explicitToken
-        } else if cachedPushCredential == nil {
-            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                Messaging.messaging().register { _ in
-                    continuation.resume()
-                }
-            }
+            cachedFcmToken = explicitToken
         }
-        let token = cachedPushCredential
+        if cachedFcmToken == nil {
+            cachedFcmToken = await fetchFcmToken()
+        }
+        // A nil token still registers the device for the Devices list; the backend keeps
+        // any token it already holds rather than overwriting it with a blank.
         _ = try? await APIClient.shared.registerDevice(
             deviceId: deviceId,
             platform: "IOS",
-            pushToken: token
+            pushToken: cachedFcmToken
         )
     }
 
-    private static func ensureRegisteredAndSync() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            Messaging.messaging().register { error in
+    private static func fetchFcmToken() async -> String? {
+        await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+            Messaging.messaging().token { token, error in
                 if let error {
-                    NSLog("FCM register error: \(error.localizedDescription)")
+                    NSLog("FCM token fetch error: \(error.localizedDescription)")
                 }
-                continuation.resume()
+                continuation.resume(returning: token?.isEmpty == false ? token : nil)
             }
         }
-        await syncDeviceWithBackend()
     }
 }

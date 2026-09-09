@@ -14,7 +14,13 @@ async function tick(pool: Pool): Promise<void> {
     JSON.stringify({
       worker: 'scheduler',
       action: 'tick',
-      checks: ['weekly_reminders', 'task_due', 'group_setup_reminders', 'digest_flush'],
+      checks: [
+        'weekly_reminders',
+        'daily_personal_reminders',
+        'task_due',
+        'group_setup_reminders',
+        'digest_flush',
+      ],
       ...result,
       at: new Date().toISOString(),
     })

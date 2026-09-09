@@ -7,7 +7,11 @@ import { z } from 'zod';
 import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from './travel-currencies';
 import Decimal from 'decimal.js';
 import { parseMoney } from './service';
-import { assertGroupMember, assertParticipantsOnMoment } from '../collaboration/group-membership';
+import {
+  assertGroupMember,
+  assertParticipantsOnMoment,
+  listOtherMemberUserIds,
+} from '../collaboration/group-membership';
 import { emitLeanBusinessEvent, loadMomentTaxonomy } from '../analytics/lean-events';
 
 const moneyString = z.string().regex(/^\d+(\.\d{1,4})?$/);
@@ -385,6 +389,7 @@ export async function createGroupExpense(
       paidByParticipantId: body.paidByParticipantId,
       splitStrategy: body.splitStrategy,
       shareCount: shareRows.length,
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
     },
     auditActionCode: 'EXPENSE_CREATE',
     auditResourceType: 'EXPENSE',
@@ -779,6 +784,7 @@ export async function updateGroupExpense(
       currencyCode: body.currencyCode,
       paidByParticipantId: body.paidByParticipantId,
       splitStrategy: body.splitStrategy,
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
     },
     auditActionCode: 'EXPENSE_UPDATE',
     auditResourceType: 'EXPENSE',
@@ -914,7 +920,11 @@ export async function voidGroupExpense(
     aggregateId: expenseId,
     scopeType: 'MOMENT',
     scopeId: momentId,
-    payload: { expenseId, momentId },
+    payload: {
+      expenseId,
+      momentId,
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+    },
     auditActionCode: 'EXPENSE_VOID',
     auditResourceType: 'EXPENSE',
     auditResourceId: expenseId,
@@ -1168,6 +1178,7 @@ export async function createSettlement(
       currencyCode: body.currencyCode,
       payerParticipantId: body.payerParticipantId,
       payeeParticipantId: body.payeeParticipantId,
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
     },
     auditActionCode: 'SETTLEMENT_RECORD',
     auditResourceType: 'SETTLEMENT',

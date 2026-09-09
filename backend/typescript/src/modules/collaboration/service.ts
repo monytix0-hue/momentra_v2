@@ -7,7 +7,11 @@ import {
   assertPollCloseAllowed,
   canClosePoll,
 } from '../governance/resolver';
-import { assertCallerIsOrganizer, assertGroupMember } from './group-membership';
+import {
+  assertCallerIsOrganizer,
+  assertGroupMember,
+  listOtherMemberUserIds,
+} from './group-membership';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { emitLeanBusinessEvent, loadMomentTaxonomy } from '../analytics/lean-events';
 import { z } from 'zod';
@@ -194,7 +198,13 @@ export async function createPoll(
     aggregateId: pollId,
     scopeType: 'MOMENT',
     scopeId: momentId,
-    payload: { pollId, momentId, question: body.question },
+    payload: {
+      pollId,
+      momentId,
+      question: body.question,
+      asDraft: status === 'DRAFT',
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+    },
   });
 
   return { pollId, momentId, question: body.question };
@@ -339,7 +349,12 @@ export async function votePoll(
     aggregateId: pollId,
     scopeType: 'MOMENT',
     scopeId: momentId,
-    payload: { pollId, pollOptionId: body.pollOptionId, momentId },
+    payload: {
+      pollId,
+      pollOptionId: body.pollOptionId,
+      momentId,
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+    },
   });
 
   return { pollId, pollOptionId: body.pollOptionId, momentId };
@@ -381,7 +396,11 @@ export async function closePoll(
     aggregateId: pollId,
     scopeType: 'MOMENT',
     scopeId: momentId,
-    payload: { pollId, momentId },
+    payload: {
+      pollId,
+      momentId,
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+    },
   });
 
   return { pollId, momentId, status: 'CLOSED' };

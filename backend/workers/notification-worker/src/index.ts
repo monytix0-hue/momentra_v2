@@ -42,23 +42,25 @@ function initFirebaseAdmin(): Messaging | null {
       process.env.FIREBASE_CREDENTIALS_JSON ||
       process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     const projectId = process.env.FIREBASE_PROJECT_ID;
-    if (credJson) {
-      const cred = JSON.parse(credJson) as Record<string, string>;
-      initializeApp({
-        credential: cert(cred),
-        projectId: projectId || cred.project_id,
-      });
-    } else if (projectId) {
-      initializeApp({ projectId });
-    } else {
-      console.warn(
+    if (!credJson) {
+      // A projectId alone yields a Messaging client whose every send fails at runtime.
+      // Disable push instead, so `fcm: false` in the logs names the real problem.
+      console.error(
         JSON.stringify({
           worker: 'notification-worker',
-          warning: 'Firebase Admin not configured — push disabled',
+          error: 'fcm_unconfigured',
+          detail:
+            'Set FIREBASE_SERVICE_ACCOUNT_JSON (or FIREBASE_CREDENTIALS_JSON) to enable push. Inbox writes continue.',
+          projectIdPresent: Boolean(projectId),
         })
       );
       return null;
     }
+    const cred = JSON.parse(credJson) as Record<string, string>;
+    initializeApp({
+      credential: cert(cred),
+      projectId: projectId || cred.project_id,
+    });
   }
   try {
     return getMessaging();
@@ -186,7 +188,7 @@ async function processDomainEvent(
       inboxCount: 0,
       digestCount: 0,
       revokedTokens: 0,
-      skipped: 'notify_members_false',
+      skipped: ev.payload?.asDraft === true ? 'draft' : 'notify_members_false',
     };
   }
   if (await alreadySucceeded(pool, ev.domain_event_id)) {

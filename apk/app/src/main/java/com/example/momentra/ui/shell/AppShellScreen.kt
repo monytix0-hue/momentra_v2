@@ -33,8 +33,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -51,6 +53,8 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.momentra.data.local.AppPreferences
 import com.example.momentra.data.local.PendingJoinInvite
 import com.example.momentra.data.local.PendingDeepLink
+import com.example.momentra.data.repository.AccountRepository
+import com.example.momentra.ui.notifications.NotificationInboxSheet
 import com.example.momentra.domain.AppContext
 import com.example.momentra.domain.BottomDestination
 import com.example.momentra.domain.CompanySummary
@@ -191,6 +195,7 @@ import com.example.momentra.ui.theme.MomentraBrandColors
 import com.example.momentra.ui.theme.ShellTokens
 import com.example.momentra.ui.theme.shell.GlobalSurfaceTheme
 import android.widget.Toast
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -207,6 +212,10 @@ fun AppShellScreen(
     val tourRegistry = rememberTourTargetRegistry()
 
     var pendingGroupJoinCode by remember { mutableStateOf<String?>(null) }
+    var inboxOpen by remember { mutableStateOf(false) }
+    var unreadNotificationCount by remember { mutableIntStateOf(0) }
+    val accountRepository = remember { AccountRepository() }
+    val shellScope = rememberCoroutineScope()
 
     // Cold + warm: hydrate prefs, then observe pending invite while shell is open.
     LaunchedEffect(state.identity?.userId) {
@@ -224,12 +233,28 @@ fun AppShellScreen(
         PendingDeepLink.link.collect { offered ->
             if (offered.isNullOrBlank()) return@collect
             val link = PendingDeepLink.consume() ?: return@collect
-            val momentId = PendingDeepLink.parseMomentId(link) ?: return@collect
-            shellViewModel.selectMoment(momentId)
+            val momentId = PendingDeepLink.parseMomentId(link)
+            if (momentId != null) {
+                shellViewModel.selectMoment(momentId)
+            } else if (link.startsWith("momentra://inbox", ignoreCase = true)) {
+                inboxOpen = true
+            }
         }
     }
 
+    LaunchedEffect(state.identity?.userId) {
+        if (state.identity?.userId == null) return@LaunchedEffect
+        accountRepository.listNotifications(limit = 1, unreadOnly = true)
+            .onSuccess { unreadNotificationCount = it.unreadCount }
+    }
+
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (state.identity?.userId != null) {
+            shellScope.launch {
+                accountRepository.listNotifications(limit = 1, unreadOnly = true)
+                    .onSuccess { unreadNotificationCount = it.unreadCount }
+            }
+        }
         if (state.selectedContext == AppContext.GROUP) {
             shellViewModel.refreshVisibleGroupTab()
         }
@@ -376,6 +401,7 @@ fun AppShellScreen(
                             globalCreateAvailable = true,
                             qrScanAvailable = true,
                             referAvailable = true,
+                            unreadNotificationCount = unreadNotificationCount,
                         ),
                         onCompanyMenuToggle = shellViewModel::toggleCompanyMenu,
                         onCompanySelected = shellViewModel::selectCompany,
@@ -389,6 +415,7 @@ fun AppShellScreen(
                                 Toast.LENGTH_SHORT,
                             ).show()
                         },
+                        onInbox = { inboxOpen = true },
                         onAvatar = { shellViewModel.openProfile(true) },
                     )
                     ContextSwitcher(
@@ -1158,6 +1185,19 @@ fun AppShellScreen(
         ) {
             com.example.momentra.ui.shell.components.Life360GlobalSurface(
                 onClose = { shellViewModel.openLife360(false) },
+            )
+        }
+    }
+    if (inboxOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { inboxOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            NotificationInboxSheet(
+                onOpenMoment = { shellViewModel.selectMoment(it) },
+                onClose = { inboxOpen = false },
+                onUnreadCountChanged = { unreadNotificationCount = it },
+                repository = accountRepository,
             )
         }
     }

@@ -6,7 +6,9 @@ import com.example.momentra.data.api.ConsentPurposeBody
 import com.example.momentra.data.api.ConsentPurposeDto
 import com.example.momentra.data.api.DeviceItemDto
 import com.example.momentra.data.api.GlobalNotificationPrefsDto
+import com.example.momentra.data.api.MarkNotificationsReadBody
 import com.example.momentra.data.api.MomentNotificationPrefsDto
+import com.example.momentra.data.api.NotificationInboxDto
 import com.example.momentra.data.api.PatchGlobalNotificationPrefsBody
 import com.example.momentra.data.api.PatchMeBody
 import com.example.momentra.data.api.PatchMomentNotificationPrefsBody
@@ -52,6 +54,20 @@ class AccountRepository(
     suspend fun withdrawConsent(purposeCode: String): Result<Unit> = runCatching {
         api.withdrawConsent(UUID.randomUUID().toString(), ConsentPurposeBody(purposeCode))
         Unit
+    }.recoverCatching { e -> throw mapThrowable(e) }
+
+    suspend fun listNotifications(
+        limit: Int = 50,
+        unreadOnly: Boolean? = null,
+    ): Result<NotificationInboxDto> = runCatching {
+        api.listMyNotifications(limit = limit, unreadOnly = unreadOnly).data
+    }.recoverCatching { e -> throw mapThrowable(e) }
+
+    suspend fun markNotificationsRead(
+        notificationIds: List<String>? = null,
+        all: Boolean? = null,
+    ): Result<Int> = runCatching {
+        api.markMyNotificationsRead(MarkNotificationsReadBody(notificationIds, all)).data.updatedCount
     }.recoverCatching { e -> throw mapThrowable(e) }
 
     suspend fun getNotificationPreferences(): Result<GlobalNotificationPrefsDto> = runCatching {

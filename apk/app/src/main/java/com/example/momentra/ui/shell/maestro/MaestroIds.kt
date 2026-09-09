@@ -23,6 +23,7 @@ object MaestroIds {
     const val TOPBAR_LIFE360 = "topbar.life360"
     const val TOPBAR_NEW_MOMENT = "topbar.new_moment"
     const val TOPBAR_REFER = "topbar.refer"
+    const val TOPBAR_INBOX = "topbar.inbox"
     const val TOPBAR_PROFILE = "topbar.profile"
 
     const val CONTEXT_SWITCHER = "context.switcher"

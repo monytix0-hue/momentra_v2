@@ -25,6 +25,47 @@ describe('notification allowlist', () => {
     assert.equal(shouldSkipPushForPayload('GroupExpenseRecorded', { notifyMembers: false }), false);
   });
 
+  it('never pushes drafts', () => {
+    assert.equal(shouldSkipPushForPayload('PollCreated', { asDraft: true }), true);
+    assert.equal(shouldSkipPushForPayload('PlanningItemCreated', { asDraft: true }), true);
+    assert.equal(shouldSkipPushForPayload('BookingCreated', { asDraft: true }), true);
+    assert.equal(shouldSkipPushForPayload('PollCreated', { asDraft: false }), false);
+    assert.equal(shouldSkipPushForPayload('PollCreated', {}), false);
+  });
+
+  it('keeps group collaboration events on the peer push path', () => {
+    for (const name of [
+      'GroupExpenseRecorded',
+      'GroupUpdatePosted',
+      'PollCreated',
+      'PlanningItemCreated',
+      'BookingCreated',
+    ]) {
+      assert.equal(isPeerPushEvent(name), true, name);
+    }
+  });
+
+  it('sends the daily personal nudge as HIGH so digest and quiet hours cannot hide it', () => {
+    assert.equal(isPeerPushEvent('DailyPersonalReminder'), true);
+    assert.equal(notificationPriority('DailyPersonalReminder'), 'HIGH');
+    assert.equal(notificationCategory('DailyPersonalReminder'), 'reminders');
+    const copy = notificationCopy('DailyPersonalReminder', {});
+    assert.equal(copy.title, 'Your daily Personal check-in');
+    assert.match(copy.body, /log one thing/);
+    assert.equal(
+      shouldDigest(
+        {
+          digest_enabled: true,
+          quiet_hours_start: '22:00',
+          quiet_hours_end: '07:00',
+          timezone: 'UTC',
+        },
+        notificationPriority('DailyPersonalReminder')
+      ),
+      false
+    );
+  });
+
   it('returns richer copy with actor and title', () => {
     const copy = notificationCopy('PollCreated', {
       actorDisplayName: 'Sam',

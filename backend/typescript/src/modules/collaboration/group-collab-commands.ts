@@ -7,7 +7,7 @@ import { z } from 'zod';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { recordCommandSideEffects } from '../../platform/events/outbox';
-import { assertGroupMember } from './group-membership';
+import { assertGroupMember, listOtherMemberUserIds } from './group-membership';
 import * as collaborationService from './service';
 import { listMediaForMemories } from '../memory/memory-attachments';
 import { travelCurrencyCodeSchema } from '../finance/travel-currencies';
@@ -173,7 +173,13 @@ export async function createPlanningItemCommand(
     aggregateId: result.planningItemId,
     scopeType: 'MOMENT',
     scopeId: momentId,
-    payload: { planningItemId: result.planningItemId, momentId, title: body.title },
+    payload: {
+      planningItemId: result.planningItemId,
+      momentId,
+      title: body.title,
+      asDraft: body.asDraft === true,
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+    },
     auditActionCode: 'PLANNING_ITEM_CREATE',
     auditResourceType: 'PLANNING_ITEM',
     auditResourceId: result.planningItemId,
@@ -237,6 +243,8 @@ export async function createBookingCommand(
       bookingType: body.bookingType,
       status: result.status,
       linkedExpenseId: result.linkedExpenseId ?? null,
+      asDraft: body.asDraft === true || result.status === 'DRAFT',
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
     },
     auditActionCode: 'BOOKING_CREATE',
     auditResourceType: 'BOOKING',
@@ -321,6 +329,7 @@ export async function postUpdateCommand(
       updateId: result.updateId,
       momentId,
       notifyMembers: result.notifyMembers,
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
     },
     auditActionCode: 'UPDATE_CREATE',
     auditResourceType: 'UPDATE',

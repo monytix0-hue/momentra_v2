@@ -116,6 +116,73 @@ export async function dispatchWeeklyReminders(pool: Pool): Promise<number> {
   return n;
 }
 
+/** Earliest local hour a daily nudge may be sent. */
+const DAILY_REMINDER_LOCAL_HOUR = 8;
+
+/** Users handled per tick. Claimed users drop out, so the next tick sees the rest. */
+const DAILY_REMINDER_BATCH = 500;
+
+/**
+ * One encouraging Personal check-in per user per local day.
+ * Targeted at the user so peer actor-exclusion cannot drop it.
+ *
+ * The local-day and 08:00 gate are evaluated in Postgres against each profile's
+ * timezone, and already-claimed users are excluded, so the batch window advances
+ * every tick instead of pinning to the same first N users.
+ */
+export async function dispatchDailyPersonalReminders(pool: Pool, now = new Date()): Promise<number> {
+  const rows = await pool.query<{
+    user_id: string;
+    moment_id: string;
+    local_day: string;
+  }>(
+    `WITH eligible AS (
+       SELECT pmc.user_id,
+              pmc.moment_id,
+              pmc.updated_at,
+              timezone(coalesce(nullif(up.timezone, ''), 'UTC'), $1::timestamptz) AS local_now
+       FROM personal.personal_moment_context pmc
+       JOIN core.user_profile up ON up.user_id = pmc.user_id
+       WHERE pmc.status = 'ACTIVE'
+         AND up.status = 'ACTIVE'
+         AND up.push_notifications_enabled = true
+     )
+     SELECT DISTINCT ON (e.user_id)
+            e.user_id,
+            e.moment_id,
+            to_char(e.local_now, 'YYYY-MM-DD') AS local_day
+     FROM eligible e
+     WHERE extract(hour FROM e.local_now) >= $2
+       AND NOT EXISTS (
+         SELECT 1 FROM platform.reminder_dispatch rd
+         WHERE rd.reminder_key =
+           'daily-personal:' || e.user_id || ':' || to_char(e.local_now, 'YYYY-MM-DD')
+       )
+     ORDER BY e.user_id, e.updated_at DESC
+     LIMIT $3`,
+    [now.toISOString(), DAILY_REMINDER_LOCAL_HOUR, DAILY_REMINDER_BATCH]
+  );
+
+  let n = 0;
+  for (const row of rows.rows) {
+    const key = `daily-personal:${row.user_id}:${row.local_day}`;
+    const payload = {
+      momentId: row.moment_id,
+      body: 'Open Personal and log one thing from today.',
+      targetUserIds: [row.user_id],
+    };
+    // reminder_dispatch is still the authority — two schedulers can race this.
+    if (
+      !(await claimReminder(pool, key, row.user_id, 'DailyPersonalReminder', row.moment_id, payload))
+    ) {
+      continue;
+    }
+    await emitReminder(pool, row.user_id, 'DailyPersonalReminder', row.moment_id, payload);
+    n += 1;
+  }
+  return n;
+}
+
 /** Tasks due in the next 24h (OPEN). */
 export async function dispatchOverdueTaskReminders(pool: Pool): Promise<number> {
   const rows = await pool.query<{
@@ -287,6 +354,7 @@ export async function flushDigests(pool: Pool): Promise<number> {
 
 export type SchedulerTickResult = {
   weekly: number;
+  daily: number;
   tasks: number;
   group: number;
   digests: number;
@@ -294,8 +362,9 @@ export type SchedulerTickResult = {
 
 export async function runReminderTick(pool: Pool): Promise<SchedulerTickResult> {
   const weekly = await dispatchWeeklyReminders(pool);
+  const daily = await dispatchDailyPersonalReminders(pool);
   const tasks = await dispatchOverdueTaskReminders(pool);
   const group = await dispatchGroupSetupReminders(pool);
   const digests = await flushDigests(pool);
-  return { weekly, tasks, group, digests };
+  return { weekly, daily, tasks, group, digests };
 }
