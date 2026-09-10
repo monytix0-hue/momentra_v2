@@ -52,7 +52,19 @@ struct GroupRecentActivityFlow: View {
                                     .padding(.vertical, 8)
                             }
                             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                                activityRow(item)
+                                let expenseId = item.activityPayload?.expenseId
+                                let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
+                                GroupActivityRow(
+                                    item: item,
+                                    accent: accent,
+                                    showChevron: canEdit,
+                                    compactPadding: false,
+                                    action: canEdit ? {
+                                        guard let expenseId else { return }
+                                        editingExpenseId = expenseId
+                                        editExpensePresented = true
+                                    } : nil
+                                )
                                 Divider().overlay(Color(hex: "#2A2624"))
                             }
                             if nextCursor != nil {
@@ -113,64 +125,6 @@ struct GroupRecentActivityFlow: View {
         .onChange(of: editExpensePresented) { _, open in
             if !open { editingExpenseId = nil }
         }
-    }
-
-    private func activityRow(_ item: APIClient.ActivityItemPayload) -> some View {
-        let expenseId = item.activityPayload?.expenseId
-        let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
-        return Button {
-            guard let expenseId else { return }
-            editingExpenseId = expenseId
-            editExpensePresented = true
-        } label: {
-            HStack(spacing: 12) {
-                Text(activityGlyph(item.activityCode))
-                    .font(.system(size: 14))
-                    .frame(width: 36, height: 36)
-                    .background(Color(hex: "#33FFB598"))
-                    .overlay(Circle().stroke(Color(hex: "#2E2A28"), lineWidth: 1))
-                    .clipShape(Circle())
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(Color(hex: "#E5E0EE"))
-                        .multilineTextAlignment(.leading)
-                    Text(formatOccurredAt(item.occurredAt))
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color(hex: "#A8A3B5"))
-                }
-                Spacer(minLength: 8)
-                if canEdit {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color(hex: "#A8A3B5"))
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!canEdit)
-    }
-
-    private func activityGlyph(_ code: String) -> String {
-        let upper = code.uppercased()
-        if upper.contains("EXPENSE") { return "💸" }
-        if upper.contains("SETTLE") { return "✅" }
-        if upper.contains("CONTRIB") { return "🤝" }
-        return "📌"
-    }
-
-    private func formatOccurredAt(_ raw: String) -> String {
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let fallback = ISO8601DateFormatter()
-        fallback.formatOptions = [.withInternetDateTime]
-        guard let date = iso.date(from: raw) ?? fallback.date(from: raw) else { return raw }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM · HH:mm"
-        return formatter.string(from: date)
     }
 
     private func reload() async {

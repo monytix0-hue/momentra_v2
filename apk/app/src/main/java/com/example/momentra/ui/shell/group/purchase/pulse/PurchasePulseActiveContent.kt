@@ -44,6 +44,7 @@ import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
+import com.example.momentra.ui.shell.group.shared.GroupActivityRow
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupPulseInsightsHeroCard
@@ -376,38 +377,40 @@ fun PurchasePulseActiveContent(
             }
         }
 
-        PurchaseSectionCard(theme = theme, title = "Recent Activity") {
+        PurchaseSectionCard(theme = theme, title = "📅 Recent Activity") {
             if (activities.isEmpty()) {
                 PurchaseEmptyBlock(theme, "No recent activity", "Contributions, expenses, and updates will show here.")
             } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     activities.forEach { item ->
-                    val expenseId = item.activityPayload?.expenseId
-                    val canEdit = !expenseId.isNullOrBlank()
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(
-                                if (canEdit) Modifier.clickable { editingExpenseId = expenseId }
-                                else Modifier,
-                            )
-                            .padding(vertical = 6.dp),
-                    ) {
-                        Text(item.title, color = theme.text, fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
-                        Text(item.occurredAt, color = theme.secondary, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+                        val expenseId = item.activityPayload?.expenseId
+                        val canEdit = !expenseId.isNullOrBlank()
+                        GroupActivityRow(
+                            item = item,
+                            accent = theme.accent,
+                            textColor = theme.text,
+                            secondaryColor = theme.secondary,
+                            showChevron = canEdit,
+                            onClick = if (canEdit) {
+                                { editingExpenseId = expenseId }
+                            } else {
+                                null
+                            },
+                        )
                     }
                 }
-                    Text(
-                        "View all activity →",
-                        color = theme.accent,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = PlusJakartaSans,
-                        modifier = Modifier
-                            .padding(top = 4.dp)
-                            .clickable(onClick = onViewAllActivity),
-                    )
-                }
+                Text(
+                    "View all activity →",
+                    color = theme.accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .clickable(onClick = onViewAllActivity),
+                )
             }
+        }
 
             GroupPulseInsightsHeroCard(
                 headerTitle = "🧠 ${theme.insightsTitle}",

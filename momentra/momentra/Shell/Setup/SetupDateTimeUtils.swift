@@ -149,4 +149,15 @@ enum SetupDateTimeUtils {
         formatter.timeZone = .current
         return formatter.string(from: combined)
     }
+
+    /// Split an API ISO instant into local `yyyy-MM-dd` + `HH:mm` for planning edit prefills.
+    static func splitLocalDateTime(fromIso iso: String?) -> (date: String, time: String) {
+        guard let iso, !iso.isEmpty else { return ("", "") }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = formatter.date(from: iso)
+            ?? ISO8601DateFormatter().date(from: iso)
+            ?? dateFromIso(iso)
+        return (localDateString(from: date), localTimeString(from: date))
+    }
 }

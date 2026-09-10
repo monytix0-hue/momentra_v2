@@ -1767,7 +1767,13 @@ export async function getMomentActivity(
   cursor: string | undefined,
   limit: number
 ): Promise<
-  CursorPage<{ activityCode: string; title: string; occurredAt: string; activityPayload: Record<string, unknown> }>
+  CursorPage<{
+    activityCode: string;
+    title: string;
+    occurredAt: string;
+    activityPayload: Record<string, unknown>;
+    actorDisplayName: string | null;
+  }>
 > {
   await assertGroupMember(client, ctx, momentId);
 
@@ -1788,10 +1794,13 @@ export async function getMomentActivity(
     occurred_at: Date;
     recent_activity_id: string;
     activity_payload: Record<string, unknown> | null;
+    actor_display_name: string | null;
   }>(
     // S9-G-OPT: moment-scoped activity (membership already asserted). Dedupes legacy
     // per-member fan-out rows by source_event_id so one event appears once.
-    `SELECT activity_code, title, occurred_at, recent_activity_id, activity_payload
+    // Actor comes from domain_event (not recent_activity.user_id, which is fan-out recipient).
+    `SELECT scoped.activity_code, scoped.title, scoped.occurred_at, scoped.recent_activity_id,
+            scoped.activity_payload, up.display_name AS actor_display_name
      FROM (
        SELECT DISTINCT ON (source_event_id)
          activity_code, title, occurred_at, recent_activity_id, activity_payload, source_event_id
@@ -1800,11 +1809,13 @@ export async function getMomentActivity(
          AND scope_id = $1::uuid
        ORDER BY source_event_id, occurred_at DESC, recent_activity_id DESC
      ) scoped
+     LEFT JOIN events.domain_event de ON de.domain_event_id = scoped.source_event_id
+     LEFT JOIN core.user_profile up ON up.user_id = de.actor_user_id
      WHERE (
        $2::timestamptz IS NULL
-       OR (occurred_at, recent_activity_id) < ($2::timestamptz, $3::uuid)
+       OR (scoped.occurred_at, scoped.recent_activity_id) < ($2::timestamptz, $3::uuid)
      )
-     ORDER BY occurred_at DESC, recent_activity_id DESC
+     ORDER BY scoped.occurred_at DESC, scoped.recent_activity_id DESC
      LIMIT $4`,
     [momentId, cursorOccurredAt, cursorId, safeLimit + 1]
   );
@@ -1815,6 +1826,7 @@ export async function getMomentActivity(
     title: r.title,
     occurredAt: r.occurred_at.toISOString(),
     activityPayload: r.activity_payload ?? {},
+    actorDisplayName: r.actor_display_name?.trim() || null,
   }));
   const last = slice[slice.length - 1];
   const nextCursor =

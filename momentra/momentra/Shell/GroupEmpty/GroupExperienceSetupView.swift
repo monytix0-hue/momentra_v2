@@ -349,7 +349,7 @@ struct GroupExperienceSetupView: View {
                 label: "Primary goal",
                 hint: "What brings everyone together?",
                 value: primaryGoal,
-                options: ["Enjoy time together", "Celebrate", "Explore", "Reconnect"],
+                options: ["Enjoy time together", "Celebrate", "Explore", "Reconnect", "Devotional"],
                 onValueChange: { primaryGoal = $0 },
                 testTag: "setup.dropdown.primaryGoal"
             )

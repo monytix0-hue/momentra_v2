@@ -71,6 +71,14 @@ enum GroupPlanningCategoryCatalog {
         }
     }
 
+    static func priorityLabel(forCode code: String?) -> String {
+        switch (code ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "LOW": return "Low"
+        case "HIGH": return "High"
+        default: return "Medium"
+        }
+    }
+
     static func urgencyCode(for label: String) -> String {
         label.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare("Urgent") == .orderedSame
             ? "URGENT"

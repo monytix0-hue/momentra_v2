@@ -168,6 +168,9 @@ struct ExperiencePulseActiveView: View {
 
                 ExperienceSectionCard(theme: theme, title: theme.crewTitle) {
                     let nameById = GroupParticipantNameMap.build(participants)
+                    let netByParticipantId = Dictionary(
+                        uniqueKeysWithValues: positions.map { ($0.participantId, $0) }
+                    )
                     if participants.isEmpty && positions.isEmpty {
                         ExperienceEmptyBlock(
                             theme: theme,
@@ -177,6 +180,7 @@ struct ExperiencePulseActiveView: View {
                     } else if !participants.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(Array(participants.prefix(5).enumerated()), id: \.element.id) { idx, p in
+                                let pos = netByParticipantId[p.participantId]
                                 ExperienceCrewRow(
                                     theme: theme,
                                     name: GroupParticipantNameMap.resolve(
@@ -185,7 +189,9 @@ struct ExperiencePulseActiveView: View {
                                         nameById: nameById
                                     ),
                                     role: p.roleCode ?? "Member",
-                                    percent: max(20, 90 - idx * 10),
+                                    amountLabel: pos.map {
+                                        GroupFinanceFormat.formatMoney($0.netPosition, currencyCode: $0.currencyCode)
+                                    },
                                     featured: idx == 0
                                 )
                             }
@@ -209,7 +215,8 @@ struct ExperiencePulseActiveView: View {
                                                 ? Color(hex: "#4ADE80")
                                                 : Color(hex: "#FF7A3D")
                                         )
-                                }}
+                                }
+                            }
                         }
                     }
                 }
@@ -266,7 +273,7 @@ struct ExperiencePulseActiveView: View {
                     }
                 }
 
-                ExperienceSectionCard(theme: theme, title: "Recent Activity") {
+                ExperienceSectionCard(theme: theme, title: "📅 Recent Activity") {
                     if activities.isEmpty {
                         ExperienceEmptyBlock(
                             theme: theme,
@@ -274,33 +281,23 @@ struct ExperiencePulseActiveView: View {
                             detail: "Expenses, plans, and updates will show here."
                         )
                     } else {
-                        ForEach(activities) { item in
-                            let expenseId = item.activityPayload?.expenseId
-                            let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
-                            Button {
-                                guard let expenseId else { return }
-                                editingExpenseId = expenseId
-                                editExpensePresented = true
-                            } label: {
-                                HStack(spacing: 10) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.title)
-                                            .font(.plusJakarta(size: 13, weight: .medium))
-                                            .foregroundStyle(theme.text)
-                                        Text(item.occurredAt)
-                                            .font(.plusJakarta(size: 11))
-                                            .foregroundStyle(theme.secondary)
-                                    }
-                                    Spacer()
-                                    if canEdit {
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 11, weight: .semibold))
-                                            .foregroundStyle(theme.secondary)
-                                    }
-                                }
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(Array(activities.enumerated()), id: \.element.id) { index, item in
+                                let expenseId = item.activityPayload?.expenseId
+                                let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
+                                GroupActivityRow(
+                                    item: item,
+                                    accent: GroupActivityPresentation.accentCycle(at: index),
+                                    textColor: theme.text,
+                                    secondaryColor: theme.secondary,
+                                    showChevron: canEdit,
+                                    action: canEdit ? {
+                                        guard let expenseId else { return }
+                                        editingExpenseId = expenseId
+                                        editExpensePresented = true
+                                    } : nil
+                                )
                             }
-                            .buttonStyle(.plain)
-                            .disabled(!canEdit)
                         }
                         Button(action: onViewAllActivity) {
                             Text("View all activity →")

@@ -3221,6 +3221,35 @@ v1Router.post('/moments/:momentId/planning-items', requireIdempotencyKey, async 
   }
 });
 
+v1Router.patch('/moments/:momentId/planning-items/:planningItemId', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(groupCollab.updatePlanningItemSchema, req.body);
+    const result = await runCommand({
+      operationCode: 'PLANNING_ITEM_UPDATE',
+      idempotencyKey: req.idempotencyKey!,
+      body,
+      ctx,
+      resourceType: 'PLANNING_ITEM',
+      execute: async (client, b) => {
+        const r = await groupCollab.updatePlanningItemCommand(
+          client,
+          ctx,
+          param(req.params.momentId),
+          param(req.params.planningItemId),
+          b as z.infer<typeof groupCollab.updatePlanningItemSchema>
+        );
+        return { result: r, resourceId: r.planningItemId };
+      },
+    });
+    const hints = ['group.activity', 'group.pulse', 'group.life', 'group.moments'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.json(commandEnvelope(result, ctx.correlationId, { projectionHints: toProjectionHints([...hints], 'refresh') }));
+  } catch (e) {
+    next(e);
+  }
+});
+
 v1Router.get('/group/moments/:momentId/bookings', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;

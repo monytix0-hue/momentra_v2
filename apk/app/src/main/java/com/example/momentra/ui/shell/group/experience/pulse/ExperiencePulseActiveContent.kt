@@ -39,12 +39,14 @@ import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
+import com.example.momentra.ui.shell.group.shared.GroupActivityRow
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupPulseInsightsHeroCard
 import com.example.momentra.ui.shell.group.shared.GroupProgressBar
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.enrichGroupPulseTab
+import com.example.momentra.ui.shell.group.shared.groupActivityAccentCycle
 import com.example.momentra.ui.shell.group.shared.loadGroupPulseTab
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.math.BigDecimal
@@ -138,6 +140,7 @@ fun ExperiencePulseActiveContent(
     val currency = primaryTotal?.currencyCode ?: "INR"
     val budgetTotal = primaryTotal?.budgetTotal
     val expenseTotal = primaryTotal?.expenseTotal
+    val positions = finance?.positions.orEmpty()
     val participantCount = pulse?.participantCount ?: participants.size
     val viewer = finance?.viewerPosition
     val hideBalances = SecurityPreferences(LocalContext.current).hideBalances()
@@ -269,16 +272,29 @@ fun ExperiencePulseActiveContent(
         }
 
         ExperienceSectionCard(theme = theme, title = theme.crewTitle) {
-            if (participants.isEmpty()) {
+            if (participants.isEmpty() && positions.isEmpty()) {
                 ExperienceEmptyBlock(theme, "No participation data yet", "Invite people or record shared expenses.")
-            } else {
+            } else if (participants.isNotEmpty()) {
+                val netById = positions.associateBy { it.participantId }
                 participants.take(5).forEachIndexed { idx, p ->
+                    val pos = netById[p.participantId]
                     ExperienceCrewRow(
                         theme = theme,
                         name = p.displayName ?: p.participantId.take(8),
                         role = p.roleCode ?: "Member",
-                        percent = (90 - idx * 10).coerceAtLeast(20),
+                        amountLabel = pos?.let {
+                            GroupFinanceFormat.formatMoney(it.netPosition, it.currencyCode)
+                        },
                         featured = idx == 0,
+                    )
+                }
+            } else {
+                positions.take(5).forEach { pos ->
+                    ExperienceCrewRow(
+                        theme = theme,
+                        name = pos.displayName ?: pos.participantId.take(8),
+                        role = "Member",
+                        amountLabel = GroupFinanceFormat.formatMoney(pos.netPosition, pos.currencyCode),
                     )
                 }
             }
@@ -343,38 +359,40 @@ fun ExperiencePulseActiveContent(
             }
         }
 
-        ExperienceSectionCard(theme = theme, title = "Recent Activity") {
+        ExperienceSectionCard(theme = theme, title = "📅 Recent Activity") {
             if (activities.isEmpty()) {
                 ExperienceEmptyBlock(theme, "No recent activity", "Expenses, plans, and updates will show here.")
             } else {
-                    activities.forEach { item ->
-                    val expenseId = item.activityPayload?.expenseId
-                    val canEdit = !expenseId.isNullOrBlank()
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(
-                                if (canEdit) Modifier.clickable { editingExpenseId = expenseId }
-                                else Modifier,
-                            )
-                            .padding(vertical = 6.dp),
-                    ) {
-                        Text(item.title, color = theme.text, fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
-                        Text(item.occurredAt, color = theme.secondary, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    activities.forEachIndexed { index, item ->
+                        val expenseId = item.activityPayload?.expenseId
+                        val canEdit = !expenseId.isNullOrBlank()
+                        GroupActivityRow(
+                            item = item,
+                            accent = groupActivityAccentCycle(index, theme.accent),
+                            textColor = theme.text,
+                            secondaryColor = theme.secondary,
+                            showChevron = canEdit,
+                            onClick = if (canEdit) {
+                                { editingExpenseId = expenseId }
+                            } else {
+                                null
+                            },
+                        )
                     }
                 }
-                    Text(
-                        "View all activity →",
-                        color = theme.accent,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = PlusJakartaSans,
-                        modifier = Modifier
-                            .padding(top = 8.dp)
-                            .clickable(onClick = onViewAllActivity),
-                    )
-                }
+                Text(
+                    "View all activity →",
+                    color = theme.accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .clickable(onClick = onViewAllActivity),
+                )
             }
+        }
 
             GroupPulseInsightsHeroCard(
                 headerTitle = "🧠 ${theme.insightsTitle}",

@@ -1,18 +1,14 @@
 package com.example.momentra.ui.shell.group.shared
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,18 +34,11 @@ import com.example.momentra.data.api.ActivityItemDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.domain.AppContext
 import com.example.momentra.ui.shell.empty.group.GeBg
-import com.example.momentra.ui.shell.empty.group.GeBorder
 import com.example.momentra.ui.shell.empty.group.GeSecondary
 import com.example.momentra.ui.shell.empty.group.GeText
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.theme.shell.MomentThemes
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
-
-private val RowSurface = Color(0xFF201E28)
 
 /** Full Group activity list with cursor pagination + expense edit/void. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -169,49 +158,19 @@ fun GroupRecentActivityFlow(
                         val expenseId = item.activityPayload?.expenseId
                         val canEdit = !expenseId.isNullOrBlank() &&
                             (item.activityCode.contains("EXPENSE", ignoreCase = true) || expenseId != null)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(RowSurface)
-                                .border(1.dp, GeBorder, RoundedCornerShape(12.dp))
-                                .then(
-                                    if (canEdit) Modifier.clickable { editingExpenseId = expenseId }
-                                    else Modifier,
-                                )
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0x33FFB598))
-                                    .border(1.dp, GeBorder, CircleShape),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(groupActivityGlyph(item.activityCode), fontSize = 14.sp)
-                            }
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(
-                                    item.title,
-                                    color = GeText,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    fontFamily = PlusJakartaSans,
-                                )
-                                Text(
-                                    formatGroupActivityOccurredAt(item.occurredAt),
-                                    color = GeSecondary,
-                                    fontSize = 11.sp,
-                                    fontFamily = PlusJakartaSans,
-                                )
-                            }
-                            if (canEdit) {
-                                Text("›", color = GeSecondary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                        GroupActivityRow(
+                            item = item,
+                            accent = accent,
+                            textColor = GeText,
+                            secondaryColor = GeSecondary,
+                            showChevron = canEdit,
+                            compactPadding = false,
+                            onClick = if (canEdit) {
+                                { editingExpenseId = expenseId }
+                            } else {
+                                null
+                            },
+                        )
                     }
                     if (nextCursor != null) {
                         Box(
@@ -276,20 +235,4 @@ fun GroupRecentActivityFlow(
             repository = repository,
         )
     }
-}
-
-internal fun groupActivityGlyph(code: String): String = when {
-    code.contains("EXPENSE", ignoreCase = true) -> "💸"
-    code.contains("SETTLE", ignoreCase = true) -> "✅"
-    code.contains("CONTRIB", ignoreCase = true) -> "🤝"
-    else -> "📌"
-}
-
-internal fun formatGroupActivityOccurredAt(raw: String): String = try {
-    val instant = Instant.parse(raw)
-    DateTimeFormatter.ofPattern("d MMM · HH:mm", Locale.getDefault())
-        .withZone(ZoneId.systemDefault())
-        .format(instant)
-} catch (_: Exception) {
-    raw
 }

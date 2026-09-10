@@ -54,6 +54,7 @@ struct WeddingMomentsActiveView: View {
         .sheet(isPresented: $scheduleOpen) {
             PlanningScheduleSheet(
                 items: planningItems,
+                momentId: momentId,
                 momentTypeCode: momentTypeCode,
                 accent: WeddingActiveTheme.accent,
                 surface: WeddingActiveTheme.bg,
@@ -61,7 +62,8 @@ struct WeddingMomentsActiveView: View {
                 border: WeddingActiveTheme.border,
                 text: WeddingActiveTheme.text,
                 muted: WeddingActiveTheme.secondary,
-                onDismiss: { scheduleOpen = false }
+                onDismiss: { scheduleOpen = false },
+                onSaved: { Task { await load() } }
             )
         }
         .sheet(isPresented: $pollsListOpen) {

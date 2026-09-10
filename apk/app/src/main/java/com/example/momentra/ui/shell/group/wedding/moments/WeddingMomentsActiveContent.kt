@@ -317,13 +317,22 @@ fun WeddingMomentsActiveContent(
         items = planningItems,
         visible = scheduleOpen,
         onDismiss = { scheduleOpen = false },
+        momentId = momentId,
         momentTypeCode = momentTypeCode,
+        onSaved = {
+            if (!momentId.isNullOrBlank()) {
+                scope.launch {
+                    planningItems = repository.listPlanningItems(momentId).getOrNull()?.items.orEmpty()
+                }
+            }
+        },
         accent = WeddingActiveTheme.Accent,
         surface = chrome.bg,
         field = chrome.card,
         border = chrome.border,
         text = chrome.text,
         muted = chrome.secondary,
+        repository = repository,
     )
 
     GroupPollsListSheet(

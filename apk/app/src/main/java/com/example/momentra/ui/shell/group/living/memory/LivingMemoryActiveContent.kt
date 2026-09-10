@@ -39,8 +39,8 @@ import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupProgressBar
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.MemoryMediaThumb
 import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
-import com.example.momentra.ui.shell.group.shared.RemoteMemoryImage
 import com.example.momentra.ui.shell.group.shared.loadGroupMemoryTab
 import com.example.momentra.ui.shell.group.shared.primaryDownloadUrl
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -170,12 +170,11 @@ fun LivingMemoryActiveContent(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (thumbUrl != null) {
-                            RemoteMemoryImage(
+                            MemoryMediaThumb(
                                 url = thumbUrl,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .border(1.dp, theme.accent.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
+                                border = theme.accent.copy(alpha = 0.35f),
+                                field = theme.accentSoft,
+                                modifier = Modifier.size(40.dp),
                             )
                         }
                         Text(

@@ -348,7 +348,7 @@ fun GroupExperienceSetupContent(
                         label = "Primary goal",
                         hint = "What brings everyone together?",
                         value = primaryGoal,
-                        options = listOf("Enjoy time together", "Celebrate", "Explore", "Reconnect"),
+                        options = listOf("Enjoy time together", "Celebrate", "Explore", "Reconnect", "Devotional"),
                         onValueChange = { primaryGoal = it },
                         testTag = MaestroIds.setupDropdown("primaryGoal"),
                     )

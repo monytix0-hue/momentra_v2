@@ -186,7 +186,7 @@ struct LivingPulseActiveView: View {
                     }
                 }
 
-                LivingSectionCard(theme: theme, title: "Recent Activity") {
+                LivingSectionCard(theme: theme, title: "📅 Recent Activity") {
                     if activities.isEmpty {
                         LivingEmptyBlock(
                             theme: theme,
@@ -194,47 +194,30 @@ struct LivingPulseActiveView: View {
                             detail: "Expenses, contributions, and updates will show here."
                         )
                     } else {
-                        ForEach(activities) { item in
-                            let expenseId = item.activityPayload?.expenseId
-                            let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
-                            Button {
-                                guard let expenseId else { return }
-                                editingExpenseId = expenseId
-                                editExpensePresented = true
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Circle()
-                                        .fill(theme.accent)
-                                        .frame(width: 8, height: 8)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.title)
-                                            .font(.plusJakarta(size: 13, weight: .medium))
-                                            .foregroundStyle(theme.text)
-                                        Text(item.occurredAt)
-                                            .font(.plusJakarta(size: 11))
-                                            .foregroundStyle(theme.secondary)
-                                    }
-                                    Spacer()
-                                    if canEdit {
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 11, weight: .semibold))
-                                            .foregroundStyle(theme.secondary)
-                                    }
-                                }
-                                .padding(12)
-                                .background(theme.bg)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.border))
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(Array(activities.enumerated()), id: \.element.id) { _, item in
+                                let expenseId = item.activityPayload?.expenseId
+                                let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
+                                GroupActivityRow(
+                                    item: item,
+                                    accent: theme.accent,
+                                    textColor: theme.text,
+                                    secondaryColor: theme.secondary,
+                                    showChevron: canEdit,
+                                    action: canEdit ? {
+                                        guard let expenseId else { return }
+                                        editingExpenseId = expenseId
+                                        editExpensePresented = true
+                                    } : nil
+                                )
                             }
-                            .buttonStyle(.plain)
-                            .disabled(!canEdit)
                         }
                         Button(action: onViewAllActivity) {
                             Text("View all activity →")
                                 .font(.plusJakarta(size: 13, weight: .semibold))
                                 .foregroundStyle(theme.accent)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.top, 4)
+                                .padding(.top, 8)
                         }
                         .buttonStyle(.plain)
                     }

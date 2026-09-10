@@ -122,13 +122,26 @@ struct WeddingPulseActiveView: View {
                             Text("Wedding Health")
                                 .font(.plusJakarta(size: 14, weight: .bold))
                                 .foregroundStyle(WeddingActiveTheme.text)
-                            WeddingEmptyBlock(
-                                message: "Score not available yet",
-                                detail: "Health scoring is coming soon — no invented numbers."
-                            )
+                            if total?.budgetTotal != nil {
+                                Text("\(utilization)% of budget used")
+                                    .font(.plusJakarta(size: 13, weight: .semibold))
+                                    .foregroundStyle(WeddingActiveTheme.text)
+                                Text("Updated from live finance")
+                                    .font(.plusJakarta(size: 10, weight: .semibold))
+                                    .foregroundStyle(WeddingActiveTheme.secondary)
+                            } else {
+                                WeddingEmptyBlock(
+                                    message: "Score not available yet",
+                                    detail: "No invented score — ring fills when budget utilization is available."
+                                )
+                            }
                         }
                         Spacer()
-                        GroupProgressRing(percent: 0, centerLabel: "—", centerSub: "Soon")
+                        GroupProgressRing(
+                            percent: total?.budgetTotal != nil ? utilization : 0,
+                            centerLabel: total?.budgetTotal != nil ? "\(utilization)" : "—",
+                            centerSub: total?.budgetTotal != nil ? "/ 100" : "Waiting"
+                        )
                     }
                 }
 
@@ -250,40 +263,30 @@ struct WeddingPulseActiveView: View {
                     }
                 }
 
-                WeddingSectionCard(title: "Recent Activity") {
+                WeddingSectionCard(title: "📅 Recent Activity") {
                     if activities.isEmpty {
                         WeddingEmptyBlock(
                             message: "No recent activity",
                             detail: "Expenses, plans, and updates will show here."
                         )
                     } else {
-                        ForEach(activities) { item in
-                            let expenseId = item.activityPayload?.expenseId
-                            let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
-                            Button {
-                                guard let expenseId else { return }
-                                editingExpenseId = expenseId
-                                editExpensePresented = true
-                            } label: {
-                                HStack(spacing: 10) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.title)
-                                            .font(.plusJakarta(size: 13, weight: .medium))
-                                            .foregroundStyle(WeddingActiveTheme.text)
-                                        Text(item.occurredAt)
-                                            .font(.plusJakarta(size: 11))
-                                            .foregroundStyle(WeddingActiveTheme.secondary)
-                                    }
-                                    Spacer()
-                                    if canEdit {
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 11, weight: .semibold))
-                                            .foregroundStyle(WeddingActiveTheme.secondary)
-                                    }
-                                }
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(Array(activities.enumerated()), id: \.element.id) { _, item in
+                                let expenseId = item.activityPayload?.expenseId
+                                let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
+                                GroupActivityRow(
+                                    item: item,
+                                    accent: WeddingActiveTheme.accent,
+                                    textColor: WeddingActiveTheme.text,
+                                    secondaryColor: WeddingActiveTheme.secondary,
+                                    showChevron: canEdit,
+                                    action: canEdit ? {
+                                        guard let expenseId else { return }
+                                        editingExpenseId = expenseId
+                                        editExpensePresented = true
+                                    } : nil
+                                )
                             }
-                            .buttonStyle(.plain)
-                            .disabled(!canEdit)
                         }
                         Button(action: onViewAllActivity) {
                             Text("View all activity →")

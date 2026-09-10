@@ -39,6 +39,7 @@ import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
+import com.example.momentra.ui.shell.group.shared.GroupActivityRow
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupPulseInsightsHeroCard
@@ -50,12 +51,7 @@ import com.example.momentra.ui.shell.group.shared.loadGroupPulseTab
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.math.BigDecimal
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import com.example.momentra.ui.shell.group.wedding.create.WeddingActiveTheme
-import com.example.momentra.ui.shell.group.wedding.create.WeddingActivityRow
 import com.example.momentra.ui.shell.group.wedding.create.WeddingEmojiChip
 import com.example.momentra.ui.shell.group.wedding.create.WeddingEmptyBlock
 import com.example.momentra.ui.shell.group.wedding.create.WeddingFadeIn
@@ -235,12 +231,33 @@ fun WeddingPulseActiveContent(
                 ) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Wedding Health", color = WeddingActiveTheme.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
-                        WeddingEmptyBlock(
-                            message = "Score not available yet",
-                            detail = "Health scoring is coming soon — no invented numbers.",
-                        )
+                        if (budgetTotal != null) {
+                            Text(
+                                "$utilization% of budget used",
+                                color = WeddingActiveTheme.Text,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = PlusJakartaSans,
+                            )
+                            Text(
+                                "Updated from live finance",
+                                color = WeddingActiveTheme.Secondary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = PlusJakartaSans,
+                            )
+                        } else {
+                            WeddingEmptyBlock(
+                                message = "Score not available yet",
+                                detail = "No invented score — ring fills when budget utilization is available.",
+                            )
+                        }
                     }
-                    GroupProgressRing(percent = 0, centerLabel = "—", centerSub = "Soon")
+                    GroupProgressRing(
+                        percent = if (budgetTotal != null) utilization else 0,
+                        centerLabel = if (budgetTotal != null) "$utilization" else "—",
+                        centerSub = if (budgetTotal != null) "/ 100" else "Waiting",
+                    )
                 }
             }
 
@@ -418,24 +435,29 @@ fun WeddingPulseActiveContent(
                 }
             }
 
-            WeddingSectionCard(title = "📅  Recent Activity") {
+            WeddingSectionCard(title = "📅 Recent Activity") {
                 if (activity.isEmpty()) {
                     WeddingEmptyBlock(
                         message = "No recent activity",
                         detail = "Expenses, plans, and updates will show here.",
                     )
                 } else {
-                    activity.forEach { item ->
-                        val expenseId = item.activityPayload?.expenseId
-                        val canEdit = !expenseId.isNullOrBlank()
-                        Box(
-                            modifier = if (canEdit) {
-                                Modifier.clickable { editingExpenseId = expenseId }
-                            } else {
-                                Modifier
-                            },
-                        ) {
-                            WeddingActivityRow("📌", item.title, formatOccurredAt(item.occurredAt))
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        activity.forEach { item ->
+                            val expenseId = item.activityPayload?.expenseId
+                            val canEdit = !expenseId.isNullOrBlank()
+                            GroupActivityRow(
+                                item = item,
+                                accent = WeddingActiveTheme.Accent,
+                                textColor = WeddingActiveTheme.Text,
+                                secondaryColor = WeddingActiveTheme.Secondary,
+                                showChevron = canEdit,
+                                onClick = if (canEdit) {
+                                    { editingExpenseId = expenseId }
+                                } else {
+                                    null
+                                },
+                            )
                         }
                     }
                     Text(
@@ -507,13 +529,4 @@ private fun viewerBalanceShort(viewer: GroupFinancePositionDto?, hide: Boolean):
         net < BigDecimal.ZERO -> "You owe $formatted"
         else -> "Settled up"
     }
-}
-
-private fun formatOccurredAt(raw: String): String = try {
-    val instant = Instant.parse(raw)
-    DateTimeFormatter.ofPattern("d MMM · HH:mm", Locale.getDefault())
-        .withZone(ZoneId.systemDefault())
-        .format(instant)
-} catch (_: Exception) {
-    raw
 }

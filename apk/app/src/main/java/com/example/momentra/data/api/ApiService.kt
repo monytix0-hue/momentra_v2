@@ -614,6 +614,14 @@ interface ApiService {
         @Body body: CreatePlanningItemBody,
     ): SuccessEnvelope<IdResultDto>
 
+    @PATCH("v1/moments/{momentId}/planning-items/{planningItemId}")
+    suspend fun updatePlanningItem(
+        @Path("momentId") momentId: String,
+        @Path("planningItemId") planningItemId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: UpdatePlanningItemBody,
+    ): SuccessEnvelope<IdResultDto>
+
     @GET("v1/group/moments/{momentId}/bookings")
     suspend fun listBookings(@Path("momentId") momentId: String): SuccessEnvelope<GroupBookingsDto>
 

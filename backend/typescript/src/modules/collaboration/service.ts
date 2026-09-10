@@ -442,6 +442,74 @@ export async function createPlanningItem(
   return { planningItemId: r.rows[0]!.planning_item_id, momentId, status };
 }
 
+export async function updatePlanningItem(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  planningItemId: string,
+  body: {
+    title: string;
+    dueAt?: string | null;
+    categoryCode?: string | null;
+    location?: string | null;
+    priorityCode?: string | null;
+    description?: string | null;
+    asDraft?: boolean;
+    status?: string | null;
+  }
+): Promise<{ planningItemId: string; momentId: string; status: string; title: string }> {
+  // Same people who can create can update — no separate UPDATE capability seed yet.
+  await assertGovernanceAllowed(client, ctx, {
+    actionCode: 'PLANNING_ITEM_CREATE',
+    resourceType: 'PLANNING_ITEM',
+    momentId,
+  });
+  const existing = await client.query<{ planning_item_id: string; status: string }>(
+    `SELECT planning_item_id, status
+     FROM collaboration.planning_item
+     WHERE planning_item_id = $1 AND moment_id = $2`,
+    [planningItemId, momentId]
+  );
+  if (!existing.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Planning item not found.', 404);
+  }
+  let status = body.status ?? existing.rows[0].status;
+  if (body.asDraft === true) status = 'DRAFT';
+  else if (body.asDraft === false && status === 'DRAFT') status = 'OPEN';
+
+  const r = await client.query<{ planning_item_id: string; status: string; title: string }>(
+    `UPDATE collaboration.planning_item
+     SET title = $3,
+         description = $4,
+         due_at = $5::timestamptz,
+         status = $6,
+         category_code = $7,
+         location = $8,
+         priority_code = $9,
+         updated_at = now(),
+         version = version + 1
+     WHERE planning_item_id = $1 AND moment_id = $2
+     RETURNING planning_item_id, status, title`,
+    [
+      planningItemId,
+      momentId,
+      body.title,
+      body.description ?? null,
+      body.dueAt ?? null,
+      status,
+      body.categoryCode ?? null,
+      body.location ?? null,
+      body.priorityCode ?? null,
+    ]
+  );
+  return {
+    planningItemId: r.rows[0]!.planning_item_id,
+    momentId,
+    status: r.rows[0]!.status,
+    title: r.rows[0]!.title,
+  };
+}
+
 export type CreateBookingInput = {
   title: string;
   bookingType?: 'HOTEL' | 'FLIGHT' | 'TRANSPORT' | 'ACTIVITY' | 'RESTAURANT' | 'OTHER';

@@ -14,6 +14,7 @@ import com.example.momentra.data.api.CreateGroupExpenseResultDto
 import com.example.momentra.data.api.GroupExpenseDetailDto
 import com.example.momentra.data.api.CreateMemoryBody
 import com.example.momentra.data.api.CreatePlanningItemBody
+import com.example.momentra.data.api.UpdatePlanningItemBody
 import com.example.momentra.data.api.CreatePollBody
 import com.example.momentra.data.api.CreateDeliveryHandoverBody
 import com.example.momentra.data.api.CreateOwnershipRecordBody
@@ -370,6 +371,36 @@ class GroupSliceRepository(
                 priorityCode = priorityCode,
                 description = description,
                 asDraft = asDraft,
+            ),
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun updatePlanningItem(
+        momentId: String,
+        planningItemId: String,
+        title: String,
+        dueAt: String? = null,
+        categoryCode: String? = null,
+        location: String? = null,
+        priorityCode: String? = null,
+        description: String? = null,
+        asDraft: Boolean? = null,
+        status: String? = null,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ) = runCatching {
+        api.updatePlanningItem(
+            momentId,
+            planningItemId,
+            idempotencyKey,
+            UpdatePlanningItemBody(
+                title = title,
+                dueAt = dueAt,
+                categoryCode = categoryCode,
+                location = location,
+                priorityCode = priorityCode,
+                description = description,
+                asDraft = asDraft,
+                status = status,
             ),
         ).data
     }.recoverCatching { e -> throw mapError(e) }

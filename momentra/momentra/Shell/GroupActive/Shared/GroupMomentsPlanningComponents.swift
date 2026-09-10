@@ -34,23 +34,85 @@ func recentOpenPlanningItems(
 
 func parsePlanningInstant(_ iso: String?) -> Date? {
     guard let iso, !iso.isEmpty else { return nil }
+    let trimmed = iso.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+
     let withFraction = ISO8601DateFormatter()
     withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    if let date = withFraction.date(from: iso) { return date }
+    if let date = withFraction.date(from: trimmed) { return date }
+
     let plain = ISO8601DateFormatter()
     plain.formatOptions = [.withInternetDateTime]
-    if let date = plain.date(from: iso) { return date }
+    if let date = plain.date(from: trimmed) { return date }
+
+    // POSIX fallbacks for offset / Z variants ISO8601DateFormatter sometimes misses.
+    let posix = DateFormatter()
+    posix.calendar = Calendar(identifier: .gregorian)
+    posix.locale = Locale(identifier: "en_US_POSIX")
+    let instantFormats = [
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+        "yyyy-MM-dd'T'HH:mm:ssZ",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXX",
+    ]
+    for format in instantFormats {
+        posix.dateFormat = format
+        posix.timeZone = TimeZone(secondsFromGMT: 0)
+        if let date = posix.date(from: trimmed) { return date }
+    }
+
+    // Date-only `yyyy-MM-dd` → local midnight. Never take prefix(10) of a full
+    // datetime: that is the UTC calendar date and shifts local day (e.g. IST).
+    guard trimmed.count == 10, trimmed[trimmed.index(trimmed.startIndex, offsetBy: 4)] == "-",
+          trimmed[trimmed.index(trimmed.startIndex, offsetBy: 7)] == "-" else {
+        return nil
+    }
     let dayOnly = DateFormatter()
     dayOnly.calendar = Calendar(identifier: .gregorian)
     dayOnly.locale = Locale(identifier: "en_US_POSIX")
     dayOnly.timeZone = .current
     dayOnly.dateFormat = "yyyy-MM-dd"
-    return dayOnly.date(from: String(iso.prefix(10)))
+    return dayOnly.date(from: trimmed)
 }
 
-func planningItemDayKey(_ item: GroupPlanningItem) -> Date? {
-    guard let due = parsePlanningInstant(item.dueAt) else { return nil }
-    return Calendar.current.startOfDay(for: due)
+/// Local calendar day for a planning `dueAt` (matches Android `LocalDate` bucketing).
+func planningDayKey(fromDueAt dueAt: String?, calendar: Calendar = .current) -> Date? {
+    guard let due = parsePlanningInstant(dueAt) else { return nil }
+    return calendar.startOfDay(for: due)
+}
+
+func planningItemDayKey(_ item: GroupPlanningItem, calendar: Calendar = .current) -> Date? {
+    planningDayKey(fromDueAt: item.dueAt, calendar: calendar)
+}
+
+/// Deduplicate day keys that represent the same local calendar day.
+func uniquePlanningDayKeys(_ days: [Date], calendar: Calendar = .current) -> [Date] {
+    var unique: [Date] = []
+    for day in days {
+        let start = calendar.startOfDay(for: day)
+        if !unique.contains(where: { calendar.isDate($0, inSameDayAs: start) }) {
+            unique.append(start)
+        }
+    }
+    return unique.sorted()
+}
+
+/// First day chip to show: today if it has plans, else earliest day with plans, else today.
+func defaultPlanningScheduleDay(
+    today: Date,
+    itemDays: [Date],
+    calendar: Calendar = .current
+) -> Date {
+    let todayStart = calendar.startOfDay(for: today)
+    if itemDays.contains(where: { calendar.isDate($0, inSameDayAs: todayStart) }) {
+        return todayStart
+    }
+    if let earliest = itemDays.map({ calendar.startOfDay(for: $0) }).sorted().first {
+        return earliest
+    }
+    return todayStart
 }
 
 func formatPlanningTime(_ iso: String?) -> String? {
@@ -177,18 +239,20 @@ func formatItineraryDayLabel(dayIndex: Int, date: Date) -> String {
 /// Distinct due-days for itinerary preview, preserving chronological order.
 func itineraryDayGroups(
     _ items: [GroupPlanningItem],
-    limit: Int = 3
+    limit: Int = 3,
+    calendar: Calendar = .current
 ) -> [(day: Date, items: [GroupPlanningItem])] {
     let open = recentOpenPlanningItems(items, limit: 50)
     var orderedDays: [Date] = []
     var buckets: [Date: [GroupPlanningItem]] = [:]
     for item in open {
-        guard let day = planningItemDayKey(item) else { continue }
-        if buckets[day] == nil {
+        guard let day = planningItemDayKey(item, calendar: calendar) else { continue }
+        if let existing = orderedDays.first(where: { calendar.isDate($0, inSameDayAs: day) }) {
+            buckets[existing, default: []].append(item)
+        } else {
             orderedDays.append(day)
-            buckets[day] = []
+            buckets[day] = [item]
         }
-        buckets[day, default: []].append(item)
     }
     return orderedDays.prefix(limit).compactMap { day in
         guard let dayItems = buckets[day], !dayItems.isEmpty else { return nil }
@@ -200,6 +264,7 @@ func itineraryDayGroups(
 
 struct PlanningScheduleSheet: View {
     let items: [GroupPlanningItem]
+    var momentId: String? = nil
     var momentTypeCode: String? = nil
     var accent: Color = Color(hex: "#14B8A6")
     var surface: Color = Color(hex: "#1C1A24")
@@ -208,23 +273,36 @@ struct PlanningScheduleSheet: View {
     var text: Color = .white
     var muted: Color = Color(hex: "#9E9AA8")
     var onDismiss: () -> Void
+    var onSaved: () -> Void = {}
 
     @State private var selectedDay: Date?
+    @State private var editingItem: GroupPlanningItem?
 
     private var today: Date { Calendar.current.startOfDay(for: Date()) }
 
+    private var itemDayKeys: [Date] {
+        uniquePlanningDayKeys(items.compactMap { planningItemDayKey($0) })
+    }
+
     private var dayKeys: [Date] {
-        let fromItems = items.compactMap { planningItemDayKey($0) }
-        return Array(Set([today] + fromItems)).sorted()
+        uniquePlanningDayKeys([today] + itemDayKeys)
+    }
+
+    private var defaultDay: Date {
+        defaultPlanningScheduleDay(today: today, itemDays: itemDayKeys)
     }
 
     private var activeDay: Date {
-        selectedDay ?? dayKeys.first ?? today
+        selectedDay ?? defaultDay
     }
 
     private var dayItems: [GroupPlanningItem] {
-        items
-            .filter { planningItemDayKey($0) == activeDay }
+        let cal = Calendar.current
+        return items
+            .filter {
+                guard let day = planningItemDayKey($0) else { return false }
+                return cal.isDate(day, inSameDayAs: activeDay)
+            }
             .sorted {
                 (parsePlanningInstant($0.dueAt)?.timeIntervalSince1970 ?? Double.greatestFiniteMagnitude)
                     < (parsePlanningInstant($1.dueAt)?.timeIntervalSince1970 ?? Double.greatestFiniteMagnitude)
@@ -245,7 +323,7 @@ struct PlanningScheduleSheet: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(dayKeys, id: \.self) { day in
-                            let selected = day == activeDay
+                            let selected = Calendar.current.isDate(day, inSameDayAs: activeDay)
                             Button {
                                 selectedDay = day
                             } label: {
@@ -275,15 +353,22 @@ struct PlanningScheduleSheet: View {
                                 .padding(.vertical, 24)
                         } else {
                             ForEach(Array(dayItems.enumerated()), id: \.offset) { _, item in
-                                PlanningScheduleRow(
-                                    item: item,
-                                    momentTypeCode: momentTypeCode,
-                                    field: field,
-                                    border: border,
-                                    text: text,
-                                    muted: muted,
-                                    accent: accent
-                                )
+                                Button {
+                                    guard item.planningItemId != nil, momentId != nil else { return }
+                                    editingItem = item
+                                } label: {
+                                    PlanningScheduleRow(
+                                        item: item,
+                                        momentTypeCode: momentTypeCode,
+                                        field: field,
+                                        border: border,
+                                        text: text,
+                                        muted: muted,
+                                        accent: accent
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(item.planningItemId == nil || momentId == nil)
                             }
                         }
                     }
@@ -293,9 +378,34 @@ struct PlanningScheduleSheet: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 28)
         }
+        .sheet(isPresented: Binding(
+            get: { editingItem != nil },
+            set: { if !$0 { editingItem = nil } }
+        )) {
+            NativeSheetScaffold(
+                title: "Edit Planning Item",
+                onClose: { editingItem = nil },
+                background: surface
+            ) {
+                ScrollView {
+                    WeddingPlanningBody(
+                        momentId: momentId,
+                        momentTypeCode: momentTypeCode,
+                        editingItem: editingItem,
+                        onDismiss: { editingItem = nil },
+                        onSaved: {
+                            editingItem = nil
+                            onSaved()
+                        },
+                        accent: SheetAccent(accent: accent, accentEnd: accent, soft: accent.opacity(0.2))
+                    )
+                    .padding(20)
+                }
+            }
+        }
         .onAppear {
             if selectedDay == nil {
-                selectedDay = dayKeys.first ?? today
+                selectedDay = defaultDay
             }
         }
     }

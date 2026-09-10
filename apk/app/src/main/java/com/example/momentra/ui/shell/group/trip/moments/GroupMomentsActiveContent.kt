@@ -295,13 +295,22 @@ fun GroupMomentsActiveContent(
         items = planningItems,
         visible = scheduleOpen,
         onDismiss = { scheduleOpen = false },
+        momentId = momentId,
         momentTypeCode = momentTypeCode,
+        onSaved = {
+            if (!momentId.isNullOrBlank()) {
+                scope.launch {
+                    planningItems = repository.listPlanningItems(momentId).getOrNull()?.items.orEmpty()
+                }
+            }
+        },
         accent = Color(0xFF14B8A6),
         surface = chrome.bg,
         field = chrome.card,
         border = chrome.border,
         text = chrome.text,
         muted = chrome.secondary,
+        repository = repository,
     )
 
     GroupPollsListSheet(

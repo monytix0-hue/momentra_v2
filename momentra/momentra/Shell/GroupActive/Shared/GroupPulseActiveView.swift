@@ -102,13 +102,26 @@ struct GroupPulseActiveView: View {
                                     Text("Health score")
                                         .font(.plusJakarta(size: 12))
                                         .foregroundStyle(GroupActiveTheme.secondary)
-                                    GroupEmptySection(
-                                        message: "Score not available yet",
-                                        detail: "Group health scoring is coming soon — no invented numbers."
-                                    )
+                                    if primaryTotal?.budgetTotal != nil {
+                                        Text("\(utilization)% of budget used")
+                                            .font(.plusJakarta(size: 13, weight: .semibold))
+                                            .foregroundStyle(GroupActiveTheme.brand)
+                                        Text("Updated from live finance")
+                                            .font(.plusJakarta(size: 10, weight: .semibold))
+                                            .foregroundStyle(GroupActiveTheme.secondary)
+                                    } else {
+                                        GroupEmptySection(
+                                            message: "Score not available yet",
+                                            detail: "No invented score — ring fills when budget utilization is available."
+                                        )
+                                    }
                                 }
                                 Spacer()
-                                GroupProgressRing(percent: 0, centerLabel: "—", centerSub: "Coming soon")
+                                GroupProgressRing(
+                                    percent: primaryTotal?.budgetTotal != nil ? utilization : 0,
+                                    centerLabel: primaryTotal?.budgetTotal != nil ? "\(utilization)" : "—",
+                                    centerSub: primaryTotal?.budgetTotal != nil ? "/ 100" : "Waiting"
+                                )
                             }
                         }
 
@@ -215,12 +228,27 @@ struct GroupPulseActiveView: View {
                             }
                         }
 
-                        GroupSectionCard(title: "Recent Activity") {
+                        GroupSectionCard(title: "📅 Recent Activity") {
                             if activity.isEmpty {
                                 GroupEmptySection(message: "No recent activity", detail: "Expenses and contributions will show here.")
                             } else {
-                                ForEach(activity) { item in
-                                    activityRow(item)
+                                VStack(alignment: .leading, spacing: 12) {
+                                    ForEach(Array(activity.enumerated()), id: \.element.id) { _, item in
+                                        let expenseId = item.activityPayload?.expenseId
+                                        let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
+                                        GroupActivityRow(
+                                            item: item,
+                                            accent: GroupActiveTheme.accentOrange,
+                                            textColor: GroupActiveTheme.text,
+                                            secondaryColor: GroupActiveTheme.secondary,
+                                            showChevron: canEdit,
+                                            action: canEdit ? {
+                                                guard let expenseId else { return }
+                                                editingExpenseId = expenseId
+                                                editExpensePresented = true
+                                            } : nil
+                                        )
+                                    }
                                 }
                                 Button(action: onViewAllActivity) {
                                     Text("View all activity →")
@@ -446,64 +474,8 @@ struct GroupPulseActiveView: View {
         return financeBarMax > 0 ? min(100, Int((amt / financeBarMax) * 100)) : 0
     }
 
-    private func activityRow(_ item: APIClient.ActivityItemPayload) -> some View {
-        let expenseId = item.activityPayload?.expenseId
-        let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
-        return Button {
-            guard let expenseId else { return }
-            editingExpenseId = expenseId
-            editExpensePresented = true
-        } label: {
-            HStack(spacing: 12) {
-                Text(activityGlyph(item.activityCode))
-                    .font(.system(size: 14))
-                    .frame(width: 36, height: 36)
-                    .background(GroupActiveTheme.brandSoft)
-                    .overlay(Circle().stroke(GroupActiveTheme.border, lineWidth: 1))
-                    .clipShape(Circle())
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                        .font(.plusJakarta(size: 13, weight: .medium))
-                        .foregroundStyle(GroupActiveTheme.text)
-                    Text(formatOccurredAt(item.occurredAt))
-                        .font(.plusJakarta(size: 11))
-                        .foregroundStyle(GroupActiveTheme.secondary)
-                }
-                Spacer(minLength: 8)
-                if canEdit {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(GroupActiveTheme.secondary)
-                }
-            }
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!canEdit)
-    }
-
     private func maskMoney(_ value: String) -> String {
         hideBalances ? "••••" : value
-    }
-
-    private func activityGlyph(_ code: String) -> String {
-        let upper = code.uppercased()
-        if upper.contains("EXPENSE") { return "💸" }
-        if upper.contains("SETTLE") { return "✅" }
-        if upper.contains("CONTRIB") { return "🤝" }
-        return "📌"
-    }
-
-    private func formatOccurredAt(_ raw: String) -> String {
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let fallback = ISO8601DateFormatter()
-        fallback.formatOptions = [.withInternetDateTime]
-        guard let date = iso.date(from: raw) ?? fallback.date(from: raw) else { return raw }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM · HH:mm"
-        return formatter.string(from: date)
     }
 
     private func load() async {

@@ -1229,6 +1229,8 @@ data class ActivityItemDto(
     val title: String,
     @SerializedName("occurredAt") val occurredAt: String,
     @SerializedName("activityPayload") val activityPayload: ActivityPayloadDto? = null,
+    /** Actor who performed the action (from domain_event); null when unknown. */
+    @SerializedName("actorDisplayName") val actorDisplayName: String? = null,
 )
 
 data class ActivityPayloadDto(
@@ -1571,6 +1573,18 @@ data class CreatePlanningItemBody(
     val description: String? = null,
     @SerializedName("asDraft") val asDraft: Boolean? = null,
 )
+
+data class UpdatePlanningItemBody(
+    val title: String,
+    @SerializedName("dueAt") val dueAt: String? = null,
+    @SerializedName("categoryCode") val categoryCode: String? = null,
+    val location: String? = null,
+    @SerializedName("priorityCode") val priorityCode: String? = null,
+    val description: String? = null,
+    @SerializedName("asDraft") val asDraft: Boolean? = null,
+    val status: String? = null,
+)
+
 data class CreateBookingBody(
     val title: String,
     @SerializedName("bookingType") val bookingType: String? = null,

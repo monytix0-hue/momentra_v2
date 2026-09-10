@@ -33,6 +33,12 @@ export const planningItemSchema = z
   })
   .strict();
 
+export const updatePlanningItemSchema = planningItemSchema
+  .extend({
+    status: z.enum(['DRAFT', 'OPEN', 'IN_PROGRESS', 'DONE', 'CANCELLED']).nullish(),
+  })
+  .strict();
+
 const moneyString = z.string().regex(/^\d+(\.\d{1,4})?$/);
 
 const bookingStaySchema = z
@@ -216,6 +222,65 @@ export async function createPlanningItemCommand(
              projection_version = projection.group_life.projection_version + 1,
              updated_at = now()`,
       [momentId, JSON.stringify({ lastPlanningItemId: result.planningItemId, title: body.title })]
+    )
+    .catch(() => undefined);
+  return result;
+}
+
+export async function updatePlanningItemCommand(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  planningItemId: string,
+  body: z.infer<typeof updatePlanningItemSchema>
+) {
+  await assertGroupMember(client, ctx, momentId);
+  const result = await collaborationService.updatePlanningItem(
+    client,
+    ctx,
+    momentId,
+    planningItemId,
+    body
+  );
+  await recordCommandSideEffects(client, ctx, {
+    eventName: 'PlanningItemUpdated',
+    domainCode: 'GROUP',
+    aggregateType: 'PLANNING_ITEM',
+    aggregateId: result.planningItemId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: {
+      planningItemId: result.planningItemId,
+      momentId,
+      title: result.title,
+      status: result.status,
+      asDraft: body.asDraft === true || result.status === 'DRAFT',
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+    },
+    auditActionCode: 'PLANNING_ITEM_UPDATE',
+    auditResourceType: 'PLANNING_ITEM',
+    auditResourceId: result.planningItemId,
+    afterSnapshot: result,
+    activity:
+      body.asDraft === true || result.status === 'DRAFT'
+        ? undefined
+        : {
+            domainCode: 'GROUP',
+            momentId,
+            activityCode: 'GROUP_PLANNING_ITEM_UPDATED',
+            title: result.title,
+            payload: { planningItemId: result.planningItemId, status: result.status },
+          },
+  });
+  await client
+    .query(
+      `INSERT INTO projection.group_life (moment_id, planning_payload, projection_version, updated_at)
+       VALUES ($1, $2::jsonb, 1, now())
+       ON CONFLICT (moment_id) DO UPDATE
+         SET planning_payload = $2::jsonb,
+             projection_version = projection.group_life.projection_version + 1,
+             updated_at = now()`,
+      [momentId, JSON.stringify({ lastPlanningItemId: result.planningItemId, title: result.title })]
     )
     .catch(() => undefined);
   return result;

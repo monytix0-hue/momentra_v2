@@ -852,6 +852,8 @@ final class APIClient {
         let title: String
         let occurredAt: String
         let activityPayload: ActivityPayload?
+        /// Actor who performed the action (from domain_event); nil when unknown.
+        let actorDisplayName: String?
 
         struct ActivityPayload: Decodable {
             let expenseId: String?
@@ -2689,6 +2691,45 @@ final class APIClient {
                 priorityCode: priorityCode,
                 description: description,
                 asDraft: asDraft
+            ),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func updatePlanningItem(
+        momentId: String,
+        planningItemId: String,
+        title: String,
+        dueAt: String? = nil,
+        categoryCode: String? = nil,
+        location: String? = nil,
+        priorityCode: String? = nil,
+        description: String? = nil,
+        asDraft: Bool? = nil,
+        status: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CollabIdResult {
+        struct Body: Encodable {
+            let title: String
+            let dueAt: String?
+            let categoryCode: String?
+            let location: String?
+            let priorityCode: String?
+            let description: String?
+            let asDraft: Bool?
+            let status: String?
+        }
+        return try await authorizedPatch(
+            path: "v1/moments/\(momentId)/planning-items/\(planningItemId)",
+            body: Body(
+                title: title,
+                dueAt: dueAt,
+                categoryCode: categoryCode,
+                location: location,
+                priorityCode: priorityCode,
+                description: description,
+                asDraft: asDraft,
+                status: status
             ),
             idempotencyKey: idempotencyKey
         )

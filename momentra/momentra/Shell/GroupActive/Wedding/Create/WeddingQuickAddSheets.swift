@@ -1302,6 +1302,7 @@ struct WeddingVendorBody: View {
 struct WeddingPlanningBody: View {
     var momentId: String?
     var momentTypeCode: String? = "WEDDING"
+    var editingItem: GroupPlanningItem? = nil
     var onDismiss: () -> Void
     var onSaved: () -> Void
 
@@ -1319,6 +1320,7 @@ struct WeddingPlanningBody: View {
 
     var accent: SheetAccent = purpleAccent
     private var live: Bool { momentId != nil }
+    private var isEditing: Bool { editingItem?.planningItemId != nil }
 
     private var people: [(id: String, name: String)] {
         participants.map { (id: $0.participantId, name: $0.displayName ?? String($0.participantId.prefix(8))) }
@@ -1330,7 +1332,11 @@ struct WeddingPlanningBody: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SheetHeader(icon: "calendar", title: "Add Planning Item", accent: accent)
+            SheetHeader(
+                icon: "calendar",
+                title: isEditing ? "Edit Planning Item" : "Add Planning Item",
+                accent: accent
+            )
 
             VStack(alignment: .leading, spacing: 8) {
                 FieldLabel(text: "Category")
@@ -1400,19 +1406,20 @@ struct WeddingPlanningBody: View {
             }
 
             QuickAddDraftActions(
-                submitLabel: "Add Planning Item",
+                submitLabel: isEditing ? "Save Changes" : "Add Planning Item",
                 submitEnabled: live
                     && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && !(category.isEmpty ? GroupPlanningCategoryCatalog.defaultLabel(for: momentTypeCode) : category).isEmpty,
                 accent: accent,
                 loading: submitting,
-                footer: "Everyone will be notified",
+                footer: isEditing ? "Members will see the update" : "Everyone will be notified",
                 onSubmit: { submit(asDraft: false) },
                 onSaveDraft: { submit(asDraft: true) },
                 draftEnabled: live && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             )
         }
         .onAppear {
+            applyEditingPrefillIfNeeded()
             if category.isEmpty {
                 category = GroupPlanningCategoryCatalog.defaultLabel(for: momentTypeCode)
             }
@@ -1420,6 +1427,17 @@ struct WeddingPlanningBody: View {
                 Task { await loadParticipants(momentId) }
             }
         }
+    }
+
+    private func applyEditingPrefillIfNeeded() {
+        guard let item = editingItem else { return }
+        title = item.title ?? ""
+        category = GroupPlanningCategoryCatalog.label(forCode: item.categoryCode, momentTypeCode: momentTypeCode)
+        location = item.location ?? ""
+        priority = GroupPlanningCategoryCatalog.priorityLabel(forCode: item.priorityCode)
+        let parts = SetupDateTimeUtils.splitLocalDateTime(fromIso: item.dueAt)
+        date = parts.date
+        time = parts.time
     }
 
     private func loadParticipants(_ momentId: String) async {
@@ -1447,15 +1465,29 @@ struct WeddingPlanningBody: View {
             submitting = true
             error = nil
             do {
-                _ = try await APIClient.shared.createPlanningItem(
-                    momentId: momentId,
-                    title: trimmed,
-                    dueAt: SetupDateTimeUtils.combineLocalDateTimeIso(date: date, time: time),
-                    categoryCode: GroupPlanningCategoryCatalog.code(forLabel: categoryLabel),
-                    location: loc.isEmpty ? nil : loc,
-                    priorityCode: GroupPlanningCategoryCatalog.priorityCode(for: priority),
-                    asDraft: asDraft ? true : nil
-                )
+                if let planningItemId = editingItem?.planningItemId {
+                    _ = try await APIClient.shared.updatePlanningItem(
+                        momentId: momentId,
+                        planningItemId: planningItemId,
+                        title: trimmed,
+                        dueAt: SetupDateTimeUtils.combineLocalDateTimeIso(date: date, time: time),
+                        categoryCode: GroupPlanningCategoryCatalog.code(forLabel: categoryLabel),
+                        location: loc.isEmpty ? nil : loc,
+                        priorityCode: GroupPlanningCategoryCatalog.priorityCode(for: priority),
+                        asDraft: asDraft ? true : false,
+                        status: asDraft ? "DRAFT" : (editingItem?.status == "DRAFT" ? "OPEN" : editingItem?.status)
+                    )
+                } else {
+                    _ = try await APIClient.shared.createPlanningItem(
+                        momentId: momentId,
+                        title: trimmed,
+                        dueAt: SetupDateTimeUtils.combineLocalDateTimeIso(date: date, time: time),
+                        categoryCode: GroupPlanningCategoryCatalog.code(forLabel: categoryLabel),
+                        location: loc.isEmpty ? nil : loc,
+                        priorityCode: GroupPlanningCategoryCatalog.priorityCode(for: priority),
+                        asDraft: asDraft ? true : nil
+                    )
+                }
                 submitting = false
                 onSaved()
                 onDismiss()

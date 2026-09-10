@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.api.GroupLifePlanningItemDto
 import com.example.momentra.data.api.GroupLifeUpdateDto
+import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.group.wedding.create.SheetAccent
+import com.example.momentra.ui.shell.group.wedding.create.WeddingPlanningSheetBody
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -215,13 +218,16 @@ fun PlanningScheduleSheet(
     items: List<GroupLifePlanningItemDto>,
     visible: Boolean,
     onDismiss: () -> Unit,
+    momentId: String? = null,
     momentTypeCode: String? = null,
+    onSaved: () -> Unit = {},
     accent: Color = Color(0xFF14B8A6),
     surface: Color = Color(0xFF1C1A24),
     field: Color = Color(0xFF252230),
     border: Color = Color(0xFF322E40),
     text: Color = Color.White,
     muted: Color = Color(0xFF9E9AA8),
+    repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
     val today = remember { LocalDate.now() }
@@ -234,6 +240,7 @@ fun PlanningScheduleSheet(
         items.filter { planningItemDayKey(it) == selectedDay }
             .sortedBy { parseInstantMillis(it.dueAt) ?: Long.MAX_VALUE }
     }
+    var editingItem by remember { mutableStateOf<GroupLifePlanningItemDto?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -308,9 +315,44 @@ fun PlanningScheduleSheet(
                             text = text,
                             muted = muted,
                             accent = accent,
+                            onClick = {
+                                if (!item.planningItemId.isNullOrBlank() && !momentId.isNullOrBlank()) {
+                                    editingItem = item
+                                }
+                            },
                         )
                     }
                 }
+            }
+        }
+    }
+
+    if (editingItem != null && !momentId.isNullOrBlank()) {
+        ModalBottomSheet(
+            onDismissRequest = { editingItem = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = surface,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 28.dp),
+            ) {
+                WeddingPlanningSheetBody(
+                    momentId = momentId,
+                    repository = repository,
+                    onDismiss = { editingItem = null },
+                    onSaved = {
+                        editingItem = null
+                        onSaved()
+                    },
+                    accent = SheetAccent(accent = accent, accentEnd = accent, soft = accent.copy(alpha = 0.2f)),
+                    momentTypeCode = momentTypeCode,
+                    editingItem = editingItem,
+                )
             }
         }
     }
@@ -325,6 +367,7 @@ fun PlanningScheduleRow(
     text: Color,
     muted: Color,
     accent: Color,
+    onClick: (() -> Unit)? = null,
 ) {
     val category = GroupPlanningCategoryCatalog.labelForCode(item.categoryCode, momentTypeCode)
     val time = formatPlanningTime(item.dueAt) ?: "All day"
@@ -334,6 +377,7 @@ fun PlanningScheduleRow(
             .clip(RoundedCornerShape(12.dp))
             .background(field)
             .border(1.dp, border, RoundedCornerShape(12.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,

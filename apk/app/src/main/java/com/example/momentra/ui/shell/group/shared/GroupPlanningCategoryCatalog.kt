@@ -59,6 +59,12 @@ object GroupPlanningCategoryCatalog {
         else -> "MEDIUM"
     }
 
+    fun priorityLabel(code: String?): String = when (code?.trim()?.uppercase()) {
+        "LOW" -> "Low"
+        "HIGH" -> "High"
+        else -> "Medium"
+    }
+
     fun urgencyCode(label: String): String =
         if (label.trim().equals("Urgent", ignoreCase = true)) "URGENT" else "NORMAL"
 }

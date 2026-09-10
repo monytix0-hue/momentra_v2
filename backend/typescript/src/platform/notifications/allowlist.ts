@@ -24,6 +24,7 @@ export const PEER_PUSH_EVENT_NAMES = new Set<string>([
   'TaskCreated',
   'TaskDueReminder',
   'PlanningItemCreated',
+  'PlanningItemUpdated',
   'BookingCreated',
   'MilestoneCreated',
   'GoalCreated',
@@ -76,6 +77,7 @@ const CATEGORY_BY_EVENT: Record<string, NotificationCategory> = {
   TaskCreated: 'tasks',
   TaskDueReminder: 'tasks',
   PlanningItemCreated: 'tasks',
+  PlanningItemUpdated: 'tasks',
   BookingCreated: 'tasks',
   MilestoneCreated: 'tasks',
   GoalCreated: 'tasks',
@@ -223,6 +225,11 @@ export function notificationCopy(
       };
     case 'PlanningItemCreated':
       return { title: 'New plan item', body: `${actor} added a planning item.` };
+    case 'PlanningItemUpdated':
+      return {
+        title: 'Plan updated',
+        body: itemTitle ? `${actor} updated “${itemTitle}”.` : `${actor} updated a planning item.`,
+      };
     case 'BookingCreated':
       return { title: 'New booking', body: `${actor} added a booking.` };
     case 'MilestoneCreated':

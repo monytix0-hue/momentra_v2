@@ -56,6 +56,7 @@ struct ExperienceMomentsActiveView: View {
         .sheet(isPresented: $scheduleOpen) {
             PlanningScheduleSheet(
                 items: planningItems,
+                momentId: momentId,
                 momentTypeCode: momentTypeCode,
                 accent: theme.accent,
                 surface: theme.card,
@@ -63,7 +64,8 @@ struct ExperienceMomentsActiveView: View {
                 border: theme.border,
                 text: theme.text,
                 muted: theme.secondary,
-                onDismiss: { scheduleOpen = false }
+                onDismiss: { scheduleOpen = false },
+                onSaved: { Task { await load() } }
             )
         }
         .sheet(isPresented: $pollsListOpen) {

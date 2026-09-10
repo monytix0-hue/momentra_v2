@@ -79,6 +79,7 @@ struct GroupMomentsActiveView: View {
         .sheet(isPresented: $scheduleOpen) {
             PlanningScheduleSheet(
                 items: planningItems,
+                momentId: momentId,
                 momentTypeCode: momentTypeCode,
                 accent: Color(hex: "#14B8A6"),
                 surface: GroupActiveTheme.bg,
@@ -86,7 +87,8 @@ struct GroupMomentsActiveView: View {
                 border: GroupActiveTheme.border,
                 text: GroupActiveTheme.text,
                 muted: GroupActiveTheme.secondary,
-                onDismiss: { scheduleOpen = false }
+                onDismiss: { scheduleOpen = false },
+                onSaved: { Task { await load() } }
             )
         }
         .sheet(isPresented: $pollsListOpen) {

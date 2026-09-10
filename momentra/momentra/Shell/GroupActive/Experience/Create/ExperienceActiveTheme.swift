@@ -246,7 +246,8 @@ struct ExperienceCrewRow: View {
     let theme: ExperienceActiveTheme
     let name: String
     let role: String
-    let percent: Int
+    var percent: Int? = nil
+    var amountLabel: String? = nil
     var featured: Bool = false
 
     var body: some View {
@@ -268,25 +269,33 @@ struct ExperienceCrewRow: View {
                                 Text("★").foregroundStyle(Color(hex: "#FBBF24")).font(.system(size: 12))
                             }
                         }
-                        Text(featured ? "Most active" : "Active")
+                        Text(featured ? "Organizer" : "Member")
                             .font(.plusJakarta(size: 11))
                             .foregroundStyle(theme.muted)
                     }
                 }
                 Spacer()
-                Text("\(percent)%")
-                    .font(.plusJakarta(size: 12, weight: .bold))
-                    .foregroundStyle(theme.accentLight)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(theme.accentSoft)
-                    Capsule()
-                        .fill(theme.accent)
-                        .frame(width: geo.size.width * CGFloat(min(max(percent, 0), 100)) / 100)
+                if let amountLabel {
+                    Text(amountLabel)
+                        .font(.plusJakarta(size: 12, weight: .bold))
+                        .foregroundStyle(theme.accentLight)
+                } else if let percent {
+                    Text("\(percent)%")
+                        .font(.plusJakarta(size: 12, weight: .bold))
+                        .foregroundStyle(theme.accentLight)
                 }
             }
-            .frame(height: 6)
+            if let percent {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(theme.accentSoft)
+                        Capsule()
+                            .fill(theme.accent)
+                            .frame(width: geo.size.width * CGFloat(min(max(percent, 0), 100)) / 100)
+                    }
+                }
+                .frame(height: 6)
+            }
         }
     }
 }

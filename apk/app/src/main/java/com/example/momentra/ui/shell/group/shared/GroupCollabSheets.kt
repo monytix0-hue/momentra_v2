@@ -75,6 +75,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.OffsetDateTime
@@ -121,6 +122,16 @@ internal fun tripDateTimeToIso(dateIso: String?, timeIso: String?): String? {
     } ?: LocalTime.MIDNIGHT
     return date.atTime(time).atZone(ZoneId.systemDefault()).toOffsetDateTime()
         .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+}
+
+/** Split an API ISO instant into local yyyy-MM-dd + HH:mm for planning edit prefills. */
+internal fun tripIsoToLocalDateTime(iso: String?): Pair<String, String> {
+    if (iso.isNullOrBlank()) return "" to ""
+    val odt = runCatching { OffsetDateTime.parse(iso) }.getOrNull()
+        ?: runCatching { Instant.parse(iso).atZone(ZoneId.systemDefault()).toOffsetDateTime() }.getOrNull()
+        ?: return iso.take(10) to ""
+    val local = odt.atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
+    return local.toLocalDate().toString() to local.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
 }
 
 internal fun tripNowIso(): String =

@@ -49,6 +49,7 @@ import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupActiveTheme
+import com.example.momentra.ui.shell.group.shared.GroupActivityRow
 import com.example.momentra.ui.shell.group.shared.GroupCtaButton
 import com.example.momentra.ui.shell.group.shared.GroupEmptySection
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
@@ -68,10 +69,6 @@ import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.math.BigDecimal
 import java.math.RoundingMode
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.math.min
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -277,12 +274,33 @@ fun GroupPulseActiveContent(
                 ) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Health score", color = GroupActiveTheme.Secondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
-                        GroupEmptySection(
-                            message = "Score not available yet",
-                            detail = "Group health scoring is coming soon — no invented numbers.",
-                        )
+                        if (primaryTotal?.budgetTotal != null) {
+                            Text(
+                                "$utilization% of budget used",
+                                color = GroupActiveTheme.Brand,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = PlusJakartaSans,
+                            )
+                            Text(
+                                "Updated from live finance",
+                                color = GroupActiveTheme.Secondary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = PlusJakartaSans,
+                            )
+                        } else {
+                            GroupEmptySection(
+                                message = "Score not available yet",
+                                detail = "No invented score — ring fills when budget utilization is available.",
+                            )
+                        }
                     }
-                    GroupProgressRing(percent = 0, centerLabel = "—", centerSub = "Coming soon")
+                    GroupProgressRing(
+                        percent = if (primaryTotal?.budgetTotal != null) utilization else 0,
+                        centerLabel = if (primaryTotal?.budgetTotal != null) "$utilization" else "—",
+                        centerSub = if (primaryTotal?.budgetTotal != null) "/ 100" else "Waiting",
+                    )
                 }
             }
         }
@@ -476,20 +494,28 @@ fun GroupPulseActiveContent(
         }
 
         AnimatedVisibility(visible = true, enter = fadeIn()) {
-            GroupSectionCard(title = "Recent Activity") {
+            GroupSectionCard(title = "📅 Recent Activity") {
                 if (activity.isEmpty()) {
                     GroupEmptySection(message = "No recent activity", detail = "Expenses and contributions will show here.")
                 } else {
-                    activity.forEach { item ->
-                        ActivityChromeRow(
-                            item = item,
-                            onClick = {
-                                val expenseId = item.activityPayload?.expenseId
-                                if (!expenseId.isNullOrBlank()) {
-                                    editingExpenseId = expenseId
-                                }
-                            },
-                        )
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        activity.forEach { item ->
+                            val expenseId = item.activityPayload?.expenseId
+                            val canEdit = !expenseId.isNullOrBlank() &&
+                                (item.activityCode.contains("EXPENSE", ignoreCase = true) || expenseId != null)
+                            GroupActivityRow(
+                                item = item,
+                                accent = GroupActiveTheme.AccentOrange,
+                                textColor = GroupActiveTheme.Text,
+                                secondaryColor = GroupActiveTheme.Secondary,
+                                showChevron = canEdit,
+                                onClick = if (canEdit) {
+                                    { editingExpenseId = expenseId }
+                                } else {
+                                    null
+                                },
+                            )
+                        }
                     }
                     Text(
                         "View all activity →",
@@ -756,59 +782,10 @@ private fun ParticipationRow(
     }
 }
 
-@Composable
-private fun ActivityChromeRow(item: ActivityItemDto, onClick: (() -> Unit)? = null) {
-    val expenseId = item.activityPayload?.expenseId
-    val canEdit = !expenseId.isNullOrBlank() &&
-        (item.activityCode.contains("EXPENSE", ignoreCase = true) || expenseId != null)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (canEdit && onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(GroupActiveTheme.BrandSoft)
-                .border(1.dp, GroupActiveTheme.Border, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(activityGlyph(item.activityCode), fontSize = 14.sp)
-        }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(item.title, color = GroupActiveTheme.Text, fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
-            Text(formatOccurredAt(item.occurredAt), color = GroupActiveTheme.Secondary, fontSize = 11.sp, fontFamily = PlusJakartaSans)
-        }
-        if (canEdit) {
-            Text("›", color = GroupActiveTheme.Secondary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
 private fun participationBarPercent(netRaw: String?, maxAbs: BigDecimal, count: Int): Int {
     if (maxAbs > BigDecimal.ZERO) {
         val abs = GroupFinanceFormat.parseAmount(netRaw).abs()
         return abs.multiply(BigDecimal(100)).divide(maxAbs, 0, RoundingMode.HALF_UP).toInt().coerceIn(8, 100)
     }
     return if (count > 0) min(100, 100 / count) else 0
-}
-
-private fun activityGlyph(code: String): String = when {
-    code.contains("EXPENSE", ignoreCase = true) -> "💸"
-    code.contains("SETTLE", ignoreCase = true) -> "✅"
-    code.contains("CONTRIB", ignoreCase = true) -> "🤝"
-    else -> "📌"
-}
-
-private fun formatOccurredAt(raw: String): String = try {
-    val instant = Instant.parse(raw)
-    DateTimeFormatter.ofPattern("d MMM · HH:mm", Locale.getDefault())
-        .withZone(ZoneId.systemDefault())
-        .format(instant)
-} catch (_: Exception) {
-    raw
 }

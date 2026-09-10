@@ -394,13 +394,22 @@ fun LivingMomentsActiveContent(
         items = planningItems,
         visible = scheduleOpen,
         onDismiss = { scheduleOpen = false },
+        momentId = momentId,
         momentTypeCode = momentTypeCode,
+        onSaved = {
+            if (!momentId.isNullOrBlank()) {
+                scope.launch {
+                    planningItems = repository.listPlanningItems(momentId).getOrNull()?.items.orEmpty()
+                }
+            }
+        },
         accent = theme.accent,
         surface = theme.card,
         field = theme.bg,
         border = theme.border,
         text = theme.text,
         muted = theme.secondary,
+        repository = repository,
     )
     GroupPollsListSheet(
         visible = pollsListOpen,

@@ -305,7 +305,8 @@ fun ExperienceCrewRow(
     theme: ExperienceActiveTheme,
     name: String,
     role: String,
-    percent: Int,
+    percent: Int? = null,
+    amountLabel: String? = null,
     featured: Boolean = false,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -327,24 +328,41 @@ fun ExperienceCrewRow(
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = PlusJakartaSans,
                 )
-                Text(if (featured) "Most active" else "Active", color = theme.muted, fontSize = 11.sp, fontFamily = PlusJakartaSans)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(theme.accentSoft),
-                ) {
+                Text(if (featured) "Organizer" else "Member", color = theme.muted, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+                if (percent != null) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(percent.coerceIn(0, 100) / 100f)
+                            .fillMaxWidth()
                             .height(6.dp)
                             .clip(RoundedCornerShape(999.dp))
-                            .background(theme.accent),
-                    )
+                            .background(theme.accentSoft),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(percent.coerceIn(0, 100) / 100f)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(theme.accent),
+                        )
+                    }
                 }
             }
-            Text("$percent%", color = theme.accentLight, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+            when {
+                amountLabel != null -> Text(
+                    amountLabel,
+                    color = theme.accentLight,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSans,
+                )
+                percent != null -> Text(
+                    "$percent%",
+                    color = theme.accentLight,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
         }
     }
 }

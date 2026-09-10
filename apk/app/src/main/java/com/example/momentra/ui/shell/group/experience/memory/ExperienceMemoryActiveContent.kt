@@ -51,8 +51,8 @@ import com.example.momentra.ui.shell.group.shared.GroupProgressBar
 import com.example.momentra.ui.shell.group.shared.GroupSectionCard
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.loadGroupMemoryTab
+import com.example.momentra.ui.shell.group.shared.MemoryMediaThumb
 import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
-import com.example.momentra.ui.shell.group.shared.RemoteMemoryImage
 import com.example.momentra.ui.shell.group.shared.primaryDownloadUrl
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.time.OffsetDateTime
@@ -382,12 +382,11 @@ private fun ExperienceMemoryTimelineRow(
                 .background(accent),
         )
         if (thumbUrl != null) {
-            RemoteMemoryImage(
+            MemoryMediaThumb(
                 url = thumbUrl,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
+                border = accent.copy(alpha = 0.35f),
+                field = Color(0xFF181716),
+                modifier = Modifier.size(44.dp),
             )
         } else {
             Box(

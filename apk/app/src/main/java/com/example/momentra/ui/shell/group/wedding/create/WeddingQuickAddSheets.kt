@@ -73,6 +73,7 @@ import androidx.core.content.FileProvider
 import com.example.momentra.R
 import com.example.momentra.data.api.CreateGroupExpenseBody
 import com.example.momentra.data.api.GroupExpenseSplitInputDto
+import com.example.momentra.data.api.GroupLifePlanningItemDto
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupExpenseSplitBuilder
 import com.example.momentra.data.repository.GroupSliceRepository
@@ -84,6 +85,7 @@ import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.encodeMemoryPhotoBytes
 import com.example.momentra.ui.shell.group.shared.tryTakePersistableReadPermission
 import com.example.momentra.ui.shell.group.shared.tripDateTimeToIso
+import com.example.momentra.ui.shell.group.shared.tripIsoToLocalDateTime
 import com.example.momentra.ui.shell.group.shared.QuickAddDraftActions
 import com.example.momentra.ui.shell.group.shared.TravelCurrencyCatalog
 import com.example.momentra.ui.shell.shared.loadGroupCurrencyContext
@@ -1343,21 +1345,31 @@ internal fun WeddingPlanningSheetBody(
     onSaved: () -> Unit,
     accent: SheetAccent = PurpleAccent,
     momentTypeCode: String? = "WEDDING",
+    editingItem: GroupLifePlanningItemDto? = null,
 ) {
     val categoryLabels = remember(momentTypeCode) { GroupPlanningCategoryCatalog.labels(momentTypeCode) }
-    var category by remember(momentTypeCode) { mutableStateOf(GroupPlanningCategoryCatalog.defaultLabel(momentTypeCode)) }
-    var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf("") }
-    var time by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
+    var category by remember(momentTypeCode, editingItem?.planningItemId) {
+        mutableStateOf(
+            editingItem?.categoryCode?.let { GroupPlanningCategoryCatalog.labelForCode(it, momentTypeCode) }
+                ?: GroupPlanningCategoryCatalog.defaultLabel(momentTypeCode),
+        )
+    }
+    var title by remember(editingItem?.planningItemId) { mutableStateOf(editingItem?.title.orEmpty()) }
+    val splitDue = remember(editingItem?.dueAt) { tripIsoToLocalDateTime(editingItem?.dueAt) }
+    var date by remember(editingItem?.planningItemId) { mutableStateOf(splitDue.first) }
+    var time by remember(editingItem?.planningItemId) { mutableStateOf(splitDue.second) }
+    var location by remember(editingItem?.planningItemId) { mutableStateOf(editingItem?.location.orEmpty()) }
     var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
     var selected by remember { mutableStateOf(emptySet<String>()) }
-    var priority by remember { mutableStateOf("Medium") }
+    var priority by remember(editingItem?.planningItemId) {
+        mutableStateOf(GroupPlanningCategoryCatalog.priorityLabel(editingItem?.priorityCode))
+    }
     var loading by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val live = !momentId.isNullOrBlank()
+    val isEditing = !editingItem?.planningItemId.isNullOrBlank()
 
     LaunchedEffect(momentId) {
         if (momentId.isNullOrBlank()) return@LaunchedEffect
@@ -1379,7 +1391,11 @@ internal fun WeddingPlanningSheetBody(
         it.participantId to (it.displayName ?: it.participantId.take(8))
     }
 
-    SheetHeader(R.drawable.ges_icon_calendar, "Add Planning Item", accent = accent)
+    SheetHeader(
+        R.drawable.ges_icon_calendar,
+        if (isEditing) "Edit Planning Item" else "Add Planning Item",
+        accent = accent,
+    )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("Category")
         ChipRow(categoryLabels, category, accent) { category = it }
@@ -1421,24 +1437,40 @@ internal fun WeddingPlanningSheetBody(
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
     val submitPlanningEnabled = live && title.isNotBlank() && category.isNotBlank()
     QuickAddDraftActions(
-        submitLabel = "Add Planning Item",
+        submitLabel = if (isEditing) "Save Changes" else "Add Planning Item",
         submitEnabled = submitPlanningEnabled,
         ctaBrush = accent.cta,
         loading = submitting,
-        footer = "Everyone will be notified",
+        footer = if (isEditing) "Members will see the update" else "Everyone will be notified",
         onSubmit = {
             scope.launch {
                 submitting = true
                 error = null
-                repository.createPlanningItem(
-                    momentId = momentId!!,
-                    title = title.trim(),
-                    dueAt = tripDateTimeToIso(date, time),
-                    categoryCode = GroupPlanningCategoryCatalog.codeForLabel(category),
-                    location = location.trim().ifBlank { null },
-                    priorityCode = GroupPlanningCategoryCatalog.priorityCode(priority),
-                    asDraft = false,
-                ).fold(
+                val planningItemId = editingItem?.planningItemId
+                val result = if (!planningItemId.isNullOrBlank()) {
+                    repository.updatePlanningItem(
+                        momentId = momentId!!,
+                        planningItemId = planningItemId,
+                        title = title.trim(),
+                        dueAt = tripDateTimeToIso(date, time),
+                        categoryCode = GroupPlanningCategoryCatalog.codeForLabel(category),
+                        location = location.trim().ifBlank { null },
+                        priorityCode = GroupPlanningCategoryCatalog.priorityCode(priority),
+                        asDraft = false,
+                        status = if (editingItem?.status.equals("DRAFT", true)) "OPEN" else editingItem?.status,
+                    )
+                } else {
+                    repository.createPlanningItem(
+                        momentId = momentId!!,
+                        title = title.trim(),
+                        dueAt = tripDateTimeToIso(date, time),
+                        categoryCode = GroupPlanningCategoryCatalog.codeForLabel(category),
+                        location = location.trim().ifBlank { null },
+                        priorityCode = GroupPlanningCategoryCatalog.priorityCode(priority),
+                        asDraft = false,
+                    )
+                }
+                result.fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )
@@ -1448,15 +1480,31 @@ internal fun WeddingPlanningSheetBody(
             scope.launch {
                 submitting = true
                 error = null
-                repository.createPlanningItem(
-                    momentId = momentId!!,
-                    title = title.trim(),
-                    dueAt = tripDateTimeToIso(date, time),
-                    categoryCode = GroupPlanningCategoryCatalog.codeForLabel(category),
-                    location = location.trim().ifBlank { null },
-                    priorityCode = GroupPlanningCategoryCatalog.priorityCode(priority),
-                    asDraft = true,
-                ).fold(
+                val planningItemId = editingItem?.planningItemId
+                val result = if (!planningItemId.isNullOrBlank()) {
+                    repository.updatePlanningItem(
+                        momentId = momentId!!,
+                        planningItemId = planningItemId,
+                        title = title.trim(),
+                        dueAt = tripDateTimeToIso(date, time),
+                        categoryCode = GroupPlanningCategoryCatalog.codeForLabel(category),
+                        location = location.trim().ifBlank { null },
+                        priorityCode = GroupPlanningCategoryCatalog.priorityCode(priority),
+                        asDraft = true,
+                        status = "DRAFT",
+                    )
+                } else {
+                    repository.createPlanningItem(
+                        momentId = momentId!!,
+                        title = title.trim(),
+                        dueAt = tripDateTimeToIso(date, time),
+                        categoryCode = GroupPlanningCategoryCatalog.codeForLabel(category),
+                        location = location.trim().ifBlank { null },
+                        priorityCode = GroupPlanningCategoryCatalog.priorityCode(priority),
+                        asDraft = true,
+                    )
+                }
+                result.fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message },
                 )

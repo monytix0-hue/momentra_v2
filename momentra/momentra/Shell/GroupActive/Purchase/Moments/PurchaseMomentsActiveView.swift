@@ -78,6 +78,7 @@ struct PurchaseMomentsActiveView: View {
         .sheet(isPresented: $scheduleOpen) {
             PlanningScheduleSheet(
                 items: planningItems,
+                momentId: momentId,
                 momentTypeCode: momentTypeCode,
                 accent: theme.accent,
                 surface: theme.card,
@@ -85,7 +86,8 @@ struct PurchaseMomentsActiveView: View {
                 border: theme.border,
                 text: theme.text,
                 muted: theme.secondary,
-                onDismiss: { scheduleOpen = false }
+                onDismiss: { scheduleOpen = false },
+                onSaved: { Task { await load() } }
             )
         }
         .sheet(isPresented: $pollsListOpen) {
