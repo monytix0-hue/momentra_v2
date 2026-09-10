@@ -692,6 +692,7 @@ export async function updateGroupExpense(
     shareAmount: new Decimal(s.shareAmount),
     sharePercent: s.sharePercent != null ? new Decimal(s.sharePercent) : null,
   }));
+  // Reverse prior totals with null source_event_id — correlationId is not a domain_event FK.
   await upsertGroupFinanceProjection(
     client,
     momentId,
@@ -699,7 +700,7 @@ export async function updateGroupExpense(
     existing.paidByParticipantId,
     oldAmount.neg(),
     oldShares.map((s) => ({ ...s, shareAmount: s.shareAmount.neg() })),
-    ctx.correlationId,
+    null,
     existing.splitStrategy === 'POOLED',
     0
   );
@@ -898,17 +899,6 @@ export async function voidGroupExpense(
     shareAmount: new Decimal(s.shareAmount),
     sharePercent: s.sharePercent != null ? new Decimal(s.sharePercent) : null,
   }));
-  await upsertGroupFinanceProjection(
-    client,
-    momentId,
-    existing.currencyCode,
-    existing.paidByParticipantId,
-    oldAmount.neg(),
-    oldShares.map((s) => ({ ...s, shareAmount: s.shareAmount.neg() })),
-    ctx.correlationId,
-    existing.splitStrategy === 'POOLED',
-    -1
-  );
 
   await client.query(
     `UPDATE finance.participant_obligation SET status = 'VOIDED', updated_at = now()
@@ -928,7 +918,7 @@ export async function voidGroupExpense(
     [expenseId, momentId]
   );
 
-  await recordCommandSideEffects(client, ctx, {
+  const { domainEventId } = await recordCommandSideEffects(client, ctx, {
     eventName: 'GroupExpenseVoided',
     domainCode: 'GROUP',
     aggregateType: 'EXPENSE',
@@ -952,6 +942,18 @@ export async function voidGroupExpense(
       payload: { expenseId, status: 'VOIDED' },
     },
   });
+
+  await upsertGroupFinanceProjection(
+    client,
+    momentId,
+    existing.currencyCode,
+    existing.paidByParticipantId,
+    oldAmount.neg(),
+    oldShares.map((s) => ({ ...s, shareAmount: s.shareAmount.neg() })),
+    domainEventId,
+    existing.splitStrategy === 'POOLED',
+    -1
+  );
 
   return {
     ...existing,
