@@ -85,6 +85,7 @@ export interface GroupExpenseResult {
     participantId: string;
     originalAmount: string;
   }>;
+  attachmentCount?: number;
 }
 
 export interface ComputedShare {
@@ -492,6 +493,7 @@ export async function listGroupExpenses(
     paidByParticipantId: string;
     paidByDisplayName: string | null;
     effectiveAt: string;
+    attachmentCount: number;
   }>;
 }> {
   await assertGroupMember(client, ctx, momentId);
@@ -505,10 +507,15 @@ export async function listGroupExpenses(
     paid_by_participant_id: string;
     paid_by_display_name: string | null;
     effective_at: Date;
+    attachment_count: string;
   }>(
     `SELECT e.expense_id, e.description, e.category_code, e.amount::text, e.currency_code,
             g.paid_by_participant_id, e.effective_at,
-            COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName') AS paid_by_display_name
+            COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName') AS paid_by_display_name,
+            (
+              SELECT count(*)::text FROM finance.expense_resource_link erl
+              WHERE erl.expense_id = e.expense_id AND erl.resource_type = 'MEDIA'
+            ) AS attachment_count
      FROM finance.expense e
      INNER JOIN finance.group_expense_context g ON g.expense_id = e.expense_id AND g.moment_id = e.moment_id
      LEFT JOIN collaboration.moment_participant mp
@@ -533,6 +540,7 @@ export async function listGroupExpenses(
       paidByParticipantId: r.paid_by_participant_id,
       paidByDisplayName: r.paid_by_display_name,
       effectiveAt: r.effective_at.toISOString(),
+      attachmentCount: parseInt(r.attachment_count, 10) || 0,
     })),
   };
 }
@@ -594,6 +602,12 @@ export async function getGroupExpense(
     [expenseId]
   );
 
+  const attachmentCount = await client.query<{ c: string }>(
+    `SELECT count(*)::text AS c FROM finance.expense_resource_link
+     WHERE expense_id = $1::uuid AND resource_type = 'MEDIA'`,
+    [expenseId]
+  );
+
   return {
     expenseId: e.expense_id,
     momentId: e.moment_id,
@@ -615,6 +629,7 @@ export async function getGroupExpense(
       participantId: r.participant_id,
       originalAmount: r.original_amount,
     })),
+    attachmentCount: parseInt(attachmentCount.rows[0]?.c ?? '0', 10) || 0,
   };
 }
 
@@ -979,11 +994,12 @@ async function upsertGroupFinanceProjection(
        INSERT INTO projection.group_finance_snapshot (
          moment_id, currency_code, expense_total, outstanding_total, contribution_total,
          snapshot_payload, source_event_id, projection_version
-       ) VALUES ($1, $2, $3, $4, $3, $5::jsonb, $6, 1)
+       ) VALUES ($1, $2, $3, $4, 0, $5::jsonb, $6, 1)
        ON CONFLICT (moment_id, currency_code) DO UPDATE SET
          expense_total = projection.group_finance_snapshot.expense_total + EXCLUDED.expense_total,
          outstanding_total = projection.group_finance_snapshot.outstanding_total + EXCLUDED.outstanding_total,
-         contribution_total = COALESCE(projection.group_finance_snapshot.contribution_total, 0) + EXCLUDED.contribution_total,
+         -- contribution_total is owned by finance.contribution (recordContribution); expenses must not inflate Collected
+         contribution_total = projection.group_finance_snapshot.contribution_total,
          snapshot_payload = COALESCE(projection.group_finance_snapshot.snapshot_payload, '{}'::jsonb)
            || jsonb_build_object(
                 'expenseCount',

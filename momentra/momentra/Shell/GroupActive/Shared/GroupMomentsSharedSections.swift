@@ -350,9 +350,16 @@ struct MomentsExpensesCard: View {
                 ForEach(expenses.prefix(3)) { expense in
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(expense.description ?? "Expense")
-                                .font(.plusJakarta(size: 13, weight: .semibold))
-                                .foregroundStyle(chrome.text)
+                            HStack(spacing: 6) {
+                                Text(expense.description ?? "Expense")
+                                    .font(.plusJakarta(size: 13, weight: .semibold))
+                                    .foregroundStyle(chrome.text)
+                                if expense.hasAttachment {
+                                    Image(systemName: "paperclip")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(chrome.accent)
+                                }
+                            }
                             Text((expense.categoryCode ?? "General").replacingOccurrences(of: "_", with: " ").capitalized)
                                 .font(.plusJakarta(size: 11))
                                 .foregroundStyle(chrome.secondary)

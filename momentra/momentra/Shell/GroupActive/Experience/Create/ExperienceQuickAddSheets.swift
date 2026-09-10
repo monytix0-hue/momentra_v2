@@ -61,7 +61,13 @@ struct ExperienceGapQuickAddSheet: View {
         case .expense:
             EmptyView()
         case .contribution:
-            WeddingContributionBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
+            WeddingContributionBody(
+                momentId: momentId,
+                onDismiss: onClose,
+                onSaved: onSaved,
+                poolPlaceholder: "\(theme.typeLabel) Pool",
+                accent: accent
+            )
         case .budget:
             WeddingBudgetBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved, accent: accent)
         case .participant:

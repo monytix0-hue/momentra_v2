@@ -1158,6 +1158,15 @@ data class ExpenseAttachmentDto(
     @SerializedName("uploadId") val uploadId: String,
     @SerializedName("contentType") val contentType: String? = null,
     val status: String,
+    @SerializedName("downloadUrl") val downloadUrl: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
+)
+
+data class ContributionAttachmentDto(
+    @SerializedName("uploadId") val uploadId: String,
+    @SerializedName("contentType") val contentType: String? = null,
+    val status: String? = null,
+    @SerializedName("downloadUrl") val downloadUrl: String? = null,
     @SerializedName("createdAt") val createdAt: String? = null,
 )
 
@@ -1868,6 +1877,7 @@ data class GroupExpenseDetailDto(
     @SerializedName("paidByParticipantId") val paidByParticipantId: String,
     @SerializedName("splitStrategy") val splitStrategy: String,
     val shares: List<GroupExpenseShareDto> = emptyList(),
+    @SerializedName("attachmentCount") val attachmentCount: Int? = null,
 )
 
 data class GroupExpenseListItemDto(
@@ -1879,7 +1889,10 @@ data class GroupExpenseListItemDto(
     @SerializedName("paidByParticipantId") val paidByParticipantId: String? = null,
     @SerializedName("paidByDisplayName") val paidByDisplayName: String? = null,
     @SerializedName("effectiveAt") val effectiveAt: String? = null,
-)
+    @SerializedName("attachmentCount") val attachmentCount: Int? = null,
+) {
+    val hasAttachment: Boolean get() = (attachmentCount ?: 0) > 0
+}
 
 data class GroupExpensesListDto(
     @SerializedName("momentId") val momentId: String? = null,
@@ -1935,11 +1948,36 @@ data class RecordContributionBody(
     val amount: String,
     @SerializedName("currencyCode") val currencyCode: String,
     val label: String? = null,
+    @SerializedName("paymentMethodCode") val paymentMethodCode: String? = null,
+    @SerializedName("participantId") val participantId: String? = null,
+    val status: String? = null,
+    @SerializedName("attachmentUploadIds") val attachmentUploadIds: List<String>? = null,
 )
 
 data class RecordContributionResultDto(
     @SerializedName("contributionId") val contributionId: String,
     @SerializedName("momentId") val momentId: String,
+)
+
+data class GroupContributionItemDto(
+    @SerializedName("contributionId") val contributionId: String,
+    @SerializedName("momentId") val momentId: String? = null,
+    @SerializedName("participantId") val participantId: String? = null,
+    @SerializedName("displayName") val displayName: String? = null,
+    val amount: String? = null,
+    @SerializedName("currencyCode") val currencyCode: String? = null,
+    val label: String? = null,
+    @SerializedName("paymentMethodCode") val paymentMethodCode: String? = null,
+    val status: String? = null,
+    @SerializedName("contributedAt") val contributedAt: String? = null,
+    @SerializedName("attachmentCount") val attachmentCount: Int? = null,
+) {
+    val hasAttachment: Boolean get() = (attachmentCount ?: 0) > 0
+}
+
+data class GroupContributionsDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    val items: List<GroupContributionItemDto> = emptyList(),
 )
 
 /** Business facet envelope — GET /v1/business/moments/:id/{pulse|life|memory|finance}. */

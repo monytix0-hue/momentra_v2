@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Figma Sheet / Add Expense — payer + split strategy; EQUAL default; server-authoritative submit.
 /// Pass `expenseId` to load/edit an existing group expense (splits + paid-by).
@@ -27,6 +28,11 @@ struct GroupExpenseSheet: View {
     @State private var submitting = false
     @State private var showDeleteConfirm = false
     @State private var error: String?
+    @State private var showDocImporter = false
+    @State private var receiptBytes: Data?
+    @State private var receiptName: String?
+    @State private var receiptContentType = "image/jpeg"
+    @State private var existingAttachments: [APIClient.ExpenseAttachment] = []
 
     private var currencyOptions: [String] {
         MomentCurrencyResolver.pickerOptions(preferred: preferredCurrencyCodes)
@@ -124,6 +130,21 @@ struct GroupExpenseSheet: View {
             }
             if let expenseId {
                 await loadExpense(expenseId)
+            }
+        }
+        .fileImporter(
+            isPresented: $showDocImporter,
+            allowedContentTypes: [.pdf, .image, .jpeg, .png],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            do {
+                let (data, mime, name) = try GroupReceiptUpload.readFile(url: url)
+                receiptBytes = data
+                receiptContentType = mime
+                receiptName = name
+            } catch {
+                self.error = error.localizedDescription
             }
         }
     }
@@ -290,6 +311,38 @@ struct GroupExpenseSheet: View {
                 }
             }
             .accessibilityIdentifier("group.expense.category")
+
+            GroupReceiptPickControl(
+                muted: Color(hex: "#C9C4D8"),
+                field: Color(hex: "#201E28"),
+                border: Color.white.opacity(0.12),
+                enabled: true,
+                uploading: false,
+                fileName: receiptName,
+                onPick: { showDocImporter = true },
+                onClear: {
+                    receiptBytes = nil
+                    receiptName = nil
+                }
+            )
+
+            if !existingAttachments.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("ATTACHED")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color(hex: "#C9C4D8"))
+                    ForEach(Array(existingAttachments.enumerated()), id: \.element.uploadId) { idx, att in
+                        GroupReceiptAttachmentRow(
+                            contentType: att.contentType,
+                            downloadUrl: att.downloadUrl,
+                            fallbackLabel: "Receipt \(idx + 1)",
+                            accent: accent,
+                            text: Color(hex: "#E5E0EE"),
+                            muted: Color(hex: "#C9C4D8")
+                        )
+                    }
+                }
+            }
 
             if splitStrategy != "EQUAL" && splitStrategy != "POOLED" && !selectedParticipantIds.isEmpty {
                 fieldLabel(splitValueLabel)
@@ -501,8 +554,16 @@ struct GroupExpenseSheet: View {
                     splitStrategy: splitStrategy,
                     splitInputs: inputs
                 )
+                if let bytes = receiptBytes, !bytes.isEmpty {
+                    _ = try? await APIClient.shared.uploadAndAttachExpenseMedia(
+                        momentId: momentId,
+                        expenseId: expenseId,
+                        bytes: bytes,
+                        contentType: receiptContentType
+                    )
+                }
             } else {
-                _ = try await APIClient.shared.createGroupExpense(
+                let created = try await APIClient.shared.createGroupExpense(
                     momentId: momentId,
                     amount: amount.trimmingCharacters(in: .whitespacesAndNewlines),
                     currencyCode: currencyCode.uppercased(),
@@ -512,6 +573,14 @@ struct GroupExpenseSheet: View {
                     splitInputs: inputs,
                     asDraft: asDraft ? true : nil
                 )
+                if let bytes = receiptBytes, !bytes.isEmpty {
+                    _ = try? await APIClient.shared.uploadAndAttachExpenseMedia(
+                        momentId: momentId,
+                        expenseId: created.expenseId,
+                        bytes: bytes,
+                        contentType: receiptContentType
+                    )
+                }
             }
             isPresented = false
             onSaved()
@@ -557,6 +626,10 @@ struct GroupExpenseSheet: View {
                     splitValues = [:]
                 }
             }
+            existingAttachments = (try? await APIClient.shared.listExpenseAttachments(
+                momentId: momentId,
+                expenseId: expenseId
+            )) ?? []
         } catch {
             self.error = error.localizedDescription
         }
@@ -577,108 +650,51 @@ struct GroupExpenseSheet: View {
     }
 }
 
-/// Simple contribution recorder for Group Quick Add.
+/// Contribution recorder for Group Quick Add — Figma Add Contribution sheet.
 struct GroupContributionSheet: View {
     let momentId: String
     @Binding var isPresented: Bool
     var isWedding: Bool = false
+    var poolPlaceholder: String? = nil
     var onSaved: () -> Void
 
-    @State private var amount = ""
-    @State private var currencyCode = "INR"
-    @State private var preferredCurrencyCodes: [String] = ["INR"]
-    @State private var label = ""
-    @State private var submitting = false
-    @State private var error: String?
+    private var accent: SheetAccent {
+        if isWedding {
+            return contribAccent
+        }
+        return SheetAccent(
+            accent: Color(hex: "#10B981"),
+            accentEnd: Color(hex: "#047857"),
+            soft: Color(hex: "#10B981").opacity(0.15)
+        )
+    }
 
-    private var accent: Color { isWedding ? WeddingActiveTheme.accentSolid : Color(hex: "#14B8A6") }
-    private var accentLight: Color { isWedding ? WeddingActiveTheme.accentLight : Color(hex: "#2DD4BF") }
-
-    private var currencyOptions: [String] {
-        MomentCurrencyResolver.pickerOptions(preferred: preferredCurrencyCodes)
+    private var poolHint: String {
+        if let poolPlaceholder, !poolPlaceholder.isEmpty { return poolPlaceholder }
+        return isWedding ? "Wedding Pool" : "Trip Pool"
     }
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Record contribution")
-                    .font(.system(size: 18, weight: .heavy))
-                    .foregroundStyle(Color(hex: "#E5E0EE"))
-                TravelCurrencyPicker(
-                    selectedCode: $currencyCode,
-                    preferredCodes: preferredCurrencyCodes,
-                    showLabel: false,
-                    accentColor: accent
+            ScrollView {
+                WeddingContributionBody(
+                    momentId: momentId,
+                    onDismiss: { isPresented = false },
+                    onSaved: onSaved,
+                    poolPlaceholder: poolHint,
+                    accent: accent
                 )
-                TextField("0.00", text: $amount)
-                    .keyboardType(.decimalPad)
-                    .font(.system(size: 26, weight: .heavy))
-                    .foregroundStyle(Color(hex: "#E5E0EE"))
-                    .padding(12)
-                    .background(Color(hex: "#201E28"))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                TextField("Label (optional)", text: $label)
-                    .foregroundStyle(Color(hex: "#E5E0EE"))
-                    .padding(12)
-                    .background(Color(hex: "#201E28"))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                if let error {
-                    Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
-                }
-                Button {
-                    Task { await save() }
-                } label: {
-                    if submitting {
-                        ProgressView().tint(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                    } else {
-                        Text("Save Contribution")
-                            .font(.system(size: 15, weight: .heavy))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                    }
-                }
-                .background(accent)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .disabled(amount.isEmpty || submitting || currencyCode.count != 3)
-                .opacity(amount.isEmpty ? 0.55 : 1)
-                Spacer()
+                .padding(16)
             }
-            .padding(16)
             .background(Color(hex: "#14121B"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { isPresented = false }
-                        .foregroundStyle(accentLight)
+                        .foregroundStyle(accent.accent)
                 }
             }
         }
-        .presentationDetents([.medium, .large])
-        .task {
-            let ctx = await MomentCurrencyContextLoader.loadGroup(momentId: momentId)
-            preferredCurrencyCodes = ctx.preferred
-            currencyCode = ctx.primary
-        }
-    }
-
-    private func save() async {
-        submitting = true
-        error = nil
-        do {
-            _ = try await APIClient.shared.recordContribution(
-                momentId: momentId,
-                amount: amount.trimmingCharacters(in: .whitespacesAndNewlines),
-                currencyCode: currencyCode.uppercased(),
-                label: label.isEmpty ? nil : label
-            )
-            isPresented = false
-            onSaved()
-        } catch {
-            self.error = error.localizedDescription
-        }
-        submitting = false
+        .presentationDetents([.large])
     }
 }
 

@@ -79,3 +79,6 @@ V078__booking_stays_segments_places.sql
 V079__booking_split_strategy.sql
 V080__lean_analytics_kpi_value_kind.sql
 V081__business_expense_categories.sql
+V082__contribution_payment_and_label.sql
+V083__contribution_attachment.sql
+V084__rebuild_contribution_totals.sql

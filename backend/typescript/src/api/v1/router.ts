@@ -33,6 +33,7 @@ import * as workService from '../../modules/work/service';
 import * as financeService from '../../modules/finance/service';
 import * as financialAccountService from '../../modules/finance/financial-account';
 import * as expenseAttachmentService from '../../modules/finance/expense-attachments';
+import * as contributionAttachmentService from '../../modules/finance/contribution-attachments';
 import * as memoryAttachmentService from '../../modules/memory/memory-attachments';
 import * as personalIncomeService from '../../modules/finance/personal-income';
 import * as movementService from '../../modules/finance/movement';
@@ -3156,6 +3157,36 @@ v1Router.delete('/moments/:momentId/group-expenses/:expenseId', requireIdempoten
   }
 });
 
+v1Router.get('/moments/:momentId/contributions', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const limitRaw = typeof req.query.limit === 'string' ? Number(req.query.limit) : 50;
+    const data = await withDb((client) =>
+      collaborationService.listContributions(client, ctx, param(req.params.momentId), limitRaw)
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/moments/:momentId/contributions/:contributionId/attachments', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      contributionAttachmentService.listContributionAttachments(
+        client,
+        ctx,
+        param(req.params.momentId),
+        param(req.params.contributionId)
+      )
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
 v1Router.post('/moments/:momentId/contributions', requireIdempotencyKey, async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
@@ -3176,7 +3207,13 @@ v1Router.post('/moments/:momentId/contributions', requireIdempotencyKey, async (
         return { result: r, resourceId: r.contributionId };
       },
     });
-    res.status(201).json(commandEnvelope(result, ctx.correlationId));
+    const hints = ['group.activity', 'group.pulse', 'group.finance'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.status(201).json(
+      commandEnvelope(result, ctx.correlationId, {
+        projectionHints: toProjectionHints([...hints], 'refresh'),
+      })
+    );
   } catch (e) {
     next(e);
   }

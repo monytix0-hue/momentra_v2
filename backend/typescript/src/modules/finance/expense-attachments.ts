@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { z } from 'zod';
+import { trySignedDownloadUrl } from '../media/service';
 
 export const attachExpenseMediaSchema = z.object({ uploadId: z.string().uuid() }).strict();
 
@@ -9,6 +10,7 @@ export interface ExpenseAttachmentDto {
   uploadId: string;
   contentType: string | null;
   status: string;
+  downloadUrl: string | null;
   createdAt: string;
 }
 
@@ -23,21 +25,44 @@ export async function listExpenseAttachments(
     resource_id: string;
     content_type: string | null;
     status: string;
+    bucket: string | null;
+    object_key: string | null;
     created_at: Date;
   }>(
-    `SELECT erl.resource_id, mu.content_type, mu.status, erl.created_at
+    `SELECT erl.resource_id, mu.content_type, mu.status, mu.bucket, mu.object_key, erl.created_at
      FROM finance.expense_resource_link erl
      JOIN platform.media_upload mu ON mu.media_upload_id = erl.resource_id
      WHERE erl.expense_id = $1 AND erl.resource_type = 'MEDIA'
      ORDER BY erl.created_at ASC`,
     [expenseId]
   );
-  return rows.rows.map((r) => ({
-    uploadId: r.resource_id,
-    contentType: r.content_type,
-    status: r.status,
-    createdAt: r.created_at.toISOString(),
-  }));
+  const items: ExpenseAttachmentDto[] = [];
+  for (const r of rows.rows) {
+    const downloadUrl =
+      r.status === 'COMPLETED' && r.bucket && r.object_key
+        ? await trySignedDownloadUrl(r.bucket, r.object_key)
+        : null;
+    items.push({
+      uploadId: r.resource_id,
+      contentType: r.content_type,
+      status: r.status,
+      downloadUrl,
+      createdAt: r.created_at.toISOString(),
+    });
+  }
+  return items;
+}
+
+export async function countExpenseAttachments(
+  client: PoolClient,
+  expenseId: string
+): Promise<number> {
+  const row = await client.query<{ c: string }>(
+    `SELECT count(*)::text AS c FROM finance.expense_resource_link
+     WHERE expense_id = $1 AND resource_type = 'MEDIA'`,
+    [expenseId]
+  );
+  return parseInt(row.rows[0]?.c ?? '0', 10) || 0;
 }
 
 export async function attachExpenseMedia(
@@ -48,8 +73,15 @@ export async function attachExpenseMedia(
   uploadId: string
 ): Promise<ExpenseAttachmentDto> {
   await assertExpenseAccess(client, ctx, momentId, expenseId);
-  const upload = await client.query<{ media_upload_id: string; content_type: string; status: string; user_id: string }>(
-    `SELECT media_upload_id, content_type, status, user_id FROM platform.media_upload
+  const upload = await client.query<{
+    media_upload_id: string;
+    content_type: string;
+    status: string;
+    user_id: string;
+    bucket: string | null;
+    object_key: string | null;
+  }>(
+    `SELECT media_upload_id, content_type, status, user_id, bucket, object_key FROM platform.media_upload
      WHERE media_upload_id = $1`,
     [uploadId]
   );
@@ -65,10 +97,15 @@ export async function attachExpenseMedia(
      ON CONFLICT (expense_id, resource_type, resource_id, relation_type) DO NOTHING`,
     [expenseId, uploadId]
   );
+  const downloadUrl =
+    upload.rows[0].bucket && upload.rows[0].object_key
+      ? await trySignedDownloadUrl(upload.rows[0].bucket, upload.rows[0].object_key)
+      : null;
   return {
     uploadId,
     contentType: upload.rows[0].content_type,
     status: upload.rows[0].status,
+    downloadUrl,
     createdAt: new Date().toISOString(),
   };
 }

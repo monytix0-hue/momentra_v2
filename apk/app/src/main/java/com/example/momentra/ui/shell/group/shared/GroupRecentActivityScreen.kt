@@ -1,9 +1,13 @@
 package com.example.momentra.ui.shell.group.shared
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -58,11 +62,16 @@ fun GroupRecentActivityFlow(
     var loading by remember { mutableStateOf(true) }
     var loadingMore by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var filter by remember(momentTypeCode) { mutableStateOf(GroupActivityCategoryFilter.ALL_ID) }
     var editingExpenseId by remember { mutableStateOf<String?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val accent = MomentThemes.resolve(AppContext.GROUP, momentTypeCode).primary
     val isWedding = groupExperienceFamilyFor(momentTypeCode) == GroupExperienceFamily.WEDDING
+    val chips = remember(momentTypeCode) { GroupActivityCategoryFilter.chips(momentTypeCode) }
+    val filteredItems = remember(items, filter) {
+        items.filter { GroupActivityCategoryFilter.matches(it, filter) }
+    }
 
     fun reload() {
         scope.launch {
@@ -88,6 +97,7 @@ fun GroupRecentActivityFlow(
         loading = true
         error = null
         nextCursor = null
+        filter = GroupActivityCategoryFilter.ALL_ID
         repository.getActivity(momentId, limit = 20).fold(
             onSuccess = {
                 items = it.items
@@ -128,8 +138,44 @@ fun GroupRecentActivityFlow(
                 color = GeSecondary,
                 fontSize = 12.sp,
                 fontFamily = PlusJakartaSans,
-                modifier = Modifier.padding(bottom = 8.dp),
+                modifier = Modifier.padding(bottom = 4.dp),
             )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                chips.forEach { chip ->
+                    val selected = filter == chip.id
+                    Text(
+                        "${chip.emoji} ${chip.label}",
+                        color = if (selected) Color.White else Color(0xFFC9C4D8),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(if (selected) accent else Color.White.copy(alpha = 0.06f))
+                            .border(
+                                1.dp,
+                                if (selected) accent else Color.White.copy(alpha = 0.08f),
+                                RoundedCornerShape(50),
+                            )
+                            .clickable {
+                                filter = if (filter == chip.id) {
+                                    GroupActivityCategoryFilter.ALL_ID
+                                } else {
+                                    chip.id
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
+            }
+
             when {
                 loading && items.isEmpty() -> {
                     CircularProgressIndicator(color = accent, modifier = Modifier.padding(16.dp))
@@ -150,11 +196,27 @@ fun GroupRecentActivityFlow(
                         fontFamily = PlusJakartaSans,
                     )
                 }
+                filteredItems.isEmpty() -> {
+                    Text(
+                        "No activity in this category",
+                        color = GeText,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier.padding(vertical = 24.dp),
+                    )
+                    Text(
+                        "Try another hub filter, or load more if the list is paginated.",
+                        color = GeSecondary,
+                        fontSize = 13.sp,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
                 else -> {
                     error?.let {
                         Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans)
                     }
-                    items.forEach { item ->
+                    filteredItems.forEach { item ->
                         val expenseId = item.activityPayload?.expenseId
                         val canEdit = !expenseId.isNullOrBlank() &&
                             (item.activityCode.contains("EXPENSE", ignoreCase = true) || expenseId != null)

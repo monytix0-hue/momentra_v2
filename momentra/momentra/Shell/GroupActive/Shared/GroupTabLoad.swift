@@ -70,7 +70,7 @@ enum GroupTabLoad {
         do {
             async let insightsResult = APIClient.shared.listAnalyticsInsights(scopeType: "MOMENT", scopeId: momentId)
             async let metricsResult = APIClient.shared.listAnalyticsMetrics(scopeType: "MOMENT", scopeId: momentId)
-            async let refreshResult = APIClient.shared.refreshAnalytics(context: "GROUP_PULSE", momentId: momentId)
+            async let refreshResult = APIClient.shared.refreshAnalytics(context: "GROUP", momentId: momentId)
             let insights = (try? await insightsResult)?.items ?? []
             _ = try? await metricsResult
             _ = try? await refreshResult

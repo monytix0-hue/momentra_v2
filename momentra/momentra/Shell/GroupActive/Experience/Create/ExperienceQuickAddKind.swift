@@ -128,7 +128,7 @@ enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
 
     static func hubTiles(includesVendor: Bool) -> [ExperienceQuickAddKind] {
         var tiles: [ExperienceQuickAddKind] = [
-            .participant, .planning, .expense, .budget,
+            .participant, .planning, .expense, .budget, .contribution,
         ]
         if includesVendor {
             tiles.append(.vendor)

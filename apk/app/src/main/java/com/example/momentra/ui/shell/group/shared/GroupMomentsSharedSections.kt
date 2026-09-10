@@ -437,13 +437,23 @@ fun MomentsExpensesCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            expense.description ?: "Expense",
-                            color = chrome.text,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = PlusJakartaSans,
-                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                expense.description ?: "Expense",
+                                color = chrome.text,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = PlusJakartaSans,
+                                maxLines = 1,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            if (expense.hasAttachment) {
+                                AttachmentPaperclipIcon(tint = chrome.accent)
+                            }
+                        }
                         Text(
                             (expense.categoryCode ?: "General").replace('_', ' ').replaceFirstChar { it.titlecase(Locale.US) },
                             color = chrome.secondary,

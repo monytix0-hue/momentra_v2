@@ -17,10 +17,12 @@ struct GroupMomentsActiveView: View {
     @State private var listPolls: [APIClient.GroupPollItemPayload] = []
     @State private var listMemoryItems: [GroupMemoryItem] = []
     @State private var listExpenses: [APIClient.GroupExpenseListItemPayload] = []
+    @State private var listContributions: [APIClient.GroupContributionItem] = []
     @State private var memoryCount: Int = 0
     @State private var selectedPollId: String?
     @State private var pollsListOpen = false
     @State private var scheduleOpen = false
+    @State private var contributionsOpen = false
     @State private var loading = true
     @State private var error: String?
 
@@ -67,6 +69,7 @@ struct GroupMomentsActiveView: View {
                             gallerySection
                             bookingsSection
                             upcomingSection
+                            contributionsSection
                             expensesSection
                             momentsQuickAddCta
                         }
@@ -98,6 +101,14 @@ struct GroupMomentsActiveView: View {
                 polls: listPolls,
                 onDismiss: { pollsListOpen = false },
                 onChanged: { Task { await load() } }
+            )
+        }
+        .sheet(isPresented: $contributionsOpen) {
+            ContributionsListSheet(
+                items: listContributions,
+                chrome: .trip,
+                momentId: momentId,
+                onDismiss: { contributionsOpen = false }
             )
         }
         .sheet(item: Binding(
@@ -537,6 +548,17 @@ struct GroupMomentsActiveView: View {
         return out
     }
 
+    // MARK: - Contributions
+
+    private var contributionsSection: some View {
+        MomentsContributionDetailsSection(
+            items: listContributions,
+            chrome: .trip,
+            momentId: momentId,
+            onViewAll: { contributionsOpen = true }
+        )
+    }
+
     // MARK: - Expenses
 
     private var expensesSection: some View {
@@ -727,6 +749,7 @@ struct GroupMomentsActiveView: View {
             async let pollsResult = APIClient.shared.listPolls(momentId: momentId)
             async let memoriesResult = APIClient.shared.listGroupMemories(momentId: momentId)
             async let expensesResult = APIClient.shared.listGroupExpenses(momentId: momentId, limit: 10)
+            async let contributionsResult = APIClient.shared.listContributions(momentId: momentId, limit: 50)
             let loadedLife = try await lifeResult
             life = loadedLife
             listPlanning = (try? await plansResult)?.items ?? loadedLife.payload?.planningItems ?? []
@@ -734,6 +757,7 @@ struct GroupMomentsActiveView: View {
             listUpdates = (try? await updatesResult)?.items ?? loadedLife.payload?.updates ?? []
             listPolls = (try? await pollsResult)?.items ?? []
             listExpenses = (try? await expensesResult)?.items ?? []
+            listContributions = (try? await contributionsResult)?.items ?? []
             if let listed = try? await memoriesResult {
                 listMemoryItems = listed.items
                 memoryCount = listed.memoryCount ?? listed.items.count

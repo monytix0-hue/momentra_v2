@@ -1,5 +1,8 @@
 package com.example.momentra.ui.shell.group.shared
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -48,6 +52,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.data.api.ExpenseAttachmentDto
 import com.example.momentra.data.api.GroupExpenseSplitInputDto
 import com.example.momentra.R
 import com.example.momentra.data.api.GroupParticipantDto
@@ -61,10 +66,15 @@ import com.example.momentra.ui.shell.empty.group.GeBorder
 import com.example.momentra.ui.shell.empty.group.GeCard
 import com.example.momentra.ui.shell.empty.group.GeSecondary
 import com.example.momentra.ui.shell.empty.group.GeText
+import com.example.momentra.ui.shell.group.wedding.create.ContribAccent
+import com.example.momentra.ui.shell.group.wedding.create.SheetAccent
 import com.example.momentra.ui.shell.group.wedding.create.WeddingActiveTheme
+import com.example.momentra.ui.shell.group.wedding.create.WeddingContributionSheetBody
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.theme.PlusJakartaSans
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.math.BigDecimal
 import java.math.RoundingMode
 
@@ -123,7 +133,26 @@ fun GroupExpenseSheet(
     var loadingParticipants by remember { mutableStateOf(true) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var receiptBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var receiptContentType by remember { mutableStateOf("application/octet-stream") }
+    var receiptName by remember { mutableStateOf<String?>(null) }
+    var existingAttachments by remember { mutableStateOf<List<ExpenseAttachmentDto>>(emptyList()) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val receiptPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching {
+                val bytes = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: error("Could not read receipt")
+                }
+                receiptBytes = bytes
+                receiptContentType = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                receiptName = uri.lastPathSegment?.substringAfterLast('/') ?: "receipt"
+            }.onFailure { error = it.message }
+        }
+    }
     val currencyOptions = remember(preferredCurrencyCodes) {
         MomentCurrencyResolver.pickerOptions(preferredCurrencyCodes)
     }
@@ -141,6 +170,10 @@ fun GroupExpenseSheet(
         if (!visible) return@LaunchedEffect
         loadingParticipants = true
         error = null
+        receiptBytes = null
+        receiptName = null
+        receiptContentType = "application/octet-stream"
+        existingAttachments = emptyList()
         repository.getParticipants(momentId).fold(
             onSuccess = { dto ->
                 val active = dto.participants.filter {
@@ -198,6 +231,9 @@ fun GroupExpenseSheet(
                 },
                 onFailure = { error = it.message },
             )
+            repository.listExpenseAttachments(momentId, expenseId).onSuccess {
+                existingAttachments = it
+            }
         }
         loadingParticipants = false
     }
@@ -658,6 +694,43 @@ fun GroupExpenseSheet(
                 }
             }
 
+            GroupReceiptPickControl(
+                muted = sheetSecondary,
+                field = sheetCard,
+                border = sheetBorder,
+                enabled = true,
+                uploading = false,
+                fileName = receiptName,
+                onPick = { receiptPicker.launch("*/*") },
+                onClear = {
+                    receiptBytes = null
+                    receiptName = null
+                    receiptContentType = "application/octet-stream"
+                },
+            )
+
+            if (existingAttachments.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "ATTACHED",
+                        color = sheetSecondary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                    existingAttachments.forEachIndexed { idx, att ->
+                        GroupReceiptAttachmentRow(
+                            contentType = att.contentType,
+                            downloadUrl = att.downloadUrl,
+                            fallbackLabel = "Receipt ${idx + 1}",
+                            accent = sheetAccent,
+                            text = sheetText,
+                            muted = sheetSecondary,
+                        )
+                    }
+                }
+            }
+
             if (splitStrategy != "EQUAL" && splitStrategy != "POOLED" && selectedSplitIds.isNotEmpty()) {
                 val valueLabel = when (splitStrategy) {
                     "PERCENTAGE" -> "Percent (must sum to 100)"
@@ -858,7 +931,17 @@ fun GroupExpenseSheet(
                         repository.createGroupExpense(momentId, body)
                     }
                     result.fold(
-                        onSuccess = {
+                        onSuccess = { created ->
+                            val targetExpenseId = expenseId ?: created.expenseId
+                            val bytes = receiptBytes
+                            if (bytes != null && bytes.isNotEmpty()) {
+                                repository.uploadAndAttachExpenseMedia(
+                                    momentId = momentId,
+                                    expenseId = targetExpenseId,
+                                    bytes = bytes,
+                                    contentType = receiptContentType,
+                                )
+                            }
                             submitting = false
                             onSaved()
                             onDismiss()
@@ -891,35 +974,23 @@ fun GroupContributionSheet(
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
     isWedding: Boolean = false,
+    poolPlaceholder: String? = null,
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val sheetBg = if (isWedding) WeddingActiveTheme.Bg else TripSheetTokens.Bg
-    val sheetText = if (isWedding) WeddingActiveTheme.Text else TripSheetTokens.Text
-    val sheetSecondary = if (isWedding) WeddingActiveTheme.Secondary else TripSheetTokens.Muted
-    val sheetAccent = if (isWedding) WeddingActiveTheme.Accent else TripSheetTokens.Accent
-    val sheetCard = if (isWedding) WeddingActiveTheme.Card else TripSheetTokens.Field
-    val sheetBorder = if (isWedding) WeddingActiveTheme.Border else TripSheetTokens.Border
-    val fieldRadius = if (isWedding) 12.dp else 8.dp
-    val ctaEnd = if (isWedding) sheetAccent else TripSheetTokens.AccentEnd
-    var amount by remember { mutableStateOf("") }
-    var currency by remember { mutableStateOf("INR") }
-    var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
-    var label by remember { mutableStateOf("") }
-    var submitting by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(momentId, visible) {
-        if (!visible) return@LaunchedEffect
-        val financeTotals = repository.getFinance(momentId).getOrNull()?.payload?.totals.orEmpty()
-        val prefill = MomentCreateRepository().getGroupSetupPrefill(momentId).getOrNull()
-        val finance = MomentCurrencyResolver.fromGroupTotals(financeTotals)
-        val budgets = MomentCurrencyResolver.fromGroupSetupBudgets(prefill?.budgets.orEmpty())
-        preferredCurrencyCodes = MomentCurrencyResolver.resolveMomentCurrencies(finance, budgets)
-        currency = MomentCurrencyResolver.resolveMomentCurrency(finance, budgets)
+    val accent = if (isWedding) {
+        ContribAccent
+    } else {
+        SheetAccent(
+            accent = Color(0xFF10B981),
+            accentEnd = Color(0xFF047857),
+            soft = Color(0x2610B981),
+        )
     }
+    val poolHint = poolPlaceholder?.takeIf { it.isNotBlank() }
+        ?: if (isWedding) "Wedding Pool" else "Trip Pool"
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -939,127 +1010,23 @@ fun GroupContributionSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 14.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(sheetAccent.copy(alpha = 0.18f))
-                        .border(1.dp, sheetAccent.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("💵", fontSize = 16.sp)
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        if (isWedding) "Add Contribution" else "Contribution",
-                        color = sheetText,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontFamily = PlusJakartaSans,
-                    )
-                    Text(
-                        "Add funds toward this shared moment",
-                        color = sheetSecondary,
-                        fontSize = 12.sp,
-                        fontFamily = PlusJakartaSans,
-                    )
-                }
-            }
-            FieldLabel("Amount", color = sheetSecondary)
-            SheetField(
-                value = amount,
-                onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
-                placeholder = "0.00",
-                keyboardType = KeyboardType.Decimal,
-                card = sheetCard,
-                border = sheetBorder,
-                text = sheetText,
-                secondary = sheetSecondary,
-                accent = sheetAccent,
-                cornerRadius = fieldRadius,
+            WeddingContributionSheetBody(
+                momentId = momentId,
+                repository = repository,
+                onDismiss = onDismiss,
+                onSaved = onSaved,
+                accent = accent,
+                poolPlaceholder = poolHint,
             )
-            TravelCurrencyPickerRow(
-                selectedCode = currency,
-                onSelected = { currency = it },
-                preferredCodes = preferredCurrencyCodes,
-                textColor = sheetText,
-                secondaryColor = sheetSecondary,
-                accentColor = sheetAccent,
-            )
-            FieldLabel("Label (optional)", color = sheetSecondary)
-            SheetField(
-                value = label,
-                onValueChange = { label = it },
-                placeholder = "Initial float…",
-                card = sheetCard,
-                border = sheetBorder,
-                text = sheetText,
-                secondary = sheetSecondary,
-                accent = sheetAccent,
-                cornerRadius = fieldRadius,
-            )
-            error?.let {
-                Text(it, color = Red, fontSize = 12.sp, fontFamily = PlusJakartaSans)
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        if (submitting) {
-                            Brush.horizontalGradient(listOf(sheetCard, sheetCard))
-                        } else {
-                            Brush.horizontalGradient(listOf(sheetAccent, ctaEnd))
-                        },
-                    )
-                    .clickable(enabled = !submitting) {
-                        if (amount.toBigDecimalOrNull() == null || amount.toBigDecimal() <= BigDecimal.ZERO) {
-                            error = "Enter a valid amount"
-                            return@clickable
-                        }
-                        scope.launch {
-                            submitting = true
-                            error = null
-                            repository.recordContribution(
-                                momentId = momentId,
-                                amount = amount,
-                                currencyCode = currency,
-                                label = label,
-                            ).fold(
-                                onSuccess = {
-                                    submitting = false
-                                    onSaved()
-                                    onDismiss()
-                                },
-                                onFailure = {
-                                    submitting = false
-                                    error = it.message
-                                },
-                            )
-                        }
-                    }
-                    .padding(vertical = 14.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    if (submitting) "Saving…" else "Record contribution",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    fontFamily = PlusJakartaSans,
-                )
-            }
         }
     }
 }
+
 
 @Composable
 private fun FieldLabel(text: String, color: Color = GeSecondary) {

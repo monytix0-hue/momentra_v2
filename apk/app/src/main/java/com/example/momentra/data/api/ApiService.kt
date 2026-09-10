@@ -589,12 +589,24 @@ interface ApiService {
         @Header("Idempotency-Key") idempotencyKey: String,
     ): SuccessEnvelope<CreateGroupExpenseResultDto>
 
+    @GET("v1/moments/{momentId}/contributions")
+    suspend fun listContributions(
+        @Path("momentId") momentId: String,
+        @Query("limit") limit: Int = 50,
+    ): SuccessEnvelope<GroupContributionsDto>
+
     @POST("v1/moments/{momentId}/contributions")
     suspend fun recordContribution(
         @Path("momentId") momentId: String,
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: RecordContributionBody,
     ): SuccessEnvelope<RecordContributionResultDto>
+
+    @GET("v1/moments/{momentId}/contributions/{contributionId}/attachments")
+    suspend fun listContributionAttachments(
+        @Path("momentId") momentId: String,
+        @Path("contributionId") contributionId: String,
+    ): SuccessEnvelope<List<ContributionAttachmentDto>>
 
     @POST("v1/moments/{momentId}/settlements")
     suspend fun createSettlement(

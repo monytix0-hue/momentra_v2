@@ -467,6 +467,10 @@ struct WeddingExpenseBody: View {
     @State private var loading = false
     @State private var submitting = false
     @State private var error: String? = nil
+    @State private var showDocImporter = false
+    @State private var receiptBytes: Data?
+    @State private var receiptName: String?
+    @State private var receiptContentType = "image/jpeg"
 
     var accent: SheetAccent = purpleAccent
 
@@ -611,6 +615,20 @@ struct WeddingExpenseBody: View {
                 .accessibilityIdentifier("group.expense.category")
             }
 
+            GroupReceiptPickControl(
+                muted: Wq.muted,
+                field: Wq.field,
+                border: Wq.border,
+                enabled: live,
+                uploading: false,
+                fileName: receiptName,
+                onPick: { showDocImporter = true },
+                onClear: {
+                    receiptBytes = nil
+                    receiptName = nil
+                }
+            )
+
             if let error {
                 Text(error)
                     .font(.plusJakarta(size: 12))
@@ -631,6 +649,21 @@ struct WeddingExpenseBody: View {
         .onAppear {
             if let momentId {
                 Task { await loadParticipants(momentId) }
+            }
+        }
+        .fileImporter(
+            isPresented: $showDocImporter,
+            allowedContentTypes: [.pdf, .image, .jpeg, .png],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            do {
+                let (data, mime, name) = try GroupReceiptUpload.readFile(url: url)
+                receiptBytes = data
+                receiptContentType = mime
+                receiptName = name
+            } catch {
+                self.error = error.localizedDescription
             }
         }
     }
@@ -708,8 +741,9 @@ struct WeddingExpenseBody: View {
             submitting = true
             error = nil
             do {
+                let created: APIClient.CreateGroupExpenseResult
                 if asDraft {
-                    _ = try await APIClient.shared.createGroupExpense(
+                    created = try await APIClient.shared.createGroupExpense(
                         momentId: momentId,
                         amount: amount,
                         currencyCode: currency,
@@ -752,7 +786,7 @@ struct WeddingExpenseBody: View {
                         submitting = false
                         return
                     }
-                    _ = try await APIClient.shared.createGroupExpense(
+                    created = try await APIClient.shared.createGroupExpense(
                         momentId: momentId,
                         amount: amount,
                         currencyCode: currency,
@@ -764,6 +798,14 @@ struct WeddingExpenseBody: View {
                         splitStrategy: splitStrategy,
                         splitInputs: inputs,
                         asDraft: nil
+                    )
+                }
+                if let bytes = receiptBytes, !bytes.isEmpty {
+                    _ = try? await APIClient.shared.uploadAndAttachExpenseMedia(
+                        momentId: momentId,
+                        expenseId: created.expenseId,
+                        bytes: bytes,
+                        contentType: receiptContentType
                     )
                 }
                 submitting = false
@@ -783,17 +825,39 @@ struct WeddingContributionBody: View {
     var momentId: String?
     var onDismiss: () -> Void
     var onSaved: () -> Void
+    var poolPlaceholder: String = "Trip Pool"
+    var accent: SheetAccent = contribAccent
 
     @State private var amount = ""
     @State private var currency = "INR"
+    @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var pool = ""
     @State private var method = "UPI"
     @State private var status = "Paid"
+    @State private var participants: [APIClient.GroupParticipantPayload] = []
+    @State private var selectedParticipantId: String?
     @State private var submitting = false
     @State private var error: String? = nil
+    @State private var showDocImporter = false
+    @State private var uploadingDoc = false
+    @State private var attachmentUploadIds: [String] = []
+    @State private var attachmentNames: [String] = []
 
-    var accent: SheetAccent = contribAccent
     private var live: Bool { momentId != nil }
+
+    private var selectedParticipant: APIClient.GroupParticipantPayload? {
+        participants.first { $0.participantId == selectedParticipantId } ?? participants.first
+    }
+
+    private var fromLabel: String {
+        guard let p = selectedParticipant else { return "You" }
+        let name = p.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (name?.isEmpty == false) ? name! : "You"
+    }
+
+    private var fromInitial: String {
+        String(fromLabel.prefix(1)).uppercased()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -801,18 +865,27 @@ struct WeddingContributionBody: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 FieldLabel(text: "Amount Contributed")
-                SheetField(
-                    value: $amount,
-                    placeholder: "0.00",
-                    leading: {
-                        AnyView(
-                            Text("₹")
-                                .font(.plusJakarta(size: 22, weight: .bold))
-                                .foregroundStyle(accent.accent)
-                        )
-                    },
-                    keyboardType: .decimalPad
-                )
+                HStack(spacing: 12) {
+                    TravelCurrencyPicker(
+                        selectedCode: $currency,
+                        preferredCodes: preferredCurrencyCodes,
+                        showLabel: false,
+                        accentColor: accent.accent
+                    )
+                    .frame(width: 88)
+                    SheetField(
+                        value: $amount,
+                        placeholder: "0.00",
+                        leading: {
+                            AnyView(
+                                Text(currencySymbol(currency))
+                                    .font(.plusJakarta(size: 22, weight: .bold))
+                                    .foregroundStyle(accent.accent)
+                            )
+                        },
+                        keyboardType: .decimalPad
+                    )
+                }
             }
 
             HStack(spacing: 12) {
@@ -820,7 +893,7 @@ struct WeddingContributionBody: View {
                     FieldLabel(text: "Contribution For")
                     SheetField(
                         value: $pool,
-                        placeholder: "Label (optional)",
+                        placeholder: poolPlaceholder,
                         trailing: {
                             AnyView(
                                 Image(systemName: "chevron.down")
@@ -832,28 +905,44 @@ struct WeddingContributionBody: View {
                 }
                 VStack(alignment: .leading, spacing: 8) {
                     FieldLabel(text: "From")
-                    HStack(spacing: 8) {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(accent.soft)
-                            .frame(width: 24, height: 24)
-                            .overlay(
-                                Text("Y")
-                                    .font(.plusJakarta(size: 10, weight: .bold))
-                                    .foregroundStyle(accent.accent)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12).stroke(accent.accent, lineWidth: 1)
-                            )
-                        Text("You")
-                            .font(.plusJakarta(size: 13, weight: .semibold))
-                            .foregroundStyle(Wq.text)
+                    Menu {
+                        ForEach(participants) { p in
+                            Button {
+                                selectedParticipantId = p.participantId
+                            } label: {
+                                Text(participantLabel(p))
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(accent.soft)
+                                .frame(width: 24, height: 24)
+                                .overlay(
+                                    Text(fromInitial)
+                                        .font(.plusJakarta(size: 10, weight: .bold))
+                                        .foregroundStyle(accent.accent)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12).stroke(accent.accent, lineWidth: 1)
+                                )
+                            Text(fromLabel)
+                                .font(.plusJakarta(size: 13, weight: .semibold))
+                                .foregroundStyle(Wq.text)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Wq.muted)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(height: 48)
+                        .padding(.horizontal, 8)
+                        .background(Wq.field)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Wq.border))
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: 48)
-                    .padding(.horizontal, 8)
-                    .background(Wq.field)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Wq.border))
+                    .disabled(participants.isEmpty)
                 }
             }
 
@@ -869,16 +958,38 @@ struct WeddingContributionBody: View {
                 }
                 VStack(alignment: .leading, spacing: 8) {
                     FieldLabel(text: "Receipt")
-                    ZStack {
-                        Text("📎 Attach PDF/Img")
+                    Button {
+                        showDocImporter = true
+                    } label: {
+                        HStack {
+                            Text(
+                                uploadingDoc
+                                    ? "Uploading…"
+                                    : (attachmentNames.isEmpty ? "📎 Attach PDF/Img" : attachmentNames.joined(separator: ", "))
+                            )
                             .font(.plusJakarta(size: 11, weight: .semibold))
                             .foregroundStyle(Wq.muted)
+                            .lineLimit(1)
+                            Spacer(minLength: 4)
+                            if !attachmentNames.isEmpty {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(Wq.muted)
+                                    .onTapGesture {
+                                        attachmentUploadIds = []
+                                        attachmentNames = []
+                                    }
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(Wq.field)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(Wq.border))
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 40)
-                    .background(Wq.field)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Wq.border))
+                    .buttonStyle(.plain)
+                    .disabled(uploadingDoc || momentId == nil)
                 }
             }
 
@@ -899,31 +1010,144 @@ struct WeddingContributionBody: View {
                 submit()
             }
         }
-        .onAppear {
-            if let momentId {
-                Task {
-                    currency = await MomentCurrencyContextLoader.loadGroup(momentId: momentId).primary
+        .task(id: momentId) {
+            guard let momentId else { return }
+            let ctx = await MomentCurrencyContextLoader.loadGroup(momentId: momentId)
+            preferredCurrencyCodes = ctx.preferred
+            currency = ctx.primary
+            if pool.isEmpty { pool = poolPlaceholder }
+            do {
+                let list = try await APIClient.shared.listGroupParticipants(momentId: momentId)
+                let eligible = list.filter {
+                    let s = ($0.status ?? "").uppercased()
+                    return s == "ACTIVE" || s == "INVITED"
                 }
+                participants = eligible
+                if selectedParticipantId == nil {
+                    selectedParticipantId =
+                        eligible.first(where: { ($0.status ?? "").uppercased() == "ACTIVE" })?.participantId
+                        ?? eligible.first?.participantId
+                }
+            } catch {
+                // Keep form usable; From stays empty until reload.
             }
+        }
+        .fileImporter(
+            isPresented: $showDocImporter,
+            allowedContentTypes: [.pdf, .image, .jpeg, .png],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            Task { await uploadContributionReceipt(url: url) }
         }
     }
 
     private var isValid: Bool {
-        guard let amt = Decimal(string: amount.replacingOccurrences(of: ",", with: "")), amt > 0 else { return false }
-        return true
+        Self.normalizedContributionAmount(amount) != nil
+    }
+
+    /// Matches backend Zod: `^\d+(\.\d{1,4})?$` with amount > 0.
+    private static func normalizedContributionAmount(_ raw: String) -> String? {
+        var s = raw.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return nil }
+        if s.hasSuffix(".") { s.removeLast() }
+        if s.hasPrefix(".") { s = "0" + s }
+        guard let dec = Decimal(string: s), dec > 0 else { return nil }
+        let rounding = NSDecimalNumberHandler(
+            roundingMode: .down,
+            scale: 4,
+            raiseOnExactness: false,
+            raiseOnOverflow: false,
+            raiseOnUnderflow: false,
+            raiseOnDivideByZero: false
+        )
+        let capped = NSDecimalNumber(decimal: dec).rounding(accordingToBehavior: rounding)
+        if capped.compare(NSDecimalNumber.zero) != .orderedDescending { return nil }
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 4
+        formatter.usesGroupingSeparator = false
+        guard let plain = formatter.string(from: capped) else { return nil }
+        let pattern = #"^\d+(\.\d{1,4})?$"#
+        guard plain.range(of: pattern, options: .regularExpression) != nil else { return nil }
+        return plain
+    }
+
+    private func participantLabel(_ p: APIClient.GroupParticipantPayload) -> String {
+        let name = p.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (name?.isEmpty == false) ? name! : String(p.participantId.prefix(8))
+    }
+
+    private func currencySymbol(_ code: String) -> String {
+        switch code.uppercased() {
+        case "INR": return "₹"
+        case "USD": return "$"
+        case "EUR": return "€"
+        case "GBP": return "£"
+        default: return code.uppercased()
+        }
+    }
+
+    private func paymentMethodCode(_ label: String) -> String {
+        switch label {
+        case "Bank Transfer": return "BANK_TRANSFER"
+        case "Cash": return "CASH"
+        case "Card": return "CARD"
+        default: return "UPI"
+        }
+    }
+
+    private func uploadContributionReceipt(url: URL) async {
+        guard let momentId else { return }
+        uploadingDoc = true
+        defer { uploadingDoc = false }
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let data = try Data(contentsOf: url)
+            let ext = url.pathExtension.lowercased()
+            let mime: String
+            switch ext {
+            case "pdf": mime = "application/pdf"
+            case "png": mime = "image/png"
+            case "jpg", "jpeg": mime = "image/jpeg"
+            case "heic", "heif": mime = "image/heic"
+            default: mime = "application/octet-stream"
+            }
+            let uploadId = try await APIClient.shared.uploadBookingMedia(
+                momentId: momentId,
+                bytes: data,
+                contentType: mime
+            )
+            attachmentUploadIds = [uploadId]
+            attachmentNames = [url.lastPathComponent]
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 
     private func submit() {
         guard let momentId else { return }
+        guard let normalizedAmount = Self.normalizedContributionAmount(amount) else {
+            error = "Enter a valid amount (up to 4 decimal places)."
+            return
+        }
         Task {
             submitting = true
             error = nil
             do {
+                let labelText = pool.trimmingCharacters(in: .whitespacesAndNewlines)
                 _ = try await APIClient.shared.recordContribution(
                     momentId: momentId,
-                    amount: amount.replacingOccurrences(of: ",", with: ""),
+                    amount: normalizedAmount,
                     currencyCode: currency,
-                    label: pool.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : pool
+                    label: labelText.isEmpty ? nil : labelText,
+                    paymentMethodCode: paymentMethodCode(method),
+                    participantId: selectedParticipantId,
+                    status: status == "Pending" ? "PENDING" : "PAID",
+                    attachmentUploadIds: attachmentUploadIds.isEmpty ? nil : attachmentUploadIds
                 )
                 submitting = false
                 onSaved()

@@ -47,26 +47,13 @@ enum PushNotifications {
         if let explicitToken, !explicitToken.isEmpty {
             cachedFcmToken = explicitToken
         }
-        if cachedFcmToken == nil {
-            cachedFcmToken = await fetchFcmToken()
-        }
         // A nil token still registers the device for the Devices list; the backend keeps
         // any token it already holds rather than overwriting it with a blank.
+        // FCM token arrives via MessagingDelegate → noteFcmToken (token(completion:) is deprecated).
         _ = try? await APIClient.shared.registerDevice(
             deviceId: deviceId,
             platform: "IOS",
             pushToken: cachedFcmToken
         )
-    }
-
-    private static func fetchFcmToken() async -> String? {
-        await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
-            Messaging.messaging().token { token, error in
-                if let error {
-                    NSLog("FCM token fetch error: \(error.localizedDescription)")
-                }
-                continuation.resume(returning: token?.isEmpty == false ? token : nil)
-            }
-        }
     }
 }

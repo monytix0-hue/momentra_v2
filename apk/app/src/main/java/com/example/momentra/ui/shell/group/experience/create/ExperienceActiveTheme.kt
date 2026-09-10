@@ -208,6 +208,7 @@ fun experienceHubTiles(includesVendor: Boolean): List<ExperienceQuickAddKind> {
         ExperienceQuickAddKind.PLANNING,
         ExperienceQuickAddKind.EXPENSE,
         ExperienceQuickAddKind.BUDGET,
+        ExperienceQuickAddKind.CONTRIBUTION,
     )
     if (includesVendor) tiles.add(ExperienceQuickAddKind.VENDOR)
     tiles.addAll(

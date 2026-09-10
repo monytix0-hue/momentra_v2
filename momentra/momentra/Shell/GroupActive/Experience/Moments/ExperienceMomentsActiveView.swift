@@ -20,10 +20,12 @@ struct ExperienceMomentsActiveView: View {
     @State private var listVendors: [APIClient.GroupVendorItemPayload] = []
     @State private var listAttendance: [APIClient.GroupAttendanceItemPayload] = []
     @State private var listExpenses: [APIClient.GroupExpenseListItemPayload] = []
+    @State private var listContributions: [APIClient.GroupContributionItem] = []
     @State private var memoryCount: Int = 0
     @State private var selectedPollId: String?
     @State private var pollsListOpen = false
     @State private var scheduleOpen = false
+    @State private var contributionsOpen = false
     @State private var title: String?
     @State private var loading = true
     @State private var error: String?
@@ -75,6 +77,14 @@ struct ExperienceMomentsActiveView: View {
                 polls: listPolls,
                 onDismiss: { pollsListOpen = false },
                 onChanged: { Task { await load() } }
+            )
+        }
+        .sheet(isPresented: $contributionsOpen) {
+            ContributionsListSheet(
+                items: listContributions,
+                chrome: .experience(theme),
+                momentId: momentId,
+                onDismiss: { contributionsOpen = false }
             )
         }
         .sheet(item: Binding(
@@ -257,6 +267,13 @@ struct ExperienceMomentsActiveView: View {
                         }
                     }
 
+                    MomentsContributionDetailsSection(
+                        items: listContributions,
+                        chrome: chrome,
+                        momentId: momentId,
+                        onViewAll: { contributionsOpen = true }
+                    )
+
                     MomentsSectionHeader(title: "Expenses & Budget  💸", chrome: chrome)
                     MomentsExpensesCard(
                         totals: allTotals,
@@ -299,6 +316,7 @@ struct ExperienceMomentsActiveView: View {
             async let vendorsResult = APIClient.shared.listGroupVendors(momentId: momentId)
             async let attendanceResult = APIClient.shared.listGroupAttendance(momentId: momentId)
             async let expensesResult = APIClient.shared.listGroupExpenses(momentId: momentId, limit: 10)
+            async let contributionsResult = APIClient.shared.listContributions(momentId: momentId, limit: 50)
 
             let loadedLife = try await lifeResult
             life = loadedLife
@@ -309,6 +327,7 @@ struct ExperienceMomentsActiveView: View {
             listVendors = (try? await vendorsResult)?.items ?? []
             listAttendance = (try? await attendanceResult)?.items ?? []
             listExpenses = (try? await expensesResult)?.items ?? []
+            listContributions = (try? await contributionsResult)?.items ?? []
             if let listed = try? await memoriesResult {
                 listMemoryItems = listed.items
                 memoryCount = listed.memoryCount ?? listed.items.count

@@ -7,10 +7,13 @@ import com.example.momentra.data.api.AnalyticsMetricItemDto
 import com.example.momentra.data.api.AnalyticsRefreshBody
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.ApiService
+import com.example.momentra.data.api.AttachExpenseMediaBody
 import com.example.momentra.data.api.AttachMemoryMediaBody
+import com.example.momentra.data.api.ContributionAttachmentDto
 import com.example.momentra.data.api.CreateBookingBody
 import com.example.momentra.data.api.CreateGroupExpenseBody
 import com.example.momentra.data.api.CreateGroupExpenseResultDto
+import com.example.momentra.data.api.ExpenseAttachmentDto
 import com.example.momentra.data.api.GroupExpenseDetailDto
 import com.example.momentra.data.api.CreateMemoryBody
 import com.example.momentra.data.api.CreatePlanningItemBody
@@ -46,6 +49,7 @@ import com.example.momentra.data.api.PostUpdateBody
 import com.example.momentra.data.api.RecordAttendanceBody
 import com.example.momentra.data.api.RecordContributionBody
 import com.example.momentra.data.api.RecordContributionResultDto
+import com.example.momentra.data.api.GroupContributionsDto
 import com.example.momentra.data.api.RedeemGroupInviteResultDto
 import com.example.momentra.data.api.VotePollBody
 import com.example.momentra.data.api.mapHttpFailure
@@ -168,7 +172,7 @@ class GroupSliceRepository(
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun refreshAnalytics(
-        context: String = "GROUP_PULSE",
+        context: String = "GROUP",
         momentId: String,
     ): Result<Unit> = runCatching {
         api.refreshAnalytics(
@@ -228,6 +232,10 @@ class GroupSliceRepository(
         amount: String,
         currencyCode: String,
         label: String? = null,
+        paymentMethodCode: String? = null,
+        participantId: String? = null,
+        status: String? = null,
+        attachmentUploadIds: List<String>? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ): Result<RecordContributionResultDto> = runCatching {
         api.recordContribution(
@@ -237,7 +245,52 @@ class GroupSliceRepository(
                 amount = amount,
                 currencyCode = currencyCode.uppercase(),
                 label = label?.takeIf { it.isNotBlank() },
+                paymentMethodCode = paymentMethodCode,
+                participantId = participantId,
+                status = status,
+                attachmentUploadIds = attachmentUploadIds?.takeIf { it.isNotEmpty() },
             ),
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listContributions(
+        momentId: String,
+        limit: Int = 50,
+    ): Result<GroupContributionsDto> = runCatching {
+        api.listContributions(momentId, limit).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listContributionAttachments(
+        momentId: String,
+        contributionId: String,
+    ): Result<List<ContributionAttachmentDto>> = runCatching {
+        api.listContributionAttachments(momentId, contributionId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listExpenseAttachments(
+        momentId: String,
+        expenseId: String,
+    ): Result<List<ExpenseAttachmentDto>> = runCatching {
+        api.listExpenseAttachments(momentId, expenseId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun uploadAndAttachExpenseMedia(
+        momentId: String,
+        expenseId: String,
+        bytes: ByteArray,
+        contentType: String = "image/jpeg",
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<ExpenseAttachmentDto> = runCatching {
+        val uploadId = uploadBookingMedia(
+            momentId = momentId,
+            bytes = bytes,
+            contentType = contentType,
+            idempotencyKey = idempotencyKey,
+        ).getOrThrow()
+        api.attachExpenseMedia(
+            momentId = momentId,
+            expenseId = expenseId,
+            body = AttachExpenseMediaBody(uploadId = uploadId),
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 

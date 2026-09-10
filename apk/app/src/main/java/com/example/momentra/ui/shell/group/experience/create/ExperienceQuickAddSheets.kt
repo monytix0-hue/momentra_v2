@@ -127,7 +127,14 @@ fun ExperienceGapQuickAddSheet(
             when (kind) {
                 ExperienceQuickAddKind.EXPENSE -> Unit
                 ExperienceQuickAddKind.CONTRIBUTION ->
-                    WeddingContributionSheetBody(momentId, repository, onDismiss, onSaved, accent)
+                    WeddingContributionSheetBody(
+                        momentId,
+                        repository,
+                        onDismiss,
+                        onSaved,
+                        accent,
+                        poolPlaceholder = "${theme.typeLabel} Pool",
+                    )
                 ExperienceQuickAddKind.BUDGET ->
                     WeddingBudgetSheetBody(momentId, repository, onDismiss, onSaved, accent)
                 ExperienceQuickAddKind.PARTICIPANT ->

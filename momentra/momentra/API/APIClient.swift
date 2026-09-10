@@ -1703,6 +1703,7 @@ final class APIClient {
         let uploadId: String
         let contentType: String?
         let status: String
+        let downloadUrl: String?
         let createdAt: String?
     }
 
@@ -1723,6 +1724,15 @@ final class APIClient {
         let uploadId: String
         let contentType: String?
         let status: String
+        let createdAt: String?
+    }
+
+    struct ContributionAttachment: Decodable, Identifiable {
+        var id: String { uploadId }
+        let uploadId: String
+        let contentType: String?
+        let status: String?
+        let downloadUrl: String?
         let createdAt: String?
     }
 
@@ -2634,17 +2644,71 @@ final class APIClient {
         amount: String,
         currencyCode: String,
         label: String? = nil,
+        paymentMethodCode: String? = nil,
+        participantId: String? = nil,
+        status: String? = nil,
+        attachmentUploadIds: [String]? = nil,
         idempotencyKey: String = UUID().uuidString
     ) async throws -> RecordContributionResult {
         struct Body: Encodable {
             let amount: String
             let currencyCode: String
             let label: String?
+            let paymentMethodCode: String?
+            let participantId: String?
+            let status: String?
+            let attachmentUploadIds: [String]?
         }
         return try await authorizedPost(
             path: "v1/moments/\(momentId)/contributions",
-            body: Body(amount: amount, currencyCode: currencyCode, label: label),
+            body: Body(
+                amount: amount,
+                currencyCode: currencyCode,
+                label: label,
+                paymentMethodCode: paymentMethodCode,
+                participantId: participantId,
+                status: status,
+                attachmentUploadIds: attachmentUploadIds
+            ),
             idempotencyKey: idempotencyKey
+        )
+    }
+
+    struct GroupContributionItem: Decodable, Identifiable {
+        let contributionId: String
+        let momentId: String?
+        let participantId: String?
+        let displayName: String?
+        let amount: String?
+        let currencyCode: String?
+        let label: String?
+        let paymentMethodCode: String?
+        let status: String?
+        let contributedAt: String?
+        let attachmentCount: Int?
+
+        var id: String { contributionId }
+        var hasAttachment: Bool { (attachmentCount ?? 0) > 0 }
+    }
+
+    struct GroupContributionsPayload: Decodable {
+        let momentId: String?
+        let items: [GroupContributionItem]?
+    }
+
+    func listContributions(momentId: String, limit: Int = 50) async throws -> GroupContributionsPayload {
+        try await authorizedGet(
+            path: "v1/moments/\(momentId)/contributions",
+            query: ["limit": String(limit)]
+        )
+    }
+
+    func listContributionAttachments(
+        momentId: String,
+        contributionId: String
+    ) async throws -> [ContributionAttachment] {
+        try await authorizedGet(
+            path: "v1/moments/\(momentId)/contributions/\(contributionId)/attachments"
         )
     }
 
@@ -2891,6 +2955,9 @@ final class APIClient {
         let paidByParticipantId: String?
         let paidByDisplayName: String?
         let effectiveAt: String?
+        let attachmentCount: Int?
+
+        var hasAttachment: Bool { (attachmentCount ?? 0) > 0 }
     }
 
     struct GroupExpensesListPayload: Decodable {
@@ -4671,11 +4738,20 @@ final class APIClient {
     }
 
     struct ExpenseAttachmentsPayload: Decodable {
-        let items: [AnyDecodable]?
+        let items: [ExpenseAttachment]?
     }
 
-    func listExpenseAttachments(momentId: String, expenseId: String) async throws -> ExpenseAttachmentsPayload {
-        try await authorizedGet(path: "v1/moments/\(momentId)/expenses/\(expenseId)/attachments")
+    func listExpenseAttachments(momentId: String, expenseId: String) async throws -> [ExpenseAttachment] {
+        // Projection envelope may unwrap either a bare array or `{ items: [...] }`.
+        if let list: [ExpenseAttachment] = try? await authorizedGet(
+            path: "v1/moments/\(momentId)/expenses/\(expenseId)/attachments"
+        ) {
+            return list
+        }
+        let wrapped: ExpenseAttachmentsPayload = try await authorizedGet(
+            path: "v1/moments/\(momentId)/expenses/\(expenseId)/attachments"
+        )
+        return wrapped.items ?? []
     }
 
     func deleteExpenseAttachment(

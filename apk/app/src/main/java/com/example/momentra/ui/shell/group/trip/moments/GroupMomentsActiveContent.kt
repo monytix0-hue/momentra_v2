@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.data.api.GroupContributionItemDto
 import com.example.momentra.data.api.GroupExpenseListItemDto
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupLifeBookingDto
@@ -38,6 +39,7 @@ import com.example.momentra.data.api.GroupMemoryItemDto
 import com.example.momentra.data.api.GroupPollItemDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.group.shared.ContributionsListSheet
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupEmptySection
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
@@ -46,6 +48,7 @@ import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
 import com.example.momentra.ui.shell.group.shared.MomentsBookingCard
 import com.example.momentra.ui.shell.group.shared.MomentsChrome
+import com.example.momentra.ui.shell.group.shared.MomentsContributionDetailsSection
 import com.example.momentra.ui.shell.group.shared.MomentsExpensesCard
 import com.example.momentra.ui.shell.group.shared.MomentsHeroHeader
 import com.example.momentra.ui.shell.group.shared.MomentsItineraryDayCard
@@ -89,11 +92,13 @@ fun GroupMomentsActiveContent(
     var polls by remember { mutableStateOf<List<GroupPollItemDto>>(emptyList()) }
     var memoryItems by remember { mutableStateOf<List<GroupMemoryItemDto>>(emptyList()) }
     var expenses by remember { mutableStateOf<List<GroupExpenseListItemDto>>(emptyList()) }
+    var contributions by remember { mutableStateOf<List<GroupContributionItemDto>>(emptyList()) }
     var memoryCount by remember { mutableIntStateOf(0) }
     var selectedPollId by remember { mutableStateOf<String?>(null) }
     var pollsListOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var scheduleOpen by remember { mutableStateOf(false) }
+    var contributionsOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -106,6 +111,7 @@ fun GroupMomentsActiveContent(
             polls = emptyList()
             memoryItems = emptyList()
             expenses = emptyList()
+            contributions = emptyList()
             memoryCount = 0
             return@LaunchedEffect
         }
@@ -136,6 +142,9 @@ fun GroupMomentsActiveContent(
             val expensesDeferred = async {
                 repository.listGroupExpenses(momentId, 10).getOrNull()?.items.orEmpty()
             }
+            val contributionsDeferred = async {
+                repository.listContributions(momentId, 50).getOrNull()?.items.orEmpty()
+            }
             val plans = plansDeferred.await()
             val books = booksDeferred.await()
             val upds = updsDeferred.await()
@@ -163,6 +172,7 @@ fun GroupMomentsActiveContent(
                 }
             }
             expenses = expensesDeferred.await()
+            contributions = contributionsDeferred.await()
         }
     }
 
@@ -279,6 +289,13 @@ fun GroupMomentsActiveContent(
             }
         }
 
+        MomentsContributionDetailsSection(
+            items = contributions,
+            chrome = chrome,
+            momentId = momentId,
+            onViewAll = { contributionsOpen = true },
+        )
+
         MomentsSectionHeader("Expenses & Budget  💸", chrome)
         MomentsExpensesCard(
             totals = allTotals,
@@ -326,6 +343,14 @@ fun GroupMomentsActiveContent(
                 }
             }
         },
+    )
+
+    ContributionsListSheet(
+        items = contributions,
+        visible = contributionsOpen,
+        onDismiss = { contributionsOpen = false },
+        chrome = MomentsChrome.Trip,
+        momentId = momentId,
     )
 
     selectedPollId?.let { pollId ->

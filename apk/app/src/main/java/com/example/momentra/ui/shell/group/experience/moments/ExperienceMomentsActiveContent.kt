@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.GroupAttendanceItemDto
+import com.example.momentra.data.api.GroupContributionItemDto
 import com.example.momentra.data.api.GroupExpenseListItemDto
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupLifeBookingDto
@@ -33,6 +34,7 @@ import com.example.momentra.data.api.GroupVendorItemDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import kotlinx.coroutines.launch
 import com.example.momentra.ui.shell.group.experience.create.ExperienceActiveTheme
+import com.example.momentra.ui.shell.group.shared.ContributionsListSheet
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupEmptySection
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
@@ -41,6 +43,7 @@ import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
 import com.example.momentra.ui.shell.group.shared.MomentsBookingCard
 import com.example.momentra.ui.shell.group.shared.MomentsChrome
 import com.example.momentra.ui.shell.group.shared.planningPlansPercent
+import com.example.momentra.ui.shell.group.shared.MomentsContributionDetailsSection
 import com.example.momentra.ui.shell.group.shared.MomentsExpensesCard
 import com.example.momentra.ui.shell.group.shared.MomentsHeroHeader
 import com.example.momentra.ui.shell.group.shared.MomentsItineraryDayCard
@@ -87,11 +90,13 @@ fun ExperienceMomentsActiveContent(
     var vendors by remember { mutableStateOf<List<GroupVendorItemDto>>(emptyList()) }
     var attendance by remember { mutableStateOf<List<GroupAttendanceItemDto>>(emptyList()) }
     var expenses by remember { mutableStateOf<List<GroupExpenseListItemDto>>(emptyList()) }
+    var contributions by remember { mutableStateOf<List<GroupContributionItemDto>>(emptyList()) }
     var memoryCount by remember { mutableIntStateOf(0) }
     var selectedPollId by remember { mutableStateOf<String?>(null) }
     var pollsListOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var scheduleOpen by remember { mutableStateOf(false) }
+    var contributionsOpen by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -139,6 +144,7 @@ fun ExperienceMomentsActiveContent(
         vendors = repository.listGroupVendors(momentId).getOrNull()?.items.orEmpty()
         attendance = repository.listAttendance(momentId).getOrNull()?.items.orEmpty()
         expenses = repository.listGroupExpenses(momentId, 10).getOrNull()?.items.orEmpty()
+        contributions = repository.listContributions(momentId, 50).getOrNull()?.items.orEmpty()
         repository.listMemories(momentId).onSuccess {
             memoryItems = it.items
             memoryCount = it.memoryCount.takeIf { c -> c > 0 } ?: it.items.size
@@ -319,6 +325,13 @@ fun ExperienceMomentsActiveContent(
             }
         }
 
+        MomentsContributionDetailsSection(
+            items = contributions,
+            chrome = chrome,
+            momentId = momentId,
+            onViewAll = { contributionsOpen = true },
+        )
+
         MomentsSectionHeader("Expenses & Budget  💸", chrome)
         MomentsExpensesCard(
             totals = allTotals,
@@ -365,6 +378,14 @@ fun ExperienceMomentsActiveContent(
                 }
             }
         },
+    )
+
+    ContributionsListSheet(
+        items = contributions,
+        visible = contributionsOpen,
+        onDismiss = { contributionsOpen = false },
+        chrome = MomentsChrome.experience(theme),
+        momentId = momentId,
     )
 
     selectedPollId?.let { pollId ->

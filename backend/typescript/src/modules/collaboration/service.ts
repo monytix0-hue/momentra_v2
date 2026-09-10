@@ -10,9 +10,10 @@ import {
 import {
   assertCallerIsOrganizer,
   assertGroupMember,
+  assertParticipantsOnMoment,
   listOtherMemberUserIds,
 } from './group-membership';
-import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
+import { insertDomainEventAndOutbox, recordCommandSideEffects } from '../../platform/events/outbox';
 import { emitLeanBusinessEvent, loadMomentTaxonomy } from '../analytics/lean-events';
 import { z } from 'zod';
 import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from '../finance/travel-currencies';
@@ -826,8 +827,16 @@ export const contributionSchema = z
     amount: z.string().regex(/^\d+(\.\d{1,4})?$/),
     currencyCode: travelCurrencyCodeSchema,
     label: z.string().max(200).optional(),
+    paymentMethodCode: z.enum(['UPI', 'BANK_TRANSFER', 'CASH', 'CARD']).optional(),
+    participantId: z.string().uuid().optional(),
+    status: z.enum(['PAID', 'PENDING']).optional(),
+    attachmentUploadIds: z.array(z.string().uuid()).max(5).optional(),
   })
   .strict();
+
+function mapContributionStatus(ui?: 'PAID' | 'PENDING'): 'RECORDED' | 'PENDING' {
+  return ui === 'PENDING' ? 'PENDING' : 'RECORDED';
+}
 
 export async function recordContribution(
   client: PoolClient,
@@ -836,20 +845,208 @@ export async function recordContribution(
   body: z.infer<typeof contributionSchema>
 ): Promise<{ contributionId: string; momentId: string }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'CONTRIBUTION_RECORD', resourceType: 'CONTRIBUTION', momentId });
-  const participant = await client.query<{ participant_id: string }>(
+  const caller = await client.query<{ participant_id: string }>(
     `SELECT participant_id FROM collaboration.moment_participant WHERE moment_id = $1 AND user_id = $2 LIMIT 1`,
     [momentId, ctx.userId]
   );
-  if (!participant.rows[0]) {
+  if (!caller.rows[0]) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Active participant required to record contribution.', 400);
   }
+  let participantId = caller.rows[0].participant_id;
+  if (body.participantId) {
+    await assertParticipantsOnMoment(client, momentId, [body.participantId]);
+    participantId = body.participantId;
+  }
+  const attachmentUploadIds = body.attachmentUploadIds ?? [];
+  if (attachmentUploadIds.length > 0) {
+    const uploadCheck = await client.query<{ media_upload_id: string; status: string; user_id: string }>(
+      `SELECT media_upload_id, status, user_id FROM platform.media_upload
+       WHERE media_upload_id = ANY($1::uuid[])`,
+      [attachmentUploadIds]
+    );
+    if (uploadCheck.rows.length !== attachmentUploadIds.length) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, 'One or more attachment uploads were not found.', 400);
+    }
+    for (const u of uploadCheck.rows) {
+      if (u.user_id !== ctx.userId) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, 'Attachment upload must belong to the caller.', 400);
+      }
+      if (u.status !== 'COMPLETED') {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, 'Attachment uploads must be completed first.', 400);
+      }
+    }
+  }
+  const status = mapContributionStatus(body.status);
+  const label = body.label?.trim() || null;
+  const paymentMethod = body.paymentMethodCode ?? null;
   const r = await client.query<{ contribution_id: string }>(
-    `INSERT INTO finance.contribution (moment_id, participant_id, amount, currency_code, status, version)
-     VALUES ($1, $2, $3, $4, 'RECORDED', 1)
+    `INSERT INTO finance.contribution (
+       moment_id, participant_id, amount, currency_code, status, version, label, payment_method_code
+     )
+     VALUES ($1, $2, $3, $4, $5, 1, $6, $7)
      RETURNING contribution_id`,
-    [momentId, participant.rows[0].participant_id, body.amount, body.currencyCode]
+    [momentId, participantId, body.amount, body.currencyCode, status, label, paymentMethod]
   );
-  return { contributionId: r.rows[0]!.contribution_id, momentId };
+  const contributionId = r.rows[0]!.contribution_id;
+  for (const uploadId of attachmentUploadIds) {
+    await client.query(
+      `INSERT INTO finance.contribution_attachment (contribution_id, upload_id) VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [contributionId, uploadId]
+    );
+  }
+
+  const { domainEventId } = await recordCommandSideEffects(client, ctx, {
+    eventName: 'GroupContributionRecorded',
+    domainCode: 'GROUP',
+    aggregateType: 'CONTRIBUTION',
+    aggregateId: contributionId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: {
+      contributionId,
+      momentId,
+      amount: body.amount,
+      currencyCode: body.currencyCode,
+      participantId,
+      status,
+      label,
+      paymentMethodCode: paymentMethod,
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+    },
+    auditActionCode: 'CONTRIBUTION_RECORD',
+    auditResourceType: 'CONTRIBUTION',
+    auditResourceId: contributionId,
+    afterSnapshot: {
+      contributionId,
+      momentId,
+      amount: body.amount,
+      currencyCode: body.currencyCode,
+      participantId,
+      status,
+      label,
+      paymentMethodCode: paymentMethod,
+    },
+    activity: {
+      domainCode: 'GROUP',
+      momentId,
+      activityCode: 'GROUP_CONTRIBUTION_RECORDED',
+      title: label ?? 'Contribution recorded',
+      payload: {
+        contributionId,
+        amount: body.amount,
+        currencyCode: body.currencyCode,
+        participantId,
+        status,
+      },
+    },
+  });
+
+  // Collected totals only move for RECORDED (Paid). PENDING stays ledger-only.
+  if (status === 'RECORDED') {
+    await client.query(
+      `INSERT INTO projection.group_finance_snapshot (
+         moment_id, currency_code, expense_total, outstanding_total, contribution_total,
+         snapshot_payload, source_event_id, projection_version
+       ) VALUES ($1, $2, 0, 0, $3::numeric, '{}'::jsonb, $4::uuid, 1)
+       ON CONFLICT (moment_id, currency_code) DO UPDATE SET
+         contribution_total = COALESCE(projection.group_finance_snapshot.contribution_total, 0)
+           + EXCLUDED.contribution_total,
+         source_event_id = EXCLUDED.source_event_id,
+         projection_version = projection.group_finance_snapshot.projection_version + 1,
+         updated_at = now()`,
+      [momentId, body.currencyCode, body.amount, domainEventId]
+    );
+    await client.query(
+      `INSERT INTO projection.group_finance_position (
+         moment_id, participant_id, currency_code,
+         paid_total, allocated_total, contribution_total,
+         payable_total, receivable_total, net_position,
+         source_event_id, projection_version
+       ) VALUES ($1, $2, $3, 0, 0, $4::numeric, 0, 0, 0, $5::uuid, 1)
+       ON CONFLICT (moment_id, participant_id, currency_code) DO UPDATE SET
+         contribution_total = COALESCE(projection.group_finance_position.contribution_total, 0)
+           + EXCLUDED.contribution_total,
+         source_event_id = EXCLUDED.source_event_id,
+         projection_version = projection.group_finance_position.projection_version + 1,
+         updated_at = now()`,
+      [momentId, participantId, body.currencyCode, body.amount, domainEventId]
+    );
+  }
+
+  return { contributionId, momentId };
+}
+
+export async function listContributions(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  limit = 50
+): Promise<{
+  momentId: string;
+  items: Array<{
+    contributionId: string;
+    momentId: string;
+    participantId: string;
+    displayName: string | null;
+    amount: string;
+    currencyCode: string;
+    label: string | null;
+    paymentMethodCode: string | null;
+    status: string;
+    contributedAt: string;
+    attachmentCount: number;
+  }>;
+}> {
+  await assertGroupMember(client, ctx, momentId);
+  const capped = Math.min(Math.max(1, limit), 100);
+  const rows = await client.query<{
+    contribution_id: string;
+    moment_id: string;
+    participant_id: string;
+    display_name: string | null;
+    amount: string;
+    currency_code: string;
+    label: string | null;
+    payment_method_code: string | null;
+    status: string;
+    contributed_at: Date;
+    attachment_count: string;
+  }>(
+    `SELECT c.contribution_id, c.moment_id, c.participant_id, c.amount::text, c.currency_code,
+            c.label, c.payment_method_code, c.status, c.contributed_at,
+            COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName') AS display_name,
+            (
+              SELECT count(*)::text FROM finance.contribution_attachment ca
+              WHERE ca.contribution_id = c.contribution_id
+            ) AS attachment_count
+     FROM finance.contribution c
+     LEFT JOIN collaboration.moment_participant mp
+       ON mp.participant_id = c.participant_id AND mp.moment_id = c.moment_id
+     LEFT JOIN core.user_profile up ON up.user_id = mp.user_id
+     LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
+     WHERE c.moment_id = $1::uuid
+       AND c.status IN ('RECORDED', 'PENDING')
+     ORDER BY c.contributed_at DESC, c.contribution_id DESC
+     LIMIT $2`,
+    [momentId, capped]
+  );
+  return {
+    momentId,
+    items: rows.rows.map((r) => ({
+      contributionId: r.contribution_id,
+      momentId: r.moment_id,
+      participantId: r.participant_id,
+      displayName: r.display_name,
+      amount: r.amount,
+      currencyCode: r.currency_code,
+      label: r.label,
+      paymentMethodCode: r.payment_method_code,
+      status: r.status === 'PENDING' ? 'PENDING' : 'PAID',
+      contributedAt: r.contributed_at.toISOString(),
+      attachmentCount: parseInt(r.attachment_count, 10) || 0,
+    })),
+  };
 }
 
 export async function postUpdate(
