@@ -140,15 +140,19 @@ func isUrgentUpdate(_ item: GroupUpdateItem) -> Bool {
     (item.urgencyCode ?? "").caseInsensitiveCompare("URGENT") == .orderedSame
 }
 
-/// Completion percent for planning items: DONE / (OPEN+IN_PROGRESS+DONE). Zero when none countable.
+/// Hero PLANS % — checklist completion when packing-list items exist (those are what mark DONE);
+/// otherwise itinerary/other planning rows. Counts DONE/COMPLETED/CLOSED over OPEN/IN_PROGRESS/done.
+/// DRAFT and CANCELLED are excluded. Zero when none countable.
 func planningPlansPercent(_ items: [GroupPlanningItem]) -> Int {
+    let checklist = GroupExperienceChecklistCatalog.checklistItems(items)
+    let scope = checklist.isEmpty ? items : checklist
     var done = 0
     var countable = 0
-    for item in items {
-        let status = (item.status ?? "").uppercased()
-        if status == "CANCELLED" { continue }
+    for item in scope {
+        let status = (item.status ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if status == "CANCELLED" || status == "DRAFT" { continue }
         countable += 1
-        if status == "DONE" { done += 1 }
+        if status == "DONE" || status == "COMPLETED" || status == "CLOSED" { done += 1 }
     }
     guard countable > 0 else { return 0 }
     return Int((Double(done) / Double(countable) * 100).rounded())

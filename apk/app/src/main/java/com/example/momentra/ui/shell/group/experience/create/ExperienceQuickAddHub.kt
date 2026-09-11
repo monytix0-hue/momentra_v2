@@ -10,15 +10,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,9 +35,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
+import com.example.momentra.ui.shell.components.rememberMomentraWindowSize
+import com.example.momentra.ui.shell.group.shared.ActiveTabScrollScaffold
 import com.example.momentra.ui.shell.group.shared.GroupActionRegistry
 import com.example.momentra.ui.theme.PlusJakartaSans
 
@@ -57,20 +59,16 @@ fun ExperienceQuickAddHub(
     modifier: Modifier = Modifier,
 ) {
     var search by remember { mutableStateOf("") }
+    val window = rememberMomentraWindowSize()
     val tiles = experienceHubTiles(theme.includesVendor).filter {
         val q = search.trim().lowercase()
         q.isEmpty() || it.label().lowercase().contains(q)
     }
     val titleChip = momentTitle?.takeIf { it.isNotBlank() } ?: theme.typeLabel
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color(0xFF09090A))
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .padding(bottom = 56.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ActiveTabScrollScaffold(
+        background = Color(0xFF09090A),
+        modifier = modifier,
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(1f)) {
@@ -127,7 +125,8 @@ fun ExperienceQuickAddHub(
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(width = 180.dp, height = 120.dp)
+                        .width(180.dp)
+                        .height(window.hubHeroHeight)
                         .clip(RoundedCornerShape(16.dp)),
                 )
             }
@@ -179,13 +178,16 @@ fun ExperienceQuickAddHub(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            maxItemsInEachRow = 3,
+            maxItemsInEachRow = window.hubColumnCount,
         ) {
             tiles.forEach { kind ->
                 val tile = kind.hubTileSpec()
                 ExperienceHubTile(
                     tile = tile,
                     enabled = hasActiveMoment,
+                    columnCount = window.hubColumnCount,
+                    tileMinHeight = window.hubTileMinHeight,
+                    tileMaxHeight = window.hubTileMaxHeight,
                     onClick = { onTile(kind) },
                 )
             }
@@ -235,12 +237,20 @@ private fun HubContextChip(
 private fun ExperienceHubTile(
     tile: GroupActionRegistry.HubTileSpec,
     enabled: Boolean,
+    columnCount: Int,
+    tileMinHeight: Dp,
+    tileMaxHeight: Dp,
     onClick: () -> Unit,
 ) {
+    val widthFraction = when (columnCount) {
+        2 -> 0.48f
+        4 -> 0.23f
+        else -> 0.31f
+    }
     Column(
         modifier = Modifier
-            .fillMaxWidth(0.31f)
-            .height(104.dp)
+            .fillMaxWidth(widthFraction)
+            .heightIn(min = tileMinHeight, max = tileMaxHeight)
             .alpha(if (enabled) 1f else 0.45f)
             .shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = tile.gradientStart.copy(alpha = 0.2f))
             .clip(RoundedCornerShape(16.dp))

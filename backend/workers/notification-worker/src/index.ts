@@ -2,7 +2,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { Pool } from 'pg';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { initializeApp, cert, applicationDefault, getApps } from 'firebase-admin/app';
 import { getMessaging, type Messaging } from 'firebase-admin/messaging';
 import {
   PEER_PUSH_EVENT_NAMES,
@@ -41,26 +41,35 @@ function initFirebaseAdmin(): Messaging | null {
     const credJson =
       process.env.FIREBASE_CREDENTIALS_JSON ||
       process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    if (!credJson) {
-      // A projectId alone yields a Messaging client whose every send fails at runtime.
-      // Disable push instead, so `fcm: false` in the logs names the real problem.
+    const projectId = process.env.FIREBASE_PROJECT_ID || 'momentra-v2';
+    try {
+      if (credJson?.trim()) {
+        const cred = JSON.parse(credJson) as Record<string, string>;
+        initializeApp({
+          credential: cert(cred),
+          projectId: projectId || cred.project_id,
+        });
+      } else {
+        // Local/dev: gcloud auth application-default login (org policy may block new SA keys).
+        initializeApp({
+          credential: applicationDefault(),
+          projectId,
+        });
+      }
+    } catch (e) {
       console.error(
         JSON.stringify({
           worker: 'notification-worker',
           error: 'fcm_unconfigured',
+          outcome: 'fcm_unconfigured',
           detail:
-            'Set FIREBASE_SERVICE_ACCOUNT_JSON (or FIREBASE_CREDENTIALS_JSON) to enable push. Inbox writes continue.',
+            'Set FIREBASE_SERVICE_ACCOUNT_JSON, or run gcloud auth application-default login for local send.',
           projectIdPresent: Boolean(projectId),
+          reason: String(e),
         })
       );
       return null;
     }
-    const cred = JSON.parse(credJson) as Record<string, string>;
-    initializeApp({
-      credential: cert(cred),
-      projectId: projectId || cred.project_id,
-    });
   }
   try {
     return getMessaging();
@@ -110,7 +119,7 @@ async function sendPushToUser(
   let revoked = 0;
   for (const row of devices.rows) {
     try {
-      await messaging.send({
+      const messageId = await messaging.send({
         token: row.push_token,
         notification: { title, body },
         data: { ...data, platform: row.platform },
@@ -131,6 +140,17 @@ async function sendPushToUser(
         },
       });
       sent += 1;
+      console.info(
+        JSON.stringify({
+          worker: 'notification-worker',
+          outcome: 'fcm_send_success',
+          userId,
+          platform: row.platform,
+          messageId,
+          // Never log the full registration token.
+          tokenFingerprint: row.push_token.slice(0, 8),
+        })
+      );
     } catch (e) {
       if (isInvalidTokenError(e)) {
         await revokeToken(pool, row.push_token);
@@ -138,8 +158,11 @@ async function sendPushToUser(
         console.error(
           JSON.stringify({
             worker: 'notification-worker',
-            action: 'token_revoked',
+            outcome: 'fcm_token_invalid',
+            action: 'fcm_token_revoked',
             userId,
+            platform: row.platform,
+            tokenFingerprint: row.push_token.slice(0, 8),
             error: String(e),
           })
         );
@@ -147,8 +170,10 @@ async function sendPushToUser(
         console.error(
           JSON.stringify({
             worker: 'notification-worker',
-            action: 'send_failed',
+            outcome: 'fcm_send_failed',
             userId,
+            platform: row.platform,
+            tokenFingerprint: row.push_token.slice(0, 8),
             error: String(e),
           })
         );
@@ -274,13 +299,27 @@ async function processDomainEvent(
         );
         n = result.sent;
         revokedTokens += result.revoked;
-        await markSent(
-          pool,
-          ev.domain_event_id,
-          prefs.user_id,
-          n,
-          n === 0 ? 'no_devices_or_all_failed' : null
-        );
+        let failureReason: string | null = null;
+        if (n === 0) {
+          // Distinguish empty device list from send failures / revoked tokens.
+          const deviceCount = await pool.query<{ n: string }>(
+            `SELECT count(*)::text AS n
+             FROM platform.user_device
+             WHERE user_id = $1
+               AND revoked_at IS NULL
+               AND push_token IS NOT NULL
+               AND push_token <> ''`,
+            [prefs.user_id]
+          );
+          const devices = Number(deviceCount.rows[0]?.n ?? 0);
+          failureReason =
+            devices === 0
+              ? 'no_devices'
+              : result.revoked > 0
+                ? 'fcm_token_invalid'
+                : 'fcm_send_failed';
+        }
+        await markSent(pool, ev.domain_event_id, prefs.user_id, n, failureReason);
       } else {
         await markSent(pool, ev.domain_event_id, prefs.user_id, 0, 'fcm_unconfigured');
       }
@@ -386,6 +425,7 @@ async function loop(): Promise<void> {
       worker: 'notification-worker',
       status: 'started',
       fcm: messaging != null,
+      outcome: messaging != null ? 'fcm_ready' : 'fcm_unconfigured',
       backfillPollMs: BACKFILL_POLL_MS,
     })
   );

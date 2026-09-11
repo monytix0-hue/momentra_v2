@@ -7,21 +7,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
 import com.example.momentra.ui.shell.group.shared.ExperienceChecklistSheetBody
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.shared.TripSheetTokens
@@ -100,12 +92,11 @@ fun ExperienceGapQuickAddSheet(
     }
 
     val accent = theme.toSheetAccent()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
+    MomentraModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
         containerColor = TripSheetTokens.Bg,
+        skipPartiallyExpanded = false,
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -116,15 +107,7 @@ fun ExperienceGapQuickAddSheet(
             )
         },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(top = 4.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when (kind) {
                 ExperienceQuickAddKind.EXPENSE -> Unit
                 ExperienceQuickAddKind.CONTRIBUTION ->

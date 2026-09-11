@@ -11,12 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Text
@@ -37,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.api.GroupLifePlanningItemDto
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
 import com.example.momentra.ui.shell.group.wedding.create.ChipRow
 import com.example.momentra.ui.shell.group.wedding.create.FieldLabel
 import com.example.momentra.ui.shell.group.wedding.create.PrimaryCta
@@ -59,10 +55,10 @@ fun ExperienceChecklistAddSheet(
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
-    ModalBottomSheet(
+    MomentraModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = surface,
+        skipPartiallyExpanded = false,
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -73,23 +69,13 @@ fun ExperienceChecklistAddSheet(
             )
         },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            ExperienceChecklistSheetBody(
-                momentId = momentId,
-                repository = repository,
-                onDismiss = onDismiss,
-                onSaved = onSaved,
-                accent = accent,
-            )
-        }
+        ExperienceChecklistSheetBody(
+            momentId = momentId,
+            repository = repository,
+            onDismiss = onDismiss,
+            onSaved = onSaved,
+            accent = accent,
+        )
     }
 }
 

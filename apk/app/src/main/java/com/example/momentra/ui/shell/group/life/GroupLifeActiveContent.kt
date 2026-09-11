@@ -136,8 +136,7 @@ fun GroupLifeActiveContent(
             .fillMaxSize()
             .background(GeBg)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .padding(bottom = 56.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         error?.let {

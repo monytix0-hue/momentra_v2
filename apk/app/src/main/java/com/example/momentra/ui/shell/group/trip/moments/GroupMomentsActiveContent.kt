@@ -10,9 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +37,7 @@ import com.example.momentra.data.api.GroupMemoryItemDto
 import com.example.momentra.data.api.GroupPollItemDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.group.shared.ActiveTabScrollScaffold
 import com.example.momentra.ui.shell.group.shared.ContributionsListSheet
 import com.example.momentra.ui.shell.group.shared.ExperienceChecklistAddSheet
 import com.example.momentra.ui.shell.group.shared.ExpensesListSheet
@@ -212,14 +211,9 @@ fun GroupMomentsActiveContent(
         buildMomentsUpcomingEvents(bookings, planningItems, finance)
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(chrome.bg)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .padding(bottom = 56.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ActiveTabScrollScaffold(
+        background = chrome.bg,
+        modifier = modifier,
     ) {
         error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
 
@@ -236,10 +230,8 @@ fun GroupMomentsActiveContent(
             chrome = chrome,
         )
 
-        MomentsSectionHeader("Polls  🗳️", chrome, onViewAll = { pollsListOpen = true })
-        if (polls.isEmpty()) {
-            GroupEmptySection("No polls yet", "Create a poll from Quick Add to decide together.")
-        } else {
+        if (polls.isNotEmpty()) {
+            MomentsSectionHeader("Polls  🗳️", chrome, onViewAll = { pollsListOpen = true })
             polls.take(2).forEach { poll ->
                 MomentsPollPreviewCard(poll = poll, chrome = chrome, onClick = { poll.pollId?.let { selectedPollId = it } })
             }
@@ -276,10 +268,8 @@ fun GroupMomentsActiveContent(
             onAdd = { checklistSheetOpen = true },
         )
 
-        MomentsSectionHeader("Updates / Feed  📱", chrome)
-        if (updates.isEmpty()) {
-            GroupEmptySection("No updates yet", "Share a status update from Quick Add.")
-        } else {
+        if (updates.isNotEmpty()) {
+            MomentsSectionHeader("Updates / Feed  📱", chrome)
             updates.take(3).forEachIndexed { index, item ->
                 MomentsUpdateFeedRow(item = item, index = index, chrome = chrome)
             }
@@ -297,17 +287,13 @@ fun GroupMomentsActiveContent(
             showMediaCountBadge = true,
         )
 
-        MomentsSectionHeader("Bookings  🛎️", chrome)
-        if (bookings.isEmpty()) {
-            GroupEmptySection("No bookings yet", "Add a booking from Quick Add when ready.")
-        } else {
-            bookings.take(4).forEach { MomentsBookingCard(it, chrome) }
+        if (bookings.isNotEmpty()) {
+            MomentsSectionHeader("Bookings  🛎️", chrome)
+            bookings.take(3).forEach { MomentsBookingCard(it, chrome) }
         }
 
-        MomentsSectionHeader("Upcoming Events  🗓", chrome)
-        if (upcoming.isEmpty()) {
-            GroupEmptySection("Nothing upcoming", "Near-term bookings and plans will show here.")
-        } else {
+        if (upcoming.isNotEmpty()) {
+            MomentsSectionHeader("Upcoming Events  🗓", chrome)
             upcoming.forEachIndexed { index, event ->
                 MomentsUpcomingEventCard(event = event, highlight = index == 0, chrome = chrome)
             }

@@ -9,19 +9,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.wedding.create.ChipRow
 import com.example.momentra.ui.shell.group.wedding.create.FieldLabel
@@ -93,30 +89,22 @@ fun PurchaseGapQuickAddSheet(
     }
 
     val accent = theme.toSheetAccent()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
+    MomentraModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
         containerColor = EqSheet,
-        dragHandle = null,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(top = 12.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        skipPartiallyExpanded = false,
+        dragHandle = {
             Box(
                 modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 12.dp, bottom = 4.dp)
                     .size(width = 48.dp, height = 4.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(EqHandle),
             )
+        },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when (kind) {
                 PurchaseQuickAddKind.EXPENSE -> Unit
                 PurchaseQuickAddKind.CONTRIBUTION ->

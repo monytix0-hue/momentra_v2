@@ -114,8 +114,7 @@ fun PersonalLifestyleMomentsActiveContent(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .padding(bottom = 56.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             error?.let { Text(it, color = Red, fontSize = 12.sp, fontFamily = PlusJakartaSans) }
@@ -196,7 +195,7 @@ private fun LifestyleMiniStat(emoji: String, value: String, label: String, modif
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(alpha = 0.08f))
             .padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(emoji, fontSize = 12.sp)
@@ -257,7 +256,7 @@ internal fun FamilyMomentsSection(
             .background(CardBg)
             .border(1.dp, BorderSoft, RoundedCornerShape(16.dp))
             .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(title, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
         if (activities.isEmpty()) {
@@ -298,7 +297,7 @@ internal fun FamilySpendSection(
             .background(CardBg)
             .border(1.dp, BorderSoft, RoundedCornerShape(16.dp))
             .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

@@ -133,8 +133,7 @@ fun PersonalFutureMomentsActiveContent(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .padding(bottom = 56.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             error?.let {
@@ -362,7 +361,7 @@ private fun FutureMiniStat(emoji: String, value: String, label: String, tint: Co
             .border(1.dp, tint, RoundedCornerShape(16.dp))
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(
             modifier = Modifier
@@ -443,7 +442,7 @@ private fun FutureBestCard(emoji: String, title: String, detail: String, accent:
             .background(accent.copy(alpha = 0.1f))
             .border(1.dp, accent.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
             .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(
             modifier = Modifier
@@ -503,7 +502,7 @@ private fun FutureInsightsComingSoon(body: String) {
             .background(Color.White.copy(alpha = 0.05f))
             .border(1.dp, BorderSoft, RoundedCornerShape(16.dp))
             .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("AI Insights", color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)

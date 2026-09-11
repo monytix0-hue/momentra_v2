@@ -9,18 +9,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +34,8 @@ import com.example.momentra.R
 import com.example.momentra.data.api.GroupLifePlanningItemDto
 import com.example.momentra.data.api.GroupLifeUpdateDto
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
+import com.example.momentra.ui.shell.components.nestedListMaxHeight
 import com.example.momentra.ui.shell.group.wedding.create.SheetAccent
 import com.example.momentra.ui.shell.group.wedding.create.WeddingPlanningSheetBody
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -46,6 +44,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /** Open planning items sorted by dueAt then createdAt; take up to [limit]. */
 fun recentOpenPlanningItems(
@@ -99,18 +98,24 @@ fun formatPlanningDayChip(day: LocalDate, today: LocalDate = LocalDate.now()): S
 fun isUrgentUpdate(item: GroupLifeUpdateDto): Boolean =
     item.urgencyCode.equals("URGENT", ignoreCase = true)
 
-/** DONE / (OPEN+IN_PROGRESS+DONE); 0 when none countable. */
+/**
+ * Hero PLANS % — checklist completion when packing-list items exist (those mark DONE);
+ * otherwise itinerary/other planning rows. DONE/COMPLETED/CLOSED over OPEN/IN_PROGRESS/done.
+ * DRAFT and CANCELLED excluded. 0 when none countable.
+ */
 fun planningPlansPercent(items: List<GroupLifePlanningItemDto>): Int {
+    val checklist = GroupExperienceChecklistCatalog.checklistItems(items)
+    val scope = if (checklist.isEmpty()) items else checklist
     var done = 0
     var countable = 0
-    for (item in items) {
-        val status = item.status.orEmpty().uppercase(Locale.US)
-        if (status == "CANCELLED") continue
+    for (item in scope) {
+        val status = item.status.orEmpty().trim().uppercase(Locale.US)
+        if (status == "CANCELLED" || status == "DRAFT") continue
         countable++
-        if (status == "DONE") done++
+        if (status == "DONE" || status == "COMPLETED" || status == "CLOSED") done++
     }
     if (countable == 0) return 0
-    return ((done.toDouble() / countable.toDouble()) * 100).toInt()
+    return ((done.toDouble() / countable.toDouble()) * 100).roundToInt()
 }
 
 fun formatRelativeShort(iso: String?): String {
@@ -244,12 +249,11 @@ fun PlanningScheduleSheet(
             .sortedBy { parseInstantMillis(it.dueAt) ?: Long.MAX_VALUE }
     }
     var editingItem by remember { mutableStateOf<GroupLifePlanningItemDto?>(null) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
+    MomentraModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
         containerColor = surface,
+        skipPartiallyExpanded = false,
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -261,11 +265,6 @@ fun PlanningScheduleSheet(
         },
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text("Schedule", color = text, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
@@ -296,8 +295,7 @@ fun PlanningScheduleSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(320.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .heightIn(max = nestedListMaxHeight()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (dayItems.isEmpty()) {
@@ -331,32 +329,23 @@ fun PlanningScheduleSheet(
     }
 
     if (editingItem != null && !momentId.isNullOrBlank()) {
-        ModalBottomSheet(
+        MomentraModalBottomSheet(
             onDismissRequest = { editingItem = null },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = surface,
+            skipPartiallyExpanded = false,
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 28.dp),
-            ) {
-                WeddingPlanningSheetBody(
-                    momentId = momentId,
-                    repository = repository,
-                    onDismiss = { editingItem = null },
-                    onSaved = {
-                        editingItem = null
-                        onSaved()
-                    },
-                    accent = SheetAccent(accent = accent, accentEnd = accent, soft = accent.copy(alpha = 0.2f)),
-                    momentTypeCode = momentTypeCode,
-                    editingItem = editingItem,
-                )
-            }
+            WeddingPlanningSheetBody(
+                momentId = momentId,
+                repository = repository,
+                onDismiss = { editingItem = null },
+                onSaved = {
+                    editingItem = null
+                    onSaved()
+                },
+                accent = SheetAccent(accent = accent, accentEnd = accent, soft = accent.copy(alpha = 0.2f)),
+                momentTypeCode = momentTypeCode,
+                editingItem = editingItem,
+            )
         }
     }
 }

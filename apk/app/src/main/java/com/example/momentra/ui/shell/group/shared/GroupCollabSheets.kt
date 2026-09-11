@@ -20,25 +20,20 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -68,6 +63,7 @@ import androidx.core.content.FileProvider
 import com.example.momentra.R
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.setup.SetupDateTimeUtils
+import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
 import com.example.momentra.ui.shell.shared.loadGroupCurrencyContext
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.Dispatchers
@@ -151,11 +147,10 @@ fun GroupCollabSheet(
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    MomentraModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
         containerColor = TripSheet.Bg,
+        skipPartiallyExpanded = false,
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -166,15 +161,7 @@ fun GroupCollabSheet(
             )
         },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when (kind) {
                 GroupCollabKind.PLANNING -> PlanningBody(momentId, repository, onDismiss, onSaved, momentTypeCode)
                 GroupCollabKind.CHECKLIST -> ExperienceChecklistSheetBody(

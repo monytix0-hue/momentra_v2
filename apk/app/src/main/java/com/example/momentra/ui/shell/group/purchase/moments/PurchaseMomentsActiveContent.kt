@@ -10,9 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,6 +42,7 @@ import com.example.momentra.data.api.GroupVendorItemDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import kotlinx.coroutines.launch
 import com.example.momentra.ui.shell.group.purchase.create.PurchaseActiveTheme
+import com.example.momentra.ui.shell.group.shared.ActiveTabScrollScaffold
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupEmptySection
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
@@ -253,14 +252,9 @@ fun PurchaseMomentsActiveContent(
         else -> showGallery
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(chrome.bg)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .padding(bottom = 56.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ActiveTabScrollScaffold(
+        background = chrome.bg,
+        modifier = modifier,
     ) {
         error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
 

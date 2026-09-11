@@ -5,8 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +32,7 @@ import com.example.momentra.data.api.GroupVendorItemDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import kotlinx.coroutines.launch
 import com.example.momentra.ui.shell.group.experience.create.ExperienceActiveTheme
+import com.example.momentra.ui.shell.group.shared.ActiveTabScrollScaffold
 import com.example.momentra.ui.shell.group.shared.ContributionsListSheet
 import com.example.momentra.ui.shell.group.shared.ExperienceChecklistAddSheet
 import com.example.momentra.ui.shell.group.shared.ExpensesListSheet
@@ -214,16 +213,9 @@ fun ExperienceMomentsActiveContent(
             Triple("MOMENTS", "$moments", listOf(Color(0xFFA855F7), Color(0xFF7C3AED))),
         )
     }
-    val showVendors = !isOfficeOuting || vendors.isNotEmpty()
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(chrome.bg)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .padding(bottom = 56.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ActiveTabScrollScaffold(
+        background = chrome.bg,
+        modifier = modifier,
     ) {
         error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
 
@@ -235,10 +227,8 @@ fun ExperienceMomentsActiveContent(
             chrome = chrome,
         )
 
-        MomentsSectionHeader("Polls  🗳️", chrome, onViewAll = { pollsListOpen = true })
-        if (polls.isEmpty()) {
-            GroupEmptySection("No polls yet", "Create a poll from Quick Add to decide together.")
-        } else {
+        if (polls.isNotEmpty()) {
+            MomentsSectionHeader("Polls  🗳️", chrome, onViewAll = { pollsListOpen = true })
             polls.take(2).forEach { poll ->
                 MomentsPollPreviewCard(poll = poll, chrome = chrome, onClick = { poll.pollId?.let { selectedPollId = it } })
             }
@@ -279,38 +269,27 @@ fun ExperienceMomentsActiveContent(
             onAdd = { checklistSheetOpen = true },
         )
 
-        MomentsSectionHeader("Updates / Feed  📱", chrome)
-        if (updates.isEmpty()) {
-            GroupEmptySection("No updates yet", "Share a status update from Quick Add.")
-        } else {
-            updates.take(5).forEachIndexed { index, item ->
+        if (updates.isNotEmpty()) {
+            MomentsSectionHeader("Updates / Feed  📱", chrome)
+            updates.take(3).forEachIndexed { index, item ->
                 MomentsUpdateFeedRow(item = item, index = index, chrome = chrome)
             }
         }
 
-        if (showVendors) {
+        if (vendors.isNotEmpty()) {
             MomentsSectionHeader("Vendors  🏪", chrome)
-            if (vendors.isEmpty()) {
-                GroupEmptySection("No vendors yet", "Add a vendor from Quick Add when ready.")
-            } else {
-                vendors.take(5).forEach { vendor ->
-                    MomentsSimpleRowCard(
-                        title = vendor.vendorName ?: "Vendor",
-                        chrome = chrome,
-                        meta = vendor.vendorType,
-                        status = vendor.status,
-                    )
-                }
+            vendors.take(3).forEach { vendor ->
+                MomentsSimpleRowCard(
+                    title = vendor.vendorName ?: "Vendor",
+                    chrome = chrome,
+                    meta = vendor.vendorType,
+                    status = vendor.status,
+                )
             }
         }
 
-        MomentsSectionHeader("Attendance  ✅", chrome)
-        if (attendance.isEmpty()) {
-            GroupEmptySection(
-                if (isOfficeOuting) "No attendance yet" else "No RSVPs yet",
-                "Record attendance from Quick Add.",
-            )
-        } else {
+        if (attendance.isNotEmpty()) {
+            MomentsSectionHeader("Attendance  ✅", chrome)
             attendance.take(8).forEach { row ->
                 MomentsSimpleRowCard(
                     title = row.displayName ?: "Guest",
@@ -333,17 +312,13 @@ fun ExperienceMomentsActiveContent(
             showMediaCountBadge = true,
         )
 
-        MomentsSectionHeader("Bookings  🛎️", chrome)
-        if (bookings.isEmpty()) {
-            GroupEmptySection("No bookings yet", "Add a booking from Quick Add when ready.")
-        } else {
-            bookings.take(4).forEach { MomentsBookingCard(it, chrome) }
+        if (bookings.isNotEmpty()) {
+            MomentsSectionHeader("Bookings  🛎️", chrome)
+            bookings.take(3).forEach { MomentsBookingCard(it, chrome) }
         }
 
-        MomentsSectionHeader("Upcoming Events  🗓", chrome)
-        if (upcoming.isEmpty()) {
-            GroupEmptySection("Nothing upcoming", "Near-term bookings and plans will show here.")
-        } else {
+        if (upcoming.isNotEmpty()) {
+            MomentsSectionHeader("Upcoming Events  🗓", chrome)
             upcoming.forEachIndexed { index, event ->
                 MomentsUpcomingEventCard(event = event, highlight = index == 0, chrome = chrome)
             }

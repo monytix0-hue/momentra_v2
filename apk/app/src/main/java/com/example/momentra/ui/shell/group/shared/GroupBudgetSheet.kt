@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
 import com.example.momentra.ui.shell.shared.loadGroupCurrencyContext
 import com.example.momentra.ui.shell.group.wedding.create.WeddingActiveTheme
 
@@ -34,7 +33,6 @@ fun GroupBudgetSheet(
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var resolvedCurrency by remember(currencyCode) { mutableStateOf(currencyCode) }
     var currentDisplay by remember { mutableStateOf<String?>(null) }
     val sheetBg = if (isWedding) WeddingActiveTheme.Card else TripSheetTokens.Bg
@@ -55,10 +53,10 @@ fun GroupBudgetSheet(
         )
     }
 
-    ModalBottomSheet(
+    MomentraModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
         containerColor = sheetBg,
+        skipPartiallyExpanded = false,
         dragHandle = {
             Box(
                 modifier = Modifier

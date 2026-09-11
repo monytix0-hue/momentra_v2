@@ -133,8 +133,7 @@ fun PersonalLifeOpsMomentsActiveContent(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .padding(bottom = 56.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             error?.let {
@@ -339,7 +338,7 @@ private fun MiniStat(emoji: String, value: String, label: String, modifier: Modi
             .background(Color.White.copy(alpha = 0.05f))
             .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
             .padding(horizontal = 10.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(emoji, fontSize = 14.sp)
@@ -478,7 +477,7 @@ private fun BestCard(emoji: String, title: String, detail: String, accent: Color
             .background(Color.White.copy(alpha = 0.05f))
             .border(1.dp, BorderSoft, RoundedCornerShape(16.dp))
             .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(emoji, fontSize = 18.sp)
         Text(title, color = TextMain, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
@@ -530,7 +529,7 @@ private fun InsightsComingSoon(body: String) {
             .background(Color.White.copy(alpha = 0.05f))
             .border(1.dp, BorderSoft, RoundedCornerShape(16.dp))
             .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("AI Insights", color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)

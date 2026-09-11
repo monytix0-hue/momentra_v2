@@ -13,13 +13,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material3.Icon
@@ -43,10 +42,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
+import com.example.momentra.ui.shell.components.rememberMomentraWindowSize
 import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
+import com.example.momentra.ui.shell.group.shared.ActiveTabScrollScaffold
 import com.example.momentra.ui.shell.group.shared.GroupActionRegistry
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -104,18 +106,15 @@ fun WeddingQuickAddHub(
 ) {
     var search by remember { mutableStateOf("") }
     var showScanner by remember { mutableStateOf(false) }
+    val window = rememberMomentraWindowSize()
     val tiles = weddingHubTiles.filter {
         search.isBlank() || it.label.contains(search, ignoreCase = true)
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF09090A))
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ActiveTabScrollScaffold(
+        background = Color(0xFF09090A),
+        modifier = Modifier,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -176,7 +175,7 @@ fun WeddingQuickAddHub(
                     contentDescription = null,
                     modifier = Modifier
                         .width(180.dp)
-                        .height(120.dp)
+                        .height(window.hubHeroHeight)
                         .clip(RoundedCornerShape(16.dp)),
                     contentScale = ContentScale.Crop,
                 )
@@ -233,7 +232,7 @@ fun WeddingQuickAddHub(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            maxItemsInEachRow = 3,
+            maxItemsInEachRow = window.hubColumnCount,
         ) {
             tiles.forEach { tile ->
                 val capabilityOk = when (tile.kind) {
@@ -250,6 +249,9 @@ fun WeddingQuickAddHub(
                 WeddingHubTileCard(
                     tile = tile,
                     enabled = hasActiveMoment && capabilityOk,
+                    columnCount = window.hubColumnCount,
+                    tileMinHeight = window.hubTileMinHeight,
+                    tileMaxHeight = window.hubTileMaxHeight,
                     onClick = { onTile(tile.kind) },
                 )
             }
@@ -300,6 +302,9 @@ private fun ContextChip(label: String, solid: Boolean, tint: Color = WeddingActi
 private fun WeddingHubTileCard(
     tile: WeddingHubTile,
     enabled: Boolean,
+    columnCount: Int,
+    tileMinHeight: Dp,
+    tileMaxHeight: Dp,
     onClick: () -> Unit,
 ) {
     val testTag = when (tile.kind) {
@@ -310,9 +315,15 @@ private fun WeddingHubTileCard(
         WeddingQuickAddKind.BUDGET -> MaestroIds.QA_TILE_BUDGET
         else -> "qa.tile.wedding.${tile.kind.name.lowercase()}"
     }
+    val widthFraction = when (columnCount) {
+        2 -> 0.48f
+        4 -> 0.23f
+        else -> 0.31f
+    }
     Column(
         modifier = Modifier
-            .fillMaxWidth(0.31f)
+            .fillMaxWidth(widthFraction)
+            .heightIn(min = tileMinHeight, max = tileMaxHeight)
             .testTag(testTag)
             .alpha(if (enabled) 1f else 0.45f)
             .clip(RoundedCornerShape(16.dp))
@@ -321,7 +332,7 @@ private fun WeddingHubTileCard(
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
     ) {
         Text(tile.icon, fontSize = 22.sp)
         Text(tile.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = PlusJakartaSans)

@@ -9,18 +9,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -37,6 +32,7 @@ import com.example.momentra.data.api.GroupLifeBookingDto
 import com.example.momentra.data.api.GroupLifePlanningItemDto
 import com.example.momentra.data.api.GroupLifeUpdateDto
 import com.example.momentra.data.api.GroupPollItemDto
+import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
 import com.example.momentra.ui.shell.group.experience.create.ExperienceActiveTheme
 import com.example.momentra.ui.shell.group.living.create.LivingActiveTheme
 import com.example.momentra.ui.shell.group.purchase.create.PurchaseActiveTheme
@@ -505,10 +501,10 @@ fun ExpensesListSheet(
         }
         map.entries.sortedByDescending { it.key }
     }
-    ModalBottomSheet(
+    MomentraModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = chrome.bg,
+        skipPartiallyExpanded = false,
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -519,15 +515,7 @@ fun ExpensesListSheet(
             )
         },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(
                 "Expenses",
                 color = chrome.text,

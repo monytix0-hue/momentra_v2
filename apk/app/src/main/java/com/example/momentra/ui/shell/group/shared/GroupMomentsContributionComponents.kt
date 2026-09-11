@@ -8,19 +8,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -31,6 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.GroupContributionItemDto
+import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
+import com.example.momentra.ui.shell.components.rememberMomentraWindowSize
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.time.Instant
 import java.time.LocalDate
@@ -115,6 +112,7 @@ fun MomentsContributionCard(
     val time = contributionRelativeTime(item.contributedAt)
     val meta = if (time.isBlank()) pool else "$time · $pool"
     val status = if (item.status.equals("PENDING", true)) "PENDING" else "PAID"
+    val window = rememberMomentraWindowSize()
 
     Column(
         modifier = Modifier
@@ -130,7 +128,7 @@ fun MomentsContributionCard(
             Box(
                 modifier = Modifier
                     .width(4.dp)
-                    .height(104.dp)
+                    .heightIn(min = window.hubTileMinHeight, max = window.hubTileMaxHeight)
                     .background(chrome.accent),
             )
             Column(
@@ -249,10 +247,10 @@ fun ContributionsListSheet(
         }
         map.entries.sortedByDescending { it.key }
     }
-    ModalBottomSheet(
+    MomentraModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = chrome.bg,
+        skipPartiallyExpanded = false,
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -263,15 +261,7 @@ fun ContributionsListSheet(
             )
         },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(
                 "Contributions",
                 color = chrome.text,

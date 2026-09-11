@@ -9,17 +9,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,6 +34,7 @@ import com.example.momentra.data.api.ActivityItemDto
 import com.example.momentra.data.api.GroupContributionItemDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.domain.AppContext
+import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
 import com.example.momentra.ui.shell.empty.group.GeBg
 import com.example.momentra.ui.shell.empty.group.GeSecondary
 import com.example.momentra.ui.shell.empty.group.GeText
@@ -68,7 +65,6 @@ fun GroupRecentActivityFlow(
     var filter by remember(momentTypeCode) { mutableStateOf(GroupActivityCategoryFilter.ALL_ID) }
     var editingExpenseId by remember { mutableStateOf<String?>(null) }
     var editingContribution by remember { mutableStateOf<GroupContributionItemDto?>(null) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val accent = MomentThemes.resolve(AppContext.GROUP, momentTypeCode).primary
     val isWedding = groupExperienceFamilyFor(momentTypeCode) == GroupExperienceFamily.WEDDING
@@ -134,21 +130,13 @@ fun GroupRecentActivityFlow(
         loading = false
     }
 
-    ModalBottomSheet(
+    MomentraModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
         containerColor = GeBg,
+        skipPartiallyExpanded = false,
         dragHandle = null,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 14.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 "All activity",
                 color = GeText,

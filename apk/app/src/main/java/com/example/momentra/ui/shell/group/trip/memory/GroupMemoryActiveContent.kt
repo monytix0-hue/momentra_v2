@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,6 +36,7 @@ import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
+import com.example.momentra.ui.shell.group.shared.ActiveTabScrollScaffold
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupActiveTheme
 import com.example.momentra.ui.shell.group.shared.GroupComingSoonBadge
@@ -127,14 +126,9 @@ fun GroupMemoryActiveContent(
         GroupActiveTheme.AccentOrange,
     )
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(GroupActiveTheme.Bg)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .padding(bottom = 56.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ActiveTabScrollScaffold(
+        background = GroupActiveTheme.Bg,
+        modifier = modifier,
     ) {
         error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
 

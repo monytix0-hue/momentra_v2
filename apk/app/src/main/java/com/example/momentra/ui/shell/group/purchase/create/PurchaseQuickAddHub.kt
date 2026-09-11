@@ -7,16 +7,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,9 +35,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.ui.shell.components.rememberMomentraWindowSize
+import com.example.momentra.ui.shell.group.shared.ActiveTabScrollScaffold
 import com.example.momentra.ui.theme.PlusJakartaSans
 
 /** Shared Purchase Quick Add hub. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PurchaseQuickAddHub(
     theme: PurchaseActiveTheme,
@@ -48,19 +52,20 @@ fun PurchaseQuickAddHub(
     modifier: Modifier = Modifier,
 ) {
     var search by remember { mutableStateOf("") }
+    val window = rememberMomentraWindowSize()
     val tiles = purchaseHubTiles(theme).filter {
         val q = search.trim().lowercase()
         q.isEmpty() || it.label().lowercase().contains(q)
     }
+    val widthFraction = when (window.hubColumnCount) {
+        2 -> 0.48f
+        4 -> 0.23f
+        else -> 0.31f
+    }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(theme.bg)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .padding(bottom = 56.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ActiveTabScrollScaffold(
+        background = theme.bg,
+        modifier = modifier,
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
@@ -107,7 +112,8 @@ fun PurchaseQuickAddHub(
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(width = 180.dp, height = 120.dp)
+                        .width(180.dp)
+                        .height(window.hubHeroHeight)
                         .clip(RoundedCornerShape(16.dp)),
                 )
             }
@@ -136,34 +142,32 @@ fun PurchaseQuickAddHub(
             )
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            tiles.chunked(3).forEach { row ->
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    row.forEach { kind ->
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(104.dp)
-                                .alpha(if (hasActiveMoment) 1f else 0.45f)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(theme.accent.copy(alpha = 0.25f), theme.accentSolid.copy(alpha = 0.15f)),
-                                    ),
-                                )
-                                .border(1.dp, theme.border, RoundedCornerShape(16.dp))
-                                .then(if (hasActiveMoment) Modifier.clickable { onTile(kind) } else Modifier)
-                                .padding(12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Text(kind.emoji(), fontSize = 22.sp)
-                            Text(kind.label(), color = theme.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
-                        }
-                    }
-                    repeat(3 - row.size) {
-                        Box(modifier = Modifier.weight(1f))
-                    }
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            maxItemsInEachRow = window.hubColumnCount,
+        ) {
+            tiles.forEach { kind ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth(widthFraction)
+                        .heightIn(min = window.hubTileMinHeight, max = window.hubTileMaxHeight)
+                        .alpha(if (hasActiveMoment) 1f else 0.45f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(theme.accent.copy(alpha = 0.25f), theme.accentSolid.copy(alpha = 0.15f)),
+                            ),
+                        )
+                        .border(1.dp, theme.border, RoundedCornerShape(16.dp))
+                        .then(if (hasActiveMoment) Modifier.clickable { onTile(kind) } else Modifier)
+                        .padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+                ) {
+                    Text(kind.emoji(), fontSize = 22.sp)
+                    Text(kind.label(), color = theme.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
                 }
             }
         }

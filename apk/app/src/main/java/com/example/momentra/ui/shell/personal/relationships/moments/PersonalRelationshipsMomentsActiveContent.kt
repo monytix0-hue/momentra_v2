@@ -116,8 +116,7 @@ fun PersonalRelationshipsMomentsActiveContent(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .padding(bottom = 56.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             error?.let { Text(it, color = Red, fontSize = 12.sp, fontFamily = PlusJakartaSans) }
@@ -198,7 +197,7 @@ private fun BondMiniStat(emoji: String, value: String, label: String, modifier: 
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(alpha = 0.08f))
             .padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(emoji, fontSize = 12.sp)

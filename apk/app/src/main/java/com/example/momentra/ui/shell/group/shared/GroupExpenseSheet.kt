@@ -13,23 +13,18 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -60,6 +55,7 @@ import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupExpenseSplitBuilder
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.repository.MomentCreateRepository
+import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
 import com.example.momentra.ui.shell.shared.MomentCurrencyResolver
 import com.example.momentra.ui.shell.shared.TravelCurrencyPickerRow
 import com.example.momentra.ui.shell.group.shared.TravelCurrencyCatalog
@@ -97,7 +93,6 @@ fun GroupExpenseSheet(
 ) {
     if (!visible) return
     val isEditing = expenseId != null
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val sheetBg = if (isWedding) WeddingActiveTheme.Bg else TripSheetTokens.Bg
     val sheetText = if (isWedding) WeddingActiveTheme.Text else TripSheetTokens.Text
     val sheetSecondary = if (isWedding) WeddingActiveTheme.Secondary else TripSheetTokens.Muted
@@ -271,10 +266,10 @@ fun GroupExpenseSheet(
         }
     }
 
-    ModalBottomSheet(
+    MomentraModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
         containerColor = sheetBg,
+        skipPartiallyExpanded = true,
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -285,15 +280,7 @@ fun GroupExpenseSheet(
             )
         },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 14.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -979,7 +966,6 @@ fun GroupContributionSheet(
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val sheetBg = if (isWedding) WeddingActiveTheme.Bg else TripSheetTokens.Bg
     val accent = if (isWedding) {
         ContribAccent
@@ -993,10 +979,10 @@ fun GroupContributionSheet(
     val poolHint = poolPlaceholder?.takeIf { it.isNotBlank() }
         ?: if (isWedding) "Wedding Pool" else "Trip Pool"
 
-    ModalBottomSheet(
+    MomentraModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
         containerColor = sheetBg,
+        skipPartiallyExpanded = false,
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -1007,26 +993,16 @@ fun GroupContributionSheet(
             )
         },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            WeddingContributionSheetBody(
-                momentId = momentId,
-                repository = repository,
-                onDismiss = onDismiss,
-                onSaved = onSaved,
-                accent = accent,
-                poolPlaceholder = poolHint,
-                editingContribution = editingContribution,
-                onDeleted = onDeleted,
-            )
-        }
+        WeddingContributionSheetBody(
+            momentId = momentId,
+            repository = repository,
+            onDismiss = onDismiss,
+            onSaved = onSaved,
+            accent = accent,
+            poolPlaceholder = poolHint,
+            editingContribution = editingContribution,
+            onDeleted = onDeleted,
+        )
     }
 }
 
