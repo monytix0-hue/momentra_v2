@@ -150,8 +150,7 @@ struct MomentsContributionDetailsSection: View {
     var chrome: MomentsChrome
     var momentId: String? = nil
     var onViewAll: (() -> Void)?
-
-    @State private var receiptItem: GroupContributionItem?
+    var onEdit: ((GroupContributionItem) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -167,19 +166,9 @@ struct MomentsContributionDetailsSection: View {
                         item: item,
                         chrome: chrome,
                         avatarIndex: idx,
-                        onTap: momentId != nil ? { receiptItem = item } : nil
+                        onTap: (momentId != nil && onEdit != nil) ? { onEdit?(item) } : nil
                     )
                 }
-            }
-        }
-        .sheet(item: $receiptItem) { item in
-            if let momentId {
-                ContributionReceiptSheet(
-                    momentId: momentId,
-                    item: item,
-                    chrome: chrome,
-                    onDismiss: { receiptItem = nil }
-                )
             }
         }
     }
@@ -190,8 +179,7 @@ struct ContributionsListSheet: View {
     var chrome: MomentsChrome
     var momentId: String? = nil
     var onDismiss: () -> Void
-
-    @State private var receiptItem: GroupContributionItem?
+    var onEdit: ((GroupContributionItem) -> Void)? = nil
 
     private var grouped: [(day: Date, items: [GroupContributionItem])] {
         let today = Calendar.current.startOfDay(for: Date())
@@ -232,7 +220,7 @@ struct ContributionsListSheet: View {
                                         item: item,
                                         chrome: chrome,
                                         avatarIndex: idx,
-                                        onTap: momentId != nil ? { receiptItem = item } : nil
+                                        onTap: (momentId != nil && onEdit != nil) ? { onEdit?(item) } : nil
                                     )
                                 }
                             }
@@ -251,19 +239,6 @@ struct ContributionsListSheet: View {
                 }
             }
         }
-        .sheet(item: $receiptItem) { item in
-            if let momentId {
-                ContributionReceiptSheet(
-                    momentId: momentId,
-                    item: item,
-                    chrome: chrome,
-                    onDismiss: { receiptItem = nil }
-                )
-            }
-        }
         .presentationDetents([.medium, .large])
     }
 }
-
-
-

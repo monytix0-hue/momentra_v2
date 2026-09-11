@@ -273,6 +273,7 @@ private fun ExperienceQuickAddKind.hubTileSpec(): GroupActionRegistry.HubTileSpe
     return when (this) {
         ExperienceQuickAddKind.PARTICIPANT -> hub.first { it.id == "invite" }.copy(label = label())
         ExperienceQuickAddKind.PLANNING -> hub.first { it.id == "planning" }
+        ExperienceQuickAddKind.CHECKLIST -> hub.first { it.id == "checklist" }
         ExperienceQuickAddKind.EXPENSE -> hub.first { it.id == "expense" }
         ExperienceQuickAddKind.BUDGET -> hub.first { it.id == "budget" }
         ExperienceQuickAddKind.CONTRIBUTION -> hub.first { it.id == "contribution" }

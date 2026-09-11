@@ -27,6 +27,7 @@ object GroupActionRegistry {
         PARTICIPANTS,
         BUDGET,
         PLANNING,
+        CHECKLIST,
         BOOKING,
         POLL,
         MEMORY,
@@ -50,12 +51,13 @@ object GroupActionRegistry {
 
     /** Figma 575:14655 — Trip Action Center 3×3 grid. */
     val tripHubTileIds: Set<String> = setOf(
-        "expense", "planning", "budget", "booking", "poll", "memory", "update", "contribution", "invite",
+        "expense", "planning", "checklist", "budget", "booking", "poll", "memory", "update", "contribution", "invite",
     )
 
     val figmaHubTiles: List<HubTileSpec> = listOf(
         HubTileSpec("expense", "Expense", "Split a cost", R.drawable.ic_group_qa_wallet, androidx.compose.ui.graphics.Color(0xFF33C759), androidx.compose.ui.graphics.Color(0xFF0F766E), Destination.EXPENSE, EXPENSE_CREATE),
         HubTileSpec("planning", "Planning", "Itinerary & tasks", R.drawable.ic_group_qa_calendar, androidx.compose.ui.graphics.Color(0xFF14B8A6), androidx.compose.ui.graphics.Color(0xFF0F766E), Destination.PLANNING, PLANNING_ITEM_CREATE),
+        HubTileSpec("checklist", "Checklist", "Packing & essentials", R.drawable.ic_group_qa_calendar, androidx.compose.ui.graphics.Color(0xFF60A5FA), androidx.compose.ui.graphics.Color(0xFF2563EB), Destination.CHECKLIST, PLANNING_ITEM_CREATE),
         HubTileSpec("budget", "Budget", "Edit planned total", R.drawable.ic_group_qa_chartbar, androidx.compose.ui.graphics.Color(0xFFFFB598), androidx.compose.ui.graphics.Color(0xFFE8621A), Destination.BUDGET),
         HubTileSpec("booking", "Booking", "Reservations", R.drawable.ic_group_qa_ticket, androidx.compose.ui.graphics.Color(0xFFFF7A3D), androidx.compose.ui.graphics.Color(0xFFE85940), Destination.BOOKING, BOOKING_CREATE),
         HubTileSpec("poll", "Poll", "Group decisions", R.drawable.ic_group_qa_vote, androidx.compose.ui.graphics.Color(0xFFA855F7), androidx.compose.ui.graphics.Color(0xFF7C3AED), Destination.POLL, POLL_CREATE),

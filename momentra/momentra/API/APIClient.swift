@@ -847,7 +847,7 @@ final class APIClient {
     }
 
     struct ActivityItemPayload: Decodable, Identifiable {
-        var id: String { occurredAt + title + (activityPayload?.expenseId ?? activityPayload?.incomeId ?? activityPayload?.activityId ?? "") }
+        var id: String { occurredAt + title + (activityPayload?.expenseId ?? activityPayload?.incomeId ?? activityPayload?.contributionId ?? activityPayload?.activityId ?? "") }
         let activityCode: String
         let title: String
         let occurredAt: String
@@ -859,6 +859,7 @@ final class APIClient {
             let expenseId: String?
             let incomeId: String?
             let activityId: String?
+            let contributionId: String?
             let amount: String?
             let currencyCode: String?
             let lifestyleContext: String?
@@ -868,6 +869,7 @@ final class APIClient {
             let subcategoryCode: String?
             let financialAccountId: String?
             let paymentMethodCode: String?
+            let participantId: String?
             let status: String?
             let wellbeingRating: Double?
             let source: String?
@@ -2456,7 +2458,7 @@ final class APIClient {
 
     struct RecordContributionResult: Decodable {
         let contributionId: String
-        let momentId: String
+        let momentId: String?
     }
 
     struct GroupSplitInput: Encodable {
@@ -2670,6 +2672,51 @@ final class APIClient {
                 status: status,
                 attachmentUploadIds: attachmentUploadIds
             ),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func updateContribution(
+        momentId: String,
+        contributionId: String,
+        amount: String? = nil,
+        currencyCode: String? = nil,
+        label: String? = nil,
+        paymentMethodCode: String? = nil,
+        participantId: String? = nil,
+        status: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> RecordContributionResult {
+        struct Body: Encodable {
+            let amount: String?
+            let currencyCode: String?
+            let label: String?
+            let paymentMethodCode: String?
+            let participantId: String?
+            let status: String?
+        }
+        return try await authorizedPatch(
+            path: "v1/moments/\(momentId)/contributions/\(contributionId)",
+            body: Body(
+                amount: amount,
+                currencyCode: currencyCode,
+                label: label,
+                paymentMethodCode: paymentMethodCode,
+                participantId: participantId,
+                status: status
+            ),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func voidContribution(
+        momentId: String,
+        contributionId: String,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> RecordContributionResult {
+        try await authorizedDelete(
+            path: "v1/moments/\(momentId)/contributions/\(contributionId)",
+            body: Optional<String>.none as String?,
             idempotencyKey: idempotencyKey
         )
     }

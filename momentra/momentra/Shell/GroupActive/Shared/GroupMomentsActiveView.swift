@@ -22,7 +22,11 @@ struct GroupMomentsActiveView: View {
     @State private var selectedPollId: String?
     @State private var pollsListOpen = false
     @State private var scheduleOpen = false
+    @State private var checklistSheetOpen = false
     @State private var contributionsOpen = false
+    @State private var expensesOpen = false
+    @State private var editingContribution: APIClient.GroupContributionItem?
+    @State private var editContributionPresented = false
     @State private var loading = true
     @State private var error: String?
 
@@ -65,6 +69,13 @@ struct GroupMomentsActiveView: View {
                             sharedExperienceHero
                             pollsSection
                             itinerarySection
+                            MomentsChecklistSection(
+                                items: planningItems,
+                                momentId: momentId,
+                                chrome: .trip,
+                                onChanged: { Task { await reloadPlanning() } },
+                                onAdd: { checklistSheetOpen = true }
+                            )
                             updatesSection
                             gallerySection
                             bookingsSection
@@ -81,7 +92,7 @@ struct GroupMomentsActiveView: View {
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
         .sheet(isPresented: $scheduleOpen) {
             PlanningScheduleSheet(
-                items: planningItems,
+                items: GroupExperienceChecklistCatalog.nonChecklistItems(planningItems),
                 momentId: momentId,
                 momentTypeCode: momentTypeCode,
                 accent: Color(hex: "#14B8A6"),
@@ -93,6 +104,31 @@ struct GroupMomentsActiveView: View {
                 onDismiss: { scheduleOpen = false },
                 onSaved: { Task { await load() } }
             )
+        }
+        .sheet(isPresented: $checklistSheetOpen) {
+            NativeSheetScaffold(
+                title: "Checklist",
+                onClose: { checklistSheetOpen = false },
+                background: GroupActiveTheme.bg
+            ) {
+                ScrollView {
+                    ExperienceChecklistBody(
+                        momentId: momentId,
+                        onDismiss: { checklistSheetOpen = false },
+                        onSaved: { Task { await reloadPlanning() } },
+                        accent: SheetAccent(
+                            accent: Color(hex: "#14B8A6"),
+                            accentEnd: Color(hex: "#0F766E"),
+                            soft: Color(hex: "#14B8A6").opacity(0.2)
+                        )
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 28)
+                }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $pollsListOpen) {
             GroupPollsListSheet(
@@ -108,7 +144,39 @@ struct GroupMomentsActiveView: View {
                 items: listContributions,
                 chrome: .trip,
                 momentId: momentId,
-                onDismiss: { contributionsOpen = false }
+                onDismiss: { contributionsOpen = false },
+                onEdit: { item in
+                    contributionsOpen = false
+                    editingContribution = item
+                    editContributionPresented = true
+                }
+            )
+        }
+        .sheet(isPresented: $editContributionPresented) {
+            if let momentId, let editingContribution {
+                GroupContributionSheet(
+                    momentId: momentId,
+                    isPresented: $editContributionPresented,
+                    editingContribution: editingContribution,
+                    onSaved: {
+                        editContributionPresented = false
+                        Task { await load() }
+                    },
+                    onDeleted: {
+                        editContributionPresented = false
+                        Task { await load() }
+                    }
+                )
+            }
+        }
+        .onChange(of: editContributionPresented) { _, open in
+            if !open { editingContribution = nil }
+        }
+        .sheet(isPresented: $expensesOpen) {
+            ExpensesListSheet(
+                items: listExpenses,
+                chrome: .trip,
+                onDismiss: { expensesOpen = false }
             )
         }
         .sheet(item: Binding(
@@ -555,7 +623,11 @@ struct GroupMomentsActiveView: View {
             items: listContributions,
             chrome: .trip,
             momentId: momentId,
-            onViewAll: { contributionsOpen = true }
+            onViewAll: { contributionsOpen = true },
+            onEdit: { item in
+                editingContribution = item
+                editContributionPresented = true
+            }
         )
     }
 
@@ -575,7 +647,7 @@ struct GroupMomentsActiveView: View {
         )
 
         return VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Expenses & Budget  💸")
+            sectionHeader("Expenses & Budget  💸", action: { expensesOpen = true })
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
                     expenseSummaryTile("Total spent", spentLine)
@@ -725,6 +797,11 @@ struct GroupMomentsActiveView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    private func reloadPlanning() async {
+        guard let momentId else { return }
+        listPlanning = (try? await APIClient.shared.listPlanningItems(momentId: momentId))?.items ?? listPlanning
+    }
+
     private func load() async {
         guard let momentId else { loading = false; return }
         error = nil
@@ -748,7 +825,7 @@ struct GroupMomentsActiveView: View {
             async let updatesResult = APIClient.shared.listGroupUpdates(momentId: momentId)
             async let pollsResult = APIClient.shared.listPolls(momentId: momentId)
             async let memoriesResult = APIClient.shared.listGroupMemories(momentId: momentId)
-            async let expensesResult = APIClient.shared.listGroupExpenses(momentId: momentId, limit: 10)
+            async let expensesResult = APIClient.shared.listGroupExpenses(momentId: momentId, limit: 50)
             async let contributionsResult = APIClient.shared.listContributions(momentId: momentId, limit: 50)
             let loadedLife = try await lifeResult
             life = loadedLife

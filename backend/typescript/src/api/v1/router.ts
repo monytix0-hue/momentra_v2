@@ -3219,6 +3219,70 @@ v1Router.post('/moments/:momentId/contributions', requireIdempotencyKey, async (
   }
 });
 
+v1Router.patch('/moments/:momentId/contributions/:contributionId', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(collaborationService.updateContributionSchema, req.body);
+    const result = await runCommand({
+      operationCode: 'CONTRIBUTION_RECORD',
+      idempotencyKey: req.idempotencyKey!,
+      body,
+      ctx,
+      resourceType: 'CONTRIBUTION',
+      execute: async (client, b) => {
+        const r = await collaborationService.updateContribution(
+          client,
+          ctx,
+          param(req.params.momentId),
+          param(req.params.contributionId),
+          b as collaborationService.UpdateContributionInput
+        );
+        return { result: r, resourceId: r.contributionId };
+      },
+    });
+    const hints = ['group.activity', 'group.pulse', 'group.finance'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.json(
+      commandEnvelope(result, ctx.correlationId, {
+        projectionHints: toProjectionHints([...hints], 'refresh'),
+      })
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.delete('/moments/:momentId/contributions/:contributionId', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const result = await runCommand({
+      operationCode: 'CONTRIBUTION_RECORD',
+      idempotencyKey: req.idempotencyKey!,
+      body: {},
+      ctx,
+      resourceType: 'CONTRIBUTION',
+      execute: async (client) => {
+        const r = await collaborationService.voidContribution(
+          client,
+          ctx,
+          param(req.params.momentId),
+          param(req.params.contributionId)
+        );
+        return { result: r, resourceId: r.contributionId };
+      },
+    });
+    const hints = ['group.activity', 'group.pulse', 'group.finance'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.json(
+      commandEnvelope(result, ctx.correlationId, {
+        projectionHints: toProjectionHints([...hints], 'refresh'),
+      })
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+
 // --- GX2-C Group collaboration commands + reads ---
 v1Router.get('/group/moments/:momentId/planning-items', async (req, res, next) => {
   try {

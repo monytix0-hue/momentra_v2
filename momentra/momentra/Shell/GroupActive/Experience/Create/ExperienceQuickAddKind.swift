@@ -3,6 +3,7 @@ import SwiftUI
 enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
     case participant
     case planning
+    case checklist
     case expense
     case budget
     case contribution
@@ -18,7 +19,7 @@ enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
 
     var isLive: Bool {
         switch self {
-        case .expense, .budget, .contribution, .settle, .planning, .poll, .update, .memory,
+        case .expense, .budget, .contribution, .settle, .planning, .checklist, .poll, .update, .memory,
              .vendor, .attendance, .participant, .booking:
             return true
         }
@@ -28,6 +29,7 @@ enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
         switch self {
         case .participant: return "Invite"
         case .planning: return "Planning Item"
+        case .checklist: return "Checklist"
         case .expense: return "Expense"
         case .budget: return "Budget"
         case .contribution: return "Contribution"
@@ -45,6 +47,7 @@ enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
         switch self {
         case .participant: return "👤"
         case .planning: return "📋"
+        case .checklist: return "✅"
         case .expense: return "💳"
         case .budget: return "💰"
         case .contribution: return "🎁"
@@ -62,6 +65,7 @@ enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
         switch self {
         case .participant: return "Invite"
         case .planning: return "Planning"
+        case .checklist: return "Checklist"
         case .expense: return "Expense"
         case .budget: return "Budget"
         case .contribution: return "Contribution"
@@ -78,7 +82,7 @@ enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
     var hubIconAsset: String {
         switch self {
         case .participant: return "GroupQaUserPlus"
-        case .planning: return "GroupQaCalendar"
+        case .planning, .checklist: return "GroupQaCalendar"
         case .expense: return "GroupQaWallet"
         case .budget: return "GroupQaChartBar"
         case .contribution: return "GroupQaHandshake"
@@ -96,6 +100,7 @@ enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
         switch self {
         case .participant: return [Color(hex: "#FFB598"), Color(hex: "#E8621A")]
         case .planning: return [Color(hex: "#14B8A6"), Color(hex: "#0F766E")]
+        case .checklist: return [Color(hex: "#60A5FA"), Color(hex: "#2563EB")]
         case .expense: return [Color(hex: "#33C759"), Color(hex: "#0F766E")]
         case .budget: return [Color(hex: "#FFB598"), Color(hex: "#E8621A")]
         case .contribution: return [Color(hex: "#10B981"), Color(hex: "#047857")]
@@ -113,6 +118,7 @@ enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
         switch self {
         case .participant: return [theme.accentLight, theme.accent]
         case .planning: return [Color(hex: "#60A5FA"), Color(hex: "#2563EB")]
+        case .checklist: return [Color(hex: "#60A5FA"), Color(hex: "#2563EB")]
         case .expense: return [Color(hex: "#34D399"), Color(hex: "#059669")]
         case .budget: return [theme.accentLight, theme.accentSolid]
         case .contribution: return [Color(hex: "#2DD4BF"), Color(hex: "#0F766E")]
@@ -128,7 +134,7 @@ enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
 
     static func hubTiles(includesVendor: Bool) -> [ExperienceQuickAddKind] {
         var tiles: [ExperienceQuickAddKind] = [
-            .participant, .planning, .expense, .budget, .contribution,
+            .participant, .planning, .checklist, .expense, .budget, .contribution,
         ]
         if includesVendor {
             tiles.append(.vendor)
@@ -141,6 +147,7 @@ enum ExperienceQuickAddKind: String, Identifiable, CaseIterable {
         switch self {
         case .participant: return .participant
         case .planning: return .planning
+        case .checklist: return .checklist
         case .expense: return .expense
         case .budget: return .budget
         case .contribution: return .contribution

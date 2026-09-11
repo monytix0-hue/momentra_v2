@@ -35,6 +35,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -72,12 +74,15 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.example.momentra.R
 import com.example.momentra.data.api.CreateGroupExpenseBody
+import com.example.momentra.data.api.GroupContributionItemDto
 import com.example.momentra.data.api.GroupExpenseSplitInputDto
 import com.example.momentra.data.api.GroupLifePlanningItemDto
 import com.example.momentra.data.api.GroupParticipantDto
 import com.example.momentra.data.repository.GroupExpenseSplitBuilder
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.empty.group.GroupBudgetUtils
+import com.example.momentra.ui.shell.group.shared.contributionPaymentMethodLabel
+import com.example.momentra.ui.shell.group.shared.ExperienceChecklistSheetBody
 import com.example.momentra.ui.shell.group.shared.GroupExpenseCategoryCatalog
 import com.example.momentra.ui.shell.group.shared.GroupPlanningCategoryCatalog
 import com.example.momentra.ui.shell.group.shared.GroupReceiptPickControl
@@ -128,7 +133,7 @@ private object Wq {
     )
 }
 
-internal data class SheetAccent(
+data class SheetAccent(
     val accent: Color,
     val accentEnd: Color,
     val soft: Color,
@@ -188,6 +193,13 @@ fun WeddingGapQuickAddSheet(
                 WeddingQuickAddKind.PARTICIPANT -> WeddingParticipantSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.VENDOR -> WeddingVendorSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.PLANNING -> WeddingPlanningSheetBody(momentId, repository, onDismiss, onSaved, momentTypeCode = "WEDDING")
+                WeddingQuickAddKind.CHECKLIST -> ExperienceChecklistSheetBody(
+                    momentId = momentId,
+                    repository = repository,
+                    onDismiss = onDismiss,
+                    onSaved = onSaved,
+                    accent = SoftPinkAccent,
+                )
                 WeddingQuickAddKind.ATTENDANCE -> WeddingAttendanceSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.POLL -> WeddingPollSheetBody(momentId, repository, onDismiss, onSaved)
                 WeddingQuickAddKind.MEMORY -> WeddingMemorySheetBody(momentId, repository, onDismiss, onSaved)
@@ -670,7 +682,7 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
     }
 
     val people: List<Pair<String, String>> = participants.map {
-        it.participantId to (it.displayName ?: it.participantId.take(8))
+        it.participantId to weddingExpenseParticipantLabel(it)
     }
 
     fun seedSplitValues(strategy: String, ids: Set<String>) {
@@ -734,14 +746,43 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FieldLabel("Paid By")
-            SheetField(
-                value = participants.firstOrNull { it.participantId == paidBy }?.displayName ?: "Select",
-                onValueChange = {},
-                placeholder = "Select",
-                trailing = {
+            var paidByOpen by remember { mutableStateOf(false) }
+            Box {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Wq.Field)
+                        .border(1.dp, Wq.Border, RoundedCornerShape(10.dp))
+                        .clickable(enabled = participants.isNotEmpty()) { paidByOpen = true }
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        participants.firstOrNull { it.participantId == paidBy }?.let { weddingExpenseParticipantLabel(it) }
+                            ?: "Select",
+                        color = Wq.Text,
+                        fontSize = 14.sp,
+                        fontFamily = PlusJakartaSans,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f),
+                    )
                     Icon(painterResource(R.drawable.ic_biz_create_chevron), null, tint = Wq.Muted, modifier = Modifier.size(16.dp))
-                },
-            )
+                }
+                DropdownMenu(expanded = paidByOpen, onDismissRequest = { paidByOpen = false }) {
+                    participants.forEach { p ->
+                        DropdownMenuItem(
+                            text = { Text(weddingExpenseParticipantLabel(p), fontFamily = PlusJakartaSans) },
+                            onClick = {
+                                paidBy = p.participantId
+                                paidByOpen = false
+                            },
+                        )
+                    }
+                }
+            }
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FieldLabel("Date")
@@ -814,7 +855,10 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FieldLabel(valueLabel)
             selected.sorted().forEach { id ->
-                val name = participants.firstOrNull { it.participantId == id }?.displayName ?: id.take(8)
+                val name = weddingExpenseParticipantLabel(
+                    participants.firstOrNull { it.participantId == id },
+                    fallbackId = id,
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -984,7 +1028,10 @@ internal fun WeddingContributionSheetBody(
     onSaved: () -> Unit,
     accent: SheetAccent = ContribAccent,
     poolPlaceholder: String = "Trip Pool",
+    editingContribution: GroupContributionItemDto? = null,
+    onDeleted: () -> Unit = onSaved,
 ) {
+    val isEditing = editingContribution != null
     var amount by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("INR") }
     var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
@@ -994,10 +1041,12 @@ internal fun WeddingContributionSheetBody(
     var participants by remember { mutableStateOf<List<GroupParticipantDto>>(emptyList()) }
     var selectedParticipantId by remember { mutableStateOf<String?>(null) }
     var submitting by remember { mutableStateOf(false) }
+    var voiding by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var uploadingDoc by remember { mutableStateOf(false) }
     var attachmentUploadIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var attachmentNames by remember { mutableStateOf<List<String>>(emptyList()) }
+    var didPrefill by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val live = !momentId.isNullOrBlank()
@@ -1025,11 +1074,25 @@ internal fun WeddingContributionSheetBody(
         }
     }
 
-    LaunchedEffect(momentId) {
+    LaunchedEffect(momentId, editingContribution?.contributionId) {
         if (momentId.isNullOrBlank()) return@LaunchedEffect
         val ctx = loadGroupCurrencyContext(momentId)
-        currency = ctx.primary
         preferredCurrencyCodes = ctx.preferred
+        if (!didPrefill) {
+            currency = editingContribution?.currencyCode ?: ctx.primary
+        }
+        if (!didPrefill && editingContribution != null) {
+            val existing = editingContribution
+            amount = existing.amount.orEmpty()
+            currency = existing.currencyCode?.takeIf { it.isNotBlank() } ?: ctx.primary
+            pool = existing.label?.takeIf { it.isNotBlank() } ?: poolPlaceholder
+            method = contributionPaymentMethodLabel(existing.paymentMethodCode).let {
+                if (it == "—") "UPI" else it
+            }
+            status = if (existing.status.equals("PENDING", true)) "Pending" else "Paid"
+            selectedParticipantId = existing.participantId
+            didPrefill = true
+        }
         repository.getParticipants(momentId).onSuccess { dto ->
             val eligible = dto.participants.filter {
                 it.status.equals("ACTIVE", true) || it.status.equals("INVITED", true)
@@ -1049,7 +1112,12 @@ internal fun WeddingContributionSheetBody(
         else -> "UPI"
     }
 
-    SheetHeader(R.drawable.ic_qa_users, "Add Contribution", accent = accent, iconSize = 20)
+    SheetHeader(
+        R.drawable.ic_qa_users,
+        if (isEditing) "Edit Contribution" else "Add Contribution",
+        accent = accent,
+        iconSize = 20,
+    )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FieldLabel("Amount Contributed")
         SheetField(
@@ -1147,7 +1215,7 @@ internal fun WeddingContributionSheetBody(
                     .clip(RoundedCornerShape(10.dp))
                     .background(Wq.Field)
                     .border(1.dp, Wq.Border, RoundedCornerShape(10.dp))
-                    .clickable(enabled = live && !uploadingDoc) { receiptPicker.launch("*/*") }
+                    .clickable(enabled = live && !uploadingDoc && !isEditing) { receiptPicker.launch("*/*") }
                     .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -1156,6 +1224,7 @@ internal fun WeddingContributionSheetBody(
                     when {
                         uploadingDoc -> "Uploading…"
                         attachmentNames.isNotEmpty() -> attachmentNames.joinToString(", ")
+                        isEditing -> "📎 Receipt (view in Moments)"
                         else -> "📎 Attach PDF/Img"
                     },
                     color = Wq.Muted,
@@ -1180,10 +1249,39 @@ internal fun WeddingContributionSheetBody(
         }
     }
     error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
+    if (isEditing && editingContribution != null) {
+        Text(
+            if (voiding) "Voiding…" else "Void contribution",
+            color = Color(0xFFF87171),
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp,
+            fontFamily = PlusJakartaSans,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = !submitting && !voiding) {
+                    scope.launch {
+                        voiding = true
+                        error = null
+                        repository.voidContribution(momentId!!, editingContribution.contributionId).fold(
+                            onSuccess = {
+                                voiding = false
+                                onDeleted()
+                                onDismiss()
+                            },
+                            onFailure = {
+                                voiding = false
+                                error = it.message ?: "Could not void contribution"
+                            },
+                        )
+                    }
+                }
+                .padding(vertical = 8.dp),
+        )
+    }
     val normalizedAmount = remember(amount) { normalizeContributionAmount(amount) }
     PrimaryCta(
-        label = "Add Contribution",
-        enabled = live && normalizedAmount != null,
+        label = if (isEditing) "Save Contribution" else "Add Contribution",
+        enabled = live && normalizedAmount != null && !voiding,
         accent = accent,
         loading = submitting,
         footer = "Balance will be updated for everyone",
@@ -1197,16 +1295,31 @@ internal fun WeddingContributionSheetBody(
             scope.launch {
                 submitting = true
                 error = null
-                repository.recordContribution(
-                    momentId = momentId!!,
-                    amount = amt,
-                    currencyCode = currency,
-                    label = pool.ifBlank { null },
-                    paymentMethodCode = paymentMethodCode(method),
-                    participantId = selectedParticipantId,
-                    status = if (status == "Pending") "PENDING" else "PAID",
-                    attachmentUploadIds = attachmentUploadIds.ifEmpty { null },
-                ).fold(
+                val statusCode = if (status == "Pending") "PENDING" else "PAID"
+                val result = if (editingContribution != null) {
+                    repository.updateContribution(
+                        momentId = momentId!!,
+                        contributionId = editingContribution.contributionId,
+                        amount = amt,
+                        currencyCode = currency,
+                        label = pool.ifBlank { null },
+                        paymentMethodCode = paymentMethodCode(method),
+                        participantId = selectedParticipantId,
+                        status = statusCode,
+                    )
+                } else {
+                    repository.recordContribution(
+                        momentId = momentId!!,
+                        amount = amt,
+                        currencyCode = currency,
+                        label = pool.ifBlank { null },
+                        paymentMethodCode = paymentMethodCode(method),
+                        participantId = selectedParticipantId,
+                        status = statusCode,
+                        attachmentUploadIds = attachmentUploadIds.ifEmpty { null },
+                    )
+                }
+                result.fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
                     onFailure = { submitting = false; error = it.message ?: "Could not save contribution" },
                 )
@@ -1227,6 +1340,16 @@ private fun normalizeContributionAmount(raw: String): String? {
     val plain = capped.stripTrailingZeros().toPlainString()
     if (!Regex("""^\d+(\.\d{1,4})?$""").matches(plain)) return null
     return plain
+}
+
+private fun weddingExpenseParticipantLabel(
+    p: GroupParticipantDto?,
+    fallbackId: String? = null,
+): String {
+    val id = p?.participantId ?: fallbackId.orEmpty()
+    val trimmed = p?.displayName?.trim().orEmpty()
+    val base = if (trimmed.isNotEmpty()) trimmed else id.take(8).ifEmpty { "Member" }
+    return if (p?.isGuest == true) "$base · Guest" else base
 }
 
 @Composable

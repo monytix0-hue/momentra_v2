@@ -242,7 +242,10 @@ func itineraryDayGroups(
     limit: Int = 3,
     calendar: Calendar = .current
 ) -> [(day: Date, items: [GroupPlanningItem])] {
-    let open = recentOpenPlanningItems(items, limit: 50)
+    let open = recentOpenPlanningItems(
+        GroupExperienceChecklistCatalog.nonChecklistItems(items),
+        limit: 50
+    )
     var orderedDays: [Date] = []
     var buckets: [Date: [GroupPlanningItem]] = [:]
     for item in open {

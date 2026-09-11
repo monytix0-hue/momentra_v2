@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.group.shared.ExperienceChecklistSheetBody
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.shared.TripSheetTokens
 import com.example.momentra.ui.shell.group.wedding.create.ChipRow
@@ -149,6 +150,14 @@ fun ExperienceGapQuickAddSheet(
                         onSaved,
                         accent,
                         momentTypeCode = momentTypeCode,
+                    )
+                ExperienceQuickAddKind.CHECKLIST ->
+                    ExperienceChecklistSheetBody(
+                        momentId = momentId,
+                        repository = repository,
+                        onDismiss = onDismiss,
+                        onSaved = onSaved,
+                        accent = accent,
                     )
                 ExperienceQuickAddKind.ATTENDANCE ->
                     WeddingAttendanceSheetBody(momentId, repository, onDismiss, onSaved, accent)

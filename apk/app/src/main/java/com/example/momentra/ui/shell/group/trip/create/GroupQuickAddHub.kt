@@ -67,6 +67,7 @@ fun GroupQuickAddHub(
     onInvite: () -> Unit = {},
     onBudget: () -> Unit = {},
     onPlanning: () -> Unit = {},
+    onChecklist: () -> Unit = {},
     onBooking: () -> Unit = {},
     onPoll: () -> Unit = {},
     onUpdate: () -> Unit = {},
@@ -264,6 +265,7 @@ fun GroupQuickAddHub(
                                 GroupActionRegistry.Destination.PARTICIPANTS -> onParticipants()
                                 GroupActionRegistry.Destination.BUDGET -> onBudget()
                                 GroupActionRegistry.Destination.PLANNING -> onPlanning()
+                                GroupActionRegistry.Destination.CHECKLIST -> onChecklist()
                                 GroupActionRegistry.Destination.BOOKING -> onBooking()
                                 GroupActionRegistry.Destination.POLL -> onPoll()
                                 GroupActionRegistry.Destination.UPDATE -> onUpdate()

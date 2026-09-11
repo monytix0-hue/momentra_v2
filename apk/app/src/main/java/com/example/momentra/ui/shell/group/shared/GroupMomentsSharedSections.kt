@@ -9,13 +9,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,8 +37,6 @@ import com.example.momentra.data.api.GroupLifeBookingDto
 import com.example.momentra.data.api.GroupLifePlanningItemDto
 import com.example.momentra.data.api.GroupLifeUpdateDto
 import com.example.momentra.data.api.GroupPollItemDto
-import com.example.momentra.ui.shell.group.shared.formatBookingDay
-import com.example.momentra.ui.shell.group.shared.formatBookingDayTime
 import com.example.momentra.ui.shell.group.experience.create.ExperienceActiveTheme
 import com.example.momentra.ui.shell.group.living.create.LivingActiveTheme
 import com.example.momentra.ui.shell.group.purchase.create.PurchaseActiveTheme
@@ -481,6 +486,125 @@ fun MomentsExpensesCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExpensesListSheet(
+    items: List<GroupExpenseListItemDto>,
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    chrome: MomentsChrome,
+    fallbackCurrency: String = "INR",
+) {
+    if (!visible) return
+    val grouped = remember(items) {
+        val today = LocalDate.now()
+        val map = linkedMapOf<LocalDate, MutableList<GroupExpenseListItemDto>>()
+        items.forEach { item ->
+            val day = contributionDayKey(item.effectiveAt) ?: today
+            map.getOrPut(day) { mutableListOf() }.add(item)
+        }
+        map.entries.sortedByDescending { it.key }
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = chrome.bg,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 4.dp)
+                    .size(width = 40.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(Color.White.copy(alpha = 0.2f)),
+            )
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                "Expenses",
+                color = chrome.text,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = PlusJakartaSans,
+            )
+            if (grouped.isEmpty()) {
+                GroupEmptySection("No expenses yet", "Add a group expense from Quick Add.")
+            } else {
+                grouped.forEach { (day, dayItems) ->
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            contributionDayHeader(day),
+                            color = chrome.secondary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                        dayItems.forEach { expense ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(chrome.card)
+                                    .border(1.dp, chrome.border, RoundedCornerShape(12.dp))
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(3.dp)
+                                        .height(36.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(chrome.accent),
+                                )
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        expense.description ?: "Expense",
+                                        color = chrome.text,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontFamily = PlusJakartaSans,
+                                        maxLines = 1,
+                                    )
+                                    Text(
+                                        (expense.categoryCode ?: "General").replace('_', ' ')
+                                            .replaceFirstChar { it.titlecase(Locale.US) },
+                                        color = chrome.secondary,
+                                        fontSize = 11.sp,
+                                        fontFamily = PlusJakartaSans,
+                                    )
+                                }
+                                Text(
+                                    GroupFinanceFormat.formatMoney(expense.amount, expense.currencyCode ?: fallbackCurrency),
+                                    color = chrome.text,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = PlusJakartaSans,
+                                )
+                                Text(
+                                    expense.paidByDisplayName ?: "—",
+                                    color = chrome.secondary,
+                                    fontSize = 11.sp,
+                                    fontFamily = PlusJakartaSans,
+                                    modifier = Modifier.width(56.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun MomentsExpenseSummaryTile(
     label: String,
@@ -539,7 +663,10 @@ fun buildMomentsUpcomingEvents(
         if (out.size >= 2) break
     }
     if (out.size < 2) {
-        for (plan in recentOpenPlanningItems(planningItems, limit = 8)) {
+        for (plan in recentOpenPlanningItems(
+            GroupExperienceChecklistCatalog.nonChecklistItems(planningItems),
+            limit = 8,
+        )) {
             val dueMillis = parseInstantMillis(plan.dueAt) ?: continue
             if (dueMillis < now) continue
             val day = java.time.Instant.ofEpochMilli(dueMillis).atZone(zone).toLocalDate()

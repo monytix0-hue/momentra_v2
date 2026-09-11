@@ -57,6 +57,9 @@ enum GroupPlanningCategoryCatalog {
     static func label(forCode code: String?, momentTypeCode: String?) -> String {
         let normalized = (code ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if normalized.isEmpty { return defaultLabel(for: momentTypeCode) }
+        if GroupExperienceChecklistCatalog.isChecklistCode(normalized) {
+            return GroupExperienceChecklistCatalog.label(forCode: normalized)
+        }
         if let match = categories(for: momentTypeCode).first(where: { $0.code == normalized }) {
             return match.label
         }

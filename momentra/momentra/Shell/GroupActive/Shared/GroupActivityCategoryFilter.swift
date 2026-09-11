@@ -51,6 +51,7 @@ enum GroupActivityCategoryFilter {
         let emojiById: [String: String] = [
             "expense": "💳",
             "planning": "📋",
+            "checklist": "✅",
             "budget": "💰",
             "booking": "🧳",
             "poll": "📊",
@@ -73,6 +74,7 @@ enum GroupActivityCategoryFilter {
         switch kind {
         case .participant: return "Invite"
         case .planning: return "Planning"
+        case .checklist: return "Checklist"
         case .expense: return "Expense"
         case .budget: return "Budget"
         case .contribution: return "Contribution"
@@ -92,10 +94,13 @@ enum GroupActivityCategoryFilter {
         case "expense":
             return upper.contains("EXPENSE")
         case "contribution":
-            return upper.contains("CONTRIB")
+            return upper.contains("CONTRIBUTION")
+                || (upper.contains("CONTRIB") && !upper.contains("CONTRIBUTOR"))
         case "settle":
             return upper.contains("SETTLE")
         case "planning":
+            return upper.contains("PLANNING")
+        case "checklist":
             return upper.contains("PLANNING")
         case "task":
             return upper.contains("TASK") && !upper.contains("PLANNING")

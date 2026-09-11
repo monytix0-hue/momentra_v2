@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Full Group activity list with cursor pagination + expense edit/void.
+/// Full Group activity list with cursor pagination + expense/contribution edit/void.
 struct GroupRecentActivityFlow: View {
     let momentId: String
     var momentTypeCode: String? = nil
@@ -15,6 +15,9 @@ struct GroupRecentActivityFlow: View {
     @State private var filter = GroupActivityCategoryFilter.allId
     @State private var editingExpenseId: String?
     @State private var editExpensePresented = false
+    @State private var editingContribution: APIClient.GroupContributionItem?
+    @State private var editContributionPresented = false
+    @State private var resolvingContribution = false
 
     private var isWedding: Bool {
         GroupExperienceFamily.forTypeCode(momentTypeCode).isWedding
@@ -65,16 +68,22 @@ struct GroupRecentActivityFlow: View {
                                 }
                                 ForEach(Array(filteredItems.enumerated()), id: \.offset) { _, item in
                                     let expenseId = item.activityPayload?.expenseId
-                                    let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
+                                    let contributionId = item.activityPayload?.contributionId
+                                    let canEditExpense = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
+                                    let canEditContribution = Self.isContribution(item) && contributionId != nil
+                                    let canEdit = canEditExpense || canEditContribution
                                     GroupActivityRow(
                                         item: item,
                                         accent: accent,
                                         showChevron: canEdit,
                                         compactPadding: false,
                                         action: canEdit ? {
-                                            guard let expenseId else { return }
-                                            editingExpenseId = expenseId
-                                            editExpensePresented = true
+                                            if canEditExpense, let expenseId {
+                                                editingExpenseId = expenseId
+                                                editExpensePresented = true
+                                            } else if canEditContribution, let contributionId {
+                                                Task { await openContributionEdit(contributionId: contributionId) }
+                                            }
                                         } : nil
                                     )
                                     Divider().overlay(Color(hex: "#2A2624"))
@@ -112,6 +121,11 @@ struct GroupRecentActivityFlow: View {
                         .foregroundStyle(accent)
                 }
             }
+            .overlay {
+                if resolvingContribution {
+                    ProgressView().tint(accent)
+                }
+            }
         }
         .task { await reload() }
         .sheet(isPresented: $editExpensePresented) {
@@ -135,8 +149,31 @@ struct GroupRecentActivityFlow: View {
                 )
             }
         }
+        .sheet(isPresented: $editContributionPresented) {
+            if let editingContribution {
+                GroupContributionSheet(
+                    momentId: momentId,
+                    isPresented: $editContributionPresented,
+                    isWedding: isWedding,
+                    editingContribution: editingContribution,
+                    onSaved: {
+                        editContributionPresented = false
+                        onChanged()
+                        Task { await reload() }
+                    },
+                    onDeleted: {
+                        editContributionPresented = false
+                        onChanged()
+                        Task { await reload() }
+                    }
+                )
+            }
+        }
         .onChange(of: editExpensePresented) { _, open in
             if !open { editingExpenseId = nil }
+        }
+        .onChange(of: editContributionPresented) { _, open in
+            if !open { editingContribution = nil }
         }
         .onChange(of: momentTypeCode) { _, _ in
             filter = GroupActivityCategoryFilter.allId
@@ -213,5 +250,27 @@ struct GroupRecentActivityFlow: View {
             self.error = error.localizedDescription
         }
         loadingMore = false
+    }
+
+    private func openContributionEdit(contributionId: String) async {
+        resolvingContribution = true
+        defer { resolvingContribution = false }
+        do {
+            let payload = try await APIClient.shared.listContributions(momentId: momentId, limit: 100)
+            if let found = payload.items?.first(where: { $0.contributionId == contributionId }) {
+                editingContribution = found
+                editContributionPresented = true
+            } else {
+                error = "Contribution not found"
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private static func isContribution(_ item: APIClient.ActivityItemPayload) -> Bool {
+        let upper = item.activityCode.uppercased()
+        if item.activityPayload?.contributionId != nil { return true }
+        return upper.contains("CONTRIBUTION") || (upper.contains("CONTRIB") && !upper.contains("CONTRIBUTOR"))
     }
 }

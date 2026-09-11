@@ -23,6 +23,7 @@ enum GroupActionDestination: Equatable {
     case participants
     case budget
     case planning
+    case checklist
     case booking
     case poll
     case memory
@@ -48,7 +49,7 @@ struct GroupActionTile: Identifiable {
 enum GroupActionRegistry {
     /// Figma 575:14655 — Trip Action Center 3×3 grid (no Settle / Purchase / Resident on hub).
     static let tripHubTileIds: [String] = [
-        "expense", "planning", "budget", "booking", "poll", "memory", "update", "contribution", "invite",
+        "expense", "planning", "checklist", "budget", "booking", "poll", "memory", "update", "contribution", "invite",
     ]
 
     static func destination(for capabilityCode: String) -> GroupActionDestination? {
@@ -120,6 +121,7 @@ enum GroupActionRegistry {
         [
             tile("expense", .expenseCreate, "Expense", "Split a cost", "GroupQaWallet", "#33C759", "#0F766E", .expense),
             tile("planning", .planningItemCreate, "Planning", "Itinerary & tasks", "GroupQaCalendar", "#14B8A6", "#0F766E", .planning),
+            tile("checklist", .planningItemCreate, "Checklist", "Packing & essentials", "GroupQaCalendar", "#60A5FA", "#2563EB", .checklist),
             tile("budget", nil, "Budget", "Edit planned total", "GroupQaChartBar", "#FFB598", "#E8621A", .budget),
             tile("booking", .bookingCreate, "Booking", "Reservations", "GroupQaTicket", "#FF7A3D", "#E85940", .booking),
             tile("poll", .pollCreate, "Poll", "Group decisions", "GroupQaVote", "#A855F7", "#7C3AED", .poll),

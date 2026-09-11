@@ -160,6 +160,7 @@ data class ExperienceActiveTheme(
 enum class ExperienceQuickAddKind {
     PARTICIPANT,
     PLANNING,
+    CHECKLIST,
     EXPENSE,
     BUDGET,
     CONTRIBUTION,
@@ -175,6 +176,7 @@ enum class ExperienceQuickAddKind {
 fun ExperienceQuickAddKind.label(): String = when (this) {
     ExperienceQuickAddKind.PARTICIPANT -> "Invite"
     ExperienceQuickAddKind.PLANNING -> "Planning Item"
+    ExperienceQuickAddKind.CHECKLIST -> "Checklist"
     ExperienceQuickAddKind.EXPENSE -> "Expense"
     ExperienceQuickAddKind.BUDGET -> "Budget"
     ExperienceQuickAddKind.CONTRIBUTION -> "Contribution"
@@ -190,6 +192,7 @@ fun ExperienceQuickAddKind.label(): String = when (this) {
 fun ExperienceQuickAddKind.emoji(): String = when (this) {
     ExperienceQuickAddKind.PARTICIPANT -> "👤"
     ExperienceQuickAddKind.PLANNING -> "📋"
+    ExperienceQuickAddKind.CHECKLIST -> "✅"
     ExperienceQuickAddKind.EXPENSE -> "💳"
     ExperienceQuickAddKind.BUDGET -> "💰"
     ExperienceQuickAddKind.CONTRIBUTION -> "🎁"
@@ -206,6 +209,7 @@ fun experienceHubTiles(includesVendor: Boolean): List<ExperienceQuickAddKind> {
     val tiles = mutableListOf(
         ExperienceQuickAddKind.PARTICIPANT,
         ExperienceQuickAddKind.PLANNING,
+        ExperienceQuickAddKind.CHECKLIST,
         ExperienceQuickAddKind.EXPENSE,
         ExperienceQuickAddKind.BUDGET,
         ExperienceQuickAddKind.CONTRIBUTION,

@@ -65,10 +65,19 @@ struct GroupExpenseSheet: View {
         isEditing ? "Edit Expense" : "Add Expense"
     }
     private var people: [(id: String, name: String)] {
-        participants.map {
-            let base = $0.displayName ?? shortId($0.participantId)
-            return (id: $0.participantId, name: $0.guest ? "\(base) · Guest" : base)
-        }
+        participants.map { (id: $0.participantId, name: participantLabel($0)) }
+    }
+
+    private func participantLabel(_ p: APIClient.GroupParticipantPayload?, fallbackId: String? = nil) -> String {
+        let id = p?.participantId ?? fallbackId ?? ""
+        let trimmed = p?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = (trimmed?.isEmpty == false) ? trimmed! : shortId(id.isEmpty ? "Member" : id)
+        if p?.guest == true { return "\(base) · Guest" }
+        return base
+    }
+
+    private func participantLabel(id: String) -> String {
+        participantLabel(participants.first(where: { $0.participantId == id }), fallbackId: id)
     }
 
     var body: some View {
@@ -216,16 +225,14 @@ struct GroupExpenseSheet: View {
                     fieldLabel("PAID BY")
                     Menu {
                         ForEach(participants) { p in
-                            let base = p.displayName ?? shortId(p.participantId)
-                            Button(p.guest ? "\(base) · Guest" : base) {
+                            Button(participantLabel(p)) {
                                 paidByParticipantId = p.participantId
                             }
                         }
                     } label: {
                         HStack {
                             let selected = participants.first(where: { $0.participantId == paidByParticipantId })
-                            let base = selected?.displayName ?? "Select"
-                            Text(selected?.guest == true ? "\(base) · Guest" : base)
+                            Text(selected.map { participantLabel($0) } ?? "Select")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(Color(hex: "#E5E0EE"))
                             Spacer()
@@ -348,7 +355,7 @@ struct GroupExpenseSheet: View {
                 fieldLabel(splitValueLabel)
                 ForEach(Array(selectedParticipantIds).sorted(), id: \.self) { id in
                     HStack {
-                        Text(participants.first(where: { $0.participantId == id })?.displayName ?? shortId(id))
+                        Text(participantLabel(id: id))
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(Color(hex: "#E5E0EE"))
                         Spacer()
@@ -468,7 +475,11 @@ struct GroupExpenseSheet: View {
         error = nil
         do {
             let list = try await APIClient.shared.listGroupParticipants(momentId: momentId)
-            participants = list.filter { ($0.status ?? "ACTIVE").uppercased() == "ACTIVE" || ($0.status ?? "").uppercased() == "INVITED" }
+            let eligible = list.filter {
+                let s = ($0.status ?? "ACTIVE").uppercased()
+                return s == "ACTIVE" || s == "INVITED"
+            }
+            participants = eligible.isEmpty ? list : eligible
             if paidByParticipantId == nil {
                 paidByParticipantId = participants.first?.participantId
             }
@@ -656,7 +667,9 @@ struct GroupContributionSheet: View {
     @Binding var isPresented: Bool
     var isWedding: Bool = false
     var poolPlaceholder: String? = nil
+    var editingContribution: APIClient.GroupContributionItem? = nil
     var onSaved: () -> Void
+    var onDeleted: () -> Void = {}
 
     private var accent: SheetAccent {
         if isWedding {
@@ -681,8 +694,10 @@ struct GroupContributionSheet: View {
                     momentId: momentId,
                     onDismiss: { isPresented = false },
                     onSaved: onSaved,
+                    onDeleted: onDeleted,
                     poolPlaceholder: poolHint,
-                    accent: accent
+                    accent: accent,
+                    editingContribution: editingContribution
                 )
                 .padding(16)
             }

@@ -198,7 +198,10 @@ fun itineraryDayGroups(
     items: List<GroupLifePlanningItemDto>,
     limit: Int = 3,
 ): List<Pair<LocalDate, List<GroupLifePlanningItemDto>>> {
-    val open = recentOpenPlanningItems(items, limit = 50)
+    val open = recentOpenPlanningItems(
+        GroupExperienceChecklistCatalog.nonChecklistItems(items),
+        limit = 50,
+    )
     val orderedDays = linkedSetOf<LocalDate>()
     val buckets = linkedMapOf<LocalDate, MutableList<GroupLifePlanningItemDto>>()
     for (item in open) {

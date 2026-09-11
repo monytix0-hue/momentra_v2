@@ -602,6 +602,21 @@ interface ApiService {
         @Body body: RecordContributionBody,
     ): SuccessEnvelope<RecordContributionResultDto>
 
+    @PATCH("v1/moments/{momentId}/contributions/{contributionId}")
+    suspend fun updateContribution(
+        @Path("momentId") momentId: String,
+        @Path("contributionId") contributionId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: UpdateContributionBody,
+    ): SuccessEnvelope<RecordContributionResultDto>
+
+    @DELETE("v1/moments/{momentId}/contributions/{contributionId}")
+    suspend fun voidContribution(
+        @Path("momentId") momentId: String,
+        @Path("contributionId") contributionId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+    ): SuccessEnvelope<RecordContributionResultDto>
+
     @GET("v1/moments/{momentId}/contributions/{contributionId}/attachments")
     suspend fun listContributionAttachments(
         @Path("momentId") momentId: String,

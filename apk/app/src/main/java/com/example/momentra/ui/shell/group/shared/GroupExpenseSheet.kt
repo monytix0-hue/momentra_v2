@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ExpenseAttachmentDto
+import com.example.momentra.data.api.GroupContributionItemDto
 import com.example.momentra.data.api.GroupExpenseSplitInputDto
 import com.example.momentra.R
 import com.example.momentra.data.api.GroupParticipantDto
@@ -468,10 +469,8 @@ fun GroupExpenseSheet(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                participants.firstOrNull { it.participantId == paidById }?.let { p ->
-                                    val base = p.displayName ?: "Select"
-                                    if (p.isGuest) "$base · Guest" else base
-                                } ?: "Select",
+                                participants.firstOrNull { it.participantId == paidById }?.let { expenseParticipantLabel(it) }
+                                    ?: "Select",
                                 color = sheetText,
                                 fontSize = 14.sp,
                                 fontFamily = PlusJakartaSans,
@@ -488,11 +487,10 @@ fun GroupExpenseSheet(
                             onDismissRequest = { paidByMenuOpen = false },
                         ) {
                             participants.forEach { p ->
-                                val base = p.displayName ?: p.participantId.take(8)
                                 DropdownMenuItem(
                                     text = {
                                         Text(
-                                            if (p.isGuest) "$base · Guest" else base,
+                                            expenseParticipantLabel(p),
                                             fontFamily = PlusJakartaSans,
                                         )
                                     },
@@ -541,10 +539,7 @@ fun GroupExpenseSheet(
                     participants.forEachIndexed { index, p ->
                         val selected = p.participantId in selectedSplitIds
                         val color = avatarColors[index % avatarColors.size]
-                        val name = run {
-                            val base = p.displayName ?: p.participantId.take(8)
-                            if (p.isGuest) "$base · Guest" else base
-                        }
+                        val name = expenseParticipantLabel(p)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -739,8 +734,10 @@ fun GroupExpenseSheet(
                 }
                 FieldLabel(valueLabel, color = sheetSecondary)
                 selectedSplitIds.sorted().forEach { id ->
-                    val name = participants.firstOrNull { it.participantId == id }?.displayName
-                        ?: id.take(8)
+                    val name = expenseParticipantLabel(
+                        participants.firstOrNull { it.participantId == id },
+                        fallbackId = id,
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -792,8 +789,10 @@ fun GroupExpenseSheet(
                     color = sheetSecondary,
                 )
                 previewShares.forEach { (id, share) ->
-                    val name = participants.firstOrNull { it.participantId == id }?.displayName
-                        ?: id.take(8)
+                    val name = expenseParticipantLabel(
+                        participants.firstOrNull { it.participantId == id },
+                        fallbackId = id,
+                    )
                     Text(
                         "$name · $share",
                         color = sheetSecondary,
@@ -975,6 +974,8 @@ fun GroupContributionSheet(
     onSaved: () -> Unit,
     isWedding: Boolean = false,
     poolPlaceholder: String? = null,
+    editingContribution: GroupContributionItemDto? = null,
+    onDeleted: () -> Unit = onSaved,
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
@@ -1022,6 +1023,8 @@ fun GroupContributionSheet(
                 onSaved = onSaved,
                 accent = accent,
                 poolPlaceholder = poolHint,
+                editingContribution = editingContribution,
+                onDeleted = onDeleted,
             )
         }
     }
@@ -1078,6 +1081,16 @@ private fun SheetField(
             modifier = Modifier.fillMaxWidth(),
         )
     }
+}
+
+private fun expenseParticipantLabel(
+    p: GroupParticipantDto?,
+    fallbackId: String? = null,
+): String {
+    val id = p?.participantId ?: fallbackId.orEmpty()
+    val trimmed = p?.displayName?.trim().orEmpty()
+    val base = if (trimmed.isNotEmpty()) trimmed else id.take(8).ifEmpty { "Member" }
+    return if (p?.isGuest == true) "$base · Guest" else base
 }
 
 @Composable

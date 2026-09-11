@@ -1272,6 +1272,7 @@ struct AppShellView: View {
                             onInvite: { groupInviteSheetPresented = true },
                             onBudget: { groupBudgetSheetPresented = true },
                             onPlanning: { groupCollabKind = .planning },
+                            onChecklist: { groupCollabKind = .checklist },
                             onBooking: { groupCollabKind = .booking },
                             onPoll: { groupCollabKind = .poll },
                             onUpdate: { groupCollabKind = .update },

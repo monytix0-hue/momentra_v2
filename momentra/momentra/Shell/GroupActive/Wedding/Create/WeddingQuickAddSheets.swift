@@ -38,6 +38,12 @@ struct WeddingGapQuickAddSheet: View {
         case .participant: WeddingParticipantBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .vendor: WeddingVendorBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .planning: WeddingPlanningBody(momentId: momentId, momentTypeCode: "WEDDING", onDismiss: onClose, onSaved: onSaved)
+        case .checklist: ExperienceChecklistBody(
+            momentId: momentId,
+            onDismiss: onClose,
+            onSaved: onSaved,
+            accent: softPinkAccent
+        )
         case .attendance: WeddingAttendanceBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .poll: WeddingPollBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
         case .memory: WeddingMemoryBody(momentId: momentId, onDismiss: onClose, onSaved: onSaved)
@@ -475,7 +481,15 @@ struct WeddingExpenseBody: View {
     var accent: SheetAccent = purpleAccent
 
     private var people: [(id: String, name: String)] {
-        participants.map { (id: $0.participantId, name: $0.displayName ?? String($0.participantId.prefix(8))) }
+        participants.map { (id: $0.participantId, name: weddingExpenseParticipantLabel($0)) }
+    }
+
+    private func weddingExpenseParticipantLabel(_ p: APIClient.GroupParticipantPayload?, fallbackId: String? = nil) -> String {
+        let id = p?.participantId ?? fallbackId ?? ""
+        let trimmed = p?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = (trimmed?.isEmpty == false) ? trimmed! : String((id.isEmpty ? "Member" : id).prefix(8))
+        if p?.guest == true { return "\(base) · Guest" }
+        return base
     }
 
     private var live: Bool { momentId != nil }
@@ -520,11 +534,30 @@ struct WeddingExpenseBody: View {
             HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 8) {
                     FieldLabel(text: "Paid By")
-                    SheetField(
-                        value: .constant(participants.first(where: { $0.participantId == paidBy })?.displayName ?? "Select"),
-                        placeholder: "Select",
-                        trailing: { AnyView(Image(systemName: "chevron.down").font(.system(size: 12)).foregroundStyle(Wq.muted)) }
-                    )
+                    Menu {
+                        ForEach(participants) { p in
+                            Button(weddingExpenseParticipantLabel(p)) {
+                                paidBy = p.participantId
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            let selected = participants.first(where: { $0.participantId == paidBy })
+                            Text(selected.map { weddingExpenseParticipantLabel($0) } ?? "Select")
+                                .font(.plusJakarta(size: 14, weight: .medium))
+                                .foregroundStyle(Wq.text)
+                            Spacer()
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Wq.muted)
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Wq.field)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Wq.border))
+                    }
+                    .disabled(participants.isEmpty)
                 }
                 VStack(alignment: .leading, spacing: 8) {
                     FieldLabel(text: "Date")
@@ -584,7 +617,10 @@ struct WeddingExpenseBody: View {
                     FieldLabel(text: splitValueLabel)
                     ForEach(Array(selected).sorted(), id: \.self) { id in
                         HStack {
-                            Text(participants.first(where: { $0.participantId == id })?.displayName ?? String(id.prefix(8)))
+                            Text(weddingExpenseParticipantLabel(
+                                participants.first(where: { $0.participantId == id }),
+                                fallbackId: id
+                            ))
                                 .font(.plusJakarta(size: 12, weight: .semibold))
                                 .foregroundStyle(Wq.text)
                             Spacer()
@@ -825,8 +861,10 @@ struct WeddingContributionBody: View {
     var momentId: String?
     var onDismiss: () -> Void
     var onSaved: () -> Void
+    var onDeleted: () -> Void = {}
     var poolPlaceholder: String = "Trip Pool"
     var accent: SheetAccent = contribAccent
+    var editingContribution: APIClient.GroupContributionItem? = nil
 
     @State private var amount = ""
     @State private var currency = "INR"
@@ -837,13 +875,16 @@ struct WeddingContributionBody: View {
     @State private var participants: [APIClient.GroupParticipantPayload] = []
     @State private var selectedParticipantId: String?
     @State private var submitting = false
+    @State private var voiding = false
     @State private var error: String? = nil
     @State private var showDocImporter = false
     @State private var uploadingDoc = false
     @State private var attachmentUploadIds: [String] = []
     @State private var attachmentNames: [String] = []
+    @State private var didPrefill = false
 
     private var live: Bool { momentId != nil }
+    private var isEditing: Bool { editingContribution != nil }
 
     private var selectedParticipant: APIClient.GroupParticipantPayload? {
         participants.first { $0.participantId == selectedParticipantId } ?? participants.first
@@ -861,7 +902,11 @@ struct WeddingContributionBody: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SheetHeader(icon: "person.2.fill", title: "Add Contribution", accent: accent)
+            SheetHeader(
+                icon: "person.2.fill",
+                title: isEditing ? "Edit Contribution" : "Add Contribution",
+                accent: accent
+            )
 
             VStack(alignment: .leading, spacing: 8) {
                 FieldLabel(text: "Amount Contributed")
@@ -999,9 +1044,21 @@ struct WeddingContributionBody: View {
                     .foregroundStyle(Color(hex: "#F87171"))
             }
 
+            if isEditing {
+                Button(role: .destructive) {
+                    voidContribution()
+                } label: {
+                    Text(voiding ? "Voiding…" : "Void contribution")
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .disabled(voiding || submitting)
+            }
+
             PrimaryCta(
-                label: "Add Contribution",
-                enabled: live && isValid,
+                label: isEditing ? "Save Contribution" : "Add Contribution",
+                enabled: live && isValid && !voiding,
                 accent: accent,
                 loading: submitting,
                 footer: "Balance will be updated for everyone",
@@ -1014,8 +1071,16 @@ struct WeddingContributionBody: View {
             guard let momentId else { return }
             let ctx = await MomentCurrencyContextLoader.loadGroup(momentId: momentId)
             preferredCurrencyCodes = ctx.preferred
-            currency = ctx.primary
+            if !didPrefill {
+                currency = editingContribution?.currencyCode ?? ctx.primary
+            } else if currency.isEmpty {
+                currency = ctx.primary
+            }
             if pool.isEmpty { pool = poolPlaceholder }
+            if !didPrefill, let existing = editingContribution {
+                applyPrefill(existing)
+                didPrefill = true
+            }
             do {
                 let list = try await APIClient.shared.listGroupParticipants(momentId: momentId)
                 let eligible = list.filter {
@@ -1128,6 +1193,19 @@ struct WeddingContributionBody: View {
         }
     }
 
+    private func applyPrefill(_ existing: APIClient.GroupContributionItem) {
+        if let amt = existing.amount, !amt.isEmpty { amount = amt }
+        if let code = existing.currencyCode, !code.isEmpty { currency = code }
+        let labelText = existing.label?.trimmingCharacters(in: .whitespacesAndNewlines)
+        pool = (labelText?.isEmpty == false) ? labelText! : poolPlaceholder
+        method = ContributionPaymentMethodLabel.display(existing.paymentMethodCode)
+        if method == "—" { method = "UPI" }
+        status = (existing.status ?? "").uppercased() == "PENDING" ? "Pending" : "Paid"
+        if let pid = existing.participantId, !pid.isEmpty {
+            selectedParticipantId = pid
+        }
+    }
+
     private func submit() {
         guard let momentId else { return }
         guard let normalizedAmount = Self.normalizedContributionAmount(amount) else {
@@ -1139,21 +1217,55 @@ struct WeddingContributionBody: View {
             error = nil
             do {
                 let labelText = pool.trimmingCharacters(in: .whitespacesAndNewlines)
-                _ = try await APIClient.shared.recordContribution(
-                    momentId: momentId,
-                    amount: normalizedAmount,
-                    currencyCode: currency,
-                    label: labelText.isEmpty ? nil : labelText,
-                    paymentMethodCode: paymentMethodCode(method),
-                    participantId: selectedParticipantId,
-                    status: status == "Pending" ? "PENDING" : "PAID",
-                    attachmentUploadIds: attachmentUploadIds.isEmpty ? nil : attachmentUploadIds
-                )
+                let statusCode = status == "Pending" ? "PENDING" : "PAID"
+                if let editing = editingContribution {
+                    _ = try await APIClient.shared.updateContribution(
+                        momentId: momentId,
+                        contributionId: editing.contributionId,
+                        amount: normalizedAmount,
+                        currencyCode: currency,
+                        label: labelText.isEmpty ? nil : labelText,
+                        paymentMethodCode: paymentMethodCode(method),
+                        participantId: selectedParticipantId,
+                        status: statusCode
+                    )
+                } else {
+                    _ = try await APIClient.shared.recordContribution(
+                        momentId: momentId,
+                        amount: normalizedAmount,
+                        currencyCode: currency,
+                        label: labelText.isEmpty ? nil : labelText,
+                        paymentMethodCode: paymentMethodCode(method),
+                        participantId: selectedParticipantId,
+                        status: statusCode,
+                        attachmentUploadIds: attachmentUploadIds.isEmpty ? nil : attachmentUploadIds
+                    )
+                }
                 submitting = false
                 onSaved()
                 onDismiss()
             } catch {
                 submitting = false
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    private func voidContribution() {
+        guard let momentId, let editing = editingContribution else { return }
+        Task {
+            voiding = true
+            error = nil
+            do {
+                _ = try await APIClient.shared.voidContribution(
+                    momentId: momentId,
+                    contributionId: editing.contributionId
+                )
+                voiding = false
+                onDeleted()
+                onDismiss()
+            } catch {
+                voiding = false
                 self.error = error.localizedDescription
             }
         }

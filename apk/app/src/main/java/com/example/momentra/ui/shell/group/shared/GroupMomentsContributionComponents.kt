@@ -22,10 +22,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -206,8 +203,8 @@ fun MomentsContributionDetailsSection(
     chrome: MomentsChrome,
     momentId: String? = null,
     onViewAll: (() -> Unit)? = null,
+    onEdit: ((GroupContributionItemDto) -> Unit)? = null,
 ) {
-    var receiptItem by remember { mutableStateOf<GroupContributionItemDto?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         MomentsSectionHeader(title = "Contribution Details", chrome = chrome, onViewAll = onViewAll)
         if (items.isEmpty()) {
@@ -221,25 +218,14 @@ fun MomentsContributionDetailsSection(
                     item = item,
                     chrome = chrome,
                     avatarIndex = idx,
-                    onTap = if (momentId != null && item.hasAttachment) {
-                        { receiptItem = item }
+                    onTap = if (momentId != null && onEdit != null) {
+                        { onEdit(item) }
                     } else {
                         null
                     },
                 )
             }
         }
-    }
-    val mid = momentId
-    val selected = receiptItem
-    if (mid != null && selected != null) {
-        ContributionReceiptSheet(
-            momentId = mid,
-            item = selected,
-            chrome = chrome,
-            visible = true,
-            onDismiss = { receiptItem = null },
-        )
     }
 }
 
@@ -251,9 +237,9 @@ fun ContributionsListSheet(
     onDismiss: () -> Unit,
     chrome: MomentsChrome,
     momentId: String? = null,
+    onEdit: ((GroupContributionItemDto) -> Unit)? = null,
 ) {
     if (!visible) return
-    var receiptItem by remember { mutableStateOf<GroupContributionItemDto?>(null) }
     val grouped = remember(items) {
         val today = LocalDate.now()
         val map = linkedMapOf<LocalDate, MutableList<GroupContributionItemDto>>()
@@ -313,8 +299,8 @@ fun ContributionsListSheet(
                                 item = item,
                                 chrome = chrome,
                                 avatarIndex = idx,
-                                onTap = if (momentId != null && item.hasAttachment) {
-                                    { receiptItem = item }
+                                onTap = if (momentId != null && onEdit != null) {
+                                    { onEdit(item) }
                                 } else {
                                     null
                                 },
@@ -324,16 +310,5 @@ fun ContributionsListSheet(
                 }
             }
         }
-    }
-    val mid = momentId
-    val selected = receiptItem
-    if (mid != null && selected != null) {
-        ContributionReceiptSheet(
-            momentId = mid,
-            item = selected,
-            chrome = chrome,
-            visible = true,
-            onDismiss = { receiptItem = null },
-        )
     }
 }

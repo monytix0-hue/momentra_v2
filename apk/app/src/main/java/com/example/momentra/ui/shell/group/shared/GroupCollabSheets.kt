@@ -83,10 +83,12 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import com.example.momentra.ui.shell.group.wedding.create.PrimaryCta
+import com.example.momentra.ui.shell.group.wedding.create.SheetAccent
 
 /** Figma 575:15497 Trip Quick Add linked sheets. */
 enum class GroupCollabKind {
     PLANNING,
+    CHECKLIST,
     BOOKING,
     POLL,
     UPDATE,
@@ -175,6 +177,17 @@ fun GroupCollabSheet(
         ) {
             when (kind) {
                 GroupCollabKind.PLANNING -> PlanningBody(momentId, repository, onDismiss, onSaved, momentTypeCode)
+                GroupCollabKind.CHECKLIST -> ExperienceChecklistSheetBody(
+                    momentId = momentId,
+                    repository = repository,
+                    onDismiss = onDismiss,
+                    onSaved = onSaved,
+                    accent = SheetAccent(
+                        accent = TripSheet.Teal,
+                        accentEnd = Color(0xFF0F766E),
+                        soft = TripSheet.Teal.copy(alpha = 0.2f),
+                    ),
+                )
                 GroupCollabKind.BOOKING -> BookingBody(momentId, repository, onDismiss, onSaved, momentTypeCode)
                 GroupCollabKind.POLL -> PollBody(momentId, repository, onDismiss, onSaved)
                 GroupCollabKind.UPDATE -> UpdateBody(momentId, repository, onDismiss, onSaved)

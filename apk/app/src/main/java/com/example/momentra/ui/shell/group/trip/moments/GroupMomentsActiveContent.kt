@@ -40,13 +40,18 @@ import com.example.momentra.data.api.GroupPollItemDto
 import com.example.momentra.data.api.GroupPulsePayloadDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.group.shared.ContributionsListSheet
+import com.example.momentra.ui.shell.group.shared.ExperienceChecklistAddSheet
+import com.example.momentra.ui.shell.group.shared.ExpensesListSheet
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
+import com.example.momentra.ui.shell.group.shared.GroupContributionSheet
 import com.example.momentra.ui.shell.group.shared.GroupEmptySection
+import com.example.momentra.ui.shell.group.shared.GroupExperienceChecklistCatalog
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupPollsListSheet
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
 import com.example.momentra.ui.shell.group.shared.MomentsBookingCard
+import com.example.momentra.ui.shell.group.shared.MomentsChecklistSection
 import com.example.momentra.ui.shell.group.shared.MomentsChrome
 import com.example.momentra.ui.shell.group.shared.MomentsContributionDetailsSection
 import com.example.momentra.ui.shell.group.shared.MomentsExpensesCard
@@ -64,10 +69,11 @@ import com.example.momentra.ui.shell.group.shared.formatPlanningTime
 import com.example.momentra.ui.shell.group.shared.itineraryDayGroups
 import com.example.momentra.ui.shell.group.shared.loadGroupPulseTab
 import com.example.momentra.ui.shell.group.shared.planningPlansPercent
+import com.example.momentra.ui.shell.group.wedding.create.SheetAccent
+import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import com.example.momentra.ui.theme.PlusJakartaSans
 import java.util.Locale
 
 /** Figma 575:14327 — Group Moments active tab (live API only). */
@@ -98,7 +104,10 @@ fun GroupMomentsActiveContent(
     var pollsListOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var scheduleOpen by remember { mutableStateOf(false) }
+    var checklistSheetOpen by remember { mutableStateOf(false) }
     var contributionsOpen by remember { mutableStateOf(false) }
+    var expensesOpen by remember { mutableStateOf(false) }
+    var editingContribution by remember { mutableStateOf<GroupContributionItemDto?>(null) }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -140,7 +149,7 @@ fun GroupMomentsActiveContent(
             val pollsDeferred = async { repository.listPolls(momentId).getOrNull()?.items }
             val memsDeferred = async { repository.listMemories(momentId) }
             val expensesDeferred = async {
-                repository.listGroupExpenses(momentId, 10).getOrNull()?.items.orEmpty()
+                repository.listGroupExpenses(momentId, 50).getOrNull()?.items.orEmpty()
             }
             val contributionsDeferred = async {
                 repository.listContributions(momentId, 50).getOrNull()?.items.orEmpty()
@@ -252,6 +261,21 @@ fun GroupMomentsActiveContent(
             }
         }
 
+        MomentsChecklistSection(
+            items = planningItems,
+            momentId = momentId,
+            chrome = chrome,
+            repository = repository,
+            onChanged = {
+                if (!momentId.isNullOrBlank()) {
+                    scope.launch {
+                        planningItems = repository.listPlanningItems(momentId).getOrNull()?.items.orEmpty()
+                    }
+                }
+            },
+            onAdd = { checklistSheetOpen = true },
+        )
+
         MomentsSectionHeader("Updates / Feed  📱", chrome)
         if (updates.isEmpty()) {
             GroupEmptySection("No updates yet", "Share a status update from Quick Add.")
@@ -294,9 +318,10 @@ fun GroupMomentsActiveContent(
             chrome = chrome,
             momentId = momentId,
             onViewAll = { contributionsOpen = true },
+            onEdit = { editingContribution = it },
         )
 
-        MomentsSectionHeader("Expenses & Budget  💸", chrome)
+        MomentsSectionHeader("Expenses & Budget  💸", chrome, onViewAll = { expensesOpen = true })
         MomentsExpensesCard(
             totals = allTotals,
             yourAllocatedLine = yourShareLine,
@@ -308,8 +333,16 @@ fun GroupMomentsActiveContent(
         MomentsQuickAddCta(chrome = chrome, onClick = onCreateMoment)
     }
 
+    ExpensesListSheet(
+        items = expenses,
+        visible = expensesOpen,
+        onDismiss = { expensesOpen = false },
+        chrome = chrome,
+        fallbackCurrency = currency,
+    )
+
     PlanningScheduleSheet(
-        items = planningItems,
+        items = GroupExperienceChecklistCatalog.nonChecklistItems(planningItems),
         visible = scheduleOpen,
         onDismiss = { scheduleOpen = false },
         momentId = momentId,
@@ -327,6 +360,26 @@ fun GroupMomentsActiveContent(
         border = chrome.border,
         text = chrome.text,
         muted = chrome.secondary,
+        repository = repository,
+    )
+
+    ExperienceChecklistAddSheet(
+        visible = checklistSheetOpen,
+        momentId = momentId,
+        onDismiss = { checklistSheetOpen = false },
+        onSaved = {
+            if (!momentId.isNullOrBlank()) {
+                scope.launch {
+                    planningItems = repository.listPlanningItems(momentId).getOrNull()?.items.orEmpty()
+                }
+            }
+        },
+        accent = SheetAccent(
+            accent = Color(0xFF14B8A6),
+            accentEnd = Color(0xFF0F766E),
+            soft = Color(0xFF14B8A6).copy(alpha = 0.2f),
+        ),
+        surface = chrome.bg,
         repository = repository,
     )
 
@@ -351,7 +404,34 @@ fun GroupMomentsActiveContent(
         onDismiss = { contributionsOpen = false },
         chrome = MomentsChrome.Trip,
         momentId = momentId,
+        onEdit = {
+            contributionsOpen = false
+            editingContribution = it
+        },
     )
+
+    val editItem = editingContribution
+    if (editItem != null && !momentId.isNullOrBlank()) {
+        GroupContributionSheet(
+            momentId = momentId,
+            visible = true,
+            onDismiss = { editingContribution = null },
+            onSaved = {
+                editingContribution = null
+                scope.launch {
+                    contributions = repository.listContributions(momentId, 50).getOrNull()?.items.orEmpty()
+                }
+            },
+            onDeleted = {
+                editingContribution = null
+                scope.launch {
+                    contributions = repository.listContributions(momentId, 50).getOrNull()?.items.orEmpty()
+                }
+            },
+            editingContribution = editItem,
+            repository = repository,
+        )
+    }
 
     selectedPollId?.let { pollId ->
         PollDetailSheet(

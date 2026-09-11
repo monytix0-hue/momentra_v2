@@ -49,6 +49,9 @@ object GroupPlanningCategoryCatalog {
     fun labelForCode(code: String?, momentTypeCode: String?): String {
         val normalized = code?.trim()?.uppercase().orEmpty()
         if (normalized.isEmpty()) return defaultLabel(momentTypeCode)
+        if (GroupExperienceChecklistCatalog.isChecklistCode(normalized)) {
+            return GroupExperienceChecklistCatalog.labelForCode(normalized)
+        }
         return categories(momentTypeCode).firstOrNull { it.code == normalized }?.label
             ?: normalized.replace('_', ' ').lowercase().replaceFirstChar { it.titlecase() }
     }

@@ -1245,6 +1245,7 @@ data class ActivityItemDto(
 data class ActivityPayloadDto(
     @SerializedName("expenseId") val expenseId: String? = null,
     @SerializedName("activityId") val activityId: String? = null,
+    @SerializedName("contributionId") val contributionId: String? = null,
     val amount: String? = null,
     @SerializedName("currencyCode") val currencyCode: String? = null,
     @SerializedName("lifestyleContext") val lifestyleContext: String? = null,
@@ -1254,6 +1255,7 @@ data class ActivityPayloadDto(
     @SerializedName("subcategoryCode") val subcategoryCode: String? = null,
     @SerializedName("financialAccountId") val financialAccountId: String? = null,
     @SerializedName("paymentMethodCode") val paymentMethodCode: String? = null,
+    @SerializedName("participantId") val participantId: String? = null,
     @SerializedName("incomeId") val incomeId: String? = null,
     val status: String? = null,
     @SerializedName("wellbeingRating") val wellbeingRating: Double? = null,
@@ -1954,9 +1956,18 @@ data class RecordContributionBody(
     @SerializedName("attachmentUploadIds") val attachmentUploadIds: List<String>? = null,
 )
 
+data class UpdateContributionBody(
+    val amount: String? = null,
+    @SerializedName("currencyCode") val currencyCode: String? = null,
+    val label: String? = null,
+    @SerializedName("paymentMethodCode") val paymentMethodCode: String? = null,
+    @SerializedName("participantId") val participantId: String? = null,
+    val status: String? = null,
+)
+
 data class RecordContributionResultDto(
     @SerializedName("contributionId") val contributionId: String,
-    @SerializedName("momentId") val momentId: String,
+    @SerializedName("momentId") val momentId: String? = null,
 )
 
 data class GroupContributionItemDto(

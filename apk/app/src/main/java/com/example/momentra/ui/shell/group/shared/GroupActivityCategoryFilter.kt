@@ -55,6 +55,7 @@ object GroupActivityCategoryFilter {
         val emojiById = mapOf(
             "expense" to "💳",
             "planning" to "📋",
+            "checklist" to "✅",
             "budget" to "💰",
             "booking" to "🧳",
             "poll" to "📊",
@@ -86,6 +87,7 @@ object GroupActivityCategoryFilter {
     private fun weddingHubLabel(kind: WeddingQuickAddKind): String = when (kind) {
         WeddingQuickAddKind.PARTICIPANT -> "Invite"
         WeddingQuickAddKind.PLANNING -> "Planning"
+        WeddingQuickAddKind.CHECKLIST -> "Checklist"
         WeddingQuickAddKind.EXPENSE -> "Expense"
         WeddingQuickAddKind.BUDGET -> "Budget"
         WeddingQuickAddKind.CONTRIBUTION -> "Contribution"
@@ -100,6 +102,7 @@ object GroupActivityCategoryFilter {
     private fun weddingEmoji(kind: WeddingQuickAddKind): String = when (kind) {
         WeddingQuickAddKind.PARTICIPANT -> "👤"
         WeddingQuickAddKind.PLANNING -> "📋"
+        WeddingQuickAddKind.CHECKLIST -> "✅"
         WeddingQuickAddKind.EXPENSE -> "💳"
         WeddingQuickAddKind.BUDGET -> "💰"
         WeddingQuickAddKind.CONTRIBUTION -> "🎁"
@@ -114,6 +117,7 @@ object GroupActivityCategoryFilter {
     private fun experienceHubLabel(kind: ExperienceQuickAddKind): String = when (kind) {
         ExperienceQuickAddKind.PARTICIPANT -> "Invite"
         ExperienceQuickAddKind.PLANNING -> "Planning"
+        ExperienceQuickAddKind.CHECKLIST -> "Checklist"
         ExperienceQuickAddKind.EXPENSE -> "Expense"
         ExperienceQuickAddKind.BUDGET -> "Budget"
         ExperienceQuickAddKind.CONTRIBUTION -> "Contribution"
@@ -130,9 +134,12 @@ object GroupActivityCategoryFilter {
         val upper = activityCode.uppercase(Locale.US)
         return when (chipId) {
             "expense" -> upper.contains("EXPENSE")
-            "contribution" -> upper.contains("CONTRIB")
+            "contribution" ->
+                upper.contains("CONTRIBUTION") ||
+                    (upper.contains("CONTRIB") && !upper.contains("CONTRIBUTOR"))
             "settle" -> upper.contains("SETTLE")
             "planning" -> upper.contains("PLANNING")
+            "checklist" -> upper.contains("PLANNING")
             "task" -> upper.contains("TASK") && !upper.contains("PLANNING")
             "booking" -> upper.contains("BOOKING")
             "poll" -> upper.contains("POLL")

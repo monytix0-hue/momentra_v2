@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ActivityItemDto
+import com.example.momentra.data.api.GroupContributionItemDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.domain.AppContext
 import com.example.momentra.ui.shell.empty.group.GeBg
@@ -43,8 +44,9 @@ import com.example.momentra.ui.shell.empty.group.GeText
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.theme.shell.MomentThemes
 import kotlinx.coroutines.launch
+import java.util.Locale
 
-/** Full Group activity list with cursor pagination + expense edit/void. */
+/** Full Group activity list with cursor pagination + expense/contribution edit/void. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupRecentActivityFlow(
@@ -61,9 +63,11 @@ fun GroupRecentActivityFlow(
     var nextCursor by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
     var loadingMore by remember { mutableStateOf(false) }
+    var resolvingContribution by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var filter by remember(momentTypeCode) { mutableStateOf(GroupActivityCategoryFilter.ALL_ID) }
     var editingExpenseId by remember { mutableStateOf<String?>(null) }
+    var editingContribution by remember { mutableStateOf<GroupContributionItemDto?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val accent = MomentThemes.resolve(AppContext.GROUP, momentTypeCode).primary
@@ -89,6 +93,25 @@ fun GroupRecentActivityFlow(
                 },
             )
             loading = false
+        }
+    }
+
+    fun openContributionEdit(contributionId: String) {
+        scope.launch {
+            resolvingContribution = true
+            error = null
+            repository.listContributions(momentId, limit = 100).fold(
+                onSuccess = { dto ->
+                    val found = dto.items.firstOrNull { it.contributionId == contributionId }
+                    if (found != null) {
+                        editingContribution = found
+                    } else {
+                        error = "Contribution not found"
+                    }
+                },
+                onFailure = { error = it.message },
+            )
+            resolvingContribution = false
         }
     }
 
@@ -134,7 +157,7 @@ fun GroupRecentActivityFlow(
                 fontFamily = PlusJakartaSans,
             )
             Text(
-                "Tap an expense to edit or void it. Settlements and other events are view-only.",
+                "Tap an expense or contribution to edit or void it. Settlements and other events are view-only.",
                 color = GeSecondary,
                 fontSize = 12.sp,
                 fontFamily = PlusJakartaSans,
@@ -216,10 +239,16 @@ fun GroupRecentActivityFlow(
                     error?.let {
                         Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans)
                     }
+                    if (resolvingContribution) {
+                        CircularProgressIndicator(color = accent, modifier = Modifier.padding(8.dp))
+                    }
                     filteredItems.forEach { item ->
                         val expenseId = item.activityPayload?.expenseId
-                        val canEdit = !expenseId.isNullOrBlank() &&
+                        val contributionId = item.activityPayload?.contributionId
+                        val canEditExpense = !expenseId.isNullOrBlank() &&
                             (item.activityCode.contains("EXPENSE", ignoreCase = true) || expenseId != null)
+                        val canEditContribution = !contributionId.isNullOrBlank() && isContributionActivity(item)
+                        val canEdit = canEditExpense || canEditContribution
                         GroupActivityRow(
                             item = item,
                             accent = accent,
@@ -228,7 +257,13 @@ fun GroupRecentActivityFlow(
                             showChevron = canEdit,
                             compactPadding = false,
                             onClick = if (canEdit) {
-                                { editingExpenseId = expenseId }
+                                {
+                                    when {
+                                        canEditExpense -> editingExpenseId = expenseId
+                                        canEditContribution && contributionId != null ->
+                                            openContributionEdit(contributionId)
+                                    }
+                                }
                             } else {
                                 null
                             },
@@ -297,4 +332,33 @@ fun GroupRecentActivityFlow(
             repository = repository,
         )
     }
+
+    val editContribution = editingContribution
+    if (editContribution != null) {
+        GroupContributionSheet(
+            momentId = momentId,
+            visible = true,
+            onDismiss = { editingContribution = null },
+            onSaved = {
+                editingContribution = null
+                onChanged()
+                reload()
+            },
+            onDeleted = {
+                editingContribution = null
+                onChanged()
+                reload()
+            },
+            isWedding = isWedding,
+            editingContribution = editContribution,
+            repository = repository,
+        )
+    }
+}
+
+private fun isContributionActivity(item: ActivityItemDto): Boolean {
+    if (!item.activityPayload?.contributionId.isNullOrBlank()) return true
+    val upper = item.activityCode.uppercase(Locale.US)
+    return upper.contains("CONTRIBUTION") ||
+        (upper.contains("CONTRIB") && !upper.contains("CONTRIBUTOR"))
 }

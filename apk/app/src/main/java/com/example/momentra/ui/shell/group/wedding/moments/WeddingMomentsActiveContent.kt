@@ -34,11 +34,16 @@ import com.example.momentra.data.api.GroupVendorItemDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import kotlinx.coroutines.launch
 import com.example.momentra.ui.shell.group.shared.ContributionsListSheet
+import com.example.momentra.ui.shell.group.shared.ExperienceChecklistAddSheet
+import com.example.momentra.ui.shell.group.shared.ExpensesListSheet
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
+import com.example.momentra.ui.shell.group.shared.GroupContributionSheet
 import com.example.momentra.ui.shell.group.shared.GroupEmptySection
+import com.example.momentra.ui.shell.group.shared.GroupExperienceChecklistCatalog
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
+import com.example.momentra.ui.shell.group.shared.MomentsChecklistSection
 import com.example.momentra.ui.shell.group.shared.MomentsChrome
 import com.example.momentra.ui.shell.group.shared.MomentsContributionDetailsSection
 import com.example.momentra.ui.shell.group.shared.MomentsExpensesCard
@@ -59,6 +64,7 @@ import com.example.momentra.ui.shell.group.shared.formatPlanningTime
 import com.example.momentra.ui.shell.group.shared.itineraryDayGroups
 import com.example.momentra.ui.shell.group.shared.loadGroupPulseTab
 import com.example.momentra.ui.theme.PlusJakartaSans
+import com.example.momentra.ui.shell.group.wedding.create.SoftPinkAccent
 import com.example.momentra.ui.shell.group.wedding.create.WeddingActiveTheme
 import java.util.Locale
 
@@ -93,7 +99,10 @@ fun WeddingMomentsActiveContent(
     var pollsListOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var scheduleOpen by remember { mutableStateOf(false) }
+    var checklistSheetOpen by remember { mutableStateOf(false) }
     var contributionsOpen by remember { mutableStateOf(false) }
+    var expensesOpen by remember { mutableStateOf(false) }
+    var editingContribution by remember { mutableStateOf<GroupContributionItemDto?>(null) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -152,7 +161,7 @@ fun WeddingMomentsActiveContent(
         polls = repository.listPolls(momentId).getOrNull()?.items.orEmpty()
         vendors = repository.listGroupVendors(momentId).getOrNull()?.items.orEmpty()
         attendance = repository.listAttendance(momentId).getOrNull()?.items.orEmpty()
-        expenses = repository.listGroupExpenses(momentId, 10).getOrNull()?.items.orEmpty()
+        expenses = repository.listGroupExpenses(momentId, 50).getOrNull()?.items.orEmpty()
         contributions = repository.listContributions(momentId, 50).getOrNull()?.items.orEmpty()
         repository.listMemories(momentId).onSuccess {
             memoryItems = it.items
@@ -244,6 +253,21 @@ fun WeddingMomentsActiveContent(
             }
         }
 
+        MomentsChecklistSection(
+            items = planningItems,
+            momentId = momentId,
+            chrome = chrome,
+            repository = repository,
+            onChanged = {
+                if (!momentId.isNullOrBlank()) {
+                    scope.launch {
+                        planningItems = repository.listPlanningItems(momentId).getOrNull()?.items.orEmpty()
+                    }
+                }
+            },
+            onAdd = { checklistSheetOpen = true },
+        )
+
         MomentsSectionHeader("Updates / Feed  📱", chrome)
         if (updates.isEmpty()) {
             GroupEmptySection("No updates yet", "Share a status update from Quick Add.")
@@ -308,9 +332,10 @@ fun WeddingMomentsActiveContent(
             chrome = chrome,
             momentId = momentId,
             onViewAll = { contributionsOpen = true },
+            onEdit = { editingContribution = it },
         )
 
-        MomentsSectionHeader("Expenses & Budget  💸", chrome)
+        MomentsSectionHeader("Expenses & Budget  💸", chrome, onViewAll = { expensesOpen = true })
         MomentsExpensesCard(
             totals = allTotals,
             yourAllocatedLine = yourShareLine,
@@ -327,8 +352,16 @@ fun WeddingMomentsActiveContent(
         )
     }
 
+    ExpensesListSheet(
+        items = expenses,
+        visible = expensesOpen,
+        onDismiss = { expensesOpen = false },
+        chrome = chrome,
+        fallbackCurrency = currency,
+    )
+
     PlanningScheduleSheet(
-        items = planningItems,
+        items = GroupExperienceChecklistCatalog.nonChecklistItems(planningItems),
         visible = scheduleOpen,
         onDismiss = { scheduleOpen = false },
         momentId = momentId,
@@ -346,6 +379,22 @@ fun WeddingMomentsActiveContent(
         border = chrome.border,
         text = chrome.text,
         muted = chrome.secondary,
+        repository = repository,
+    )
+
+    ExperienceChecklistAddSheet(
+        visible = checklistSheetOpen,
+        momentId = momentId,
+        onDismiss = { checklistSheetOpen = false },
+        onSaved = {
+            if (!momentId.isNullOrBlank()) {
+                scope.launch {
+                    planningItems = repository.listPlanningItems(momentId).getOrNull()?.items.orEmpty()
+                }
+            }
+        },
+        accent = SoftPinkAccent,
+        surface = chrome.bg,
         repository = repository,
     )
 
@@ -370,7 +419,35 @@ fun WeddingMomentsActiveContent(
         onDismiss = { contributionsOpen = false },
         chrome = MomentsChrome.Wedding,
         momentId = momentId,
+        onEdit = {
+            contributionsOpen = false
+            editingContribution = it
+        },
     )
+
+    val editItem = editingContribution
+    if (editItem != null && !momentId.isNullOrBlank()) {
+        GroupContributionSheet(
+            momentId = momentId,
+            visible = true,
+            onDismiss = { editingContribution = null },
+            onSaved = {
+                editingContribution = null
+                scope.launch {
+                    contributions = repository.listContributions(momentId, 50).getOrNull()?.items.orEmpty()
+                }
+            },
+            onDeleted = {
+                editingContribution = null
+                scope.launch {
+                    contributions = repository.listContributions(momentId, 50).getOrNull()?.items.orEmpty()
+                }
+            },
+            isWedding = true,
+            editingContribution = editItem,
+            repository = repository,
+        )
+    }
 
     selectedPollId?.let { pollId ->
         PollDetailSheet(

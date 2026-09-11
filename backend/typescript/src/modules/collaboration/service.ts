@@ -834,8 +834,111 @@ export const contributionSchema = z
   })
   .strict();
 
+export const updateContributionSchema = z
+  .object({
+    amount: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
+    currencyCode: travelCurrencyCodeSchema.optional(),
+    label: z.string().max(200).optional(),
+    paymentMethodCode: z.enum(['UPI', 'BANK_TRANSFER', 'CASH', 'CARD']).optional(),
+    participantId: z.string().uuid().optional(),
+    status: z.enum(['PAID', 'PENDING']).optional(),
+  })
+  .strict()
+  .refine(
+    (b) =>
+      b.amount != null ||
+      b.currencyCode != null ||
+      b.label !== undefined ||
+      b.paymentMethodCode !== undefined ||
+      b.participantId != null ||
+      b.status != null,
+    { message: 'At least one field is required.' }
+  );
+
+export type UpdateContributionInput = z.infer<typeof updateContributionSchema>;
+
 function mapContributionStatus(ui?: 'PAID' | 'PENDING'): 'RECORDED' | 'PENDING' {
   return ui === 'PENDING' ? 'PENDING' : 'RECORDED';
+}
+
+function negateContributionAmount(amount: string): string {
+  return amount.startsWith('-') ? amount.slice(1) : `-${amount}`;
+}
+
+/** Apply ±contribution_total on snapshot + position (same SQL pattern as recordContribution). */
+async function applyContributionTotalDelta(
+  client: PoolClient,
+  momentId: string,
+  participantId: string,
+  currencyCode: string,
+  signedAmount: string,
+  sourceEventId: string | null
+): Promise<void> {
+  await client.query(
+    `INSERT INTO projection.group_finance_snapshot (
+       moment_id, currency_code, expense_total, outstanding_total, contribution_total,
+       snapshot_payload, source_event_id, projection_version
+     ) VALUES ($1, $2, 0, 0, $3::numeric, '{}'::jsonb, $4::uuid, 1)
+     ON CONFLICT (moment_id, currency_code) DO UPDATE SET
+       contribution_total = COALESCE(projection.group_finance_snapshot.contribution_total, 0)
+         + EXCLUDED.contribution_total,
+       source_event_id = COALESCE(EXCLUDED.source_event_id, projection.group_finance_snapshot.source_event_id),
+       projection_version = projection.group_finance_snapshot.projection_version + 1,
+       updated_at = now()`,
+    [momentId, currencyCode, signedAmount, sourceEventId]
+  );
+  await client.query(
+    `INSERT INTO projection.group_finance_position (
+       moment_id, participant_id, currency_code,
+       paid_total, allocated_total, contribution_total,
+       payable_total, receivable_total, net_position,
+       source_event_id, projection_version
+     ) VALUES ($1, $2, $3, 0, 0, $4::numeric, 0, 0, 0, $5::uuid, 1)
+     ON CONFLICT (moment_id, participant_id, currency_code) DO UPDATE SET
+       contribution_total = COALESCE(projection.group_finance_position.contribution_total, 0)
+         + EXCLUDED.contribution_total,
+       source_event_id = COALESCE(EXCLUDED.source_event_id, projection.group_finance_position.source_event_id),
+       projection_version = projection.group_finance_position.projection_version + 1,
+       updated_at = now()`,
+    [momentId, participantId, currencyCode, signedAmount, sourceEventId]
+  );
+}
+
+async function loadEditableContribution(
+  client: PoolClient,
+  momentId: string,
+  contributionId: string
+): Promise<{
+  contribution_id: string;
+  moment_id: string;
+  participant_id: string;
+  amount: string;
+  currency_code: string;
+  label: string | null;
+  payment_method_code: string | null;
+  status: string;
+}> {
+  const row = await client.query<{
+    contribution_id: string;
+    moment_id: string;
+    participant_id: string;
+    amount: string;
+    currency_code: string;
+    label: string | null;
+    payment_method_code: string | null;
+    status: string;
+  }>(
+    `SELECT contribution_id, moment_id, participant_id, amount::text, currency_code,
+            label, payment_method_code, status
+     FROM finance.contribution
+     WHERE contribution_id = $1::uuid AND moment_id = $2::uuid
+       AND status IN ('RECORDED', 'PENDING')`,
+    [contributionId, momentId]
+  );
+  if (!row.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Contribution not found.', 404);
+  }
+  return row.rows[0];
 }
 
 export async function recordContribution(
@@ -944,37 +1047,213 @@ export async function recordContribution(
 
   // Collected totals only move for RECORDED (Paid). PENDING stays ledger-only.
   if (status === 'RECORDED') {
-    await client.query(
-      `INSERT INTO projection.group_finance_snapshot (
-         moment_id, currency_code, expense_total, outstanding_total, contribution_total,
-         snapshot_payload, source_event_id, projection_version
-       ) VALUES ($1, $2, 0, 0, $3::numeric, '{}'::jsonb, $4::uuid, 1)
-       ON CONFLICT (moment_id, currency_code) DO UPDATE SET
-         contribution_total = COALESCE(projection.group_finance_snapshot.contribution_total, 0)
-           + EXCLUDED.contribution_total,
-         source_event_id = EXCLUDED.source_event_id,
-         projection_version = projection.group_finance_snapshot.projection_version + 1,
-         updated_at = now()`,
-      [momentId, body.currencyCode, body.amount, domainEventId]
-    );
-    await client.query(
-      `INSERT INTO projection.group_finance_position (
-         moment_id, participant_id, currency_code,
-         paid_total, allocated_total, contribution_total,
-         payable_total, receivable_total, net_position,
-         source_event_id, projection_version
-       ) VALUES ($1, $2, $3, 0, 0, $4::numeric, 0, 0, 0, $5::uuid, 1)
-       ON CONFLICT (moment_id, participant_id, currency_code) DO UPDATE SET
-         contribution_total = COALESCE(projection.group_finance_position.contribution_total, 0)
-           + EXCLUDED.contribution_total,
-         source_event_id = EXCLUDED.source_event_id,
-         projection_version = projection.group_finance_position.projection_version + 1,
-         updated_at = now()`,
-      [momentId, participantId, body.currencyCode, body.amount, domainEventId]
+    await applyContributionTotalDelta(
+      client,
+      momentId,
+      participantId,
+      body.currencyCode,
+      body.amount,
+      domainEventId
     );
   }
 
   return { contributionId, momentId };
+}
+
+export async function updateContribution(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  contributionId: string,
+  body: UpdateContributionInput
+): Promise<{ contributionId: string }> {
+  await assertGovernanceAllowed(client, ctx, {
+    actionCode: 'CONTRIBUTION_RECORD',
+    resourceType: 'CONTRIBUTION',
+    momentId,
+  });
+
+  const existing = await loadEditableContribution(client, momentId, contributionId);
+
+  const nextAmount = body.amount ?? existing.amount;
+  const nextCurrency = body.currencyCode ?? existing.currency_code;
+  const nextLabel = body.label !== undefined ? body.label.trim() || null : existing.label;
+  const nextPaymentMethod =
+    body.paymentMethodCode !== undefined ? body.paymentMethodCode : existing.payment_method_code;
+  let nextParticipantId = existing.participant_id;
+  if (body.participantId) {
+    await assertParticipantsOnMoment(client, momentId, [body.participantId]);
+    nextParticipantId = body.participantId;
+  }
+  const nextStatus =
+    body.status !== undefined ? mapContributionStatus(body.status) : (existing.status as 'RECORDED' | 'PENDING');
+
+  if (existing.status === 'RECORDED') {
+    await applyContributionTotalDelta(
+      client,
+      momentId,
+      existing.participant_id,
+      existing.currency_code,
+      negateContributionAmount(existing.amount),
+      null
+    );
+  }
+
+  await client.query(
+    `UPDATE finance.contribution SET
+       amount = $3,
+       currency_code = $4,
+       label = $5,
+       payment_method_code = $6,
+       participant_id = $7,
+       status = $8,
+       version = version + 1,
+       updated_at = now()
+     WHERE contribution_id = $1::uuid AND moment_id = $2::uuid`,
+    [
+      contributionId,
+      momentId,
+      nextAmount,
+      nextCurrency,
+      nextLabel,
+      nextPaymentMethod,
+      nextParticipantId,
+      nextStatus,
+    ]
+  );
+
+  const { domainEventId } = await recordCommandSideEffects(client, ctx, {
+    eventName: 'GroupContributionUpdated',
+    domainCode: 'GROUP',
+    aggregateType: 'CONTRIBUTION',
+    aggregateId: contributionId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: {
+      contributionId,
+      momentId,
+      amount: nextAmount,
+      currencyCode: nextCurrency,
+      participantId: nextParticipantId,
+      status: nextStatus,
+      label: nextLabel,
+      paymentMethodCode: nextPaymentMethod,
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+    },
+    auditActionCode: 'CONTRIBUTION_RECORD',
+    auditResourceType: 'CONTRIBUTION',
+    auditResourceId: contributionId,
+    afterSnapshot: {
+      contributionId,
+      momentId,
+      amount: nextAmount,
+      currencyCode: nextCurrency,
+      participantId: nextParticipantId,
+      status: nextStatus,
+      label: nextLabel,
+      paymentMethodCode: nextPaymentMethod,
+    },
+    activity: {
+      domainCode: 'GROUP',
+      momentId,
+      activityCode: 'GROUP_CONTRIBUTION_UPDATED',
+      title: nextLabel ?? 'Contribution updated',
+      payload: {
+        contributionId,
+        amount: nextAmount,
+        currencyCode: nextCurrency,
+        participantId: nextParticipantId,
+        status: nextStatus,
+      },
+    },
+  });
+
+  if (nextStatus === 'RECORDED') {
+    await applyContributionTotalDelta(
+      client,
+      momentId,
+      nextParticipantId,
+      nextCurrency,
+      nextAmount,
+      domainEventId
+    );
+  }
+
+  return { contributionId };
+}
+
+export async function voidContribution(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  contributionId: string
+): Promise<{ contributionId: string }> {
+  await assertGovernanceAllowed(client, ctx, {
+    actionCode: 'CONTRIBUTION_RECORD',
+    resourceType: 'CONTRIBUTION',
+    momentId,
+  });
+
+  const existing = await loadEditableContribution(client, momentId, contributionId);
+
+  if (existing.status === 'RECORDED') {
+    await applyContributionTotalDelta(
+      client,
+      momentId,
+      existing.participant_id,
+      existing.currency_code,
+      negateContributionAmount(existing.amount),
+      null
+    );
+  }
+
+  await client.query(
+    `UPDATE finance.contribution
+     SET status = 'VOIDED', version = version + 1, updated_at = now()
+     WHERE contribution_id = $1::uuid AND moment_id = $2::uuid`,
+    [contributionId, momentId]
+  );
+
+  await recordCommandSideEffects(client, ctx, {
+    eventName: 'GroupContributionVoided',
+    domainCode: 'GROUP',
+    aggregateType: 'CONTRIBUTION',
+    aggregateId: contributionId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: {
+      contributionId,
+      momentId,
+      amount: existing.amount,
+      currencyCode: existing.currency_code,
+      participantId: existing.participant_id,
+      status: 'VOIDED',
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+    },
+    auditActionCode: 'CONTRIBUTION_RECORD',
+    auditResourceType: 'CONTRIBUTION',
+    auditResourceId: contributionId,
+    afterSnapshot: {
+      contributionId,
+      momentId,
+      status: 'VOIDED',
+    },
+    activity: {
+      domainCode: 'GROUP',
+      momentId,
+      activityCode: 'GROUP_CONTRIBUTION_VOIDED',
+      title: existing.label ?? 'Contribution voided',
+      payload: {
+        contributionId,
+        amount: existing.amount,
+        currencyCode: existing.currency_code,
+        participantId: existing.participant_id,
+        status: 'VOIDED',
+      },
+    },
+  });
+
+  return { contributionId };
 }
 
 export async function listContributions(

@@ -49,6 +49,7 @@ import com.example.momentra.data.api.PostUpdateBody
 import com.example.momentra.data.api.RecordAttendanceBody
 import com.example.momentra.data.api.RecordContributionBody
 import com.example.momentra.data.api.RecordContributionResultDto
+import com.example.momentra.data.api.UpdateContributionBody
 import com.example.momentra.data.api.GroupContributionsDto
 import com.example.momentra.data.api.RedeemGroupInviteResultDto
 import com.example.momentra.data.api.VotePollBody
@@ -250,6 +251,44 @@ class GroupSliceRepository(
                 status = status,
                 attachmentUploadIds = attachmentUploadIds?.takeIf { it.isNotEmpty() },
             ),
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun updateContribution(
+        momentId: String,
+        contributionId: String,
+        amount: String? = null,
+        currencyCode: String? = null,
+        label: String? = null,
+        paymentMethodCode: String? = null,
+        participantId: String? = null,
+        status: String? = null,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<RecordContributionResultDto> = runCatching {
+        api.updateContribution(
+            momentId = momentId,
+            contributionId = contributionId,
+            idempotencyKey = idempotencyKey,
+            body = UpdateContributionBody(
+                amount = amount,
+                currencyCode = currencyCode?.uppercase(),
+                label = label,
+                paymentMethodCode = paymentMethodCode,
+                participantId = participantId,
+                status = status,
+            ),
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun voidContribution(
+        momentId: String,
+        contributionId: String,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<RecordContributionResultDto> = runCatching {
+        api.voidContribution(
+            momentId = momentId,
+            contributionId = contributionId,
+            idempotencyKey = idempotencyKey,
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 

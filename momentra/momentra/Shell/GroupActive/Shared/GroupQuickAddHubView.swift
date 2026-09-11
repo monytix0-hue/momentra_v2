@@ -14,6 +14,7 @@ struct GroupQuickAddHubView: View {
     var onInvite: () -> Void = {}
     var onBudget: () -> Void = {}
     var onPlanning: () -> Void = {}
+    var onChecklist: () -> Void = {}
     var onBooking: () -> Void = {}
     var onPoll: () -> Void = {}
     var onUpdate: () -> Void = {}
@@ -195,6 +196,7 @@ struct GroupQuickAddHubView: View {
             case .participants: onParticipants()
             case .budget: onBudget()
             case .planning: onPlanning()
+            case .checklist: onChecklist()
             case .booking: onBooking()
             case .poll: onPoll()
             case .update: onUpdate()

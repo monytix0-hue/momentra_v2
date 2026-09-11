@@ -54,6 +54,7 @@ import com.example.momentra.ui.theme.PlusJakartaSans
 enum class WeddingQuickAddKind {
     PARTICIPANT,
     PLANNING,
+    CHECKLIST,
     EXPENSE,
     BUDGET,
     CONTRIBUTION,
@@ -77,6 +78,7 @@ data class WeddingHubTile(
 private val weddingHubTiles = listOf(
     WeddingHubTile(WeddingQuickAddKind.PARTICIPANT, "Participant", "👤", Color(0xFFFA7387), Color(0xFFE01C4D), live = true),
     WeddingHubTile(WeddingQuickAddKind.PLANNING, "Planning Item", "📋", Color(0xFFF573B5), Color(0xFFDB2675), live = true),
+    WeddingHubTile(WeddingQuickAddKind.CHECKLIST, "Checklist", "✅", Color(0xFF60A5FA), Color(0xFF2563EB), live = true),
     WeddingHubTile(WeddingQuickAddKind.EXPENSE, "Expense", "💳", Color(0xFFBF26D4), Color(0xFF871A8F), live = true),
     WeddingHubTile(WeddingQuickAddKind.BUDGET, "Budget", "🪙", Color(0xFFFC7085), Color(0xFFE83359), live = true),
     WeddingHubTile(WeddingQuickAddKind.CONTRIBUTION, "Contribution", "🎁", Color(0xFFD945F0), Color(0xFFA31CB0), live = true),

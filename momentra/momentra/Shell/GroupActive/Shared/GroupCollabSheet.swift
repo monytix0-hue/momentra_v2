@@ -4,7 +4,7 @@ import UIKit
 import UniformTypeIdentifiers
 
 enum GroupCollabKind: String, Identifiable {
-    case planning, booking, poll, update, memory, purchaseItem, resident
+    case planning, checklist, booking, poll, update, memory, purchaseItem, resident
     var id: String { rawValue }
 }
 
@@ -94,6 +94,33 @@ struct GroupCollabSheet: View {
     @State private var selectedImageData: Data?
 
     var body: some View {
+        if kind == .checklist {
+            NativeSheetScaffold(
+                title: "Checklist",
+                onClose: { isPresented = false },
+                background: TripForm.bg
+            ) {
+                ScrollView {
+                    ExperienceChecklistBody(
+                        momentId: momentId,
+                        onDismiss: { isPresented = false },
+                        onSaved: onSaved,
+                        accent: SheetAccent(
+                            accent: TripForm.teal,
+                            accentEnd: Color(hex: "#0F766E"),
+                            soft: TripForm.teal.opacity(0.2)
+                        )
+                    )
+                    .padding(24)
+                }
+            }
+            .presentationDetents([.large])
+        } else {
+            collabFormBody
+        }
+    }
+
+    private var collabFormBody: some View {
         NativeSheetScaffold(
             title: titleText,
             onClose: { isPresented = false },
@@ -104,6 +131,7 @@ struct GroupCollabSheet: View {
                     TripSheetHeader(iconAsset: headerIcon, title: titleText, subtitle: subtitleText, accent: headerAccent)
                     switch kind {
                     case .planning: planningFields
+                    case .checklist: EmptyView()
                     case .booking: bookingFields
                     case .poll: pollFields
                     case .update: updateFields
@@ -167,6 +195,7 @@ struct GroupCollabSheet: View {
     private var titleText: String {
         switch kind {
         case .planning: return "Add Plan"
+        case .checklist: return "Checklist"
         case .booking: return bookingType == "Flight" ? "Add Flight" : "Add Booking"
         case .poll: return "Create Poll"
         case .update: return "Post Update"
@@ -179,6 +208,7 @@ struct GroupCollabSheet: View {
     private var subtitleText: String {
         switch kind {
         case .planning: return "Schedule an activity for your trip"
+        case .checklist: return "Shared packing & essentials"
         case .booking: return "Attach reservations to your Kyoto timeline"
         case .poll: return "Vote on activities with your travel group"
         case .update: return "Share a status with your travel group"
@@ -190,7 +220,7 @@ struct GroupCollabSheet: View {
 
     private var headerIcon: String {
         switch kind {
-        case .planning: return "GroupQaCalendar"
+        case .planning, .checklist: return "GroupQaCalendar"
         case .booking: return "GroupQaTicket"
         case .poll: return "GroupQaVote"
         case .update: return "GroupQaMegaphone"
@@ -1047,6 +1077,8 @@ struct GroupCollabSheet: View {
                     priorityCode: GroupPlanningCategoryCatalog.priorityCode(for: priority),
                     description: note.isEmpty ? nil : note
                 )
+            case .checklist:
+                break
             case .booking:
                 let stayBodies: [APIClient.BookingStayBody] = bookingType == "Hotel"
                     ? hotelStays.compactMap { s in

@@ -3,6 +3,7 @@ import SwiftUI
 enum WeddingQuickAddKind: String, Identifiable, CaseIterable {
     case participant
     case planning
+    case checklist
     case expense
     case budget
     case contribution
@@ -17,7 +18,7 @@ enum WeddingQuickAddKind: String, Identifiable, CaseIterable {
 
     var isLive: Bool {
         switch self {
-        case .expense, .budget, .contribution, .settle, .planning, .poll, .update, .memory, .participant: return true
+        case .expense, .budget, .contribution, .settle, .planning, .checklist, .poll, .update, .memory, .participant: return true
         default: return false
         }
     }
@@ -26,6 +27,7 @@ enum WeddingQuickAddKind: String, Identifiable, CaseIterable {
         switch self {
         case .participant: return "Participant"
         case .planning: return "Planning Item"
+        case .checklist: return "Checklist"
         case .expense: return "Expense"
         case .budget: return "Budget"
         case .contribution: return "Contribution"
@@ -42,6 +44,7 @@ enum WeddingQuickAddKind: String, Identifiable, CaseIterable {
         switch self {
         case .participant: return "👤"
         case .planning: return "📋"
+        case .checklist: return "✅"
         case .expense: return "💳"
         case .budget: return "💰"
         case .contribution: return "🎁"
@@ -58,6 +61,7 @@ enum WeddingQuickAddKind: String, Identifiable, CaseIterable {
         switch self {
         case .participant: return [Color(hex: "#FA7387"), Color(hex: "#E01C4D")]
         case .planning: return [Color(hex: "#F573B5"), Color(hex: "#DB2675")]
+        case .checklist: return [Color(hex: "#60A5FA"), Color(hex: "#2563EB")]
         case .expense: return [Color(hex: "#BF26D4"), Color(hex: "#871A8F")]
         case .budget: return [Color(hex: "#FC7085"), Color(hex: "#E83359")]
         case .contribution: return [Color(hex: "#D945F0"), Color(hex: "#A31CB0")]
@@ -283,6 +287,7 @@ struct WeddingQuickAddHubView: View {
         switch kind {
         case .participant: return "person.fill"
         case .planning: return "list.bullet"
+        case .checklist: return "checklist"
         case .expense: return "creditcard.fill"
         case .budget: return "dollarsign.circle.fill"
         case .contribution: return "gift.fill"

@@ -400,6 +400,97 @@ struct MomentsExpensesCard: View {
     }
 }
 
+struct ExpensesListSheet: View {
+    let items: [APIClient.GroupExpenseListItemPayload]
+    var chrome: MomentsChrome
+    var fallbackCurrency: String = "INR"
+    var onDismiss: () -> Void
+
+    private var grouped: [(day: Date, items: [APIClient.GroupExpenseListItemPayload])] {
+        let today = Calendar.current.startOfDay(for: Date())
+        var buckets: [Date: [APIClient.GroupExpenseListItemPayload]] = [:]
+        var order: [Date] = []
+        for item in items {
+            let day = contributionDayKey(item.effectiveAt) ?? today
+            if buckets[day] == nil {
+                order.append(day)
+                buckets[day] = []
+            }
+            buckets[day]?.append(item)
+        }
+        return order.sorted(by: >).compactMap { day in
+            guard let list = buckets[day], !list.isEmpty else { return nil }
+            return (day, list)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    if grouped.isEmpty {
+                        GroupEmptySection(message: "No expenses yet", detail: "Add a group expense from Quick Add.")
+                            .padding(.top, 24)
+                    } else {
+                        ForEach(Array(grouped.enumerated()), id: \.offset) { _, group in
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(contributionDayHeader(group.day))
+                                    .font(.plusJakarta(size: 13, weight: .bold))
+                                    .foregroundStyle(chrome.secondary)
+                                ForEach(group.items) { expense in
+                                    HStack(spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            HStack(spacing: 6) {
+                                                Text(expense.description ?? "Expense")
+                                                    .font(.plusJakarta(size: 13, weight: .semibold))
+                                                    .foregroundStyle(chrome.text)
+                                                if expense.hasAttachment {
+                                                    Image(systemName: "paperclip")
+                                                        .font(.system(size: 11, weight: .semibold))
+                                                        .foregroundStyle(chrome.accent)
+                                                }
+                                            }
+                                            Text((expense.categoryCode ?? "General").replacingOccurrences(of: "_", with: " ").capitalized)
+                                                .font(.plusJakarta(size: 11))
+                                                .foregroundStyle(chrome.secondary)
+                                        }
+                                        Spacer()
+                                        Text(GroupFinanceFormat.formatMoney(expense.amount, currencyCode: expense.currencyCode ?? fallbackCurrency))
+                                            .font(.plusJakarta(size: 13, weight: .bold))
+                                            .foregroundStyle(chrome.text)
+                                        Text(expense.paidByDisplayName ?? "—")
+                                            .font(.plusJakarta(size: 11))
+                                            .foregroundStyle(chrome.secondary)
+                                            .frame(width: 56, alignment: .trailing)
+                                    }
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(chrome.card)
+                                    .overlay(alignment: .leading) {
+                                        RoundedRectangle(cornerRadius: 2).fill(chrome.accent).frame(width: 3)
+                                    }
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(chrome.border))
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(chrome.bg)
+            .navigationTitle("Expenses")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close", action: onDismiss)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
 struct MomentsUpcomingEvent: Identifiable {
     var id: String { "\(title)-\(detail)" }
     let title: String
@@ -433,7 +524,10 @@ func momentsUpcomingFromPlanning(
         if out.count >= 2 { break }
     }
     if out.count < 2 {
-        for plan in recentOpenPlanningItems(planning, limit: 8) {
+        for plan in recentOpenPlanningItems(
+            GroupExperienceChecklistCatalog.nonChecklistItems(planning),
+            limit: 8
+        ) {
             guard let due = parsePlanningInstant(plan.dueAt), due >= now else { continue }
             let dayStart = cal.startOfDay(for: due)
             let badge: String? = dayStart == tomorrow ? "TOMORROW" : (dayStart == cal.startOfDay(for: now) ? "TODAY" : nil)
