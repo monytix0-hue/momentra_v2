@@ -10,6 +10,13 @@ object GroupJoinLink {
     private val SHORT = Regex("^[a-hj-np-z2-9]{8}$", RegexOption.IGNORE_CASE)
     private val LEGACY = Regex("^[a-z0-9]+-[a-z0-9-]+-[a-f0-9]{8}$", RegexOption.IGNORE_CASE)
     private val JWTISH = Regex("""eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+""")
+    private val INVITE_HOSTS = setOf(
+        "momentra.tech",
+        "www.momentra.tech",
+        "momentra.app",
+        "www.momentra.app",
+        "momentra-v2.web.app",
+    )
 
     fun parse(uri: Uri?): String? = parse(uri?.toString())
 
@@ -28,7 +35,7 @@ object GroupJoinLink {
         val candidate = when {
             scheme == "momentra" && (host == "j" || host == "join") ->
                 segments.lastOrNull() ?: uri.getQueryParameter("code") ?: host.takeIf { it != "j" && it != "join" }
-            (host == "momentra.app" || host == "www.momentra.app") &&
+            host in INVITE_HOSTS &&
                 segments.isNotEmpty() && (segments[0].equals("j", true) || segments[0].equals("join", true)) ->
                 segments.getOrNull(1)
             scheme == "momentra" && segments.getOrNull(0).equals("j", true) ->

@@ -151,7 +151,12 @@ async function fanOutMomentActivity(
   return userIds;
 }
 
-const DISPLAY_ORIGIN = 'https://momentra.app';
+const DISPLAY_ORIGIN = (
+  process.env.INVITE_DISPLAY_ORIGIN ??
+  process.env.PUBLIC_APP_ORIGIN ??
+  'https://momentra.tech'
+).replace(/\/+$/, '');
+const DISPLAY_HOST = DISPLAY_ORIGIN.replace(/^https?:\/\//i, '');
 const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 
 function toInviteViews(row: {
@@ -162,7 +167,7 @@ function toInviteViews(row: {
   moment_type_code: string;
   moment_id: string | null;
 }): InviteResult {
-  const hostPath = `momentra.app/j/${row.invite_code}`;
+  const hostPath = `${DISPLAY_HOST}/j/${row.invite_code}`;
   return {
     inviteId: row.invite_id,
     inviteCode: row.invite_code,

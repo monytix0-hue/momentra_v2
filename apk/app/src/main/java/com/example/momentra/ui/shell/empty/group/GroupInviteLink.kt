@@ -1,7 +1,7 @@
 package com.example.momentra.ui.shell.empty.group
 
 internal object GroupInviteLink {
-    private const val HTTPS_BASE = "https://momentra.app/j"
+    private const val HTTPS_BASE = "https://momentra.tech/j"
 
     fun displayPath(code: String): String = "$HTTPS_BASE/${code.trim().lowercase()}"
 

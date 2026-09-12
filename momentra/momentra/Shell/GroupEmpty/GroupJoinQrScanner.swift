@@ -1,5 +1,7 @@
 import AVFoundation
+import PhotosUI
 import SwiftUI
+import UIKit
 import Vision
 
 struct GroupJoinQrScanner: View {
@@ -10,20 +12,15 @@ struct GroupJoinQrScanner: View {
     @State private var accepted = false
     @State private var cameraDenied = false
     @State private var cameraReady = false
+    @State private var photoItem: PhotosPickerItem?
+    @State private var scanError: String?
+    @State private var decodingUpload = false
 
     var body: some View {
         ZStack {
             if cameraReady, !cameraDenied {
                 ScannerCameraView { raw in
-                    guard !accepted else { return }
-                    if let company = CompanyJoinLink.parse(raw), let onCompanyCode {
-                        accepted = true
-                        onCompanyCode(company)
-                        return
-                    }
-                    guard let code = GroupJoinLink.parse(raw) else { return }
-                    accepted = true
-                    onCode(code)
+                    acceptRaw(raw)
                 }
                 .ignoresSafeArea()
             }
@@ -33,11 +30,15 @@ struct GroupJoinQrScanner: View {
                     Text("Scan to join")
                         .font(.plusJakarta(size: 20, weight: .bold))
                         .foregroundStyle(.white)
-                    Text(cameraDenied
-                         ? "Camera access is needed to scan an invite QR."
-                         : "Point the camera at a Momentra invite QR.")
+                    Text(subtitle)
                         .font(.plusJakarta(size: 14))
                         .foregroundStyle(.white.opacity(0.7))
+                    if let scanError {
+                        Text(scanError)
+                            .font(.plusJakarta(size: 13))
+                            .foregroundStyle(Color(hex: "#F87171"))
+                            .padding(.top, 4)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
@@ -46,13 +47,29 @@ struct GroupJoinQrScanner: View {
                     .stroke(Color(hex: "#FF7A3D"), lineWidth: 2)
                     .frame(width: 240, height: 240)
                 Spacer()
-                Button("Cancel", action: onDismiss)
-                    .font(.plusJakarta(size: 15, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 12)
-                    .background(Color.white.opacity(0.12), in: Capsule())
-                    .padding(.bottom, 48)
+                HStack(spacing: 12) {
+                    PhotosPicker(
+                        selection: $photoItem,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        Text("Upload")
+                            .font(.plusJakarta(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 28)
+                            .padding(.vertical, 12)
+                            .background(Color(hex: "#FF7A3D").opacity(0.9), in: Capsule())
+                    }
+                    .disabled(decodingUpload)
+
+                    Button("Cancel", action: onDismiss)
+                        .font(.plusJakarta(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 12)
+                        .background(Color.white.opacity(0.12), in: Capsule())
+                }
+                .padding(.bottom, 48)
             }
         }
         .background(Color(hex: "#131313").ignoresSafeArea())
@@ -60,6 +77,59 @@ struct GroupJoinQrScanner: View {
             let granted = await AVCaptureDevice.requestAccess(for: .video)
             cameraDenied = !granted
             cameraReady = granted
+        }
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task { await decodeUploadedPhoto(item) }
+        }
+    }
+
+    private var subtitle: String {
+        if decodingUpload { return "Reading QR from photo…" }
+        if cameraDenied { return "Camera access is off — upload a QR photo instead." }
+        return "Point the camera at a Momentra invite QR, or upload a photo."
+    }
+
+    private func acceptRaw(_ raw: String) {
+        guard !accepted else { return }
+        if let company = CompanyJoinLink.parse(raw), let onCompanyCode {
+            accepted = true
+            onCompanyCode(company)
+            return
+        }
+        guard let code = GroupJoinLink.parse(raw) else {
+            scanError = "Not a Momentra invite QR."
+            return
+        }
+        accepted = true
+        onCode(code)
+    }
+
+    private func decodeUploadedPhoto(_ item: PhotosPickerItem) async {
+        decodingUpload = true
+        scanError = nil
+        defer {
+            decodingUpload = false
+            photoItem = nil
+        }
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let uiImage = UIImage(data: data),
+              let cgImage = uiImage.cgImage else {
+            scanError = "Could not read that photo."
+            return
+        }
+        let request = VNDetectBarcodesRequest()
+        request.symbologies = [.qr]
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        do {
+            try handler.perform([request])
+            guard let raw = request.results?.compactMap({ $0.payloadStringValue }).first else {
+                scanError = "No invite QR found in that image."
+                return
+            }
+            acceptRaw(raw)
+        } catch {
+            scanError = "No invite QR found in that image."
         }
     }
 }

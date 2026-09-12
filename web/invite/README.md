@@ -1,24 +1,29 @@
-# Momentra invite landing (momentra.app)
+# Momentra invite landing (momentra.tech)
 
 Static hosting for group/company invite HTTPS links and App / Universal Link verification.
 
-## Live deploy
+## Production host
 
-Firebase Hosting site **momentra-v2** is deployed:
+**Canonical domain:** `https://momentra.tech` (Vercel)
 
-- https://momentra-v2.web.app/j/{code}
-- https://momentra-v2.web.app/.well-known/assetlinks.json
-- https://momentra-v2.web.app/.well-known/apple-app-site-association
+- Group: `https://momentra.tech/j/{code}`
+- Company: `https://momentra.tech/c/{code}`
+- Well-known: `https://momentra.tech/.well-known/assetlinks.json` and `apple-app-site-association`
 
-**Cutover for `momentra.app`:** Firebase custom domain `momentra.app` is registered on site **momentra-v2** but DNS still points at Cloudflare→GitHub Pages (`HOST_MISMATCH`). In Cloudflare DNS for `momentra.app`, apply Firebase’s desired records:
+Clients mint `https://momentra.tech/j|c/…`. Backend uses `PUBLIC_APP_ORIGIN` / `INVITE_DISPLAY_ORIGIN` (default `https://momentra.tech`).
 
-- **A** `momentra.app` → `199.36.158.100` (remove Cloudflare proxy A/AAAA to 104.21… / 172.67…)
-- **TXT** `momentra.app` → `hosting-site=momentra-v2`
-- **TXT** `_acme-challenge.momentra.app` → (value shown in Firebase Console while cert validates)
+Legacy hosts (`momentra.app`, `momentra-v2.web.app`) still parse in-app.
 
-Until DNS flips, invite HTTPS + well-known files are live at https://momentra-v2.web.app. Clients already mint `https://momentra.app/j/…`; App Links / Universal Links verify once that host serves `assetlinks.json` / AASA.
+## Deploy (Vercel)
 
+Point the **momentra.tech** Vercel project root (or a rewrite) at this folder (`web/invite`), then:
 
+```bash
+# from repo root, if this folder is its own Vercel project:
+npx vercel --prod --cwd web/invite
+```
+
+Or merge [`vercel.json`](vercel.json) rewrites/headers into the existing marketing site so `/j/*`, `/c/*`, and `/.well-known/*` are served from these files (override older `app.momentra` / `MagnatePoint.Momentra` well-known entries with the v2 files in `.well-known/`).
 
 ## Paths
 
@@ -26,25 +31,17 @@ Until DNS flips, invite HTTPS + well-known files are live at https://momentra-v2
 |------|---------|
 | `/j/{code}` / `/join/{code}` | Group invite landing → opens `momentra://j/{code}` |
 | `/c/{code}` / `/company/{code}` | Company invite landing → opens `momentra://c/{code}` |
-| `/.well-known/assetlinks.json` | Android App Links |
-| `/.well-known/apple-app-site-association` | iOS Universal Links |
-
-## Deploy (Firebase Hosting)
-
-```bash
-npx -y firebase-tools@latest deploy --only hosting --project momentra-v2
-```
+| `/.well-known/assetlinks.json` | Android App Links (`com.example.momentra`) |
+| `/.well-known/apple-app-site-association` | iOS Universal Links (`resolvingpoint.momentra`) |
 
 ## Android fingerprint
 
-`assetlinks.json` includes the **debug** keystore SHA-256. For Play / release builds, append the upload/app-signing certificate fingerprint:
+`assetlinks.json` includes the **debug** keystore SHA-256. For Play / release / App Distribution builds, append the upload/app-signing certificate fingerprint (no colons):
 
 ```bash
 keytool -list -v -keystore your-release.keystore -alias your-alias
 ```
 
-Use the SHA-256 value **without colons**.
-
 ## iOS
 
-Associated domains are set in `momentra.entitlements` (`applinks:momentra.app`). Enable Associated Domains for App ID `resolvingpoint.momentra` in the Apple Developer portal if not already.
+Associated domains: `applinks:momentra.tech` (and www). Enable Associated Domains for App ID `resolvingpoint.momentra` in the Apple Developer portal.

@@ -29,7 +29,7 @@ enum GroupJoinLink {
                 return sanitize(parts.dropFirst().first)
             }
         }
-        if host == "momentra.app" || host == "www.momentra.app",
+        if Self.isInviteHost(host),
            let first = parts.first, first == "j" || first == "join" {
             return sanitize(parts.dropFirst().first)
         }
@@ -53,6 +53,16 @@ enum GroupJoinLink {
         if value.range(of: legacyPattern, options: [.regularExpression, .caseInsensitive]) != nil { return value }
         return nil
     }
+
+    private static func isInviteHost(_ host: String) -> Bool {
+        [
+            "momentra.tech",
+            "www.momentra.tech",
+            "momentra.app",
+            "www.momentra.app",
+            "momentra-v2.web.app",
+        ].contains(host)
+    }
 }
 
 @MainActor
@@ -60,6 +70,31 @@ final class JoinInviteStore: ObservableObject {
     static let shared = JoinInviteStore()
 
     private static let prefsKey = "momentra_pending_join_code"
+
+    @Published private(set) var pendingCode: String?
+
+    private init() {
+        pendingCode = UserDefaults.standard.string(forKey: Self.prefsKey)
+    }
+
+    func offer(_ code: String) {
+        pendingCode = code
+        UserDefaults.standard.set(code, forKey: Self.prefsKey)
+    }
+
+    func consume() -> String? {
+        let code = pendingCode ?? UserDefaults.standard.string(forKey: Self.prefsKey)
+        pendingCode = nil
+        UserDefaults.standard.removeObject(forKey: Self.prefsKey)
+        return code?.isEmpty == false ? code : nil
+    }
+}
+
+@MainActor
+final class JoinCompanyInviteStore: ObservableObject {
+    static let shared = JoinCompanyInviteStore()
+
+    private static let prefsKey = "momentra_pending_company_join_code"
 
     @Published private(set) var pendingCode: String?
 

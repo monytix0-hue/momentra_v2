@@ -65,8 +65,8 @@ describe('Group invites', () => {
     assert.equal(mint.status, 201, JSON.stringify(mint.body));
     assert.match(mint.body.data.inviteCode, /^[a-hj-np-z2-9]{8}$/);
     assert.equal(mint.body.data.status, 'PENDING');
-    assert.equal(mint.body.data.invitePath, `momentra.app/j/${mint.body.data.inviteCode}`);
-    assert.equal(mint.body.data.inviteUrl, `https://momentra.app/j/${mint.body.data.inviteCode}`);
+    assert.equal(mint.body.data.invitePath, `momentra.tech/j/${mint.body.data.inviteCode}`);
+    assert.equal(mint.body.data.inviteUrl, `https://momentra.tech/j/${mint.body.data.inviteCode}`);
     assert.doesNotMatch(String(mint.body.data.inviteUrl), /eyJ[A-Za-z0-9_-]+\./);
 
     const preview = await request(app)

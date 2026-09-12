@@ -3,14 +3,21 @@ package com.example.momentra.ui.shell.empty.business
 import android.net.Uri
 
 /**
- * Company invite deeplinks — `momentra://c/{code}` / `momentra.app/c/{code}`.
+ * Company invite deeplinks — `momentra://c/{code}` / `momentra.tech/c/{code}`.
  * Bare codes are only accepted via [parseTyped] (Company Setup text entry).
  */
 object CompanyJoinLink {
     private val SHORT = Regex("^[a-hj-np-z2-9]{8}$", RegexOption.IGNORE_CASE)
+    private val INVITE_HOSTS = setOf(
+        "momentra.tech",
+        "www.momentra.tech",
+        "momentra.app",
+        "www.momentra.app",
+        "momentra-v2.web.app",
+    )
 
     fun displayPath(code: String): String =
-        "https://momentra.app/c/${code.trim().lowercase()}"
+        "https://momentra.tech/c/${code.trim().lowercase()}"
 
     fun qrPayload(code: String): String = displayPath(code)
 
@@ -26,7 +33,7 @@ object CompanyJoinLink {
         val candidate = when {
             scheme == "momentra" && (host == "c" || host == "company") ->
                 segments.lastOrNull()
-            (host == "momentra.app" || host == "www.momentra.app") &&
+            host in INVITE_HOSTS &&
                 segments.isNotEmpty() &&
                 (segments[0].equals("c", true) || segments[0].equals("company", true)) ->
                 segments.getOrNull(1)

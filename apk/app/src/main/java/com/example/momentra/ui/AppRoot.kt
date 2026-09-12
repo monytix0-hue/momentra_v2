@@ -31,6 +31,7 @@ import com.example.momentra.analytics.AnalyticsWidgets
 import com.example.momentra.analytics.TrackScreen
 import com.example.momentra.analytics.trackWidget
 import com.example.momentra.data.local.AppPreferences
+import com.example.momentra.data.local.PendingCompanyJoinInvite
 import com.example.momentra.data.local.PendingJoinInvite
 import com.example.momentra.data.device.DeviceRegistrar
 import com.example.momentra.data.repository.MeRepository
@@ -96,6 +97,7 @@ fun AppRoot() {
 
     LaunchedEffect(Unit) {
         prefs.getPendingJoinCode()?.let { PendingJoinInvite.hydrate(it) }
+        prefs.getPendingCompanyJoinCode()?.let { PendingCompanyJoinInvite.hydrate(it) }
     }
 
     LaunchedEffect(authState.isLoggedIn) {

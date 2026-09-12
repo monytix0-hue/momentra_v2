@@ -38,7 +38,12 @@ export interface RedeemCompanyInviteResult {
   alreadyMember: boolean;
 }
 
-const DISPLAY_ORIGIN = 'https://momentra.app';
+const DISPLAY_ORIGIN = (
+  process.env.INVITE_DISPLAY_ORIGIN ??
+  process.env.PUBLIC_APP_ORIGIN ??
+  'https://momentra.tech'
+).replace(/\/+$/, '');
+const DISPLAY_HOST = DISPLAY_ORIGIN.replace(/^https?:\/\//i, '');
 const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 
 function toInviteViews(row: {
@@ -50,7 +55,7 @@ function toInviteViews(row: {
   membership_type: string;
   expires_at: Date | string;
 }): CompanyInviteResult {
-  const hostPath = `momentra.app/c/${row.invite_code}`;
+  const hostPath = `${DISPLAY_HOST}/c/${row.invite_code}`;
   const expiresAt =
     row.expires_at instanceof Date ? row.expires_at.toISOString() : String(row.expires_at);
   return {

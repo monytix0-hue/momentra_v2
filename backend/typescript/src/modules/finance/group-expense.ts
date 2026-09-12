@@ -1046,7 +1046,12 @@ export async function voidGroupExpense(
       momentId,
       activityCode: 'GROUP_EXPENSE_VOIDED',
       title: existing.description ?? 'Group expense voided',
-      payload: { expenseId, status: 'VOIDED' },
+      payload: {
+        expenseId,
+        status: 'VOIDED',
+        amount: existing.amount,
+        currencyCode: existing.currencyCode,
+      },
     },
   });
 

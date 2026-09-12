@@ -31,7 +31,7 @@ import java.util.Locale
 
 /**
  * Shared Pulse / All-activity row matching Figma 584:15872:
- * left accent bar + 36dp rounded icon + actor-prefixed title + relative time.
+ * left accent bar + 36dp rounded icon + actor-prefixed title + relative time + amount.
  */
 @Composable
 fun GroupActivityRow(
@@ -41,50 +41,74 @@ fun GroupActivityRow(
     secondaryColor: Color = Color(0xFFC9C4D8),
     showChevron: Boolean = false,
     compactPadding: Boolean = true,
+    isChild: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
     val canTap = onClick != null
+    val amount = groupActivityAmountLabel(item)
+    val title = groupActivityRowTitle(item, isChild)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (canTap) Modifier.clickable(onClick = onClick!!) else Modifier)
             .padding(
-                horizontal = if (compactPadding) 0.dp else 16.dp,
-                vertical = if (compactPadding) 0.dp else 12.dp,
+                start = if (isChild) {
+                    if (compactPadding) 28.dp else 44.dp
+                } else {
+                    if (compactPadding) 0.dp else 16.dp
+                },
+                end = if (compactPadding) 0.dp else 16.dp,
+                top = if (compactPadding) 0.dp else 12.dp,
+                bottom = if (compactPadding) 0.dp else 12.dp,
             ),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .width(2.dp)
-                .height(36.dp)
-                .background(accent.copy(alpha = 0.4f), RoundedCornerShape(1.dp)),
+                .width(if (isChild) 1.5.dp else 2.dp)
+                .height(if (isChild) 28.dp else 36.dp)
+                .background(
+                    accent.copy(alpha = if (isChild) 0.25f else 0.4f),
+                    RoundedCornerShape(1.dp),
+                ),
         )
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(if (isChild) 28.dp else 36.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(Color.White.copy(alpha = 0.1f)),
             contentAlignment = Alignment.Center,
         ) {
-            Text(groupActivityGlyph(item.activityCode), fontSize = 16.sp)
+            Text(
+                if (isChild && isGroupActivityVoided(item.activityCode)) "🗑️" else groupActivityGlyph(item.activityCode),
+                fontSize = if (isChild) 13.sp else 16.sp,
+            )
         }
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                groupActivityDisplayTitle(item),
-                color = textColor,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                title,
+                color = if (isChild) secondaryColor else textColor,
+                fontSize = if (isChild) 12.sp else 14.sp,
+                fontWeight = if (isChild) FontWeight.SemiBold else FontWeight.Bold,
                 fontFamily = PlusJakartaSans,
             )
             Text(
                 formatGroupActivityOccurredAt(item.occurredAt),
                 color = secondaryColor,
                 fontSize = 11.sp,
+                fontFamily = PlusJakartaSans,
+            )
+        }
+        if (!amount.isNullOrBlank()) {
+            Text(
+                amount,
+                color = secondaryColor,
+                fontSize = if (isChild) 12.sp else 13.sp,
+                fontWeight = FontWeight.SemiBold,
                 fontFamily = PlusJakartaSans,
             )
         }

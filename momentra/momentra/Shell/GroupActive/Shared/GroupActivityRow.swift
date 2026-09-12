@@ -1,7 +1,15 @@
 import SwiftUI
 
+/// Nested activity parent with optional UPDATED / VOIDED children.
+struct GroupActivityTreeNode: Identifiable {
+    let item: APIClient.ActivityItemPayload
+    let children: [APIClient.ActivityItemPayload]
+
+    var id: String { item.id }
+}
+
 /// Shared Pulse / All-activity row matching Figma 584:15872:
-/// left accent bar + 36pt rounded icon + actor-prefixed title + relative time.
+/// left accent bar + 36pt rounded icon + actor-prefixed title + relative time + amount.
 struct GroupActivityRow: View {
     let item: APIClient.ActivityItemPayload
     var accent: Color
@@ -9,9 +17,18 @@ struct GroupActivityRow: View {
     var secondaryColor: Color = Color(hex: "#C9C4D8")
     var showChevron: Bool = false
     var compactPadding: Bool = true
+    var isChild: Bool = false
     var action: (() -> Void)? = nil
 
     private var canTap: Bool { action != nil }
+
+    private var amountLabel: String? {
+        GroupActivityPresentation.amountLabel(for: item)
+    }
+
+    private var title: String {
+        GroupActivityPresentation.rowTitle(for: item, isChild: isChild)
+    }
 
     var body: some View {
         Button {
@@ -19,23 +36,33 @@ struct GroupActivityRow: View {
         } label: {
             HStack(spacing: 12) {
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(accent.opacity(0.4))
-                    .frame(width: 2, height: 36)
+                    .fill(accent.opacity(isChild ? 0.25 : 0.4))
+                    .frame(width: isChild ? 1.5 : 2, height: isChild ? 28 : 36)
 
-                Text(GroupActivityPresentation.glyph(for: item.activityCode))
-                    .font(.system(size: 16))
-                    .frame(width: 36, height: 36)
-                    .background(Color.white.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                Text(
+                    isChild && GroupActivityPresentation.isVoided(item.activityCode)
+                        ? "🗑️"
+                        : GroupActivityPresentation.glyph(for: item.activityCode)
+                )
+                .font(.system(size: isChild ? 13 : 16))
+                .frame(width: isChild ? 28 : 36, height: isChild ? 28 : 36)
+                .background(Color.white.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(GroupActivityPresentation.displayTitle(for: item))
-                        .font(.plusJakarta(size: 14, weight: .bold))
-                        .foregroundStyle(textColor)
+                    Text(title)
+                        .font(.plusJakarta(size: isChild ? 12 : 14, weight: isChild ? .semibold : .bold))
+                        .foregroundStyle(isChild ? secondaryColor : textColor)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text(GroupActivityPresentation.formatOccurredAt(item.occurredAt))
                         .font(.plusJakarta(size: 11, weight: .regular))
+                        .foregroundStyle(secondaryColor)
+                }
+
+                if let amountLabel {
+                    Text(amountLabel)
+                        .font(.plusJakarta(size: isChild ? 12 : 13, weight: .semibold))
                         .foregroundStyle(secondaryColor)
                 }
 
@@ -46,7 +73,8 @@ struct GroupActivityRow: View {
                 }
             }
             .padding(.vertical, compactPadding ? 0 : 12)
-            .padding(.horizontal, compactPadding ? 0 : 16)
+            .padding(.trailing, compactPadding ? 0 : 16)
+            .padding(.leading, isChild ? (compactPadding ? 28 : 44) : (compactPadding ? 0 : 16))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -74,6 +102,113 @@ enum GroupActivityPresentation {
             return trimmedTitle
         }
         return "\(firstName) \(verb(for: activityCode)) \(trimmedTitle)"
+    }
+
+    static func rowTitle(for item: APIClient.ActivityItemPayload, isChild: Bool) -> String {
+        if isChild && isVoided(item.activityCode) {
+            return deletedTitle(for: item)
+        }
+        return displayTitle(for: item)
+    }
+
+    static func deletedTitle(for item: APIClient.ActivityItemPayload) -> String {
+        guard let actor = item.actorDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines), !actor.isEmpty else {
+            return "Deleted activity"
+        }
+        let firstName = actor.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? actor
+        return "\(firstName) deleted this activity"
+    }
+
+    static func amountLabel(for item: APIClient.ActivityItemPayload) -> String? {
+        guard let raw = item.activityPayload?.amount,
+              let value = Double(raw) else { return nil }
+        let currency = item.activityPayload?.currencyCode ?? "INR"
+        let symbol = currency.uppercased() == "INR" ? "₹" : "\(currency) "
+        let rounded = Int(value.rounded())
+        if abs(value - Double(rounded)) < 0.001 {
+            return "\(symbol)\(rounded)"
+        }
+        return String(format: "%@%.2f", symbol, value)
+    }
+
+    static func groupKey(for item: APIClient.ActivityItemPayload) -> String? {
+        if let expenseId = item.activityPayload?.expenseId?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !expenseId.isEmpty {
+            return "expense:\(expenseId)"
+        }
+        if let contributionId = item.activityPayload?.contributionId?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !contributionId.isEmpty {
+            return "contrib:\(contributionId)"
+        }
+        return nil
+    }
+
+    static func isVoided(_ activityCode: String) -> Bool {
+        activityCode.uppercased().contains("VOIDED")
+    }
+
+    static func isUpdated(_ activityCode: String) -> Bool {
+        activityCode.uppercased().contains("_UPDATED")
+    }
+
+    static func nodeHasVoidChild(_ node: GroupActivityTreeNode) -> Bool {
+        isVoided(node.item.activityCode) || node.children.contains { isVoided($0.activityCode) }
+    }
+
+    /// Nest UPDATED / VOIDED lifecycle rows under the original expense or contribution.
+    static func activityTree(from items: [APIClient.ActivityItemPayload]) -> [GroupActivityTreeNode] {
+        guard !items.isEmpty else { return [] }
+
+        var keyed: [String: [APIClient.ActivityItemPayload]] = [:]
+        var keyedOrder: [String] = []
+        var unkeyed: [APIClient.ActivityItemPayload] = []
+
+        for item in items {
+            guard let key = groupKey(for: item) else {
+                unkeyed.append(item)
+                continue
+            }
+            if keyed[key] == nil {
+                keyedOrder.append(key)
+                keyed[key] = []
+            }
+            keyed[key, default: []].append(item)
+        }
+
+        var nodes: [GroupActivityTreeNode] = []
+        for key in keyedOrder {
+            guard let group = keyed[key] else { continue }
+            nodes.append(buildNode(from: group))
+        }
+        for item in unkeyed {
+            nodes.append(GroupActivityTreeNode(item: item, children: []))
+        }
+
+        return nodes.sorted {
+            occurredAtMillis($0.item.occurredAt) > occurredAtMillis($1.item.occurredAt)
+        }
+    }
+
+    private static func buildNode(from group: [APIClient.ActivityItemPayload]) -> GroupActivityTreeNode {
+        let sorted = group.sorted { occurredAtMillis($0.occurredAt) < occurredAtMillis($1.occurredAt) }
+        let parent = sorted.first(where: {
+            $0.activityCode.uppercased().contains("RECORDED") && !isVoided($0.activityCode)
+        }) ?? sorted.first(where: { !isVoided($0.activityCode) })
+            ?? sorted[0]
+
+        let children = sorted.filter { item in
+            guard item.id != parent.id else { return false }
+            return isVoided(item.activityCode) || isUpdated(item.activityCode)
+        }
+        return GroupActivityTreeNode(item: parent, children: children)
+    }
+
+    private static func occurredAtMillis(_ raw: String) -> TimeInterval {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let fallback = ISO8601DateFormatter()
+        fallback.formatOptions = [.withInternetDateTime]
+        return (iso.date(from: raw) ?? fallback.date(from: raw))?.timeIntervalSince1970 ?? 0
     }
 
     static func verb(for activityCode: String) -> String {

@@ -17,10 +17,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.example.momentra.data.local.AppPreferences
 import com.example.momentra.data.local.PendingJoinInvite
+import com.example.momentra.data.local.PendingCompanyJoinInvite
 import com.example.momentra.data.security.AppLockSession
 import com.example.momentra.data.security.AppLockStore
 import com.example.momentra.ui.AppRoot
-import com.example.momentra.ui.shell.empty.group.GroupJoinLink
+import com.example.momentra.ui.shell.empty.business.InviteJoinKind
+import com.example.momentra.ui.shell.empty.business.InviteJoinLink
 import com.example.momentra.ui.shell.perf.ShellPerf
 import com.example.momentra.ui.theme.MomentraTheme
 
@@ -77,8 +79,13 @@ class MainActivity : FragmentActivity() {
 
     private fun handleJoinIntent(intent: Intent?) {
         val uri = intent?.data ?: return
-        val code = GroupJoinLink.parse(uri.toString()) ?: return
-        PendingJoinInvite.offer(AppPreferences(this), code)
+        when (val kind = InviteJoinLink.parse(uri.toString())) {
+            is InviteJoinKind.Company ->
+                PendingCompanyJoinInvite.offer(AppPreferences(this), kind.code)
+            is InviteJoinKind.Group ->
+                PendingJoinInvite.offer(AppPreferences(this), kind.code)
+            null -> Unit
+        }
     }
 
     private fun handleDeepLinkIntent(intent: Intent?) {

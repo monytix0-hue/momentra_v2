@@ -37,12 +37,18 @@ SUPABASE_URL=...
 SUPABASE_SECRET_KEY=...
 MEDIA_BUCKET=momentra-media
 MOMENTRA_IDENTITY_NAMESPACE=a1b2c3d4-e5f6-7890-abcd-ef1234567890
-CORS_ORIGINS=https://momentra.app
-PUBLIC_APP_ORIGIN=https://momentra.app
+CORS_ORIGINS=https://momentra.tech,https://momentra.app
+PUBLIC_APP_ORIGIN=https://momentra.tech
 SCHEMA_RELEASE=V001-V058
 MOMENTRA_AI_INTERNAL_KEY=<random-secret>
 ADMIN_API_KEY=<long-random-secret>
 ADMIN_CORS_ORIGINS=https://admin.momentra.tech
+```
+
+Optional invite override (defaults to `PUBLIC_APP_ORIGIN` / `https://momentra.tech`):
+
+```
+INVITE_DISPLAY_ORIGIN=https://momentra.tech
 ```
 
 `ADMIN_CORS_ORIGINS` gates the telemetry admin dashboard (`/admin/api/*`) and is separate from

@@ -168,21 +168,36 @@ struct PurchasePulseActiveView: View {
                         )
                     } else {
                         VStack(alignment: .leading, spacing: 12) {
-                            ForEach(Array(activities.enumerated()), id: \.element.id) { _, item in
+                            ForEach(Array(GroupActivityPresentation.activityTree(from: activities).enumerated()), id: \.element.id) { _, node in
+                                let item = node.item
                                 let expenseId = item.activityPayload?.expenseId
-                                let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
-                                GroupActivityRow(
-                                    item: item,
-                                    accent: theme.accent,
-                                    textColor: theme.text,
-                                    secondaryColor: theme.secondary,
-                                    showChevron: canEdit,
-                                    action: canEdit ? {
-                                        guard let expenseId else { return }
-                                        editingExpenseId = expenseId
-                                        editExpensePresented = true
-                                    } : nil
-                                )
+                                let canEdit = !GroupActivityPresentation.nodeHasVoidChild(node)
+                                    && PersonalActivityTimelineDerived.isExpense(item)
+                                    && expenseId != nil
+                                VStack(alignment: .leading, spacing: 4) {
+                                    GroupActivityRow(
+                                        item: item,
+                                        accent: theme.accent,
+                                        textColor: theme.text,
+                                        secondaryColor: theme.secondary,
+                                        showChevron: canEdit,
+                                        action: canEdit ? {
+                                            guard let expenseId else { return }
+                                            editingExpenseId = expenseId
+                                            editExpensePresented = true
+                                        } : nil
+                                    )
+                                    ForEach(Array(node.children.enumerated()), id: \.offset) { _, child in
+                                        GroupActivityRow(
+                                            item: child,
+                                            accent: theme.accent,
+                                            textColor: theme.text,
+                                            secondaryColor: theme.secondary,
+                                            showChevron: false,
+                                            isChild: true
+                                        )
+                                    }
+                                }
                             }
                         }
                         Button(action: onViewAllActivity) {

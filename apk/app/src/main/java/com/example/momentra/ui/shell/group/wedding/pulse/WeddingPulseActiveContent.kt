@@ -40,6 +40,8 @@ import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.group.shared.ActiveTabScrollScaffold
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupActivityRow
+import com.example.momentra.ui.shell.group.shared.groupActivityNodeHasVoidChild
+import com.example.momentra.ui.shell.group.shared.groupActivityTree
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupPulseInsightsHeroCard
@@ -438,21 +440,34 @@ fun WeddingPulseActiveContent(
                     )
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        activity.forEach { item ->
+                        groupActivityTree(activity).forEach { node ->
+                            val item = node.item
                             val expenseId = item.activityPayload?.expenseId
-                            val canEdit = !expenseId.isNullOrBlank()
-                            GroupActivityRow(
-                                item = item,
-                                accent = WeddingActiveTheme.Accent,
-                                textColor = WeddingActiveTheme.Text,
-                                secondaryColor = WeddingActiveTheme.Secondary,
-                                showChevron = canEdit,
-                                onClick = if (canEdit) {
-                                    { editingExpenseId = expenseId }
-                                } else {
-                                    null
-                                },
-                            )
+                            val canEdit = !groupActivityNodeHasVoidChild(node) && !expenseId.isNullOrBlank()
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                GroupActivityRow(
+                                    item = item,
+                                    accent = WeddingActiveTheme.Accent,
+                                    textColor = WeddingActiveTheme.Text,
+                                    secondaryColor = WeddingActiveTheme.Secondary,
+                                    showChevron = canEdit,
+                                    onClick = if (canEdit) {
+                                        { editingExpenseId = expenseId }
+                                    } else {
+                                        null
+                                    },
+                                )
+                                node.children.forEach { child ->
+                                    GroupActivityRow(
+                                        item = child,
+                                        accent = WeddingActiveTheme.Accent,
+                                        textColor = WeddingActiveTheme.Text,
+                                        secondaryColor = WeddingActiveTheme.Secondary,
+                                        showChevron = false,
+                                        isChild = true,
+                                    )
+                                }
+                            }
                         }
                     }
                     Text(

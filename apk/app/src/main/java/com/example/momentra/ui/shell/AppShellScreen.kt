@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
 import com.example.momentra.data.local.AppPreferences
+import com.example.momentra.data.local.PendingCompanyJoinInvite
 import com.example.momentra.data.local.PendingJoinInvite
 import com.example.momentra.data.local.PendingDeepLink
 import com.example.momentra.data.repository.AccountRepository
@@ -225,6 +226,33 @@ fun AppShellScreen(
             if (offered.isNullOrBlank()) return@collect
             val code = PendingJoinInvite.consume(prefs) ?: return@collect
             pendingGroupJoinCode = code
+        }
+    }
+
+    LaunchedEffect(state.identity?.userId) {
+        if (state.identity?.userId == null) return@LaunchedEffect
+        prefs.getPendingCompanyJoinCode()?.let { PendingCompanyJoinInvite.hydrate(it) }
+        PendingCompanyJoinInvite.code.collect { offered ->
+            if (offered.isNullOrBlank()) return@collect
+            val code = PendingCompanyJoinInvite.consume(prefs) ?: return@collect
+            shellViewModel.redeemCompanyInvite(code) { result ->
+                result.fold(
+                    onSuccess = {
+                        Toast.makeText(
+                            context,
+                            if (it.alreadyMember) "Already a company member" else "Joined company",
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                    onFailure = {
+                        Toast.makeText(
+                            context,
+                            it.message ?: "Could not join company",
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                )
+            }
         }
     }
 

@@ -28,6 +28,8 @@
 	<string>2</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
+		<string>applinks:momentra.tech</string>
+		<string>applinks:www.momentra.tech</string>
 		<string>applinks:momentra.app</string>
 		<string>applinks:www.momentra.app</string>
 	</array>

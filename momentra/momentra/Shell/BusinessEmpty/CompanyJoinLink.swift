@@ -1,12 +1,12 @@
 import Foundation
 
-/// Company invite deeplinks — `momentra://c/{code}` / `momentra.app/c/{code}`.
+/// Company invite deeplinks — `momentra://c/{code}` / `momentra.tech/c/{code}`.
 /// Does not accept bare codes (those stay GroupJoinLink) to avoid colliding with group invites.
 enum CompanyJoinLink {
     private static let shortPattern = #"^[a-hj-np-z2-9]{8}$"#
 
     static func displayPath(code: String) -> String {
-        "https://momentra.app/c/\(code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+        "https://momentra.tech/c/\(code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
     }
 
     static func qrPayload(code: String) -> String {
@@ -30,7 +30,7 @@ enum CompanyJoinLink {
                 return sanitize(parts.dropFirst().first)
             }
         }
-        if host == "momentra.app" || host == "www.momentra.app",
+        if Self.isInviteHost(host),
            let first = parts.first, first == "c" || first == "company" {
             return sanitize(parts.dropFirst().first)
         }
@@ -58,6 +58,16 @@ enum CompanyJoinLink {
         let value = raw.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         if value.range(of: shortPattern, options: [.regularExpression, .caseInsensitive]) != nil { return value }
         return nil
+    }
+
+    private static func isInviteHost(_ host: String) -> Bool {
+        [
+            "momentra.tech",
+            "www.momentra.tech",
+            "momentra.app",
+            "www.momentra.app",
+            "momentra-v2.web.app",
+        ].contains(host)
     }
 }
 

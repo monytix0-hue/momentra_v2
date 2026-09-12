@@ -63,6 +63,17 @@ class AppPreferences(context: Context) {
         prefs.edit().remove(KEY_PENDING_JOIN_CODE).apply()
     }
 
+    fun getPendingCompanyJoinCode(): String? =
+        prefs.getString(KEY_PENDING_COMPANY_JOIN_CODE, null)
+
+    fun setPendingCompanyJoinCode(code: String) {
+        prefs.edit().putString(KEY_PENDING_COMPANY_JOIN_CODE, code).apply()
+    }
+
+    fun clearPendingCompanyJoinCode() {
+        prefs.edit().remove(KEY_PENDING_COMPANY_JOIN_CODE).apply()
+    }
+
     /**
      * Last known Momentra identity for a Firebase UID.
      * Never store Firebase UID as Momentra userId — only cache server-issued UUIDv5.
@@ -170,6 +181,7 @@ class AppPreferences(context: Context) {
         private const val KEY_TELEMETRY_ANON_ID = "telemetry_anonymous_id"
         private const val KEY_TELEMETRY_SESSION_ID = "telemetry_session_id"
         private const val KEY_PENDING_JOIN_CODE = "pending_join_code"
+        private const val KEY_PENDING_COMPANY_JOIN_CODE = "pending_company_join_code"
         private const val KEY_TOUR_PERSONAL_V1 = "tour_personal_v1_done"
         private const val KEY_TOUR_GROUP_MINI_V1 = "tour_group_mini_v1_done"
         private const val KEY_TOUR_BUSINESS_MINI_V1 = "tour_business_mini_v1_done"

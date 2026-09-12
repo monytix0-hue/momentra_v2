@@ -35,6 +35,10 @@ struct GroupRecentActivityFlow: View {
         items.filter { GroupActivityCategoryFilter.matches($0, chipId: filter) }
     }
 
+    private var activityNodes: [GroupActivityTreeNode] {
+        GroupActivityPresentation.activityTree(from: filteredItems)
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -66,26 +70,39 @@ struct GroupRecentActivityFlow: View {
                                         .padding(.horizontal, 16)
                                         .padding(.vertical, 8)
                                 }
-                                ForEach(Array(filteredItems.enumerated()), id: \.offset) { _, item in
+                                ForEach(Array(activityNodes.enumerated()), id: \.element.id) { _, node in
+                                    let item = node.item
                                     let expenseId = item.activityPayload?.expenseId
                                     let contributionId = item.activityPayload?.contributionId
                                     let canEditExpense = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
                                     let canEditContribution = Self.isContribution(item) && contributionId != nil
-                                    let canEdit = canEditExpense || canEditContribution
-                                    GroupActivityRow(
-                                        item: item,
-                                        accent: accent,
-                                        showChevron: canEdit,
-                                        compactPadding: false,
-                                        action: canEdit ? {
-                                            if canEditExpense, let expenseId {
-                                                editingExpenseId = expenseId
-                                                editExpensePresented = true
-                                            } else if canEditContribution, let contributionId {
-                                                Task { await openContributionEdit(contributionId: contributionId) }
-                                            }
-                                        } : nil
-                                    )
+                                    let canEdit = !GroupActivityPresentation.nodeHasVoidChild(node)
+                                        && (canEditExpense || canEditContribution)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        GroupActivityRow(
+                                            item: item,
+                                            accent: accent,
+                                            showChevron: canEdit,
+                                            compactPadding: false,
+                                            action: canEdit ? {
+                                                if canEditExpense, let expenseId {
+                                                    editingExpenseId = expenseId
+                                                    editExpensePresented = true
+                                                } else if canEditContribution, let contributionId {
+                                                    Task { await openContributionEdit(contributionId: contributionId) }
+                                                }
+                                            } : nil
+                                        )
+                                        ForEach(Array(node.children.enumerated()), id: \.offset) { _, child in
+                                            GroupActivityRow(
+                                                item: child,
+                                                accent: accent,
+                                                showChevron: false,
+                                                compactPadding: false,
+                                                isChild: true
+                                            )
+                                        }
+                                    }
                                     Divider().overlay(Color(hex: "#2A2624"))
                                 }
                                 if nextCursor != nil {

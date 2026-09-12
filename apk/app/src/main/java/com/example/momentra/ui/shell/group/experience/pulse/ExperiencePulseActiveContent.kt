@@ -46,6 +46,8 @@ import com.example.momentra.ui.shell.group.shared.GroupProgressBar
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.enrichGroupPulseTab
 import com.example.momentra.ui.shell.group.shared.groupActivityAccentCycle
+import com.example.momentra.ui.shell.group.shared.groupActivityNodeHasVoidChild
+import com.example.momentra.ui.shell.group.shared.groupActivityTree
 import com.example.momentra.ui.shell.group.shared.loadGroupPulseTab
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.math.BigDecimal
@@ -358,21 +360,34 @@ fun ExperiencePulseActiveContent(
                 ExperienceEmptyBlock(theme, "No recent activity", "Expenses, plans, and updates will show here.")
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    activities.forEachIndexed { index, item ->
+                    groupActivityTree(activities).forEachIndexed { index, node ->
+                        val item = node.item
                         val expenseId = item.activityPayload?.expenseId
-                        val canEdit = !expenseId.isNullOrBlank()
-                        GroupActivityRow(
-                            item = item,
-                            accent = groupActivityAccentCycle(index, theme.accent),
-                            textColor = theme.text,
-                            secondaryColor = theme.secondary,
-                            showChevron = canEdit,
-                            onClick = if (canEdit) {
-                                { editingExpenseId = expenseId }
-                            } else {
-                                null
-                            },
-                        )
+                        val canEdit = !groupActivityNodeHasVoidChild(node) && !expenseId.isNullOrBlank()
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            GroupActivityRow(
+                                item = item,
+                                accent = groupActivityAccentCycle(index, theme.accent),
+                                textColor = theme.text,
+                                secondaryColor = theme.secondary,
+                                showChevron = canEdit,
+                                onClick = if (canEdit) {
+                                    { editingExpenseId = expenseId }
+                                } else {
+                                    null
+                                },
+                            )
+                            node.children.forEach { child ->
+                                GroupActivityRow(
+                                    item = child,
+                                    accent = groupActivityAccentCycle(index, theme.accent),
+                                    textColor = theme.text,
+                                    secondaryColor = theme.secondary,
+                                    showChevron = false,
+                                    isChild = true,
+                                )
+                            }
+                        }
                     }
                 }
                 Text(

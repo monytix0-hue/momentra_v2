@@ -7,14 +7,16 @@ import org.junit.Test
 class GroupJoinLinkTest {
     @Test
     fun parsesShortDisplayPathAndCustomScheme() {
-        assertEquals("abcdhkmn", GroupJoinLink.parse("momentra.app/j/abcdhkmn"))
-        assertEquals("abcdhkmn", GroupJoinLink.parse("https://momentra.app/j/abcdhkmn"))
+        assertEquals("abcdhkmn", GroupJoinLink.parse("momentra.tech/j/abcdhkmn"))
+        assertEquals("abcdhkmn", GroupJoinLink.parse("https://momentra.tech/j/abcdhkmn"))
         assertEquals("abcdhkmn", GroupJoinLink.parse("momentra://j/abcdhkmn"))
         assertEquals("abcdhkmn", GroupJoinLink.parse("abcdhkmn"))
     }
 
     @Test
     fun parsesHttpsInviteLanding() {
+        assertEquals("abcdhkmn", GroupJoinLink.parse("https://momentra.tech/j/abcdhkmn"))
+        assertEquals("abcdhkmn", GroupJoinLink.parse("https://www.momentra.tech/join/abcdhkmn"))
         assertEquals("abcdhkmn", GroupJoinLink.parse("https://momentra.app/j/abcdhkmn"))
         assertEquals("abcdhkmn", GroupJoinLink.parse("https://www.momentra.app/join/abcdhkmn"))
         assertEquals("abcdhkmn", GroupJoinLink.parse("https://momentra-v2.web.app/j/abcdhkmn"))
@@ -22,9 +24,9 @@ class GroupJoinLinkTest {
 
     @Test
     fun inviteLinkHelpersUseHttps() {
-        assertEquals("https://momentra.app/j/abcdhkmn", GroupInviteLink.displayPath("abcdhkmn"))
-        assertEquals("https://momentra.app/j/abcdhkmn", GroupInviteLink.qrPayload("ABCDHKMN"))
-        assertEquals("https://momentra.app/j/abcdhkmn", GroupInviteLink.copyText("abcdhkmn"))
+        assertEquals("https://momentra.tech/j/abcdhkmn", GroupInviteLink.displayPath("abcdhkmn"))
+        assertEquals("https://momentra.tech/j/abcdhkmn", GroupInviteLink.qrPayload("ABCDHKMN"))
+        assertEquals("https://momentra.tech/j/abcdhkmn", GroupInviteLink.copyText("abcdhkmn"))
     }
 
     @Test

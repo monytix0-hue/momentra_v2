@@ -138,8 +138,8 @@ private final class FakeCreateGateway: MomentCreateGateway {
         GroupInvite(
             inviteId: "inv1",
             inviteCode: "abcdhkmn",
-            invitePath: "momentra.app/j/abcdhkmn",
-            inviteUrl: "https://momentra.app/j/abcdhkmn",
+            invitePath: "momentra.tech/j/abcdhkmn",
+            inviteUrl: "https://momentra.tech/j/abcdhkmn",
             status: "PENDING",
             title: title,
             momentTypeCode: momentTypeCode,
@@ -165,8 +165,8 @@ private final class FakeCreateGateway: MomentCreateGateway {
         CompanyInvite(
             inviteId: "cinv1",
             inviteCode: "abcdefgh",
-            invitePath: "momentra.app/c/abcdefgh",
-            inviteUrl: "https://momentra.app/c/abcdefgh",
+            invitePath: "momentra.tech/c/abcdefgh",
+            inviteUrl: "https://momentra.tech/c/abcdefgh",
             status: "ACTIVE",
             title: "Co",
             companyId: companyId,
@@ -211,7 +211,8 @@ private final class FakeCreateGateway: MomentCreateGateway {
 
 struct GroupJoinLinkTests {
     @Test func parsesShortDisplayPathAndCustomScheme() {
-        #expect(GroupJoinLink.parse("momentra.app/j/abcdhkmn") == "abcdhkmn")
+        #expect(GroupJoinLink.parse("momentra.tech/j/abcdhkmn") == "abcdhkmn")
+        #expect(GroupJoinLink.parse("https://momentra.tech/j/abcdhkmn") == "abcdhkmn")
         #expect(GroupJoinLink.parse("https://momentra.app/j/abcdhkmn") == "abcdhkmn")
         #expect(GroupJoinLink.parse("momentra://j/abcdhkmn") == "abcdhkmn")
         #expect(GroupJoinLink.parse("abcdhkmn") == "abcdhkmn")

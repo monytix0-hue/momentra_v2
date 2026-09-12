@@ -113,14 +113,24 @@ struct momentraApp: App {
                     .onOpenURL { url in
                         if Auth.auth().canHandle(url) { return }
                         if GIDSignIn.sharedInstance.handle(url) { return }
-                        if let code = GroupJoinLink.parse(url) {
+                        switch InviteJoinLink.parse(url.absoluteString) {
+                        case .company(let code):
+                            JoinCompanyInviteStore.shared.offer(code)
+                        case .group(let code):
                             JoinInviteStore.shared.offer(code)
+                        case .none:
+                            break
                         }
                     }
                     .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
                         guard let url = activity.webpageURL else { return }
-                        if let code = GroupJoinLink.parse(url) {
+                        switch InviteJoinLink.parse(url.absoluteString) {
+                        case .company(let code):
+                            JoinCompanyInviteStore.shared.offer(code)
+                        case .group(let code):
                             JoinInviteStore.shared.offer(code)
+                        case .none:
+                            break
                         }
                     }
                     #endif

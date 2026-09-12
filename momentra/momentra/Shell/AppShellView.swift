@@ -54,6 +54,9 @@ struct AppShellView: View {
                 if let pending = JoinInviteStore.shared.consume() {
                     pendingGroupJoin = PendingGroupJoin(id: pending)
                 }
+                if let companyCode = JoinCompanyInviteStore.shared.consume() {
+                    redeemCompanyInviteCode(companyCode)
+                }
                 if let pending = PushDeepLinkStore.shared.consume() {
                     Task {
                         if let id = pending.userNotificationId {
@@ -74,6 +77,12 @@ struct AppShellView: View {
                 guard pendingGroupJoin == nil else { return }
                 if let pending = JoinInviteStore.shared.consume() {
                     pendingGroupJoin = PendingGroupJoin(id: pending)
+                }
+            }
+            .onReceive(JoinCompanyInviteStore.shared.$pendingCode) { code in
+                guard let code, !code.isEmpty else { return }
+                if let pending = JoinCompanyInviteStore.shared.consume() {
+                    redeemCompanyInviteCode(pending)
                 }
             }
             .onReceive(PushDeepLinkStore.shared.$pendingLink) { link in

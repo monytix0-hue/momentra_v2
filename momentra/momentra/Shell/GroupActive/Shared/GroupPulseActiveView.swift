@@ -233,21 +233,36 @@ struct GroupPulseActiveView: View {
                                 GroupEmptySection(message: "No recent activity", detail: "Expenses and contributions will show here.")
                             } else {
                                 VStack(alignment: .leading, spacing: 12) {
-                                    ForEach(Array(activity.enumerated()), id: \.element.id) { _, item in
+                                    ForEach(Array(GroupActivityPresentation.activityTree(from: activity).enumerated()), id: \.element.id) { _, node in
+                                        let item = node.item
                                         let expenseId = item.activityPayload?.expenseId
-                                        let canEdit = PersonalActivityTimelineDerived.isExpense(item) && expenseId != nil
-                                        GroupActivityRow(
-                                            item: item,
-                                            accent: GroupActiveTheme.accentOrange,
-                                            textColor: GroupActiveTheme.text,
-                                            secondaryColor: GroupActiveTheme.secondary,
-                                            showChevron: canEdit,
-                                            action: canEdit ? {
-                                                guard let expenseId else { return }
-                                                editingExpenseId = expenseId
-                                                editExpensePresented = true
-                                            } : nil
-                                        )
+                                        let canEdit = !GroupActivityPresentation.nodeHasVoidChild(node)
+                                            && PersonalActivityTimelineDerived.isExpense(item)
+                                            && expenseId != nil
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            GroupActivityRow(
+                                                item: item,
+                                                accent: GroupActiveTheme.accentOrange,
+                                                textColor: GroupActiveTheme.text,
+                                                secondaryColor: GroupActiveTheme.secondary,
+                                                showChevron: canEdit,
+                                                action: canEdit ? {
+                                                    guard let expenseId else { return }
+                                                    editingExpenseId = expenseId
+                                                    editExpensePresented = true
+                                                } : nil
+                                            )
+                                            ForEach(Array(node.children.enumerated()), id: \.offset) { _, child in
+                                                GroupActivityRow(
+                                                    item: child,
+                                                    accent: GroupActiveTheme.accentOrange,
+                                                    textColor: GroupActiveTheme.text,
+                                                    secondaryColor: GroupActiveTheme.secondary,
+                                                    showChevron: false,
+                                                    isChild: true
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                                 Button(action: onViewAllActivity) {

@@ -106,7 +106,7 @@ function loadConfig(): AppConfig {
       connectionTimeoutMs: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS ?? '10000', 10),
     },
     corsOrigins: normalizeOrigins(process.env.CORS_ORIGINS, 'http://localhost:3000'),
-    publicAppOrigin: process.env.PUBLIC_APP_ORIGIN ?? 'https://momentra.app',
+    publicAppOrigin: process.env.PUBLIC_APP_ORIGIN ?? 'https://momentra.tech',
     schemaRelease: process.env.SCHEMA_RELEASE ?? 'V001-V049',
     admin: {
       apiKey: process.env.ADMIN_API_KEY ?? '',

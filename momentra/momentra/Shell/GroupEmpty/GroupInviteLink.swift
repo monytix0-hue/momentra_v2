@@ -1,7 +1,7 @@
 import Foundation
 
 enum GroupInviteLink {
-    private static let httpsBase = "https://momentra.app/j"
+    private static let httpsBase = "https://momentra.tech/j"
 
     static func displayPath(code: String) -> String {
         "\(httpsBase)/\(code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"

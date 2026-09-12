@@ -72,6 +72,7 @@ fun GroupRecentActivityFlow(
     val filteredItems = remember(items, filter) {
         items.filter { GroupActivityCategoryFilter.matches(it, filter) }
     }
+    val activityNodes = remember(filteredItems) { groupActivityTree(filteredItems) }
 
     fun reload() {
         scope.launch {
@@ -230,32 +231,47 @@ fun GroupRecentActivityFlow(
                     if (resolvingContribution) {
                         CircularProgressIndicator(color = accent, modifier = Modifier.padding(8.dp))
                     }
-                    filteredItems.forEach { item ->
+                    activityNodes.forEach { node ->
+                        val item = node.item
                         val expenseId = item.activityPayload?.expenseId
                         val contributionId = item.activityPayload?.contributionId
                         val canEditExpense = !expenseId.isNullOrBlank() &&
                             (item.activityCode.contains("EXPENSE", ignoreCase = true) || expenseId != null)
                         val canEditContribution = !contributionId.isNullOrBlank() && isContributionActivity(item)
-                        val canEdit = canEditExpense || canEditContribution
-                        GroupActivityRow(
-                            item = item,
-                            accent = accent,
-                            textColor = GeText,
-                            secondaryColor = GeSecondary,
-                            showChevron = canEdit,
-                            compactPadding = false,
-                            onClick = if (canEdit) {
-                                {
-                                    when {
-                                        canEditExpense -> editingExpenseId = expenseId
-                                        canEditContribution && contributionId != null ->
-                                            openContributionEdit(contributionId)
+                        val canEdit = !groupActivityNodeHasVoidChild(node) &&
+                            (canEditExpense || canEditContribution)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            GroupActivityRow(
+                                item = item,
+                                accent = accent,
+                                textColor = GeText,
+                                secondaryColor = GeSecondary,
+                                showChevron = canEdit,
+                                compactPadding = false,
+                                onClick = if (canEdit) {
+                                    {
+                                        when {
+                                            canEditExpense -> editingExpenseId = expenseId
+                                            canEditContribution && contributionId != null ->
+                                                openContributionEdit(contributionId)
+                                        }
                                     }
-                                }
-                            } else {
-                                null
-                            },
-                        )
+                                } else {
+                                    null
+                                },
+                            )
+                            node.children.forEach { child ->
+                                GroupActivityRow(
+                                    item = child,
+                                    accent = accent,
+                                    textColor = GeText,
+                                    secondaryColor = GeSecondary,
+                                    showChevron = false,
+                                    compactPadding = false,
+                                    isChild = true,
+                                )
+                            }
+                        }
                     }
                     if (nextCursor != null) {
                         Box(
