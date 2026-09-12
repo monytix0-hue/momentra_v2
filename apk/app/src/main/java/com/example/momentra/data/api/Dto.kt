@@ -243,11 +243,13 @@ data class PatchGlobalNotificationPrefsBody(
 data class MomentNotificationPrefsDto(
     @SerializedName("momentId") val momentId: String,
     @SerializedName("notifyOnChanges") val notifyOnChanges: Boolean,
+    @SerializedName("notificationCadence") val notificationCadence: String? = null,
     @SerializedName("reminderPreferences") val reminderPreferences: Map<String, Boolean>? = null,
 )
 
 data class PatchMomentNotificationPrefsBody(
     @SerializedName("notifyOnChanges") val notifyOnChanges: Boolean? = null,
+    @SerializedName("notificationCadence") val notificationCadence: String? = null,
     @SerializedName("reminderPreferences") val reminderPreferences: Map<String, Boolean>? = null,
 )
 
@@ -264,6 +266,8 @@ data class NotificationInboxItemDto(
     val title: String,
     val body: String,
     @SerializedName("momentId") val momentId: String? = null,
+    @SerializedName("momentTitle") val momentTitle: String? = null,
+    @SerializedName("threadKey") val threadKey: String? = null,
     @SerializedName("deepLink") val deepLink: String? = null,
     @SerializedName("actorDisplayName") val actorDisplayName: String? = null,
     @SerializedName("readAt") val readAt: String? = null,

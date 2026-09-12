@@ -322,37 +322,39 @@ struct PlanningScheduleSheet: View {
             onClose: onDismiss,
             background: surface
         ) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Plans by day")
-                    .font(.plusJakarta(size: 12))
-                    .foregroundStyle(muted)
+            // Single vertical ScrollView — a nested list ScrollView inside the sheet
+            // NavigationStack collapses to ~0 height, which hid plans (and empty state).
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Plans by day")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(muted)
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(dayKeys, id: \.self) { day in
-                            let selected = Calendar.current.isDate(day, inSameDayAs: activeDay)
-                            Button {
-                                selectedDay = day
-                            } label: {
-                                Text(formatPlanningDayChip(day, today: today))
-                                    .font(.plusJakarta(size: 13, weight: selected ? .bold : .semibold))
-                                    .foregroundStyle(selected ? Color.white : muted)
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
-                                    .background(selected ? accent : field)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 20)
-                                            .stroke(selected ? accent : border, lineWidth: 1)
-                                    )
-                                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(dayKeys, id: \.self) { day in
+                                let selected = Calendar.current.isDate(day, inSameDayAs: activeDay)
+                                Button {
+                                    selectedDay = day
+                                } label: {
+                                    Text(formatPlanningDayChip(day, today: today))
+                                        .font(.plusJakarta(size: 13, weight: selected ? .bold : .semibold))
+                                        .foregroundStyle(selected ? Color.white : muted)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .background(selected ? accent : field)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 20)
+                                                .stroke(selected ? accent : border, lineWidth: 1)
+                                        )
+                                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
-                }
 
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 8) {
                         if dayItems.isEmpty {
                             Text("No plans for this day")
                                 .font(.plusJakarta(size: 13))
@@ -379,11 +381,11 @@ struct PlanningScheduleSheet: View {
                             }
                         }
                     }
-                    .frame(minHeight: 280, alignment: .top)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 28)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 28)
         }
         .sheet(isPresented: Binding(
             get: { editingItem != nil },

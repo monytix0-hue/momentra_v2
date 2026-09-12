@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
+import { threadKeyFor } from '../../platform/notifications/thread-key';
 
 export const listInboxQuerySchema = z
   .object({
@@ -24,6 +25,8 @@ export type InboxItem = {
   title: string;
   body: string;
   momentId: string | null;
+  momentTitle: string | null;
+  threadKey: string;
   deepLink: string | null;
   actorDisplayName: string | null;
   readAt: string | null;
@@ -37,13 +40,13 @@ export async function listInbox(
 ): Promise<{ items: InboxItem[]; unreadCount: number }> {
   const limit = query.limit ?? 30;
   const params: unknown[] = [ctx.userId];
-  let where = `user_id = $1`;
+  let where = `n.user_id = $1`;
   if (query.unreadOnly) {
-    where += ` AND read_at IS NULL`;
+    where += ` AND n.read_at IS NULL`;
   }
   if (query.cursor) {
     params.push(query.cursor);
-    where += ` AND created_at < $${params.length}::timestamptz`;
+    where += ` AND n.created_at < $${params.length}::timestamptz`;
   }
   params.push(limit);
   const rows = await client.query<{
@@ -54,16 +57,23 @@ export async function listInbox(
     title: string;
     body: string;
     moment_id: string | null;
+    moment_title: string | null;
+    domain_code: string | null;
+    company_id: string | null;
     deep_link: string | null;
     actor_display_name: string | null;
     read_at: Date | null;
     created_at: Date;
   }>(
-    `SELECT user_notification_id, event_name, category_code, priority_code,
-            title, body, moment_id, deep_link, actor_display_name, read_at, created_at
-     FROM platform.user_notification
+    `SELECT n.user_notification_id, n.event_name, n.category_code, n.priority_code,
+            n.title, n.body, n.moment_id, m.title AS moment_title, m.domain_code,
+            bmc.company_id,
+            n.deep_link, n.actor_display_name, n.read_at, n.created_at
+     FROM platform.user_notification n
+     LEFT JOIN core.moment m ON m.moment_id = n.moment_id
+     LEFT JOIN business.business_moment_context bmc ON bmc.moment_id = n.moment_id
      WHERE ${where}
-     ORDER BY created_at DESC
+     ORDER BY n.created_at DESC
      LIMIT $${params.length}`,
     params
   );
@@ -81,6 +91,13 @@ export async function listInbox(
       title: r.title,
       body: r.body,
       momentId: r.moment_id,
+      momentTitle: r.moment_title,
+      threadKey: threadKeyFor({
+        domainCode: r.domain_code,
+        momentId: r.moment_id,
+        companyId: r.company_id,
+        eventName: r.event_name,
+      }),
       deepLink: r.deep_link,
       actorDisplayName: r.actor_display_name,
       readAt: r.read_at?.toISOString() ?? null,
@@ -139,15 +156,22 @@ export async function getInboxItem(
     title: string;
     body: string;
     moment_id: string | null;
+    moment_title: string | null;
+    domain_code: string | null;
+    company_id: string | null;
     deep_link: string | null;
     actor_display_name: string | null;
     read_at: Date | null;
     created_at: Date;
   }>(
-    `SELECT user_notification_id, event_name, category_code, priority_code,
-            title, body, moment_id, deep_link, actor_display_name, read_at, created_at
-     FROM platform.user_notification
-     WHERE user_id = $1 AND user_notification_id = $2`,
+    `SELECT n.user_notification_id, n.event_name, n.category_code, n.priority_code,
+            n.title, n.body, n.moment_id, m.title AS moment_title, m.domain_code,
+            bmc.company_id,
+            n.deep_link, n.actor_display_name, n.read_at, n.created_at
+     FROM platform.user_notification n
+     LEFT JOIN core.moment m ON m.moment_id = n.moment_id
+     LEFT JOIN business.business_moment_context bmc ON bmc.moment_id = n.moment_id
+     WHERE n.user_id = $1 AND n.user_notification_id = $2`,
     [ctx.userId, notificationId]
   );
   if (!r.rowCount) {
@@ -162,6 +186,13 @@ export async function getInboxItem(
     title: row.title,
     body: row.body,
     momentId: row.moment_id,
+    momentTitle: row.moment_title,
+    threadKey: threadKeyFor({
+      domainCode: row.domain_code,
+      momentId: row.moment_id,
+      companyId: row.company_id,
+      eventName: row.event_name,
+    }),
     deepLink: row.deep_link,
     actorDisplayName: row.actor_display_name,
     readAt: row.read_at?.toISOString() ?? null,

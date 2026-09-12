@@ -34,6 +34,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         handleJoinIntent(intent)
         handleDeepLinkIntent(intent)
+        com.example.momentra.data.local.PendingDeepLink.hydrateFromDisk(this)
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             LifecycleEventObserver { _, event ->
                 when (event) {
@@ -84,15 +85,22 @@ class MainActivity : FragmentActivity() {
         val fromExtra = intent?.getStringExtra(
             com.example.momentra.data.device.MomentraFirebaseMessagingService.EXTRA_DEEP_LINK,
         )
+        val notifId = intent?.getStringExtra(
+            com.example.momentra.data.device.MomentraFirebaseMessagingService.EXTRA_USER_NOTIFICATION_ID,
+        )
         if (!fromExtra.isNullOrBlank()) {
-            com.example.momentra.data.local.PendingDeepLink.offer(fromExtra)
+            com.example.momentra.data.local.PendingDeepLink.offer(
+                fromExtra,
+                this,
+                userNotificationId = notifId,
+            )
             return
         }
         val data = intent?.data?.toString() ?: return
         if (data.startsWith("momentra://moment", ignoreCase = true) ||
             data.startsWith("momentra://inbox", ignoreCase = true)
         ) {
-            com.example.momentra.data.local.PendingDeepLink.offer(data)
+            com.example.momentra.data.local.PendingDeepLink.offer(data, this, userNotificationId = notifId)
         }
     }
 }

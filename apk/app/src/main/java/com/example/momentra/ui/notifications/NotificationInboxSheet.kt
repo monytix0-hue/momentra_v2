@@ -119,21 +119,39 @@ fun NotificationInboxSheet(
                 tag = "inbox.empty",
             )
 
-            else -> LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("inbox.list"),
-            ) {
-                items(notifications, key = { it.notificationId }) { item ->
-                    InboxRow(item) {
-                        scope.launch {
-                            repository.markNotificationsRead(listOf(item.notificationId))
+            else -> {
+                val grouped = notifications.groupBy { it.threadKey ?: it.momentId ?: "other" }
+                val keys = grouped.keys.sortedByDescending { k ->
+                    grouped[k]?.firstOrNull()?.createdAt.orEmpty()
+                }
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("inbox.list"),
+                ) {
+                    keys.forEach { key ->
+                        val sectionItems = grouped[key].orEmpty()
+                        item(key = "hdr-$key") {
+                            Text(
+                                text = sectionItems.firstOrNull()?.momentTitle ?: "Updates",
+                                color = Color.White.copy(alpha = 0.55f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                            )
                         }
-                        val momentId = item.deepLink
-                            ?.let { PendingDeepLink.parseMomentId(it) }
-                            ?: item.momentId
-                        onClose()
-                        if (!momentId.isNullOrBlank()) onOpenMoment(momentId)
+                        items(sectionItems, key = { it.notificationId }) { item ->
+                            InboxRow(item) {
+                                scope.launch {
+                                    repository.markNotificationsRead(listOf(item.notificationId))
+                                }
+                                val momentId = item.deepLink
+                                    ?.let { PendingDeepLink.parseMomentId(it) }
+                                    ?: item.momentId
+                                onClose()
+                                if (!momentId.isNullOrBlank()) onOpenMoment(momentId)
+                            }
+                        }
                     }
                 }
             }

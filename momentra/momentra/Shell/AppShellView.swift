@@ -54,10 +54,16 @@ struct AppShellView: View {
                 if let pending = JoinInviteStore.shared.consume() {
                     pendingGroupJoin = PendingGroupJoin(id: pending)
                 }
-                if let link = PushDeepLinkStore.shared.consume() {
-                    if let momentId = PushDeepLinkStore.parseMomentId(link) {
+                if let pending = PushDeepLinkStore.shared.consume() {
+                    Task {
+                        if let id = pending.userNotificationId {
+                            _ = try? await APIClient.shared.markMyNotificationsRead(notificationIds: [id])
+                            await inboxBadge.refresh()
+                        }
+                    }
+                    if let momentId = PushDeepLinkStore.parseMomentId(pending.link) {
                         model.selectMoment(id: momentId)
-                    } else if PushDeepLinkStore.isInboxLink(link) {
+                    } else if PushDeepLinkStore.isInboxLink(pending.link) {
                         inboxOpen = true
                     }
                 }
@@ -72,14 +78,18 @@ struct AppShellView: View {
             }
             .onReceive(PushDeepLinkStore.shared.$pendingLink) { link in
                 guard let link, !link.isEmpty else { return }
-                if let momentId = PushDeepLinkStore.parseMomentId(link) {
-                    _ = PushDeepLinkStore.shared.consume()
+                guard let pending = PushDeepLinkStore.shared.consume() else { return }
+                Task {
+                    if let id = pending.userNotificationId {
+                        _ = try? await APIClient.shared.markMyNotificationsRead(notificationIds: [id])
+                    }
+                    await inboxBadge.refresh()
+                }
+                if let momentId = PushDeepLinkStore.parseMomentId(pending.link) {
                     model.selectMoment(id: momentId)
-                } else if PushDeepLinkStore.isInboxLink(link) {
-                    _ = PushDeepLinkStore.shared.consume()
+                } else if PushDeepLinkStore.isInboxLink(pending.link) {
                     inboxOpen = true
                 }
-                Task { await inboxBadge.refresh() }
             }
             .onChange(of: identity.userId) { _, _ in
                 model.bindIdentity(identity)

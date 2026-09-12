@@ -8,6 +8,7 @@ import com.example.momentra.data.api.DeviceItemDto
 import com.example.momentra.data.api.GlobalNotificationPrefsDto
 import com.example.momentra.data.api.MarkNotificationsReadBody
 import com.example.momentra.data.api.MomentNotificationPrefsDto
+import com.example.momentra.data.api.NotificationCategoriesDto
 import com.example.momentra.data.api.NotificationInboxDto
 import com.example.momentra.data.api.PatchGlobalNotificationPrefsBody
 import com.example.momentra.data.api.PatchMeBody
@@ -74,9 +75,23 @@ class AccountRepository(
         api.getMyNotificationPreferences().data
     }.recoverCatching { e -> throw mapThrowable(e) }
 
-    suspend fun patchNotificationPreferences(enabled: Boolean): Result<GlobalNotificationPrefsDto> =
+    suspend fun patchNotificationPreferences(
+        enabled: Boolean? = null,
+        categories: NotificationCategoriesDto? = null,
+        quietHoursStart: String? = null,
+        quietHoursEnd: String? = null,
+        digestEnabled: Boolean? = null,
+    ): Result<GlobalNotificationPrefsDto> =
         runCatching {
-            api.patchMyNotificationPreferences(PatchGlobalNotificationPrefsBody(enabled)).data
+            api.patchMyNotificationPreferences(
+                PatchGlobalNotificationPrefsBody(
+                    pushNotificationsEnabled = enabled,
+                    categories = categories,
+                    quietHoursStart = quietHoursStart,
+                    quietHoursEnd = quietHoursEnd,
+                    digestEnabled = digestEnabled,
+                ),
+            ).data
         }.recoverCatching { e -> throw mapThrowable(e) }
 
     suspend fun getMomentNotificationPreferences(
@@ -87,12 +102,13 @@ class AccountRepository(
 
     suspend fun patchMomentNotificationPreferences(
         momentId: String,
-        notifyOnChanges: Boolean,
+        notifyOnChanges: Boolean? = null,
+        notificationCadence: String? = null,
         reminderPreferences: Map<String, Boolean>? = null,
     ): Result<MomentNotificationPrefsDto> = runCatching {
         api.patchMomentNotificationPreferences(
             momentId,
-            PatchMomentNotificationPrefsBody(notifyOnChanges, reminderPreferences),
+            PatchMomentNotificationPrefsBody(notifyOnChanges, notificationCadence, reminderPreferences),
         ).data
     }.recoverCatching { e -> throw mapThrowable(e) }
 

@@ -27,10 +27,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ConsentPurposeDto
 import com.example.momentra.data.api.DeviceItemDto
+import com.example.momentra.data.api.NotificationCategoriesDto
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.device.DeviceRegistrar
 import com.example.momentra.ui.shell.maestro.MaestroIds
@@ -61,6 +63,21 @@ fun AccountHubSheet(
     var statusMsg by remember { mutableStateOf<String?>(null) }
     var hideBalances by remember { mutableStateOf(securityPrefs.hideBalances()) }
     var pushEnabled by remember { mutableStateOf(securityPrefs.notificationsEnabledLocal()) }
+    var digestEnabled by remember { mutableStateOf(false) }
+    var quietStart by remember { mutableStateOf("22:00") }
+    var quietEnd by remember { mutableStateOf("07:00") }
+    var categoryMap by remember {
+        mutableStateOf(
+            mapOf(
+                "finance" to true,
+                "tasks" to true,
+                "social" to true,
+                "invites" to true,
+                "approvals" to true,
+                "reminders" to true,
+            ),
+        )
+    }
     var biometrics by remember { mutableStateOf(lockStore.biometricsEnabled()) }
     var pinEnabled by remember { mutableStateOf(lockStore.isPinEnabled()) }
     var pinInput by remember { mutableStateOf("") }
@@ -76,6 +93,20 @@ fun AccountHubSheet(
         accountRepo.getNotificationPreferences().onSuccess {
             pushEnabled = it.pushNotificationsEnabled
             securityPrefs.setNotificationsEnabledLocal(it.pushNotificationsEnabled)
+            digestEnabled = it.digestEnabled == true
+            quietStart = it.quietHoursStart?.take(5) ?: "22:00"
+            quietEnd = it.quietHoursEnd?.take(5) ?: "07:00"
+            val c = it.categories
+            if (c != null) {
+                categoryMap = mapOf(
+                    "finance" to (c.finance != false),
+                    "tasks" to (c.tasks != false),
+                    "social" to (c.social != false),
+                    "invites" to (c.invites != false),
+                    "approvals" to (c.approvals != false),
+                    "reminders" to (c.reminders != false),
+                )
+            }
         }
     }
 
@@ -220,25 +251,99 @@ fun AccountHubSheet(
             }
 
             "prefs" -> {
-                Text(text = "Preferences", fontWeight = FontWeight.SemiBold)
+                Text(text = "Notifications", fontWeight = FontWeight.SemiBold)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Push notifications")
+                    Text("Notifications")
                     Switch(
                         checked = pushEnabled,
                         onCheckedChange = { enabled ->
                             pushEnabled = enabled
                             securityPrefs.setNotificationsEnabledLocal(enabled)
                             scope.launch {
-                                accountRepo.patchNotificationPreferences(enabled)
+                                accountRepo.patchNotificationPreferences(enabled = enabled)
                                     .onSuccess { statusMsg = if (enabled) "Push enabled" else "Push muted" }
                                     .onFailure { statusMsg = it.message ?: "Save failed" }
                             }
                         },
                     )
+                }
+                Text(text = "What you hear about", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                listOf(
+                    "finance" to "Money & expenses",
+                    "tasks" to "Tasks & planning",
+                    "social" to "Social & memories",
+                    "invites" to "Invitations",
+                    "approvals" to "Approvals",
+                    "reminders" to "Reminders",
+                ).forEach { (key, label) ->
+                    val checked = categoryMap[key] != false
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(label)
+                        Switch(
+                            checked = checked,
+                            onCheckedChange = { on ->
+                                categoryMap = categoryMap + (key to on)
+                                scope.launch {
+                                    accountRepo.patchNotificationPreferences(
+                                        categories = NotificationCategoriesDto(
+                                            finance = categoryMap["finance"],
+                                            tasks = categoryMap["tasks"],
+                                            social = categoryMap["social"],
+                                            invites = categoryMap["invites"],
+                                            approvals = categoryMap["approvals"],
+                                            reminders = categoryMap["reminders"],
+                                        ),
+                                    )
+                                }
+                            },
+                        )
+                    }
+                }
+                Text(text = "Delivery", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Smart digest")
+                    Switch(
+                        checked = digestEnabled,
+                        onCheckedChange = { on ->
+                            digestEnabled = on
+                            scope.launch {
+                                accountRepo.patchNotificationPreferences(digestEnabled = on)
+                            }
+                        },
+                    )
+                }
+                Text("Quiet hours: $quietStart – $quietEnd", fontSize = 12.sp, color = Color.Gray)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        quietStart = "22:00"; quietEnd = "07:00"
+                        scope.launch {
+                            accountRepo.patchNotificationPreferences(
+                                quietHoursStart = "22:00",
+                                quietHoursEnd = "07:00",
+                            )
+                        }
+                    }) { Text("10pm–7am") }
+                    TextButton(onClick = {
+                        quietStart = ""; quietEnd = ""
+                        scope.launch {
+                            accountRepo.patchNotificationPreferences(
+                                quietHoursStart = null,
+                                quietHoursEnd = null,
+                            )
+                        }
+                    }) { Text("Off") }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -254,10 +359,6 @@ fun AccountHubSheet(
                         },
                     )
                 }
-                Text(
-                    text = "Currency / language / appearance: deferred (FIGMA_GAP).",
-                    fontSize = 12.sp,
-                )
                 TextButton(onClick = { hubSection = "home" }) { Text("Back") }
             }
 

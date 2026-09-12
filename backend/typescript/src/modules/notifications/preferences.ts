@@ -46,6 +46,7 @@ export type PatchGlobalNotificationPrefsInput = z.infer<typeof patchGlobalNotifi
 export const patchMomentNotificationPrefsSchema = z
   .object({
     notifyOnChanges: z.boolean().optional(),
+    notificationCadence: z.enum(['ALL', 'IMPORTANT', 'DIGEST_ONLY', 'MUTED']).optional(),
     reminderPreferences: z
       .object({
         billReminders: z.boolean().optional(),
@@ -58,9 +59,15 @@ export const patchMomentNotificationPrefsSchema = z
       .optional(),
   })
   .strict()
-  .refine((b) => b.notifyOnChanges !== undefined || b.reminderPreferences !== undefined, {
-    message: 'At least one preference field is required.',
-  });
+  .refine(
+    (b) =>
+      b.notifyOnChanges !== undefined ||
+      b.notificationCadence !== undefined ||
+      b.reminderPreferences !== undefined,
+    {
+      message: 'At least one preference field is required.',
+    }
+  );
 
 export type PatchMomentNotificationPrefsInput = z.infer<typeof patchMomentNotificationPrefsSchema>;
 
@@ -192,6 +199,7 @@ export async function patchGlobalNotificationPrefs(
 export type MomentNotificationPrefs = {
   momentId: string;
   notifyOnChanges: boolean;
+  notificationCadence: 'ALL' | 'IMPORTANT' | 'DIGEST_ONLY' | 'MUTED';
   reminderPreferences: Record<string, boolean>;
 };
 
@@ -210,8 +218,10 @@ export async function getMomentNotificationPrefs(
   momentId: string
 ): Promise<MomentNotificationPrefs> {
   await assertGroupMember(client, ctx, momentId);
-  const r = await client.query<{ notify_on_changes: boolean }>(
-    `SELECT notify_on_changes FROM collaboration.moment_participant
+  const r = await client.query<{ notify_on_changes: boolean; notification_cadence: string }>(
+    `SELECT notify_on_changes,
+            coalesce(notification_cadence, 'ALL') AS notification_cadence
+     FROM collaboration.moment_participant
      WHERE moment_id = $1 AND user_id = $2 AND status = 'ACTIVE'
      LIMIT 1`,
     [momentId, ctx.userId]
@@ -223,9 +233,11 @@ export async function getMomentNotificationPrefs(
     `SELECT reminder_preferences FROM collaboration.group_moment_context WHERE moment_id = $1`,
     [momentId]
   );
+  const cadence = (r.rows[0]!.notification_cadence || 'ALL') as MomentNotificationPrefs['notificationCadence'];
   return {
     momentId,
     notifyOnChanges: r.rows[0]!.notify_on_changes,
+    notificationCadence: r.rows[0]!.notify_on_changes === false ? 'MUTED' : cadence,
     reminderPreferences: asBoolMap(rem.rows[0]?.reminder_preferences),
   };
 }
@@ -237,13 +249,27 @@ export async function patchMomentNotificationPrefs(
   body: PatchMomentNotificationPrefsInput
 ): Promise<MomentNotificationPrefs> {
   await assertGroupMember(client, ctx, momentId);
-  if (body.notifyOnChanges !== undefined) {
-    const r = await client.query<{ notify_on_changes: boolean }>(
+
+  let cadence = body.notificationCadence;
+  let notify = body.notifyOnChanges;
+  if (cadence !== undefined) {
+    notify = cadence !== 'MUTED';
+  } else if (notify === false) {
+    cadence = 'MUTED';
+  } else if (notify === true) {
+    cadence = cadence ?? 'ALL';
+  }
+
+  if (notify !== undefined || cadence !== undefined) {
+    const r = await client.query<{ notify_on_changes: boolean; notification_cadence: string }>(
       `UPDATE collaboration.moment_participant
-       SET notify_on_changes = $3, updated_at = now(), version = version + 1
+       SET notify_on_changes = COALESCE($3, notify_on_changes),
+           notification_cadence = COALESCE($4, notification_cadence),
+           updated_at = now(),
+           version = version + 1
        WHERE moment_id = $1 AND user_id = $2 AND status = 'ACTIVE'
-       RETURNING notify_on_changes`,
-      [momentId, ctx.userId, body.notifyOnChanges]
+       RETURNING notify_on_changes, coalesce(notification_cadence, 'ALL') AS notification_cadence`,
+      [momentId, ctx.userId, notify ?? null, cadence ?? null]
     );
     if (!r.rowCount) {
       throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Active participant not found.', 404);

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -35,7 +34,6 @@ import com.example.momentra.data.api.GroupLifePlanningItemDto
 import com.example.momentra.data.api.GroupLifeUpdateDto
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
-import com.example.momentra.ui.shell.components.nestedListMaxHeight
 import com.example.momentra.ui.shell.group.wedding.create.SheetAccent
 import com.example.momentra.ui.shell.group.wedding.create.WeddingPlanningSheetBody
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -220,6 +218,12 @@ fun itineraryDayGroups(
     }
 }
 
+/** Today if it has plans, else earliest day with plans, else today. */
+fun defaultPlanningScheduleDay(today: LocalDate, itemDays: Collection<LocalDate>): LocalDate {
+    if (itemDays.any { it == today }) return today
+    return itemDays.minOrNull() ?: today
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlanningScheduleSheet(
@@ -239,11 +243,15 @@ fun PlanningScheduleSheet(
 ) {
     if (!visible) return
     val today = remember { LocalDate.now() }
-    val dayKeys = remember(items) {
-        val fromItems = items.mapNotNull { planningItemDayKey(it) }.distinct().sorted()
-        (listOf(today) + fromItems).distinct().sorted()
+    val itemDayKeys = remember(items) {
+        items.mapNotNull { planningItemDayKey(it) }.distinct().sorted()
     }
-    var selectedDay by remember(dayKeys) { mutableStateOf(dayKeys.firstOrNull() ?: today) }
+    val dayKeys = remember(itemDayKeys, today) {
+        (listOf(today) + itemDayKeys).distinct().sorted()
+    }
+    var selectedDay by remember(dayKeys, itemDayKeys) {
+        mutableStateOf(defaultPlanningScheduleDay(today, itemDayKeys))
+    }
     val dayItems = remember(items, selectedDay) {
         items.filter { planningItemDayKey(it) == selectedDay }
             .sortedBy { parseInstantMillis(it.dueAt) ?: Long.MAX_VALUE }
@@ -264,6 +272,8 @@ fun PlanningScheduleSheet(
             )
         },
     ) {
+        // List rows live in the sheet's outer verticalScroll — avoid a nested
+        // height-capped column that can clip plans under the fold.
         Column(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -292,21 +302,16 @@ fun PlanningScheduleSheet(
                     )
                 }
             }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = nestedListMaxHeight()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (dayItems.isEmpty()) {
-                    Text(
-                        "No plans for this day",
-                        color = muted,
-                        fontSize = 13.sp,
-                        fontFamily = PlusJakartaSans,
-                        modifier = Modifier.padding(vertical = 24.dp),
-                    )
-                } else {
+            if (dayItems.isEmpty()) {
+                Text(
+                    "No plans for this day",
+                    color = muted,
+                    fontSize = 13.sp,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier.padding(vertical = 24.dp),
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     dayItems.forEach { item ->
                         PlanningScheduleRow(
                             item = item,

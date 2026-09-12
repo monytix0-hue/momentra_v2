@@ -10,6 +10,16 @@ import {
   type NotificationPriority,
   PEER_PUSH_EVENT_NAMES,
 } from './allowlist';
+import {
+  asCategoryMap,
+  categoryEnabled,
+  inQuietHours,
+  shouldDigest,
+  type RecipientPrefs,
+} from './recipient-prefs';
+
+export type { RecipientPrefs };
+export { categoryEnabled, inQuietHours, shouldDigest };
 
 export type DomainEventRow = {
   domain_event_id: string;
@@ -17,80 +27,14 @@ export type DomainEventRow = {
   event_name: string;
   scope_id: string | null;
   payload: Record<string, unknown> | null;
+  occurred_at?: Date | string | null;
+  recorded_at?: Date | string | null;
 };
-
-export type RecipientPrefs = {
-  user_id: string;
-  push_notifications_enabled: boolean;
-  notification_categories: Record<string, boolean> | null;
-  quiet_hours_start: string | null;
-  quiet_hours_end: string | null;
-  digest_enabled: boolean;
-  timezone: string;
-};
-
-function asCategoryMap(raw: unknown): Record<string, boolean> {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  const out: Record<string, boolean> = {};
-  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof v === 'boolean') out[k] = v;
-  }
-  return out;
-}
-
-export function categoryEnabled(
-  cats: Record<string, boolean> | null | undefined,
-  category: NotificationCategory
-): boolean {
-  if (!cats || Object.keys(cats).length === 0) return true;
-  if (category === 'system') return true;
-  return cats[category] !== false;
-}
-
-/** Quiet hours use profile local time (HH:MM[:SS]). Cross-midnight supported. */
-export function inQuietHours(
-  now: Date,
-  timezone: string,
-  start: string | null,
-  end: string | null
-): boolean {
-  if (!start || !end) return false;
-  try {
-    const local = new Intl.DateTimeFormat('en-GB', {
-      timeZone: timezone || 'UTC',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).format(now);
-    const [hh, mm] = local.split(':').map((x) => parseInt(x, 10));
-    const nowMins = hh * 60 + mm;
-    const parse = (t: string) => {
-      const parts = t.split(':').map((x) => parseInt(x, 10));
-      return (parts[0] ?? 0) * 60 + (parts[1] ?? 0);
-    };
-    const s = parse(start);
-    const e = parse(end);
-    if (s === e) return false;
-    if (s < e) return nowMins >= s && nowMins < e;
-    return nowMins >= s || nowMins < e;
-  } catch {
-    return false;
-  }
-}
-
-export function shouldDigest(
-  prefs: Pick<RecipientPrefs, 'digest_enabled' | 'quiet_hours_start' | 'quiet_hours_end' | 'timezone'>,
-  priority: NotificationPriority,
-  now = new Date()
-): boolean {
-  if (priority === 'HIGH') return false;
-  if (prefs.digest_enabled) return true;
-  return inQuietHours(now, prefs.timezone, prefs.quiet_hours_start, prefs.quiet_hours_end);
-}
 
 export async function loadDomainEvent(pool: Pool, domainEventId: string): Promise<DomainEventRow | null> {
   const r = await pool.query<DomainEventRow>(
-    `SELECT domain_event_id, actor_user_id, event_name, scope_id, payload
+    `SELECT domain_event_id, actor_user_id, event_name, scope_id, payload,
+            occurred_at, recorded_at
      FROM events.domain_event WHERE domain_event_id = $1`,
     [domainEventId]
   );
@@ -131,10 +75,60 @@ export async function resolveActorDisplayName(pool: Pool, actorUserId: string): 
   return r.rows[0]?.display_name ?? null;
 }
 
+async function loadPrefsForUserIds(pool: Pool, userIds: string[], momentId: string | null): Promise<RecipientPrefs[]> {
+  if (userIds.length === 0) return [];
+  if (momentId) {
+    const r = await pool.query<RecipientPrefs & { notification_cadence: string | null; notify_on_changes: boolean }>(
+      `SELECT up.user_id,
+              up.push_notifications_enabled,
+              up.notification_categories,
+              up.quiet_hours_start::text,
+              up.quiet_hours_end::text,
+              up.digest_enabled,
+              coalesce(nullif(up.timezone, ''), 'UTC') AS timezone,
+              coalesce(mp.notification_cadence, 'ALL') AS notification_cadence,
+              coalesce(mp.notify_on_changes, true) AS notify_on_changes
+       FROM core.user_profile up
+       LEFT JOIN collaboration.moment_participant mp
+         ON mp.moment_id = $2 AND mp.user_id = up.user_id AND mp.status = 'ACTIVE'
+       WHERE up.user_id = ANY($1::uuid[])
+         AND up.status = 'ACTIVE'
+         AND up.push_notifications_enabled = true`,
+      [userIds, momentId]
+    );
+    return r.rows.map((row) => ({
+      ...row,
+      notification_categories: asCategoryMap(row.notification_categories),
+    }));
+  }
+  const r = await pool.query<RecipientPrefs>(
+    `SELECT up.user_id,
+            up.push_notifications_enabled,
+            up.notification_categories,
+            up.quiet_hours_start::text,
+            up.quiet_hours_end::text,
+            up.digest_enabled,
+            coalesce(nullif(up.timezone, ''), 'UTC') AS timezone
+     FROM core.user_profile up
+     WHERE up.user_id = ANY($1::uuid[])
+       AND up.status = 'ACTIVE'
+       AND up.push_notifications_enabled = true`,
+    [userIds]
+  );
+  return r.rows.map((row) => ({
+    ...row,
+    notification_categories: asCategoryMap(row.notification_categories),
+    notification_cadence: 'ALL',
+    notify_on_changes: true,
+  }));
+}
+
 /**
- * Recipients:
- * - payload.targetUserIds / assigneeUserId / approverUserIds when present (targeted)
- * - else all other active moment participants with notify_on_changes
+ * Smart recipients:
+ * - Explicit targetUserIds / assignee / approver lists when present
+ * - Event-specific defaults (settlement payer/payee, expense splittees, organizers on invite redeem)
+ * - else peers with notify_on_changes (cadence != MUTED)
+ * Always excludes actor unless self-reminder targets include them.
  */
 export async function resolveRecipients(
   pool: Pool,
@@ -145,15 +139,32 @@ export async function resolveRecipients(
     (typeof payload.momentId === 'string' ? payload.momentId : null) ?? ev.scope_id;
 
   const targeted: string[] = [];
+  const pushUnique = (id: string | null | undefined) => {
+    if (id && !targeted.includes(id)) targeted.push(id);
+  };
+
   if (Array.isArray(payload.targetUserIds)) {
     for (const id of payload.targetUserIds) {
-      if (typeof id === 'string') targeted.push(id);
+      if (typeof id === 'string') pushUnique(id);
     }
   }
-  if (typeof payload.assigneeUserId === 'string') targeted.push(payload.assigneeUserId);
+  if (typeof payload.assigneeUserId === 'string') pushUnique(payload.assigneeUserId);
+  if (Array.isArray(payload.assigneeUserIds)) {
+    for (const id of payload.assigneeUserIds) {
+      if (typeof id === 'string') pushUnique(id);
+    }
+  }
   if (Array.isArray(payload.approverUserIds)) {
     for (const id of payload.approverUserIds) {
-      if (typeof id === 'string') targeted.push(id);
+      if (typeof id === 'string') pushUnique(id);
+    }
+  }
+  if (typeof payload.payerUserId === 'string') pushUnique(payload.payerUserId);
+  if (typeof payload.payeeUserId === 'string') pushUnique(payload.payeeUserId);
+  if (typeof payload.paidByUserId === 'string') pushUnique(payload.paidByUserId);
+  if (payload.sharesByUserId && typeof payload.sharesByUserId === 'object') {
+    for (const id of Object.keys(payload.sharesByUserId as Record<string, unknown>)) {
+      pushUnique(id);
     }
   }
 
@@ -165,11 +176,11 @@ export async function resolveRecipients(
       [payload.taskId]
     );
     for (const row of assigns.rows) {
-      if (row.assignee_user_id) targeted.push(row.assignee_user_id);
+      if (row.assignee_user_id) pushUnique(row.assignee_user_id);
     }
   }
 
-  // Pending approval requesters' peers with ADMIN/OWNER role when ApprovalRequested
+  // ApprovalRequested → organizers when no explicit approvers
   if (ev.event_name === 'ApprovalRequested' && momentId && targeted.length === 0) {
     const admins = await pool.query<{ user_id: string }>(
       `SELECT mp.user_id
@@ -181,42 +192,90 @@ export async function resolveRecipients(
          AND mp.participant_role IN ('ORGANIZER','CO_ORGANIZER')`,
       [momentId, ev.actor_user_id]
     );
-    for (const row of admins.rows) targeted.push(row.user_id);
+    for (const row of admins.rows) pushUnique(row.user_id);
   }
 
-  const uniqueTargets = [...new Set(targeted)].filter((id) => Boolean(id));
+  // GroupInviteRedeemed → organizers/admins
+  if (ev.event_name === 'GroupInviteRedeemed' && momentId && targeted.length === 0) {
+    const admins = await pool.query<{ user_id: string }>(
+      `SELECT mp.user_id
+       FROM collaboration.moment_participant mp
+       WHERE mp.moment_id = $1
+         AND mp.status = 'ACTIVE'
+         AND mp.user_id IS NOT NULL
+         AND mp.user_id <> $2
+         AND mp.participant_role IN ('ORGANIZER','CO_ORGANIZER','ADMIN')`,
+      [momentId, ev.actor_user_id]
+    );
+    for (const row of admins.rows) pushUnique(row.user_id);
+  }
+
+  // BusinessIssueCreated → organizers when no targets
+  if (ev.event_name === 'BusinessIssueCreated' && momentId && targeted.length === 0) {
+    const admins = await pool.query<{ user_id: string }>(
+      `SELECT mp.user_id
+       FROM collaboration.moment_participant mp
+       WHERE mp.moment_id = $1
+         AND mp.status = 'ACTIVE'
+         AND mp.user_id IS NOT NULL
+         AND mp.user_id <> $2
+         AND mp.participant_role IN ('ORGANIZER','CO_ORGANIZER','ADMIN')`,
+      [momentId, ev.actor_user_id]
+    );
+    for (const row of admins.rows) pushUnique(row.user_id);
+  }
+
+  const selfReminder =
+    payload.derivedSignal === true ||
+    ev.event_name === 'WeeklyReminder' ||
+    ev.event_name === 'DailyPersonalReminder' ||
+    ev.event_name === 'TaskDueReminder' ||
+    ev.event_name === 'BillReminder' ||
+    ev.event_name === 'ChoreReminder' ||
+    ev.event_name === 'ExpenseReminder' ||
+    ev.event_name === 'PhotoReminder' ||
+    ev.event_name === 'DigestReady' ||
+    ev.event_name === 'MomentDigestReady' ||
+    ev.event_name === 'TripBudgetThresholdReached' ||
+    ev.event_name === 'UserBalanceChangedMeaningfully' ||
+    ev.event_name === 'SettlementSuggested' ||
+    ev.event_name === 'GroupNearlySettled' ||
+    ev.event_name === 'PollNeedsYourVote' ||
+    ev.event_name === 'AssignedTaskDueSoon' ||
+    ev.event_name === 'ApprovalsAccumulating' ||
+    ev.event_name === 'ApprovalAging' ||
+    ev.event_name === 'InvoiceDueSoon' ||
+    ev.event_name === 'InvoiceOverdue' ||
+    ev.event_name === 'ExpenseThresholdExceeded' ||
+    ev.event_name === 'RunwayChangedMeaningfully' ||
+    ev.event_name === 'BudgetThresholdReached' ||
+    ev.event_name === 'BillDueSoon' ||
+    ev.event_name === 'GoalMilestoneReached' ||
+    ev.event_name === 'GoalAtRisk' ||
+    ev.event_name === 'RecurringExpenseExpected';
+
+  let uniqueTargets = [...new Set(targeted)].filter(Boolean);
+  if (!selfReminder) {
+    uniqueTargets = uniqueTargets.filter((id) => id !== ev.actor_user_id);
+  }
 
   if (uniqueTargets.length > 0) {
-    const r = await pool.query<RecipientPrefs>(
-      `SELECT up.user_id,
-              up.push_notifications_enabled,
-              up.notification_categories,
-              up.quiet_hours_start::text,
-              up.quiet_hours_end::text,
-              up.digest_enabled,
-              coalesce(nullif(up.timezone, ''), 'UTC') AS timezone
-       FROM core.user_profile up
-       WHERE up.user_id = ANY($1::uuid[])
-         AND up.status = 'ACTIVE'
-         AND up.push_notifications_enabled = true`,
-      [uniqueTargets]
-    );
-    return r.rows.map((row) => ({
-      ...row,
-      notification_categories: asCategoryMap(row.notification_categories),
-    }));
+    return loadPrefsForUserIds(pool, uniqueTargets, momentId);
   }
 
   if (!momentId) return [];
 
-  const peers = await pool.query<RecipientPrefs>(
+  // Default peer fan-out (cadence-aware mute via notify_on_changes)
+  const peers = await pool.query<RecipientPrefs & { notification_cadence: string; notify_on_changes: boolean }>(
     `SELECT up.user_id,
             up.push_notifications_enabled,
             up.notification_categories,
             up.quiet_hours_start::text,
             up.quiet_hours_end::text,
             up.digest_enabled,
-            coalesce(nullif(up.timezone, ''), 'UTC') AS timezone
+            coalesce(nullif(up.timezone, ''), 'UTC') AS timezone,
+            coalesce(mp.notification_cadence, 'ALL') AS notification_cadence,
+            mp.notify_on_changes
      FROM collaboration.moment_participant mp
      JOIN core.user_profile up ON up.user_id = mp.user_id
      WHERE mp.moment_id = $1
@@ -295,14 +354,19 @@ export async function insertInboxRow(
     actorDisplayName: string | null;
     digestPending: boolean;
     pushedAt: Date | null;
+    explanationCode?: string | null;
+    dedupeKey?: string | null;
+    actionabilityScore?: number | null;
+    decisionRoute?: string | null;
   }
 ): Promise<string> {
   const r = await pool.query<{ user_notification_id: string }>(
     `INSERT INTO platform.user_notification (
        user_id, domain_event_id, event_name, category_code, priority_code,
        title, body, moment_id, deep_link, actor_user_id, actor_display_name,
-       digest_pending, pushed_at
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       digest_pending, pushed_at,
+       explanation_code, dedupe_key, actionability_score, decision_route
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
      RETURNING user_notification_id`,
     [
       input.userId,
@@ -318,6 +382,10 @@ export async function insertInboxRow(
       input.actorDisplayName,
       input.digestPending,
       input.pushedAt,
+      input.explanationCode ?? null,
+      input.dedupeKey ?? null,
+      input.actionabilityScore ?? null,
+      input.decisionRoute ?? null,
     ]
   );
   return r.rows[0]!.user_notification_id;
@@ -360,7 +428,6 @@ export async function bumpDeliveryStats(
       delta.inbox ?? 0,
     ]
   );
-  // Also roll up to wildcard row
   await pool.query(
     `INSERT INTO platform.notification_delivery_stats (
        stat_day, event_name, attempted_count, sent_count, failed_count,
@@ -395,6 +462,37 @@ export function enrichPayload(
   if (actorDisplayName && !base.actorDisplayName) base.actorDisplayName = actorDisplayName;
   if (!base.momentId && ev.scope_id) base.momentId = ev.scope_id;
   return base;
+}
+
+/** Resolve participant_id → user_id for a moment (canonical finance enrichment). */
+export async function mapParticipantUserIds(
+  client: Pool | PoolClient,
+  momentId: string,
+  participantIds: string[]
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (participantIds.length === 0) return map;
+  const r = await client.query<{ participant_id: string; user_id: string }>(
+    `SELECT participant_id, user_id
+     FROM collaboration.moment_participant
+     WHERE moment_id = $1
+       AND participant_id = ANY($2::uuid[])
+       AND user_id IS NOT NULL`,
+    [momentId, participantIds]
+  );
+  for (const row of r.rows) map.set(row.participant_id, row.user_id);
+  return map;
+}
+
+export async function loadMomentTitle(
+  client: Pool | PoolClient,
+  momentId: string
+): Promise<string | null> {
+  const r = await client.query<{ title: string | null }>(
+    `SELECT title FROM core.moment WHERE moment_id = $1`,
+    [momentId]
+  );
+  return r.rows[0]?.title ?? null;
 }
 
 export {

@@ -354,6 +354,7 @@ final class APIClient {
     struct MomentNotificationPrefsPayload: Decodable {
         let momentId: String
         let notifyOnChanges: Bool
+        let notificationCadence: String?
         let reminderPreferences: [String: Bool]?
     }
 
@@ -370,6 +371,8 @@ final class APIClient {
         let title: String
         let body: String
         let momentId: String?
+        let momentTitle: String?
+        let threadKey: String?
         let deepLink: String?
         let actorDisplayName: String?
         let readAt: String?
@@ -415,15 +418,21 @@ final class APIClient {
     func patchMomentNotificationPreferences(
         momentId: String,
         notifyOnChanges: Bool? = nil,
+        notificationCadence: String? = nil,
         reminderPreferences: [String: Bool]? = nil
     ) async throws -> MomentNotificationPrefsPayload {
         struct Body: Encodable {
             let notifyOnChanges: Bool?
+            let notificationCadence: String?
             let reminderPreferences: [String: Bool]?
         }
         return try await authorizedPatch(
             path: "v1/moments/\(momentId)/notification-preferences",
-            body: Body(notifyOnChanges: notifyOnChanges, reminderPreferences: reminderPreferences)
+            body: Body(
+                notifyOnChanges: notifyOnChanges,
+                notificationCadence: notificationCadence,
+                reminderPreferences: reminderPreferences
+            )
         )
     }
 

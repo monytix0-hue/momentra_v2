@@ -235,7 +235,7 @@ class MomentCreateViewModel(
                             }
                             setup.reminderPreferences?.let { rem ->
                                 runCatching {
-                                    accountRepo.patchMomentNotificationPreferences(momentId, true, rem)
+                                    accountRepo.patchMomentNotificationPreferences(momentId, notifyOnChanges = true, reminderPreferences = rem)
                                 }
                             }
                         }

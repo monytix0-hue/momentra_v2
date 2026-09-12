@@ -230,13 +230,17 @@ fun AppShellScreen(
 
     LaunchedEffect(state.identity?.userId) {
         if (state.identity?.userId == null) return@LaunchedEffect
+        PendingDeepLink.hydrateFromDisk(context)
         PendingDeepLink.link.collect { offered ->
             if (offered.isNullOrBlank()) return@collect
-            val link = PendingDeepLink.consume() ?: return@collect
-            val momentId = PendingDeepLink.parseMomentId(link)
+            val pending = PendingDeepLink.consume(context) ?: return@collect
+            pending.userNotificationId?.let { id ->
+                accountRepository.markNotificationsRead(notificationIds = listOf(id))
+            }
+            val momentId = PendingDeepLink.parseMomentId(pending.link)
             if (momentId != null) {
                 shellViewModel.selectMoment(momentId)
-            } else if (link.startsWith("momentra://inbox", ignoreCase = true)) {
+            } else if (pending.link.startsWith("momentra://inbox", ignoreCase = true)) {
                 inboxOpen = true
             }
         }

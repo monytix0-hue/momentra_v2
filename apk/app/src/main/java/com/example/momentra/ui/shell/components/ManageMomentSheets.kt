@@ -104,11 +104,24 @@ fun ManageMomentSheet(
     var viewerIsLeader by remember { mutableStateOf(domain == AppContext.PERSONAL) }
     var candidates by remember { mutableStateOf<List<LeaveCandidate>>(emptyList()) }
     var transferUserId by remember { mutableStateOf<String?>(null) }
+    var notificationCadence by remember { mutableStateOf("ALL") }
     val scope = rememberCoroutineScope()
     val supportsLeave = domain == AppContext.GROUP || domain == AppContext.BUSINESS
     val leaveNoun = if (domain == AppContext.BUSINESS) "Company" else "Group"
 
     LaunchedEffect(momentId, domain, companyId, currentUserId) {
+        if (domain == AppContext.GROUP || domain == AppContext.BUSINESS) {
+            runCatching {
+                com.example.momentra.data.repository.AccountRepository()
+                    .getMomentNotificationPreferences(momentId)
+                    .getOrNull()
+            }.onSuccess { prefs ->
+                if (prefs != null) {
+                    notificationCadence = prefs.notificationCadence
+                        ?: if (prefs.notifyOnChanges) "ALL" else "MUTED"
+                }
+            }
+        }
         when (domain) {
             AppContext.GROUP -> {
                 runCatching { ApiClient.apiService.getGroupParticipants(momentId).data.participants }
@@ -239,6 +252,44 @@ fun ManageMomentSheet(
                 Spacer(Modifier.height(4.dp))
                 ManageRow(Icons.Filled.Edit, Blue, "Edit moment name", "Rename how this moment appears") {
                     pane = ManageMomentPane.RENAME
+                }
+                if (domain == AppContext.GROUP || domain == AppContext.BUSINESS) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("Notifications", color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    listOf(
+                        "ALL" to "All activity",
+                        "IMPORTANT" to "Important activity",
+                        "DIGEST_ONLY" to "Digest only",
+                        "MUTED" to "Muted",
+                    ).forEach { (code, label) ->
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(RowBg)
+                                .clickable {
+                                    notificationCadence = code
+                                    scope.launch {
+                                        runCatching {
+                                            com.example.momentra.data.repository.AccountRepository()
+                                                .patchMomentNotificationPreferences(
+                                                    momentId,
+                                                    notificationCadence = code,
+                                                )
+                                        }.onFailure { error = it.message }
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(label, color = TextPrimary, fontSize = 14.sp)
+                            if (notificationCadence == code) {
+                                Icon(Icons.Filled.Check, contentDescription = null, tint = Purple)
+                            }
+                        }
+                    }
                 }
                 if (!supportsLeave || viewerIsLeader) {
                     Spacer(Modifier.height(4.dp))

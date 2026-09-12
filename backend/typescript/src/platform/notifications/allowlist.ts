@@ -56,6 +56,25 @@ export const PEER_PUSH_EVENT_NAMES = new Set<string>([
   'ExpenseReminder',
   'PhotoReminder',
   'DigestReady',
+  // Wave 2 derived signals
+  'TripBudgetThresholdReached',
+  'UserBalanceChangedMeaningfully',
+  'SettlementSuggested',
+  'GroupNearlySettled',
+  'PollNeedsYourVote',
+  'AssignedTaskDueSoon',
+  'ApprovalsAccumulating',
+  'ApprovalAging',
+  'InvoiceDueSoon',
+  'InvoiceOverdue',
+  'ExpenseThresholdExceeded',
+  'RunwayChangedMeaningfully',
+  'BudgetThresholdReached',
+  'BillDueSoon',
+  'GoalMilestoneReached',
+  'GoalAtRisk',
+  'RecurringExpenseExpected',
+  'MomentDigestReady',
 ]);
 
 const CATEGORY_BY_EVENT: Record<string, NotificationCategory> = {
@@ -103,6 +122,24 @@ const CATEGORY_BY_EVENT: Record<string, NotificationCategory> = {
   SharedAssetCreated: 'social',
   OwnershipRecordCreated: 'finance',
   DeliveryHandoverPlanned: 'tasks',
+  TripBudgetThresholdReached: 'finance',
+  UserBalanceChangedMeaningfully: 'finance',
+  SettlementSuggested: 'finance',
+  GroupNearlySettled: 'finance',
+  PollNeedsYourVote: 'tasks',
+  AssignedTaskDueSoon: 'tasks',
+  ApprovalsAccumulating: 'approvals',
+  ApprovalAging: 'approvals',
+  InvoiceDueSoon: 'finance',
+  InvoiceOverdue: 'finance',
+  ExpenseThresholdExceeded: 'finance',
+  RunwayChangedMeaningfully: 'finance',
+  BudgetThresholdReached: 'finance',
+  BillDueSoon: 'reminders',
+  GoalMilestoneReached: 'tasks',
+  GoalAtRisk: 'tasks',
+  RecurringExpenseExpected: 'finance',
+  MomentDigestReady: 'system',
 };
 
 const PRIORITY_BY_EVENT: Record<string, NotificationPriority> = {
@@ -118,6 +155,17 @@ const PRIORITY_BY_EVENT: Record<string, NotificationPriority> = {
   PollVoted: 'LOW',
   GroupParticipantRoleUpdated: 'LOW',
   DigestReady: 'NORMAL',
+  TripBudgetThresholdReached: 'HIGH',
+  SettlementSuggested: 'HIGH',
+  AssignedTaskDueSoon: 'HIGH',
+  ApprovalsAccumulating: 'HIGH',
+  ApprovalAging: 'HIGH',
+  InvoiceDueSoon: 'HIGH',
+  InvoiceOverdue: 'HIGH',
+  GoalAtRisk: 'HIGH',
+  GroupNearlySettled: 'LOW',
+  RecurringExpenseExpected: 'LOW',
+  MomentDigestReady: 'NORMAL',
 };
 
 export function isPeerPushEvent(eventName: string): boolean {
@@ -128,7 +176,14 @@ export function notificationCategory(eventName: string): NotificationCategory {
   return CATEGORY_BY_EVENT[eventName] ?? 'system';
 }
 
-export function notificationPriority(eventName: string): NotificationPriority {
+export function notificationPriority(
+  eventName: string,
+  payload?: Record<string, unknown> | null
+): NotificationPriority {
+  const fromPayload = payload?.importance;
+  if (fromPayload === 'HIGH' || fromPayload === 'NORMAL' || fromPayload === 'LOW') {
+    return fromPayload;
+  }
   return PRIORITY_BY_EVENT[eventName] ?? 'NORMAL';
 }
 
@@ -170,6 +225,9 @@ export function deepLinkForEvent(
   return `momentra://moment/${momentId}?category=${category}&event=${encodeURIComponent(eventName)}`;
 }
 
+import type { RecipientContext } from './decision-types';
+import { moneyLabel } from './decision-types';
+
 function actorLabel(payload?: Record<string, unknown> | null): string {
   const name =
     (typeof payload?.actorDisplayName === 'string' && payload.actorDisplayName.trim()) ||
@@ -180,12 +238,54 @@ function actorLabel(payload?: Record<string, unknown> | null): string {
 
 function titleFromPayload(payload?: Record<string, unknown> | null): string | null {
   if (typeof payload?.title === 'string' && payload.title.trim()) return payload.title.trim();
+  if (typeof payload?.description === 'string' && payload.description.trim()) {
+    return payload.description.trim();
+  }
   return null;
 }
 
+function momentPrefix(payload?: Record<string, unknown> | null, ctx?: RecipientContext | null): string | null {
+  const t =
+    ctx?.momentTitle?.trim() ||
+    (typeof payload?.momentTitle === 'string' ? payload.momentTitle.trim() : '') ||
+    null;
+  return t || null;
+}
+
+function withMomentTitle(base: string, payload?: Record<string, unknown> | null, ctx?: RecipientContext | null): string {
+  const m = momentPrefix(payload, ctx);
+  return m ? `${m} · ${base}` : base;
+}
+
+function expenseConsequenceBody(
+  actor: string,
+  itemTitle: string | null,
+  payload: Record<string, unknown> | null | undefined,
+  ctx?: RecipientContext | null
+): string {
+  const amount = typeof payload?.amount === 'string' ? payload.amount : null;
+  const currency = ctx?.currencyCode ?? (typeof payload?.currencyCode === 'string' ? payload.currencyCode : null);
+  const paid = moneyLabel(amount, currency);
+  const head = paid ? `${actor} paid ${paid}` : itemTitle ? `${actor} recorded “${itemTitle}”.` : `${actor} recorded an expense.`;
+  if (ctx?.relationship === 'payer' && ctx.owedToRecipient) {
+    return `${head} · You're owed ${moneyLabel(ctx.owedToRecipient, currency)}`;
+  }
+  if (ctx?.recipientShare) {
+    return `${head} · Your share ${moneyLabel(ctx.recipientShare, currency)}`;
+  }
+  if (paid && itemTitle) return `${actor} recorded “${itemTitle}” · ${paid}`;
+  if (paid) return head;
+  return itemTitle ? `${actor} recorded “${itemTitle}”.` : `${actor} recorded an expense.`;
+}
+
+/**
+ * Recipient-aware copy. Pass recipientCtx from the decision layer for personalized wording.
+ * Legacy callers may omit ctx (global fallback copy).
+ */
 export function notificationCopy(
   eventName: string,
-  payload?: Record<string, unknown> | null
+  payload?: Record<string, unknown> | null,
+  recipientCtx?: RecipientContext | null
 ): { title: string; body: string } {
   const actor = actorLabel(payload);
   const itemTitle = titleFromPayload(payload);
@@ -195,28 +295,59 @@ export function notificationCopy(
     case 'ExpenseRecorded':
     case 'GroupExpenseRecorded':
       return {
-        title: 'New expense',
-        body: itemTitle ? `${actor} recorded “${itemTitle}”.` : `${actor} recorded an expense.`,
+        title: withMomentTitle(itemTitle ?? 'New expense', payload, recipientCtx),
+        body: expenseConsequenceBody(actor, itemTitle, payload, recipientCtx),
       };
     case 'GroupExpenseUpdated':
-      return { title: 'Expense updated', body: `${actor} updated an expense.` };
+      return {
+        title: withMomentTitle('Expense updated', payload, recipientCtx),
+        body: `${actor} updated an expense.`,
+      };
     case 'GroupExpenseVoided':
-      return { title: 'Expense voided', body: `${actor} voided an expense.` };
-    case 'SettlementRecorded':
-      return { title: 'Settlement recorded', body: `${actor} recorded a settlement.` };
+      return {
+        title: withMomentTitle('Expense voided', payload, recipientCtx),
+        body: `${actor} voided an expense.`,
+      };
+    case 'SettlementRecorded': {
+      const amount = typeof payload?.amount === 'string' ? payload.amount : null;
+      const currency =
+        recipientCtx?.currencyCode ??
+        (typeof payload?.currencyCode === 'string' ? payload.currencyCode : null);
+      const money = moneyLabel(amount, currency);
+      const payerName =
+        (typeof payload?.payerDisplayName === 'string' && payload.payerDisplayName.trim()) || actor;
+      const payeeName =
+        (typeof payload?.payeeDisplayName === 'string' && payload.payeeDisplayName.trim()) || 'them';
+      let body = `${actor} recorded a settlement.`;
+      if (recipientCtx?.relationship === 'payee' && money) {
+        body = `${payerName} paid you ${money}`;
+      } else if (recipientCtx?.relationship === 'payer' && money) {
+        body = `You paid ${payeeName} ${money}`;
+      } else if (money) {
+        body = `${payerName} paid ${payeeName} ${money}`;
+      }
+      return { title: withMomentTitle('Settlement', payload, recipientCtx), body };
+    }
     case 'PollCreated':
       return {
-        title: 'New poll',
+        title: withMomentTitle('New poll', payload, recipientCtx),
         body: itemTitle ? `${actor} opened “${itemTitle}”.` : `${actor} opened a poll.`,
       };
     case 'PollVoted':
-      return { title: 'Poll update', body: `${actor} voted on a poll.` };
+      return { title: withMomentTitle('Poll update', payload, recipientCtx), body: `${actor} voted on a poll.` };
     case 'PollClosed':
-      return { title: 'Poll closed', body: `${actor} closed a poll.` };
+      return { title: withMomentTitle('Poll closed', payload, recipientCtx), body: `${actor} closed a poll.` };
     case 'TaskCreated':
       return {
-        title: 'New task',
-        body: itemTitle ? `${actor} added “${itemTitle}”.` : `${actor} added a task.`,
+        title: withMomentTitle('New task', payload, recipientCtx),
+        body:
+          recipientCtx?.relationship === 'assignee'
+            ? itemTitle
+              ? `You’re assigned: ${itemTitle}`
+              : `You’re assigned a task.`
+            : itemTitle
+              ? `${actor} added “${itemTitle}”.`
+              : `${actor} added a task.`,
       };
     case 'TaskDueReminder':
       return {
@@ -275,8 +406,15 @@ export function notificationCopy(
       return { title: 'Business update', body: `${actor} published a business update.` };
     case 'ApprovalRequested':
       return {
-        title: 'Approval needed',
-        body: itemTitle ? `${actor} requested approval for “${itemTitle}”.` : `${actor} requested an approval.`,
+        title: withMomentTitle('Approval needed', payload, recipientCtx),
+        body:
+          recipientCtx?.relationship === 'approver'
+            ? itemTitle
+              ? `Approval needed from you for “${itemTitle}”.`
+              : `Approval needed from you.`
+            : itemTitle
+              ? `${actor} requested approval for “${itemTitle}”.`
+              : `${actor} requested an approval.`,
       };
     case 'BusinessIssueCreated':
       return {
@@ -316,6 +454,41 @@ export function notificationCopy(
         title: 'Momentra digest',
         body: n > 0 ? `You have ${n} updates waiting.` : 'You have updates waiting.',
       };
+    }
+    // Wave 2 derived signals — narrate verified facts only
+    case 'TripBudgetThresholdReached':
+    case 'UserBalanceChangedMeaningfully':
+    case 'SettlementSuggested':
+    case 'GroupNearlySettled':
+    case 'PollNeedsYourVote':
+    case 'AssignedTaskDueSoon':
+    case 'ApprovalsAccumulating':
+    case 'ApprovalAging':
+    case 'InvoiceDueSoon':
+    case 'InvoiceOverdue':
+    case 'ExpenseThresholdExceeded':
+    case 'RunwayChangedMeaningfully':
+    case 'BudgetThresholdReached':
+    case 'BillDueSoon':
+    case 'GoalMilestoneReached':
+    case 'GoalAtRisk':
+    case 'RecurringExpenseExpected':
+    case 'MomentDigestReady': {
+      const momentTitle =
+        typeof payload?.momentTitle === 'string' ? payload.momentTitle : null;
+      const companyName =
+        typeof payload?.companyName === 'string' ? payload.companyName : null;
+      const goalTitle = typeof payload?.goalTitle === 'string' ? payload.goalTitle : null;
+      const body =
+        typeof payload?.body === 'string' && payload.body.trim()
+          ? payload.body
+          : 'A meaningful update needs your attention.';
+      const title =
+        momentTitle ??
+        companyName ??
+        goalTitle ??
+        (eventName === 'MomentDigestReady' ? 'Moment digest' : 'Momentra insight');
+      return { title, body };
     }
     default:
       return { title: 'Momentra update', body: `Activity: ${eventName}` };

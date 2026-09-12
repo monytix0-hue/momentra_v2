@@ -1,41 +1,56 @@
 import Combine
 import Foundation
 
-/// Pending push deep link (`momentra://moment/{id}` or `momentra://inbox`).
+/// Pending push deep link (`momentra://moment/{id}` or `momentra://inbox`) + open attribution id.
 @MainActor
 final class PushDeepLinkStore: ObservableObject {
     static let shared = PushDeepLinkStore()
 
     private static let prefsKey = "momentra_pending_push_deep_link"
+    private static let notifIdKey = "momentra_pending_user_notification_id"
 
     @Published private(set) var pendingLink: String?
+    @Published private(set) var pendingUserNotificationId: String?
 
     private init() {
         pendingLink = UserDefaults.standard.string(forKey: Self.prefsKey)
+        pendingUserNotificationId = UserDefaults.standard.string(forKey: Self.notifIdKey)
     }
 
-    func offer(_ raw: String) {
+    func offer(_ raw: String, userNotificationId: String? = nil) {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         pendingLink = trimmed
         UserDefaults.standard.set(trimmed, forKey: Self.prefsKey)
+        if let id = userNotificationId?.trimmingCharacters(in: .whitespacesAndNewlines), !id.isEmpty {
+            pendingUserNotificationId = id
+            UserDefaults.standard.set(id, forKey: Self.notifIdKey)
+        }
     }
 
     func offer(userInfo: [AnyHashable: Any]) {
+        let notifId =
+            (userInfo["userNotificationId"] as? String)
+            ?? (userInfo["user_notification_id"] as? String)
         if let deepLink = userInfo["deepLink"] as? String {
-            offer(deepLink)
+            offer(deepLink, userNotificationId: notifId)
             return
         }
         if let momentId = userInfo["momentId"] as? String, !momentId.isEmpty {
-            offer("momentra://moment/\(momentId)")
+            offer("momentra://moment/\(momentId)", userNotificationId: notifId)
         }
     }
 
-    func consume() -> String? {
+    /// Returns (link, userNotificationId) and clears both.
+    func consume() -> (link: String, userNotificationId: String?)? {
         let link = pendingLink ?? UserDefaults.standard.string(forKey: Self.prefsKey)
+        let notifId = pendingUserNotificationId ?? UserDefaults.standard.string(forKey: Self.notifIdKey)
         pendingLink = nil
+        pendingUserNotificationId = nil
         UserDefaults.standard.removeObject(forKey: Self.prefsKey)
-        return link?.isEmpty == false ? link : nil
+        UserDefaults.standard.removeObject(forKey: Self.notifIdKey)
+        guard let link, !link.isEmpty else { return nil }
+        return (link, notifId)
     }
 
     static func isInboxLink(_ raw: String) -> Bool {

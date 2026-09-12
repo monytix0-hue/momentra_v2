@@ -50,6 +50,7 @@ struct ManageMomentFlowSheet: View {
     @State private var viewerIsLeader = false
     @State private var candidates: [LeaveCandidate] = []
     @State private var transferUserId: String?
+    @State private var notificationCadence: String = "ALL"
 
     private var supportsLeave: Bool { domain == .group || domain == .business }
     private var leaveNoun: String { domain == .business ? "Company" : "Group" }
@@ -105,6 +106,46 @@ struct ManageMomentFlowSheet: View {
                     ) {
                         subsheet = .rename
                     }
+
+                    if domain == .group || domain == .business {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Notifications")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(ManageMomentTokens.muted)
+                                .padding(.top, 8)
+                            ForEach(
+                                [
+                                    ("ALL", "All activity"),
+                                    ("IMPORTANT", "Important activity"),
+                                    ("DIGEST_ONLY", "Digest only"),
+                                    ("MUTED", "Muted"),
+                                ],
+                                id: \.0
+                            ) { code, label in
+                                Button {
+                                    notificationCadence = code
+                                    Task { await saveCadence(code) }
+                                } label: {
+                                    HStack {
+                                        Text(label)
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundStyle(ManageMomentTokens.text)
+                                        Spacer()
+                                        if notificationCadence == code {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundStyle(ManageMomentTokens.purple)
+                                        }
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 10)
+                                    .background(ManageMomentTokens.rowBg)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
                     if !supportsLeave || viewerIsLeader {
                         manageRow(
                             icon: "pause.fill",
@@ -216,7 +257,13 @@ struct ManageMomentFlowSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .shadow(color: .black.opacity(0.5), radius: 12, y: -4)
         }
-        .task { await loadLeaveContext() }
+        .task {
+            await loadLeaveContext()
+            if let prefs = try? await APIClient.shared.getMomentNotificationPreferences(momentId: momentId) {
+                notificationCadence = prefs.notificationCadence
+                    ?? (prefs.notifyOnChanges ? "ALL" : "MUTED")
+            }
+        }
         .sheet(item: $subsheet) { kind in
             switch kind {
             case .rename:
@@ -312,6 +359,17 @@ struct ManageMomentFlowSheet: View {
     }
 
     private enum LifecycleAction { case archive, cancel }
+
+    private func saveCadence(_ code: String) async {
+        do {
+            _ = try await APIClient.shared.patchMomentNotificationPreferences(
+                momentId: momentId,
+                notificationCadence: code
+            )
+        } catch {
+            errorText = error.localizedDescription
+        }
+    }
 
     private func loadLeaveContext() async {
         switch domain {

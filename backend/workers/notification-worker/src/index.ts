@@ -8,7 +8,6 @@ import {
   PEER_PUSH_EVENT_NAMES,
   alreadySucceeded,
   bumpDeliveryStats,
-  categoryEnabled,
   claimRecipient,
   deepLinkForEvent,
   enrichPayload,
@@ -17,16 +16,19 @@ import {
   loadDomainEvent,
   markSent,
   markSucceeded,
-  notificationCategory,
-  notificationCopy,
-  notificationPriority,
   releaseClaim,
   resolveActorDisplayName,
   resolveRecipients,
-  shouldDigest,
   shouldSkipPushForPayload,
   type DomainEventRow,
 } from '../../../typescript/src/platform/notifications/dispatch';
+import { decideNotificationForRecipient } from '../../../typescript/src/platform/notifications/decision';
+import {
+  insertDecisionAudit,
+  signalFieldsFromPayload,
+} from '../../../typescript/src/platform/notifications/decision-audit';
+import { notificationPriority } from '../../../typescript/src/platform/notifications/allowlist';
+import { collapseKeyFor } from '../../../typescript/src/platform/notifications/thread-key';
 import { startNotificationWorker } from '../../../typescript/src/platform/queue/notification-queue';
 import type { NotificationJobPayload } from '../../../typescript/src/platform/queue/notification-queue';
 
@@ -104,7 +106,8 @@ async function sendPushToUser(
   userId: string,
   title: string,
   body: string,
-  data: Record<string, string>
+  data: Record<string, string>,
+  opts?: { threadKey?: string | null; collapseKey?: string | null }
 ): Promise<{ sent: number; revoked: number }> {
   const devices = await pool.query<{ push_token: string; platform: string }>(
     `SELECT push_token, platform
@@ -122,19 +125,29 @@ async function sendPushToUser(
       const messageId = await messaging.send({
         token: row.push_token,
         notification: { title, body },
-        data: { ...data, platform: row.platform },
+        data: {
+          ...data,
+          platform: row.platform,
+          ...(opts?.threadKey ? { threadKey: opts.threadKey } : {}),
+        },
         android: {
           priority: 'high',
+          collapseKey: opts?.collapseKey || undefined,
           notification: {
             channelId: ANDROID_CHANNEL_ID,
             defaultSound: true,
             sound: 'default',
+            tag: opts?.threadKey || undefined,
           },
         },
         apns: {
+          headers: opts?.collapseKey
+            ? { 'apns-collapse-id': opts.collapseKey }
+            : undefined,
           payload: {
             aps: {
               sound: 'default',
+              ...(opts?.threadKey ? { 'thread-id': opts.threadKey } : {}),
             },
           },
         },
@@ -147,7 +160,6 @@ async function sendPushToUser(
           userId,
           platform: row.platform,
           messageId,
-          // Never log the full registration token.
           tokenFingerprint: row.push_token.slice(0, 8),
         })
       );
@@ -193,6 +205,7 @@ async function processDomainEvent(
   inboxCount: number;
   digestCount: number;
   revokedTokens: number;
+  suppressedCount: number;
   skipped: string | null;
 }> {
   if (!isPeerPushEvent(ev.event_name)) {
@@ -202,6 +215,7 @@ async function processDomainEvent(
       inboxCount: 0,
       digestCount: 0,
       revokedTokens: 0,
+      suppressedCount: 0,
       skipped: 'not_allowlisted',
     };
   }
@@ -213,6 +227,7 @@ async function processDomainEvent(
       inboxCount: 0,
       digestCount: 0,
       revokedTokens: 0,
+      suppressedCount: 0,
       skipped: ev.payload?.asDraft === true ? 'draft' : 'notify_members_false',
     };
   }
@@ -223,57 +238,137 @@ async function processDomainEvent(
       inboxCount: 0,
       digestCount: 0,
       revokedTokens: 0,
+      suppressedCount: 0,
       skipped: 'already_succeeded',
     };
   }
 
   const actorName = await resolveActorDisplayName(pool, ev.actor_user_id);
   const payload = enrichPayload(ev, actorName);
-  const category = notificationCategory(ev.event_name);
-  const priority = notificationPriority(ev.event_name);
-  const copy = notificationCopy(ev.event_name, payload);
   const deepLink = deepLinkForEvent(ev.event_name, payload);
   const momentId =
     (typeof payload.momentId === 'string' ? payload.momentId : null) ?? ev.scope_id;
+  const domainCode = typeof payload.domainCode === 'string' ? payload.domainCode : null;
+  const companyId = typeof payload.companyId === 'string' ? payload.companyId : null;
+  const signalFields = signalFieldsFromPayload(ev.event_name, payload);
+  const eventOccurredAt = ev.occurred_at
+    ? new Date(ev.occurred_at)
+    : ev.recorded_at
+      ? new Date(ev.recorded_at)
+      : null;
 
   const recipients = await resolveRecipients(pool, { ...ev, payload });
   let sentCount = 0;
   let inboxCount = 0;
   let digestCount = 0;
   let revokedTokens = 0;
+  let attempted = 0;
+  let suppressedCount = 0;
 
   for (const prefs of recipients) {
-    if (!categoryEnabled(prefs.notification_categories, category)) {
+    const decision = await decideNotificationForRecipient(pool, {
+      eventName: ev.event_name,
+      actorUserId: ev.actor_user_id,
+      payload,
+      prefs,
+      momentId,
+      companyId,
+      domainCode,
+    });
+
+    if (decision.outcome === 'SUPPRESS') {
+      await insertDecisionAudit(pool, {
+        userId: prefs.user_id,
+        domainEventId: ev.domain_event_id,
+        eventName: ev.event_name,
+        momentId,
+        ...signalFields,
+        outcome: decision.outcome,
+        route: decision.route,
+        suppressionReason: decision.suppressionReason,
+        importance: decision.priority,
+        categoryCode: decision.category,
+        relationship: decision.relationship,
+        threadKey: decision.threadKey,
+        eventOccurredAt,
+      });
+      suppressedCount += 1;
       continue;
     }
+
+    attempted += 1;
+
     const claimed = await claimRecipient(
       pool,
       ev.domain_event_id,
       prefs.user_id,
       ev.event_name,
-      category,
-      priority
+      decision.category,
+      decision.priority
     );
-    if (!claimed) continue;
-
-    try {
-      const digest = shouldDigest(prefs, priority);
-      await insertInboxRow(pool, {
+    if (!claimed) {
+      await insertDecisionAudit(pool, {
         userId: prefs.user_id,
         domainEventId: ev.domain_event_id,
         eventName: ev.event_name,
-        category,
-        priority,
-        title: copy.title,
-        body: copy.body,
         momentId,
-        deepLink,
+        ...signalFields,
+        outcome: 'SUPPRESS',
+        route: 'suppress',
+        suppressionReason: 'duplicate',
+        importance: decision.priority,
+        categoryCode: decision.category,
+        relationship: decision.relationship,
+        threadKey: decision.threadKey,
+        eventOccurredAt,
+      });
+      suppressedCount += 1;
+      attempted -= 1;
+      continue;
+    }
+
+    try {
+      const digest = decision.route === 'digest';
+      const inboxDeepLink = deepLink
+        ? `${deepLink}${deepLink.includes('?') ? '&' : '?'}threadKey=${encodeURIComponent(decision.threadKey)}`
+        : deepLink;
+      const userNotificationId = await insertInboxRow(pool, {
+        userId: prefs.user_id,
+        domainEventId: ev.domain_event_id,
+        eventName: ev.event_name,
+        category: decision.category,
+        priority: decision.priority,
+        title: decision.title,
+        body: decision.body,
+        momentId,
+        deepLink: inboxDeepLink,
         actorUserId: ev.actor_user_id,
         actorDisplayName: actorName,
         digestPending: digest,
         pushedAt: digest ? null : new Date(),
+        explanationCode: signalFields.explanationCode,
+        dedupeKey: signalFields.dedupeKey,
+        actionabilityScore: signalFields.actionabilityScore,
+        decisionRoute: decision.route,
       });
       inboxCount += 1;
+
+      await insertDecisionAudit(pool, {
+        userId: prefs.user_id,
+        domainEventId: ev.domain_event_id,
+        userNotificationId,
+        eventName: ev.event_name,
+        momentId,
+        ...signalFields,
+        outcome: decision.outcome,
+        route: decision.route,
+        suppressionReason: decision.suppressionReason,
+        importance: decision.priority,
+        categoryCode: decision.category,
+        relationship: decision.relationship,
+        threadKey: decision.threadKey,
+        eventOccurredAt,
+      });
 
       let n = 0;
       if (digest) {
@@ -282,26 +377,33 @@ async function processDomainEvent(
       } else if (messaging) {
         const data: Record<string, string> = {
           eventName: ev.event_name,
-          category,
-          priority,
+          category: decision.category,
+          priority: decision.priority,
           domainEventId: ev.domain_event_id,
+          userNotificationId,
+          threadKey: decision.threadKey,
         };
         if (momentId) data.momentId = momentId;
-        if (deepLink) data.deepLink = deepLink;
+        if (inboxDeepLink) data.deepLink = inboxDeepLink;
         if (actorName) data.actorDisplayName = actorName;
+        if (signalFields.explanationCode) data.explanationCode = signalFields.explanationCode;
+        const collapse = collapseKeyFor({
+          threadKey: decision.threadKey,
+          replacePrior: decision.replacePrior,
+        });
         const result = await sendPushToUser(
           messaging,
           pool,
           prefs.user_id,
-          copy.title,
-          copy.body,
-          data
+          decision.title,
+          decision.body,
+          data,
+          { threadKey: decision.threadKey, collapseKey: collapse }
         );
         n = result.sent;
         revokedTokens += result.revoked;
         let failureReason: string | null = null;
         if (n === 0) {
-          // Distinguish empty device list from send failures / revoked tokens.
           const deviceCount = await pool.query<{ n: string }>(
             `SELECT count(*)::text AS n
              FROM platform.user_device
@@ -331,9 +433,9 @@ async function processDomainEvent(
   }
 
   await bumpDeliveryStats(pool, ev.event_name, {
-    attempted: recipients.length,
+    attempted,
     sent: sentCount,
-    failed: Math.max(0, recipients.length - sentCount - digestCount),
+    failed: Math.max(0, attempted - sentCount - digestCount),
     revokedToken: revokedTokens,
     digestBatched: digestCount,
     inbox: inboxCount,
@@ -341,11 +443,12 @@ async function processDomainEvent(
 
   await markSucceeded(pool, ev.domain_event_id);
   return {
-    recipientCount: recipients.length,
+    recipientCount: attempted,
     sentCount,
     inboxCount,
     digestCount,
     revokedTokens,
+    suppressedCount,
     skipped: null,
   };
 }
@@ -383,7 +486,8 @@ async function runBackfill(pool: Pool, messaging: Messaging | null): Promise<voi
   while (true) {
     try {
       const events = await pool.query<DomainEventRow>(
-        `SELECT de.domain_event_id, de.actor_user_id, de.event_name, de.scope_id, de.payload
+        `SELECT de.domain_event_id, de.actor_user_id, de.event_name, de.scope_id, de.payload,
+                de.occurred_at, de.recorded_at
          FROM events.domain_event de
          LEFT JOIN events.event_consumer_state ecs
            ON ecs.domain_event_id = de.domain_event_id

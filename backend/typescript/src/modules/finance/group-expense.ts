@@ -13,6 +13,96 @@ import {
   listOtherMemberUserIds,
 } from '../collaboration/group-membership';
 import { emitLeanBusinessEvent, loadMomentTaxonomy } from '../analytics/lean-events';
+import { loadMomentTitle, mapParticipantUserIds } from '../../platform/notifications/dispatch';
+
+/** Canonical finance fields for recipient-aware notification copy (no recomputation in worker). */
+async function buildExpenseNotifyPayload(
+  client: PoolClient,
+  momentId: string,
+  input: {
+    amount: string;
+    currencyCode: string;
+    description?: string | null;
+    paidByParticipantId: string;
+    shares: Array<{ participantId: string; shareAmount: string }>;
+  }
+): Promise<Record<string, unknown>> {
+  const participantIds = [
+    input.paidByParticipantId,
+    ...input.shares.map((s) => s.participantId),
+  ];
+  const idMap = await mapParticipantUserIds(client, momentId, [...new Set(participantIds)]);
+  const paidByUserId = idMap.get(input.paidByParticipantId) ?? null;
+  const sharesByUserId: Record<string, string> = {};
+  let owedToPayer = new Decimal(0);
+  for (const s of input.shares) {
+    const uid = idMap.get(s.participantId);
+    if (!uid) continue;
+    sharesByUserId[uid] = s.shareAmount;
+    if (uid !== paidByUserId) {
+      owedToPayer = owedToPayer.plus(s.shareAmount);
+    }
+  }
+  const targetUserIds = [
+    ...new Set(
+      [paidByUserId, ...Object.keys(sharesByUserId)].filter((x): x is string => Boolean(x))
+    ),
+  ];
+  const momentTitle = await loadMomentTitle(client, momentId);
+  return {
+    momentTitle,
+    domainCode: 'GROUP',
+    title: input.description ?? undefined,
+    description: input.description ?? undefined,
+    amount: input.amount,
+    currencyCode: input.currencyCode,
+    paidByUserId,
+    sharesByUserId,
+    owedToPayer: owedToPayer.gt(0) ? owedToPayer.toFixed(4) : undefined,
+    targetUserIds,
+  };
+}
+
+async function buildSettlementNotifyPayload(
+  client: PoolClient,
+  momentId: string,
+  input: {
+    amount: string;
+    currencyCode: string;
+    payerParticipantId: string;
+    payeeParticipantId: string;
+  }
+): Promise<Record<string, unknown>> {
+  const idMap = await mapParticipantUserIds(client, momentId, [
+    input.payerParticipantId,
+    input.payeeParticipantId,
+  ]);
+  const payerUserId = idMap.get(input.payerParticipantId) ?? null;
+  const payeeUserId = idMap.get(input.payeeParticipantId) ?? null;
+  const names = await client.query<{ participant_id: string; display_name: string | null }>(
+    `SELECT mp.participant_id,
+            COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName') AS display_name
+     FROM collaboration.moment_participant mp
+     LEFT JOIN core.user_profile up ON up.user_id = mp.user_id
+     LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
+     WHERE mp.moment_id = $1 AND mp.participant_id = ANY($2::uuid[])`,
+    [momentId, [input.payerParticipantId, input.payeeParticipantId]]
+  );
+  const nameByPid = new Map(names.rows.map((r) => [r.participant_id, r.display_name]));
+  const momentTitle = await loadMomentTitle(client, momentId);
+  const targetUserIds = [payerUserId, payeeUserId].filter((x): x is string => Boolean(x));
+  return {
+    momentTitle,
+    domainCode: 'GROUP',
+    amount: input.amount,
+    currencyCode: input.currencyCode,
+    payerUserId,
+    payeeUserId,
+    payerDisplayName: nameByPid.get(input.payerParticipantId) ?? null,
+    payeeDisplayName: nameByPid.get(input.payeeParticipantId) ?? null,
+    targetUserIds,
+  };
+}
 
 const moneyString = z.string().regex(/^\d+(\.\d{1,4})?$/);
 const percentString = z.string().regex(/^\d+(\.\d{1,6})?$/);
@@ -375,6 +465,14 @@ export async function createGroupExpense(
     }));
   }
 
+  const notifyExtra = await buildExpenseNotifyPayload(client, momentId, {
+    amount: amount.toFixed(4),
+    currencyCode: body.currencyCode,
+    description: body.description,
+    paidByParticipantId: body.paidByParticipantId,
+    shares: shareRows.map((s) => ({ participantId: s.participantId, shareAmount: s.shareAmount })),
+  });
+
   const { domainEventId } = await recordCommandSideEffects(client, ctx, {
     eventName: 'GroupExpenseRecorded',
     domainCode: 'GROUP',
@@ -390,7 +488,7 @@ export async function createGroupExpense(
       paidByParticipantId: body.paidByParticipantId,
       splitStrategy: body.splitStrategy,
       shareCount: shareRows.length,
-      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+      ...notifyExtra,
     },
     auditActionCode: 'EXPENSE_CREATE',
     auditResourceType: 'EXPENSE',
@@ -786,6 +884,13 @@ export async function updateGroupExpense(
   }
 
   const version = parseInt(updated.rows[0].version, 10);
+  const notifyExtra = await buildExpenseNotifyPayload(client, momentId, {
+    amount: amount.toFixed(4),
+    currencyCode: body.currencyCode,
+    description: body.description,
+    paidByParticipantId: body.paidByParticipantId,
+    shares: shareRows.map((s) => ({ participantId: s.participantId, shareAmount: s.shareAmount })),
+  });
   const { domainEventId } = await recordCommandSideEffects(client, ctx, {
     eventName: 'GroupExpenseUpdated',
     domainCode: 'GROUP',
@@ -800,7 +905,7 @@ export async function updateGroupExpense(
       currencyCode: body.currencyCode,
       paidByParticipantId: body.paidByParticipantId,
       splitStrategy: body.splitStrategy,
-      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+      ...notifyExtra,
     },
     auditActionCode: 'EXPENSE_UPDATE',
     auditResourceType: 'EXPENSE',
@@ -928,6 +1033,8 @@ export async function voidGroupExpense(
     payload: {
       expenseId,
       momentId,
+      momentTitle: await loadMomentTitle(client, momentId),
+      domainCode: 'GROUP',
       targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
     },
     auditActionCode: 'EXPENSE_VOID',
@@ -1181,6 +1288,13 @@ export async function createSettlement(
     allocations,
   };
 
+  const settleNotify = await buildSettlementNotifyPayload(client, momentId, {
+    amount: amount.toFixed(4),
+    currencyCode: body.currencyCode,
+    payerParticipantId: body.payerParticipantId,
+    payeeParticipantId: body.payeeParticipantId,
+  });
+
   // Must be a domain_event_id (FK on group_finance_position) — never settlement_id.
   const { domainEventId } = await recordCommandSideEffects(client, ctx, {
     eventName: 'SettlementRecorded',
@@ -1196,7 +1310,7 @@ export async function createSettlement(
       currencyCode: body.currencyCode,
       payerParticipantId: body.payerParticipantId,
       payeeParticipantId: body.payeeParticipantId,
-      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+      ...settleNotify,
     },
     auditActionCode: 'SETTLEMENT_RECORD',
     auditResourceType: 'SETTLEMENT',

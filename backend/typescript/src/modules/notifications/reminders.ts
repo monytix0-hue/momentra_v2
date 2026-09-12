@@ -358,6 +358,12 @@ export type SchedulerTickResult = {
   tasks: number;
   group: number;
   digests: number;
+  signals?: {
+    groupEmitted: number;
+    businessEmitted: number;
+    personalEmitted: number;
+    momentDigestsEmitted: number;
+  };
 };
 
 export async function runReminderTick(pool: Pool): Promise<SchedulerTickResult> {
@@ -365,6 +371,21 @@ export async function runReminderTick(pool: Pool): Promise<SchedulerTickResult> 
   const daily = await dispatchDailyPersonalReminders(pool);
   const tasks = await dispatchOverdueTaskReminders(pool);
   const group = await dispatchGroupSetupReminders(pool);
+  // Moment-scoped digests run inside signal tick before global digest flush
+  const { runDerivedSignalTick } = await import('../../platform/notifications/signals');
+  const signalResult = await runDerivedSignalTick(pool);
   const digests = await flushDigests(pool);
-  return { weekly, daily, tasks, group, digests };
+  return {
+    weekly,
+    daily,
+    tasks,
+    group,
+    digests,
+    signals: {
+      groupEmitted: signalResult.group.emitted,
+      businessEmitted: signalResult.business.emitted,
+      personalEmitted: signalResult.personal.emitted,
+      momentDigestsEmitted: signalResult.momentDigests.emitted,
+    },
+  };
 }

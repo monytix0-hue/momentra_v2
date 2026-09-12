@@ -19,6 +19,7 @@ async function tick(pool: Pool): Promise<void> {
         'daily_personal_reminders',
         'task_due',
         'group_setup_reminders',
+        'derived_signals',
         'digest_flush',
       ],
       ...result,

@@ -757,8 +757,8 @@ fun GroupExperienceSetupContent(
                             scope.launch {
                                 accountRepo.patchMomentNotificationPreferences(
                                     outcome.momentId,
-                                    notifyChanges,
-                                    mapOf(
+                                    notifyOnChanges = notifyChanges,
+                                    reminderPreferences = mapOf(
                                         "expenseReminders" to (expenseReminders.equals("Enabled", ignoreCase = true)),
                                         "photoReminders" to (photoReminders.equals("Enabled", ignoreCase = true)),
                                     ),

@@ -906,8 +906,8 @@ private fun GroupSectionLongFormFlow(
                                 runCatching {
                                     accountRepo.patchMomentNotificationPreferences(
                                         outcome.momentId,
-                                        true,
-                                        reminderPreferences,
+                                        notifyOnChanges = true,
+                                        reminderPreferences = reminderPreferences,
                                     )
                                 }
                                 onCreated(outcome)

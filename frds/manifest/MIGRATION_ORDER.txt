@@ -82,3 +82,6 @@ V081__business_expense_categories.sql
 V082__contribution_payment_and_label.sql
 V083__contribution_attachment.sql
 V084__rebuild_contribution_totals.sql
+V085__notification_cadence.sql
+V086__derived_notification_signals.sql
+V087__notification_decision_audit.sql

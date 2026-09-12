@@ -30,14 +30,29 @@ struct NotificationInboxView: View {
                         id: "inbox.empty"
                     )
                 } else {
-                    List(items, id: \.notificationId) { item in
-                        Button {
-                            open(item)
-                        } label: {
-                            row(item)
+                    let grouped = Dictionary(grouping: items) { $0.threadKey ?? $0.momentId ?? "other" }
+                    let keys = grouped.keys.sorted { a, b in
+                        let aDate = grouped[a]?.first?.createdAt ?? ""
+                        let bDate = grouped[b]?.first?.createdAt ?? ""
+                        return aDate > bDate
+                    }
+                    List {
+                        ForEach(keys, id: \.self) { key in
+                            Section {
+                                ForEach(grouped[key] ?? [], id: \.notificationId) { item in
+                                    Button {
+                                        open(item)
+                                    } label: {
+                                        row(item)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .listRowBackground(Color(hex: "#14121B"))
+                                }
+                            } header: {
+                                Text(grouped[key]?.first?.momentTitle ?? "Updates")
+                                    .foregroundStyle(MomentraBrandTokens.textOnDark.opacity(0.6))
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .listRowBackground(Color(hex: "#14121B"))
                     }
                     .listStyle(.plain)
                     .accessibilityIdentifier("inbox.list")

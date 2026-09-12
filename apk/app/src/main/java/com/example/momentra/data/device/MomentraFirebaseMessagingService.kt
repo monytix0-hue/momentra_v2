@@ -43,6 +43,7 @@ class MomentraFirebaseMessagingService : FirebaseMessagingService() {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             message.data["deepLink"]?.let { putExtra(EXTRA_DEEP_LINK, it) }
+            message.data["userNotificationId"]?.let { putExtra(EXTRA_USER_NOTIFICATION_ID, it) }
         }
         val pending = PendingIntent.getActivity(
             this,
@@ -78,6 +79,7 @@ class MomentraFirebaseMessagingService : FirebaseMessagingService() {
         private const val TAG = "MomentraFcm"
         const val CHANNEL_ID = "momentra_updates"
         const val EXTRA_DEEP_LINK = "momentra_deep_link"
+        const val EXTRA_USER_NOTIFICATION_ID = "momentra_user_notification_id"
 
         fun ensureDefaultChannel(app: android.content.Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
