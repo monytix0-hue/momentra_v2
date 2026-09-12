@@ -7,7 +7,7 @@ Wave 2 signal types are **frozen**. Do not start Wave 3 until two calibration cy
 Bump these in [`decision-versions.ts`](../../src/platform/notifications/decision-versions.ts) whenever thresholds, cadence rules, or priority maps change:
 
 - `NOTIFICATION_DECISION_VERSION` — engine shape (currently `v2.1`)
-- `NOTIFICATION_POLICY_VERSION` — soak policy label (currently `2026-09-soak-01`)
+- `NOTIFICATION_POLICY_VERSION` — soak policy label (currently `2026-09-soak-02`)
 
 Always compare outcomes **within the same `policy_version`**.
 

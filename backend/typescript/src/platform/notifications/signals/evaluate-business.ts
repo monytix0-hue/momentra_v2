@@ -296,16 +296,8 @@ export async function evaluateBusinessSignals(pool: Pool): Promise<DerivedNotifi
   for (const row of runway.rows) {
     const months = num(row.runway_months);
     const band = Math.floor(months / RUNWAY_DELTA_MONTHS);
+    // Band in key = one notify per band; do NOT clear neighbors each tick (that caused re-fire churn).
     const dedupeKey = `BUSINESS:${row.company_id}:USER:${row.user_id}:RUNWAY_BAND_${band}`;
-    // Clear neighboring bands so crossing back can re-fire later
-    await clearDerivedSignal(
-      pool,
-      `BUSINESS:${row.company_id}:USER:${row.user_id}:RUNWAY_BAND_${band + 1}`
-    );
-    await clearDerivedSignal(
-      pool,
-      `BUSINESS:${row.company_id}:USER:${row.user_id}:RUNWAY_BAND_${band - 1}`
-    );
 
     const actionabilityScore = scoreActionability({
       importance: months < 3 ? 'HIGH' : 'NORMAL',

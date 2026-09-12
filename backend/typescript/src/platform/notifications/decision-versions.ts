@@ -1,6 +1,7 @@
 /** Soak-phase decision engine versions — bump policy_version on every threshold/cadence calibration. */
 export const NOTIFICATION_DECISION_VERSION = 'v2.1';
-export const NOTIFICATION_POLICY_VERSION = '2026-09-soak-01';
+/** Bumped when balance clear/re-emit spam fix shipped (multi-currency false clear). */
+export const NOTIFICATION_POLICY_VERSION = '2026-09-soak-02';
 
 export type DecisionOutcome = 'IMMEDIATE' | 'DEFER_TO_DIGEST' | 'SUPPRESS';
 

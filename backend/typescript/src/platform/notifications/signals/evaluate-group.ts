@@ -127,96 +127,127 @@ export async function evaluateGroupSignals(pool: Pool): Promise<DerivedNotificat
     [BALANCE_MEANINGFUL_ABS]
   );
 
+  // --- User balance / settlement: one signal per user+moment (max |net| across currencies) ---
+  // IMPORTANT: never clear from a near-zero secondary currency while another currency is still meaningful —
+  // that caused minute-level re-emit spam (clear → reclaim → new domain event).
+  type PosAgg = {
+    moment_id: string;
+    user_id: string;
+    title: string;
+    currency_code: string;
+    net: number;
+    absNet: number;
+    outstanding: number;
+  };
+  const byUserMoment = new Map<string, PosAgg>();
   for (const row of positions.rows) {
     const net = num(row.net_position);
     const absNet = Math.abs(net);
-    const title = row.title ?? 'Group';
-    const outstanding = num(row.outstanding_total);
+    const key = `${row.moment_id}:${row.user_id}`;
+    const prev = byUserMoment.get(key);
+    if (!prev || absNet > prev.absNet) {
+      byUserMoment.set(key, {
+        moment_id: row.moment_id,
+        user_id: row.user_id,
+        title: row.title ?? 'Group',
+        currency_code: row.currency_code,
+        net,
+        absNet,
+        outstanding: num(row.outstanding_total),
+      });
+    } else if (prev && num(row.outstanding_total) > prev.outstanding) {
+      prev.outstanding = num(row.outstanding_total);
+    }
+  }
 
-    const shareKey = `GROUP:${row.moment_id}:USER:${row.user_id}:BALANCE_MEANINGFUL`;
-    const settleKey = `GROUP:${row.moment_id}:USER:${row.user_id}:SETTLEMENT_SUGGESTED`;
+  for (const agg of byUserMoment.values()) {
+    const shareKey = `GROUP:${agg.moment_id}:USER:${agg.user_id}:BALANCE_MEANINGFUL`;
+    const settleKey = `GROUP:${agg.moment_id}:USER:${agg.user_id}:SETTLEMENT_SUGGESTED`;
+    const title = agg.title;
 
-    if (absNet < BALANCE_MEANINGFUL_ABS * 0.4) {
-      await clearDerivedSignal(pool, shareKey);
-      await clearDerivedSignal(pool, settleKey);
-    } else if (absNet >= BALANCE_MEANINGFUL_ABS) {
+    if (agg.absNet >= BALANCE_MEANINGFUL_ABS) {
       const balanceScore = scoreActionability({
         importance: 'NORMAL',
         hasClearNextAction: true,
-        amountImpact: absNet,
+        amountImpact: agg.absNet,
       });
       out.push({
         signalName: 'UserBalanceChangedMeaningfully',
-        userId: row.user_id,
+        userId: agg.user_id,
         contextType: 'GROUP',
-        momentId: row.moment_id,
+        momentId: agg.moment_id,
         category: 'finance',
         importance: importanceFromScore('NORMAL', balanceScore),
         facts: {
           momentTitle: title,
-          currencyCode: row.currency_code,
-          netPosition: moneyStr(net),
+          currencyCode: agg.currency_code,
+          netPosition: moneyStr(agg.net),
           body:
-            net < 0
-              ? `Your ${title} share has reached ${moneyLabel(absNet, row.currency_code)}.`
-              : `You're owed ${moneyLabel(absNet, row.currency_code)} in ${title}.`,
+            agg.net < 0
+              ? `Your ${title} share has reached ${moneyLabel(agg.absNet, agg.currency_code)}.`
+              : `You're owed ${moneyLabel(agg.absNet, agg.currency_code)} in ${title}.`,
         },
         dedupeKey: shareKey,
         explanationCode: 'BALANCE_CHANGED_MEANINGFUL',
         observedAt: now,
         actionabilityScore: balanceScore,
-        hysteresisState: { lastAbsNet: absNet },
+        hysteresisState: { lastAbsNet: agg.absNet, currencyCode: agg.currency_code },
       });
 
       const settleScore = scoreActionability({
-        importance: absNet >= 500 ? 'HIGH' : 'NORMAL',
+        importance: agg.absNet >= 500 ? 'HIGH' : 'NORMAL',
         hasClearNextAction: true,
-        amountImpact: absNet,
+        amountImpact: agg.absNet,
       });
       out.push({
         signalName: 'SettlementSuggested',
-        userId: row.user_id,
+        userId: agg.user_id,
         contextType: 'GROUP',
-        momentId: row.moment_id,
+        momentId: agg.moment_id,
         category: 'finance',
-        importance: importanceFromScore(absNet >= 500 ? 'HIGH' : 'NORMAL', settleScore),
+        importance: importanceFromScore(agg.absNet >= 500 ? 'HIGH' : 'NORMAL', settleScore),
         facts: {
           momentTitle: title,
-          currencyCode: row.currency_code,
-          settleAmount: moneyStr(absNet),
-          direction: net < 0 ? 'YOU_OWE' : 'YOU_ARE_OWED',
+          currencyCode: agg.currency_code,
+          settleAmount: moneyStr(agg.absNet),
+          direction: agg.net < 0 ? 'YOU_OWE' : 'YOU_ARE_OWED',
           body:
-            net < 0
-              ? `One ${moneyLabel(absNet, row.currency_code)} settlement would clear your balance.`
-              : `A ${moneyLabel(absNet, row.currency_code)} settlement would clear what’s owed to you.`,
+            agg.net < 0
+              ? `One ${moneyLabel(agg.absNet, agg.currency_code)} settlement would clear your balance.`
+              : `A ${moneyLabel(agg.absNet, agg.currency_code)} settlement would clear what’s owed to you.`,
         },
         dedupeKey: settleKey,
         explanationCode: 'BALANCE_SETTLEABLE',
         observedAt: now,
         actionabilityScore: settleScore,
-        hysteresisState: { settleAmount: absNet },
+        hysteresisState: { settleAmount: agg.absNet, currencyCode: agg.currency_code },
       });
     }
 
-    if (outstanding > 0 && outstanding < BALANCE_MEANINGFUL_ABS * 5 && absNet > 0 && absNet < BALANCE_MEANINGFUL_ABS) {
-      const nearlyKey = `GROUP:${row.moment_id}:USER:${row.user_id}:NEARLY_SETTLED`;
+    if (
+      agg.outstanding > 0 &&
+      agg.outstanding < BALANCE_MEANINGFUL_ABS * 5 &&
+      agg.absNet > 0 &&
+      agg.absNet < BALANCE_MEANINGFUL_ABS
+    ) {
+      const nearlyKey = `GROUP:${agg.moment_id}:USER:${agg.user_id}:NEARLY_SETTLED`;
       const actionabilityScore = scoreActionability({
         importance: 'LOW',
         hasClearNextAction: true,
-        amountImpact: outstanding,
+        amountImpact: agg.outstanding,
       });
       out.push({
         signalName: 'GroupNearlySettled',
-        userId: row.user_id,
+        userId: agg.user_id,
         contextType: 'GROUP',
-        momentId: row.moment_id,
+        momentId: agg.moment_id,
         category: 'finance',
         importance: 'LOW',
         facts: {
           momentTitle: title,
-          currencyCode: row.currency_code,
-          outstandingTotal: moneyStr(outstanding),
-          body: `${title} is nearly settled — only ${moneyLabel(outstanding, row.currency_code)} left.`,
+          currencyCode: agg.currency_code,
+          outstandingTotal: moneyStr(agg.outstanding),
+          body: `${title} is nearly settled — only ${moneyLabel(agg.outstanding, agg.currency_code)} left.`,
         },
         dedupeKey: nearlyKey,
         explanationCode: 'GROUP_NEARLY_SETTLED',
@@ -331,19 +362,23 @@ export async function evaluateGroupSignals(pool: Pool): Promise<DerivedNotificat
 }
 
 async function clearSettledBalanceSignals(pool: Pool): Promise<void> {
+  // Clear only when the user has no remaining meaningful position in ANY currency for that moment.
   await pool.query(
     `UPDATE platform.derived_notification_signal dns
      SET cleared_at = now()
-     FROM projection.group_finance_position gfp
-     JOIN collaboration.moment_participant mp
-       ON mp.moment_id = gfp.moment_id
-      AND mp.participant_id = gfp.participant_id
-      AND mp.user_id IS NOT NULL
      WHERE dns.cleared_at IS NULL
        AND dns.signal_name IN ('UserBalanceChangedMeaningfully', 'SettlementSuggested')
-       AND dns.user_id = mp.user_id
-       AND dns.moment_id = gfp.moment_id
-       AND ABS(gfp.net_position) < $1`,
+       AND dns.moment_id IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1
+         FROM projection.group_finance_position gfp
+         JOIN collaboration.moment_participant mp
+           ON mp.moment_id = gfp.moment_id
+          AND mp.participant_id = gfp.participant_id
+          AND mp.user_id = dns.user_id
+         WHERE gfp.moment_id = dns.moment_id
+           AND ABS(gfp.net_position) >= $1
+       )`,
     [BALANCE_MEANINGFUL_ABS * 0.4]
   );
 }
