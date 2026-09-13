@@ -13,6 +13,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -555,14 +557,21 @@ internal fun AvatarPick(
     accent: SheetAccent = PurpleAccent,
     onToggle: (String) -> Unit,
 ) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         people.forEachIndexed { index, (id, name) ->
             val on = id in selected
             val color = Wq.AvatarColors[index % Wq.AvatarColors.size]
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.clickable { onToggle(id) },
+                modifier = Modifier
+                    .width(56.dp)
+                    .clickable { onToggle(id) },
             ) {
                 Box {
                     Box(
@@ -600,6 +609,7 @@ internal fun AvatarPick(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     fontFamily = PlusJakartaSans,
+                    maxLines = 1,
                 )
             }
         }

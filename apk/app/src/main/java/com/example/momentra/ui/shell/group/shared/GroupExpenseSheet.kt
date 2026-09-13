@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
@@ -520,7 +523,9 @@ fun GroupExpenseSheet(
                     Color(0xFFA78BFA),
                 )
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     participants.forEachIndexed { index, p ->
@@ -530,13 +535,15 @@ fun GroupExpenseSheet(
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.clickable {
-                                selectedSplitIds = if (selected) {
-                                    selectedSplitIds - p.participantId
-                                } else {
-                                    selectedSplitIds + p.participantId
-                                }
-                            },
+                            modifier = Modifier
+                                .width(56.dp)
+                                .clickable {
+                                    selectedSplitIds = if (selected) {
+                                        selectedSplitIds - p.participantId
+                                    } else {
+                                        selectedSplitIds + p.participantId
+                                    }
+                                },
                         ) {
                             Box {
                                 Box(
@@ -583,6 +590,7 @@ fun GroupExpenseSheet(
                                 color = if (selected) sheetText else sheetSecondary,
                                 fontSize = 11.sp,
                                 fontFamily = PlusJakartaSans,
+                                maxLines = 1,
                             )
                         }
                     }

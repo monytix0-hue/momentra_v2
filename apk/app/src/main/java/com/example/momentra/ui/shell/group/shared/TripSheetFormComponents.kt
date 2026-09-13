@@ -4,8 +4,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.ui.graphics.ImageBitmap
@@ -677,7 +679,12 @@ internal fun TripParticipantPicker(
     onToggle: (String) -> Unit,
     accent: Color = TripSheetTokens.Accent,
 ) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         participants.forEachIndexed { index, p ->
             val on = selectedIds.contains(p.participantId)
             val name = p.displayName ?: p.participantId.take(8)
@@ -685,7 +692,9 @@ internal fun TripParticipantPicker(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.clickable { onToggle(p.participantId) },
+                modifier = Modifier
+                    .width(56.dp)
+                    .clickable { onToggle(p.participantId) },
             ) {
                 Box(contentAlignment = Alignment.BottomEnd) {
                     Box(
@@ -715,6 +724,7 @@ internal fun TripParticipantPicker(
                     color = if (on) TripSheetTokens.Text else TripSheetTokens.Muted,
                     fontSize = 11.sp,
                     fontFamily = PlusJakartaSans,
+                    maxLines = 1,
                 )
             }
         }

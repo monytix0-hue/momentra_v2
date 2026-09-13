@@ -575,42 +575,44 @@ struct TripParticipantPicker: View {
     var accent: Color = TripForm.accent
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(Array(participants.enumerated()), id: \.element.participantId) { index, p in
-                let id = p.participantId
-                let on = selectedIds.contains(id)
-                let name = p.displayName ?? String(id.prefix(8))
-                let color = TripForm.avatarColors[index % TripForm.avatarColors.count]
-                VStack(spacing: 6) {
-                    ZStack(alignment: .bottomTrailing) {
-                        Circle()
-                            .fill(color)
-                            .frame(width: 44, height: 44)
-                            .overlay(
-                                Text(tripInitials(name))
-                                    .font(.plusJakarta(size: 14, weight: .bold))
-                                    .foregroundStyle(Color(hex: "#14121B"))
-                            )
-                            .overlay(Circle().stroke(on ? accent : Color.clear, lineWidth: 2))
-                        if on {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(Array(participants.enumerated()), id: \.element.participantId) { index, p in
+                    let id = p.participantId
+                    let on = selectedIds.contains(id)
+                    let name = p.displayName ?? String(id.prefix(8))
+                    let color = TripForm.avatarColors[index % TripForm.avatarColors.count]
+                    VStack(spacing: 6) {
+                        ZStack(alignment: .bottomTrailing) {
                             Circle()
-                                .fill(accent)
-                                .frame(width: 16, height: 16)
+                                .fill(color)
+                                .frame(width: 44, height: 44)
                                 .overlay(
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .foregroundStyle(.white)
+                                    Text(tripInitials(name))
+                                        .font(.plusJakarta(size: 14, weight: .bold))
+                                        .foregroundStyle(Color(hex: "#14121B"))
                                 )
+                                .overlay(Circle().stroke(on ? accent : Color.clear, lineWidth: 2))
+                            if on {
+                                Circle()
+                                    .fill(accent)
+                                    .frame(width: 16, height: 16)
+                                    .overlay(
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 8, weight: .bold))
+                                            .foregroundStyle(.white)
+                                    )
+                            }
                         }
+                        Text(name.components(separatedBy: " ").first ?? name)
+                            .font(.plusJakarta(size: 11, weight: .medium))
+                            .foregroundStyle(on ? TripForm.text : TripForm.muted)
+                            .lineLimit(1)
                     }
-                    Text(name.components(separatedBy: " ").first ?? name)
-                        .font(.plusJakarta(size: 11, weight: .medium))
-                        .foregroundStyle(on ? TripForm.text : TripForm.muted)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity)
-                .onTapGesture {
-                    if on { selectedIds.remove(id) } else { selectedIds.insert(id) }
+                    .frame(width: 56)
+                    .onTapGesture {
+                        if on { selectedIds.remove(id) } else { selectedIds.insert(id) }
+                    }
                 }
             }
         }

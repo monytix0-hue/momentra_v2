@@ -413,41 +413,43 @@ struct AvatarPick: View {
     var onToggle: (String) -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(Array(people.enumerated()), id: \.element.id) { index, person in
-                let on = selected.contains(person.id)
-                let color = Wq.avatarColors[index % Wq.avatarColors.count]
-                VStack(spacing: 6) {
-                    ZStack(alignment: .bottomTrailing) {
-                        Circle()
-                            .fill(color)
-                            .frame(width: 44, height: 44)
-                            .overlay(
-                                Text(initialsOf(person.name))
-                                    .font(.plusJakarta(size: 14, weight: .bold))
-                                    .foregroundStyle(Wq.ink)
-                            )
-                            .overlay(
-                                Circle().stroke(on ? accent.accent : Color.clear, lineWidth: 2)
-                            )
-                        if on {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(accent.accent)
-                                .frame(width: 16, height: 16)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(Array(people.enumerated()), id: \.element.id) { index, person in
+                    let on = selected.contains(person.id)
+                    let color = Wq.avatarColors[index % Wq.avatarColors.count]
+                    VStack(spacing: 6) {
+                        ZStack(alignment: .bottomTrailing) {
+                            Circle()
+                                .fill(color)
+                                .frame(width: 44, height: 44)
                                 .overlay(
-                                    Text("✓")
-                                        .font(.system(size: 9, weight: .bold))
-                                        .foregroundStyle(.white)
+                                    Text(initialsOf(person.name))
+                                        .font(.plusJakarta(size: 14, weight: .bold))
+                                        .foregroundStyle(Wq.ink)
                                 )
+                                .overlay(
+                                    Circle().stroke(on ? accent.accent : Color.clear, lineWidth: 2)
+                                )
+                            if on {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(accent.accent)
+                                    .frame(width: 16, height: 16)
+                                    .overlay(
+                                        Text("✓")
+                                            .font(.system(size: 9, weight: .bold))
+                                            .foregroundStyle(.white)
+                                    )
+                            }
                         }
+                        Text(person.name.components(separatedBy: " ").first ?? person.name)
+                            .font(.plusJakarta(size: 11, weight: .medium))
+                            .foregroundStyle(on ? Wq.text : Wq.muted)
+                            .lineLimit(1)
                     }
-                    Text(person.name.components(separatedBy: " ").first ?? person.name)
-                        .font(.plusJakarta(size: 11, weight: .medium))
-                        .foregroundStyle(on ? Wq.text : Wq.muted)
-                        .lineLimit(1)
+                    .frame(width: 56)
+                    .onTapGesture { onToggle(person.id) }
                 }
-                .frame(maxWidth: .infinity)
-                .onTapGesture { onToggle(person.id) }
             }
         }
     }
