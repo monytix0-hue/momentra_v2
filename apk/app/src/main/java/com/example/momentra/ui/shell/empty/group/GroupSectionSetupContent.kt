@@ -215,7 +215,7 @@ private fun GroupSectionLongFormFlow(
         )
     }
     val selected = types.first { it.code == selectedCode }
-    var name by remember(selectedCode) {
+    var name by remember {
         mutableStateOf(initialTitle?.takeIf { it.isNotBlank() } ?: selected.defaultName)
     }
     var tagline by remember(selectedCode) {
@@ -455,8 +455,13 @@ private fun GroupSectionLongFormFlow(
                 types = types,
                 selectedCode = selectedCode,
                 onSelect = { opt ->
+                    if (opt.code == selectedCode) return@GroupLongFormTypeChipStrip
+                    val previousDefault = selected.defaultName
+                    val keepCustomName = name.isNotBlank() && name != previousDefault
                     selectedCode = opt.code
-                    name = opt.defaultName
+                    if (!keepCustomName) {
+                        name = opt.defaultName
+                    }
                     people = defaultGroupPeople(opt.code)
                     peopleEdited = false
                 },

@@ -8,6 +8,7 @@ import { z } from 'zod';
 import {
   businessSetupBlockSchema,
   groupSetupBlockSchema,
+  groupSetupUpdateBlockSchema,
   personalSetupBlockSchema,
   validateAndMergeBusinessPreferences,
   validateAndMergePersonalPreferences,
@@ -106,11 +107,18 @@ export const updateMomentSchema = z
     timezone: z.string().optional(),
     customTypeLabel: z.string().max(500).optional(),
     expectedVersion: z.number().int().positive(),
+    groupSetup: groupSetupUpdateBlockSchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.startAt && body.endAt && body.endAt < body.startAt) {
+      ctx.addIssue({ code: 'custom', message: 'endAt must be greater than or equal to startAt.', path: ['endAt'] });
+    }
+  });
 
 export type CreateMomentInput = z.infer<typeof createMomentSchema>;
 export type UpdateMomentInput = z.infer<typeof updateMomentSchema>;
+type GroupSetupUpdateInput = NonNullable<UpdateMomentInput['groupSetup']>;
 
 export interface MomentResult {
   momentId: string;
@@ -901,6 +909,16 @@ export async function updateMoment(
 ): Promise<MomentResult> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'MOMENT_UPDATE', resourceType: 'MOMENT', momentId });
 
+  let startAt = body.startAt ?? null;
+  let endAt = body.endAt ?? null;
+  if (body.groupSetup?.places && body.groupSetup.places.length > 0) {
+    const places = body.groupSetup.places;
+    if (!startAt) startAt = places[0]?.startAt ?? null;
+    if (!endAt) {
+      endAt = places[places.length - 1]?.endAt ?? places[0]?.endAt ?? null;
+    }
+  }
+
   const updated = await client.query<{ moment_id: string; domain_code: string; title: string; status: string; version: string }>(
     `UPDATE core.moment SET
        title = COALESCE($3, title),
@@ -918,8 +936,8 @@ export async function updateMoment(
       body.expectedVersion,
       body.title ?? null,
       body.description ?? null,
-      body.startAt ?? null,
-      body.endAt ?? null,
+      startAt,
+      endAt,
       body.timezone ?? null,
       body.customTypeLabel ?? null,
     ]
@@ -936,6 +954,19 @@ export async function updateMoment(
     });
   }
   const row = updated.rows[0];
+
+  if (body.groupSetup && row.domain_code === 'GROUP') {
+    await upsertGroupSetupOnUpdate(client, {
+      momentId,
+      title: row.title,
+      status: row.status,
+      customTypeLabel: body.customTypeLabel ?? null,
+      startAt,
+      endAt,
+      groupSetup: body.groupSetup,
+    });
+  }
+
   return {
     momentId: row.moment_id,
     domainCode: row.domain_code,
@@ -943,6 +974,160 @@ export async function updateMoment(
     status: row.status,
     version: parseInt(row.version, 10),
   };
+}
+
+async function upsertGroupSetupOnUpdate(
+  client: PoolClient,
+  args: {
+    momentId: string;
+    title: string;
+    status: string;
+    customTypeLabel: string | null;
+    startAt: string | null;
+    endAt: string | null;
+    groupSetup: GroupSetupUpdateInput;
+  }
+): Promise<void> {
+  const gmc = await client.query<{ group_family: string }>(
+    `SELECT group_family FROM collaboration.group_moment_context WHERE moment_id = $1`,
+    [args.momentId]
+  );
+  const familyCode = gmc.rows[0]?.group_family;
+  if (!familyCode) return;
+
+  const typeRow = await client.query<{ moment_type_code: string }>(
+    `SELECT mt.code AS moment_type_code
+     FROM core.moment m
+     JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+     WHERE m.moment_id = $1`,
+    [args.momentId]
+  );
+  const momentTypeCode = typeRow.rows[0]?.moment_type_code ?? 'TRIP';
+
+  if (args.groupSetup.reminderPreferences) {
+    await client.query(
+      `UPDATE collaboration.group_moment_context
+       SET reminder_preferences = $2::jsonb, updated_at = now()
+       WHERE moment_id = $1`,
+      [args.momentId, JSON.stringify(args.groupSetup.reminderPreferences)]
+    );
+  }
+
+  if (familyCode === 'SHARED_EXPERIENCE') {
+    await upsertSharedExperienceSetup(client, {
+      momentId: args.momentId,
+      momentTypeCode,
+      momentStatus: args.status,
+      title: args.title,
+      customTypeLabel: args.customTypeLabel,
+      startAt: args.startAt,
+      endAt: args.endAt,
+      groupSetup: args.groupSetup,
+      replacePlaces: args.groupSetup.places !== undefined,
+    });
+  } else if (familyCode === 'SHARED_PURCHASE') {
+    await client.query(
+      `INSERT INTO collaboration.shared_purchase_context (moment_id, purchase_purpose, status)
+       VALUES ($1, $2, 'ACTIVE')
+       ON CONFLICT (moment_id) DO UPDATE SET
+         purchase_purpose = EXCLUDED.purchase_purpose,
+         updated_at = now()`,
+      [args.momentId, args.customTypeLabel ?? args.title]
+    );
+  } else if (familyCode === 'SHARED_LIVING') {
+    await client.query(
+      `INSERT INTO collaboration.shared_living_context (moment_id, property_name, status)
+       VALUES ($1, $2, 'ACTIVE')
+       ON CONFLICT (moment_id) DO UPDATE SET
+         property_name = EXCLUDED.property_name,
+         updated_at = now()`,
+      [args.momentId, args.customTypeLabel ?? args.title]
+    );
+  }
+}
+
+async function upsertSharedExperienceSetup(
+  client: PoolClient,
+  args: {
+    momentId: string;
+    momentTypeCode: string;
+    momentStatus: string;
+    title: string;
+    customTypeLabel: string | null;
+    startAt: string | null;
+    endAt: string | null;
+    groupSetup: {
+      places?: Array<{ label: string; startAt?: string | null; endAt?: string | null }>;
+      destinationText?: string | null;
+      multiCurrencyEnabled?: boolean;
+      splitStyle?: string | null;
+      primaryGoal?: string | null;
+      setupPreferences?: Record<string, unknown>;
+    };
+    replacePlaces: boolean;
+  }
+): Promise<void> {
+  const places = args.groupSetup.places ?? [];
+  const destinationText =
+    places.length > 0
+      ? places.length === 1
+        ? places[0]!.label
+        : `${places.length} places`
+      : (args.groupSetup.destinationText ?? args.customTypeLabel ?? args.title);
+  const placeStart = places[0]?.startAt ?? args.startAt ?? null;
+  const placeEnd = places.length
+    ? places[places.length - 1]?.endAt ?? places[0]?.endAt ?? args.endAt ?? null
+    : (args.endAt ?? null);
+
+  await client.query(
+    `INSERT INTO collaboration.shared_experience_context (
+       moment_id, experience_kind, destination_text, start_at, end_at, status,
+       multi_currency_enabled, split_style, primary_goal, setup_preferences
+     ) VALUES ($1, $2, $3, $4::timestamptz, $5::timestamptz, $6, $7, $8, $9, $10::jsonb)
+     ON CONFLICT (moment_id) DO UPDATE SET
+       experience_kind = EXCLUDED.experience_kind,
+       destination_text = EXCLUDED.destination_text,
+       start_at = EXCLUDED.start_at,
+       end_at = EXCLUDED.end_at,
+       status = EXCLUDED.status,
+       multi_currency_enabled = COALESCE(EXCLUDED.multi_currency_enabled, collaboration.shared_experience_context.multi_currency_enabled),
+       split_style = COALESCE(EXCLUDED.split_style, collaboration.shared_experience_context.split_style),
+       primary_goal = COALESCE(EXCLUDED.primary_goal, collaboration.shared_experience_context.primary_goal),
+       setup_preferences = CASE
+         WHEN EXCLUDED.setup_preferences = '{}'::jsonb THEN collaboration.shared_experience_context.setup_preferences
+         ELSE EXCLUDED.setup_preferences
+       END,
+       updated_at = now()`,
+    [
+      args.momentId,
+      args.momentTypeCode,
+      destinationText,
+      placeStart,
+      placeEnd,
+      args.momentStatus,
+      args.groupSetup.multiCurrencyEnabled ?? false,
+      args.groupSetup.splitStyle ?? null,
+      args.groupSetup.primaryGoal ?? null,
+      JSON.stringify(args.groupSetup.setupPreferences ?? {}),
+    ]
+  );
+
+  if (args.replacePlaces) {
+    await client.query(`DELETE FROM collaboration.shared_experience_place WHERE moment_id = $1`, [
+      args.momentId,
+    ]);
+  }
+  if (places.length > 0) {
+    let order = 0;
+    for (const place of places) {
+      await client.query(
+        `INSERT INTO collaboration.shared_experience_place (
+           moment_id, sort_order, label, start_at, end_at
+         ) VALUES ($1, $2, $3, $4::timestamptz, $5::timestamptz)`,
+        [args.momentId, order++, place.label, place.startAt ?? null, place.endAt ?? null]
+      );
+    }
+  }
 }
 
 export async function archiveMoment(

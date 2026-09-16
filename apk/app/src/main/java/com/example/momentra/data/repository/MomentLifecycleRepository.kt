@@ -2,6 +2,7 @@ package com.example.momentra.data.repository
 
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.ApiService
+import com.example.momentra.data.api.GroupSetupBlockDto
 import com.example.momentra.data.api.LeaveCompanyResultDto
 import com.example.momentra.data.api.LeaveMomentBody
 import com.example.momentra.data.api.LeaveMomentResultDto
@@ -21,11 +22,33 @@ class MomentLifecycleRepository(
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun rename(momentId: String, title: String, expectedVersion: Long): Result<MomentLifecycleResultDto> =
+        update(
+            momentId = momentId,
+            expectedVersion = expectedVersion,
+            title = title,
+        )
+
+    suspend fun update(
+        momentId: String,
+        expectedVersion: Long,
+        title: String? = null,
+        startAt: String? = null,
+        endAt: String? = null,
+        customTypeLabel: String? = null,
+        groupSetup: GroupSetupBlockDto? = null,
+    ): Result<MomentLifecycleResultDto> =
         runCatching {
             api.updateMoment(
                 momentId = momentId,
                 idempotencyKey = UUID.randomUUID().toString(),
-                body = UpdateMomentBody(title = title, expectedVersion = expectedVersion),
+                body = UpdateMomentBody(
+                    title = title,
+                    startAt = startAt,
+                    endAt = endAt,
+                    customTypeLabel = customTypeLabel,
+                    expectedVersion = expectedVersion,
+                    groupSetup = groupSetup,
+                ),
             ).data
         }.recoverCatching { e -> throw mapError(e) }
 

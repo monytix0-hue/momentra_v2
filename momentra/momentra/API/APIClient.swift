@@ -942,17 +942,32 @@ final class APIClient {
 
     func updateMoment(
         momentId: String,
-        title: String,
+        title: String? = nil,
         expectedVersion: Int,
+        startAt: String? = nil,
+        endAt: String? = nil,
+        customTypeLabel: String? = nil,
+        groupSetup: CreateMomentRequest.GroupSetupBlock? = nil,
         idempotencyKey: String = UUID().uuidString
     ) async throws -> MomentLifecycleResult {
         struct Body: Encodable {
-            let title: String
+            let title: String?
             let expectedVersion: Int
+            let startAt: String?
+            let endAt: String?
+            let customTypeLabel: String?
+            let groupSetup: CreateMomentRequest.GroupSetupBlock?
         }
         return try await authorizedPatch(
             path: "v1/moments/\(momentId)",
-            body: Body(title: title, expectedVersion: expectedVersion),
+            body: Body(
+                title: title,
+                expectedVersion: expectedVersion,
+                startAt: startAt,
+                endAt: endAt,
+                customTypeLabel: customTypeLabel,
+                groupSetup: groupSetup
+            ),
             idempotencyKey: idempotencyKey
         )
     }

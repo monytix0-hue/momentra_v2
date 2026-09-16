@@ -86,8 +86,8 @@ fun GroupExperienceSetupContent(
         )
     }
     val selected = types.first { it.code == selectedCode }
-    var name by remember(selectedCode) {
-        mutableStateOf(initialTitle?.takeIf { it.isNotBlank() } ?: selected.defaultName)
+    var name by remember {
+        mutableStateOf(initialTitle?.takeIf { it.isNotBlank() } ?: types.first { it.code == selectedCode }.defaultName)
     }
     var startDateIso by remember(selectedCode) { mutableStateOf<String?>(null) }
     var endDateIso by remember(selectedCode) { mutableStateOf<String?>(null) }
@@ -322,8 +322,13 @@ fun GroupExperienceSetupContent(
                 types = types,
                 selectedCode = selectedCode,
                 onSelect = { opt ->
+                    if (opt.code == selectedCode) return@GroupLongFormTypeChipStrip
+                    val previousDefault = selected.defaultName
+                    val keepCustomName = name.isNotBlank() && name != previousDefault
                     selectedCode = opt.code
-                    name = opt.defaultName
+                    if (!keepCustomName) {
+                        name = opt.defaultName
+                    }
                     startDateIso = null
                     endDateIso = null
                     people = defaultGroupPeople(opt.code)
@@ -649,7 +654,6 @@ fun GroupExperienceSetupContent(
                 }
                 fun buildGroupSetupBlock(): GroupSetupBlockDto? {
                     val primaryAmount = GroupBudgetUtils.resolveBudgetAmount(budget, budgetCustomAmount)
-                        ?: return null
                     val placeDtos = places
                         .filter { it.label.isNotBlank() }
                         .map {
@@ -670,28 +674,33 @@ fun GroupExperienceSetupContent(
                                 )
                             }.orEmpty()
                         }
-                    val budgetDtos = buildList {
-                        add(
-                            GroupSetupBudgetDto(
-                                currencyCode = currency,
-                                amount = primaryAmount,
-                                isPrimary = true,
-                            ),
-                        )
-                        if (multiCurrency.equals("Enabled", ignoreCase = true)) {
-                            extraBudgets.forEach { row ->
-                                val amt = row.amount.filter { it.isDigit() || it == '.' }
-                                    .takeIf { it.isNotBlank() } ?: return@forEach
-                                if (row.currencyCode.equals(currency, ignoreCase = true)) return@forEach
-                                add(
-                                    GroupSetupBudgetDto(
-                                        currencyCode = row.currencyCode,
-                                        amount = amt,
-                                        isPrimary = false,
-                                    ),
-                                )
+                    if (primaryAmount == null && placeDtos.isEmpty()) return null
+                    val budgetDtos = if (primaryAmount != null) {
+                        buildList {
+                            add(
+                                GroupSetupBudgetDto(
+                                    currencyCode = currency,
+                                    amount = primaryAmount,
+                                    isPrimary = true,
+                                ),
+                            )
+                            if (multiCurrency.equals("Enabled", ignoreCase = true)) {
+                                extraBudgets.forEach { row ->
+                                    val amt = row.amount.filter { it.isDigit() || it == '.' }
+                                        .takeIf { it.isNotBlank() } ?: return@forEach
+                                    if (row.currencyCode.equals(currency, ignoreCase = true)) return@forEach
+                                    add(
+                                        GroupSetupBudgetDto(
+                                            currencyCode = row.currencyCode,
+                                            amount = amt,
+                                            isPrimary = false,
+                                        ),
+                                    )
+                                }
                             }
                         }
+                    } else {
+                        null
                     }
                     val apiSplit = when (splitStyle) {
                         "By share" -> "SHARES"
@@ -701,10 +710,10 @@ fun GroupExperienceSetupContent(
                     }
                     return GroupSetupBlockDto(
                         budgetAmount = primaryAmount,
-                        budgetCurrencyCode = currency,
+                        budgetCurrencyCode = primaryAmount?.let { currency },
                         destinationText = placeDtos.firstOrNull()?.label
                             ?: destination.takeIf { it.isNotBlank() },
-                        places = placeDtos.takeIf { it.isNotEmpty() },
+                        places = placeDtos,
                         budgets = budgetDtos,
                         multiCurrencyEnabled = multiCurrency.equals("Enabled", ignoreCase = true),
                         splitStyle = apiSplit,

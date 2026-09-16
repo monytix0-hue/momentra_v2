@@ -152,7 +152,7 @@ export const groupSetupBudgetSchema = z
   })
   .strict();
 
-export const groupSetupBlockSchema = z
+const groupSetupBlockBaseSchema = z
   .object({
     /** @deprecated Prefer budgets[]; kept for backward compatibility. */
     budgetAmount: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
@@ -176,28 +176,46 @@ export const groupSetupBlockSchema = z
       .optional(),
     setupPreferences: z.record(z.string(), z.unknown()).optional(),
   })
-  .strict()
-  .superRefine((body, ctx) => {
-    const hasLegacy = Boolean(body.budgetAmount && body.budgetCurrencyCode);
-    const hasBudgets = Boolean(body.budgets && body.budgets.length > 0);
-    if (!hasLegacy && !hasBudgets) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Provide budgets[] or budgetAmount+budgetCurrencyCode.',
-        path: ['budgets'],
-      });
+  .strict();
+
+function refineGroupSetupBudgets(
+  body: z.infer<typeof groupSetupBlockBaseSchema>,
+  ctx: z.RefinementCtx,
+  requireBudget: boolean
+): void {
+  const hasLegacy = Boolean(body.budgetAmount && body.budgetCurrencyCode);
+  const hasBudgets = Boolean(body.budgets && body.budgets.length > 0);
+  if (requireBudget && !hasLegacy && !hasBudgets) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Provide budgets[] or budgetAmount+budgetCurrencyCode.',
+      path: ['budgets'],
+    });
+  }
+  if (hasBudgets && body.budgets) {
+    const codes = body.budgets.map((b) => b.currencyCode);
+    if (new Set(codes).size !== codes.length) {
+      ctx.addIssue({ code: 'custom', message: 'Duplicate currency in budgets.', path: ['budgets'] });
     }
-    if (hasBudgets && body.budgets) {
-      const codes = body.budgets.map((b) => b.currencyCode);
-      if (new Set(codes).size !== codes.length) {
-        ctx.addIssue({ code: 'custom', message: 'Duplicate currency in budgets.', path: ['budgets'] });
-      }
-      const primaries = body.budgets.filter((b) => b.isPrimary);
-      if (primaries.length > 1) {
-        ctx.addIssue({ code: 'custom', message: 'At most one primary budget.', path: ['budgets'] });
-      }
+    const primaries = body.budgets.filter((b) => b.isPrimary);
+    if (primaries.length > 1) {
+      ctx.addIssue({ code: 'custom', message: 'At most one primary budget.', path: ['budgets'] });
     }
-  });
+  }
+}
+
+/** Create-moment groupSetup — budgets required. */
+export const groupSetupBlockSchema = groupSetupBlockBaseSchema.superRefine((body, ctx) => {
+  refineGroupSetupBudgets(body, ctx, true);
+});
+
+/**
+ * PATCH /moments groupSetup — places/destination/prefs may update without re-sending budgets
+ * (clients still patch budgets via dedicated endpoints).
+ */
+export const groupSetupUpdateBlockSchema = groupSetupBlockBaseSchema.superRefine((body, ctx) => {
+  refineGroupSetupBudgets(body, ctx, false);
+});
 
 export { TRAVEL_CURRENCY_CODES };
 

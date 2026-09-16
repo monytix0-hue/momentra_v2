@@ -155,6 +155,9 @@ class MomentCreateViewModel(
                     momentId = editingMomentId,
                     title = title,
                     momentTypeCode = apiType,
+                    startAt = startAt,
+                    endAt = endAt,
+                    customTypeLabel = customLabel,
                     groupSetup = groupSetup,
                     activateAfter = status == "ACTIVE" && editingMomentStatus.equals("DRAFT", ignoreCase = true),
                     onSuccess = onSuccess,
@@ -207,6 +210,9 @@ class MomentCreateViewModel(
         momentId: String,
         title: String,
         momentTypeCode: String,
+        startAt: String?,
+        endAt: String?,
+        customTypeLabel: String?,
         groupSetup: GroupSetupBlockDto?,
         activateAfter: Boolean,
         onSuccess: (CreateMomentOutcome) -> Unit,
@@ -216,7 +222,15 @@ class MomentCreateViewModel(
         val groupRepo = GroupSliceRepository()
         lifecycle.getVersion(momentId).fold(
             onSuccess = { version ->
-                lifecycle.rename(momentId, title, version).fold(
+                lifecycle.update(
+                    momentId = momentId,
+                    expectedVersion = version,
+                    title = title,
+                    startAt = startAt,
+                    endAt = endAt,
+                    customTypeLabel = customTypeLabel,
+                    groupSetup = groupSetup,
+                ).fold(
                     onSuccess = { dto ->
                         groupSetup?.let { setup ->
                             val primary = setup.budgets?.firstOrNull { it.isPrimary == true }

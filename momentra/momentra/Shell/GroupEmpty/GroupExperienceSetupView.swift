@@ -84,8 +84,15 @@ struct GroupExperienceSetupView: View {
                     selectedCode: selectedCode,
                     shortLabel: experienceChipLabel,
                     onSelect: { opt in
+                        guard opt.code != selectedCode else { return }
+                        let previousDefault = selected.defaultName
+                        let keepCustomName =
+                            !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                            name != previousDefault
                         selectedCode = opt.code
-                        name = opt.defaultName
+                        if !keepCustomName {
+                            name = opt.defaultName
+                        }
                         startDateIso = nil
                         endDateIso = nil
                         places = [ExperiencePlaceDraft()]
@@ -749,9 +756,7 @@ struct GroupExperienceSetupView: View {
     }
 
     private func buildGroupSetupBlock() -> CreateMomentRequest.GroupSetupBlock? {
-        guard let primaryAmount = GroupBudgetUtils.resolveBudgetAmount(displayBudget: budget, customAmount: budgetCustomAmount) else {
-            return nil
-        }
+        let primaryAmount = GroupBudgetUtils.resolveBudgetAmount(displayBudget: budget, customAmount: budgetCustomAmount)
         let placeBlocks = places
             .filter { !$0.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .map {
@@ -772,15 +777,19 @@ struct GroupExperienceSetupView: View {
                 ),
             ]
         }()
-        var budgetBlocks: [CreateMomentRequest.GroupSetupBlock.BudgetBlock] = [
-            .init(currencyCode: currency, amount: primaryAmount, isPrimary: true),
-        ]
-        if multiCurrency.lowercased() == "enabled" {
-            for row in extraBudgets {
-                let amt = row.amount.filter { $0.isNumber || $0 == "." }
-                guard !amt.isEmpty, row.currencyCode.caseInsensitiveCompare(currency) != .orderedSame else { continue }
-                budgetBlocks.append(.init(currencyCode: row.currencyCode, amount: amt, isPrimary: false))
+        var budgetBlocks: [CreateMomentRequest.GroupSetupBlock.BudgetBlock] = []
+        if let primaryAmount {
+            budgetBlocks.append(.init(currencyCode: currency, amount: primaryAmount, isPrimary: true))
+            if multiCurrency.lowercased() == "enabled" {
+                for row in extraBudgets {
+                    let amt = row.amount.filter { $0.isNumber || $0 == "." }
+                    guard !amt.isEmpty, row.currencyCode.caseInsensitiveCompare(currency) != .orderedSame else { continue }
+                    budgetBlocks.append(.init(currencyCode: row.currencyCode, amount: amt, isPrimary: false))
+                }
             }
+        }
+        if primaryAmount == nil && resolvedPlaces == nil {
+            return nil
         }
         let reminderPreferences: [String: Bool] = [
             "expenseReminders": expenseReminders.lowercased() == "enabled",
@@ -788,10 +797,10 @@ struct GroupExperienceSetupView: View {
         ]
         return CreateMomentRequest.GroupSetupBlock(
             budgetAmount: primaryAmount,
-            budgetCurrencyCode: currency,
+            budgetCurrencyCode: primaryAmount != nil ? currency : nil,
             destinationText: resolvedPlaces?.first?.label ?? destination.nilIfBlank,
-            places: resolvedPlaces,
-            budgets: budgetBlocks,
+            places: resolvedPlaces ?? [],
+            budgets: budgetBlocks.isEmpty ? nil : budgetBlocks,
             multiCurrencyEnabled: multiCurrency.lowercased() == "enabled",
             splitStyle: apiSplitStyle(from: splitStyle),
             primaryGoal: primaryGoal,

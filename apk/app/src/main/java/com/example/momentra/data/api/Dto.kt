@@ -713,7 +713,11 @@ data class MomentDetailDto(
 data class UpdateMomentBody(
     val title: String? = null,
     val description: String? = null,
+    @SerializedName("startAt") val startAt: String? = null,
+    @SerializedName("endAt") val endAt: String? = null,
+    @SerializedName("customTypeLabel") val customTypeLabel: String? = null,
     @SerializedName("expectedVersion") val expectedVersion: Long,
+    @SerializedName("groupSetup") val groupSetup: GroupSetupBlockDto? = null,
 )
 
 data class MomentVersionBody(

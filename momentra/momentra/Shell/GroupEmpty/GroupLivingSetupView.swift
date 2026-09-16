@@ -171,8 +171,15 @@ struct GroupSectionSetupView: View {
                     selectedCode: selectedCode,
                     shortLabel: isPurchase ? purchaseChipLabel : livingChipLabel,
                     onSelect: { opt in
+                        guard opt.code != selectedCode else { return }
+                        let previousDefault = selected.defaultName
+                        let keepCustomName =
+                            !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                            name != previousDefault
                         selectedCode = opt.code
-                        name = opt.defaultName
+                        if !keepCustomName {
+                            name = opt.defaultName
+                        }
                         people = Self.defaultPeople(for: opt.code)
                         peopleEdited = false
                         amountCustom = ""

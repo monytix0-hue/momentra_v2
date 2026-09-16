@@ -124,6 +124,9 @@ final class MomentCreateModel: ObservableObject {
                 momentId: editingMomentId,
                 title: title,
                 momentTypeCode: resolved.momentTypeCode,
+                startAt: startAt,
+                endAt: endAt,
+                customTypeLabel: resolved.customTypeLabel,
                 groupSetup: groupSetup,
                 activateAfter: status == "ACTIVE" && editingMomentStatus?.caseInsensitiveCompare("DRAFT") == .orderedSame,
                 onSuccess: onSuccess
@@ -180,6 +183,9 @@ final class MomentCreateModel: ObservableObject {
         momentId: String,
         title: String,
         momentTypeCode: String,
+        startAt: String?,
+        endAt: String?,
+        customTypeLabel: String?,
         groupSetup: CreateMomentRequest.GroupSetupBlock?,
         activateAfter: Bool,
         onSuccess: @escaping (CreateMomentOutcome) -> Void
@@ -192,7 +198,11 @@ final class MomentCreateModel: ObservableObject {
                 let result = try await APIClient.shared.updateMoment(
                     momentId: momentId,
                     title: title,
-                    expectedVersion: detail.version
+                    expectedVersion: detail.version,
+                    startAt: startAt,
+                    endAt: endAt,
+                    customTypeLabel: customTypeLabel,
+                    groupSetup: groupSetup
                 )
                 if let setup = groupSetup {
                     let primary = setup.budgets?.first(where: { $0.isPrimary == true })
