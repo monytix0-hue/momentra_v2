@@ -12,6 +12,7 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
+// Default production; override in local.properties — see local.properties.example (incl. http://200.141.7.52:3001/ fallback).
 val apiBaseUrl = localProperties.getProperty("API_BASE_URL", "https://api.momentra.tech/")
 val googleWebClientId = localProperties.getProperty(
         "GOOGLE_WEB_CLIENT_ID",

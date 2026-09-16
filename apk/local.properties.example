@@ -1,0 +1,11 @@
+## Copy to apk/local.properties (not committed). Set sdk.dir to your Android SDK path.
+
+sdk.dir=/path/to/Android/sdk
+
+# Production (canonical)
+API_BASE_URL=https://api.momentra.tech/
+
+# Fallback while api.momentra.tech HTTPS is misconfigured (Dokploy host port)
+# API_BASE_URL=http://200.141.7.52:3001/
+
+GOOGLE_WEB_CLIENT_ID=your-firebase-web-client-id.apps.googleusercontent.com

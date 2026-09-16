@@ -87,3 +87,15 @@ curl -sS https://api.momentra.tech/health/ready
 ```
 
 Clients use `https://api.momentra.tech/` as `API_BASE_URL` / `MomentraAPIBaseURL`.
+
+### Direct IP fallback (HTTP)
+
+While HTTPS on `api.momentra.tech` is broken, the API is reachable at:
+
+```text
+http://200.141.7.52:3001/
+```
+
+- **Android:** set `API_BASE_URL=http://200.141.7.52:3001/` in `apk/local.properties` (see `local.properties.example`).
+- **iOS:** Account → Developer → **Use Dokploy direct (200.141.7.52:3001)**.
+- **Do not ship** this as the production default — use only for testing until TLS works.

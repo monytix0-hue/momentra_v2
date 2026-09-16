@@ -201,6 +201,11 @@ enum APIConfig {
     /// UserDefaults key for Account → Developer API server override (LAN IP for device testing).
     static let baseURLOverrideKey = "momentra_api_base_url_override"
 
+    /// Production HTTPS (canonical once Dokploy TLS is healthy).
+    static let productionAPIBase = "https://api.momentra.tech/"
+    /// Direct Dokploy host port while `api.momentra.tech` HTTPS is misconfigured (HTTP only).
+    static let dokployDirectAPIBase = "http://200.141.7.52:3001/"
+
     /// Resolution order:
     /// 1. Scheme env `MOMENTRA_API_BASE_URL`
     /// 2. UserDefaults override (Account “API server” — use LAN IP on physical devices)
