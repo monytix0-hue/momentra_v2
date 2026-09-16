@@ -6,7 +6,8 @@
 #   Branch: main
 #   Paste secrets into Environment (Dokploy writes .env next to this file)
 #
-# Public domain → service momentra-api port 3000 only.
+# Public domain api.momentra.tech → service momentra-api, CONTAINER port 3000
+# (not host 3001). Host 3000 is Dokploy UI; 3001:3000 is a debug publish only.
 # Health: GET /health/live  and  GET /health/ready
 
 services:
@@ -34,7 +35,11 @@ services:
       PORT: "3000"
       REDIS_URL: redis://redis:6379
       FASTAPI_AI_URL: http://fastapi-ai:8000
-    # Host 3000 is used by Dokploy UI on this VPS — publish API on 3001.
+    # Host 3000 is Dokploy UI — publish API on 3001 for debug only.
+    # Dokploy domain must target this container port 3000, not host 3001
+    # (host 3001 as the domain port is the usual HTTPS 502).
+    expose:
+      - "3000"
     ports:
       - "3001:3000"
     depends_on:

@@ -164,8 +164,8 @@ struct AccountHubView: View {
                             apiBaseOverride = APIConfig.baseURLOverride
                             status = "API base set to \(APIConfig.baseURLDescription). Restart shell or sign out/in if needed."
                         }
-                        Button("Use production (api.mallaapp.org)") {
-                            APIConfig.baseURLOverride = "https://api.mallaapp.org/"
+                        Button("Use production (api.momentra.tech)") {
+                            APIConfig.baseURLOverride = "https://api.momentra.tech/"
                             apiBaseOverride = APIConfig.baseURLOverride
                             status = "API base set to \(APIConfig.baseURLDescription)"
                         }

@@ -30,7 +30,7 @@
 		<string>remote-notification</string>
 	</array>
 	<key>MomentraAPIBaseURL</key>
-	<string>https://api.mallaapp.org/</string>
+	<string>https://api.momentra.tech/</string>
 	<key>SENTRY_DSN</key>
 	<string></string>
 	<key>NSAppTransportSecurity</key>

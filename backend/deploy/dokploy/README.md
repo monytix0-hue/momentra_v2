@@ -57,4 +57,33 @@ in the `Origin` header, and unmatched origins fail preflight with no `Access-Con
 
 ## Domain
 
-Service **`momentra-api`**, port **`3000`**.
+Canonical API host: **`https://api.momentra.tech`**.
+
+This hostname is **not** a Vercel app. Apex `momentra.tech` stays on Vercel (invite/marketing).
+In Vercel DNS, `api` is an **A record** to the Hostinger VPS (`200.141.7.52`). Do **not** add
+`api.momentra.tech` as a domain on the Vercel project.
+
+In Dokploy (Compose app → Domains):
+
+| Field | Value |
+|--------|--------|
+| Host | `api.momentra.tech` |
+| Service | **`momentra-api`** |
+| Port | **`3000`** (container listen port) |
+| HTTPS | enabled (Let's Encrypt) |
+
+Do **not** use host port **`3001`**. Compose publishes `3001:3000` only because host `3000` is
+the Dokploy UI. Traefik/Caddy talks to the container on the Docker network, so domain port
+`3001` produces HTTPS **502 Bad Gateway** while `http://<vps>:3001/health/live` still returns
+`{"status":"ok"}`.
+
+Verify after saving the domain:
+
+```bash
+curl -sS https://api.momentra.tech/health/live
+# expect: {"status":"ok"}
+curl -sS https://api.momentra.tech/health/ready
+# expect: {"status":"ok"}
+```
+
+Clients use `https://api.momentra.tech/` as `API_BASE_URL` / `MomentraAPIBaseURL`.
