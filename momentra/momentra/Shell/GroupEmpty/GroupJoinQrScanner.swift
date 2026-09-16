@@ -42,6 +42,7 @@ struct GroupJoinQrScanner: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
+                .safeAreaPadding(.top)
                 Spacer()
                 RoundedRectangle(cornerRadius: 24)
                     .stroke(Color(hex: "#FF7A3D"), lineWidth: 2)
@@ -69,7 +70,9 @@ struct GroupJoinQrScanner: View {
                         .padding(.vertical, 12)
                         .background(Color.white.opacity(0.12), in: Capsule())
                 }
-                .padding(.bottom, 48)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+                .safeAreaPadding(.bottom)
             }
         }
         .background(Color(hex: "#131313").ignoresSafeArea())
