@@ -449,7 +449,7 @@ private open class FakeMeGateway(
     override suspend fun listPersonalMoments(limit: Int): Result<List<MomentSummary>> =
         Result.success(personalMoments.take(limit))
 
-    override suspend fun listGroupMoments(limit: Int): Result<List<MomentSummary>> =
+    override suspend fun listGroupMoments(limit: Int, lifecycle: String): Result<List<MomentSummary>> =
         Result.success(groupMoments.take(limit))
 
     override suspend fun listBusinessMoments(limit: Int): Result<List<MomentSummary>> =

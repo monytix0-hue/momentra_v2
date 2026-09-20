@@ -1399,15 +1399,13 @@ private fun MemoryBody(
                     return@launch
                 }
                 val trimmed = caption.trim()
-                val title = when {
-                    trimmed.isNotBlank() -> "[$type] $trimmed"
-                    else -> type
-                }
+                val title = if (trimmed.isNotBlank()) trimmed else type
                 val wantsPhoto = photoUri != null || photoBitmap != null || type == "Photo"
                 val create = repository.createMemory(
                     momentId = momentId,
                     title = title,
                     capturedAt = tripNowIso(),
+                    memoryType = groupMemoryTypeCode(type),
                 )
                 create.fold(
                     onSuccess = { created ->

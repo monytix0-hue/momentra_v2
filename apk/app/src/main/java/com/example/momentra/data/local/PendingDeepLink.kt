@@ -53,6 +53,20 @@ object PendingDeepLink {
         }
     }
 
+    /** Peek without clearing — use [consume] only after a successful open. */
+    fun peek(context: Context? = null): Pending? {
+        val next = _link.value
+            ?: context?.applicationContext
+                ?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                ?.getString(KEY, null)
+        val notifId = pendingNotificationId
+            ?: context?.applicationContext
+                ?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                ?.getString(KEY_NOTIF, null)
+        val link = next?.takeIf { it.isNotBlank() } ?: return null
+        return Pending(link, notifId?.takeIf { it.isNotBlank() })
+    }
+
     fun consume(context: Context? = null): Pending? {
         val next = _link.value
         val notifId = pendingNotificationId
@@ -76,9 +90,36 @@ object PendingDeepLink {
         if (uri.scheme?.equals("momentra", ignoreCase = true) != true) return null
         val host = uri.host?.lowercase().orEmpty()
         val segments = uri.pathSegments.orEmpty()
-        if (host == "moment" && segments.isNotEmpty()) return segments.first()
-        if (segments.firstOrNull() == "moment" && segments.size > 1) return segments[1]
+        when (host) {
+            "moment", "moments" -> if (segments.isNotEmpty()) return segments.first()
+        }
+        when (segments.firstOrNull()) {
+            "moment", "moments" -> if (segments.size > 1) return segments[1]
+        }
         return null
+    }
+
+    fun isStoryLink(raw: String): Boolean {
+        val uri = android.net.Uri.parse(raw)
+        if (uri.scheme?.equals("momentra", ignoreCase = true) != true) return false
+        val host = uri.host?.lowercase().orEmpty()
+        val segments = uri.pathSegments.orEmpty()
+        if (host == "moments" && segments.size >= 2 && segments[1].equals("story", ignoreCase = true)) {
+            return true
+        }
+        if (segments.getOrNull(0).equals("moments", ignoreCase = true) &&
+            segments.getOrNull(2).equals("story", ignoreCase = true)
+        ) {
+            return true
+        }
+        val event = uri.getQueryParameter("event").orEmpty()
+        return event.equals("MomentStoryReady", ignoreCase = true)
+    }
+
+    fun isInboxLink(raw: String): Boolean {
+        val uri = android.net.Uri.parse(raw)
+        return uri.scheme?.equals("momentra", ignoreCase = true) == true &&
+            uri.host?.equals("inbox", ignoreCase = true) == true
     }
 
     fun parseCategory(raw: String): String? =

@@ -52,7 +52,7 @@ protocol ShellMeGatewaying {
     func listCompanies() async throws -> [CompanySummary]
     func groupMomentCount() async throws -> Int
     func listPersonalMoments(limit: Int) async throws -> [MomentSummary]
-    func listGroupMoments(limit: Int) async throws -> [MomentSummary]
+    func listGroupMoments(limit: Int, lifecycle: String) async throws -> [MomentSummary]
     func listBusinessMoments(limit: Int) async throws -> [MomentSummary]
     func hasLife360() async throws -> Bool
 }
@@ -104,8 +104,8 @@ struct ShellMeGateway: ShellMeGatewaying {
         try await client.listPersonalMoments(limit: limit)
     }
 
-    func listGroupMoments(limit: Int = 20) async throws -> [MomentSummary] {
-        try await client.listGroupMoments(limit: limit)
+    func listGroupMoments(limit: Int = 20, lifecycle: String = "active") async throws -> [MomentSummary] {
+        try await client.listGroupMoments(limit: limit, lifecycle: lifecycle)
     }
 
     func listBusinessMoments(limit: Int = 20) async throws -> [MomentSummary] {
@@ -142,6 +142,23 @@ private struct BootstrapCacheEnvelope: Codable {
         let status: String
         let momentTypeCode: String?
         let companyId: String?
+        let participantCount: Int?
+
+        init(
+            momentId: String,
+            title: String,
+            status: String,
+            momentTypeCode: String?,
+            companyId: String?,
+            participantCount: Int? = nil
+        ) {
+            self.momentId = momentId
+            self.title = title
+            self.status = status
+            self.momentTypeCode = momentTypeCode
+            self.companyId = companyId
+            self.participantCount = participantCount
+        }
     }
 
     struct CachedCompany: Codable {
@@ -164,7 +181,14 @@ private struct BootstrapCacheEnvelope: Codable {
             CachedMoment(momentId: $0.momentId, title: $0.title, status: $0.status, momentTypeCode: $0.momentTypeCode, companyId: $0.companyId)
         }
         group = (me.activeMoments?.group ?? []).map {
-            CachedMoment(momentId: $0.momentId, title: $0.title, status: $0.status, momentTypeCode: $0.momentTypeCode, companyId: nil)
+            CachedMoment(
+                momentId: $0.momentId,
+                title: $0.title,
+                status: $0.status,
+                momentTypeCode: $0.momentTypeCode,
+                companyId: nil,
+                participantCount: $0.participantCount
+            )
         }
         business = (me.activeMoments?.business ?? []).map {
             CachedMoment(momentId: $0.momentId, title: $0.title, status: $0.status, momentTypeCode: $0.momentTypeCode, companyId: $0.companyId)
@@ -185,7 +209,13 @@ private struct BootstrapCacheEnvelope: Codable {
                 MomentSummary(momentId: $0.momentId, title: $0.title, status: $0.status, momentTypeCode: $0.momentTypeCode, companyId: $0.companyId)
             },
             groupMoments: group.map {
-                MomentSummary(momentId: $0.momentId, title: $0.title, status: $0.status, momentTypeCode: $0.momentTypeCode)
+                MomentSummary(
+                    momentId: $0.momentId,
+                    title: $0.title,
+                    status: $0.status,
+                    momentTypeCode: $0.momentTypeCode,
+                    participantCount: $0.participantCount ?? 0
+                )
             },
             businessMoments: business.map {
                 MomentSummary(momentId: $0.momentId, title: $0.title, status: $0.status, momentTypeCode: $0.momentTypeCode, companyId: $0.companyId)

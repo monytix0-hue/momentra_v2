@@ -17,6 +17,8 @@ struct ExperienceChecklistBody: View {
     @State private var selectedCategoryLabel = GroupExperienceChecklistCatalog.defaultLabel()
     @State private var submitting = false
     @State private var seeding = false
+    @State private var deleting = false
+    @State private var showDeleteConfirm = false
     @State private var error: String?
     @State private var didPrefill = false
 
@@ -62,14 +64,27 @@ struct ExperienceChecklistBody: View {
                 enabled: !(momentId ?? "").isEmpty
                     && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && !submitting
-                    && !seeding,
+                    && !seeding
+                    && !deleting,
                 accent: accent,
                 loading: submitting
             ) {
                 Task { await saveItem() }
             }
 
-            if !isEditing {
+            if isEditing {
+                Button {
+                    showDeleteConfirm = true
+                } label: {
+                    Text(deleting ? "Deleting…" : "Delete from this moment")
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#F87171"))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .disabled(submitting || deleting || (momentId ?? "").isEmpty)
+            } else {
                 PrimaryCta(
                     label: seeding ? "Seeding…" : "Seed packing list",
                     enabled: !(momentId ?? "").isEmpty && !submitting && !seeding,
@@ -82,6 +97,18 @@ struct ExperienceChecklistBody: View {
             }
         }
         .onAppear { prefillIfNeeded() }
+        .confirmationDialog(
+            "Delete this checklist item?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                Task { await deleteItem() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Removes it from this moment only. The shared packing seed list is unchanged.")
+        }
     }
 
     private func prefillIfNeeded() {
@@ -117,6 +144,26 @@ struct ExperienceChecklistBody: View {
                     categoryCode: categoryCode
                 )
             }
+            onSaved()
+            onDismiss()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func deleteItem() async {
+        guard let momentId, !momentId.isEmpty,
+              let planningItemId = editingItem?.planningItemId
+        else { return }
+        deleting = true
+        error = nil
+        defer { deleting = false }
+        do {
+            _ = try await APIClient.shared.deletePlanningItem(
+                momentId: momentId,
+                planningItemId: planningItemId
+            )
             onSaved()
             onDismiss()
         } catch {
@@ -305,12 +352,14 @@ struct MomentsChecklistSection: View {
                 Button {
                     editingItem = item
                 } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(chrome.secondary)
-                        .padding(6)
+                    Text("Edit")
+                        .font(.plusJakarta(size: 12, weight: .semibold))
+                        .foregroundStyle(chrome.accent)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Edit checklist item")
             }
         }
         .padding(.horizontal, 8)

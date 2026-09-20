@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,11 +50,22 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.momentra.data.api.GroupMemoryItemDto
 import com.example.momentra.data.api.GroupMemoryMediaDto
+import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
+
+/** Maps Quick Add memory chips → `memory.memory.memory_type` enum. */
+fun groupMemoryTypeCode(chipLabel: String): String =
+    when (chipLabel.trim().lowercase(Locale.US)) {
+        "milestone" -> "MILESTONE"
+        "lesson" -> "LEARNING"
+        "reflection" -> "EXPERIENCE"
+        else -> "GENERAL"
+    }
 
 fun memoryGalleryUrls(items: List<GroupMemoryItemDto>): List<String> =
     items.flatMap { item ->
@@ -354,4 +367,85 @@ fun MemoryMediaThumb(
         border = border,
         field = field,
     )
+}
+
+/** Moments Shared Gallery "View all" — grid of every downloadable photo. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MemoryGalleryListSheet(
+    items: List<GroupMemoryItemDto>,
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    chrome: MomentsChrome,
+) {
+    if (!visible) return
+    val urls = remember(items) { memoryGalleryUrls(items) }
+    var viewerIndex by remember { mutableStateOf<Int?>(null) }
+
+    MomentraModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = chrome.bg,
+        skipPartiallyExpanded = true,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 4.dp)
+                    .size(width = 40.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(Color.White.copy(alpha = 0.2f)),
+            )
+        },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(
+                "Shared Gallery",
+                color = chrome.text,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = PlusJakartaSans,
+            )
+            if (urls.isEmpty()) {
+                GroupEmptySection("No photos yet", "Add a memory with a photo from Quick Add.")
+            } else {
+                val columns = 3
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    urls.chunked(columns).forEachIndexed { rowIndex, rowUrls ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            rowUrls.forEachIndexed { colIndex, url ->
+                                val startIndex = rowIndex * columns + colIndex
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .aspectRatio(1f)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .border(1.dp, chrome.border, RoundedCornerShape(12.dp))
+                                        .background(chrome.card)
+                                        .clickable { viewerIndex = startIndex },
+                                ) {
+                                    RemoteMemoryImage(
+                                        url = url,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
+                            }
+                            repeat(columns - rowUrls.size) {
+                                Box(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    viewerIndex?.let { start ->
+        MemoryPhotoFullscreenDialog(
+            urls = urls,
+            initialIndex = start,
+            onDismiss = { viewerIndex = null },
+        )
+    }
 }

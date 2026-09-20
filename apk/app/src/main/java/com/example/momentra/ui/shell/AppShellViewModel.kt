@@ -506,6 +506,40 @@ class AppShellViewModel(
         ShellPerf.end(mark, mapOf("momentId" to momentId.take(8)))
     }
 
+    /**
+     * Opens a moment from a push/inbox deep link, switching Personal/Group/Business if needed.
+     * Returns false when bootstrap inventory is not ready or the moment is not found (caller should retry).
+     */
+    fun openMomentFromDeepLink(momentId: String): Boolean {
+        if (_state.value.moments.any { it.momentId == momentId }) {
+            selectMoment(momentId)
+            return true
+        }
+        val boot = bootstrap ?: return false
+        val candidates = listOf(
+            AppContext.GROUP to boot.groupMoments,
+            AppContext.BUSINESS to boot.businessMoments,
+            AppContext.PERSONAL to boot.personalMoments,
+        )
+        for ((ctx, list) in candidates) {
+            if (list.none { it.momentId == momentId }) continue
+            _state.update {
+                it.copy(selectedMomentByContext = it.selectedMomentByContext + (ctx to momentId))
+            }
+            if (_state.value.selectedContext != ctx) {
+                selectContext(ctx)
+            } else {
+                ensureContextContent()
+            }
+            if (_state.value.moments.any { it.momentId == momentId }) {
+                selectMoment(momentId)
+                return true
+            }
+            return _state.value.selectedMomentId == momentId
+        }
+        return false
+    }
+
     fun onMomentCreated(
         momentId: String,
         title: String,

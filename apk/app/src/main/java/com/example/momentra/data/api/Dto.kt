@@ -159,6 +159,8 @@ data class GroupMomentItemDto(
     val title: String,
     val status: String,
     @SerializedName("groupFamily") val groupFamily: String? = null,
+    @SerializedName("momentTypeCode") val momentTypeCode: String? = null,
+    @SerializedName("participantCount") val participantCount: Int? = null,
 )
 
 data class BusinessMomentItemDto(
@@ -207,6 +209,7 @@ data class BootstrapMomentDto(
     @SerializedName("momentTypeCode") val momentTypeCode: String? = null,
     @SerializedName("domainCode") val domainCode: String? = null,
     @SerializedName("companyId") val companyId: String? = null,
+    @SerializedName("participantCount") val participantCount: Int? = null,
 )
 
 data class BootstrapPreferencesDto(
@@ -1441,6 +1444,7 @@ data class GroupMemoryItemDto(
     val title: String? = null,
     @SerializedName("occurredAt") val occurredAt: String? = null,
     val status: String? = null,
+    @SerializedName("memoryType") val memoryType: String? = null,
     val media: List<GroupMemoryMediaDto> = emptyList(),
     @SerializedName("mediaCount") val mediaCount: Int = 0,
 )
@@ -1705,6 +1709,7 @@ data class CreateMemoryBody(
     val title: String,
     @SerializedName("capturedAt") val capturedAt: String? = null,
     @SerializedName("asDraft") val asDraft: Boolean? = null,
+    @SerializedName("memoryType") val memoryType: String? = null,
 )
 data class CreateGroupVendorBody(
     @SerializedName("vendorName") val vendorName: String,

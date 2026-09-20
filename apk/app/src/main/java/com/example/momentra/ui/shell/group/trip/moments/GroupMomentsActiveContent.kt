@@ -48,6 +48,8 @@ import com.example.momentra.ui.shell.group.shared.GroupExperienceChecklistCatalo
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupPollsListSheet
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.BookingsListSheet
+import com.example.momentra.ui.shell.group.shared.MemoryGalleryListSheet
 import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
 import com.example.momentra.ui.shell.group.shared.MomentsBookingCard
 import com.example.momentra.ui.shell.group.shared.MomentsChecklistSection
@@ -63,6 +65,7 @@ import com.example.momentra.ui.shell.group.shared.MomentsUpcomingEventCard
 import com.example.momentra.ui.shell.group.shared.MomentsUpdateFeedRow
 import com.example.momentra.ui.shell.group.shared.PlanningScheduleSheet
 import com.example.momentra.ui.shell.group.shared.PollDetailSheet
+import com.example.momentra.ui.shell.group.shared.UpdatesListSheet
 import com.example.momentra.ui.shell.group.shared.buildMomentsUpcomingEvents
 import com.example.momentra.ui.shell.group.shared.formatPlanningTime
 import com.example.momentra.ui.shell.group.shared.itineraryDayGroups
@@ -106,6 +109,9 @@ fun GroupMomentsActiveContent(
     var checklistSheetOpen by remember { mutableStateOf(false) }
     var contributionsOpen by remember { mutableStateOf(false) }
     var expensesOpen by remember { mutableStateOf(false) }
+    var updatesOpen by remember { mutableStateOf(false) }
+    var galleryOpen by remember { mutableStateOf(false) }
+    var bookingsOpen by remember { mutableStateOf(false) }
     var editingContribution by remember { mutableStateOf<GroupContributionItemDto?>(null) }
 
     LaunchedEffect(refreshToken, momentId) {
@@ -269,13 +275,13 @@ fun GroupMomentsActiveContent(
         )
 
         if (updates.isNotEmpty()) {
-            MomentsSectionHeader("Updates / Feed  📱", chrome)
+            MomentsSectionHeader("Updates / Feed  📱", chrome, onViewAll = { updatesOpen = true })
             updates.take(3).forEachIndexed { index, item ->
                 MomentsUpdateFeedRow(item = item, index = index, chrome = chrome)
             }
         }
 
-        MomentsSectionHeader("Shared Gallery  📸", chrome)
+        MomentsSectionHeader("Shared Gallery  📸", chrome, onViewAll = { galleryOpen = true })
         MemoryPhotoGalleryStrip(
             items = memoryItems,
             emptyMessage = "No photos yet",
@@ -288,7 +294,7 @@ fun GroupMomentsActiveContent(
         )
 
         if (bookings.isNotEmpty()) {
-            MomentsSectionHeader("Bookings  🛎️", chrome)
+            MomentsSectionHeader("Bookings  🛎️", chrome, onViewAll = { bookingsOpen = true })
             bookings.take(3).forEach { MomentsBookingCard(it, chrome) }
         }
 
@@ -325,6 +331,27 @@ fun GroupMomentsActiveContent(
         onDismiss = { expensesOpen = false },
         chrome = chrome,
         fallbackCurrency = currency,
+    )
+
+    UpdatesListSheet(
+        items = updates,
+        visible = updatesOpen,
+        onDismiss = { updatesOpen = false },
+        chrome = chrome,
+    )
+
+    MemoryGalleryListSheet(
+        items = memoryItems,
+        visible = galleryOpen,
+        onDismiss = { galleryOpen = false },
+        chrome = chrome,
+    )
+
+    BookingsListSheet(
+        items = bookings,
+        visible = bookingsOpen,
+        onDismiss = { bookingsOpen = false },
+        chrome = chrome,
     )
 
     PlanningScheduleSheet(

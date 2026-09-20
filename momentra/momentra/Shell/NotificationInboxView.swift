@@ -134,10 +134,22 @@ struct NotificationInboxView: View {
 
     private func open(_ item: APIClient.NotificationInboxItemPayload) {
         Task { await markRead([item.notificationId]) }
-        let momentId = item.deepLink.flatMap(PushDeepLinkStore.parseMomentId) ?? item.momentId
-        guard let momentId, !momentId.isEmpty else { return }
         onClose()
-        onOpenMoment(momentId)
+        if let link = item.deepLink?.trimmingCharacters(in: .whitespacesAndNewlines), !link.isEmpty {
+            PushDeepLinkStore.shared.offer(link, userNotificationId: item.notificationId)
+            return
+        }
+        if let momentId = item.momentId, !momentId.isEmpty {
+            PushDeepLinkStore.shared.offer(
+                "momentra://moment/\(momentId)",
+                userNotificationId: item.notificationId
+            )
+            return
+        }
+        // Legacy: no deep link / moment — still try parent callback with empty skip
+        if let momentId = item.deepLink.flatMap(PushDeepLinkStore.parseMomentId), !momentId.isEmpty {
+            onOpenMoment(momentId)
+        }
     }
 
     private func markRead(_ ids: [String]) async {

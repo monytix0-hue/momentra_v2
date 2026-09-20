@@ -25,6 +25,9 @@ struct GroupMomentsActiveView: View {
     @State private var checklistSheetOpen = false
     @State private var contributionsOpen = false
     @State private var expensesOpen = false
+    @State private var updatesOpen = false
+    @State private var galleryOpen = false
+    @State private var bookingsOpen = false
     @State private var editingContribution: APIClient.GroupContributionItem?
     @State private var editContributionPresented = false
     @State private var loading = true
@@ -46,13 +49,6 @@ struct GroupMomentsActiveView: View {
         Color(hex: "#14B8A6"),
         Color(hex: "#E88A4F"),
         Color(hex: "#A855F7"),
-    ]
-
-    private let avatarColors: [Color] = [
-        Color(hex: "#FDBA74"),
-        Color(hex: "#86EFAC"),
-        Color(hex: "#93C5FD"),
-        Color(hex: "#C4B5FD"),
     ]
 
     var body: some View {
@@ -177,6 +173,27 @@ struct GroupMomentsActiveView: View {
                 items: listExpenses,
                 chrome: .trip,
                 onDismiss: { expensesOpen = false }
+            )
+        }
+        .sheet(isPresented: $updatesOpen) {
+            UpdatesListSheet(
+                items: updates,
+                chrome: .trip,
+                onDismiss: { updatesOpen = false }
+            )
+        }
+        .sheet(isPresented: $galleryOpen) {
+            MemoryGalleryListSheet(
+                items: listMemoryItems,
+                chrome: .trip,
+                onDismiss: { galleryOpen = false }
+            )
+        }
+        .sheet(isPresented: $bookingsOpen) {
+            BookingsListSheet(
+                items: bookings,
+                chrome: .trip,
+                onDismiss: { bookingsOpen = false }
             )
         }
         .sheet(item: Binding(
@@ -378,43 +395,12 @@ struct GroupMomentsActiveView: View {
 
     private var updatesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Updates / Feed  📱")
+            sectionHeader("Updates / Feed  📱", action: { updatesOpen = true })
             if updates.isEmpty {
                 GroupEmptySection(message: "No updates yet", detail: "Share a status update from Quick Add.")
             } else {
                 ForEach(Array(updates.prefix(3).enumerated()), id: \.offset) { index, item in
-                    let name = item.authorDisplayName ?? "Member"
-                    HStack(alignment: .top, spacing: 12) {
-                        Text(initialsFromName(name))
-                            .font(.plusJakarta(size: 14, weight: .bold))
-                            .foregroundStyle(Color(hex: "#14121B"))
-                            .frame(width: 40, height: 40)
-                            .background(avatarColors[index % avatarColors.count])
-                            .clipShape(Circle())
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack {
-                                Text(name)
-                                    .font(.plusJakarta(size: 14, weight: .bold))
-                                    .foregroundStyle(GroupActiveTheme.text)
-                                Spacer()
-                                Text(formatRelativeShort(item.createdAt))
-                                    .font(.plusJakarta(size: 11))
-                                    .foregroundStyle(GroupActiveTheme.secondary)
-                            }
-                            Text(item.message ?? "")
-                                .font(.plusJakarta(size: 13))
-                                .foregroundStyle(GroupActiveTheme.text)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(GroupActiveTheme.card)
-                    .overlay(alignment: .leading) {
-                        Rectangle().fill(GroupActiveTheme.brand).frame(width: 4)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(GroupActiveTheme.border))
+                    MomentsUpdateFeedRow(item: item, index: index, chrome: .trip)
                 }
             }
         }
@@ -424,7 +410,7 @@ struct GroupMomentsActiveView: View {
 
     private var gallerySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Shared Gallery  📸")
+            sectionHeader("Shared Gallery  📸", action: { galleryOpen = true })
             MemoryPhotoGalleryStrip(
                 items: listMemoryItems,
                 emptyMessage: "Gallery empty",
@@ -442,69 +428,15 @@ struct GroupMomentsActiveView: View {
 
     private var bookingsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Bookings  🛎️")
+            sectionHeader("Bookings  🛎️", action: { bookingsOpen = true })
             if bookings.isEmpty {
                 GroupEmptySection(message: "No bookings yet", detail: "Add a booking from Quick Add when ready.")
             } else {
                 ForEach(Array(bookings.prefix(4).enumerated()), id: \.offset) { _, item in
-                    bookingCard(item)
+                    MomentsBookingCard(booking: item, chrome: .trip)
                 }
             }
         }
-    }
-
-    private func bookingCard(_ item: APIClient.GroupLifePayload.LifeInner.BookingItem) -> some View {
-        let status = (item.status ?? "PLANNED").uppercased()
-        let confirmed = status == "CONFIRMED" || status == "BOOKED" || status == "COMPLETED"
-        let typeLabel = (item.bookingType ?? "Booking")
-            .replacingOccurrences(of: "_", with: " ")
-            .capitalized
-        let day = formatBookingDay(item.startAt ?? item.bookedAt)
-        let meta = [typeLabel, day].compactMap { $0 }.joined(separator: " · ")
-        let when = formatBookingDayTime(item.startAt) ?? formatBookingDay(item.bookedAt) ?? "—"
-
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                HStack(spacing: 12) {
-                    Text(confirmed ? "🏨" : "🎟️")
-                        .frame(width: 40, height: 40)
-                        .background(GroupActiveTheme.card)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title ?? item.bookingId ?? "Booking")
-                            .font(.plusJakarta(size: 14, weight: .bold))
-                            .foregroundStyle(GroupActiveTheme.text)
-                        Text(meta)
-                            .font(.plusJakarta(size: 11))
-                            .foregroundStyle(GroupActiveTheme.secondary)
-                    }
-                }
-                Spacer()
-                Text(status)
-                    .font(.plusJakarta(size: 10, weight: .bold))
-                    .foregroundStyle(confirmed ? Color(hex: "#22C55E") : GroupActiveTheme.brand)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background((confirmed ? Color(hex: "#22C55E") : GroupActiveTheme.brand).opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(confirmed ? "Check-in" : "Start time")
-                    .font(.plusJakarta(size: 11))
-                    .foregroundStyle(GroupActiveTheme.secondary)
-                Text(when)
-                    .font(.plusJakarta(size: 13, weight: .semibold))
-                    .foregroundStyle(GroupActiveTheme.text)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(GroupActiveTheme.card)
-        .overlay(alignment: .leading) {
-            Rectangle().fill(GroupActiveTheme.brand).frame(width: 4)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(GroupActiveTheme.border))
     }
 
     // MARK: - Upcoming

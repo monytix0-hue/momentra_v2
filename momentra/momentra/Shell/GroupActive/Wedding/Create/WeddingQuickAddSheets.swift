@@ -2223,7 +2223,8 @@ struct WeddingMemoryBody: View {
                 let created = try await APIClient.shared.createGroupMemory(
                     momentId: momentId,
                     title: trimmed,
-                    asDraft: asDraft ? true : nil
+                    asDraft: asDraft ? true : nil,
+                    memoryType: groupMemoryTypeCode(forChip: type)
                 )
                 let wantsPhoto = !asDraft && (selectedImage != nil || type == "Photo")
                 if wantsPhoto {

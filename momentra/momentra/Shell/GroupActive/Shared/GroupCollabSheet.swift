@@ -1225,12 +1225,7 @@ struct GroupCollabSheet: View {
                     urgencyCode: GroupPlanningCategoryCatalog.urgencyCode(for: priority == "High" ? "Urgent" : "Normal")
                 )
             case .memory:
-                let title: String
-                if trimmed.isEmpty {
-                    title = memoryType
-                } else {
-                    title = "[\(memoryType)] \(trimmed)"
-                }
+                let title = trimmed.isEmpty ? memoryType : trimmed
                 if memoryType == "Photo" && selectedImageData == nil {
                     error = "Add a photo before saving"
                     busy = false
@@ -1239,7 +1234,8 @@ struct GroupCollabSheet: View {
                 let created = try await APIClient.shared.createGroupMemory(
                     momentId: momentId,
                     title: title,
-                    capturedAt: nowIso()
+                    capturedAt: nowIso(),
+                    memoryType: groupMemoryTypeCode(forChip: memoryType)
                 )
                 let wantsPhoto = selectedImageData != nil || memoryType == "Photo"
                 if wantsPhoto {

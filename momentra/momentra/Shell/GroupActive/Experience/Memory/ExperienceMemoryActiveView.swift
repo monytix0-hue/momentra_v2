@@ -75,11 +75,24 @@ struct ExperienceMemoryActiveView: View {
                         }
                     }
 
-                    GroupSectionCard(title: "Milestone Wall", badge: { GroupApiGapBadge() }) {
-                        GroupEmptySection(
-                            message: "No milestones yet",
-                            detail: "Milestone capture is not live for groups."
-                        )
+                    GroupSectionCard(title: "Milestone Wall") {
+                        let milestones = items.filter {
+                            ($0.memoryType ?? "").caseInsensitiveCompare("MILESTONE") == .orderedSame
+                        }
+                        if milestones.isEmpty {
+                            GroupEmptySection(
+                                message: "No milestones yet",
+                                detail: "Capture a Milestone from Quick Add."
+                            )
+                        } else {
+                            ForEach(Array(milestones.enumerated()), id: \.offset) { _, item in
+                                experienceTimelineRow(
+                                    item: item,
+                                    accent: Color(hex: "#F59E0B"),
+                                    glyph: "⭐"
+                                )
+                            }
+                        }
                     }
 
                     GroupSectionCard(title: "Memory Gallery") {

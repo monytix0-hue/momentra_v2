@@ -28,7 +28,7 @@ interface MeGateway {
     suspend fun listCompanies(): Result<List<CompanySummary>>
     suspend fun listGroupMomentCount(): Result<Int>
     suspend fun listPersonalMoments(limit: Int = 20): Result<List<MomentSummary>>
-    suspend fun listGroupMoments(limit: Int = 20): Result<List<MomentSummary>>
+    suspend fun listGroupMoments(limit: Int = 20, lifecycle: String = "active"): Result<List<MomentSummary>>
     suspend fun listBusinessMoments(limit: Int = 20): Result<List<MomentSummary>>
     suspend fun hasLife360(): Result<Boolean>
 }
@@ -75,9 +75,15 @@ class MeRepository(
         }
     }.recoverCatching { e -> throw mapThrowable(e) }
 
-    override suspend fun listGroupMoments(limit: Int): Result<List<MomentSummary>> = runCatching {
-        api.listGroupMoments(limit = limit).data.items.map {
-            MomentSummary(it.momentId, it.title, it.status)
+    override suspend fun listGroupMoments(limit: Int, lifecycle: String): Result<List<MomentSummary>> = runCatching {
+        api.listGroupMoments(limit = limit, lifecycle = lifecycle).data.items.map {
+            MomentSummary(
+                momentId = it.momentId,
+                title = it.title,
+                status = it.status,
+                momentTypeCode = it.momentTypeCode,
+                participantCount = it.participantCount ?: 0,
+            )
         }
     }.recoverCatching { e -> throw mapThrowable(e) }
 
@@ -126,7 +132,7 @@ class MeRepository(
     }
 
     private fun BootstrapMomentDto.toSummary() =
-        MomentSummary(momentId, title, status, momentTypeCode, companyId)
+        MomentSummary(momentId, title, status, momentTypeCode, companyId, participantCount ?: 0)
 
     private fun CompanyItemDto.toSummary() = CompanySummary(
         companyId = companyId,

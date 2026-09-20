@@ -529,6 +529,58 @@ export async function updatePlanningItem(
   };
 }
 
+/** Hard-delete a planning item for this moment only (seed catalog is client-side and untouched). */
+export async function deletePlanningItem(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  planningItemId: string
+): Promise<{
+  planningItemId: string;
+  momentId: string;
+  title: string;
+  categoryCode: string | null;
+  /** True when the row was already gone (idempotent DELETE). */
+  alreadyDeleted?: boolean;
+}> {
+  await assertGovernanceAllowed(client, ctx, {
+    actionCode: 'PLANNING_ITEM_CREATE',
+    resourceType: 'PLANNING_ITEM',
+    momentId,
+  });
+  const existing = await client.query<{
+    planning_item_id: string;
+    title: string;
+    category_code: string | null;
+  }>(
+    `SELECT planning_item_id, title, category_code
+     FROM collaboration.planning_item
+     WHERE planning_item_id = $1 AND moment_id = $2`,
+    [planningItemId, momentId]
+  );
+  if (!existing.rows[0]) {
+    // Idempotent: UI may still show a stale life/facet row after a prior delete.
+    return {
+      planningItemId,
+      momentId,
+      title: '',
+      categoryCode: null,
+      alreadyDeleted: true,
+    };
+  }
+  await client.query(
+    `DELETE FROM collaboration.planning_item
+     WHERE planning_item_id = $1 AND moment_id = $2`,
+    [planningItemId, momentId]
+  );
+  return {
+    planningItemId: existing.rows[0].planning_item_id,
+    momentId,
+    title: existing.rows[0].title,
+    categoryCode: existing.rows[0].category_code,
+  };
+}
+
 export type CreateBookingInput = {
   title: string;
   bookingType?: 'HOTEL' | 'FLIGHT' | 'TRANSPORT' | 'ACTIVITY' | 'RESTAURANT' | 'OTHER';
@@ -1418,16 +1470,27 @@ export async function createMemory(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  body: { title: string; capturedAt?: string | null; asDraft?: boolean }
+  body: {
+    title: string;
+    capturedAt?: string | null;
+    asDraft?: boolean;
+    memoryType?: string | null;
+  }
 ): Promise<{ memoryId: string; momentId: string; status: string }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'MEMORY_CREATE', resourceType: 'MEMORY', momentId });
   const status = body.asDraft ? 'DRAFT' : 'ACTIVE';
+  const memoryType = body.memoryType?.trim().toUpperCase() || 'GENERAL';
   const r = await client.query<{ memory_id: string }>(
     `INSERT INTO memory.memory (
-       scope_type, scope_id, domain_code, moment_id, title, occurred_at, status, created_by_user_id, version
-     ) VALUES ('MOMENT', $1, (SELECT domain_code FROM core.moment WHERE moment_id = $1), $1, $2, COALESCE($3::timestamptz, now()), $4, $5, 1)
+       scope_type, scope_id, domain_code, moment_id, title, occurred_at, status,
+       memory_type, created_by_user_id, version
+     ) VALUES (
+       'MOMENT', $1,
+       (SELECT domain_code FROM core.moment WHERE moment_id = $1),
+       $1, $2, COALESCE($3::timestamptz, now()), $4, $5, $6, 1
+     )
      RETURNING memory_id`,
-    [momentId, body.title, body.capturedAt ?? null, status, ctx.userId]
+    [momentId, body.title, body.capturedAt ?? null, status, memoryType, ctx.userId]
   );
   return { memoryId: r.rows[0]!.memory_id, momentId, status };
 }

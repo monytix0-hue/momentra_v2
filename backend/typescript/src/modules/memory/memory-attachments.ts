@@ -51,11 +51,34 @@ export async function listMemoryAttachments(
   );
 }
 
-/** Batch-load media (capped) for many memories — used by list/facet payloads. */
+/** True MEDIA evidence counts per memory (uncapped). */
+export async function countMediaForMemories(
+  client: PoolClient,
+  memoryIds: string[]
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (memoryIds.length === 0) return result;
+  const rows = await client.query<{ memory_id: string; cnt: string }>(
+    `SELECT memory_id, COUNT(*)::text AS cnt
+     FROM memory.memory_evidence
+     WHERE memory_id = ANY($1::uuid[]) AND source_type = 'MEDIA'
+     GROUP BY memory_id`,
+    [memoryIds]
+  );
+  for (const r of rows.rows) {
+    result.set(r.memory_id, Number(r.cnt) || 0);
+  }
+  return result;
+}
+
+/**
+ * Batch-load media for many memories — used by list/facet payloads.
+ * Pass `perMemoryCap: null` to return every attachment (Moments gallery View all).
+ */
 export async function listMediaForMemories(
   client: PoolClient,
   memoryIds: string[],
-  perMemoryCap = MEDIA_PER_MEMORY_CAP
+  perMemoryCap: number | null = MEDIA_PER_MEMORY_CAP
 ): Promise<Map<string, MemoryAttachmentDto[]>> {
   const result = new Map<string, MemoryAttachmentDto[]>();
   if (memoryIds.length === 0) return result;
@@ -70,17 +93,24 @@ export async function listMediaForMemories(
     object_key: string | null;
     rn: string;
   }>(
-    `SELECT * FROM (
-       SELECT me.memory_id, me.source_id, mu.content_type, mu.status, me.created_at,
-              mu.bucket, mu.object_key,
-              ROW_NUMBER() OVER (PARTITION BY me.memory_id ORDER BY me.created_at ASC) AS rn
-       FROM memory.memory_evidence me
-       JOIN platform.media_upload mu ON mu.media_upload_id = me.source_id
-       WHERE me.memory_id = ANY($1::uuid[]) AND me.source_type = 'MEDIA'
-     ) t
-     WHERE rn <= $2
-     ORDER BY memory_id, rn`,
-    [memoryIds, perMemoryCap]
+    perMemoryCap == null
+      ? `SELECT me.memory_id, me.source_id, mu.content_type, mu.status, me.created_at,
+                mu.bucket, mu.object_key, '1' AS rn
+         FROM memory.memory_evidence me
+         JOIN platform.media_upload mu ON mu.media_upload_id = me.source_id
+         WHERE me.memory_id = ANY($1::uuid[]) AND me.source_type = 'MEDIA'
+         ORDER BY me.memory_id, me.created_at ASC`
+      : `SELECT * FROM (
+           SELECT me.memory_id, me.source_id, mu.content_type, mu.status, me.created_at,
+                  mu.bucket, mu.object_key,
+                  ROW_NUMBER() OVER (PARTITION BY me.memory_id ORDER BY me.created_at ASC) AS rn
+           FROM memory.memory_evidence me
+           JOIN platform.media_upload mu ON mu.media_upload_id = me.source_id
+           WHERE me.memory_id = ANY($1::uuid[]) AND me.source_type = 'MEDIA'
+         ) t
+         WHERE rn <= $2
+         ORDER BY memory_id, rn`,
+    perMemoryCap == null ? [memoryIds] : [memoryIds, perMemoryCap]
   );
 
   for (const r of rows.rows) {

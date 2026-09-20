@@ -9,7 +9,7 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { recordCommandSideEffects } from '../../platform/events/outbox';
 import { assertGroupMember, listOtherMemberUserIds } from './group-membership';
 import * as collaborationService from './service';
-import { listMediaForMemories } from '../memory/memory-attachments';
+import { countMediaForMemories, listMediaForMemories } from '../memory/memory-attachments';
 import { travelCurrencyCodeSchema } from '../finance/travel-currencies';
 
 /**
@@ -36,16 +36,19 @@ export function isChecklistCategoryCode(code: string | null | undefined): boolea
 function planningActivityCodes(categoryCode: string | null | undefined): {
   created: string;
   updated: string;
+  deleted: string;
 } {
   if (isChecklistCategoryCode(categoryCode)) {
     return {
       created: 'GROUP_CHECKLIST_ITEM_CREATED',
       updated: 'GROUP_CHECKLIST_ITEM_UPDATED',
+      deleted: 'GROUP_CHECKLIST_ITEM_DELETED',
     };
   }
   return {
     created: 'GROUP_PLANNING_ITEM_CREATED',
     updated: 'GROUP_PLANNING_ITEM_UPDATED',
+    deleted: 'GROUP_PLANNING_ITEM_DELETED',
   };
 }
 
@@ -189,6 +192,19 @@ export const memorySchema = z
     title: z.string().min(1).max(500),
     capturedAt: clientIsoDatetime.nullish(),
     asDraft: z.boolean().optional(),
+    memoryType: z
+      .enum([
+        'GENERAL',
+        'EXPERIENCE',
+        'MILESTONE',
+        'DECISION',
+        'FINANCIAL',
+        'RELATIONSHIP',
+        'BUSINESS',
+        'LEARNING',
+        'OTHER',
+      ])
+      .optional(),
   })
   .strict();
 
@@ -316,6 +332,63 @@ export async function updatePlanningItemCommand(
              projection_version = projection.group_life.projection_version + 1,
              updated_at = now()`,
       [momentId, JSON.stringify({ lastPlanningItemId: result.planningItemId, title: result.title })]
+    )
+    .catch(() => undefined);
+  return result;
+}
+
+/**
+ * Delete a moment-scoped planning/checklist item only.
+ * Never touches client seed catalogs — those are compile-time constants.
+ */
+export async function deletePlanningItemCommand(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  planningItemId: string
+) {
+  await assertGroupMember(client, ctx, momentId);
+  const result = await collaborationService.deletePlanningItem(client, ctx, momentId, planningItemId);
+  if (result.alreadyDeleted) {
+    return result;
+  }
+  await recordCommandSideEffects(client, ctx, {
+    eventName: 'PlanningItemDeleted',
+    domainCode: 'GROUP',
+    aggregateType: 'PLANNING_ITEM',
+    aggregateId: result.planningItemId,
+    scopeType: 'MOMENT',
+    scopeId: momentId,
+    payload: {
+      planningItemId: result.planningItemId,
+      momentId,
+      title: result.title,
+      targetUserIds: await listOtherMemberUserIds(client, momentId, ctx.userId),
+    },
+    auditActionCode: 'PLANNING_ITEM_DELETE',
+    auditResourceType: 'PLANNING_ITEM',
+    auditResourceId: result.planningItemId,
+    afterSnapshot: result,
+    activity: {
+      domainCode: 'GROUP',
+      momentId,
+      activityCode: planningActivityCodes(result.categoryCode).deleted,
+      title: result.title,
+      payload: {
+        planningItemId: result.planningItemId,
+        categoryCode: result.categoryCode ?? null,
+      },
+    },
+  });
+  await client
+    .query(
+      `INSERT INTO projection.group_life (moment_id, planning_payload, projection_version, updated_at)
+       VALUES ($1, $2::jsonb, 1, now())
+       ON CONFLICT (moment_id) DO UPDATE
+         SET planning_payload = $2::jsonb,
+             projection_version = projection.group_life.projection_version + 1,
+             updated_at = now()`,
+      [momentId, JSON.stringify({ lastDeletedPlanningItemId: result.planningItemId, title: result.title })]
     )
     .catch(() => undefined);
   return result;
@@ -602,7 +675,7 @@ export async function createMemoryCommand(
     aggregateId: result.memoryId,
     scopeType: 'MOMENT',
     scopeId: momentId,
-    payload: { memoryId: result.memoryId, momentId, title: body.title },
+    payload: { memoryId: result.memoryId, momentId, title: body.title, memoryType: body.memoryType ?? 'GENERAL' },
     auditActionCode: 'MEMORY_CREATE',
     auditResourceType: 'MEMORY',
     auditResourceId: result.memoryId,
@@ -653,6 +726,7 @@ export async function listPlanningItems(client: PoolClient, ctx: RequestContext,
             category_code, location, priority_code, description
      FROM collaboration.planning_item
      WHERE moment_id = $1
+       AND status <> 'CANCELLED'
      ORDER BY COALESCE(due_at, created_at) ASC
      LIMIT 200`,
     [momentId]
@@ -1099,18 +1173,20 @@ export async function listMemories(client: PoolClient, ctx: RequestContext, mome
     title: string | null;
     occurred_at: Date | null;
     status: string;
+    memory_type: string;
   }>(
-    `SELECT memory_id, title, occurred_at, status
+    `SELECT memory_id, title, occurred_at, status, memory_type
      FROM memory.memory
      WHERE moment_id = $1 AND status = 'ACTIVE'
      ORDER BY COALESCE(occurred_at, created_at) DESC
      LIMIT 100`,
     [momentId]
   );
-  const mediaByMemory = await listMediaForMemories(
-    client,
-    rows.rows.map((r) => r.memory_id)
-  );
+  const memoryIds = rows.rows.map((r) => r.memory_id);
+  const [mediaByMemory, mediaCounts] = await Promise.all([
+    listMediaForMemories(client, memoryIds, null),
+    countMediaForMemories(client, memoryIds),
+  ]);
   return {
     momentId,
     items: rows.rows.map((r) => {
@@ -1120,8 +1196,9 @@ export async function listMemories(client: PoolClient, ctx: RequestContext, mome
         title: r.title,
         occurredAt: r.occurred_at?.toISOString() ?? null,
         status: r.status,
+        memoryType: r.memory_type,
         media,
-        mediaCount: media.length,
+        mediaCount: mediaCounts.get(r.memory_id) ?? media.length,
       };
     }),
     memoryCount: rows.rows.length,

@@ -80,6 +80,7 @@ import com.example.momentra.ui.shell.components.MomentraTopBarConfig
 import com.example.momentra.ui.shell.components.ShellBottomNavigation
 import com.example.momentra.ui.shell.components.label
 import com.example.momentra.ui.shell.empty.ContextEmptyExperience
+import com.example.momentra.ui.shell.group.directory.GroupActiveMomentsDirectory
 import com.example.momentra.ui.shell.empty.GroupCreateFlow
 import com.example.momentra.ui.shell.empty.group.GroupCreatePhase
 import com.example.momentra.ui.shell.empty.group.GroupJoinConfirmSheet
@@ -218,9 +219,44 @@ fun AppShellScreen(
 
     var pendingGroupJoinCode by remember { mutableStateOf<String?>(null) }
     var inboxOpen by remember { mutableStateOf(false) }
+    var storyMomentId by remember { mutableStateOf<String?>(null) }
     var unreadNotificationCount by remember { mutableIntStateOf(0) }
     val accountRepository = remember { AccountRepository() }
     val shellScope = rememberCoroutineScope()
+
+    fun handlePendingPushDeepLink() {
+        val pending = PendingDeepLink.peek(context) ?: return
+        if (PendingDeepLink.isInboxLink(pending.link)) {
+            PendingDeepLink.consume(context)
+            inboxOpen = true
+            pending.userNotificationId?.let { id ->
+                shellScope.launch {
+                    accountRepository.markNotificationsRead(notificationIds = listOf(id))
+                }
+            }
+            return
+        }
+        val momentId = PendingDeepLink.parseMomentId(pending.link) ?: return
+        val openStory = PendingDeepLink.isStoryLink(pending.link)
+        if (openStory) {
+            shellViewModel.openMomentFromDeepLink(momentId)
+            storyMomentId = momentId
+            PendingDeepLink.consume(context)
+            pending.userNotificationId?.let { id ->
+                shellScope.launch {
+                    accountRepository.markNotificationsRead(notificationIds = listOf(id))
+                }
+            }
+            return
+        }
+        if (!shellViewModel.openMomentFromDeepLink(momentId)) return
+        PendingDeepLink.consume(context)
+        pending.userNotificationId?.let { id ->
+            shellScope.launch {
+                accountRepository.markNotificationsRead(notificationIds = listOf(id))
+            }
+        }
+    }
 
     // Cold + warm: hydrate prefs, then observe pending invite while shell is open.
     LaunchedEffect(state.identity?.userId) {
@@ -265,17 +301,13 @@ fun AppShellScreen(
         PendingDeepLink.hydrateFromDisk(context)
         PendingDeepLink.link.collect { offered ->
             if (offered.isNullOrBlank()) return@collect
-            val pending = PendingDeepLink.consume(context) ?: return@collect
-            pending.userNotificationId?.let { id ->
-                accountRepository.markNotificationsRead(notificationIds = listOf(id))
-            }
-            val momentId = PendingDeepLink.parseMomentId(pending.link)
-            if (momentId != null) {
-                shellViewModel.selectMoment(momentId)
-            } else if (pending.link.startsWith("momentra://inbox", ignoreCase = true)) {
-                inboxOpen = true
-            }
+            handlePendingPushDeepLink()
         }
+    }
+
+    LaunchedEffect(state.moments.map { it.momentId }, state.identity?.userId) {
+        if (state.identity?.userId == null) return@LaunchedEffect
+        handlePendingPushDeepLink()
     }
 
     LaunchedEffect(state.identity?.userId) {
@@ -303,6 +335,7 @@ fun AppShellScreen(
     var groupBudgetSheetOpen by remember { mutableStateOf(false) }
     var groupParticipantsSheetOpen by remember { mutableStateOf(false) }
     var groupInviteSheetOpen by remember { mutableStateOf(false) }
+    var groupMomentDirectoryOpen by remember { mutableStateOf(false) }
     var groupViewerReadOnly by remember { mutableStateOf(false) }
     var groupCollabKind by remember { mutableStateOf<GroupCollabKind?>(null) }
     var groupFinanceOpen by remember { mutableStateOf(false) }
@@ -332,7 +365,6 @@ fun AppShellScreen(
     var groupCreatePhase by remember { mutableStateOf(GroupCreatePhase.CHOOSER) }
     var preferGroupCreateFlow by remember { mutableStateOf(false) }
     var showManageMoment by remember { mutableStateOf(false) }
-    var showMomentStory by remember { mutableStateOf(false) }
     var editSetupOpen by remember { mutableStateOf(false) }
     var topChromeExpanded by remember { mutableStateOf(true) }
     var showJoinQrScanner by remember { mutableStateOf(false) }
@@ -418,6 +450,7 @@ fun AppShellScreen(
         registry = tourRegistry,
         onNavigate = { dest ->
             newMomentOpen = false
+            groupMomentDirectoryOpen = false
             shellViewModel.selectBottomDestination(dest)
         },
     ) {
@@ -426,6 +459,7 @@ fun AppShellScreen(
             .fillMaxSize()
             .background(ShellTokens.SurfaceContent),
     ) {
+        if (!(groupMomentDirectoryOpen && state.selectedContext == AppContext.GROUP)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -471,6 +505,7 @@ fun AppShellScreen(
                         supportedContexts = state.supportedContexts,
                         onSelect = {
                             newMomentOpen = false
+                            groupMomentDirectoryOpen = false
                             groupCreatePhase = GroupCreatePhase.CHOOSER
                             preferGroupCreateFlow = false
                             shellViewModel.selectContext(it)
@@ -485,7 +520,7 @@ fun AppShellScreen(
                     onAvatar = { shellViewModel.openProfile(true) },
                 )
             }
-            if (!newMomentOpen && state.showMomentSwitcher) {
+            if (!newMomentOpen && state.showMomentSwitcher && !groupMomentDirectoryOpen) {
                 MomentSwitcher(
                     selectedTitle = state.selectedMomentTitle,
                     selectedMomentId = state.selectedMomentId,
@@ -502,6 +537,8 @@ fun AppShellScreen(
                     } else {
                         null
                     },
+                    useDirectorySelector = state.selectedContext == AppContext.GROUP,
+                    onOpenDirectory = { groupMomentDirectoryOpen = true },
                 )
             }
             Row(
@@ -518,6 +555,7 @@ fun AppShellScreen(
                     modifier = Modifier.size(18.dp),
                 )
             }
+        }
         }
         Box(
             modifier = Modifier
@@ -704,6 +742,27 @@ fun AppShellScreen(
                         .padding(end = 16.dp, bottom = ShellTokens.BottomBarHeight + 16.dp),
                 )
             }
+            GroupActiveMomentsDirectory(
+                moments = state.moments,
+                selectedMomentId = state.selectedMomentId,
+                visible = groupMomentDirectoryOpen && state.selectedContext == AppContext.GROUP,
+                onDismiss = { groupMomentDirectoryOpen = false },
+                onSelectMoment = { momentId ->
+                    shellViewModel.selectMoment(momentId)
+                    groupMomentDirectoryOpen = false
+                },
+                onOpenStory = { momentId ->
+                    storyMomentId = momentId
+                    groupMomentDirectoryOpen = false
+                },
+                onCreateMoment = {
+                    groupMomentDirectoryOpen = false
+                    openNewMoment()
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
+            )
         }
         if (state.selectedMomentId != null && state.selectedContext == AppContext.PERSONAL) {
             moneyQa?.let { kind ->
@@ -1182,8 +1241,9 @@ fun AppShellScreen(
                             shellViewModel.reloadCurrentContext()
                         },
                         onCompleted = {
+                            val completedId = state.selectedMomentId
                             showManageMoment = false
-                            showMomentStory = true
+                            storyMomentId = completedId
                             shellViewModel.reloadCurrentContext()
                         },
                         onLeft = {
@@ -1194,18 +1254,18 @@ fun AppShellScreen(
                 }
             }
         }
-        if (showMomentStory) {
-            val momentId = state.selectedMomentId
+        if (storyMomentId != null) {
+            val momentId = storyMomentId
             if (momentId != null) {
                 ModalBottomSheet(
-                    onDismissRequest = { showMomentStory = false },
+                    onDismissRequest = { storyMomentId = null },
                     sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                     containerColor = Color(0xFF2D1F5E),
                     dragHandle = null,
                 ) {
                     MomentStoryViewerScreen(
                         momentId = momentId,
-                        onClose = { showMomentStory = false },
+                        onClose = { storyMomentId = null },
                     )
                 }
             }
@@ -1240,6 +1300,7 @@ fun AppShellScreen(
             selected = state.bottomDestination,
             onSelect = {
                 newMomentOpen = false
+                groupMomentDirectoryOpen = false
                 if (it == BottomDestination.CREATE && state.selectedContext == AppContext.GROUP) {
                     groupCreatePhase = GroupCreatePhase.CHOOSER
                     preferGroupCreateFlow = false
@@ -1267,7 +1328,11 @@ fun AppShellScreen(
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
             NotificationInboxSheet(
-                onOpenMoment = { shellViewModel.selectMoment(it) },
+                onOpenMoment = { momentId ->
+                    if (!shellViewModel.openMomentFromDeepLink(momentId)) {
+                        PendingDeepLink.offer("momentra://moment/$momentId")
+                    }
+                },
                 onClose = { inboxOpen = false },
                 onUnreadCountChanged = { unreadNotificationCount = it },
                 repository = accountRepository,

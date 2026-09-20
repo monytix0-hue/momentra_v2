@@ -38,6 +38,7 @@ import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupEmptySection
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.MemoryGalleryListSheet
 import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
 import com.example.momentra.ui.shell.group.shared.MomentsChrome
 import com.example.momentra.ui.shell.group.shared.MomentsExpensesCard
@@ -52,6 +53,7 @@ import com.example.momentra.ui.shell.group.shared.MomentsUpcomingEventCard
 import com.example.momentra.ui.shell.group.shared.PlanningScheduleSheet
 import com.example.momentra.ui.shell.group.shared.GroupPollsListSheet
 import com.example.momentra.ui.shell.group.shared.PollDetailSheet
+import com.example.momentra.ui.shell.group.shared.UpdatesListSheet
 import com.example.momentra.ui.shell.group.shared.buildMomentsUpcomingEvents
 import com.example.momentra.ui.shell.group.shared.formatPlanningTime
 import com.example.momentra.ui.shell.group.shared.itineraryDayGroups
@@ -101,6 +103,8 @@ fun LivingMomentsActiveContent(
     var pollsListOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var scheduleOpen by remember { mutableStateOf(false) }
+    var updatesOpen by remember { mutableStateOf(false) }
+    var galleryOpen by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -264,7 +268,7 @@ fun LivingMomentsActiveContent(
             }
         }
 
-        MomentsSectionHeader("Updates / Feed  📱", chrome)
+        MomentsSectionHeader("Updates / Feed  📱", chrome, onViewAll = { updatesOpen = true })
         if (updates.isEmpty()) {
             GroupEmptySection("No updates yet", "Share a status update from Quick Add.")
         } else {
@@ -273,7 +277,7 @@ fun LivingMomentsActiveContent(
             }
         }
 
-        MomentsSectionHeader("Shared Gallery  📸", chrome)
+        MomentsSectionHeader("Shared Gallery  📸", chrome, onViewAll = { galleryOpen = true })
         MemoryPhotoGalleryStrip(
             items = memoryItems,
             emptyMessage = "Gallery empty",
@@ -383,6 +387,20 @@ fun LivingMomentsActiveContent(
             subtitle = "Add a resident, expense, task, asset or memory.",
         )
     }
+
+    UpdatesListSheet(
+        items = updates,
+        visible = updatesOpen,
+        onDismiss = { updatesOpen = false },
+        chrome = chrome,
+    )
+
+    MemoryGalleryListSheet(
+        items = memoryItems,
+        visible = galleryOpen,
+        onDismiss = { galleryOpen = false },
+        chrome = chrome,
+    )
 
     PlanningScheduleSheet(
         items = planningItems,

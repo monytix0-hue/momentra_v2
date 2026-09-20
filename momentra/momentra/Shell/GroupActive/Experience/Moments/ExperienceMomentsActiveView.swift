@@ -28,6 +28,9 @@ struct ExperienceMomentsActiveView: View {
     @State private var checklistSheetOpen = false
     @State private var contributionsOpen = false
     @State private var expensesOpen = false
+    @State private var updatesOpen = false
+    @State private var galleryOpen = false
+    @State private var bookingsOpen = false
     @State private var editingContribution: APIClient.GroupContributionItem?
     @State private var editContributionPresented = false
     @State private var title: String?
@@ -148,6 +151,27 @@ struct ExperienceMomentsActiveView: View {
                 onDismiss: { expensesOpen = false }
             )
         }
+        .sheet(isPresented: $updatesOpen) {
+            UpdatesListSheet(
+                items: updates,
+                chrome: chrome,
+                onDismiss: { updatesOpen = false }
+            )
+        }
+        .sheet(isPresented: $galleryOpen) {
+            MemoryGalleryListSheet(
+                items: listMemoryItems,
+                chrome: chrome,
+                onDismiss: { galleryOpen = false }
+            )
+        }
+        .sheet(isPresented: $bookingsOpen) {
+            BookingsListSheet(
+                items: bookings,
+                chrome: chrome,
+                onDismiss: { bookingsOpen = false }
+            )
+        }
         .sheet(item: Binding(
             get: { selectedPollId.map { PollSheetItem(id: $0) } },
             set: { selectedPollId = $0?.id }
@@ -264,7 +288,9 @@ struct ExperienceMomentsActiveView: View {
                         onAdd: { checklistSheetOpen = true }
                     )
 
-                    MomentsSectionHeader(title: "Updates / Feed  📱", chrome: chrome)
+                    MomentsSectionHeader(title: "Updates / Feed  📱", chrome: chrome, onViewAll: {
+                        updatesOpen = true
+                    })
                     if updates.isEmpty {
                         GroupEmptySection(message: "No updates yet", detail: "Share a status update from Quick Add.")
                     } else {
@@ -306,7 +332,9 @@ struct ExperienceMomentsActiveView: View {
                         }
                     }
 
-                    MomentsSectionHeader(title: "Shared Gallery  📸", chrome: chrome)
+                    MomentsSectionHeader(title: "Shared Gallery  📸", chrome: chrome, onViewAll: {
+                        galleryOpen = true
+                    })
                     MemoryPhotoGalleryStrip(
                         items: listMemoryItems,
                         emptyMessage: "Gallery empty",
@@ -318,7 +346,9 @@ struct ExperienceMomentsActiveView: View {
                         showMediaCountBadge: true
                     )
 
-                    MomentsSectionHeader(title: "Bookings  🛎️", chrome: chrome)
+                    MomentsSectionHeader(title: "Bookings  🛎️", chrome: chrome, onViewAll: {
+                        bookingsOpen = true
+                    })
                     if listBookings.isEmpty {
                         GroupEmptySection(message: "No bookings yet", detail: "Add a booking from Quick Add when ready.")
                     } else {

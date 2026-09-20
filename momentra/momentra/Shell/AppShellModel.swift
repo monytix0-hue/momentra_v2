@@ -310,7 +310,8 @@ final class AppShellModel: ObservableObject {
                     title: m.title,
                     status: m.status,
                     momentTypeCode: prev,
-                    companyId: m.companyId
+                    companyId: m.companyId,
+                    participantCount: m.participantCount
                 )
             }
             return m
@@ -413,6 +414,38 @@ final class AppShellModel: ObservableObject {
         ShellPerf.end(mark, extras: ["momentId": String(id.prefix(8))])
     }
 
+    /// Opens a moment from a push/inbox deep link, switching Personal/Group/Business if needed.
+    /// Returns false when bootstrap inventory is not ready or the moment is not found (caller should retry).
+    @discardableResult
+    func openMomentFromDeepLink(momentId: String) -> Bool {
+        if moments.contains(where: { $0.momentId == momentId }) {
+            selectMoment(id: momentId)
+            return true
+        }
+        guard let boot = bootstrap else { return false }
+        let candidates: [(AppContextKind, [MomentSummary])] = [
+            (.group, boot.groupMoments),
+            (.business, boot.businessMoments),
+            (.personal, boot.personalMoments),
+        ]
+        for (ctx, list) in candidates {
+            guard list.contains(where: { $0.momentId == momentId }) else { continue }
+            selectedMomentByContext[ctx] = momentId
+            if selectedContext != ctx {
+                selectContext(ctx)
+            } else {
+                ensureContextContent()
+            }
+            if moments.contains(where: { $0.momentId == momentId }) {
+                selectMoment(id: momentId)
+                return true
+            }
+            // Context switch applied preferred selection via inventory heal.
+            return selectedMomentId == momentId
+        }
+        return false
+    }
+
     func onMomentCreated(momentId: String, title: String, momentTypeCode: String? = nil, status: String = "ACTIVE") {
         selectedMomentId = momentId
         selectedMomentTitle = title
@@ -423,7 +456,8 @@ final class AppShellModel: ObservableObject {
                 title: title,
                 status: status,
                 momentTypeCode: momentTypeCode ?? moments[idx].momentTypeCode,
-                companyId: moments[idx].companyId
+                companyId: moments[idx].companyId,
+                participantCount: moments[idx].participantCount
             )
         } else {
             moments.append(MomentSummary(momentId: momentId, title: title, status: status, momentTypeCode: momentTypeCode))

@@ -325,7 +325,11 @@ v1Router.get('/group/moments', async (req, res, next) => {
     const ctx = req.requestContext!;
     const cursor = req.query.cursor as string | undefined;
     const limit = parseInt(String(req.query.limit ?? '20'), 10);
-    const page = await withDb((client) => projectionService.listGroupMoments(client, ctx, cursor, limit));
+    const lifecycleRaw = String(req.query.lifecycle ?? 'active').toLowerCase();
+    const lifecycle = lifecycleRaw === 'completed' ? 'completed' : 'active';
+    const page = await withDb((client) =>
+      projectionService.listGroupMoments(client, ctx, cursor, limit, lifecycle)
+    );
     res.json(projectionEnvelope(page, ctx.correlationId, { nextCursor: page.nextCursor, status: 'OK' }));
   } catch (e) {
     next(e);
@@ -1625,7 +1629,7 @@ v1Router.post('/moments/:momentId/completion-review', async (req, res, next) => 
     const data = await withDb((client) =>
       momentService.completionReview(client, ctx, param(req.params.momentId))
     );
-    res.json({ data, meta: { correlationId: ctx.correlationId } });
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {
     next(e);
   }
@@ -1704,7 +1708,7 @@ v1Router.get('/moments/:momentId/story-status', async (req, res, next) => {
     const data = await withDb((client) =>
       storyService.getMomentStoryStatus(client, ctx, param(req.params.momentId))
     );
-    res.json({ data, meta: { correlationId: ctx.correlationId } });
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {
     next(e);
   }
@@ -1716,7 +1720,7 @@ v1Router.get('/moments/:momentId/story', async (req, res, next) => {
     const data = await withDb((client) =>
       storyService.getMomentStory(client, ctx, param(req.params.momentId))
     );
-    res.json({ data, meta: { correlationId: ctx.correlationId } });
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {
     next(e);
   }
@@ -1740,7 +1744,7 @@ v1Router.get('/moments/:momentId/story/share-pack', async (req, res, next) => {
     const data = await withDb((client) =>
       storyService.getSharePack(client, ctx, param(req.params.momentId))
     );
-    res.json({ data, meta: { correlationId: ctx.correlationId } });
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {
     next(e);
   }
@@ -1763,7 +1767,7 @@ v1Router.get('/stories/:storyId/artifacts/:artifactType', async (req, res, next)
       res.send(data.body);
       return;
     }
-    res.json({ data, meta: { correlationId: ctx.correlationId } });
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {
     next(e);
   }
@@ -3474,6 +3478,33 @@ v1Router.patch('/moments/:momentId/planning-items/:planningItemId', requireIdemp
           param(req.params.momentId),
           param(req.params.planningItemId),
           b as z.infer<typeof groupCollab.updatePlanningItemSchema>
+        );
+        return { result: r, resourceId: r.planningItemId };
+      },
+    });
+    const hints = ['group.activity', 'group.pulse', 'group.life', 'group.moments'] as const;
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.json(commandEnvelope(result, ctx.correlationId, { projectionHints: toProjectionHints([...hints], 'refresh') }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.delete('/moments/:momentId/planning-items/:planningItemId', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const result = await runCommand({
+      operationCode: 'PLANNING_ITEM_DELETE',
+      idempotencyKey: req.idempotencyKey!,
+      body: {},
+      ctx,
+      resourceType: 'PLANNING_ITEM',
+      execute: async (client) => {
+        const r = await groupCollab.deletePlanningItemCommand(
+          client,
+          ctx,
+          param(req.params.momentId),
+          param(req.params.planningItemId)
         );
         return { result: r, resourceId: r.planningItemId };
       },

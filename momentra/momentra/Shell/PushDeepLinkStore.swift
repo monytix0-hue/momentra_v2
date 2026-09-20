@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 
-/// Pending push deep link (`momentra://moment/{id}` or `momentra://inbox`) + open attribution id.
+/// Pending push deep link (`momentra://moment/{id}`, `momentra://moments/{id}/story`, or `momentra://inbox`) + open attribution id.
 @MainActor
 final class PushDeepLinkStore: ObservableObject {
     static let shared = PushDeepLinkStore()
@@ -41,6 +41,14 @@ final class PushDeepLinkStore: ObservableObject {
         }
     }
 
+    /// Peek without clearing — use [consume] only after a successful open.
+    func peek() -> (link: String, userNotificationId: String?)? {
+        let link = pendingLink ?? UserDefaults.standard.string(forKey: Self.prefsKey)
+        let notifId = pendingUserNotificationId ?? UserDefaults.standard.string(forKey: Self.notifIdKey)
+        guard let link, !link.isEmpty else { return nil }
+        return (link, notifId)
+    }
+
     /// Returns (link, userNotificationId) and clears both.
     func consume() -> (link: String, userNotificationId: String?)? {
         let link = pendingLink ?? UserDefaults.standard.string(forKey: Self.prefsKey)
@@ -58,14 +66,39 @@ final class PushDeepLinkStore: ObservableObject {
         return url.host?.lowercased() == "inbox"
     }
 
+    static func isStoryLink(_ raw: String) -> Bool {
+        guard let url = URL(string: raw), url.scheme?.lowercased() == "momentra" else { return false }
+        let host = url.host?.lowercased() ?? ""
+        let parts = url.path.split(separator: "/").map(String.init)
+        if host == "moments", parts.count >= 2, parts[1].lowercased() == "story" {
+            return true
+        }
+        if parts.first?.lowercased() == "moments",
+           parts.count >= 3,
+           parts[2].lowercased() == "story" {
+            return true
+        }
+        if let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
+           let event = comps.queryItems?.first(where: { $0.name == "event" })?.value,
+           event.caseInsensitiveCompare("MomentStoryReady") == .orderedSame {
+            return true
+        }
+        return false
+    }
+
     static func parseMomentId(_ raw: String) -> String? {
         guard let url = URL(string: raw) else { return nil }
         let scheme = url.scheme?.lowercased() ?? ""
         guard scheme == "momentra" else { return nil }
         let host = url.host?.lowercased() ?? ""
         let parts = url.path.split(separator: "/").map(String.init)
-        if host == "moment", let id = parts.first, !id.isEmpty { return id }
-        if parts.first == "moment", let id = parts.dropFirst().first, !id.isEmpty { return id }
+        if host == "moment" || host == "moments", let id = parts.first, !id.isEmpty { return id }
+        if let first = parts.first?.lowercased(),
+           (first == "moment" || first == "moments"),
+           let id = parts.dropFirst().first,
+           !id.isEmpty {
+            return id
+        }
         return nil
     }
 }

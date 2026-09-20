@@ -14,6 +14,7 @@ struct AppShellView: View {
     @State private var groupBudgetSheetPresented = false
     @State private var groupParticipantsSheetPresented = false
     @State private var groupInviteSheetPresented = false
+    @State private var groupMomentDirectoryOpen = false
     @State private var groupViewerReadOnly = false
     @State private var groupCollabKind: GroupCollabKind? = nil
     @State private var groupFinancePresented = false
@@ -38,7 +39,7 @@ struct AppShellView: View {
     @State private var newMomentOpen = false
     @State private var groupCreatePhase: GroupCreatePhase = .chooser
     @State private var showManageMoment = false
-    @State private var showMomentStory = false
+    @State private var storyMomentId: String? = nil
     @State private var editSetupTarget: EditMomentSetupTarget? = nil
     @State private var showJoinQrScanner = false
     @State private var showReferComingSoon = false
@@ -59,19 +60,7 @@ struct AppShellView: View {
                 if let companyCode = JoinCompanyInviteStore.shared.consume() {
                     redeemCompanyInviteCode(companyCode)
                 }
-                if let pending = PushDeepLinkStore.shared.consume() {
-                    Task {
-                        if let id = pending.userNotificationId {
-                            _ = try? await APIClient.shared.markMyNotificationsRead(notificationIds: [id])
-                            await inboxBadge.refresh()
-                        }
-                    }
-                    if let momentId = PushDeepLinkStore.parseMomentId(pending.link) {
-                        model.selectMoment(id: momentId)
-                    } else if PushDeepLinkStore.isInboxLink(pending.link) {
-                        inboxOpen = true
-                    }
-                }
+                handlePendingPushDeepLink()
                 Task { await inboxBadge.refresh() }
             }
             .onReceive(JoinInviteStore.shared.$pendingCode) { code in
@@ -89,18 +78,10 @@ struct AppShellView: View {
             }
             .onReceive(PushDeepLinkStore.shared.$pendingLink) { link in
                 guard let link, !link.isEmpty else { return }
-                guard let pending = PushDeepLinkStore.shared.consume() else { return }
-                Task {
-                    if let id = pending.userNotificationId {
-                        _ = try? await APIClient.shared.markMyNotificationsRead(notificationIds: [id])
-                    }
-                    await inboxBadge.refresh()
-                }
-                if let momentId = PushDeepLinkStore.parseMomentId(pending.link) {
-                    model.selectMoment(id: momentId)
-                } else if PushDeepLinkStore.isInboxLink(pending.link) {
-                    inboxOpen = true
-                }
+                handlePendingPushDeepLink()
+            }
+            .onChange(of: model.moments.map(\.momentId)) { _, _ in
+                handlePendingPushDeepLink()
             }
             .onChange(of: identity.userId) { _, _ in
                 model.bindIdentity(identity)
@@ -110,10 +91,12 @@ struct AppShellView: View {
             }
             .onChange(of: model.selectedContext) { _, _ in
                 newMomentOpen = false
+                groupMomentDirectoryOpen = false
                 groupCreatePhase = .chooser
             }
             .onChange(of: model.bottomDestination) { _, destination in
                 newMomentOpen = false
+                groupMomentDirectoryOpen = false
                 if destination == .create, model.selectedContext == .group {
                     // Keep phase when advancing from Pulse type cards; reset only when tapping Create tab from chooser path is handled by openNewMoment / tab setter.
                 }
@@ -154,8 +137,9 @@ struct AppShellView: View {
                         model.reloadCurrentContext()
                     },
                     onCompleted: {
+                        let completedId = model.selectedMomentId
                         showManageMoment = false
-                        showMomentStory = true
+                        storyMomentId = completedId
                         model.reloadCurrentContext()
                     },
                     onLeft: {
@@ -166,10 +150,13 @@ struct AppShellView: View {
                 .preferredColorScheme(.dark)
             }
         }
-        .fullScreenCover(isPresented: $showMomentStory) {
-            if let momentId = model.selectedMomentId {
+        .fullScreenCover(isPresented: Binding(
+            get: { storyMomentId != nil },
+            set: { if !$0 { storyMomentId = nil } }
+        )) {
+            if let momentId = storyMomentId {
                 MomentStoryViewerView(momentId: momentId) {
-                    showMomentStory = false
+                    storyMomentId = nil
                 }
                 .preferredColorScheme(.dark)
             }
@@ -668,7 +655,10 @@ struct AppShellView: View {
         }
         .sheet(isPresented: $inboxOpen) {
             NotificationInboxView(
-                onOpenMoment: { momentId in model.selectMoment(id: momentId) },
+                onOpenMoment: { momentId in
+                    if model.openMomentFromDeepLink(momentId: momentId) { return }
+                    PushDeepLinkStore.shared.offer("momentra://moment/\(momentId)")
+                },
                 onClose: { inboxOpen = false }
             )
         }
@@ -710,6 +700,45 @@ struct AppShellView: View {
             newMomentOpen = true
         default:
             model.selectBottomDestination(.create)
+        }
+    }
+
+    /// Peek pending push link; only consume after successful open (retry when inventory arrives).
+    private func handlePendingPushDeepLink() {
+        guard let pending = PushDeepLinkStore.shared.peek() else { return }
+        if PushDeepLinkStore.isInboxLink(pending.link) {
+            _ = PushDeepLinkStore.shared.consume()
+            inboxOpen = true
+            Task {
+                if let id = pending.userNotificationId {
+                    _ = try? await APIClient.shared.markMyNotificationsRead(notificationIds: [id])
+                    await inboxBadge.refresh()
+                }
+            }
+            return
+        }
+        guard let momentId = PushDeepLinkStore.parseMomentId(pending.link) else { return }
+        let openStory = PushDeepLinkStore.isStoryLink(pending.link)
+        if openStory {
+            // Completed moments leave active inventory — open Story by id without selection gate.
+            _ = model.openMomentFromDeepLink(momentId: momentId)
+            storyMomentId = momentId
+            _ = PushDeepLinkStore.shared.consume()
+            Task {
+                if let id = pending.userNotificationId {
+                    _ = try? await APIClient.shared.markMyNotificationsRead(notificationIds: [id])
+                    await inboxBadge.refresh()
+                }
+            }
+            return
+        }
+        guard model.openMomentFromDeepLink(momentId: momentId) else { return }
+        _ = PushDeepLinkStore.shared.consume()
+        Task {
+            if let id = pending.userNotificationId {
+                _ = try? await APIClient.shared.markMyNotificationsRead(notificationIds: [id])
+                await inboxBadge.refresh()
+            }
         }
     }
 
@@ -762,6 +791,7 @@ struct AppShellView: View {
             get: { model.bottomDestination },
             set: { next in
                 newMomentOpen = false
+                groupMomentDirectoryOpen = false
                 if next == .create, model.selectedContext == .group, model.bottomDestination != .create {
                     groupCreatePhase = .chooser
                 }
@@ -803,13 +833,52 @@ struct AppShellView: View {
     @ViewBuilder
     private var tabNavigationRoot: some View {
         NavigationStack {
-            destinationBodyWithFab
-                .navigationTitle("")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar(.hidden, for: .navigationBar)
-                .safeAreaInset(edge: .top, spacing: 0) {
+            ZStack {
+                destinationBodyWithFab
+                if groupMomentDirectoryOpen && model.selectedContext == .group {
+                    GroupActiveMomentsDirectoryView(
+                        moments: model.moments,
+                        selectedMomentId: model.selectedMomentId,
+                        onDismiss: {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                groupMomentDirectoryOpen = false
+                            }
+                        },
+                        onSelectMoment: { momentId in
+                            model.selectMoment(id: momentId)
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                groupMomentDirectoryOpen = false
+                            }
+                        },
+                        onOpenStory: { momentId in
+                            storyMomentId = momentId
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                groupMomentDirectoryOpen = false
+                            }
+                        },
+                        onCreateMoment: {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                groupMomentDirectoryOpen = false
+                            }
+                            openNewMoment()
+                        }
+                    )
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .bottom)),
+                        removal: .opacity.combined(with: .move(edge: .bottom))
+                    ))
+                    .zIndex(1)
+                }
+            }
+            .animation(.easeInOut(duration: 0.28), value: groupMomentDirectoryOpen)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if !(groupMomentDirectoryOpen && model.selectedContext == .group) {
                     shellTopChrome
                 }
+            }
         }
     }
 
@@ -859,7 +928,7 @@ struct AppShellView: View {
                     onSelect: model.selectContext
                 )
             }
-            if shouldShowMomentSwitcher && !newMomentOpen {
+            if shouldShowMomentSwitcher && !newMomentOpen && !groupMomentDirectoryOpen {
                 MomentSwitcherView(
                     selectedTitle: model.selectedMomentTitle,
                     selectedMomentId: model.selectedMomentId,
@@ -872,7 +941,13 @@ struct AppShellView: View {
                         guard model.selectedMomentId != nil else { return }
                         showManageMoment = true
                     },
-                    onInvite: model.selectedContext == .group ? { groupInviteSheetPresented = true } : nil
+                    onInvite: model.selectedContext == .group ? { groupInviteSheetPresented = true } : nil,
+                    useDirectorySelector: model.selectedContext == .group,
+                    onOpenDirectory: {
+                        withAnimation(.easeInOut(duration: 0.28)) {
+                            groupMomentDirectoryOpen = true
+                        }
+                    }
                 )
             }
         }

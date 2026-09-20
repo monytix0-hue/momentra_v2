@@ -309,6 +309,9 @@ struct MomentSwitcherView: View {
     var onSelectMoment: (String) -> Void = { _ in }
     var onSettings: () -> Void = {}
     var onInvite: (() -> Void)? = nil
+    /// Group-only: open full Active Moments directory instead of inline pills.
+    var useDirectorySelector: Bool = false
+    var onOpenDirectory: (() -> Void)? = nil
 
     @State private var expanded = false
 
@@ -327,14 +330,19 @@ struct MomentSwitcherView: View {
             }
             return []
         }()
-        let canExpand = pills.count > 1
+        let canExpandPills = !useDirectorySelector && pills.count > 1
+        let canOpenDirectory = useDirectorySelector && !isEmpty && !isLoading &&
+            (!pills.isEmpty || (selectedTitle?.isEmpty == false))
         let canOpenSettings = selectedMomentId != nil && !isEmpty && !isLoading
 
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Button {
-                    guard canExpand else { return }
-                    withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+                    if useDirectorySelector, canOpenDirectory {
+                        onOpenDirectory?()
+                    } else if canExpandPills {
+                        withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+                    }
                 } label: {
                     HStack(spacing: 8) {
                         Circle().fill(accent).frame(width: 7, height: 7)
@@ -378,23 +386,28 @@ struct MomentSwitcherView: View {
                 .accessibilityLabel("Moment settings")
                 .accessibilityIdentifier("moment.switcher.settings")
 
-                if canExpand {
+                if canExpandPills || canOpenDirectory {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+                        if useDirectorySelector, canOpenDirectory {
+                            onOpenDirectory?()
+                        } else if canExpandPills {
+                            withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+                        }
                     } label: {
-                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        Image(systemName: (!useDirectorySelector && expanded) ? "chevron.up" : "chevron.down")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(MomentraBrandTokens.textOnDark)
                             .frame(width: 24, height: 28)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(useDirectorySelector ? "Open moment directory" : "Expand moment list")
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
 
-            if expanded && !pills.isEmpty {
+            if !useDirectorySelector && expanded && !pills.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("When Module.")
                         .font(.system(size: 11))

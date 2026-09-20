@@ -34,6 +34,7 @@ struct BootstrapMomentPayload: Decodable {
     let momentTypeCode: String?
     let domainCode: String?
     let companyId: String?
+    let participantCount: Int?
 }
 
 struct BootstrapPreferencesPayload: Decodable {
@@ -173,6 +174,9 @@ private struct GroupMomentItemPayload: Decodable {
     let momentId: String?
     let title: String?
     let status: String?
+    let groupFamily: String?
+    let momentTypeCode: String?
+    let participantCount: Int?
 }
 
 private struct PersonalMomentItemPayload: Decodable {
@@ -639,15 +643,20 @@ final class APIClient {
         }
     }
 
-    func listGroupMoments(limit: Int = 20) async throws -> [MomentSummary] {
+    func listGroupMoments(limit: Int = 20, lifecycle: String = "active") async throws -> [MomentSummary] {
         let page: CursorPagePayload<GroupMomentItemPayload> =
-            try await authorizedGet(path: "v1/group/moments", query: ["limit": String(limit)])
+            try await authorizedGet(
+                path: "v1/group/moments",
+                query: ["limit": String(limit), "lifecycle": lifecycle]
+            )
         return page.items.compactMap { item in
             guard let id = item.momentId else { return nil }
             return MomentSummary(
                 momentId: id,
                 title: item.title ?? "Moment",
-                status: item.status ?? "UNKNOWN"
+                status: item.status ?? "UNKNOWN",
+                momentTypeCode: item.momentTypeCode,
+                participantCount: item.participantCount ?? 0
             )
         }
     }
@@ -2603,6 +2612,7 @@ final class APIClient {
                 let title: String?
                 let occurredAt: String?
                 let status: String?
+                let memoryType: String?
                 let media: [GroupMemoryMedia]?
                 let mediaCount: Int?
 
@@ -3070,6 +3080,35 @@ final class APIClient {
         )
     }
 
+    /// Deletes a moment-scoped checklist/planning item only (seed catalog is unchanged).
+    /// Idempotent: 404 (already gone / stale UI row) is treated as success.
+    func deletePlanningItem(
+        momentId: String,
+        planningItemId: String,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CollabIdResult {
+        do {
+            return try await authorizedDelete(
+                path: "v1/moments/\(momentId)/planning-items/\(planningItemId)",
+                body: Optional<String>.none as String?,
+                idempotencyKey: idempotencyKey
+            )
+        } catch APIErrorKind.notFound(_) {
+            return CollabIdResult(
+                planningItemId: planningItemId,
+                bookingId: nil,
+                pollId: nil,
+                updateId: nil,
+                memoryId: nil,
+                purchaseItemId: nil,
+                residentId: nil,
+                sharedAssetId: nil,
+                maintenanceRecordId: nil,
+                momentId: momentId
+            )
+        }
+    }
+
     // MARK: - Group collab list GETs (parity with Android ApiService)
 
     struct GroupPlanningItemsPayload: Decodable {
@@ -3508,9 +3547,25 @@ final class APIClient {
         )
     }
 
-    func createGroupMemory(momentId: String, title: String, capturedAt: String? = nil, asDraft: Bool? = nil, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {
-        struct Body: Encodable { let title: String; let capturedAt: String?; let asDraft: Bool? }
-        return try await authorizedPost(path: "v1/moments/\(momentId)/memories", body: Body(title: title, capturedAt: capturedAt, asDraft: asDraft), idempotencyKey: idempotencyKey)
+    func createGroupMemory(
+        momentId: String,
+        title: String,
+        capturedAt: String? = nil,
+        asDraft: Bool? = nil,
+        memoryType: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CollabIdResult {
+        struct Body: Encodable {
+            let title: String
+            let capturedAt: String?
+            let asDraft: Bool?
+            let memoryType: String?
+        }
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/memories",
+            body: Body(title: title, capturedAt: capturedAt, asDraft: asDraft, memoryType: memoryType),
+            idempotencyKey: idempotencyKey
+        )
     }
 
     func addGroupParticipant(momentId: String, displayName: String, roleCode: String = "PARTICIPANT", email: String? = nil, phone: String? = nil, idempotencyKey: String = UUID().uuidString) async throws -> CollabIdResult {

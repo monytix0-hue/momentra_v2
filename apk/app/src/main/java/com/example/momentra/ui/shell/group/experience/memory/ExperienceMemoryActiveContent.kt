@@ -40,7 +40,6 @@ import com.example.momentra.ui.shell.group.experience.create.ExperienceActiveThe
 import com.example.momentra.ui.shell.group.shared.ActiveTabScrollScaffold
 import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupActiveTheme
-import com.example.momentra.ui.shell.group.shared.GroupApiGapBadge
 import com.example.momentra.ui.shell.group.shared.GroupComingSoonBadge
 import com.example.momentra.ui.shell.group.shared.GroupCtaButton
 import com.example.momentra.ui.shell.group.shared.GroupEmptySection
@@ -164,11 +163,25 @@ fun ExperienceMemoryActiveContent(
             }
         }
 
-        GroupSectionCard(title = "Milestone Wall", badge = { GroupApiGapBadge() }) {
-            GroupEmptySection(
-                message = "No milestones yet",
-                detail = "Milestone capture is not live for groups.",
-            )
+        val milestones = remember(items) {
+            items.filter { it.memoryType.equals("MILESTONE", ignoreCase = true) }
+        }
+
+        GroupSectionCard(title = "Milestone Wall") {
+            if (milestones.isEmpty()) {
+                GroupEmptySection(
+                    message = "No milestones yet",
+                    detail = "Capture a Milestone from Quick Add.",
+                )
+            } else {
+                milestones.forEach { item ->
+                    ExperienceMemoryTimelineRow(
+                        item = item,
+                        accent = Color(0xFFF59E0B),
+                        glyph = "⭐",
+                    )
+                }
+            }
         }
 
         GroupSectionCard(title = "Memory Gallery") {

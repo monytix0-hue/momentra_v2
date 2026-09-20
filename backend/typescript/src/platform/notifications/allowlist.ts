@@ -220,12 +220,20 @@ export function deepLinkForEvent(
   eventName: string,
   payload?: Record<string, unknown> | null
 ): string | null {
+  const fromPayload =
+    typeof payload?.deepLink === 'string' ? payload.deepLink.trim() : '';
+  if (fromPayload.startsWith('momentra://')) {
+    return fromPayload;
+  }
   const momentId =
     (typeof payload?.momentId === 'string' ? payload.momentId : null) ??
     (typeof payload?.scopeId === 'string' ? payload.scopeId : null);
   if (!momentId) {
     if (eventName === 'DigestReady') return 'momentra://inbox';
     return null;
+  }
+  if (eventName === 'MomentStoryReady') {
+    return `momentra://moments/${momentId}/story`;
   }
   const category = notificationCategory(eventName);
   return `momentra://moment/${momentId}?category=${category}&event=${encodeURIComponent(eventName)}`;

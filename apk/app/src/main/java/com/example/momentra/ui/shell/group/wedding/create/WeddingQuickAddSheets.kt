@@ -87,6 +87,7 @@ import com.example.momentra.ui.shell.group.shared.GroupReceiptPickControl
 import com.example.momentra.ui.shell.group.shared.GroupSettlementSheet
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.encodeMemoryPhotoBytes
+import com.example.momentra.ui.shell.group.shared.groupMemoryTypeCode
 import com.example.momentra.ui.shell.group.shared.tryTakePersistableReadPermission
 import com.example.momentra.ui.shell.group.shared.tripDateTimeToIso
 import com.example.momentra.ui.shell.group.shared.tripIsoToLocalDateTime
@@ -2141,7 +2142,12 @@ internal fun WeddingMemorySheetBody(momentId: String?, repository: GroupSliceRep
                 error = "Add a photo before saving"
                 return@launch
             }
-            val create = repository.createMemory(momentId!!, title.trim(), asDraft = if (asDraft) true else null)
+            val create = repository.createMemory(
+                momentId!!,
+                title.trim(),
+                asDraft = if (asDraft) true else null,
+                memoryType = groupMemoryTypeCode(type),
+            )
             create.fold(
                 onSuccess = { created ->
                     val memoryId = created.memoryId

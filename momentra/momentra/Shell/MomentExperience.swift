@@ -17,6 +17,8 @@ struct MomentSummary: Equatable, Identifiable {
     let momentTypeCode: String?
     /// Present for BUSINESS bootstrap moments — Company→Moment scoping.
     let companyId: String?
+    /// Present for GROUP bootstrap moments — active participant count.
+    let participantCount: Int
     var id: String { momentId }
 
     init(
@@ -24,13 +26,15 @@ struct MomentSummary: Equatable, Identifiable {
         title: String,
         status: String,
         momentTypeCode: String? = nil,
-        companyId: String? = nil
+        companyId: String? = nil,
+        participantCount: Int = 0
     ) {
         self.momentId = momentId
         self.title = title
         self.status = status
         self.momentTypeCode = momentTypeCode
         self.companyId = companyId
+        self.participantCount = participantCount
     }
 
     var isActiveStatus: Bool {

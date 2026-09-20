@@ -3,6 +3,16 @@ import SwiftUI
 typealias GroupMemoryItem = APIClient.GroupMemoryPayload.MemoryInner.GroupMemoryItem
 typealias GroupMemoryMedia = APIClient.GroupMemoryPayload.MemoryInner.GroupMemoryItem.GroupMemoryMedia
 
+/// Maps Quick Add memory chips → `memory.memory.memory_type` enum.
+func groupMemoryTypeCode(forChip label: String) -> String {
+    switch label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+    case "milestone": return "MILESTONE"
+    case "lesson": return "LEARNING"
+    case "reflection": return "EXPERIENCE"
+    default: return "GENERAL"
+    }
+}
+
 func memoryGalleryUrls(from items: [GroupMemoryItem]) -> [URL] {
     items.flatMap { item in
         (item.media ?? []).compactMap { media -> URL? in
@@ -312,6 +322,71 @@ struct MemoryMediaThumb: View {
             guard let url else { return }
             viewer = MemoryPhotoViewerState(urls: [url], initialIndex: 0)
         }
+        .fullScreenCover(item: $viewer) { state in
+            MemoryPhotoFullscreenViewer(
+                urls: state.urls,
+                initialIndex: state.initialIndex,
+                onDismiss: { viewer = nil }
+            )
+        }
+    }
+}
+
+/// Moments Shared Gallery "View all" — grid of every downloadable photo.
+struct MemoryGalleryListSheet: View {
+    let items: [GroupMemoryItem]
+    var chrome: MomentsChrome
+    var onDismiss: () -> Void
+
+    @State private var viewer: MemoryPhotoViewerState?
+
+    private var urls: [URL] { memoryGalleryUrls(from: items) }
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                Group {
+                    if urls.isEmpty {
+                        GroupEmptySection(message: "No photos yet", detail: "Add a memory with a photo from Quick Add.")
+                            .padding(.top, 24)
+                    } else {
+                        LazyVGrid(columns: columns, spacing: 8) {
+                            ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
+                                RemoteMemoryImage(url: url, placeholderColor: chrome.card)
+                                    .aspectRatio(1, contentMode: .fill)
+                                    .frame(maxWidth: .infinity)
+                                    .clipped()
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(chrome.border, lineWidth: 1)
+                                    )
+                                    .contentShape(RoundedRectangle(cornerRadius: 12))
+                                    .onTapGesture {
+                                        viewer = MemoryPhotoViewerState(urls: urls, initialIndex: index)
+                                    }
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(chrome.bg)
+            .navigationTitle("Shared Gallery")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close", action: onDismiss)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
         .fullScreenCover(item: $viewer) { state in
             MemoryPhotoFullscreenViewer(
                 urls: state.urls,

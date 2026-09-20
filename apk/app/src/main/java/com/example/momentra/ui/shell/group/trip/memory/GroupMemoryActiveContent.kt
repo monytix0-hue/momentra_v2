@@ -47,7 +47,6 @@ import com.example.momentra.ui.shell.group.shared.GroupMetricTile
 import com.example.momentra.ui.shell.group.shared.GroupProgressBar
 import com.example.momentra.ui.shell.group.shared.GroupSectionCard
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
-import com.example.momentra.ui.shell.group.shared.GroupApiGapBadge
 import com.example.momentra.ui.shell.group.shared.MemoryMediaThumb
 import com.example.momentra.ui.shell.group.shared.MemoryPhotoGalleryStrip
 import com.example.momentra.ui.shell.group.shared.loadGroupMemoryTab
@@ -155,8 +154,25 @@ fun GroupMemoryActiveContent(
             }
         }
 
-        GroupSectionCard(title = "Milestone Wall", badge = { GroupApiGapBadge() }) {
-            GroupEmptySection(message = "No milestones yet", detail = "Milestone capture is not live for groups.")
+        val milestones = remember(items) {
+            items.filter { it.memoryType.equals("MILESTONE", ignoreCase = true) }
+        }
+
+        GroupSectionCard(title = "Milestone Wall") {
+            if (milestones.isEmpty()) {
+                GroupEmptySection(
+                    message = "No milestones yet",
+                    detail = "Capture a Milestone from Quick Add.",
+                )
+            } else {
+                milestones.forEach { item ->
+                    MemoryTimelineRow(
+                        item = item,
+                        accent = Color(0xFFF59E0B),
+                        glyph = "⭐",
+                    )
+                }
+            }
         }
 
         GroupSectionCard(title = "Gallery") {

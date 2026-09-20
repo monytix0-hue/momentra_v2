@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGroupMember } from '../collaboration/group-membership';
-import { listMediaForMemories } from '../memory/memory-attachments';
+import { countMediaForMemories, listMediaForMemories } from '../memory/memory-attachments';
 import { listMetricsForScope, PHASE7_PULSE_METRIC_CODES } from '../analytics/engine';
 import {
   assembleTypedSignals,
@@ -682,8 +682,18 @@ export async function listGroupMoments(
   client: PoolClient,
   ctx: RequestContext,
   cursor: string | undefined,
-  limit: number
-): Promise<CursorPage<{ momentId: string; title: string; status: string; groupFamily: string; momentTypeCode: string }>> {
+  limit: number,
+  lifecycle: 'active' | 'completed' = 'active'
+): Promise<
+  CursorPage<{
+    momentId: string;
+    title: string;
+    status: string;
+    groupFamily: string;
+    momentTypeCode: string;
+    participantCount: number;
+  }>
+> {
   const safeLimit = Math.min(Math.max(limit, 1), 100);
   const params: unknown[] = [ctx.userId, safeLimit + 1];
   let cursorClause = '';
@@ -691,6 +701,13 @@ export async function listGroupMoments(
     cursorClause = 'AND m.updated_at < $3::timestamptz';
     params.push(cursor);
   }
+  const statusClause =
+    lifecycle === 'completed'
+      ? `m.status = 'COMPLETED'`
+      : `(
+         m.status = 'ACTIVE'
+         OR (m.status = 'DRAFT' AND (gmc.organizer_user_id = $1 OR m.created_by_user_id = $1))
+       )`;
   const rows = await client.query<{
     moment_id: string;
     title: string;
@@ -698,17 +715,20 @@ export async function listGroupMoments(
     group_family: string;
     moment_type_code: string;
     updated_at: Date;
+    participant_count: string;
   }>(
-    `SELECT m.moment_id, m.title, m.status, gmc.group_family, mt.code AS moment_type_code, m.updated_at
+    `SELECT m.moment_id, m.title, m.status, gmc.group_family, mt.code AS moment_type_code, m.updated_at,
+            (
+              SELECT COUNT(*)::text
+              FROM collaboration.moment_participant mpc
+              WHERE mpc.moment_id = m.moment_id AND mpc.status = 'ACTIVE'
+            ) AS participant_count
      FROM collaboration.group_moment_context gmc
      JOIN core.moment m ON m.moment_id = gmc.moment_id
      JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
      JOIN collaboration.moment_participant mp ON mp.moment_id = m.moment_id AND mp.user_id = $1
      WHERE mp.status = 'ACTIVE'
-       AND (
-         m.status = 'ACTIVE'
-         OR (m.status = 'DRAFT' AND (gmc.organizer_user_id = $1 OR m.created_by_user_id = $1))
-       ) ${cursorClause}
+       AND ${statusClause} ${cursorClause}
      ORDER BY m.updated_at DESC
      LIMIT $2`,
     params
@@ -722,6 +742,7 @@ export async function listGroupMoments(
       status: r.status,
       groupFamily: r.group_family,
       momentTypeCode: r.moment_type_code,
+      participantCount: Number(r.participant_count) || 0,
     })),
     nextCursor: hasMore ? slice[slice.length - 1].updated_at.toISOString() : null,
   };
@@ -1025,25 +1046,28 @@ export async function getGroupMomentProjection(
       memory_id: string;
       title: string | null;
       occurred_at: Date | null;
+      memory_type: string;
     }>(
-      `SELECT memory_id, title, occurred_at FROM memory.memory
+      `SELECT memory_id, title, occurred_at, memory_type FROM memory.memory
        WHERE moment_id = $1 AND status = 'ACTIVE'
        ORDER BY COALESCE(occurred_at, created_at) DESC
        LIMIT 100`,
       [momentId]
     );
-    const mediaByMemory = await listMediaForMemories(
-      client,
-      memories.rows.map((r) => r.memory_id)
-    );
+    const memoryIds = memories.rows.map((r) => r.memory_id);
+    const [mediaByMemory, mediaCounts] = await Promise.all([
+      listMediaForMemories(client, memoryIds, null),
+      countMediaForMemories(client, memoryIds),
+    ]);
     const items = memories.rows.map((r) => {
       const media = mediaByMemory.get(r.memory_id) ?? [];
       return {
         memoryId: r.memory_id,
         title: r.title,
         occurredAt: r.occurred_at?.toISOString() ?? null,
+        memoryType: r.memory_type,
         media,
-        mediaCount: media.length,
+        mediaCount: mediaCounts.get(r.memory_id) ?? media.length,
       };
     });
     return {

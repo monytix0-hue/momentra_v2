@@ -497,6 +497,22 @@ class GroupSliceRepository(
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 
+    /** Deletes a moment-scoped checklist/planning item only (seed catalog is unchanged). */
+    suspend fun deletePlanningItem(
+        momentId: String,
+        planningItemId: String,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ) = runCatching {
+        api.deletePlanningItem(momentId, planningItemId, idempotencyKey).data
+    }.recoverCatching { e ->
+        // Idempotent: stale checklist rows after a prior delete should not fail the UI.
+        val mapped = mapError(e)
+        if (mapped is com.example.momentra.data.api.ApiResultException.NotFound) {
+            return@recoverCatching com.example.momentra.data.api.IdResultDto(planningItemId = planningItemId)
+        }
+        throw mapped
+    }
+
     suspend fun createBooking(
         momentId: String,
         body: CreateBookingBody,
@@ -579,12 +595,18 @@ class GroupSliceRepository(
         title: String,
         capturedAt: String? = null,
         asDraft: Boolean? = null,
+        memoryType: String? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
     ) = runCatching {
         api.createMemory(
             momentId,
             idempotencyKey,
-            CreateMemoryBody(title = title, capturedAt = capturedAt, asDraft = asDraft),
+            CreateMemoryBody(
+                title = title,
+                capturedAt = capturedAt,
+                asDraft = asDraft,
+                memoryType = memoryType,
+            ),
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 

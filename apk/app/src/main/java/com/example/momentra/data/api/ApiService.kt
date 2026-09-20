@@ -121,6 +121,7 @@ interface ApiService {
     suspend fun listGroupMoments(
         @Query("cursor") cursor: String? = null,
         @Query("limit") limit: Int = 20,
+        @Query("lifecycle") lifecycle: String = "active",
     ): SuccessEnvelope<CursorPageDto<GroupMomentItemDto>>
 
     @GET("v1/business/moments")
@@ -675,6 +676,13 @@ interface ApiService {
         @Path("planningItemId") planningItemId: String,
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: UpdatePlanningItemBody,
+    ): SuccessEnvelope<IdResultDto>
+
+    @DELETE("v1/moments/{momentId}/planning-items/{planningItemId}")
+    suspend fun deletePlanningItem(
+        @Path("momentId") momentId: String,
+        @Path("planningItemId") planningItemId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
     ): SuccessEnvelope<IdResultDto>
 
     @GET("v1/group/moments/{momentId}/bookings")

@@ -491,6 +491,72 @@ struct ExpensesListSheet: View {
     }
 }
 
+struct UpdatesListSheet: View {
+    let items: [GroupUpdateItem]
+    var chrome: MomentsChrome
+    var onDismiss: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    if items.isEmpty {
+                        GroupEmptySection(message: "No updates yet", detail: "Share a status update from Quick Add.")
+                            .padding(.top, 24)
+                    } else {
+                        ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                            MomentsUpdateFeedRow(item: item, index: index, chrome: chrome)
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(chrome.bg)
+            .navigationTitle("Updates / Feed")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close", action: onDismiss)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+struct BookingsListSheet: View {
+    let items: [APIClient.GroupLifePayload.LifeInner.BookingItem]
+    var chrome: MomentsChrome
+    var onDismiss: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    if items.isEmpty {
+                        GroupEmptySection(message: "No bookings yet", detail: "Add a booking from Quick Add.")
+                            .padding(.top, 24)
+                    } else {
+                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                            MomentsBookingCard(booking: item, chrome: chrome)
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(chrome.bg)
+            .navigationTitle("Bookings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close", action: onDismiss)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
 struct MomentsUpcomingEvent: Identifiable {
     var id: String { "\(title)-\(detail)" }
     let title: String

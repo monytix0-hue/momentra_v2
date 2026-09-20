@@ -17,6 +17,8 @@ data class MomentSummary(
     val momentTypeCode: String? = null,
     /** Present for BUSINESS bootstrap moments — used for Company→Moment scoping. */
     val companyId: String? = null,
+    /** Present for GROUP bootstrap moments — active participant count. */
+    val participantCount: Int = 0,
 )
 
 fun MomentSummary.isActiveStatus(): Boolean =

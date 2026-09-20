@@ -62,8 +62,26 @@ struct GroupMemoryActiveView: View {
                                 }
                             }
                         }
-                        GroupSectionCard(title: "Milestone Wall", badge: { GroupApiGapBadge() }) {
-                            GroupEmptySection(message: "No milestones yet", detail: "Milestone capture is not live for groups.")
+                        GroupSectionCard(title: "Milestone Wall") {
+                            let milestones = items.filter {
+                                ($0.memoryType ?? "").caseInsensitiveCompare("MILESTONE") == .orderedSame
+                            }
+                            if milestones.isEmpty {
+                                GroupEmptySection(
+                                    message: "No milestones yet",
+                                    detail: "Capture a Milestone from Quick Add."
+                                )
+                            } else {
+                                ForEach(Array(milestones.enumerated()), id: \.offset) { index, item in
+                                    memoryRow(
+                                        title: item.title ?? "Milestone",
+                                        meta: formatMemoryInstant(item.occurredAt),
+                                        accent: Color(hex: "#F59E0B"),
+                                        glyph: "⭐",
+                                        thumbUrl: item.primaryDownloadUrl
+                                    )
+                                }
+                            }
                         }
                         GroupSectionCard(title: "Gallery") {
                             MemoryPhotoGalleryStrip(

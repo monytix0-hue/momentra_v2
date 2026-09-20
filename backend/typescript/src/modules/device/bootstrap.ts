@@ -15,6 +15,8 @@ export interface BootstrapMomentSummary {
   domainCode: 'PERSONAL' | 'GROUP' | 'BUSINESS';
   /** Required for BUSINESS moments so clients can scope Company → Moment. */
   companyId?: string | null;
+  /** Present for GROUP moments — active participant count for directory cards. */
+  participantCount?: number | null;
 }
 
 export interface BootstrapCompanySummary {
@@ -252,6 +254,7 @@ export async function getMeBootstrap(_client: PoolClient | null, ctx: RequestCon
         status: m.status,
         momentTypeCode: m.momentTypeCode ?? null,
         domainCode: 'GROUP' as const,
+        participantCount: m.participantCount ?? 0,
       })),
       business: businessPage.items.map((m) => ({
         momentId: m.momentId,

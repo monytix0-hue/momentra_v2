@@ -107,6 +107,7 @@ fun ExperienceChecklistSheetBody(
     }
     var submitting by remember { mutableStateOf(false) }
     var seeding by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val categoryLabels = GroupExperienceChecklistCatalog.categories.map { it.label }
@@ -135,7 +136,7 @@ fun ExperienceChecklistSheetBody(
     }
     PrimaryCta(
         label = if (isEditing) "Save" else "Add",
-        enabled = !momentId.isNullOrBlank() && title.isNotBlank() && !submitting && !seeding,
+        enabled = !momentId.isNullOrBlank() && title.isNotBlank() && !submitting && !seeding && !deleting,
         accent = accent,
         loading = submitting,
         onClick = {
@@ -171,7 +172,37 @@ fun ExperienceChecklistSheetBody(
             }
         },
     )
-    if (!isEditing) {
+    if (isEditing) {
+        Text(
+            if (deleting) "Deleting…" else "Delete from this moment",
+            color = Color(0xFFF87171),
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp,
+            fontFamily = PlusJakartaSans,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = !submitting && !deleting && !momentId.isNullOrBlank()) {
+                    val mid = momentId ?: return@clickable
+                    val itemId = editingItem?.planningItemId ?: return@clickable
+                    scope.launch {
+                        deleting = true
+                        error = null
+                        repository.deletePlanningItem(mid, itemId).fold(
+                            onSuccess = {
+                                deleting = false
+                                onSaved()
+                                onDismiss()
+                            },
+                            onFailure = {
+                                deleting = false
+                                error = it.message ?: "Could not delete checklist item"
+                            },
+                        )
+                    }
+                }
+                .padding(vertical = 8.dp),
+        )
+    } else {
         PrimaryCta(
             label = if (seeding) "Seeding…" else "Seed packing list",
             enabled = !momentId.isNullOrBlank() && !submitting && !seeding,
@@ -350,13 +381,15 @@ fun MomentsChecklistSection(
                                 modifier = Modifier.weight(1f),
                             )
                             if (!id.isNullOrBlank() && !momentId.isNullOrBlank()) {
-                                Icon(
-                                    imageVector = Icons.Filled.ChevronRight,
-                                    contentDescription = "Edit",
-                                    tint = chrome.secondary,
+                                Text(
+                                    "Edit",
+                                    color = chrome.accent,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = PlusJakartaSans,
                                     modifier = Modifier
-                                        .size(20.dp)
-                                        .clickable { editingItem = item },
+                                        .clickable { editingItem = item }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
                                 )
                             }
                         }

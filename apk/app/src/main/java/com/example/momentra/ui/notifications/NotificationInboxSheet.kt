@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,6 +47,7 @@ fun NotificationInboxSheet(
     onUnreadCountChanged: (Int) -> Unit = {},
     repository: AccountRepository = remember { AccountRepository() },
 ) {
+    val context = LocalContext.current
     var notifications by remember { mutableStateOf<List<NotificationInboxItemDto>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var errorText by remember { mutableStateOf<String?>(null) }
@@ -145,11 +147,21 @@ fun NotificationInboxSheet(
                                 scope.launch {
                                     repository.markNotificationsRead(listOf(item.notificationId))
                                 }
-                                val momentId = item.deepLink
-                                    ?.let { PendingDeepLink.parseMomentId(it) }
-                                    ?: item.momentId
                                 onClose()
-                                if (!momentId.isNullOrBlank()) onOpenMoment(momentId)
+                                val link = item.deepLink?.trim()?.takeIf { it.isNotEmpty() }
+                                    ?: item.momentId?.takeIf { it.isNotBlank() }?.let { "momentra://moment/$it" }
+                                if (!link.isNullOrBlank()) {
+                                    PendingDeepLink.offer(
+                                        link,
+                                        context,
+                                        userNotificationId = item.notificationId,
+                                    )
+                                } else {
+                                    val momentId = item.deepLink
+                                        ?.let { PendingDeepLink.parseMomentId(it) }
+                                        ?: item.momentId
+                                    if (!momentId.isNullOrBlank()) onOpenMoment(momentId)
+                                }
                             }
                         }
                     }

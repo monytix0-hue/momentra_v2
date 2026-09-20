@@ -593,6 +593,90 @@ fun ExpensesListSheet(
     }
 }
 
+/** Moments "View all" — full Updates / Feed list. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun UpdatesListSheet(
+    items: List<GroupLifeUpdateDto>,
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    chrome: MomentsChrome,
+) {
+    if (!visible) return
+    MomentraModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = chrome.bg,
+        skipPartiallyExpanded = false,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 4.dp)
+                    .size(width = 40.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(Color.White.copy(alpha = 0.2f)),
+            )
+        },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(
+                "Updates / Feed",
+                color = chrome.text,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = PlusJakartaSans,
+            )
+            if (items.isEmpty()) {
+                GroupEmptySection("No updates yet", "Share a status update from Quick Add.")
+            } else {
+                items.forEachIndexed { index, item ->
+                    MomentsUpdateFeedRow(item = item, index = index, chrome = chrome)
+                }
+            }
+        }
+    }
+}
+
+/** Moments "View all" — full Bookings list. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BookingsListSheet(
+    items: List<GroupLifeBookingDto>,
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    chrome: MomentsChrome,
+) {
+    if (!visible) return
+    MomentraModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = chrome.bg,
+        skipPartiallyExpanded = false,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 4.dp)
+                    .size(width = 40.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(Color.White.copy(alpha = 0.2f)),
+            )
+        },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(
+                "Bookings",
+                color = chrome.text,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = PlusJakartaSans,
+            )
+            if (items.isEmpty()) {
+                GroupEmptySection("No bookings yet", "Add a booking from Quick Add.")
+            } else {
+                items.forEach { MomentsBookingCard(it, chrome) }
+            }
+        }
+    }
+}
+
 @Composable
 private fun MomentsExpenseSummaryTile(
     label: String,

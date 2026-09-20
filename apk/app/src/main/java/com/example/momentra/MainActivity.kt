@@ -89,22 +89,30 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleDeepLinkIntent(intent: Intent?) {
-        val fromExtra = intent?.getStringExtra(
+        if (intent == null) return
+        val fromExtra = intent.getStringExtra(
             com.example.momentra.data.device.MomentraFirebaseMessagingService.EXTRA_DEEP_LINK,
         )
-        val notifId = intent?.getStringExtra(
+        val fromFcmDeepLink = intent.getStringExtra("deepLink")
+        val fromMomentId = intent.getStringExtra("momentId")
+            ?.takeIf { it.isNotBlank() }
+            ?.let { "momentra://moment/$it" }
+        val link = listOf(fromExtra, fromFcmDeepLink, fromMomentId).firstOrNull { !it.isNullOrBlank() }
+        val notifId = intent.getStringExtra(
             com.example.momentra.data.device.MomentraFirebaseMessagingService.EXTRA_USER_NOTIFICATION_ID,
-        )
-        if (!fromExtra.isNullOrBlank()) {
+        ) ?: intent.getStringExtra("userNotificationId")
+            ?: intent.getStringExtra("user_notification_id")
+        if (!link.isNullOrBlank()) {
             com.example.momentra.data.local.PendingDeepLink.offer(
-                fromExtra,
+                link,
                 this,
                 userNotificationId = notifId,
             )
             return
         }
-        val data = intent?.data?.toString() ?: return
+        val data = intent.data?.toString() ?: return
         if (data.startsWith("momentra://moment", ignoreCase = true) ||
+            data.startsWith("momentra://moments", ignoreCase = true) ||
             data.startsWith("momentra://inbox", ignoreCase = true)
         ) {
             com.example.momentra.data.local.PendingDeepLink.offer(data, this, userNotificationId = notifId)

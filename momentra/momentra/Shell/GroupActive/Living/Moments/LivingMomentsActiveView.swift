@@ -26,6 +26,8 @@ struct LivingMomentsActiveView: View {
     @State private var selectedPollId: String?
     @State private var pollsListOpen = false
     @State private var scheduleOpen = false
+    @State private var updatesOpen = false
+    @State private var galleryOpen = false
     @State private var title: String?
     @State private var loading = true
     @State private var error: String?
@@ -93,6 +95,20 @@ struct LivingMomentsActiveView: View {
                 polls: listPolls,
                 onDismiss: { pollsListOpen = false },
                 onChanged: { Task { await load() } }
+            )
+        }
+        .sheet(isPresented: $updatesOpen) {
+            UpdatesListSheet(
+                items: updates,
+                chrome: chrome,
+                onDismiss: { updatesOpen = false }
+            )
+        }
+        .sheet(isPresented: $galleryOpen) {
+            MemoryGalleryListSheet(
+                items: listMemoryItems,
+                chrome: chrome,
+                onDismiss: { galleryOpen = false }
             )
         }
         .sheet(item: Binding(
@@ -225,7 +241,9 @@ struct LivingMomentsActiveView: View {
                         }
                     }
 
-                    MomentsSectionHeader(title: "Updates / Feed  📱", chrome: chrome)
+                    MomentsSectionHeader(title: "Updates / Feed  📱", chrome: chrome, onViewAll: {
+                        updatesOpen = true
+                    })
                     if updates.isEmpty {
                         GroupEmptySection(message: "No updates yet", detail: "Share a status update from Quick Add.")
                     } else {
@@ -234,7 +252,9 @@ struct LivingMomentsActiveView: View {
                         }
                     }
 
-                    MomentsSectionHeader(title: "Shared Gallery  📸", chrome: chrome)
+                    MomentsSectionHeader(title: "Shared Gallery  📸", chrome: chrome, onViewAll: {
+                        galleryOpen = true
+                    })
                     MemoryPhotoGalleryStrip(
                         items: listMemoryItems,
                         emptyMessage: "Gallery empty",

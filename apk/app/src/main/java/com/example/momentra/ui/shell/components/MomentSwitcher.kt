@@ -52,6 +52,7 @@ import com.example.momentra.ui.theme.ShellTokens
 /**
  * Figma moment / module switcher chrome.
  * Collapsed by default — title row only; tap to expand module pills.
+ * When [useDirectorySelector] is true (Group), title/chevron opens [onOpenDirectory] instead of pills.
  */
 @Composable
 fun MomentSwitcher(
@@ -63,6 +64,9 @@ fun MomentSwitcher(
     onSelectMoment: (String) -> Unit = {},
     onSettings: () -> Unit = {},
     onInvite: (() -> Unit)? = null,
+    /** Group-only: open full Active Moments directory instead of inline pills. */
+    useDirectorySelector: Boolean = false,
+    onOpenDirectory: (() -> Unit)? = null,
     accent: Color = MomentraBrandColors.Cta,
     modifier: Modifier = Modifier,
 ) {
@@ -79,8 +83,17 @@ fun MomentSwitcher(
         !selectedTitle.isNullOrBlank() && selectedMomentId != null -> listOf(selectedMomentId to selectedTitle)
         else -> emptyList()
     }
-    val canExpand = pills.size > 1
+    val canExpandPills = !useDirectorySelector && pills.size > 1
+    val canOpenDirectory = useDirectorySelector && !isEmpty && !isLoading &&
+        (pills.isNotEmpty() || !selectedTitle.isNullOrBlank())
     val canOpenSettings = selectedMomentId != null && !isEmpty && !isLoading
+
+    fun onTitleTap() {
+        when {
+            useDirectorySelector && canOpenDirectory -> onOpenDirectory?.invoke()
+            canExpandPills -> expanded = !expanded
+        }
+    }
 
     Column(
         modifier = modifier
@@ -105,7 +118,10 @@ fun MomentSwitcher(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(enabled = canExpand) { expanded = !expanded },
+                    .clickable(
+                        enabled = canExpandPills || canOpenDirectory,
+                        onClick = { onTitleTap() },
+                    ),
             ) {
                 Box(
                     modifier = Modifier
@@ -148,14 +164,22 @@ fun MomentSwitcher(
                         .padding(6.dp)
                         .testTag("moment.switcher.settings"),
                 )
-                if (canExpand) {
+                if (canExpandPills || canOpenDirectory) {
                     Icon(
-                        if (expanded) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
-                        contentDescription = if (expanded) "Collapse moment switcher" else "Expand moment switcher",
+                        if (!useDirectorySelector && expanded) {
+                            Icons.Outlined.KeyboardArrowUp
+                        } else {
+                            Icons.Outlined.KeyboardArrowDown
+                        },
+                        contentDescription = when {
+                            useDirectorySelector -> "Open moment directory"
+                            expanded -> "Collapse moment switcher"
+                            else -> "Expand moment switcher"
+                        },
                         tint = MomentraBrandColors.TextOnDark,
                         modifier = Modifier
                             .size(28.dp)
-                            .clickable { expanded = !expanded }
+                            .clickable { onTitleTap() }
                             .padding(5.dp),
                     )
                 }
@@ -163,7 +187,7 @@ fun MomentSwitcher(
         }
 
         AnimatedVisibility(
-            visible = expanded && pills.isNotEmpty(),
+            visible = !useDirectorySelector && expanded && pills.isNotEmpty(),
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically(),
         ) {

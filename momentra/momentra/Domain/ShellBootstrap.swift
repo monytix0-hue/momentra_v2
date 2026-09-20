@@ -69,7 +69,13 @@ extension MeBootstrap {
                 MomentSummary(momentId: $0.momentId, title: $0.title, status: $0.status, momentTypeCode: $0.momentTypeCode)
             },
             groupMoments: (activeMoments?.group ?? []).map {
-                MomentSummary(momentId: $0.momentId, title: $0.title, status: $0.status, momentTypeCode: $0.momentTypeCode)
+                MomentSummary(
+                    momentId: $0.momentId,
+                    title: $0.title,
+                    status: $0.status,
+                    momentTypeCode: $0.momentTypeCode,
+                    participantCount: $0.participantCount ?? 0
+                )
             },
             businessMoments: (activeMoments?.business ?? []).map {
                 MomentSummary(
