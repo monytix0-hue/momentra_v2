@@ -135,13 +135,11 @@ fun GroupPulseActiveContent(
                     insights = data.insights
                     loading = false
                     val widgetPlaces = TripPulseDestinations.fromWidget(data.pulse?.widgetPayload)
-                    destinations = if (widgetPlaces.isNotEmpty()) {
-                        widgetPlaces
-                    } else {
-                        MomentCreateRepository().getGroupSetupPrefill(momentId).getOrNull()
-                            ?.let { TripPulseDestinations.fromPrefill(it) }
-                            .orEmpty()
-                    }
+                    val prefillPlaces = MomentCreateRepository().getGroupSetupPrefill(momentId).getOrNull()
+                        ?.let { TripPulseDestinations.fromPrefill(it) }
+                        .orEmpty()
+                    // Prefer fresh setup prefill after edit; fall back to pulse widget.
+                    destinations = if (prefillPlaces.isNotEmpty()) prefillPlaces else widgetPlaces
                     launch {
                         enrichGroupPulseTab(repository, momentId).onSuccess { enriched ->
                             insights = enriched.insights

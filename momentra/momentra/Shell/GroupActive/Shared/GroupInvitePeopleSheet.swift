@@ -22,11 +22,21 @@ struct GroupInvitePeopleSheet: View {
     @State private var addingGuest = false
 
     private let sheetBg = TripSheetTokens.bg
-    private let roleOptions: [(code: String, label: String)] = [
-        ("PARTICIPANT", "Member"),
-        ("ORGANIZER", "Organizer"),
-        ("OBSERVER", "Viewer"),
-    ]
+    private var roleOptions: [(code: String, label: String)] {
+        if GroupExperienceFamily.forTypeCode(momentTypeCode).isThemedExperience {
+            [
+                ("PARTICIPANT", "Member"),
+                ("ORGANIZER", "Organiser"),
+                ("OBSERVER", "Viewer"),
+            ]
+        } else {
+            [
+                ("PARTICIPANT", "Member"),
+                ("ORGANIZER", "Organizer"),
+                ("OBSERVER", "Viewer"),
+            ]
+        }
+    }
 
     private var displayPath: String? {
         inviteCode.map { GroupInviteLink.displayPath(code: $0) }
@@ -248,7 +258,10 @@ struct GroupInvitePeopleSheet: View {
 
     private func displayRoleLabel(_ roleCode: String?) -> String {
         switch (roleCode ?? "").uppercased() {
-        case "ORGANIZER", "CO_ORGANIZER": return "Organizer"
+        case "ORGANIZER", "CO_ORGANIZER":
+            return GroupExperienceFamily.forTypeCode(momentTypeCode).isThemedExperience
+                ? "Organiser"
+                : "Organizer"
         case "OBSERVER", "VIEWER": return "Viewer"
         case "RESIDENT": return "Resident"
         case "CONTRIBUTOR": return "Contributor"

@@ -29,6 +29,7 @@ import * as notificationPrefs from '../../modules/notifications/preferences';
 import * as notificationInbox from '../../modules/notifications/inbox';
 import * as notificationMetrics from '../../modules/notifications/metrics';
 import * as momentService from '../../modules/moment/service';
+import * as storyService from '../../modules/story/service';
 import * as workService from '../../modules/work/service';
 import * as financeService from '../../modules/finance/service';
 import * as financialAccountService from '../../modules/finance/financial-account';
@@ -1618,6 +1619,45 @@ v1Router.post('/moments/:momentId/archive', requireIdempotencyKey, async (req, r
   }
 });
 
+v1Router.post('/moments/:momentId/completion-review', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      momentService.completionReview(client, ctx, param(req.params.momentId))
+    );
+    res.json({ data, meta: { correlationId: ctx.correlationId } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/moments/:momentId/complete', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const expectedVersion = parseVersion(req.body);
+    const result = await withDb((client) =>
+      momentService.completeMoment(client, ctx, param(req.params.momentId), expectedVersion)
+    );
+    res.json(commandEnvelope(result, ctx.correlationId, { resourceVersion: result.version }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/moments/:momentId/reopen', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const expectedVersion = parseVersion(req.body);
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+    const result = await withDb((client) =>
+      momentService.reopenMoment(client, ctx, param(req.params.momentId), expectedVersion, reason)
+    );
+    res.json(commandEnvelope(result, ctx.correlationId, { resourceVersion: result.version }));
+  } catch (e) {
+    next(e);
+  }
+});
+
 v1Router.post('/moments/:momentId/cancel', requireIdempotencyKey, async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
@@ -1653,6 +1693,101 @@ v1Router.delete('/moments/:momentId', requireIdempotencyKey, async (req, res, ne
       momentService.deleteMoment(client, ctx, param(req.params.momentId), expectedVersion)
     );
     res.json(commandEnvelope(result, ctx.correlationId, { resourceVersion: result.version }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/moments/:momentId/story-status', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      storyService.getMomentStoryStatus(client, ctx, param(req.params.momentId))
+    );
+    res.json({ data, meta: { correlationId: ctx.correlationId } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/moments/:momentId/story', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      storyService.getMomentStory(client, ctx, param(req.params.momentId))
+    );
+    res.json({ data, meta: { correlationId: ctx.correlationId } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/moments/:momentId/stories', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      storyService.regenerateMomentStory(client, ctx, param(req.params.momentId))
+    );
+    res.json(commandEnvelope(data, ctx.correlationId));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/moments/:momentId/story/share-pack', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      storyService.getSharePack(client, ctx, param(req.params.momentId))
+    );
+    res.json({ data, meta: { correlationId: ctx.correlationId } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/stories/:storyId/artifacts/:artifactType', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      storyService.getStoryArtifact(
+        client,
+        ctx,
+        param(req.params.storyId),
+        param(req.params.artifactType)
+      )
+    );
+    if (String(req.query.download ?? '') === '1') {
+      res.setHeader('Content-Type', data.contentType);
+      res.setHeader('Content-Disposition', `inline; filename="${data.artifactId}"`);
+      res.send(data.body);
+      return;
+    }
+    res.json({ data, meta: { correlationId: ctx.correlationId } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/stories/:storyId/shares', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      storyService.createStoryShare(client, ctx, param(req.params.storyId))
+    );
+    res.json(commandEnvelope(data, ctx.correlationId));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.delete('/story-shares/:shareId', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      storyService.revokeStoryShare(client, ctx, param(req.params.shareId))
+    );
+    res.json(commandEnvelope(data, ctx.correlationId));
   } catch (e) {
     next(e);
   }

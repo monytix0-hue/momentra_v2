@@ -72,7 +72,7 @@ struct ExperienceActiveTheme {
         healthLabel: "Party Health",
         hubHeroAssetName: "HousePartyHubHero",
         heroEmoji: "🎉",
-        participantRoles: ["Host", "Co-host", "Guest"],
+        participantRoles: ["Host", "Member", "Viewer"],
         participantSubtitle: "Invite and manage party guest list",
         heroGradientColors: [Color(hex: "#60A5FA"), Color(hex: "#2563EB")],
         pulseHeroGradientColors: [Color(hex: "#669EFA"), Color(hex: "#2659D9").opacity(0.85)],
@@ -114,7 +114,7 @@ struct ExperienceActiveTheme {
         healthLabel: "Team Health",
         hubHeroAssetName: "OfficeOutingHubHero",
         heroEmoji: "🧳",
-        participantRoles: ["Organizer", "Teammate", "Guest"],
+        participantRoles: ["Organiser", "Member", "Viewer"],
         participantSubtitle: "Invite and manage outing attendees",
         heroGradientColors: [Color(hex: "#2DD4BF"), Color(hex: "#0F766E")],
         pulseHeroGradientColors: [Color(hex: "#2DD4BF"), Color(hex: "#0F766E").opacity(0.9)],
@@ -136,6 +136,18 @@ struct ExperienceActiveTheme {
         switch family {
         case .officeOuting: return .officeOuting
         default: return .houseParty
+        }
+    }
+
+    /// Maps celebration UI role chips to DB participant_role codes.
+    static func roleCode(forLabel label: String) -> String {
+        switch label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "host", "co-host", "cohost", "organizer", "organiser":
+            return "ORGANIZER"
+        case "viewer", "observer":
+            return "OBSERVER"
+        default:
+            return "PARTICIPANT"
         }
     }
 }
@@ -238,7 +250,7 @@ struct ExperienceEmojiChip: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.85)
+        .opacity(enabled ? 1 : 0.45)
     }
 }
 

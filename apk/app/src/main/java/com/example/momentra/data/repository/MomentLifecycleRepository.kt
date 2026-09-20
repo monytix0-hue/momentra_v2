@@ -70,6 +70,15 @@ class MomentLifecycleRepository(
             ).data
         }.recoverCatching { e -> throw mapError(e) }
 
+    suspend fun complete(momentId: String, expectedVersion: Long): Result<MomentLifecycleResultDto> =
+        runCatching {
+            api.completeMoment(
+                momentId = momentId,
+                idempotencyKey = UUID.randomUUID().toString(),
+                body = MomentVersionBody(expectedVersion = expectedVersion),
+            ).data
+        }.recoverCatching { e -> throw mapError(e) }
+
     suspend fun delete(momentId: String, expectedVersion: Long): Result<MomentLifecycleResultDto> =
         runCatching {
             api.deleteMoment(

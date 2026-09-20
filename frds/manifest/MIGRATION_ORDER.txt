@@ -85,3 +85,4 @@ V084__rebuild_contribution_totals.sql
 V085__notification_cadence.sql
 V086__derived_notification_signals.sql
 V087__notification_decision_audit.sql
+V088__moment_story.sql

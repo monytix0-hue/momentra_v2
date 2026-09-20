@@ -525,13 +525,10 @@ struct GroupPulseActiveView: View {
                 }
             }
             let widgetPlaces = TripPulseDestinations.fromWidget(tab.pulse?.payload?.widgetPayload)
-            if !widgetPlaces.isEmpty {
-                destinations = widgetPlaces
-            } else if let prefill = try? await APIClient.shared.getGroupSetupPrefill(momentId: momentId) {
-                destinations = TripPulseDestinations.fromPrefill(prefill)
-            } else {
-                destinations = []
-            }
+            let prefillPlaces = (try? await APIClient.shared.getGroupSetupPrefill(momentId: momentId))
+                .map { TripPulseDestinations.fromPrefill($0) } ?? []
+            // Prefer fresh setup prefill after edit; fall back to pulse widget.
+            destinations = !prefillPlaces.isEmpty ? prefillPlaces : widgetPlaces
             Task {
                 if let enriched = await GroupTabLoad.enrich(momentId: momentId) {
                     await MainActor.run { insights = enriched.insights }

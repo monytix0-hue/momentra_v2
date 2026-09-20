@@ -43,4 +43,48 @@ final class GroupActivityCategoryFilterTests: XCTestCase {
         XCTAssertTrue(GroupActivityCategoryFilter.matches(activityCode: "POLL_CREATED", chipId: "poll"))
         XCTAssertFalse(GroupActivityCategoryFilter.matches(activityCode: "POLL_CREATED", chipId: "memory"))
     }
+
+    func testChecklistCodesExclusiveFromPlanning() {
+        XCTAssertTrue(
+            GroupActivityCategoryFilter.matches(
+                activityCode: "GROUP_CHECKLIST_ITEM_CREATED",
+                chipId: "checklist"
+            )
+        )
+        XCTAssertFalse(
+            GroupActivityCategoryFilter.matches(
+                activityCode: "GROUP_CHECKLIST_ITEM_CREATED",
+                chipId: "planning"
+            )
+        )
+        XCTAssertTrue(
+            GroupActivityCategoryFilter.matches(
+                activityCode: "GROUP_PLANNING_ITEM_CREATED",
+                chipId: "planning"
+            )
+        )
+        XCTAssertFalse(
+            GroupActivityCategoryFilter.matches(
+                activityCode: "GROUP_PLANNING_ITEM_CREATED",
+                chipId: "checklist"
+            )
+        )
+    }
+
+    func testLegacyPlanningWithChecklistCategoryMapsToChecklist() {
+        XCTAssertTrue(
+            GroupActivityCategoryFilter.matches(
+                activityCode: "GROUP_PLANNING_ITEM_CREATED",
+                chipId: "checklist",
+                categoryCode: "DOCUMENTS_MONEY"
+            )
+        )
+        XCTAssertFalse(
+            GroupActivityCategoryFilter.matches(
+                activityCode: "GROUP_PLANNING_ITEM_CREATED",
+                chipId: "planning",
+                categoryCode: "DOCUMENTS_MONEY"
+            )
+        )
+    }
 }

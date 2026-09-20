@@ -56,6 +56,7 @@ fun ExperienceQuickAddHub(
     onCreateMoment: () -> Unit = {},
     onJoinCode: (String) -> Unit = {},
     capabilities: List<String>? = null,
+    viewerReadOnly: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var search by remember { mutableStateOf("") }
@@ -184,7 +185,7 @@ fun ExperienceQuickAddHub(
                 val tile = kind.hubTileSpec()
                 ExperienceHubTile(
                     tile = tile,
-                    enabled = hasActiveMoment,
+                    enabled = hasActiveMoment && !viewerReadOnly,
                     columnCount = window.hubColumnCount,
                     tileMinHeight = window.hubTileMinHeight,
                     tileMaxHeight = window.hubTileMaxHeight,

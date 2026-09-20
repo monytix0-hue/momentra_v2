@@ -17,6 +17,29 @@ export type GovernanceDecision = { allowed: true } | { allowed: false; reason: s
 
 const FAIL_CLOSED_ACTIONS = new Set(['EXPENSE_CREATE', 'SETTLEMENT_RECORD']);
 
+/** Write/create actions viewers (OBSERVER) must not perform. */
+const OBSERVER_DENIED_ACTIONS = new Set([
+  'EXPENSE_CREATE',
+  'SETTLEMENT_RECORD',
+  'CONTRIBUTION_RECORD',
+  'PLANNING_ITEM_CREATE',
+  'BOOKING_CREATE',
+  'POLL_CREATE',
+  'MEMORY_CREATE',
+  'UPDATE_CREATE',
+  'PARTICIPANT_MANAGE',
+  'PURCHASE_ITEM_CREATE',
+  'RESIDENT_MANAGE',
+  'VENDOR_CREATE',
+  'ATTENDANCE_UPDATE',
+  'BUDGET_UPDATE',
+  'MOMENT_UPDATE',
+  'MOMENT_COMPLETE',
+  'MOMENT_REOPEN',
+  'MOMENT_ARCHIVE',
+  'MOMENT_CANCEL',
+]);
+
 /**
  * Authorize an action against canonical backend state.
  * Client-supplied userId/companyId/groupId are never trusted as authority —
@@ -47,6 +70,8 @@ export async function authorize(
       ok: boolean;
       domain_code: string | null;
       moment_type_id: string | null;
+      participant_role: string | null;
+      is_organizer: boolean;
     }>(
       `SELECT
          EXISTS (
@@ -67,11 +92,29 @@ export async function authorize(
              )
          ) AS ok,
          (SELECT domain_code FROM core.moment WHERE moment_id = $2) AS domain_code,
-         (SELECT moment_type_id FROM core.moment WHERE moment_id = $2) AS moment_type_id`,
+         (SELECT moment_type_id FROM core.moment WHERE moment_id = $2) AS moment_type_id,
+         (
+           SELECT UPPER(mp.participant_role)
+           FROM collaboration.moment_participant mp
+           WHERE mp.moment_id = $2 AND mp.user_id = $1 AND mp.status = 'ACTIVE'
+           LIMIT 1
+         ) AS participant_role,
+         EXISTS (
+           SELECT 1 FROM collaboration.group_moment_context gmc
+           WHERE gmc.moment_id = $2 AND gmc.organizer_user_id = $1
+         ) AS is_organizer`,
       [ctx.userId, input.momentId]
     );
     if (!access.rows[0]?.ok) {
       return { allowed: false, reason: 'Not permitted for this moment scope.' };
+    }
+
+    const role = access.rows[0].participant_role;
+    const isObserver =
+      !access.rows[0].is_organizer &&
+      (role === 'OBSERVER' || role === 'VIEWER');
+    if (isObserver && OBSERVER_DENIED_ACTIONS.has(input.actionCode)) {
+      return { allowed: false, reason: 'Viewers can view but not create or edit.' };
     }
 
     // V019 contract: catalog capabilities must be mapped on the moment type.

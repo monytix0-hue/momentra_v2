@@ -41,14 +41,17 @@ import com.example.momentra.ui.shell.group.shared.GroupActiveLoading
 import com.example.momentra.ui.shell.group.shared.GroupActivityRow
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
 import com.example.momentra.ui.shell.group.shared.GroupFinanceFormat
+import com.example.momentra.ui.shell.group.shared.GroupParticipantsSheet
 import com.example.momentra.ui.shell.group.shared.GroupPulseInsightsHeroCard
 import com.example.momentra.ui.shell.group.shared.GroupProgressBar
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.TripPulseDestinations
 import com.example.momentra.ui.shell.group.shared.enrichGroupPulseTab
 import com.example.momentra.ui.shell.group.shared.groupActivityAccentCycle
 import com.example.momentra.ui.shell.group.shared.groupActivityNodeHasVoidChild
 import com.example.momentra.ui.shell.group.shared.groupActivityTree
 import com.example.momentra.ui.shell.group.shared.loadGroupPulseTab
+import com.example.momentra.data.repository.MomentCreateRepository
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.math.BigDecimal
 import java.time.Instant
@@ -78,6 +81,7 @@ fun ExperiencePulseActiveContent(
     momentTitle: String?,
     refreshToken: Long,
     momentTypeCode: String? = null,
+    viewerReadOnly: Boolean = false,
     onAddExpense: () -> Unit,
     onOpenQuickAdd: () -> Unit = onAddExpense,
     onViewSplits: () -> Unit = onAddExpense,
@@ -97,6 +101,8 @@ fun ExperiencePulseActiveContent(
     var error by remember { mutableStateOf<String?>(null) }
     var editingExpenseId by remember { mutableStateOf<String?>(null) }
     var reloadNonce by remember { mutableStateOf(0) }
+    var crewViewAllOpen by remember { mutableStateOf(false) }
+    var destinations by remember { mutableStateOf<List<String>>(emptyList()) }
 
     LaunchedEffect(refreshToken, momentId, reloadNonce) {
         if (momentId.isNullOrBlank()) {
@@ -123,6 +129,11 @@ fun ExperiencePulseActiveContent(
                 enrichGroupPulseTab(repository, momentId).onSuccess { enriched ->
                     insights = enriched.insights
                 }
+                val widgetPlaces = TripPulseDestinations.fromWidget(data.pulse?.widgetPayload)
+                val prefillPlaces = MomentCreateRepository().getGroupSetupPrefill(momentId).getOrNull()
+                    ?.let { TripPulseDestinations.fromPrefill(it) }
+                    .orEmpty()
+                destinations = if (prefillPlaces.isNotEmpty()) prefillPlaces else widgetPlaces
             },
             onFailure = { e ->
                 error = e.message
@@ -174,6 +185,22 @@ fun ExperiencePulseActiveContent(
                 GlassChip(if (dateLabel != null) "${theme.typeLabel} • $dateLabel" else theme.typeLabel)
             }
             Text(displayTitle, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+            if (destinations.isNotEmpty()) {
+                val subtitle = TripPulseDestinations.heroSubtitle(destinations, participantCount)
+                    .replace("Trip ·", "${theme.typeLabel} ·")
+                Text(
+                    subtitle,
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = PlusJakartaSans,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    destinations.take(4).forEach { place ->
+                        GlassChip(place)
+                    }
+                }
+            }
             if (dateLabel != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(dateLabel, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
@@ -212,8 +239,8 @@ fun ExperiencePulseActiveContent(
                     theme = theme,
                     label = label,
                     emoji = emoji,
-                    enabled = true,
-                    onClick = { onQuickAddKind(kind) },
+                    enabled = !viewerReadOnly,
+                    onClick = { if (!viewerReadOnly) onQuickAddKind(kind) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -267,7 +294,22 @@ fun ExperiencePulseActiveContent(
             }
         }
 
-        ExperienceSectionCard(theme = theme, title = theme.crewTitle) {
+        ExperienceSectionCard(
+            theme = theme,
+            title = theme.crewTitle,
+            trailing = {
+                if (participants.size > 5 || positions.size > 5) {
+                    Text(
+                        "View all",
+                        color = theme.accentLight,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier.clickable { crewViewAllOpen = true },
+                    )
+                }
+            },
+        ) {
             if (participants.isEmpty() && positions.isEmpty()) {
                 ExperienceEmptyBlock(theme, "No participation data yet", "Invite people or record shared expenses.")
             } else if (participants.isNotEmpty()) {
@@ -427,6 +469,14 @@ fun ExperiencePulseActiveContent(
             },
             expenseId = editId,
             momentTypeCode = momentTypeCode,
+        )
+    }
+    if (mid != null && crewViewAllOpen) {
+        GroupParticipantsSheet(
+            momentId = mid,
+            visible = true,
+            onDismiss = { crewViewAllOpen = false },
+            isWedding = false,
         )
     }
 }

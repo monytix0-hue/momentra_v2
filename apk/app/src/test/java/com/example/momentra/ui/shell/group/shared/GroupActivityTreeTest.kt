@@ -20,6 +20,17 @@ class GroupActivityTreeTest {
     }
 
     @Test
+    fun amountLabelParsesCommaSeparated() {
+        val item = activity(
+            code = "GROUP_EXPENSE_RECORDED",
+            amount = "1,234.50",
+            currency = "INR",
+            expenseId = "e1",
+        )
+        assertEquals("₹1234.50", groupActivityAmountLabel(item))
+    }
+
+    @Test
     fun nestsVoidedUnderRecorded() {
         val recorded = activity(
             code = "GROUP_EXPENSE_RECORDED",
@@ -51,6 +62,51 @@ class GroupActivityTreeTest {
         assertTrue(groupActivityNodeHasVoidChild(expenseNode))
         assertEquals("Sam deleted this activity", groupActivityRowTitle(expenseNode.children[0], isChild = true))
         assertFalse(tree.any { it.item.activityCode == "GROUP_EXPENSE_VOIDED" })
+    }
+
+    @Test
+    fun sortsByLatestChildSoVoidFloatsAboveOlderPeers() {
+        val recorded = activity(
+            code = "GROUP_EXPENSE_RECORDED",
+            title = "Lunch",
+            occurredAt = "2026-09-10T10:00:00Z",
+            amount = "100.0000",
+            expenseId = "e1",
+        )
+        val voided = activity(
+            code = "GROUP_EXPENSE_VOIDED",
+            title = "Lunch",
+            occurredAt = "2026-09-13T12:00:00Z",
+            amount = "100.0000",
+            expenseId = "e1",
+            actor = "Sam",
+        )
+        val other = activity(
+            code = "GROUP_POLL_CREATED",
+            title = "Poll",
+            occurredAt = "2026-09-12T09:00:00Z",
+        )
+
+        val tree = groupActivityTree(listOf(recorded, other, voided))
+        assertEquals("e1", tree.first().item.activityPayload?.expenseId)
+        assertEquals("GROUP_EXPENSE_VOIDED", tree.first().children.first().activityCode)
+    }
+
+    @Test
+    fun orphanVoidUsesDeletedTitle() {
+        val voided = activity(
+            code = "GROUP_EXPENSE_VOIDED",
+            title = "Lunch",
+            occurredAt = "2026-09-11T12:00:00Z",
+            amount = "100.0000",
+            expenseId = "e1",
+            actor = "Sam",
+        )
+        val tree = groupActivityTree(listOf(voided))
+        assertEquals(1, tree.size)
+        assertEquals("GROUP_EXPENSE_VOIDED", tree[0].item.activityCode)
+        assertEquals("Sam deleted this activity", groupActivityRowTitle(tree[0].item, isChild = false))
+        assertTrue(groupActivityNodeHasVoidChild(tree[0]))
     }
 
     private fun activity(

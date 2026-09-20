@@ -14,6 +14,7 @@ struct AppShellView: View {
     @State private var groupBudgetSheetPresented = false
     @State private var groupParticipantsSheetPresented = false
     @State private var groupInviteSheetPresented = false
+    @State private var groupViewerReadOnly = false
     @State private var groupCollabKind: GroupCollabKind? = nil
     @State private var groupFinancePresented = false
     @State private var groupSplitsPresented = false
@@ -37,6 +38,7 @@ struct AppShellView: View {
     @State private var newMomentOpen = false
     @State private var groupCreatePhase: GroupCreatePhase = .chooser
     @State private var showManageMoment = false
+    @State private var showMomentStory = false
     @State private var editSetupTarget: EditMomentSetupTarget? = nil
     @State private var showJoinQrScanner = false
     @State private var showReferComingSoon = false
@@ -103,6 +105,9 @@ struct AppShellView: View {
             .onChange(of: identity.userId) { _, _ in
                 model.bindIdentity(identity)
             }
+            .task(id: "\(model.selectedMomentId ?? "")-\(identity.userId)") {
+                await refreshGroupViewerReadOnly()
+            }
             .onChange(of: model.selectedContext) { _, _ in
                 newMomentOpen = false
                 groupCreatePhase = .chooser
@@ -148,11 +153,24 @@ struct AppShellView: View {
                     onLifecycleChanged: {
                         model.reloadCurrentContext()
                     },
+                    onCompleted: {
+                        showManageMoment = false
+                        showMomentStory = true
+                        model.reloadCurrentContext()
+                    },
                     onLeft: {
                         showManageMoment = false
                         model.clearSelectedMomentAfterLeave()
                     }
                 )
+                .preferredColorScheme(.dark)
+            }
+        }
+        .fullScreenCover(isPresented: $showMomentStory) {
+            if let momentId = model.selectedMomentId {
+                MomentStoryViewerView(momentId: momentId) {
+                    showMomentStory = false
+                }
                 .preferredColorScheme(.dark)
             }
         }
@@ -168,6 +186,10 @@ struct AppShellView: View {
                     onClose: { editSetupTarget = nil },
                     onSaved: {
                         editSetupTarget = nil
+                        if let mid = model.selectedMomentId {
+                            GroupTabDataCache.invalidateMoment(mid)
+                        }
+                        model.refreshVisibleGroupTab(forcePrefetch: true)
                         model.reloadCurrentContext()
                     }
                 )
@@ -204,7 +226,11 @@ struct AppShellView: View {
             }
         }
         .sheet(isPresented: $groupExpenseSheetPresented) {
-            if let momentId = model.selectedMomentId {
+            if groupViewerReadOnly {
+                Text("Viewers can view but not add expenses.")
+                    .padding(24)
+                    .onAppear { groupExpenseSheetPresented = false }
+            } else if let momentId = model.selectedMomentId {
                 GroupExpenseSheet(
                     momentId: momentId,
                     isPresented: $groupExpenseSheetPresented,
@@ -215,7 +241,11 @@ struct AppShellView: View {
             }
         }
         .sheet(isPresented: $groupContributionSheetPresented) {
-            if let momentId = model.selectedMomentId {
+            if groupViewerReadOnly {
+                Text("Viewers can view but not add contributions.")
+                    .padding(24)
+                    .onAppear { groupContributionSheetPresented = false }
+            } else if let momentId = model.selectedMomentId {
                 GroupContributionSheet(
                     momentId: momentId,
                     isPresented: $groupContributionSheetPresented,
@@ -1012,11 +1042,16 @@ struct AppShellView: View {
                             momentTitle: model.selectedMomentTitle,
                             momentId: model.selectedMomentId,
                             momentTypeCode: groupTypeCode,
-                            onAddExpense: { groupExpenseSheetPresented = true },
+                            viewerReadOnly: groupViewerReadOnly,
+                            onAddExpense: {
+                                guard !groupViewerReadOnly else { return }
+                                groupExpenseSheetPresented = true
+                            },
                             onOpenQuickAdd: { model.selectBottomDestination(.create) },
                             onViewSplits: { groupSplitsPresented = true },
                             onOpenFinance: { groupFinancePresented = true },
                             onQuickAddKind: { kind in
+                                guard !groupViewerReadOnly else { return }
                                 if kind == .participant {
                                     groupInviteSheetPresented = true
                                 } else {
@@ -1223,8 +1258,10 @@ struct AppShellView: View {
                             momentTitle: model.selectedMomentTitle,
                             hasActiveMoment: model.selectedMomentId != nil,
                             capabilityCodes: model.capabilities,
+                            viewerReadOnly: groupViewerReadOnly,
                             onClose: { model.exitCreateDestination() },
                             onTile: { kind in
+                                if groupViewerReadOnly { return }
                                 if kind == .participant {
                                     groupInviteSheetPresented = true
                                 } else {
@@ -1284,8 +1321,14 @@ struct AppShellView: View {
                             momentTypeCode: model.selectedMomentTypeCode,
                             momentTitle: model.selectedMomentTitle,
                             onClose: { model.exitCreateDestination() },
-                            onExpense: { groupExpenseSheetPresented = true },
-                            onContribution: { groupContributionSheetPresented = true },
+                            onExpense: {
+                                guard !groupViewerReadOnly else { return }
+                                groupExpenseSheetPresented = true
+                            },
+                            onContribution: {
+                                guard !groupViewerReadOnly else { return }
+                                groupContributionSheetPresented = true
+                            },
                             onSettle: { groupSettlementSheetPresented = true },
                             onParticipants: { groupParticipantsSheetPresented = true },
                             onInvite: { groupInviteSheetPresented = true },
@@ -1697,5 +1740,25 @@ struct AppShellView: View {
             }
         }
         .padding(24)
+    }
+
+    @MainActor
+    private func refreshGroupViewerReadOnly() async {
+        guard model.selectedContext == .group,
+              let momentId = model.selectedMomentId,
+              !momentId.isEmpty
+        else {
+            groupViewerReadOnly = false
+            return
+        }
+        do {
+            let participants = try await APIClient.shared.listGroupParticipants(momentId: momentId)
+            groupViewerReadOnly = GroupViewerAccess.isViewer(
+                participants: participants,
+                currentUserId: identity.userId
+            )
+        } catch {
+            // Keep prior value on transient failures.
+        }
     }
 }

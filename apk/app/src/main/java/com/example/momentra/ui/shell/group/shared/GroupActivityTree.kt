@@ -12,8 +12,7 @@ data class GroupActivityTreeNode(
 )
 
 fun groupActivityAmountLabel(item: ActivityItemDto): String? {
-    val raw = item.activityPayload?.amount ?: return null
-    val value = raw.toDoubleOrNull() ?: return null
+    val value = parseGroupActivityAmount(item.activityPayload?.amount) ?: return null
     val currency = item.activityPayload?.currencyCode ?: "INR"
     val symbol = if (currency.equals("INR", ignoreCase = true)) "₹" else "$currency "
     val rounded = value.roundToInt()
@@ -22,6 +21,15 @@ fun groupActivityAmountLabel(item: ActivityItemDto): String? {
     } else {
         String.format(Locale.getDefault(), "%s%.2f", symbol, value)
     }
+}
+
+/** Accepts `"100.0000"`, `"1,234.50"`, and plain numeric strings. */
+fun parseGroupActivityAmount(raw: String?): Double? {
+    var s = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    s = s.replace(",", "")
+    s.toDoubleOrNull()?.let { return it }
+    val filtered = s.filter { it.isDigit() || it == '.' || it == '-' }
+    return filtered.toDoubleOrNull()
 }
 
 fun groupActivityGroupKey(item: ActivityItemDto): String? {
@@ -43,7 +51,8 @@ fun groupActivityDeletedTitle(item: ActivityItemDto): String {
 }
 
 fun groupActivityRowTitle(item: ActivityItemDto, isChild: Boolean): String {
-    if (isChild && isGroupActivityVoided(item.activityCode)) {
+    // Child voids and orphan void parents both use deleted copy.
+    if (isGroupActivityVoided(item.activityCode)) {
         return groupActivityDeletedTitle(item)
     }
     return groupActivityDisplayTitle(item)
@@ -51,7 +60,7 @@ fun groupActivityRowTitle(item: ActivityItemDto, isChild: Boolean): String {
 
 /**
  * Nest UPDATED / VOIDED lifecycle rows under the original expense or contribution.
- * Unkeyed rows stay top-level. Parents ordered by occurredAt descending.
+ * Nodes ordered by latest event among parent + children (so a fresh void floats to the top).
  */
 fun groupActivityTree(items: List<ActivityItemDto>): List<GroupActivityTreeNode> {
     if (items.isEmpty()) return emptyList()
@@ -75,7 +84,7 @@ fun groupActivityTree(items: List<ActivityItemDto>): List<GroupActivityTreeNode>
         nodes.add(GroupActivityTreeNode(item))
     }
 
-    return nodes.sortedByDescending { parseGroupActivityOccurredAtMillis(it.item.occurredAt) }
+    return nodes.sortedByDescending { latestGroupActivityOccurredAtMillis(it) }
 }
 
 fun groupActivityNodeHasVoidChild(node: GroupActivityTreeNode): Boolean =
@@ -94,6 +103,11 @@ private fun buildGroupActivityNode(group: List<ActivityItemDto>): GroupActivityT
         isGroupActivityVoided(item.activityCode) || isGroupActivityUpdated(item.activityCode)
     }
     return GroupActivityTreeNode(parent, children)
+}
+
+private fun latestGroupActivityOccurredAtMillis(node: GroupActivityTreeNode): Long {
+    val times = listOf(node.item.occurredAt) + node.children.map { it.occurredAt }
+    return times.maxOf { parseGroupActivityOccurredAtMillis(it) }
 }
 
 private fun parseGroupActivityOccurredAtMillis(raw: String): Long =

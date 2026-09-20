@@ -64,16 +64,21 @@ import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-private val MANAGE_ROLE_OPTIONS = listOf(
-    "PARTICIPANT" to "Member",
-    "ORGANIZER" to "Organizer",
-    "OBSERVER" to "Viewer",
-)
+private fun manageRoleOptions(momentTypeCode: String): List<Pair<String, String>> {
+    val organizerLabel =
+        if (groupExperienceFamilyFor(momentTypeCode).isThemedExperience()) "Organiser" else "Organizer"
+    return listOf(
+        "PARTICIPANT" to "Member",
+        "ORGANIZER" to organizerLabel,
+        "OBSERVER" to "Viewer",
+    )
+}
 
-private fun displayRoleLabel(roleCode: String?, isGuest: Boolean = false): String {
+private fun displayRoleLabel(roleCode: String?, momentTypeCode: String, isGuest: Boolean = false): String {
     if (isGuest) return "Guest"
     return when (roleCode?.uppercase(Locale.US)) {
-        "ORGANIZER", "CO_ORGANIZER" -> "Organizer"
+        "ORGANIZER", "CO_ORGANIZER" ->
+            if (groupExperienceFamilyFor(momentTypeCode).isThemedExperience()) "Organiser" else "Organizer"
         "OBSERVER", "VIEWER" -> "Viewer"
         "RESIDENT" -> "Resident"
         "CONTRIBUTOR" -> "Contributor"
@@ -311,6 +316,7 @@ fun GroupInvitePeopleSheet(
                     activeMembers.forEach { p ->
                         InviteActiveMemberRow(
                             participant = p,
+                            momentTypeCode = momentTypeCode,
                             viewerIsOrganizer = viewerIsOrganizer,
                             busy = busyParticipantId == p.participantId,
                             onRoleChange = { nextRole ->
@@ -403,6 +409,7 @@ fun GroupInvitePeopleSheet(
 @Composable
 private fun InviteActiveMemberRow(
     participant: GroupParticipantDto,
+    momentTypeCode: String,
     viewerIsOrganizer: Boolean,
     busy: Boolean,
     onRoleChange: (String) -> Unit,
@@ -459,7 +466,7 @@ private fun InviteActiveMemberRow(
                     }
                 }
                 Text(
-                    participant.roleLabel ?: displayRoleLabel(participant.roleCode, participant.isGuest),
+                    participant.roleLabel ?: displayRoleLabel(participant.roleCode, momentTypeCode, participant.isGuest),
                     color = TripSheetTokens.Muted,
                     fontSize = 11.sp,
                     fontFamily = PlusJakartaSans,
@@ -506,7 +513,7 @@ private fun InviteActiveMemberRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                MANAGE_ROLE_OPTIONS.forEach { (code, label) ->
+                manageRoleOptions(momentTypeCode).forEach { (code, label) ->
                     val selected = selectedUiRole == code
                     Text(
                         label,

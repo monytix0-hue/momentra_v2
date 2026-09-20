@@ -675,7 +675,7 @@ fun GroupExperienceSetupContent(
                             }.orEmpty()
                         }
                     if (primaryAmount == null && placeDtos.isEmpty()) return null
-                    val budgetDtos = if (primaryAmount != null) {
+                    val budgetDtos: List<GroupSetupBudgetDto>? = if (primaryAmount != null) {
                         buildList {
                             add(
                                 GroupSetupBudgetDto(
@@ -685,10 +685,10 @@ fun GroupExperienceSetupContent(
                                 ),
                             )
                             if (multiCurrency.equals("Enabled", ignoreCase = true)) {
-                                extraBudgets.forEach { row ->
+                                for (row in extraBudgets) {
                                     val amt = row.amount.filter { it.isDigit() || it == '.' }
-                                        .takeIf { it.isNotBlank() } ?: return@forEach
-                                    if (row.currencyCode.equals(currency, ignoreCase = true)) return@forEach
+                                        .takeIf { it.isNotBlank() } ?: continue
+                                    if (row.currencyCode.equals(currency, ignoreCase = true)) continue
                                     add(
                                         GroupSetupBudgetDto(
                                             currencyCode = row.currencyCode,

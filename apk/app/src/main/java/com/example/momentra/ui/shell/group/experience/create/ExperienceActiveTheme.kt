@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.ui.shell.group.shared.GroupExperienceFamily
 import com.example.momentra.ui.theme.PlusJakartaSans
+import java.util.Locale
 
 /** Figma House Party 584:* (blue) / Office Outing 584:* (teal). */
 data class ExperienceActiveTheme(
@@ -78,7 +80,7 @@ data class ExperienceActiveTheme(
             healthLabel = "Party Health",
             hubHeroRes = com.example.momentra.R.drawable.house_party_hub_hero,
             heroEmoji = "🎉",
-            participantRoles = listOf("Host", "Co-host", "Guest"),
+            participantRoles = listOf("Host", "Member", "Viewer"),
             participantSubtitle = "Invite and manage party guest list",
             heroGradient = Brush.horizontalGradient(listOf(Color(0xFF60A5FA), Color(0xFF2563EB))),
             pulseHeroGradient = Brush.linearGradient(
@@ -124,7 +126,7 @@ data class ExperienceActiveTheme(
             healthLabel = "Team Health",
             hubHeroRes = com.example.momentra.R.drawable.office_outing_hub_hero,
             heroEmoji = "🧳",
-            participantRoles = listOf("Organizer", "Teammate", "Guest"),
+            participantRoles = listOf("Organiser", "Member", "Viewer"),
             participantSubtitle = "Invite and manage outing attendees",
             heroGradient = Brush.horizontalGradient(listOf(Color(0xFF2DD4BF), Color(0xFF0F766E))),
             pulseHeroGradient = Brush.linearGradient(
@@ -153,6 +155,14 @@ data class ExperienceActiveTheme(
             when (family) {
                 GroupExperienceFamily.OFFICE_OUTING -> OfficeOuting
                 else -> HouseParty
+            }
+
+        /** Maps celebration UI role chips to DB participant_role codes. */
+        fun roleCodeForLabel(label: String): String =
+            when (label.trim().lowercase(Locale.US)) {
+                "host", "co-host", "cohost", "organizer", "organiser" -> "ORGANIZER"
+                "viewer", "observer" -> "OBSERVER"
+                else -> "PARTICIPANT"
             }
     }
 }
@@ -287,7 +297,9 @@ fun ExperienceEmojiChip(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+        modifier = modifier
+            .alpha(if (enabled) 1f else 0.45f)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {

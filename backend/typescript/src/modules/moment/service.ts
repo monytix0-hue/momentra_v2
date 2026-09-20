@@ -1139,8 +1139,9 @@ export async function archiveMoment(
   await assertGovernanceAllowed(client, ctx, { actionCode: 'MOMENT_ARCHIVE', resourceType: 'MOMENT', momentId });
   await assertMomentLifecycleLeader(client, ctx, momentId);
   const updated = await client.query<{ moment_id: string; domain_code: string; title: string; status: string; version: string }>(
-    `UPDATE core.moment SET status = 'ARCHIVED', version = version + 1, updated_at = now()
-     WHERE moment_id = $1 AND version = $2
+    `UPDATE core.moment
+     SET status = 'ARCHIVED', archived_at = COALESCE(archived_at, now()), version = version + 1, updated_at = now()
+     WHERE moment_id = $1 AND version = $2 AND status IN ('ACTIVE', 'DRAFT', 'COMPLETED')
      RETURNING moment_id, domain_code, title, status, version`,
     [momentId, expectedVersion]
   );
@@ -1148,6 +1149,14 @@ export async function archiveMoment(
     throw new AppError(ErrorCode.VERSION_CONFLICT, 'Moment version conflict.', 409);
   }
   const row = updated.rows[0];
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'MomentArchived',
+    domainCode: row.domain_code,
+    aggregateType: 'MOMENT',
+    aggregateId: momentId,
+    payload: { momentId, title: row.title, userId: ctx.userId },
+  });
+  await insertAudit(client, ctx, 'MOMENT_ARCHIVE', 'MOMENT', momentId, domainEventId, { momentId });
   return {
     momentId: row.moment_id,
     domainCode: row.domain_code,
@@ -1166,8 +1175,9 @@ export async function cancelMoment(
   await assertGovernanceAllowed(client, ctx, { actionCode: 'MOMENT_CANCEL', resourceType: 'MOMENT', momentId });
   await assertMomentLifecycleLeader(client, ctx, momentId);
   const updated = await client.query<{ moment_id: string; domain_code: string; title: string; status: string; version: string }>(
-    `UPDATE core.moment SET status = 'CANCELLED', version = version + 1, updated_at = now()
-     WHERE moment_id = $1 AND version = $2
+    `UPDATE core.moment
+     SET status = 'CANCELLED', cancelled_at = COALESCE(cancelled_at, now()), version = version + 1, updated_at = now()
+     WHERE moment_id = $1 AND version = $2 AND status IN ('ACTIVE', 'DRAFT')
      RETURNING moment_id, domain_code, title, status, version`,
     [momentId, expectedVersion]
   );
@@ -1175,12 +1185,296 @@ export async function cancelMoment(
     throw new AppError(ErrorCode.VERSION_CONFLICT, 'Moment version conflict.', 409);
   }
   const row = updated.rows[0];
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'MomentCancelled',
+    domainCode: row.domain_code,
+    aggregateType: 'MOMENT',
+    aggregateId: momentId,
+    payload: { momentId, title: row.title, userId: ctx.userId },
+  });
+  await insertAudit(client, ctx, 'MOMENT_CANCEL', 'MOMENT', momentId, domainEventId, { momentId });
   return {
     momentId: row.moment_id,
     domainCode: row.domain_code,
     title: row.title,
     status: row.status,
     version: parseInt(row.version, 10),
+  };
+}
+
+/**
+ * Complete a moment (COMPLETED + completed_at) and queue Moment Story generation.
+ * Used by Manage "Complete Chapter" and by end_at auto-complete.
+ */
+export async function completeMoment(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  expectedVersion: number | null,
+  opts?: { auto?: boolean; skipStory?: boolean }
+): Promise<MomentResult & { storyId?: string; completionId?: string }> {
+  if (!opts?.auto) {
+    await assertGovernanceAllowed(client, ctx, { actionCode: 'MOMENT_COMPLETE', resourceType: 'MOMENT', momentId });
+    await assertMomentLifecycleLeader(client, ctx, momentId);
+  }
+
+  const existing = await client.query<{
+    status: string;
+    domain_code: string;
+    title: string;
+    version: string;
+  }>(`SELECT status, domain_code, title, version::text FROM core.moment WHERE moment_id = $1`, [momentId]);
+  const cur = existing.rows[0];
+  if (!cur) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Moment not found.', 404);
+  }
+  if (cur.status === 'COMPLETED') {
+    return {
+      momentId,
+      domainCode: cur.domain_code,
+      title: cur.title,
+      status: cur.status,
+      version: parseInt(cur.version, 10),
+    };
+  }
+  if (cur.status !== 'ACTIVE') {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Only ACTIVE moments can be completed.', 400);
+  }
+  if (expectedVersion != null && parseInt(cur.version, 10) !== expectedVersion) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Moment version conflict.', 409);
+  }
+
+  const completionId = randomUUID();
+  const updated = await client.query<{ moment_id: string; domain_code: string; title: string; status: string; version: string }>(
+    `UPDATE core.moment
+     SET status = 'COMPLETED',
+         completed_at = now(),
+         version = version + 1,
+         updated_at = now()
+     WHERE moment_id = $1 AND status = 'ACTIVE'
+     RETURNING moment_id, domain_code, title, status, version`,
+    [momentId]
+  );
+  if (!updated.rows[0]) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Moment version conflict.', 409);
+  }
+  const row = updated.rows[0];
+
+  // Soft-close group context rows when present.
+  await client.query(
+    `UPDATE collaboration.group_moment_context SET status = 'COMPLETED', updated_at = now()
+     WHERE moment_id = $1 AND status = 'ACTIVE'`,
+    [momentId]
+  ).catch(() => undefined);
+  await client.query(
+    `UPDATE collaboration.shared_experience_context SET status = 'COMPLETED', updated_at = now()
+     WHERE moment_id = $1 AND status = 'ACTIVE'`,
+    [momentId]
+  ).catch(() => undefined);
+
+  const { listOtherMemberUserIds } = await import('../collaboration/group-membership');
+  const peers =
+    row.domain_code === 'GROUP'
+      ? await listOtherMemberUserIds(client, momentId, ctx.userId)
+      : [];
+
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'MomentCompleted',
+    domainCode: row.domain_code,
+    aggregateType: 'MOMENT',
+    aggregateId: momentId,
+    payload: {
+      momentId,
+      title: row.title,
+      completionId,
+      userId: ctx.userId,
+      auto: Boolean(opts?.auto),
+      targetUserIds: peers,
+    },
+  });
+  await insertAudit(client, ctx, 'MOMENT_COMPLETE', 'MOMENT', momentId, domainEventId, {
+    momentId,
+    completionId,
+    auto: Boolean(opts?.auto),
+  });
+
+  await emitLeanBusinessEvent(client, ctx, {
+    eventName: 'moment_completed',
+    eventId: domainEventId,
+    momentId,
+    momentDomain: row.domain_code === 'GROUP' ? 'group' : row.domain_code === 'BUSINESS' ? 'business' : 'personal',
+    properties: { auto: Boolean(opts?.auto), completion_id: completionId },
+  }).catch(() => undefined);
+
+  let storyId: string | undefined;
+  if (!opts?.skipStory && row.domain_code === 'GROUP') {
+    const { queueMomentStoryGeneration } = await import('../story/service');
+    const story = await queueMomentStoryGeneration(client, ctx, {
+      momentId,
+      completionId,
+      completedByUserId: ctx.userId,
+    });
+    storyId = story.storyId;
+  }
+
+  return {
+    momentId: row.moment_id,
+    domainCode: row.domain_code,
+    title: row.title,
+    status: row.status,
+    version: parseInt(row.version, 10),
+    storyId,
+    completionId,
+  };
+}
+
+/** Reopen a completed moment back to ACTIVE; prior Story versions are preserved. */
+export async function reopenMoment(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  expectedVersion: number,
+  reason?: string
+): Promise<MomentResult> {
+  await assertGovernanceAllowed(client, ctx, { actionCode: 'MOMENT_REOPEN', resourceType: 'MOMENT', momentId });
+  await assertMomentLifecycleLeader(client, ctx, momentId);
+  const updated = await client.query<{ moment_id: string; domain_code: string; title: string; status: string; version: string }>(
+    `UPDATE core.moment
+     SET status = 'ACTIVE',
+         completed_at = NULL,
+         version = version + 1,
+         updated_at = now()
+     WHERE moment_id = $1 AND version = $2 AND status = 'COMPLETED'
+     RETURNING moment_id, domain_code, title, status, version`,
+    [momentId, expectedVersion]
+  );
+  if (!updated.rows[0]) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Moment version conflict or not completed.', 409);
+  }
+  const row = updated.rows[0];
+  await client.query(
+    `UPDATE collaboration.group_moment_context SET status = 'ACTIVE', updated_at = now()
+     WHERE moment_id = $1`,
+    [momentId]
+  ).catch(() => undefined);
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'MomentReopened',
+    domainCode: row.domain_code,
+    aggregateType: 'MOMENT',
+    aggregateId: momentId,
+    payload: { momentId, reason: reason ?? null, userId: ctx.userId },
+  });
+  await insertAudit(client, ctx, 'MOMENT_REOPEN', 'MOMENT', momentId, domainEventId, {
+    momentId,
+    reason: reason ?? null,
+  });
+  return {
+    momentId: row.moment_id,
+    domainCode: row.domain_code,
+    title: row.title,
+    status: row.status,
+    version: parseInt(row.version, 10),
+  };
+}
+
+/**
+ * Completion review scan — warnings vs hard blockers (MR1).
+ * Outstanding settlement is a warning, not a blocker.
+ */
+export async function completionReview(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string
+): Promise<{
+  momentId: string;
+  eligible: boolean;
+  warnings: Array<{ domain: string; code: string; message: string }>;
+  blockers: Array<{ domain: string; code: string; message: string }>;
+  summary: Record<string, number>;
+}> {
+  await assertGovernanceAllowed(client, ctx, { actionCode: 'GROUP_ACCESS', resourceType: 'MOMENT', momentId });
+  const moment = await client.query<{ status: string; title: string }>(
+    `SELECT status, title FROM core.moment WHERE moment_id = $1`,
+    [momentId]
+  );
+  if (!moment.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Moment not found.', 404);
+  }
+  const warnings: Array<{ domain: string; code: string; message: string }> = [];
+  const blockers: Array<{ domain: string; code: string; message: string }> = [];
+  if (moment.rows[0].status === 'COMPLETED') {
+    blockers.push({ domain: 'authorization', code: 'ALREADY_COMPLETED', message: 'Moment is already completed.' });
+  } else if (moment.rows[0].status !== 'ACTIVE') {
+    blockers.push({
+      domain: 'authorization',
+      code: 'NOT_ACTIVE',
+      message: `Moment status is ${moment.rows[0].status}.`,
+    });
+  }
+
+  const people = await client.query<{ n: string }>(
+    `SELECT COUNT(*)::text AS n FROM collaboration.moment_participant
+     WHERE moment_id = $1 AND status = 'ACTIVE'`,
+    [momentId]
+  );
+  const pendingInvites = await client.query<{ n: string }>(
+    `SELECT COUNT(*)::text AS n FROM collaboration.group_invite
+     WHERE moment_id = $1 AND status = 'ACTIVE'`,
+    [momentId]
+  ).catch(() => ({ rows: [{ n: '0' }] }));
+  if (parseInt(pendingInvites.rows[0]?.n ?? '0', 10) > 0) {
+    warnings.push({
+      domain: 'people',
+      code: 'PENDING_INVITES',
+      message: 'There are still open invitations.',
+    });
+  }
+
+  const openPlans = await client.query<{ n: string }>(
+    `SELECT COUNT(*)::text AS n FROM work.planning_item
+     WHERE moment_id = $1 AND status IN ('OPEN', 'IN_PROGRESS', 'TODO')`,
+    [momentId]
+  ).catch(() => ({ rows: [{ n: '0' }] }));
+  if (parseInt(openPlans.rows[0]?.n ?? '0', 10) > 0) {
+    warnings.push({
+      domain: 'plans',
+      code: 'OPEN_PLANS',
+      message: 'Some plans are still open.',
+    });
+  }
+
+  const expensesScan = await client.query<{ n: string; total: string }>(
+    `SELECT COUNT(*)::text AS n, COALESCE(SUM(e.amount), 0)::text AS total
+     FROM finance.expense e
+     INNER JOIN finance.group_expense_context g ON g.expense_id = e.expense_id
+     WHERE e.moment_id = $1 AND e.status = 'POSTED'`,
+    [momentId]
+  ).catch(() => ({ rows: [{ n: '0', total: '0' }] }));
+
+  const memories = await client.query<{ n: string }>(
+    `SELECT COUNT(*)::text AS n FROM memory.memory WHERE moment_id = $1 AND status = 'ACTIVE'`,
+    [momentId]
+  ).catch(() => ({ rows: [{ n: '0' }] }));
+
+  if (parseInt(memories.rows[0]?.n ?? '0', 10) === 0) {
+    warnings.push({
+      domain: 'memory',
+      code: 'NO_MEMORIES',
+      message: 'No memories or photos yet — Story will use a non-photo layout.',
+    });
+  }
+
+  return {
+    momentId,
+    eligible: blockers.length === 0,
+    warnings,
+    blockers,
+    summary: {
+      people: parseInt(people.rows[0]?.n ?? '0', 10),
+      openPlans: parseInt(openPlans.rows[0]?.n ?? '0', 10),
+      expenses: parseInt(expensesScan.rows[0]?.n ?? '0', 10),
+      memories: parseInt(memories.rows[0]?.n ?? '0', 10),
+    },
   };
 }
 

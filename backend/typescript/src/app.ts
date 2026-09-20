@@ -51,6 +51,27 @@ export function createApp(): express.Express {
   app.use('/v1', v1Router);
   // Compatibility: some clients/proxies prefix with /api — same router as /v1.
   app.use('/api/v1', v1Router);
+
+  // Public Moment Story web view (share token; no auth).
+  app.get('/story/:shareToken', async (req, res, next) => {
+    try {
+      const { getPool } = await import('./platform/database/pool');
+      const { getPublicStoryByToken } = await import('./modules/story/service');
+      const client = await getPool().connect();
+      try {
+        const result = await getPublicStoryByToken(client, String(req.params.shareToken ?? ''));
+        res.status(result.revoked ? 410 : 200);
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'private, max-age=60');
+        res.send(result.html);
+      } finally {
+        client.release();
+      }
+    } catch (e) {
+      next(e);
+    }
+  });
+
   attachSseRoutes(app);
 
   app.use(errorHandler);

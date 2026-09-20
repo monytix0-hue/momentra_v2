@@ -37,12 +37,16 @@ enum GroupActivityCategoryFilter {
     }
 
     static func matches(_ item: APIClient.ActivityItemPayload, chipId: String) -> Bool {
-        matches(activityCode: item.activityCode, chipId: chipId)
+        matches(
+            activityCode: item.activityCode,
+            chipId: chipId,
+            categoryCode: item.activityPayload?.categoryCode
+        )
     }
 
-    static func matches(activityCode: String, chipId: String) -> Bool {
+    static func matches(activityCode: String, chipId: String, categoryCode: String? = nil) -> Bool {
         if chipId == allId || chipId.isEmpty { return true }
-        return activityBelongs(to: chipId, activityCode: activityCode)
+        return activityBelongs(to: chipId, activityCode: activityCode, categoryCode: categoryCode)
     }
 
     // MARK: - Private
@@ -87,9 +91,17 @@ enum GroupActivityCategoryFilter {
         }
     }
 
-    /// Substring match on `activityCode`, ordered so more-specific tokens win when callers iterate chips.
-    private static func activityBelongs(to chipId: String, activityCode: String) -> Bool {
+    private static func isChecklistActivity(activityCode: String, categoryCode: String?) -> Bool {
         let upper = activityCode.uppercased()
+        if upper.contains("CHECKLIST") { return true }
+        // Legacy rows still used GROUP_PLANNING_ITEM_* with a checklist categoryCode.
+        return GroupExperienceChecklistCatalog.isChecklistCode(categoryCode)
+    }
+
+    /// Substring match on `activityCode`, ordered so more-specific tokens win when callers iterate chips.
+    private static func activityBelongs(to chipId: String, activityCode: String, categoryCode: String?) -> Bool {
+        let upper = activityCode.uppercased()
+        let checklist = isChecklistActivity(activityCode: activityCode, categoryCode: categoryCode)
         switch chipId {
         case "expense":
             return upper.contains("EXPENSE")
@@ -99,11 +111,11 @@ enum GroupActivityCategoryFilter {
         case "settle":
             return upper.contains("SETTLE")
         case "planning":
-            return upper.contains("PLANNING")
+            return upper.contains("PLANNING") && !checklist
         case "checklist":
-            return upper.contains("PLANNING")
+            return checklist
         case "task":
-            return upper.contains("TASK") && !upper.contains("PLANNING")
+            return upper.contains("TASK") && !upper.contains("PLANNING") && !checklist
         case "booking":
             return upper.contains("BOOKING")
         case "poll":

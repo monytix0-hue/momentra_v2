@@ -7,7 +7,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import java.util.concurrent.ConcurrentHashMap
 
-const val GROUP_PULSE_ACTIVITY_LIMIT = 5
+const val GROUP_PULSE_ACTIVITY_LIMIT = 8
 
 private val pulseInflight =
     ConcurrentHashMap<String, CompletableDeferred<Result<GroupPulseTabData>>>()

@@ -21,6 +21,34 @@ const clientIsoDatetime = z.string().refine((s) => !Number.isNaN(Date.parse(s)),
   message: 'Invalid ISO datetime',
 });
 
+const CHECKLIST_CATEGORY_CODES = new Set([
+  'DOCUMENTS_MONEY',
+  'TRAVEL_ESSENTIALS',
+  'MEDICINES_HEALTH',
+  'CLOTHING',
+]);
+
+export function isChecklistCategoryCode(code: string | null | undefined): boolean {
+  const normalized = (code ?? '').trim().toUpperCase();
+  return normalized.length > 0 && CHECKLIST_CATEGORY_CODES.has(normalized);
+}
+
+function planningActivityCodes(categoryCode: string | null | undefined): {
+  created: string;
+  updated: string;
+} {
+  if (isChecklistCategoryCode(categoryCode)) {
+    return {
+      created: 'GROUP_CHECKLIST_ITEM_CREATED',
+      updated: 'GROUP_CHECKLIST_ITEM_UPDATED',
+    };
+  }
+  return {
+    created: 'GROUP_PLANNING_ITEM_CREATED',
+    updated: 'GROUP_PLANNING_ITEM_UPDATED',
+  };
+}
+
 export const planningItemSchema = z
   .object({
     title: z.string().min(1).max(500),
@@ -195,9 +223,12 @@ export async function createPlanningItemCommand(
       : {
           domainCode: 'GROUP',
           momentId,
-          activityCode: 'GROUP_PLANNING_ITEM_CREATED',
+          activityCode: planningActivityCodes(body.categoryCode).created,
           title: body.title,
-          payload: { planningItemId: result.planningItemId },
+          payload: {
+            planningItemId: result.planningItemId,
+            categoryCode: body.categoryCode ?? null,
+          },
         },
   });
   if (!body.asDraft) {
@@ -267,9 +298,13 @@ export async function updatePlanningItemCommand(
         : {
             domainCode: 'GROUP',
             momentId,
-            activityCode: 'GROUP_PLANNING_ITEM_UPDATED',
+            activityCode: planningActivityCodes(result.categoryCode).updated,
             title: result.title,
-            payload: { planningItemId: result.planningItemId, status: result.status },
+            payload: {
+              planningItemId: result.planningItemId,
+              status: result.status,
+              categoryCode: result.categoryCode ?? null,
+            },
           },
   });
   await client

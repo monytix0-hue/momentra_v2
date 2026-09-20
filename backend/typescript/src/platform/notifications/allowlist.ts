@@ -12,6 +12,9 @@ export type NotificationCategory =
 export type NotificationPriority = 'HIGH' | 'NORMAL' | 'LOW';
 
 export const PEER_PUSH_EVENT_NAMES = new Set<string>([
+  'MomentCompleted',
+  'MomentStoryReady',
+  'MomentReopened',
   'ExpenseCreated',
   'ExpenseRecorded',
   'GroupExpenseRecorded',
@@ -140,6 +143,9 @@ const CATEGORY_BY_EVENT: Record<string, NotificationCategory> = {
   GoalAtRisk: 'tasks',
   RecurringExpenseExpected: 'finance',
   MomentDigestReady: 'system',
+  MomentCompleted: 'social',
+  MomentStoryReady: 'social',
+  MomentReopened: 'system',
 };
 
 const PRIORITY_BY_EVENT: Record<string, NotificationPriority> = {
@@ -307,6 +313,23 @@ export function notificationCopy(
       return {
         title: withMomentTitle('Expense voided', payload, recipientCtx),
         body: `${actor} voided an expense.`,
+      };
+    case 'MomentCompleted':
+      return {
+        title: withMomentTitle('Moment completed', payload, recipientCtx),
+        body: payload?.auto
+          ? 'Dates wrapped — your Moment Story is on the way.'
+          : `${actor} completed this moment.`,
+      };
+    case 'MomentStoryReady':
+      return {
+        title: withMomentTitle('Your Moment Story is ready', payload, recipientCtx),
+        body: 'Open Momentra to relive the chapter — and share it.',
+      };
+    case 'MomentReopened':
+      return {
+        title: withMomentTitle('Moment reopened', payload, recipientCtx),
+        body: `${actor} reopened this moment.`,
       };
     case 'SettlementRecorded': {
       const amount = typeof payload?.amount === 'string' ? payload.amount : null;

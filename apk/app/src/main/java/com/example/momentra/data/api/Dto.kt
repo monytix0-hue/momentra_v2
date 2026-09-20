@@ -1268,6 +1268,7 @@ data class ActivityPayloadDto(
     val status: String? = null,
     @SerializedName("wellbeingRating") val wellbeingRating: Double? = null,
     @SerializedName("source") val source: String? = null,
+    @SerializedName("planningItemId") val planningItemId: String? = null,
 )
 
 /** Group facet envelope — GET /v1/group/moments/:id/{pulse|life|memory|finance}. */

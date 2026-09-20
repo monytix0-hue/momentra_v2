@@ -200,7 +200,7 @@ private struct ExperienceParticipantBody: View {
             _ = try await APIClient.shared.addGroupParticipant(
                 momentId: momentId,
                 displayName: trimmed,
-                roleCode: "PARTICIPANT",
+                roleCode: ExperienceActiveTheme.roleCode(forLabel: role),
                 email: email,
                 phone: phone
             )

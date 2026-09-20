@@ -357,6 +357,7 @@ export type SchedulerTickResult = {
   daily: number;
   tasks: number;
   group: number;
+  momentCompletions?: number;
   digests: number;
   signals?: {
     groupEmitted: number;
@@ -366,11 +367,69 @@ export type SchedulerTickResult = {
   };
 };
 
+/**
+ * Auto-complete ACTIVE group moments whose end_at has passed.
+ * Generates Moment Story for each completion.
+ */
+export async function dispatchExpiredMomentCompletions(pool: Pool): Promise<number> {
+  const due = await pool.query<{
+    moment_id: string;
+    version: string;
+    organizer_user_id: string | null;
+    title: string;
+  }>(
+    `SELECT m.moment_id, m.version::text,
+            COALESCE(gmc.organizer_user_id, m.created_by_user_id) AS organizer_user_id,
+            m.title
+     FROM core.moment m
+     LEFT JOIN collaboration.group_moment_context gmc ON gmc.moment_id = m.moment_id
+     WHERE m.status = 'ACTIVE'
+       AND m.domain_code = 'GROUP'
+       AND m.end_at IS NOT NULL
+       AND m.end_at <= now()
+     ORDER BY m.end_at ASC
+     LIMIT 25`
+  );
+
+  let completed = 0;
+  const { completeMoment } = await import('../moment/service');
+  for (const row of due.rows) {
+    const key = `moment-complete:${row.moment_id}`;
+    const actor = row.organizer_user_id;
+    if (!actor) continue;
+    if (!(await claimReminder(pool, key, actor, 'MomentCompleted', row.moment_id, { title: row.title }))) {
+      continue;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ctx = systemCtx(actor);
+      await completeMoment(client, ctx, row.moment_id, null, { auto: true });
+      await client.query('COMMIT');
+      completed += 1;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      console.log(
+        JSON.stringify({
+          worker: 'scheduler',
+          action: 'moment_auto_complete_failed',
+          momentId: row.moment_id,
+          error: e instanceof Error ? e.message : String(e),
+        })
+      );
+    } finally {
+      client.release();
+    }
+  }
+  return completed;
+}
+
 export async function runReminderTick(pool: Pool): Promise<SchedulerTickResult> {
   const weekly = await dispatchWeeklyReminders(pool);
   const daily = await dispatchDailyPersonalReminders(pool);
   const tasks = await dispatchOverdueTaskReminders(pool);
   const group = await dispatchGroupSetupReminders(pool);
+  const momentCompletions = await dispatchExpiredMomentCompletions(pool);
   // Moment-scoped digests run inside signal tick before global digest flush
   const { runDerivedSignalTick } = await import('../../platform/notifications/signals');
   const signalResult = await runDerivedSignalTick(pool);
@@ -380,6 +439,7 @@ export async function runReminderTick(pool: Pool): Promise<SchedulerTickResult> 
     daily,
     tasks,
     group,
+    momentCompletions,
     digests,
     signals: {
       groupEmitted: signalResult.group.emitted,

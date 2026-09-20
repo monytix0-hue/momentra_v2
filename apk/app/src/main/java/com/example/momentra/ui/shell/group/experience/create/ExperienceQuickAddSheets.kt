@@ -221,7 +221,7 @@ private fun ExperienceParticipantSheetBody(
                 repository.addParticipant(
                     id,
                     name.trim(),
-                    roleCode = "PARTICIPANT",
+                    roleCode = ExperienceActiveTheme.roleCodeForLabel(role),
                     email = email,
                     phone = phone,
                 ).fold(

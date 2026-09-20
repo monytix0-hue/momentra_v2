@@ -92,6 +92,7 @@ fun GroupAddPeopleSheet(
     var copied by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
     var pendingSend by remember { mutableStateOf<PendingInviteSend?>(null) }
+    var selectedRoleCode by remember { mutableStateOf("PARTICIPANT") }
     var hasContactsPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==
@@ -156,6 +157,12 @@ fun GroupAddPeopleSheet(
     }
     val hasMoreContacts = query.isBlank() && filteredAll.size > contactPreviewLimit
     val typedQuery = query.trim()
+    val celebrationRoles = listOf(
+        "PARTICIPANT" to "Member",
+        "ORGANIZER" to "Organiser",
+        "OBSERVER" to "Viewer",
+    )
+    val selectedRoleLabel = celebrationRoles.firstOrNull { it.first == selectedRoleCode }?.second ?: "Member"
     val showTypedAdd = typedQuery.isNotEmpty() &&
         existingLower.none { it == typedQuery.lowercase() } &&
         filteredAll.none { it.name.equals(typedQuery, ignoreCase = true) }
@@ -304,6 +311,40 @@ fun GroupAddPeopleSheet(
                     ) {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                "Role".uppercase(),
+                                color = palette.accent,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = PlusJakartaSans,
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                celebrationRoles.forEach { (code, label) ->
+                                    val selected = selectedRoleCode == code
+                                    Text(
+                                        label,
+                                        color = if (selected) Color.White else GroupSetupTheme.TextSecondary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontFamily = PlusJakartaSans,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(999.dp))
+                                            .background(if (selected) palette.accent else GroupSetupTheme.Card)
+                                            .border(
+                                                1.dp,
+                                                if (selected) palette.accent else GroupSetupTheme.Border,
+                                                RoundedCornerShape(999.dp),
+                                            )
+                                            .clickable { selectedRoleCode = code }
+                                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    )
+                                }
+                            }
+                        }
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             Text(
@@ -340,8 +381,8 @@ fun GroupAddPeopleSheet(
                                             onAddPerson(
                                                 GroupDraftPerson(
                                                     name = contact.name,
-                                                    roleCode = "PARTICIPANT",
-                                                    roleLabel = "Member",
+                                                    roleCode = selectedRoleCode,
+                                                    roleLabel = selectedRoleLabel,
                                                     avatarRes = avatar,
                                                     avatarUri = contact.photoUri,
                                                     useInitials = contact.photoUri.isNullOrBlank() &&
@@ -372,8 +413,8 @@ fun GroupAddPeopleSheet(
                                         onAddPerson(
                                             GroupDraftPerson(
                                                 name = typedQuery,
-                                                roleCode = "PARTICIPANT",
-                                                roleLabel = "Member",
+                                                roleCode = selectedRoleCode,
+                                                roleLabel = selectedRoleLabel,
                                                 avatarRes = R.drawable.ges_avatar_6,
                                                 useInitials = true,
                                                 contactEmail = typedQuery.takeIf { looksEmail },

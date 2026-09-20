@@ -368,6 +368,11 @@ export async function createGroupExpense(
   const amount = parseMoney(body.amount);
 
   await assertFailClosedPolicies(client, 'EXPENSE_CREATE');
+  await assertGovernanceAllowed(client, ctx, {
+    actionCode: 'EXPENSE_CREATE',
+    resourceType: 'EXPENSE',
+    momentId,
+  });
   await assertGroupMember(client, ctx, momentId);
 
   const participantIds = [
@@ -745,6 +750,11 @@ export async function updateGroupExpense(
   const amount = parseMoney(body.amount);
 
   await assertFailClosedPolicies(client, 'EXPENSE_CREATE');
+  await assertGovernanceAllowed(client, ctx, {
+    actionCode: 'EXPENSE_CREATE',
+    resourceType: 'EXPENSE',
+    momentId,
+  });
   await assertGroupMember(client, ctx, momentId);
 
   const existing = await getGroupExpense(client, ctx, momentId, expenseId);
@@ -974,6 +984,11 @@ export async function voidGroupExpense(
   expenseId: string
 ): Promise<GroupExpenseResult> {
   await assertFailClosedPolicies(client, 'EXPENSE_CREATE');
+  await assertGovernanceAllowed(client, ctx, {
+    actionCode: 'EXPENSE_CREATE',
+    resourceType: 'EXPENSE',
+    momentId,
+  });
   await assertGroupMember(client, ctx, momentId);
 
   const existing = await getGroupExpense(client, ctx, momentId, expenseId);

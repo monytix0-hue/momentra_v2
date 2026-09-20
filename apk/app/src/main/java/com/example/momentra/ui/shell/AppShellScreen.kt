@@ -57,6 +57,8 @@ import com.example.momentra.data.local.PendingDeepLink
 import com.example.momentra.data.repository.AccountRepository
 import com.example.momentra.ui.notifications.NotificationInboxSheet
 import com.example.momentra.domain.AppContext
+import com.example.momentra.data.repository.GroupSliceRepository
+import com.example.momentra.ui.shell.group.shared.GroupViewerAccess
 import com.example.momentra.domain.BottomDestination
 import com.example.momentra.domain.CompanySummary
 import com.example.momentra.domain.MomentExperienceKind
@@ -119,6 +121,8 @@ import com.example.momentra.ui.shell.group.shared.GroupContributionSheet
 import com.example.momentra.ui.shell.group.shared.GroupInvitePeopleSheet
 import com.example.momentra.ui.shell.group.shared.GroupSettlementSheet
 import com.example.momentra.ui.shell.group.shared.GroupExpenseSheet
+import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.MomentStoryViewerScreen
 import com.example.momentra.ui.shell.group.life.GroupLifeActiveContent
 import com.example.momentra.ui.shell.group.life.GroupLifeQuickAction
 import com.example.momentra.ui.shell.group.trip.create.GroupQuickAddHub
@@ -299,6 +303,7 @@ fun AppShellScreen(
     var groupBudgetSheetOpen by remember { mutableStateOf(false) }
     var groupParticipantsSheetOpen by remember { mutableStateOf(false) }
     var groupInviteSheetOpen by remember { mutableStateOf(false) }
+    var groupViewerReadOnly by remember { mutableStateOf(false) }
     var groupCollabKind by remember { mutableStateOf<GroupCollabKind?>(null) }
     var groupFinanceOpen by remember { mutableStateOf(false) }
     var groupSplitsOpen by remember { mutableStateOf(false) }
@@ -327,6 +332,7 @@ fun AppShellScreen(
     var groupCreatePhase by remember { mutableStateOf(GroupCreatePhase.CHOOSER) }
     var preferGroupCreateFlow by remember { mutableStateOf(false) }
     var showManageMoment by remember { mutableStateOf(false) }
+    var showMomentStory by remember { mutableStateOf(false) }
     var editSetupOpen by remember { mutableStateOf(false) }
     var topChromeExpanded by remember { mutableStateOf(true) }
     var showJoinQrScanner by remember { mutableStateOf(false) }
@@ -361,6 +367,16 @@ fun AppShellScreen(
             else -> shellViewModel.selectBottomDestination(BottomDestination.CREATE)
         }
     }
+    LaunchedEffect(identity.userId, state.selectedContext, state.selectedMomentId) {
+        if (state.selectedContext != AppContext.GROUP || state.selectedMomentId.isNullOrBlank()) {
+            groupViewerReadOnly = false
+            return@LaunchedEffect
+        }
+        GroupSliceRepository().getParticipants(state.selectedMomentId!!).onSuccess { payload ->
+            groupViewerReadOnly = GroupViewerAccess.isViewer(payload.participants, identity.userId)
+        }
+    }
+
     LaunchedEffect(identity.userId) {
         shellViewModel.restorePreferredPersonalMomentId(
             prefs.getSelectedPersonalMomentId(identity.userId),
@@ -557,6 +573,7 @@ fun AppShellScreen(
                     groupTabRefreshToken = state.groupTabRefreshToken,
                     businessTabRefreshToken = state.businessTabRefreshToken,
                     capabilities = state.capabilities,
+                    viewerReadOnly = groupViewerReadOnly,
                     onRetry = { shellViewModel.selectContext(state.selectedContext) },
                     onSessionExpired = onSessionExpired,
                     onCreateMoment = openNewMoment,
@@ -589,12 +606,12 @@ fun AppShellScreen(
                     },
                     onAddExpense = {
                         when (state.selectedContext) {
-                            AppContext.GROUP -> groupExpenseSheetOpen = true
+                            AppContext.GROUP -> if (!groupViewerReadOnly) groupExpenseSheetOpen = true
                             AppContext.BUSINESS -> businessExpenseSheetOpen = true
                             else -> moneyQa = MoneyQuickAddKind.MASTER_EXPENSE
                         }
                     },
-                    onAddContribution = { groupContributionSheetOpen = true },
+                    onAddContribution = { if (!groupViewerReadOnly) groupContributionSheetOpen = true },
                     onAddSettlement = { groupSettlementSheetOpen = true },
                     onAddBudget = { groupBudgetSheetOpen = true },
                     onAddParticipants = { groupParticipantsSheetOpen = true },
@@ -1164,10 +1181,31 @@ fun AppShellScreen(
                         onLifecycleChanged = {
                             shellViewModel.reloadCurrentContext()
                         },
+                        onCompleted = {
+                            showManageMoment = false
+                            showMomentStory = true
+                            shellViewModel.reloadCurrentContext()
+                        },
                         onLeft = {
                             showManageMoment = false
                             shellViewModel.clearSelectedMomentAfterLeave()
                         },
+                    )
+                }
+            }
+        }
+        if (showMomentStory) {
+            val momentId = state.selectedMomentId
+            if (momentId != null) {
+                ModalBottomSheet(
+                    onDismissRequest = { showMomentStory = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = Color(0xFF2D1F5E),
+                    dragHandle = null,
+                ) {
+                    MomentStoryViewerScreen(
+                        momentId = momentId,
+                        onClose = { showMomentStory = false },
                     )
                 }
             }
@@ -1190,6 +1228,8 @@ fun AppShellScreen(
                         onClose = { editSetupOpen = false },
                         onSaved = {
                             editSetupOpen = false
+                            state.selectedMomentId?.let { GroupTabDataCache.invalidateMoment(it) }
+                            shellViewModel.refreshVisibleGroupTab(forcePrefetch = true)
                             shellViewModel.reloadCurrentContext()
                         },
                     )
@@ -1295,6 +1335,7 @@ private fun ShellDestinationContent(
     groupTabRefreshToken: Long = 0L,
     businessTabRefreshToken: Long = 0L,
     capabilities: List<String> = emptyList(),
+    viewerReadOnly: Boolean = false,
     onRetry: () -> Unit,
     onSessionExpired: () -> Unit,
     onCreateMoment: () -> Unit,
@@ -1437,13 +1478,14 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 hasActiveMoment = true,
                                 onClose = onCreateBack,
-                                onTile = onExperienceQuickAdd,
+                                onTile = { if (!viewerReadOnly) onExperienceQuickAdd(it) },
                                 onCreateMoment = {
                                     onPreferGroupCreateFlow(true)
                                     onGroupCreatePhase(GroupCreatePhase.CHOOSER)
                                 },
                                 onJoinCode = onJoinGroupCode,
                                 capabilities = capabilities,
+                                viewerReadOnly = viewerReadOnly,
                             )
                         } else if (isPurchase) {
                             PurchaseQuickAddHub(
@@ -1570,11 +1612,12 @@ private fun ShellDestinationContent(
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = groupTabRefreshToken,
                                     momentTypeCode = groupTypeCode,
-                                    onAddExpense = onAddExpense,
+                                    viewerReadOnly = viewerReadOnly,
+                                    onAddExpense = { if (!viewerReadOnly) onAddExpense() },
                                     onOpenQuickAdd = onOpenQuickAdd,
                                     onViewSplits = onViewSplits,
                                     onOpenFinance = onOpenGroupFinance,
-                                    onQuickAddKind = onExperienceQuickAdd,
+                                    onQuickAddKind = { if (!viewerReadOnly) onExperienceQuickAdd(it) },
                                     onViewAllActivity = onViewAllGroupActivity,
                                 )
                             } else if (isPurchase) {

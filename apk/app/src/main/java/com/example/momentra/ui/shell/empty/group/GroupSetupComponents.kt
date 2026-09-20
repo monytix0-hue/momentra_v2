@@ -665,7 +665,7 @@ fun defaultGroupPeople(@Suppress("UNUSED_PARAMETER") code: String): List<GroupDr
     GroupDraftPerson(
         name = "You",
         roleCode = "ORGANIZER",
-        roleLabel = "Organizer",
+        roleLabel = "Organiser",
         avatarRes = R.drawable.ges_avatar_1,
         isOrganizer = true,
         useInitials = true,

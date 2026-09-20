@@ -887,6 +887,91 @@ final class APIClient {
             let status: String?
             let wellbeingRating: Double?
             let source: String?
+            let planningItemId: String?
+
+            enum CodingKeys: String, CodingKey {
+                case expenseId, incomeId, activityId, contributionId, amount, currencyCode
+                case lifestyleContext, description, merchantName, categoryCode, subcategoryCode
+                case financialAccountId, paymentMethodCode, participantId, status
+                case wellbeingRating, source, planningItemId
+            }
+
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                expenseId = try c.decodeIfPresent(String.self, forKey: .expenseId)
+                incomeId = try c.decodeIfPresent(String.self, forKey: .incomeId)
+                activityId = try c.decodeIfPresent(String.self, forKey: .activityId)
+                contributionId = try c.decodeIfPresent(String.self, forKey: .contributionId)
+                amount = Self.decodeFlexibleString(c, forKey: .amount)
+                currencyCode = try c.decodeIfPresent(String.self, forKey: .currencyCode)
+                lifestyleContext = try c.decodeIfPresent(String.self, forKey: .lifestyleContext)
+                description = try c.decodeIfPresent(String.self, forKey: .description)
+                merchantName = try c.decodeIfPresent(String.self, forKey: .merchantName)
+                categoryCode = try c.decodeIfPresent(String.self, forKey: .categoryCode)
+                subcategoryCode = try c.decodeIfPresent(String.self, forKey: .subcategoryCode)
+                financialAccountId = try c.decodeIfPresent(String.self, forKey: .financialAccountId)
+                paymentMethodCode = try c.decodeIfPresent(String.self, forKey: .paymentMethodCode)
+                participantId = try c.decodeIfPresent(String.self, forKey: .participantId)
+                status = try c.decodeIfPresent(String.self, forKey: .status)
+                wellbeingRating = try c.decodeIfPresent(Double.self, forKey: .wellbeingRating)
+                source = try c.decodeIfPresent(String.self, forKey: .source)
+                planningItemId = try c.decodeIfPresent(String.self, forKey: .planningItemId)
+            }
+
+            /// Memberwise init for tests and local construction.
+            init(
+                expenseId: String? = nil,
+                incomeId: String? = nil,
+                activityId: String? = nil,
+                contributionId: String? = nil,
+                amount: String? = nil,
+                currencyCode: String? = nil,
+                lifestyleContext: String? = nil,
+                description: String? = nil,
+                merchantName: String? = nil,
+                categoryCode: String? = nil,
+                subcategoryCode: String? = nil,
+                financialAccountId: String? = nil,
+                paymentMethodCode: String? = nil,
+                participantId: String? = nil,
+                status: String? = nil,
+                wellbeingRating: Double? = nil,
+                source: String? = nil,
+                planningItemId: String? = nil
+            ) {
+                self.expenseId = expenseId
+                self.incomeId = incomeId
+                self.activityId = activityId
+                self.contributionId = contributionId
+                self.amount = amount
+                self.currencyCode = currencyCode
+                self.lifestyleContext = lifestyleContext
+                self.description = description
+                self.merchantName = merchantName
+                self.categoryCode = categoryCode
+                self.subcategoryCode = subcategoryCode
+                self.financialAccountId = financialAccountId
+                self.paymentMethodCode = paymentMethodCode
+                self.participantId = participantId
+                self.status = status
+                self.wellbeingRating = wellbeingRating
+                self.source = source
+                self.planningItemId = planningItemId
+            }
+
+            private static func decodeFlexibleString(
+                _ c: KeyedDecodingContainer<CodingKeys>,
+                forKey key: CodingKeys
+            ) -> String? {
+                if let s = try? c.decodeIfPresent(String.self, forKey: key) { return s }
+                if let d = try? c.decodeIfPresent(Double.self, forKey: key) {
+                    return String(d)
+                }
+                if let i = try? c.decodeIfPresent(Int.self, forKey: key) {
+                    return String(i)
+                }
+                return nil
+            }
         }
     }
 
@@ -983,6 +1068,116 @@ final class APIClient {
             body: Body(expectedVersion: expectedVersion),
             idempotencyKey: idempotencyKey
         )
+    }
+
+    func completeMoment(
+        momentId: String,
+        expectedVersion: Int,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> MomentLifecycleResult {
+        struct Body: Encodable { let expectedVersion: Int }
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/complete",
+            body: Body(expectedVersion: expectedVersion),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func getMomentStoryStatus(momentId: String) async throws -> MomentStoryStatus {
+        try await authorizedGet(path: "v1/moments/\(momentId)/story-status")
+    }
+
+    func getMomentStory(momentId: String) async throws -> MomentStoryPayload {
+        try await authorizedGet(path: "v1/moments/\(momentId)/story")
+    }
+
+    func getMomentStorySharePack(momentId: String) async throws -> MomentStorySharePack {
+        try await authorizedGet(path: "v1/moments/\(momentId)/story/share-pack")
+    }
+
+    func getStoryArtifact(storyId: String, artifactType: String) async throws -> MomentStoryArtifact {
+        try await authorizedGet(path: "v1/stories/\(storyId)/artifacts/\(artifactType)")
+    }
+
+    struct MomentStoryStatus: Decodable {
+        let status: String
+        let storyId: String?
+        let storyVersion: Int?
+        let familyProfile: String?
+        let errorMessage: String?
+    }
+
+    struct MomentStoryPayload: Decodable {
+        let storyId: String
+        let storyVersion: Int
+        let status: String
+        let familyProfile: String
+        let chapters: [String]?
+        let snapshot: MomentStorySnapshot?
+    }
+
+    struct MomentStorySnapshot: Decodable {
+        let identity: MomentStoryIdentity?
+        let metrics: [String: MomentStoryMetricValue]?
+        let narrative: MomentStoryNarrative?
+        let display: MomentStoryDisplay?
+        let chapters: [String]?
+    }
+
+    struct MomentStoryIdentity: Decodable {
+        let momentId: String?
+        let title: String?
+        let familyProfile: String?
+        let startAt: String?
+        let endAt: String?
+    }
+
+    struct MomentStoryNarrative: Decodable {
+        let opening: String?
+        let insights: [String]?
+    }
+
+    struct MomentStoryDisplay: Decodable {
+        let displayLabel: String?
+        let coverEyebrow: String?
+        let closeLine: String?
+    }
+
+    enum MomentStoryMetricValue: Decodable {
+        case string(String)
+        case number(Double)
+        case int(Int)
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.singleValueContainer()
+            if let i = try? c.decode(Int.self) { self = .int(i); return }
+            if let d = try? c.decode(Double.self) { self = .number(d); return }
+            self = .string((try? c.decode(String.self)) ?? "")
+        }
+
+        var label: String {
+            switch self {
+            case .string(let s): return s
+            case .number(let d): return String(format: "%g", d)
+            case .int(let i): return String(i)
+            }
+        }
+    }
+
+    struct MomentStorySharePack: Decodable {
+        let coverSvg: String?
+        let blurb: String?
+        let webUrl: String?
+        let webPath: String?
+        let appDeepLink: String?
+        let storyId: String?
+        let title: String?
+    }
+
+    struct MomentStoryArtifact: Decodable {
+        let artifactId: String?
+        let contentType: String?
+        let body: String?
     }
 
     func cancelMoment(

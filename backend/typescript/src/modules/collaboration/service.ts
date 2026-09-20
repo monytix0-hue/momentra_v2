@@ -458,15 +458,25 @@ export async function updatePlanningItem(
     asDraft?: boolean;
     status?: string | null;
   }
-): Promise<{ planningItemId: string; momentId: string; status: string; title: string }> {
+): Promise<{
+  planningItemId: string;
+  momentId: string;
+  status: string;
+  title: string;
+  categoryCode: string | null;
+}> {
   // Same people who can create can update — no separate UPDATE capability seed yet.
   await assertGovernanceAllowed(client, ctx, {
     actionCode: 'PLANNING_ITEM_CREATE',
     resourceType: 'PLANNING_ITEM',
     momentId,
   });
-  const existing = await client.query<{ planning_item_id: string; status: string }>(
-    `SELECT planning_item_id, status
+  const existing = await client.query<{
+    planning_item_id: string;
+    status: string;
+    category_code: string | null;
+  }>(
+    `SELECT planning_item_id, status, category_code
      FROM collaboration.planning_item
      WHERE planning_item_id = $1 AND moment_id = $2`,
     [planningItemId, momentId]
@@ -478,7 +488,14 @@ export async function updatePlanningItem(
   if (body.asDraft === true) status = 'DRAFT';
   else if (body.asDraft === false && status === 'DRAFT') status = 'OPEN';
 
-  const r = await client.query<{ planning_item_id: string; status: string; title: string }>(
+  const categoryCode = body.categoryCode ?? existing.rows[0].category_code ?? null;
+
+  const r = await client.query<{
+    planning_item_id: string;
+    status: string;
+    title: string;
+    category_code: string | null;
+  }>(
     `UPDATE collaboration.planning_item
      SET title = $3,
          description = $4,
@@ -490,7 +507,7 @@ export async function updatePlanningItem(
          updated_at = now(),
          version = version + 1
      WHERE planning_item_id = $1 AND moment_id = $2
-     RETURNING planning_item_id, status, title`,
+     RETURNING planning_item_id, status, title, category_code`,
     [
       planningItemId,
       momentId,
@@ -498,7 +515,7 @@ export async function updatePlanningItem(
       body.description ?? null,
       body.dueAt ?? null,
       status,
-      body.categoryCode ?? null,
+      categoryCode,
       body.location ?? null,
       body.priorityCode ?? null,
     ]
@@ -508,6 +525,7 @@ export async function updatePlanningItem(
     momentId,
     status: r.rows[0]!.status,
     title: r.rows[0]!.title,
+    categoryCode: r.rows[0]!.category_code,
   };
 }
 

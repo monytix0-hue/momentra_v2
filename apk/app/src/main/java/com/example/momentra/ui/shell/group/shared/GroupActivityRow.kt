@@ -47,6 +47,8 @@ fun GroupActivityRow(
     val canTap = onClick != null
     val amount = groupActivityAmountLabel(item)
     val title = groupActivityRowTitle(item, isChild)
+    val voided = isGroupActivityVoided(item.activityCode)
+    val compactStyle = isChild || voided
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -66,23 +68,23 @@ fun GroupActivityRow(
     ) {
         Box(
             modifier = Modifier
-                .width(if (isChild) 1.5.dp else 2.dp)
-                .height(if (isChild) 28.dp else 36.dp)
+                .width(if (compactStyle) 1.5.dp else 2.dp)
+                .height(if (compactStyle) 28.dp else 36.dp)
                 .background(
-                    accent.copy(alpha = if (isChild) 0.25f else 0.4f),
+                    accent.copy(alpha = if (compactStyle) 0.25f else 0.4f),
                     RoundedCornerShape(1.dp),
                 ),
         )
         Box(
             modifier = Modifier
-                .size(if (isChild) 28.dp else 36.dp)
+                .size(if (compactStyle) 28.dp else 36.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(Color.White.copy(alpha = 0.1f)),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                if (isChild && isGroupActivityVoided(item.activityCode)) "🗑️" else groupActivityGlyph(item.activityCode),
-                fontSize = if (isChild) 13.sp else 16.sp,
+                if (voided) "🗑️" else groupActivityGlyph(item.activityCode),
+                fontSize = if (compactStyle) 13.sp else 16.sp,
             )
         }
         Column(
@@ -91,9 +93,9 @@ fun GroupActivityRow(
         ) {
             Text(
                 title,
-                color = if (isChild) secondaryColor else textColor,
-                fontSize = if (isChild) 12.sp else 14.sp,
-                fontWeight = if (isChild) FontWeight.SemiBold else FontWeight.Bold,
+                color = if (compactStyle) secondaryColor else textColor,
+                fontSize = if (compactStyle) 12.sp else 14.sp,
+                fontWeight = if (compactStyle) FontWeight.SemiBold else FontWeight.Bold,
                 fontFamily = PlusJakartaSans,
             )
             Text(
@@ -103,7 +105,7 @@ fun GroupActivityRow(
                 fontFamily = PlusJakartaSans,
             )
         }
-        if (!amount.isNullOrBlank()) {
+        if (!amount.isNullOrBlank() && !(voided && isChild)) {
             Text(
                 amount,
                 color = secondaryColor,

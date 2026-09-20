@@ -40,19 +40,29 @@ struct GroupActivityRow: View {
                     .frame(width: isChild ? 1.5 : 2, height: isChild ? 28 : 36)
 
                 Text(
-                    isChild && GroupActivityPresentation.isVoided(item.activityCode)
+                    GroupActivityPresentation.isVoided(item.activityCode)
                         ? "🗑️"
                         : GroupActivityPresentation.glyph(for: item.activityCode)
                 )
-                .font(.system(size: isChild ? 13 : 16))
-                .frame(width: isChild ? 28 : 36, height: isChild ? 28 : 36)
+                .font(.system(size: isChild || GroupActivityPresentation.isVoided(item.activityCode) ? 13 : 16))
+                .frame(
+                    width: isChild || GroupActivityPresentation.isVoided(item.activityCode) ? 28 : 36,
+                    height: isChild || GroupActivityPresentation.isVoided(item.activityCode) ? 28 : 36
+                )
                 .background(Color.white.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 10))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.plusJakarta(size: isChild ? 12 : 14, weight: isChild ? .semibold : .bold))
-                        .foregroundStyle(isChild ? secondaryColor : textColor)
+                        .font(.plusJakarta(
+                            size: isChild || GroupActivityPresentation.isVoided(item.activityCode) ? 12 : 14,
+                            weight: isChild || GroupActivityPresentation.isVoided(item.activityCode) ? .semibold : .bold
+                        ))
+                        .foregroundStyle(
+                            isChild || GroupActivityPresentation.isVoided(item.activityCode)
+                                ? secondaryColor
+                                : textColor
+                        )
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text(GroupActivityPresentation.formatOccurredAt(item.occurredAt))
@@ -60,7 +70,7 @@ struct GroupActivityRow: View {
                         .foregroundStyle(secondaryColor)
                 }
 
-                if let amountLabel {
+                if let amountLabel, !GroupActivityPresentation.isVoided(item.activityCode) || !isChild {
                     Text(amountLabel)
                         .font(.plusJakarta(size: isChild ? 12 : 13, weight: .semibold))
                         .foregroundStyle(secondaryColor)
@@ -105,7 +115,8 @@ enum GroupActivityPresentation {
     }
 
     static func rowTitle(for item: APIClient.ActivityItemPayload, isChild: Bool) -> String {
-        if isChild && isVoided(item.activityCode) {
+        // Child voids and orphan void parents both use deleted copy.
+        if isVoided(item.activityCode) {
             return deletedTitle(for: item)
         }
         return displayTitle(for: item)
@@ -120,8 +131,7 @@ enum GroupActivityPresentation {
     }
 
     static func amountLabel(for item: APIClient.ActivityItemPayload) -> String? {
-        guard let raw = item.activityPayload?.amount,
-              let value = Double(raw) else { return nil }
+        guard let value = parseAmount(item.activityPayload?.amount) else { return nil }
         let currency = item.activityPayload?.currencyCode ?? "INR"
         let symbol = currency.uppercased() == "INR" ? "₹" : "\(currency) "
         let rounded = Int(value.rounded())
@@ -129,6 +139,16 @@ enum GroupActivityPresentation {
             return "\(symbol)\(rounded)"
         }
         return String(format: "%@%.2f", symbol, value)
+    }
+
+    /// Accepts `"100.0000"`, `"1,234.50"`, and plain numeric strings.
+    static func parseAmount(_ raw: String?) -> Double? {
+        guard var s = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
+        s = s.replacingOccurrences(of: ",", with: "")
+        if let v = Double(s) { return v }
+        // Strip non-numeric except leading minus and decimal point.
+        let filtered = s.filter { $0.isNumber || $0 == "." || $0 == "-" }
+        return Double(filtered)
     }
 
     static func groupKey(for item: APIClient.ActivityItemPayload) -> String? {
@@ -156,6 +176,7 @@ enum GroupActivityPresentation {
     }
 
     /// Nest UPDATED / VOIDED lifecycle rows under the original expense or contribution.
+    /// Nodes ordered by latest event among parent + children (so a fresh void floats to the top).
     static func activityTree(from items: [APIClient.ActivityItemPayload]) -> [GroupActivityTreeNode] {
         guard !items.isEmpty else { return [] }
 
@@ -185,7 +206,7 @@ enum GroupActivityPresentation {
         }
 
         return nodes.sorted {
-            occurredAtMillis($0.item.occurredAt) > occurredAtMillis($1.item.occurredAt)
+            latestOccurredAtMillis($0) > latestOccurredAtMillis($1)
         }
     }
 
@@ -201,6 +222,11 @@ enum GroupActivityPresentation {
             return isVoided(item.activityCode) || isUpdated(item.activityCode)
         }
         return GroupActivityTreeNode(item: parent, children: children)
+    }
+
+    private static func latestOccurredAtMillis(_ node: GroupActivityTreeNode) -> TimeInterval {
+        let times = [node.item.occurredAt] + node.children.map(\.occurredAt)
+        return times.map(occurredAtMillis).max() ?? 0
     }
 
     private static func occurredAtMillis(_ raw: String) -> TimeInterval {

@@ -74,7 +74,7 @@ enum GroupTabDataCache {
 }
 
 enum GroupTabPrefetch {
-    static let activityLimit = 5
+    static let activityLimit = 8
 
     /// Warm critical-path pulse+finance+activity (inflight-deduped via GroupTabLoad).
     static func run(momentId: String) async {

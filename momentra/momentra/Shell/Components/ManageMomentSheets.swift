@@ -40,6 +40,7 @@ struct ManageMomentFlowSheet: View {
     @Binding var isPresented: Bool
     var onEditSetup: () -> Void
     var onLifecycleChanged: () -> Void
+    var onCompleted: () -> Void = {}
     var onLeft: () -> Void = {}
 
     @State private var subsheet: ManageMomentSubsheet?
@@ -349,7 +350,7 @@ struct ManageMomentFlowSheet: View {
         }
         .confirmationDialog("Complete Chapter?", isPresented: $confirmComplete, titleVisibility: .visible) {
             Button("Complete", role: .destructive) {
-                Task { await runLifecycle(.cancel) }
+                Task { await runLifecycle(.complete) }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -358,7 +359,7 @@ struct ManageMomentFlowSheet: View {
         .disabled(busy)
     }
 
-    private enum LifecycleAction { case archive, cancel }
+    private enum LifecycleAction { case archive, complete }
 
     private func saveCadence(_ code: String) async {
         do {
@@ -451,11 +452,13 @@ struct ManageMomentFlowSheet: View {
             switch action {
             case .archive:
                 _ = try await APIClient.shared.archiveMoment(momentId: momentId, expectedVersion: detail.version)
-            case .cancel:
-                _ = try await APIClient.shared.cancelMoment(momentId: momentId, expectedVersion: detail.version)
+                isPresented = false
+                onLifecycleChanged()
+            case .complete:
+                _ = try await APIClient.shared.completeMoment(momentId: momentId, expectedVersion: detail.version)
+                isPresented = false
+                onCompleted()
             }
-            isPresented = false
-            onLifecycleChanged()
         } catch {
             errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }

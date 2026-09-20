@@ -6,6 +6,8 @@ struct ExperienceQuickAddHubView: View {
     let momentTitle: String?
     let hasActiveMoment: Bool
     var capabilityCodes: [String]? = nil
+    /// When true, Quick Add tiles are shown greyed-out (Viewer / OBSERVER).
+    var viewerReadOnly: Bool = false
     var onClose: () -> Void
     var onTile: (ExperienceQuickAddKind) -> Void
     var onNewMoment: () -> Void = {}
@@ -151,7 +153,9 @@ struct ExperienceQuickAddHubView: View {
 
     @ViewBuilder
     private func actionCard(_ kind: ExperienceQuickAddKind) -> some View {
+        let enabled = hasActiveMoment && !viewerReadOnly
         Button {
+            guard enabled else { return }
             onTile(kind)
         } label: {
             VStack(spacing: 10) {
@@ -176,7 +180,7 @@ struct ExperienceQuickAddHubView: View {
             .shadow(color: (kind.hubGradient.first ?? .clear).opacity(0.2), radius: 10, y: 4)
         }
         .buttonStyle(.plain)
-        .disabled(!hasActiveMoment)
-        .opacity(hasActiveMoment ? 1 : 0.45)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.45)
     }
 }

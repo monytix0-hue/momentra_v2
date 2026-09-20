@@ -10,12 +10,17 @@ struct ExperienceChecklistBody: View {
         accentEnd: Color(hex: "#0F766E"),
         soft: Color(hex: "#14B8A6").opacity(0.2)
     )
+    /// When set, sheet edits an existing checklist item instead of creating.
+    var editingItem: GroupPlanningItem? = nil
 
     @State private var title = ""
     @State private var selectedCategoryLabel = GroupExperienceChecklistCatalog.defaultLabel()
     @State private var submitting = false
     @State private var seeding = false
     @State private var error: String?
+    @State private var didPrefill = false
+
+    private var isEditing: Bool { editingItem?.planningItemId != nil }
 
     private var categoryCode: String {
         GroupExperienceChecklistCatalog.categories
@@ -27,8 +32,8 @@ struct ExperienceChecklistBody: View {
         VStack(alignment: .leading, spacing: 16) {
             SheetHeader(
                 icon: "checklist",
-                title: "Checklist",
-                subtitle: "Shared packing & essentials",
+                title: isEditing ? "Edit checklist" : "Checklist",
+                subtitle: isEditing ? "Update packing & essentials" : "Shared packing & essentials",
                 accent: accent
             )
 
@@ -53,7 +58,7 @@ struct ExperienceChecklistBody: View {
             }
 
             PrimaryCta(
-                label: "Add",
+                label: isEditing ? "Save" : "Add",
                 enabled: !(momentId ?? "").isEmpty
                     && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && !submitting
@@ -61,23 +66,35 @@ struct ExperienceChecklistBody: View {
                 accent: accent,
                 loading: submitting
             ) {
-                Task { await addItem() }
+                Task { await saveItem() }
             }
 
-            PrimaryCta(
-                label: seeding ? "Seeding…" : "Seed packing list",
-                enabled: !(momentId ?? "").isEmpty && !submitting && !seeding,
-                accent: accent,
-                loading: seeding,
-                lightLabel: true
-            ) {
-                Task { await seedPackingList() }
+            if !isEditing {
+                PrimaryCta(
+                    label: seeding ? "Seeding…" : "Seed packing list",
+                    enabled: !(momentId ?? "").isEmpty && !submitting && !seeding,
+                    accent: accent,
+                    loading: seeding,
+                    lightLabel: true
+                ) {
+                    Task { await seedPackingList() }
+                }
             }
+        }
+        .onAppear { prefillIfNeeded() }
+    }
+
+    private func prefillIfNeeded() {
+        guard !didPrefill, let item = editingItem else { return }
+        didPrefill = true
+        title = item.title ?? ""
+        if let code = item.categoryCode, GroupExperienceChecklistCatalog.isChecklistCode(code) {
+            selectedCategoryLabel = GroupExperienceChecklistCatalog.label(forCode: code)
         }
     }
 
     @MainActor
-    private func addItem() async {
+    private func saveItem() async {
         guard let momentId, !momentId.isEmpty else { return }
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -85,11 +102,21 @@ struct ExperienceChecklistBody: View {
         error = nil
         defer { submitting = false }
         do {
-            _ = try await APIClient.shared.createPlanningItem(
-                momentId: momentId,
-                title: trimmed,
-                categoryCode: categoryCode
-            )
+            if let planningItemId = editingItem?.planningItemId {
+                _ = try await APIClient.shared.updatePlanningItem(
+                    momentId: momentId,
+                    planningItemId: planningItemId,
+                    title: trimmed,
+                    categoryCode: categoryCode,
+                    status: editingItem?.status
+                )
+            } else {
+                _ = try await APIClient.shared.createPlanningItem(
+                    momentId: momentId,
+                    title: trimmed,
+                    categoryCode: categoryCode
+                )
+            }
             onSaved()
             onDismiss()
         } catch {
@@ -148,6 +175,9 @@ struct MomentsChecklistSection: View {
     var onAdd: (() -> Void)? = nil
 
     @State private var togglingId: String?
+    /// Category codes that are collapsed. Empty = all expanded (least surprise).
+    @State private var collapsedCodes: Set<String> = []
+    @State private var editingItem: GroupPlanningItem?
 
     private var groups: [(category: GroupExperienceChecklistCatalog.Category, items: [GroupPlanningItem])] {
         GroupExperienceChecklistCatalog.groupedByCategory(items)
@@ -170,12 +200,37 @@ struct MomentsChecklistSection: View {
                 }
             } else {
                 ForEach(groups, id: \.category.code) { group in
+                    let expanded = !collapsedCodes.contains(group.category.code)
+                    let doneCount = group.items.filter {
+                        ($0.status ?? "").caseInsensitiveCompare("DONE") == .orderedSame
+                    }.count
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(group.category.label)
-                            .font(.plusJakarta(size: 12, weight: .bold))
-                            .foregroundStyle(chrome.accent)
-                        ForEach(Array(group.items.enumerated()), id: \.offset) { _, item in
-                            checklistRow(item)
+                        Button {
+                            if expanded {
+                                collapsedCodes.insert(group.category.code)
+                            } else {
+                                collapsedCodes.remove(group.category.code)
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(chrome.accent)
+                                Text(group.category.label)
+                                    .font(.plusJakarta(size: 12, weight: .bold))
+                                    .foregroundStyle(chrome.accent)
+                                Spacer(minLength: 0)
+                                Text("\(doneCount)/\(group.items.count)")
+                                    .font(.plusJakarta(size: 11, weight: .semibold))
+                                    .foregroundStyle(chrome.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+
+                        if expanded {
+                            ForEach(Array(group.items.enumerated()), id: \.offset) { _, item in
+                                checklistRow(item)
+                            }
                         }
                     }
                 }
@@ -185,6 +240,40 @@ struct MomentsChecklistSection: View {
                         .foregroundStyle(chrome.accent)
                         .buttonStyle(.plain)
                 }
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { editingItem != nil },
+            set: { if !$0 { editingItem = nil } }
+        )) {
+            if let item = editingItem {
+                NativeSheetScaffold(
+                    title: "Edit checklist",
+                    onClose: { editingItem = nil },
+                    background: chrome.card
+                ) {
+                    ScrollView {
+                        ExperienceChecklistBody(
+                            momentId: momentId,
+                            onDismiss: { editingItem = nil },
+                            onSaved: {
+                                editingItem = nil
+                                onChanged()
+                            },
+                            accent: SheetAccent(
+                                accent: chrome.accent,
+                                accentEnd: chrome.accent,
+                                soft: chrome.accent.opacity(0.2)
+                            ),
+                            editingItem: item
+                        )
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                        .padding(.bottom, 28)
+                    }
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -211,6 +300,18 @@ struct MomentsChecklistSection: View {
                 .foregroundStyle(done ? chrome.secondary : chrome.text)
                 .strikethrough(done)
             Spacer(minLength: 0)
+
+            if id != nil, momentId != nil {
+                Button {
+                    editingItem = item
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(chrome.secondary)
+                        .padding(6)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)

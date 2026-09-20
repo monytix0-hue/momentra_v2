@@ -44,11 +44,11 @@ object GroupActivityCategoryFilter {
     }
 
     fun matches(item: ActivityItemDto, chipId: String): Boolean =
-        matches(item.activityCode, chipId)
+        matches(item.activityCode, chipId, item.activityPayload?.categoryCode)
 
-    fun matches(activityCode: String, chipId: String): Boolean {
+    fun matches(activityCode: String, chipId: String, categoryCode: String? = null): Boolean {
         if (chipId == ALL_ID || chipId.isBlank()) return true
-        return activityBelongs(chipId, activityCode)
+        return activityBelongs(chipId, activityCode, categoryCode)
     }
 
     private fun tripHubChips(): List<FilterChip> {
@@ -130,17 +130,25 @@ object GroupActivityCategoryFilter {
         ExperienceQuickAddKind.BOOKING -> "Booking"
     }
 
-    private fun activityBelongs(chipId: String, activityCode: String): Boolean {
+    private fun isChecklistActivity(activityCode: String, categoryCode: String?): Boolean {
         val upper = activityCode.uppercase(Locale.US)
+        if (upper.contains("CHECKLIST")) return true
+        // Legacy rows still used GROUP_PLANNING_ITEM_* with a checklist categoryCode.
+        return GroupExperienceChecklistCatalog.isChecklistCode(categoryCode)
+    }
+
+    private fun activityBelongs(chipId: String, activityCode: String, categoryCode: String?): Boolean {
+        val upper = activityCode.uppercase(Locale.US)
+        val checklist = isChecklistActivity(activityCode, categoryCode)
         return when (chipId) {
             "expense" -> upper.contains("EXPENSE")
             "contribution" ->
                 upper.contains("CONTRIBUTION") ||
                     (upper.contains("CONTRIB") && !upper.contains("CONTRIBUTOR"))
             "settle" -> upper.contains("SETTLE")
-            "planning" -> upper.contains("PLANNING")
-            "checklist" -> upper.contains("PLANNING")
-            "task" -> upper.contains("TASK") && !upper.contains("PLANNING")
+            "planning" -> upper.contains("PLANNING") && !checklist
+            "checklist" -> checklist
+            "task" -> upper.contains("TASK") && !upper.contains("PLANNING") && !checklist
             "booking" -> upper.contains("BOOKING")
             "poll" -> upper.contains("POLL")
             "memory" -> upper.contains("MEMORY")

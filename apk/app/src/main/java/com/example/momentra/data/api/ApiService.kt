@@ -200,6 +200,34 @@ interface ApiService {
         @Body body: MomentVersionBody,
     ): SuccessEnvelope<MomentLifecycleResultDto>
 
+    @POST("v1/moments/{momentId}/complete")
+    suspend fun completeMoment(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: MomentVersionBody,
+    ): SuccessEnvelope<MomentLifecycleResultDto>
+
+    @GET("v1/moments/{momentId}/story-status")
+    suspend fun getMomentStoryStatus(
+        @Path("momentId") momentId: String,
+    ): SuccessEnvelope<MomentStoryStatusDto>
+
+    @GET("v1/moments/{momentId}/story")
+    suspend fun getMomentStory(
+        @Path("momentId") momentId: String,
+    ): SuccessEnvelope<MomentStoryDto>
+
+    @GET("v1/moments/{momentId}/story/share-pack")
+    suspend fun getMomentStorySharePack(
+        @Path("momentId") momentId: String,
+    ): SuccessEnvelope<MomentStorySharePackDto>
+
+    @GET("v1/stories/{storyId}/artifacts/{artifactType}")
+    suspend fun getStoryArtifact(
+        @Path("storyId") storyId: String,
+        @Path("artifactType") artifactType: String,
+    ): SuccessEnvelope<MomentStoryArtifactDto>
+
     @POST("v1/moments/{momentId}/delete")
     suspend fun deleteMoment(
         @Path("momentId") momentId: String,

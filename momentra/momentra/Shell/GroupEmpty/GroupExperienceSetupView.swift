@@ -747,7 +747,7 @@ struct GroupExperienceSetupView: View {
             .init(
                 name: "You",
                 roleCode: "ORGANIZER",
-                roleLabel: "Organizer",
+                roleLabel: "Organiser",
                 avatarName: "ges_avatar_1",
                 isOrganizer: true,
                 useInitials: true

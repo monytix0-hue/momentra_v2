@@ -95,6 +95,7 @@ fun ManageMomentSheet(
     onDismiss: () -> Unit,
     onEditSetup: () -> Unit,
     onLifecycleChanged: () -> Unit,
+    onCompleted: () -> Unit = {},
     onLeft: () -> Unit = onLifecycleChanged,
     repo: MomentLifecycleRepository = remember { MomentLifecycleRepository() },
 ) {
@@ -172,7 +173,7 @@ fun ManageMomentSheet(
         }
     }
 
-    fun runLifecycle(block: suspend (Long) -> Result<*>) {
+    fun runLifecycle(completed: Boolean = false, block: suspend (Long) -> Result<*>) {
         scope.launch {
             busy = true
             error = null
@@ -184,7 +185,7 @@ fun ManageMomentSheet(
             block(version).fold(
                 onSuccess = {
                     busy = false
-                    onLifecycleChanged()
+                    if (completed) onCompleted() else onLifecycleChanged()
                     onDismiss()
                 },
                 onFailure = {
@@ -378,7 +379,7 @@ fun ManageMomentSheet(
                     busy = busy,
                     error = error,
                     onClose = { pane = ManageMomentPane.MENU },
-                    onConfirm = { runLifecycle { repo.cancel(momentId, it) } },
+                    onConfirm = { runLifecycle(completed = true) { repo.complete(momentId, it) } },
                 )
             }
             ManageMomentPane.LEAVE_TRANSFER -> {

@@ -7,6 +7,7 @@ struct ExperiencePulseActiveView: View {
     let momentTitle: String?
     let momentId: String?
     var momentTypeCode: String? = nil
+    var viewerReadOnly: Bool = false
     var onAddExpense: () -> Void = {}
     var onOpenQuickAdd: () -> Void = {}
     var onViewSplits: () -> Void = {}
@@ -24,6 +25,8 @@ struct ExperiencePulseActiveView: View {
     @State private var error: String?
     @State private var editingExpenseId: String?
     @State private var editExpensePresented = false
+    @State private var crewViewAllPresented = false
+    @State private var destinations: [String] = []
 
     var body: some View {
         Group {
@@ -56,6 +59,15 @@ struct ExperiencePulseActiveView: View {
         .onChange(of: editExpensePresented) { _, open in
             if !open { editingExpenseId = nil }
         }
+        .sheet(isPresented: $crewViewAllPresented) {
+            if let momentId {
+                GroupParticipantsSheet(
+                    momentId: momentId,
+                    isPresented: $crewViewAllPresented,
+                    isWedding: false
+                )
+            }
+        }
     }
 
     @ViewBuilder
@@ -84,7 +96,9 @@ struct ExperiencePulseActiveView: View {
                 ExperiencePulseHero(
                     theme: theme,
                     title: displayTitle,
-                    startAtIso: ExperiencePulseDate.startAtIso(from: pulse)
+                    startAtIso: ExperiencePulseDate.startAtIso(from: pulse),
+                    destinations: destinations,
+                    peopleCount: people
                 )
 
                 HStack(spacing: 10) {
@@ -93,8 +107,9 @@ struct ExperiencePulseActiveView: View {
                             theme: theme,
                             emoji: chip.emoji,
                             label: chip.label,
-                            enabled: true
+                            enabled: !viewerReadOnly
                         ) {
+                            guard !viewerReadOnly else { return }
                             onQuickAddKind(chip.kind)
                         }
                     }
@@ -166,7 +181,17 @@ struct ExperiencePulseActiveView: View {
                     }
                 }
 
-                ExperienceSectionCard(theme: theme, title: theme.crewTitle) {
+                ExperienceSectionCard(
+                    theme: theme,
+                    title: theme.crewTitle,
+                    trailing: {
+                        if participants.count > 5 || positions.count > 5 {
+                            Button("View all") { crewViewAllPresented = true }
+                                .font(.plusJakarta(size: 12, weight: .semibold))
+                                .foregroundStyle(theme.accentLight)
+                        }
+                    }
+                ) {
                     let nameById = GroupParticipantNameMap.build(participants)
                     let netByParticipantId = Dictionary(
                         uniqueKeysWithValues: positions.map { ($0.participantId, $0) }
@@ -377,6 +402,10 @@ struct ExperiencePulseActiveView: View {
             } catch {
                 if participants.isEmpty { participants = [] }
             }
+            let widgetPlaces = TripPulseDestinations.fromWidget(tab.pulse?.payload?.widgetPayload)
+            let prefillPlaces = (try? await APIClient.shared.getGroupSetupPrefill(momentId: momentId))
+                .map { TripPulseDestinations.fromPrefill($0) } ?? []
+            destinations = !prefillPlaces.isEmpty ? prefillPlaces : widgetPlaces
             Task {
                 if let enriched = await GroupTabLoad.enrich(momentId: momentId) {
                     await MainActor.run { insights = enriched.insights }
@@ -395,6 +424,8 @@ private struct ExperiencePulseHero: View {
     let theme: ExperienceActiveTheme
     let title: String
     let startAtIso: String?
+    var destinations: [String] = []
+    var peopleCount: Int = 0
 
     private var dateLabel: String? {
         ExperiencePulseDate.displayDate(from: startAtIso)
@@ -402,6 +433,12 @@ private struct ExperiencePulseHero: View {
 
     private var countdownLabel: String? {
         ExperiencePulseDate.countdown(from: startAtIso, emoji: theme.heroEmoji)
+    }
+
+    private var destinationSubtitle: String? {
+        guard !destinations.isEmpty else { return nil }
+        return TripPulseDestinations.heroSubtitle(places: destinations, peopleCount: peopleCount)
+            .replacingOccurrences(of: "Trip ·", with: "\(theme.typeLabel) ·")
     }
 
     var body: some View {
@@ -417,6 +454,18 @@ private struct ExperiencePulseHero: View {
             Text(title)
                 .font(.plusJakarta(size: 32, weight: .heavy))
                 .foregroundStyle(Color.white)
+            if let destinationSubtitle {
+                Text(destinationSubtitle)
+                    .font(.plusJakarta(size: 14, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.85))
+            }
+            if !destinations.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(destinations.prefix(4), id: \.self) { place in
+                        glassChip(place)
+                    }
+                }
+            }
             if let dateLabel {
                 HStack(spacing: 8) {
                     Text(dateLabel)

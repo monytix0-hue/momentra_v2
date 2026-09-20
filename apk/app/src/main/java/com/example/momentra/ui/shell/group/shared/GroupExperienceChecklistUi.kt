@@ -11,9 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,6 +56,7 @@ fun ExperienceChecklistAddSheet(
     onSaved: () -> Unit,
     accent: SheetAccent,
     surface: Color = Color(0xFF1C1A24),
+    editingItem: GroupLifePlanningItemDto? = null,
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
@@ -75,6 +80,7 @@ fun ExperienceChecklistAddSheet(
             onDismiss = onDismiss,
             onSaved = onSaved,
             accent = accent,
+            editingItem = editingItem,
         )
     }
 }
@@ -87,9 +93,18 @@ fun ExperienceChecklistSheetBody(
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
     accent: SheetAccent,
+    editingItem: GroupLifePlanningItemDto? = null,
 ) {
-    var title by remember { mutableStateOf("") }
-    var categoryCode by remember { mutableStateOf(GroupExperienceChecklistCatalog.defaultCode()) }
+    val isEditing = !editingItem?.planningItemId.isNullOrBlank()
+    var title by remember(editingItem?.planningItemId) {
+        mutableStateOf(editingItem?.title.orEmpty())
+    }
+    var categoryCode by remember(editingItem?.planningItemId) {
+        mutableStateOf(
+            editingItem?.categoryCode?.takeIf { GroupExperienceChecklistCatalog.isChecklistCode(it) }
+                ?: GroupExperienceChecklistCatalog.defaultCode(),
+        )
+    }
     var submitting by remember { mutableStateOf(false) }
     var seeding by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -99,8 +114,8 @@ fun ExperienceChecklistSheetBody(
 
     SheetHeader(
         R.drawable.ic_group_qa_calendar,
-        "Checklist",
-        "Shared packing & essentials",
+        if (isEditing) "Edit checklist" else "Checklist",
+        if (isEditing) "Update packing & essentials" else "Shared packing & essentials",
         accent = accent,
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -119,7 +134,7 @@ fun ExperienceChecklistSheetBody(
         Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans)
     }
     PrimaryCta(
-        label = "Add",
+        label = if (isEditing) "Save" else "Add",
         enabled = !momentId.isNullOrBlank() && title.isNotBlank() && !submitting && !seeding,
         accent = accent,
         loading = submitting,
@@ -130,70 +145,83 @@ fun ExperienceChecklistSheetBody(
             scope.launch {
                 submitting = true
                 error = null
-                repository.createPlanningItem(
-                    momentId = mid,
-                    title = trimmed,
-                    categoryCode = categoryCode,
-                ).onSuccess {
+                val result = if (isEditing) {
+                    repository.updatePlanningItem(
+                        momentId = mid,
+                        planningItemId = editingItem!!.planningItemId!!,
+                        title = trimmed,
+                        categoryCode = categoryCode,
+                        status = editingItem.status,
+                    )
+                } else {
+                    repository.createPlanningItem(
+                        momentId = mid,
+                        title = trimmed,
+                        categoryCode = categoryCode,
+                    )
+                }
+                result.onSuccess {
                     submitting = false
                     onSaved()
                     onDismiss()
                 }.onFailure { e ->
                     submitting = false
-                    error = e.message ?: "Could not add checklist item"
+                    error = e.message ?: if (isEditing) "Could not save checklist item" else "Could not add checklist item"
                 }
             }
         },
     )
-    PrimaryCta(
-        label = if (seeding) "Seeding…" else "Seed packing list",
-        enabled = !momentId.isNullOrBlank() && !submitting && !seeding,
-        accent = accent,
-        loading = seeding,
-        lightLabel = true,
-        onClick = {
-            val mid = momentId ?: return@PrimaryCta
-            scope.launch {
-                seeding = true
-                error = null
-                val existing = repository.listPlanningItems(mid).getOrNull()?.items.orEmpty()
-                val existingKeys = existing
-                    .filter { GroupExperienceChecklistCatalog.isChecklistCode(it.categoryCode) }
-                    .mapNotNull { item ->
-                        val t = item.title?.trim()?.lowercase(Locale.US) ?: return@mapNotNull null
-                        val c = item.categoryCode?.trim()?.uppercase(Locale.US) ?: return@mapNotNull null
-                        "$c|$t"
+    if (!isEditing) {
+        PrimaryCta(
+            label = if (seeding) "Seeding…" else "Seed packing list",
+            enabled = !momentId.isNullOrBlank() && !submitting && !seeding,
+            accent = accent,
+            loading = seeding,
+            lightLabel = true,
+            onClick = {
+                val mid = momentId ?: return@PrimaryCta
+                scope.launch {
+                    seeding = true
+                    error = null
+                    val existing = repository.listPlanningItems(mid).getOrNull()?.items.orEmpty()
+                    val existingKeys = existing
+                        .filter { GroupExperienceChecklistCatalog.isChecklistCode(it.categoryCode) }
+                        .mapNotNull { item ->
+                            val t = item.title?.trim()?.lowercase(Locale.US) ?: return@mapNotNull null
+                            val c = item.categoryCode?.trim()?.uppercase(Locale.US) ?: return@mapNotNull null
+                            "$c|$t"
+                        }
+                        .toMutableSet()
+                    var created = 0
+                    var failed: String? = null
+                    for ((code, seedTitle) in GroupExperienceChecklistCatalog.seedPackingList) {
+                        val key = "${code}|${seedTitle.trim().lowercase(Locale.US)}"
+                        if (key in existingKeys) continue
+                        val result = repository.createPlanningItem(
+                            momentId = mid,
+                            title = seedTitle,
+                            categoryCode = code,
+                        )
+                        if (result.isSuccess) {
+                            existingKeys.add(key)
+                            created++
+                        } else {
+                            failed = result.exceptionOrNull()?.message
+                            break
+                        }
                     }
-                    .toMutableSet()
-                var created = 0
-                var failed: String? = null
-                for ((code, seedTitle) in GroupExperienceChecklistCatalog.seedPackingList) {
-                    val key = "${code}|${seedTitle.trim().lowercase(Locale.US)}"
-                    if (key in existingKeys) continue
-                    val result = repository.createPlanningItem(
-                        momentId = mid,
-                        title = seedTitle,
-                        categoryCode = code,
-                    )
-                    if (result.isSuccess) {
-                        existingKeys.add(key)
-                        created++
+                    seeding = false
+                    if (failed != null) {
+                        error = failed
                     } else {
-                        failed = result.exceptionOrNull()?.message
-                        break
+                        onSaved()
+                        if (created > 0) onDismiss()
+                        else error = "Packing list already seeded"
                     }
                 }
-                seeding = false
-                if (failed != null) {
-                    error = failed
-                } else {
-                    onSaved()
-                    if (created > 0) onDismiss()
-                    else error = "Packing list already seeded"
-                }
-            }
-        },
-    )
+            },
+        )
+    }
 }
 
 @Composable
@@ -208,6 +236,9 @@ fun MomentsChecklistSection(
     val groups = remember(items) { GroupExperienceChecklistCatalog.groupedByCategory(items) }
     val scope = rememberCoroutineScope()
     var togglingId by remember { mutableStateOf<String?>(null) }
+    // Empty = all expanded (least surprise).
+    var collapsedCodes by remember { mutableStateOf(setOf<String>()) }
+    var editingItem by remember { mutableStateOf<GroupLifePlanningItemDto?>(null) }
 
     MomentsSectionHeader("Checklist  ✅", chrome)
     if (groups.isEmpty()) {
@@ -232,60 +263,103 @@ fun MomentsChecklistSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         groups.forEach { (category, groupItems) ->
+            val expanded = category.code !in collapsedCodes
+            val doneCount = groupItems.count { it.status?.equals("DONE", ignoreCase = true) == true }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    category.label,
-                    color = chrome.accent,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSans,
-                )
-                groupItems.forEach { item ->
-                    val done = item.status?.equals("DONE", ignoreCase = true) == true
-                    val id = item.planningItemId
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(chrome.card)
-                            .border(1.dp, chrome.border, RoundedCornerShape(12.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Checkbox(
-                            checked = done,
-                            onCheckedChange = { checked ->
-                                if (id.isNullOrBlank() || momentId.isNullOrBlank() || togglingId != null) return@Checkbox
-                                val next = if (checked) "DONE" else "OPEN"
-                                scope.launch {
-                                    togglingId = id
-                                    repository.updatePlanningItem(
-                                        momentId = momentId,
-                                        planningItemId = id,
-                                        title = item.title ?: "Item",
-                                        categoryCode = item.categoryCode,
-                                        status = next,
-                                    ).onSuccess { onChanged() }
-                                    togglingId = null
-                                }
-                            },
-                            enabled = !id.isNullOrBlank() && !momentId.isNullOrBlank() && togglingId != id,
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = chrome.accent,
-                                uncheckedColor = chrome.secondary,
-                                checkmarkColor = Color.White,
-                            ),
-                        )
-                        Text(
-                            item.title ?: "Item",
-                            color = if (done) chrome.secondary else chrome.text,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            fontFamily = PlusJakartaSans,
-                            textDecoration = if (done) TextDecoration.LineThrough else null,
-                            modifier = Modifier.weight(1f),
-                        )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            collapsedCodes = if (expanded) {
+                                collapsedCodes + category.code
+                            } else {
+                                collapsedCodes - category.code
+                            }
+                        }
+                        .padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight,
+                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        tint = chrome.accent,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        category.label,
+                        color = chrome.accent,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        "$doneCount/${groupItems.size}",
+                        color = chrome.secondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
+                if (expanded) {
+                    groupItems.forEach { item ->
+                        val done = item.status?.equals("DONE", ignoreCase = true) == true
+                        val id = item.planningItemId
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(chrome.card)
+                                .border(1.dp, chrome.border, RoundedCornerShape(12.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Checkbox(
+                                checked = done,
+                                onCheckedChange = { checked ->
+                                    if (id.isNullOrBlank() || momentId.isNullOrBlank() || togglingId != null) return@Checkbox
+                                    val next = if (checked) "DONE" else "OPEN"
+                                    scope.launch {
+                                        togglingId = id
+                                        repository.updatePlanningItem(
+                                            momentId = momentId,
+                                            planningItemId = id,
+                                            title = item.title ?: "Item",
+                                            categoryCode = item.categoryCode,
+                                            status = next,
+                                        ).onSuccess { onChanged() }
+                                        togglingId = null
+                                    }
+                                },
+                                enabled = !id.isNullOrBlank() && !momentId.isNullOrBlank() && togglingId != id,
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = chrome.accent,
+                                    uncheckedColor = chrome.secondary,
+                                    checkmarkColor = Color.White,
+                                ),
+                            )
+                            Text(
+                                item.title ?: "Item",
+                                color = if (done) chrome.secondary else chrome.text,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                fontFamily = PlusJakartaSans,
+                                textDecoration = if (done) TextDecoration.LineThrough else null,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (!id.isNullOrBlank() && !momentId.isNullOrBlank()) {
+                                Icon(
+                                    imageVector = Icons.Filled.ChevronRight,
+                                    contentDescription = "Edit",
+                                    tint = chrome.secondary,
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clickable { editingItem = item },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -303,4 +377,18 @@ fun MomentsChecklistSection(
             )
         }
     }
+
+    ExperienceChecklistAddSheet(
+        visible = editingItem != null,
+        momentId = momentId,
+        onDismiss = { editingItem = null },
+        onSaved = {
+            editingItem = null
+            onChanged()
+        },
+        accent = SheetAccent(chrome.accent, chrome.accent, chrome.accent.copy(alpha = 0.2f)),
+        surface = chrome.card,
+        editingItem = editingItem,
+        repository = repository,
+    )
 }
