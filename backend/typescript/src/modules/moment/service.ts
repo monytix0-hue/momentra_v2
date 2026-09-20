@@ -807,6 +807,99 @@ export async function getGroupSetupPrefill(
   };
 }
 
+const SPLIT_STYLES = new Set(['EQUAL', 'PERCENTAGE', 'EXACT', 'SHARES', 'POOLED']);
+
+/**
+ * Duplicate a Group moment: copy setup + checklist structure into a new ACTIVE moment.
+ * Caller becomes sole ORGANIZER. Does not copy members, media, expenses, or activity.
+ */
+export async function duplicateGroupMoment(
+  client: PoolClient,
+  ctx: RequestContext,
+  sourceMomentId: string
+): Promise<MomentResult> {
+  const domainCheck = await client.query<{ domain_code: string }>(
+    `SELECT domain_code FROM core.moment WHERE moment_id = $1`,
+    [sourceMomentId]
+  );
+  if (!domainCheck.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Moment not found.', 404);
+  }
+  if (domainCheck.rows[0].domain_code !== 'GROUP') {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Only Group moments can be duplicated.', 400);
+  }
+
+  const prefill = await getGroupSetupPrefill(client, ctx, sourceMomentId);
+  const baseTitle = prefill.title.trim() || 'Moment';
+  const copySuffix = ' (Copy)';
+  const title =
+    baseTitle.length + copySuffix.length <= 500
+      ? `${baseTitle}${copySuffix}`
+      : `${baseTitle.slice(0, Math.max(1, 500 - copySuffix.length))}${copySuffix}`;
+
+  const reminderRaw = prefill.reminderPreferences ?? {};
+  const reminderPreferences = {
+    billReminders: typeof reminderRaw.billReminders === 'boolean' ? reminderRaw.billReminders : undefined,
+    choreReminders: typeof reminderRaw.choreReminders === 'boolean' ? reminderRaw.choreReminders : undefined,
+    expenseReminders: typeof reminderRaw.expenseReminders === 'boolean' ? reminderRaw.expenseReminders : undefined,
+    photoReminders: typeof reminderRaw.photoReminders === 'boolean' ? reminderRaw.photoReminders : undefined,
+    paymentReminders: typeof reminderRaw.paymentReminders === 'boolean' ? reminderRaw.paymentReminders : undefined,
+  };
+  const hasReminderPref = Object.values(reminderPreferences).some((v) => v !== undefined);
+
+  const budgets =
+    prefill.budgets.length > 0
+      ? prefill.budgets.map((b) => ({
+          currencyCode: b.currencyCode,
+          amount: b.amount,
+          isPrimary: b.isPrimary,
+        }))
+      : [{ currencyCode: 'USD', amount: '0', isPrimary: true }];
+
+  const splitStyle =
+    prefill.splitStyle && SPLIT_STYLES.has(prefill.splitStyle)
+      ? (prefill.splitStyle as 'EQUAL' | 'PERCENTAGE' | 'EXACT' | 'SHARES' | 'POOLED')
+      : undefined;
+
+  const createBody = createMomentSchema.parse({
+    domainCode: 'GROUP',
+    momentTypeCode: prefill.momentTypeCode,
+    title,
+    startAt: prefill.startAt ?? undefined,
+    endAt: prefill.endAt ?? undefined,
+    status: 'ACTIVE',
+    groupSetup: {
+      budgets,
+      destinationText: prefill.destinationText ?? undefined,
+      places: prefill.places.map((p) => ({
+        label: p.label,
+        startAt: p.startAt ?? undefined,
+        endAt: p.endAt ?? undefined,
+      })),
+      multiCurrencyEnabled: prefill.multiCurrencyEnabled,
+      splitStyle,
+      primaryGoal: prefill.primaryGoal ?? undefined,
+      reminderPreferences: hasReminderPref ? reminderPreferences : undefined,
+      setupPreferences: prefill.setupPreferences,
+    },
+  });
+
+  const created = await createMoment(client, ctx, createBody);
+
+  await client.query(
+    `INSERT INTO collaboration.planning_item (
+       moment_id, title, description, due_at, status, category_code, location, priority_code
+     )
+     SELECT $1, title, description, NULL, 'OPEN', category_code, location, priority_code
+     FROM collaboration.planning_item
+     WHERE moment_id = $2
+       AND status <> 'CANCELLED'`,
+    [created.momentId, sourceMomentId]
+  );
+
+  return created;
+}
+
 /** Prefill for Personal or Business setup resume (DRAFT or ACTIVE). */
 export async function getDomainSetupPrefill(
   client: PoolClient,

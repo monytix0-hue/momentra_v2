@@ -1532,6 +1532,33 @@ v1Router.get('/group/moments/:momentId/setup', async (req, res, next) => {
   }
 });
 
+v1Router.post('/group/moments/:momentId/duplicate', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const result = await runCommand({
+      operationCode: 'GROUP_MOMENT_DUPLICATE',
+      idempotencyKey: req.idempotencyKey!,
+      body: {},
+      ctx,
+      resourceType: 'MOMENT',
+      execute: async (client) => {
+        const r = await momentService.duplicateGroupMoment(client, ctx, param(req.params.momentId));
+        return { result: r, resourceId: r.momentId };
+      },
+    });
+    const hints = projectionCodesForDomain(result.domainCode);
+    publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    res.status(201).json(
+      commandEnvelope(result, ctx.correlationId, {
+        resourceVersion: result.version,
+        projectionHints: toProjectionHints(hints),
+      })
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+
 v1Router.get('/moments/:momentId/setup', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;

@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -75,6 +76,7 @@ enum class ManageMomentPane {
     DELETE,
     CONFIRM_PAUSE,
     CONFIRM_COMPLETE,
+    CONFIRM_DUPLICATE,
     LEAVE_TRANSFER,
     LEAVE_CONFIRM,
 }
@@ -97,6 +99,7 @@ fun ManageMomentSheet(
     onLifecycleChanged: () -> Unit,
     onCompleted: () -> Unit = {},
     onLeft: () -> Unit = onLifecycleChanged,
+    onDuplicated: (momentId: String, title: String) -> Unit = { _, _ -> },
     repo: MomentLifecycleRepository = remember { MomentLifecycleRepository() },
 ) {
     var pane by remember { mutableStateOf(ManageMomentPane.MENU) }
@@ -250,6 +253,17 @@ fun ManageMomentSheet(
                     onDismiss()
                     onEditSetup()
                 }
+                if (domain == AppContext.GROUP) {
+                    Spacer(Modifier.height(4.dp))
+                    ManageRow(
+                        Icons.Filled.ContentCopy,
+                        Blue,
+                        "Duplicate group",
+                        "Start a new chapter with the same setup",
+                    ) {
+                        pane = ManageMomentPane.CONFIRM_DUPLICATE
+                    }
+                }
                 Spacer(Modifier.height(4.dp))
                 ManageRow(Icons.Filled.Edit, Blue, "Edit moment name", "Rename how this moment appears") {
                     pane = ManageMomentPane.RENAME
@@ -380,6 +394,33 @@ fun ManageMomentSheet(
                     error = error,
                     onClose = { pane = ManageMomentPane.MENU },
                     onConfirm = { runLifecycle(completed = true) { repo.complete(momentId, it) } },
+                )
+            }
+            ManageMomentPane.CONFIRM_DUPLICATE -> {
+                ConfirmPane(
+                    title = "Duplicate group?",
+                    body = "Creates a new moment with the same setup and checklist. You will be the only member.",
+                    confirmLabel = "Duplicate",
+                    busy = busy,
+                    error = error,
+                    onClose = { pane = ManageMomentPane.MENU },
+                    onConfirm = {
+                        scope.launch {
+                            busy = true
+                            error = null
+                            repo.duplicateGroup(momentId).fold(
+                                onSuccess = { created ->
+                                    busy = false
+                                    onDismiss()
+                                    onDuplicated(created.momentId, created.title)
+                                },
+                                onFailure = {
+                                    busy = false
+                                    error = it.message ?: "Could not duplicate"
+                                },
+                            )
+                        }
+                    },
                 )
             }
             ManageMomentPane.LEAVE_TRANSFER -> {

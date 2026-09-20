@@ -184,11 +184,10 @@ struct MomentStoryViewerView: View {
         let text = [
             sharePack?.blurb ?? story?.snapshot?.identity?.title ?? "Moment Story",
             sharePack?.webUrl ?? sharePack?.webPath ?? sharePack?.appDeepLink ?? "",
-        ].joined(separator: "\n")
-        let av = UIActivityViewController(activityItems: [text], applicationActivities: nil)
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController
-                ?? scene.windows.first?.rootViewController else { return }
-        root.present(av, animated: true)
+        ]
+        .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        .joined(separator: "\n")
+        // Story is shown as a fullScreenCover — must present from the topmost VC, not the root.
+        InviteOutboundShare.presentSystemShare(items: [text])
     }
 }

@@ -145,6 +145,10 @@ struct AppShellView: View {
                     onLeft: {
                         showManageMoment = false
                         model.clearSelectedMomentAfterLeave()
+                    },
+                    onDuplicated: { newId, title in
+                        showManageMoment = false
+                        model.onMomentCreated(momentId: newId, title: title)
                     }
                 )
                 .preferredColorScheme(.dark)

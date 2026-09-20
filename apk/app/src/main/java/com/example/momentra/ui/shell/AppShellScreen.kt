@@ -1250,6 +1250,10 @@ fun AppShellScreen(
                             showManageMoment = false
                             shellViewModel.clearSelectedMomentAfterLeave()
                         },
+                        onDuplicated = { newId, title ->
+                            showManageMoment = false
+                            shellViewModel.onMomentCreated(momentId = newId, title = title)
+                        },
                     )
                 }
             }

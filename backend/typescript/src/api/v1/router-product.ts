@@ -656,6 +656,16 @@ v1Router.get('/group/moments', async (req, res, next) => {
   }
 });
 
+v1Router.post('/group/moments/:momentId/duplicate', async (_req, res) => {
+  // PROMOTED TO LIVE router.ts — do not re-implement here.
+  res.status(501).json({
+    error: {
+      code: 'ROUTE_PROMOTED',
+      message: 'Use live api/v1/router.ts — this product router is NON-RUNTIME.',
+    },
+  });
+});
+
 for (const facet of ['pulse', 'life', 'memory', 'finance', 'actions'] as const) {
   v1Router.get(`/group/moments/:momentId/${facet}`, async (_req, res) => {
     // PROMOTED TO LIVE router.ts (S3 Group finance/pulse) — do not re-implement here.

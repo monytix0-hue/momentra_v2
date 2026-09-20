@@ -42,12 +42,14 @@ struct ManageMomentFlowSheet: View {
     var onLifecycleChanged: () -> Void
     var onCompleted: () -> Void = {}
     var onLeft: () -> Void = {}
+    var onDuplicated: (_ momentId: String, _ title: String) -> Void = { _, _ in }
 
     @State private var subsheet: ManageMomentSubsheet?
     @State private var busy = false
     @State private var errorText: String?
     @State private var confirmPause = false
     @State private var confirmComplete = false
+    @State private var confirmDuplicate = false
     @State private var viewerIsLeader = false
     @State private var candidates: [LeaveCandidate] = []
     @State private var transferUserId: String?
@@ -98,6 +100,16 @@ struct ManageMomentFlowSheet: View {
                     ) {
                         isPresented = false
                         onEditSetup()
+                    }
+                    if domain == .group {
+                        manageRow(
+                            icon: "doc.on.doc.fill",
+                            well: ManageMomentTokens.blue,
+                            title: "Duplicate group",
+                            subtitle: "Start a new chapter with the same setup"
+                        ) {
+                            confirmDuplicate = true
+                        }
                     }
                     manageRow(
                         icon: "square.and.pencil",
@@ -356,6 +368,14 @@ struct ManageMomentFlowSheet: View {
         } message: {
             Text("Mark this moment as finished.")
         }
+        .confirmationDialog("Duplicate group?", isPresented: $confirmDuplicate, titleVisibility: .visible) {
+            Button("Duplicate") {
+                Task { await runDuplicate() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Creates a new moment with the same setup and checklist. You will be the only member.")
+        }
         .disabled(busy)
     }
 
@@ -459,6 +479,19 @@ struct ManageMomentFlowSheet: View {
                 isPresented = false
                 onCompleted()
             }
+        } catch {
+            errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func runDuplicate() async {
+        busy = true
+        errorText = nil
+        defer { busy = false }
+        do {
+            let created = try await APIClient.shared.duplicateGroupMoment(momentId: momentId)
+            isPresented = false
+            onDuplicated(created.momentId, created.title)
         } catch {
             errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }

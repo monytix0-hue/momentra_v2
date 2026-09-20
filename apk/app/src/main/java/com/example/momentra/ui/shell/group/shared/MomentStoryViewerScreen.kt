@@ -1,6 +1,10 @@
 package com.example.momentra.ui.shell.group.shared
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -164,14 +168,13 @@ fun MomentStoryViewerScreen(
                             val pack = sharePack
                             val text = buildString {
                                 append(pack?.blurb ?: snap?.identity?.title ?: "Moment Story")
-                                append("\n")
-                                append(pack?.webUrl ?: pack?.webPath ?: pack?.appDeepLink ?: "")
-                            }
-                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, text)
-                            }
-                            context.startActivity(Intent.createChooser(intent, "Share Moment Story"))
+                                val link = pack?.webUrl ?: pack?.webPath ?: pack?.appDeepLink
+                                if (!link.isNullOrBlank()) {
+                                    append("\n")
+                                    append(link)
+                                }
+                            }.trim()
+                            shareMomentStory(context, text)
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = MomentraBrandColors.Ember500),
@@ -271,4 +274,30 @@ private fun MetricGrid(metrics: Map<String, Any?>?) {
             }
         }
     }
+}
+
+private fun shareMomentStory(context: Context, text: String) {
+    val payload = text.trim().ifBlank { "Moment Story" }
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, payload)
+        putExtra(Intent.EXTRA_SUBJECT, "Moment Story")
+    }
+    val chooser = Intent.createChooser(send, "Share Moment Story").apply {
+        // Required when LocalContext is not an Activity (or wrapped).
+        if (context.findActivity() == null) {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    }
+    try {
+        (context.findActivity() ?: context).startActivity(chooser)
+    } catch (e: Exception) {
+        Toast.makeText(context, e.message ?: "Sharing unavailable", Toast.LENGTH_SHORT).show()
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
