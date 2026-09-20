@@ -66,6 +66,7 @@ import com.example.momentra.domain.MomentSummary
 import com.example.momentra.domain.ShellContentState
 import com.example.momentra.domain.ShellIdentity
 import com.example.momentra.domain.isActiveStatus
+import com.example.momentra.domain.isCompletedStatus
 import com.example.momentra.ui.shell.tour.TourHost
 import com.example.momentra.ui.shell.tour.TourSignal
 import com.example.momentra.ui.shell.tour.TourWhereToLook
@@ -524,10 +525,16 @@ fun AppShellScreen(
                 MomentSwitcher(
                     selectedTitle = state.selectedMomentTitle,
                     selectedMomentId = state.selectedMomentId,
-                    activeMoments = state.moments.filter { it.isActiveStatus() }.map { it.momentId to it.title },
-                    isEmpty = state.contextContent is ShellContentState.Empty,
+                    activeMoments = state.moments
+                        .filter { it.isActiveStatus() || it.momentId == state.selectedMomentId }
+                        .map { it.momentId to it.title },
+                    isEmpty = state.contextContent is ShellContentState.Empty &&
+                        state.moments.none { it.isActiveStatus() || it.isCompletedStatus() },
                     isLoading = state.contextContent is ShellContentState.Loading,
                     accent = momentAccent,
+                    selectedIsCompleted = state.moments
+                        .firstOrNull { it.momentId == state.selectedMomentId }
+                        ?.isCompletedStatus() == true,
                     onSelectMoment = shellViewModel::selectMoment,
                     onSettings = {
                         if (state.selectedMomentId != null) showManageMoment = true
@@ -749,6 +756,10 @@ fun AppShellScreen(
                 onDismiss = { groupMomentDirectoryOpen = false },
                 onSelectMoment = { momentId ->
                     shellViewModel.selectMoment(momentId)
+                    groupMomentDirectoryOpen = false
+                },
+                onSelectCompletedMoment = { moment ->
+                    shellViewModel.selectCompletedGroupMoment(moment)
                     groupMomentDirectoryOpen = false
                 },
                 onOpenStory = { momentId ->

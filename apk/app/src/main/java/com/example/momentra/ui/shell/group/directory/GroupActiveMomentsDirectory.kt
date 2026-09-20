@@ -143,6 +143,7 @@ fun GroupActiveMomentsDirectory(
     visible: Boolean,
     onDismiss: () -> Unit,
     onSelectMoment: (String) -> Unit,
+    onSelectCompletedMoment: (MomentSummary) -> Unit = {},
     onOpenStory: (String) -> Unit = {},
     onCreateMoment: () -> Unit,
     modifier: Modifier = Modifier,
@@ -164,6 +165,7 @@ fun GroupActiveMomentsDirectory(
             selectedMomentId = selectedMomentId,
             onDismiss = onDismiss,
             onSelectMoment = onSelectMoment,
+            onSelectCompletedMoment = onSelectCompletedMoment,
             onOpenStory = onOpenStory,
             onCreateMoment = onCreateMoment,
         )
@@ -178,6 +180,7 @@ private fun GroupActiveMomentsDirectoryBody(
     selectedMomentId: String?,
     onDismiss: () -> Unit,
     onSelectMoment: (String) -> Unit,
+    onSelectCompletedMoment: (MomentSummary) -> Unit,
     onOpenStory: (String) -> Unit,
     onCreateMoment: () -> Unit,
 ) {
@@ -228,8 +231,8 @@ private fun GroupActiveMomentsDirectoryBody(
         else -> "${filtered.size} active moments"
     }
     val subtitle = when {
-        isCompletedTab && filtered.isEmpty() -> "Complete a moment to relive its Story here"
-        isCompletedTab -> "Relive stories and memories"
+        isCompletedTab && filtered.isEmpty() -> "Complete a moment to reopen it or relive its Story"
+        isCompletedTab -> "Open to settle expenses · Story on each card"
         filtered.isEmpty() -> "Create a group moment to get started"
         sparse -> "Your live moment · ready to open"
         else -> "Visual directory · all live"
@@ -237,7 +240,7 @@ private fun GroupActiveMomentsDirectoryBody(
 
     fun openMoment(moment: MomentSummary) {
         if (isCompletedTab) {
-            onOpenStory(moment.momentId)
+            onSelectCompletedMoment(moment)
             onDismiss()
         } else {
             onSelectMoment(moment.momentId)
@@ -490,6 +493,14 @@ private fun GroupActiveMomentsDirectoryBody(
                             selected = moment.momentId == selectedMomentId,
                             completed = isCompletedTab,
                             onClick = { openMoment(moment) },
+                            onOpenStory = if (isCompletedTab) {
+                                {
+                                    onOpenStory(moment.momentId)
+                                    onDismiss()
+                                }
+                            } else {
+                                null
+                            },
                         )
                     }
                 }
@@ -536,6 +547,14 @@ private fun GroupActiveMomentsDirectoryBody(
                                 completed = isCompletedTab,
                                 height = 120.dp,
                                 onClick = { openMoment(items.first()) },
+                                onOpenStory = if (isCompletedTab) {
+                                    {
+                                        onOpenStory(items.first().momentId)
+                                        onDismiss()
+                                    }
+                                } else {
+                                    null
+                                },
                             )
                         } else {
                             LazyRow(
@@ -551,6 +570,14 @@ private fun GroupActiveMomentsDirectoryBody(
                                         selected = moment.momentId == selectedMomentId,
                                         completed = isCompletedTab,
                                         onClick = { openMoment(moment) },
+                                        onOpenStory = if (isCompletedTab) {
+                                            {
+                                                onOpenStory(moment.momentId)
+                                                onDismiss()
+                                            }
+                                        } else {
+                                            null
+                                        },
                                     )
                                 }
                             }
@@ -665,6 +692,7 @@ private fun LargeMomentCard(
     selected: Boolean,
     onClick: () -> Unit,
     completed: Boolean = false,
+    onOpenStory: (() -> Unit)? = null,
     height: Dp = 148.dp,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -690,7 +718,27 @@ private fun LargeMomentCard(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            LiveNowBadge(completed = completed)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LiveNowBadge(completed = completed)
+                if (onOpenStory != null) {
+                    Text(
+                        "Story",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color.Black.copy(alpha = 0.35f))
+                            .clickable(onClick = onOpenStory)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
+            }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     moment.title,
@@ -715,6 +763,7 @@ private fun CompactMomentCard(
     selected: Boolean,
     onClick: () -> Unit,
     completed: Boolean = false,
+    onOpenStory: (() -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -738,7 +787,27 @@ private fun CompactMomentCard(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            LiveNowBadge(completed = completed)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LiveNowBadge(completed = completed)
+                if (onOpenStory != null) {
+                    Text(
+                        "Story",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color.Black.copy(alpha = 0.35f))
+                            .clickable(onClick = onOpenStory)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
+            }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     moment.title,

@@ -42,6 +42,10 @@ struct MomentSummary: Equatable, Identifiable {
             status.caseInsensitiveCompare("DRAFT") == .orderedSame
     }
 
+    var isCompletedStatus: Bool {
+        status.caseInsensitiveCompare("COMPLETED") == .orderedSame
+    }
+
     var isPausedStatus: Bool {
         status.caseInsensitiveCompare("PAUSED") == .orderedSame
     }
@@ -52,11 +56,16 @@ struct MomentSummary: Equatable, Identifiable {
             status.caseInsensitiveCompare("ARCHIVED") == .orderedSame ||
             status.caseInsensitiveCompare("DELETED") == .orderedSame
     }
+
+    /// Moments that can drive live shell product (Pulse/Finance), including settled COMPLETED.
+    var isShellProductStatus: Bool {
+        isActiveStatus || isCompletedStatus
+    }
 }
 
 func resolveMomentExperience(_ moments: [MomentSummary]) -> MomentExperienceKind {
     if moments.isEmpty { return .firstMoment }
-    if moments.contains(where: \.isActiveStatus) { return .active }
+    if moments.contains(where: \.isShellProductStatus) { return .active }
     let hasPaused = moments.contains(where: \.isPausedStatus)
     let hasHistory = moments.contains { $0.isHistoricalStatus || !$0.isPausedStatus }
     if hasPaused && !hasHistory { return .pausedOnly }

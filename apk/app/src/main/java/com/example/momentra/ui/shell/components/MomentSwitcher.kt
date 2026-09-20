@@ -67,6 +67,7 @@ fun MomentSwitcher(
     /** Group-only: open full Active Moments directory instead of inline pills. */
     useDirectorySelector: Boolean = false,
     onOpenDirectory: (() -> Unit)? = null,
+    selectedIsCompleted: Boolean = false,
     accent: Color = MomentraBrandColors.Cta,
     modifier: Modifier = Modifier,
 ) {
@@ -136,7 +137,20 @@ fun MomentSwitcher(
                     fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                if (selectedIsCompleted && !isLoading && !isEmpty) {
+                    Text(
+                        "COMPLETED",
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color(0xFF64748B).copy(alpha = 0.85f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
             }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),

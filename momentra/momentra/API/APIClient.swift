@@ -992,15 +992,16 @@ final class APIClient {
         try await authorizedGet(path: "v1/group/moments/\(momentId)/setup")
     }
 
-    /// Duplicate a Group moment (setup + checklist). Caller becomes sole organizer.
+    /// Duplicate a Group moment (setup + checklist; optionally expenses/contributions/memories).
     func duplicateGroupMoment(
         momentId: String,
+        includeData: Bool = false,
         idempotencyKey: String = UUID().uuidString
     ) async throws -> CreateMomentResult {
-        struct EmptyBody: Encodable {}
+        struct Body: Encodable { let includeData: Bool }
         return try await authorizedPost(
             path: "v1/group/moments/\(momentId)/duplicate",
-            body: EmptyBody(),
+            body: Body(includeData: includeData),
             idempotencyKey: idempotencyKey
         )
     }

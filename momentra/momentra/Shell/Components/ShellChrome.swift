@@ -312,6 +312,7 @@ struct MomentSwitcherView: View {
     /// Group-only: open full Active Moments directory instead of inline pills.
     var useDirectorySelector: Bool = false
     var onOpenDirectory: (() -> Void)? = nil
+    var selectedIsCompleted: Bool = false
 
     @State private var expanded = false
 
@@ -350,6 +351,14 @@ struct MomentSwitcherView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(MomentraBrandTokens.textOnDark)
                             .lineLimit(1)
+                        if selectedIsCompleted && !isLoading && !isEmpty {
+                            Text("COMPLETED")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.9))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color(hex: "#64748B").opacity(0.85), in: Capsule())
+                        }
                         Spacer(minLength: 0)
                     }
                 }

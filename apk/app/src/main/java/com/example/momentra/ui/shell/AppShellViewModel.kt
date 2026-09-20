@@ -20,6 +20,7 @@ import com.example.momentra.domain.ShellContentState
 import com.example.momentra.domain.ShellIdentity
 import com.example.momentra.domain.activeMomentCount
 import com.example.momentra.domain.isActiveStatus
+import com.example.momentra.domain.isCompletedStatus
 import com.example.momentra.domain.resolveMomentExperience
 import com.example.momentra.ui.shell.policy.ShellInvariantInput
 import com.example.momentra.ui.shell.policy.ShellStateInvariants
@@ -336,19 +337,29 @@ class AppShellViewModel(
             ?: current.selectedMomentId
             ?: current.selectedMomentByContext[current.selectedContext]
             ?: if (current.selectedContext == AppContext.PERSONAL) preferredPersonalMomentId else null
-        // Keep an optimistic join/create selection visible until inventory catches up.
-        val momentsForHeal = if (
+        // Keep an optimistic join/create OR completed selection visible until inventory catches up.
+        val preservedFromCurrent = preferredMomentId
+            ?.takeIf { id -> rawMoments.none { it.momentId == id } }
+            ?.let { id -> current.moments.firstOrNull { it.momentId == id } }
+        val momentsForHeal = when {
             !preserveMomentId.isNullOrBlank() &&
-            rawMoments.none { it.momentId == preserveMomentId }
-        ) {
-            rawMoments + MomentSummary(
-                momentId = preserveMomentId,
-                title = current.selectedMomentTitle?.takeIf { it.isNotBlank() } ?: "Group",
-                status = current.moments.firstOrNull { it.momentId == preserveMomentId }?.status ?: "ACTIVE",
-                momentTypeCode = current.selectedMomentTypeCode,
-            )
-        } else {
-            rawMoments
+                rawMoments.none { it.momentId == preserveMomentId } -> {
+                val existing = current.moments.firstOrNull { it.momentId == preserveMomentId }
+                rawMoments + MomentSummary(
+                    momentId = preserveMomentId,
+                    title = existing?.title
+                        ?: current.selectedMomentTitle?.takeIf { it.isNotBlank() }
+                        ?: "Group",
+                    status = existing?.status ?: "ACTIVE",
+                    momentTypeCode = existing?.momentTypeCode ?: current.selectedMomentTypeCode,
+                    participantCount = existing?.participantCount ?: 0,
+                )
+            }
+            preservedFromCurrent != null &&
+                (preservedFromCurrent.isCompletedStatus() || current.selectedContext == AppContext.GROUP) -> {
+                rawMoments + preservedFromCurrent
+            }
+            else -> rawMoments
         }
         val healed = ShellStateInvariants.heal(
             ShellInvariantInput(
@@ -385,6 +396,9 @@ class AppShellViewModel(
             else -> ShellContentState.Empty
         }
         val tab = healed.selectedTabByContext[healed.selectedContext] ?: current.bottomDestination
+        val switcherCount = activeMomentCount(mergedMoments).coerceAtLeast(
+            if (selectedMoment?.isCompletedStatus() == true) 1 else 0,
+        )
         _state.update {
             it.copy(
                 identity = boot.identity,
@@ -415,7 +429,7 @@ class AppShellViewModel(
                     context = healed.selectedContext,
                     content = content,
                     destination = tab,
-                    activeMomentCount = activeMomentCount(mergedMoments),
+                    activeMomentCount = switcherCount,
                     authReady = true,
                 ),
                 showCompanySwitcher = ShellVisibilityPolicy.showCompanySwitcher(
@@ -504,6 +518,48 @@ class AppShellViewModel(
             else -> Unit
         }
         ShellPerf.end(mark, mapOf("momentId" to momentId.take(8)))
+    }
+
+    /**
+     * Open a COMPLETED Group moment into the live shell (Pulse/Finance) so members can settle expenses.
+     * Bootstrap only lists ACTIVE moments — we merge this summary and preserve it across heal.
+     */
+    fun selectCompletedGroupMoment(moment: MomentSummary) {
+        val status = if (moment.status.isBlank()) "COMPLETED" else moment.status
+        val summary = moment.copy(status = status)
+        _state.update {
+            val baseMoments = if (it.selectedContext == AppContext.GROUP) it.moments else emptyList()
+            val hasMoment = baseMoments.any { m -> m.momentId == summary.momentId }
+            val moments = if (hasMoment) {
+                baseMoments.map { m -> if (m.momentId == summary.momentId) summary else m }
+            } else {
+                baseMoments + summary
+            }
+            it.copy(
+                selectedContext = AppContext.GROUP,
+                moments = moments,
+                selectedMomentId = summary.momentId,
+                selectedMomentTitle = summary.title,
+                selectedMomentTypeCode = summary.momentTypeCode,
+                selectedMomentByContext = it.selectedMomentByContext + (AppContext.GROUP to summary.momentId),
+                bottomDestination = BottomDestination.PULSE,
+                lastNonCreateDestination = BottomDestination.PULSE,
+                tabByContext = it.tabByContext + (AppContext.GROUP to BottomDestination.PULSE),
+                momentExperience = MomentExperienceKind.ACTIVE,
+                contextContent = ShellContentState.Ready(null),
+                showMomentSwitcher = true,
+            )
+        }
+        persistContext(AppContext.GROUP)
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            meRepository.getBootstrap().onSuccess { boot ->
+                bootstrap = boot
+                applyBootstrapInventory(boot, networkRefresh = true, preserveMomentId = summary.momentId)
+                _state.update { it.copy(bootstrapStatus = BootstrapStatus.READY) }
+            }
+            refreshVisibleGroupTab(forcePrefetch = true)
+        }
     }
 
     /**

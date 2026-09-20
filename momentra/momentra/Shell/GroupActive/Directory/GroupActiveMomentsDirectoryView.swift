@@ -80,6 +80,7 @@ struct GroupActiveMomentsDirectoryView: View {
     let selectedMomentId: String?
     var onDismiss: () -> Void
     var onSelectMoment: (String) -> Void
+    var onSelectCompletedMoment: (MomentSummary) -> Void = { _ in }
     var onOpenStory: (String) -> Void = { _ in }
     var onCreateMoment: () -> Void
 
@@ -136,8 +137,8 @@ struct GroupActiveMomentsDirectoryView: View {
 
     private var subtitle: String {
         if isCompletedTab {
-            if filtered.isEmpty { return "Complete a moment to relive its Story here" }
-            return "Relive stories and memories"
+            if filtered.isEmpty { return "Complete a moment to reopen it or relive its Story" }
+            return "Open to settle expenses · Story on each card"
         }
         if filtered.isEmpty { return "Create a group moment to get started" }
         if sparse { return "Your live moment · ready to open" }
@@ -206,7 +207,7 @@ struct GroupActiveMomentsDirectoryView: View {
 
     private func openMoment(_ moment: MomentSummary) {
         if isCompletedTab {
-            onOpenStory(moment.momentId)
+            onSelectCompletedMoment(moment)
             onDismiss()
         } else {
             onSelectMoment(moment.momentId)
@@ -423,7 +424,24 @@ struct GroupActiveMomentsDirectoryView: View {
             openMoment(moment)
         } label: {
             VStack(alignment: .leading, spacing: 0) {
-                statusBadge
+                HStack {
+                    statusBadge
+                    Spacer(minLength: 0)
+                    if isCompletedTab {
+                        Button {
+                            onOpenStory(moment.momentId)
+                            onDismiss()
+                        } label: {
+                            Text("Story")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.black.opacity(0.35), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
                 Spacer(minLength: 0)
                 Text(moment.title)
                     .font(.system(size: 24, weight: .bold))
@@ -455,7 +473,24 @@ struct GroupActiveMomentsDirectoryView: View {
             openMoment(moment)
         } label: {
             VStack(alignment: .leading, spacing: 0) {
-                statusBadge
+                HStack {
+                    statusBadge
+                    Spacer(minLength: 0)
+                    if isCompletedTab {
+                        Button {
+                            onOpenStory(moment.momentId)
+                            onDismiss()
+                        } label: {
+                            Text("Story")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.black.opacity(0.35), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
                 Spacer(minLength: 0)
                 Text(moment.title)
                     .font(.system(size: 15, weight: .bold))

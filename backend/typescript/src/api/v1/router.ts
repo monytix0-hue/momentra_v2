@@ -1535,14 +1535,20 @@ v1Router.get('/group/moments/:momentId/setup', async (req, res, next) => {
 v1Router.post('/group/moments/:momentId/duplicate', requireIdempotencyKey, async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
+    const body = parseBody(momentService.duplicateGroupMomentSchema, req.body ?? {});
     const result = await runCommand({
       operationCode: 'GROUP_MOMENT_DUPLICATE',
       idempotencyKey: req.idempotencyKey!,
-      body: {},
+      body,
       ctx,
       resourceType: 'MOMENT',
-      execute: async (client) => {
-        const r = await momentService.duplicateGroupMoment(client, ctx, param(req.params.momentId));
+      execute: async (client, b) => {
+        const r = await momentService.duplicateGroupMoment(
+          client,
+          ctx,
+          param(req.params.momentId),
+          b as momentService.DuplicateGroupMomentInput
+        );
         return { result: r, resourceId: r.momentId };
       },
     });

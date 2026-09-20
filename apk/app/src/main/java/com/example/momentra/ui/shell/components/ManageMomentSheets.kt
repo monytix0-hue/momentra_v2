@@ -229,6 +229,24 @@ fun ManageMomentSheet(
         }
     }
 
+    fun runDuplicate(includeData: Boolean) {
+        scope.launch {
+            busy = true
+            error = null
+            repo.duplicateGroup(momentId, includeData = includeData).fold(
+                onSuccess = { created ->
+                    busy = false
+                    onDismiss()
+                    onDuplicated(created.momentId, created.title)
+                },
+                onFailure = {
+                    busy = false
+                    error = it.message ?: "Could not duplicate"
+                },
+            )
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -397,30 +415,12 @@ fun ManageMomentSheet(
                 )
             }
             ManageMomentPane.CONFIRM_DUPLICATE -> {
-                ConfirmPane(
-                    title = "Duplicate group?",
-                    body = "Creates a new moment with the same setup and checklist. You will be the only member.",
-                    confirmLabel = "Duplicate",
+                DuplicateChoicePane(
                     busy = busy,
                     error = error,
                     onClose = { pane = ManageMomentPane.MENU },
-                    onConfirm = {
-                        scope.launch {
-                            busy = true
-                            error = null
-                            repo.duplicateGroup(momentId).fold(
-                                onSuccess = { created ->
-                                    busy = false
-                                    onDismiss()
-                                    onDuplicated(created.momentId, created.title)
-                                },
-                                onFailure = {
-                                    busy = false
-                                    error = it.message ?: "Could not duplicate"
-                                },
-                            )
-                        }
-                    },
+                    onSetupOnly = { runDuplicate(includeData = false) },
+                    onIncludeData = { runDuplicate(includeData = true) },
                 )
             }
             ManageMomentPane.LEAVE_TRANSFER -> {
@@ -890,6 +890,51 @@ private fun ConfirmPane(
         else Text(confirmLabel, fontWeight = FontWeight.Bold)
     }
     TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
+        Text("Cancel", color = TextMuted)
+    }
+}
+
+@Composable
+private fun DuplicateChoicePane(
+    busy: Boolean,
+    error: String?,
+    onClose: () -> Unit,
+    onSetupOnly: () -> Unit,
+    onIncludeData: () -> Unit,
+) {
+    SheetHeader(title = "Duplicate group?", subtitle = "", onClose = onClose)
+    Spacer(Modifier.height(12.dp))
+    Text(
+        "Setup and checklist are always copied. You will be the only member.",
+        color = TextMuted,
+        fontSize = 13.sp,
+    )
+    error?.let {
+        Spacer(Modifier.height(8.dp))
+        Text(it, color = RedText, fontSize = 12.sp)
+    }
+    Spacer(Modifier.height(16.dp))
+    Button(
+        onClick = onSetupOnly,
+        enabled = !busy,
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(containerColor = Purple),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        if (busy) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+        else Text("Setup & checklist only", fontWeight = FontWeight.Bold)
+    }
+    Spacer(Modifier.height(8.dp))
+    Button(
+        onClick = onIncludeData,
+        enabled = !busy,
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(containerColor = Blue),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Text("Include expenses, contributions & memories", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+    }
+    TextButton(onClick = onClose, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
         Text("Cancel", color = TextMuted)
     }
 }

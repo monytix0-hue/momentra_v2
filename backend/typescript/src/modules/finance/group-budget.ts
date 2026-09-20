@@ -118,11 +118,16 @@ export async function patchGroupMomentBudget(
   await assertActiveGroupMember(client, momentId, ctx.userId);
 
   const moment = await client.query<{ domain_code: string }>(
-    `SELECT domain_code FROM core.moment WHERE moment_id = $1 AND status = 'ACTIVE'`,
+    `SELECT domain_code FROM core.moment
+     WHERE moment_id = $1 AND status IN ('ACTIVE', 'COMPLETED')`,
     [momentId]
   );
   if (!moment.rows[0] || moment.rows[0].domain_code !== 'GROUP') {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Budget patch is only valid for GROUP moments.', 400);
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      'Budget patch is only valid for ACTIVE or COMPLETED GROUP moments.',
+      400
+    );
   }
 
   const budgetId = await seedGroupBudget(

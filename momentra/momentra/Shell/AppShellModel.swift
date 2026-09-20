@@ -272,14 +272,22 @@ final class AppShellModel: ObservableObject {
         if let preserve = preserveMomentId,
            !preserve.isEmpty,
            !rawMoments.contains(where: { $0.momentId == preserve }) {
+            let existing = moments.first(where: { $0.momentId == preserve })
             rawMoments.append(
                 MomentSummary(
                     momentId: preserve,
-                    title: (selectedMomentTitle?.isEmpty == false) ? (selectedMomentTitle ?? "Group") : "Group",
-                    status: moments.first(where: { $0.momentId == preserve })?.status ?? "ACTIVE",
-                    momentTypeCode: selectedMomentTypeCode
+                    title: existing?.title
+                        ?? ((selectedMomentTitle?.isEmpty == false) ? (selectedMomentTitle ?? "Group") : "Group"),
+                    status: existing?.status ?? "ACTIVE",
+                    momentTypeCode: existing?.momentTypeCode ?? selectedMomentTypeCode,
+                    participantCount: existing?.participantCount ?? 0
                 )
             )
+        } else if let preferred = preferredMomentId,
+                  !rawMoments.contains(where: { $0.momentId == preferred }),
+                  let preserved = moments.first(where: { $0.momentId == preferred }),
+                  preserved.isCompletedStatus || selectedContext == .group {
+            rawMoments.append(preserved)
         }
         let healed = ShellStateInvariants.heal(
             ShellInvariantInput(
@@ -337,11 +345,15 @@ final class AppShellModel: ObservableObject {
             case .firstMoment, .betweenMoments, .pausedOnly: contextContent = .empty
             case .loading, .error: contextContent = .loading
             }
+            let switcherCount = max(
+                activeMomentCount(healed.moments),
+                (selected?.isCompletedStatus == true) ? 1 : 0
+            )
             showMomentSwitcher = ShellVisibilityPolicy.showMomentSwitcher(
                 context: healed.selectedContext,
                 content: contextContent,
                 destination: bottomDestination,
-                activeMomentCount: activeMomentCount(healed.moments),
+                activeMomentCount: switcherCount,
                 authReady: true
             )
         }
@@ -412,6 +424,48 @@ final class AppShellModel: ObservableObject {
             refreshVisibleBusinessTab(forcePrefetch: true)
         }
         ShellPerf.end(mark, extras: ["momentId": String(id.prefix(8))])
+    }
+
+    /// Open a COMPLETED Group moment into the live shell so members can settle expenses.
+    func selectCompletedGroupMoment(_ moment: MomentSummary) {
+        let status = moment.status.isEmpty ? "COMPLETED" : moment.status
+        let summary = MomentSummary(
+            momentId: moment.momentId,
+            title: moment.title,
+            status: status,
+            momentTypeCode: moment.momentTypeCode,
+            companyId: moment.companyId,
+            participantCount: moment.participantCount
+        )
+        let baseMoments = selectedContext == .group ? moments : []
+        if let idx = baseMoments.firstIndex(where: { $0.momentId == summary.momentId }) {
+            var next = baseMoments
+            next[idx] = summary
+            moments = next
+        } else {
+            moments = baseMoments + [summary]
+        }
+        selectedContext = .group
+        selectedMomentId = summary.momentId
+        selectedMomentTitle = summary.title
+        selectedMomentTypeCode = summary.momentTypeCode
+        selectedMomentByContext[.group] = summary.momentId
+        bottomDestination = .pulse
+        lastNonCreateDestination = .pulse
+        tabByContext[.group] = .pulse
+        momentExperience = .active
+        contextContent = .ready(detail: nil)
+        showMomentSwitcher = true
+        Task {
+            do {
+                let boot = try await gateway.getBootstrap()
+                bootstrap = boot
+                applyBootstrapInventory(boot, networkRefresh: true, preserveMomentId: summary.momentId)
+            } catch {
+                // Keep optimistic completed selection if bootstrap fails.
+            }
+            refreshVisibleGroupTab(forcePrefetch: true)
+        }
     }
 
     /// Opens a moment from a push/inbox deep link, switching Personal/Group/Business if needed.

@@ -818,7 +818,7 @@ struct AppShellView: View {
     }
 
     private var momentSwitcherIsEmpty: Bool {
-        model.moments.filter(\.isActiveStatus).isEmpty
+        model.moments.filter { $0.isActiveStatus || $0.isCompletedStatus }.isEmpty
     }
 
     private var momentSwitcherIsLoading: Bool {
@@ -831,7 +831,13 @@ struct AppShellView: View {
     }
 
     private var activeMomentPairs: [(String, String)] {
-        model.moments.filter(\.isActiveStatus).map { ($0.momentId, $0.title) }
+        model.moments
+            .filter { $0.isActiveStatus || $0.momentId == model.selectedMomentId }
+            .map { ($0.momentId, $0.title) }
+    }
+
+    private var selectedMomentIsCompleted: Bool {
+        model.moments.first(where: { $0.momentId == model.selectedMomentId })?.isCompletedStatus == true
     }
 
     @ViewBuilder
@@ -850,6 +856,12 @@ struct AppShellView: View {
                         },
                         onSelectMoment: { momentId in
                             model.selectMoment(id: momentId)
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                groupMomentDirectoryOpen = false
+                            }
+                        },
+                        onSelectCompletedMoment: { moment in
+                            model.selectCompletedGroupMoment(moment)
                             withAnimation(.easeInOut(duration: 0.25)) {
                                 groupMomentDirectoryOpen = false
                             }
@@ -951,7 +963,8 @@ struct AppShellView: View {
                         withAnimation(.easeInOut(duration: 0.28)) {
                             groupMomentDirectoryOpen = true
                         }
-                    }
+                    },
+                    selectedIsCompleted: selectedMomentIsCompleted
                 )
             }
         }

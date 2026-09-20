@@ -369,12 +369,15 @@ struct ManageMomentFlowSheet: View {
             Text("Mark this moment as finished.")
         }
         .confirmationDialog("Duplicate group?", isPresented: $confirmDuplicate, titleVisibility: .visible) {
-            Button("Duplicate") {
-                Task { await runDuplicate() }
+            Button("Setup & checklist only") {
+                Task { await runDuplicate(includeData: false) }
+            }
+            Button("Include expenses, contributions & memories") {
+                Task { await runDuplicate(includeData: true) }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Creates a new moment with the same setup and checklist. You will be the only member.")
+            Text("Setup and checklist are always copied. You will be the only member.")
         }
         .disabled(busy)
     }
@@ -484,12 +487,15 @@ struct ManageMomentFlowSheet: View {
         }
     }
 
-    private func runDuplicate() async {
+    private func runDuplicate(includeData: Bool) async {
         busy = true
         errorText = nil
         defer { busy = false }
         do {
-            let created = try await APIClient.shared.duplicateGroupMoment(momentId: momentId)
+            let created = try await APIClient.shared.duplicateGroupMoment(
+                momentId: momentId,
+                includeData: includeData
+            )
             isPresented = false
             onDuplicated(created.momentId, created.title)
         } catch {

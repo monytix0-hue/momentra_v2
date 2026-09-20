@@ -705,6 +705,10 @@ data class CreateMomentResultDto(
     @SerializedName("setupId") val setupId: String? = null,
 )
 
+data class DuplicateGroupMomentBody(
+    @SerializedName("includeData") val includeData: Boolean = false,
+)
+
 data class MomentDetailDto(
     @SerializedName("momentId") val momentId: String,
     val title: String,

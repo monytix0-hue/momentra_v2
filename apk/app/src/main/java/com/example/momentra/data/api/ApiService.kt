@@ -169,7 +169,7 @@ interface ApiService {
     suspend fun duplicateGroupMoment(
         @Path("momentId") momentId: String,
         @Header("Idempotency-Key") idempotencyKey: String,
-        @Body body: Map<String, @JvmSuppressWildcards Any?> = emptyMap(),
+        @Body body: DuplicateGroupMomentBody = DuplicateGroupMomentBody(),
     ): SuccessEnvelope<CreateMomentResultDto>
 
     @GET("v1/moments/{momentId}/setup")

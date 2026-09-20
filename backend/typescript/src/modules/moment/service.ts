@@ -809,14 +809,23 @@ export async function getGroupSetupPrefill(
 
 const SPLIT_STYLES = new Set(['EQUAL', 'PERCENTAGE', 'EXACT', 'SHARES', 'POOLED']);
 
+export const duplicateGroupMomentSchema = z
+  .object({
+    includeData: z.boolean().optional().default(false),
+  })
+  .strict();
+
+export type DuplicateGroupMomentInput = z.infer<typeof duplicateGroupMomentSchema>;
+
 /**
  * Duplicate a Group moment: copy setup + checklist structure into a new ACTIVE moment.
- * Caller becomes sole ORGANIZER. Does not copy members, media, expenses, or activity.
+ * Caller becomes sole ORGANIZER. Optionally copy expenses, contributions, and memories.
  */
 export async function duplicateGroupMoment(
   client: PoolClient,
   ctx: RequestContext,
-  sourceMomentId: string
+  sourceMomentId: string,
+  opts: DuplicateGroupMomentInput = { includeData: false }
 ): Promise<MomentResult> {
   const domainCheck = await client.query<{ domain_code: string }>(
     `SELECT domain_code FROM core.moment WHERE moment_id = $1`,
@@ -897,7 +906,239 @@ export async function duplicateGroupMoment(
     [created.momentId, sourceMomentId]
   );
 
+  if (opts.includeData) {
+    await copyGroupMomentOperationalData(client, ctx, sourceMomentId, created.momentId);
+  }
+
   return created;
+}
+
+/** Copy expenses, contributions, and memories onto a new moment; remap to the caller as sole member. */
+async function copyGroupMomentOperationalData(
+  client: PoolClient,
+  ctx: RequestContext,
+  sourceMomentId: string,
+  targetMomentId: string
+): Promise<void> {
+  const organizer = await client.query<{ participant_id: string }>(
+    `SELECT participant_id FROM collaboration.moment_participant
+     WHERE moment_id = $1 AND user_id = $2 AND status = 'ACTIVE'
+     LIMIT 1`,
+    [targetMomentId, ctx.userId]
+  );
+  const organizerParticipantId = organizer.rows[0]?.participant_id;
+  if (!organizerParticipantId) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Organizer participant missing on duplicated moment.', 500);
+  }
+
+  // --- Expenses (non-voided): payer + 100% share to organizer; no settlements ---
+  const sourceExpenses = await client.query<{
+    expense_id: string;
+    description: string | null;
+    merchant_name: string | null;
+    category_code: string | null;
+    amount: string;
+    currency_code: string;
+    effective_at: Date;
+    status: string;
+    posted_at: Date | null;
+    payment_method_code: string | null;
+    split_strategy: string | null;
+  }>(
+    `SELECT e.expense_id, e.description, e.merchant_name, e.category_code,
+            e.amount::text, e.currency_code, e.effective_at, e.status, e.posted_at,
+            e.payment_method_code, g.split_strategy
+     FROM finance.expense e
+     INNER JOIN finance.group_expense_context g ON g.expense_id = e.expense_id AND g.moment_id = e.moment_id
+     WHERE e.moment_id = $1
+       AND e.status IN ('DRAFT', 'POSTED')
+     ORDER BY e.effective_at ASC, e.created_at ASC`,
+    [sourceMomentId]
+  );
+
+  for (const exp of sourceExpenses.rows) {
+    const inserted = await client.query<{ expense_id: string }>(
+      `INSERT INTO finance.expense (
+         moment_id, domain_code, created_by_user_id, merchant_name, description, category_code,
+         amount, currency_code, effective_at, status, posted_at, payment_method_code, version
+       ) VALUES (
+         $1, 'GROUP', $2, $3, $4, $5, $6::numeric, $7, $8::timestamptz, $9,
+         CASE WHEN $9 = 'POSTED' THEN COALESCE($10::timestamptz, now()) ELSE NULL END,
+         $11, 1
+       )
+       RETURNING expense_id`,
+      [
+        targetMomentId,
+        ctx.userId,
+        exp.merchant_name,
+        exp.description,
+        exp.category_code,
+        exp.amount,
+        exp.currency_code,
+        exp.effective_at.toISOString(),
+        exp.status,
+        exp.posted_at?.toISOString() ?? null,
+        exp.payment_method_code,
+      ]
+    );
+    const newExpenseId = inserted.rows[0]!.expense_id;
+    const splitStrategy =
+      exp.split_strategy && SPLIT_STYLES.has(exp.split_strategy) ? exp.split_strategy : 'EQUAL';
+    await client.query(
+      `INSERT INTO finance.group_expense_context (
+         expense_id, moment_id, paid_by_participant_id, split_strategy
+       ) VALUES ($1, $2, $3, $4)`,
+      [newExpenseId, targetMomentId, organizerParticipantId, splitStrategy]
+    );
+    if (exp.status === 'POSTED' && splitStrategy !== 'POOLED') {
+      await client.query(
+        `INSERT INTO finance.expense_share (
+           expense_id, moment_id, participant_id, share_amount, share_percent, status
+         ) VALUES ($1, $2, $3, $4::numeric, 100, 'ALLOCATED')`,
+        [newExpenseId, targetMomentId, organizerParticipantId, exp.amount]
+      );
+    }
+  }
+
+  // --- Contributions ---
+  await client.query(
+    `INSERT INTO finance.contribution (
+       moment_id, participant_id, amount, currency_code, contributed_at, status, version,
+       label, payment_method_code
+     )
+     SELECT $1, $2, amount, currency_code, contributed_at, status, 1, label, payment_method_code
+     FROM finance.contribution
+     WHERE moment_id = $3
+       AND status IN ('RECORDED', 'PENDING')`,
+    [targetMomentId, organizerParticipantId, sourceMomentId]
+  );
+
+  // --- Memories + evidence (reuse media upload ids; no blob re-upload) ---
+  const sourceMemories = await client.query<{
+    memory_id: string;
+    title: string;
+    summary: string | null;
+    memory_type: string;
+    significance_level: string;
+    visibility_level: string;
+    occurred_at: Date | null;
+    status: string;
+    source_type: string;
+  }>(
+    `SELECT memory_id, title, summary, memory_type, significance_level, visibility_level,
+            occurred_at, status, source_type
+     FROM memory.memory
+     WHERE moment_id = $1
+       AND status IN ('ACTIVE', 'ARCHIVED')
+     ORDER BY COALESCE(occurred_at, created_at) ASC`,
+    [sourceMomentId]
+  );
+
+  for (const mem of sourceMemories.rows) {
+    const inserted = await client.query<{ memory_id: string }>(
+      `INSERT INTO memory.memory (
+         scope_type, scope_id, domain_code, moment_id, title, summary, memory_type,
+         significance_level, visibility_level, occurred_at, status, source_type,
+         created_by_user_id, version
+       ) VALUES (
+         'MOMENT', $1, 'GROUP', $1, $2, $3, $4, $5, $6, $7::timestamptz, $8, $9, $10, 1
+       )
+       RETURNING memory_id`,
+      [
+        targetMomentId,
+        mem.title,
+        mem.summary,
+        mem.memory_type,
+        mem.significance_level,
+        mem.visibility_level,
+        mem.occurred_at?.toISOString() ?? null,
+        mem.status,
+        mem.source_type,
+        ctx.userId,
+      ]
+    );
+    const newMemoryId = inserted.rows[0]!.memory_id;
+    await client.query(
+      `INSERT INTO memory.memory_evidence (
+         memory_id, source_type, source_id, evidence_role, evidence_snapshot,
+         snapshot_schema_version, observed_at
+       )
+       SELECT $1, source_type, source_id, evidence_role, evidence_snapshot,
+              snapshot_schema_version, observed_at
+       FROM memory.memory_evidence
+       WHERE memory_id = $2
+       ON CONFLICT DO NOTHING`,
+      [newMemoryId, mem.memory_id]
+    );
+  }
+
+  await rebuildGroupFinanceSnapshotAfterCopy(client, targetMomentId);
+}
+
+async function rebuildGroupFinanceSnapshotAfterCopy(
+  client: PoolClient,
+  momentId: string
+): Promise<void> {
+  const expenseAgg = await client.query<{
+    currency_code: string;
+    expense_total: string;
+    expense_count: string;
+  }>(
+    `SELECT currency_code, COALESCE(SUM(amount), 0)::text AS expense_total, COUNT(*)::text AS expense_count
+     FROM finance.expense
+     WHERE moment_id = $1 AND status = 'POSTED'
+     GROUP BY currency_code`,
+    [momentId]
+  );
+  const contribAgg = await client.query<{
+    currency_code: string;
+    contribution_total: string;
+  }>(
+    `SELECT currency_code, COALESCE(SUM(amount), 0)::text AS contribution_total
+     FROM finance.contribution
+     WHERE moment_id = $1 AND status = 'RECORDED'
+     GROUP BY currency_code`,
+    [momentId]
+  );
+  const byCurrency = new Map<string, { expenseTotal: string; expenseCount: number; contributionTotal: string }>();
+  for (const row of expenseAgg.rows) {
+    byCurrency.set(row.currency_code, {
+      expenseTotal: row.expense_total,
+      expenseCount: Number(row.expense_count) || 0,
+      contributionTotal: '0',
+    });
+  }
+  for (const row of contribAgg.rows) {
+    const cur = byCurrency.get(row.currency_code) ?? {
+      expenseTotal: '0',
+      expenseCount: 0,
+      contributionTotal: '0',
+    };
+    cur.contributionTotal = row.contribution_total;
+    byCurrency.set(row.currency_code, cur);
+  }
+  for (const [currencyCode, totals] of byCurrency) {
+    await client.query(
+      `INSERT INTO projection.group_finance_snapshot (
+         moment_id, currency_code, expense_total, outstanding_total, contribution_total,
+         snapshot_payload, projection_version
+       ) VALUES ($1, $2, $3::numeric, 0, $4::numeric, $5::jsonb, 1)
+       ON CONFLICT (moment_id, currency_code) DO UPDATE SET
+         expense_total = EXCLUDED.expense_total,
+         contribution_total = EXCLUDED.contribution_total,
+         snapshot_payload = COALESCE(projection.group_finance_snapshot.snapshot_payload, '{}'::jsonb)
+           || EXCLUDED.snapshot_payload,
+         projection_version = projection.group_finance_snapshot.projection_version + 1,
+         updated_at = now()`,
+      [
+        momentId,
+        currencyCode,
+        totals.expenseTotal,
+        totals.contributionTotal,
+        JSON.stringify({ expenseCount: totals.expenseCount }),
+      ]
+    );
+  }
 }
 
 /** Prefill for Personal or Business setup resume (DRAFT or ACTIVE). */

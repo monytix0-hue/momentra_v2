@@ -3,6 +3,7 @@ package com.example.momentra.data.repository
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.ApiService
 import com.example.momentra.data.api.CreateMomentResultDto
+import com.example.momentra.data.api.DuplicateGroupMomentBody
 import com.example.momentra.data.api.GroupSetupBlockDto
 import com.example.momentra.data.api.LeaveCompanyResultDto
 import com.example.momentra.data.api.LeaveMomentBody
@@ -107,11 +108,12 @@ class MomentLifecycleRepository(
             ).data
         }.recoverCatching { e -> throw mapError(e) }
 
-    suspend fun duplicateGroup(momentId: String): Result<CreateMomentResultDto> =
+    suspend fun duplicateGroup(momentId: String, includeData: Boolean = false): Result<CreateMomentResultDto> =
         runCatching {
             api.duplicateGroupMoment(
                 momentId = momentId,
                 idempotencyKey = UUID.randomUUID().toString(),
+                body = DuplicateGroupMomentBody(includeData = includeData),
             ).data
         }.recoverCatching { e -> throw mapError(e) }
 

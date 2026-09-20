@@ -24,6 +24,9 @@ data class MomentSummary(
 fun MomentSummary.isActiveStatus(): Boolean =
     status.equals("ACTIVE", ignoreCase = true) || status.equals("DRAFT", ignoreCase = true)
 
+fun MomentSummary.isCompletedStatus(): Boolean =
+    status.equals("COMPLETED", ignoreCase = true)
+
 fun MomentSummary.isPausedStatus(): Boolean =
     status.equals("PAUSED", ignoreCase = true)
 
@@ -33,10 +36,14 @@ fun MomentSummary.isHistoricalStatus(): Boolean =
         status.equals("ARCHIVED", ignoreCase = true) ||
         status.equals("DELETED", ignoreCase = true)
 
+/** Moments that can drive live shell product (Pulse/Finance), including settled COMPLETED. */
+fun MomentSummary.isShellProductStatus(): Boolean =
+    isActiveStatus() || isCompletedStatus()
+
 fun resolveMomentExperience(moments: List<MomentSummary>): MomentExperienceKind {
     if (moments.isEmpty()) return MomentExperienceKind.FIRST_MOMENT
-    val hasActive = moments.any { it.isActiveStatus() }
-    if (hasActive) return MomentExperienceKind.ACTIVE
+    val hasProduct = moments.any { it.isShellProductStatus() }
+    if (hasProduct) return MomentExperienceKind.ACTIVE
     val hasPaused = moments.any { it.isPausedStatus() }
     val hasHistory = moments.any { it.isHistoricalStatus() || !it.isPausedStatus() }
     return when {
