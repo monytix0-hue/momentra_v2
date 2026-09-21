@@ -140,6 +140,7 @@ struct ContextEmptyExperienceView: View {
     var onExitGroupSetup: () -> Void = {}
     var onSetupTypeChanged: (String) -> Void = Self.ignoreString
     var onJoinCode: (String) -> Void = Self.ignoreString
+    var onOpenCompletedMoments: (() -> Void)? = nil
 
     private static func ignoreString(_: String) {}
 
@@ -308,6 +309,8 @@ struct ContextEmptyExperienceView: View {
                 body: "Nothing is active together right now. Recent moments together stay here.",
                 primaryLabel: "+ Start something new",
                 onPrimary: onCreateMoment,
+                secondaryLabel: onOpenCompletedMoments == nil ? nil : "View completed moments",
+                onSecondary: onOpenCompletedMoments,
                 historyTitle: "Recent moments together",
                 history: history,
                 accent: Color(hex: "#E8621A")

@@ -25,6 +25,8 @@ final class AppShellModel: ObservableObject {
     @Published private(set) var businessTabRefreshToken: UInt64 = 0
     @Published private(set) var capabilities: [String] = []
     @Published private(set) var ttcsMs: Int64?
+    /// Group inventory empty of ACTIVE/DRAFT but user has COMPLETED membership.
+    @Published private(set) var groupHasCompletedHistory = false
 
     private var tabByContext: [AppContextKind: BottomDestination] = [:]
     private var selectedMomentByContext: [AppContextKind: String?] = [:]
@@ -337,6 +339,7 @@ final class AppShellModel: ObservableObject {
             momentExperience = .firstMoment
             contextContent = .empty
             showMomentSwitcher = false
+            groupHasCompletedHistory = false
         } else {
             let experience = resolveMomentExperience(healed.moments)
             momentExperience = experience
@@ -356,8 +359,14 @@ final class AppShellModel: ObservableObject {
                 activeMomentCount: switcherCount,
                 authReady: true
             )
+            if healed.selectedContext != .group {
+                groupHasCompletedHistory = false
+            }
         }
 
+        if healed.selectedContext == .group, momentExperience == .firstMoment, networkRefresh {
+            Task { await probeGroupCompletedHistory() }
+        }
         if networkRefresh, momentExperience == .active {
             let inventoryChanged = previousMomentIds != healed.moments.map(\.momentId)
             let selectionChanged = previousSelection != healed.selectedMomentId
@@ -426,6 +435,23 @@ final class AppShellModel: ObservableObject {
         ShellPerf.end(mark, extras: ["momentId": String(id.prefix(8))])
     }
 
+    private func probeGroupCompletedHistory() async {
+        let hasCompleted = ((try? await gateway.listGroupMoments(limit: 1, lifecycle: "completed")) ?? []).isEmpty == false
+        guard selectedContext == .group else { return }
+        if momentExperience != .firstMoment && momentExperience != .betweenMoments {
+            groupHasCompletedHistory = hasCompleted
+            return
+        }
+        guard hasCompleted else {
+            groupHasCompletedHistory = false
+            return
+        }
+        groupHasCompletedHistory = true
+        momentExperience = .betweenMoments
+        contextContent = .empty
+        showMomentSwitcher = true
+    }
+
     /// Open a COMPLETED Group moment into the live shell so members can settle expenses.
     func selectCompletedGroupMoment(_ moment: MomentSummary) {
         let status = moment.status.isEmpty ? "COMPLETED" : moment.status
@@ -469,35 +495,53 @@ final class AppShellModel: ObservableObject {
     }
 
     /// Opens a moment from a push/inbox deep link, switching Personal/Group/Business if needed.
-    /// Returns false when bootstrap inventory is not ready or the moment is not found (caller should retry).
+    /// Returns false when bootstrap inventory is not ready or the moment is not found yet
+    /// (caller should keep pending deep link / retry). Kicks off an async completed-inventory lookup.
     @discardableResult
     func openMomentFromDeepLink(momentId: String) -> Bool {
         if moments.contains(where: { $0.momentId == momentId }) {
             selectMoment(id: momentId)
             return true
         }
-        guard let boot = bootstrap else { return false }
-        let candidates: [(AppContextKind, [MomentSummary])] = [
-            (.group, boot.groupMoments),
-            (.business, boot.businessMoments),
-            (.personal, boot.personalMoments),
-        ]
-        for (ctx, list) in candidates {
-            guard list.contains(where: { $0.momentId == momentId }) else { continue }
-            selectedMomentByContext[ctx] = momentId
-            if selectedContext != ctx {
-                selectContext(ctx)
-            } else {
-                ensureContextContent()
+        if let boot = bootstrap {
+            let candidates: [(AppContextKind, [MomentSummary])] = [
+                (.group, boot.groupMoments),
+                (.business, boot.businessMoments),
+                (.personal, boot.personalMoments),
+            ]
+            for (ctx, list) in candidates {
+                guard list.contains(where: { $0.momentId == momentId }) else { continue }
+                selectedMomentByContext[ctx] = momentId
+                if selectedContext != ctx {
+                    selectContext(ctx)
+                } else {
+                    ensureContextContent()
+                }
+                if moments.contains(where: { $0.momentId == momentId }) {
+                    selectMoment(id: momentId)
+                    return true
+                }
+                return selectedMomentId == momentId
             }
-            if moments.contains(where: { $0.momentId == momentId }) {
-                selectMoment(id: momentId)
-                return true
-            }
-            // Context switch applied preferred selection via inventory heal.
-            return selectedMomentId == momentId
+        }
+        Task {
+            await resolveDeepLinkFromCompletedGroup(momentId: momentId)
         }
         return false
+    }
+
+    @discardableResult
+    private func resolveDeepLinkFromCompletedGroup(momentId: String) async -> Bool {
+        if moments.contains(where: { $0.momentId == momentId }) {
+            selectMoment(id: momentId)
+            return true
+        }
+        guard let hit = try? await gateway.listGroupMoments(limit: 50, lifecycle: "completed")
+            .first(where: { $0.momentId == momentId }) else {
+            return false
+        }
+        selectCompletedGroupMoment(hit)
+        return true
     }
 
     func onMomentCreated(momentId: String, title: String, momentTypeCode: String? = nil, status: String = "ACTIVE") {

@@ -15,6 +15,7 @@ struct AppShellView: View {
     @State private var groupParticipantsSheetPresented = false
     @State private var groupInviteSheetPresented = false
     @State private var groupMomentDirectoryOpen = false
+    @State private var groupDirectoryPreferCompleted = false
     @State private var groupViewerReadOnly = false
     @State private var groupCollabKind: GroupCollabKind? = nil
     @State private var groupFinancePresented = false
@@ -852,32 +853,38 @@ struct AppShellView: View {
                         onDismiss: {
                             withAnimation(.easeInOut(duration: 0.25)) {
                                 groupMomentDirectoryOpen = false
+                                groupDirectoryPreferCompleted = false
                             }
                         },
                         onSelectMoment: { momentId in
                             model.selectMoment(id: momentId)
                             withAnimation(.easeInOut(duration: 0.25)) {
                                 groupMomentDirectoryOpen = false
+                                groupDirectoryPreferCompleted = false
                             }
                         },
                         onSelectCompletedMoment: { moment in
                             model.selectCompletedGroupMoment(moment)
                             withAnimation(.easeInOut(duration: 0.25)) {
                                 groupMomentDirectoryOpen = false
+                                groupDirectoryPreferCompleted = false
                             }
                         },
                         onOpenStory: { momentId in
                             storyMomentId = momentId
                             withAnimation(.easeInOut(duration: 0.25)) {
                                 groupMomentDirectoryOpen = false
+                                groupDirectoryPreferCompleted = false
                             }
                         },
                         onCreateMoment: {
                             withAnimation(.easeInOut(duration: 0.25)) {
                                 groupMomentDirectoryOpen = false
+                                groupDirectoryPreferCompleted = false
                             }
                             openNewMoment()
-                        }
+                        },
+                        initialCompletedTab: groupDirectoryPreferCompleted
                     )
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .move(edge: .bottom)),
@@ -960,6 +967,7 @@ struct AppShellView: View {
                     onInvite: model.selectedContext == .group ? { groupInviteSheetPresented = true } : nil,
                     useDirectorySelector: model.selectedContext == .group,
                     onOpenDirectory: {
+                        groupDirectoryPreferCompleted = false
                         withAnimation(.easeInOut(duration: 0.28)) {
                             groupMomentDirectoryOpen = true
                         }
@@ -1093,7 +1101,13 @@ struct AppShellView: View {
                         model.selectBottomDestination(.create)
                     },
                     onExitGroupSetup: { groupCreatePhase = .chooser },
-                    onJoinCode: redeemJoinCode
+                    onJoinCode: redeemJoinCode,
+                    onOpenCompletedMoments: {
+                        groupDirectoryPreferCompleted = true
+                        withAnimation(.easeInOut(duration: 0.28)) {
+                            groupMomentDirectoryOpen = true
+                        }
+                    }
                 )
             case .ready(let detail):
                 let personalTypeCode = model.selectedMomentTypeCode

@@ -36,13 +36,19 @@ struct MomentStoryViewerView: View {
             pageBackground.ignoresSafeArea()
             VStack(spacing: 0) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("momentra")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(chromeDark ? Color(hex: "#F5F0FF") : Color(hex: "#B45F3D"))
-                        Text(story?.snapshot?.display?.displayLabel ?? "Moment Story")
-                            .font(.system(size: 12))
-                            .foregroundStyle(chromeDark ? Color(hex: "#C4BDEE") : Color(hex: "#746F67"))
+                    HStack(spacing: 10) {
+                        Image("MomentraOfficialLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 28, height: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("momentra")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundStyle(chromeDark ? Color(hex: "#F5F0FF") : Color(hex: "#B45F3D"))
+                            Text(story?.snapshot?.display?.displayLabel ?? "Moment Story")
+                                .font(.system(size: 12))
+                                .foregroundStyle(chromeDark ? Color(hex: "#C4BDEE") : Color(hex: "#746F67"))
+                        }
                     }
                     Spacer()
                     Button("Close", action: onClose)
@@ -207,8 +213,8 @@ struct MomentStoryViewerView: View {
                     .foregroundStyle(Color(hex: "#25231F"))
                     .padding(.top, 8)
                 timelineList(Array((snap?.timeline ?? []).prefix(6)), dark: false)
-                let photos = Array((snap?.photos ?? []).dropFirst().prefix(3))
-                if !photos.isEmpty {
+                let mosaicUrls = (snap?.photos ?? []).compactMap { $0.url }.filter { !$0.isEmpty }.prefix(4).compactMap { URL(string: $0) }
+                if !mosaicUrls.isEmpty {
                     Text("PHOTO STORY")
                         .font(.system(size: 10, weight: .semibold))
                         .tracking(1.2)
@@ -217,20 +223,7 @@ struct MomentStoryViewerView: View {
                     Text("Celebrations, held close.")
                         .font(.system(size: 22, design: .serif))
                         .foregroundStyle(Color(hex: "#25231F"))
-                    ForEach(photos) { photo in
-                        if let urlStr = photo.url, let url = URL(string: urlStr) {
-                            AsyncImage(url: url) { phase in
-                                switch phase {
-                                case .success(let img):
-                                    img.resizable().scaledToFill()
-                                default:
-                                    Color(hex: "#E7E0D6")
-                                }
-                            }
-                            .frame(height: 160)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                        }
-                    }
+                    photoMosaic(Array(mosaicUrls))
                 }
             }
             .padding(20)
@@ -278,14 +271,16 @@ struct MomentStoryViewerView: View {
                     .tracking(1)
                     .foregroundStyle(Color(hex: "#6C4EF2"))
                 HStack(spacing: 8) {
-                    prepCard(Self.metricInt(snap?.metrics, "plans").map(String.init) ?? "—", "Plans")
+                    let plansN = Self.metricInt(snap?.metrics, "plans")
+                    prepCard((plansN.map { $0 > 0 ? "\($0)" : "—" }) ?? "—", "Plans")
                     prepCard(
                         snap?.metrics?["contributed"]?.label
                             ?? snap?.metrics?["raised"]?.label
                             ?? "—",
                         "Contributed"
                     )
-                    prepCard(Self.metricInt(snap?.metrics, "decisions").map(String.init) ?? "—", "Decisions")
+                    let decisionsN = Self.metricInt(snap?.metrics, "decisions")
+                    prepCard((decisionsN.map { $0 > 0 ? "\($0)" : "—" }) ?? "—", "Decisions")
                 }
                 let decisions = snap?.decisions ?? []
                 if !decisions.isEmpty {
@@ -408,7 +403,7 @@ struct MomentStoryViewerView: View {
                         ForEach(expenses.prefix(6)) { e in
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(e.description ?? "Expense")
+                                    Text(Self.cleanExpenseTitle(e.description))
                                         .foregroundStyle(.white)
                                         .font(.system(size: 12))
                                     Text([e.category, e.payer].compactMap { $0 }.joined(separator: " · "))
@@ -476,6 +471,10 @@ struct MomentStoryViewerView: View {
     private func closeChapter(_ snap: APIClient.MomentStorySnapshot?) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                Image("MomentraOfficialLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 36, height: 36)
                 Text("TOGETHER · FORWARD")
                     .font(.system(size: 12, weight: .bold))
                     .tracking(1)
@@ -490,7 +489,7 @@ struct MomentStoryViewerView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.45))
                     .padding(.top, 8)
-                if let plans = Self.metricInt(snap?.metrics, "plans") {
+                if let plans = Self.metricInt(snap?.metrics, "plans"), plans > 0 {
                     Text("✓  \(plans) plans on the checklist")
                         .foregroundStyle(Color(hex: "#C4BDEE"))
                 }
@@ -517,6 +516,58 @@ struct MomentStoryViewerView: View {
     }
 
     // MARK: - Shared pieces
+
+    @ViewBuilder
+    private func photoMosaic(_ urls: [URL]) -> some View {
+        VStack(spacing: 8) {
+            if let first = urls.first {
+                AsyncImage(url: first) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable().scaledToFill()
+                    default:
+                        Color(hex: "#E7E0D6")
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 180)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+            if urls.count > 1 {
+                HStack(spacing: 8) {
+                    ForEach(Array(urls.dropFirst().prefix(2).enumerated()), id: \.offset) { _, url in
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let img):
+                                img.resizable().scaledToFill()
+                            default:
+                                Color(hex: "#E7E0D6")
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 110)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                    if urls.count == 2 {
+                        Color.clear.frame(maxWidth: .infinity).frame(height: 110)
+                    }
+                }
+            }
+            if urls.count > 3, let fourth = urls.dropFirst(3).first {
+                AsyncImage(url: fourth) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable().scaledToFill()
+                    default:
+                        Color(hex: "#E7E0D6")
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 140)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+        }
+    }
 
     @ViewBuilder
     private func factRows(_ snap: APIClient.MomentStorySnapshot?) -> some View {
@@ -706,6 +757,18 @@ struct MomentStoryViewerView: View {
         formatter.locale = Locale(identifier: "en_IN")
         formatter.maximumFractionDigits = 0
         return formatter.string(from: NSNumber(value: value)) ?? String(Int(value.rounded()))
+    }
+
+    /// Strip trailing " | Category" so titles don't duplicate the category subline.
+    private static func cleanExpenseTitle(_ description: String?) -> String {
+        guard let raw = description?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return "Expense"
+        }
+        if let range = raw.range(of: " | ", options: .backwards) {
+            let note = String(raw[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            return note.isEmpty ? "Expense" : note
+        }
+        return raw
     }
 
     private static func formatPlain(_ value: Double) -> String {

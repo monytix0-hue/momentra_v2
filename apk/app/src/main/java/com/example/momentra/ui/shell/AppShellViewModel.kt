@@ -74,6 +74,11 @@ data class AppShellUiState(
     val personalTabRefreshToken: Long = 0L,
     val groupTabRefreshToken: Long = 0L,
     val businessTabRefreshToken: Long = 0L,
+    /**
+     * Group inventory empty of ACTIVE/DRAFT but user has COMPLETED membership —
+     * show Between empty (not Begin Story) and allow Completed directory.
+     */
+    val groupHasCompletedHistory: Boolean = false,
     /** Elapsed ms from bindIdentity to first cached shell paint; null if no cache. */
     val ttcsMs: Long? = null,
 )
@@ -425,6 +430,11 @@ class AppShellViewModel(
                 bottomDestination = tab,
                 momentExperience = experience,
                 contextContent = content,
+                groupHasCompletedHistory = if (healed.selectedContext == AppContext.GROUP) {
+                    it.groupHasCompletedHistory
+                } else {
+                    false
+                },
                 showMomentSwitcher = ShellVisibilityPolicy.showMomentSwitcher(
                     context = healed.selectedContext,
                     content = content,
@@ -439,6 +449,12 @@ class AppShellViewModel(
             )
         }
         persistCompany(company?.companyId)
+        if (healed.selectedContext == AppContext.GROUP &&
+            experience == MomentExperienceKind.FIRST_MOMENT &&
+            networkRefresh
+        ) {
+            probeGroupCompletedHistory()
+        }
         if (healed.selectedContext == AppContext.GROUP &&
             content is ShellContentState.Ready &&
             !healed.selectedMomentId.isNullOrBlank()
@@ -520,6 +536,32 @@ class AppShellViewModel(
         ShellPerf.end(mark, mapOf("momentId" to momentId.take(8)))
     }
 
+    private fun probeGroupCompletedHistory() {
+        viewModelScope.launch {
+            val hasCompleted = meRepository.listGroupMoments(limit = 1, lifecycle = "completed")
+                .getOrNull()
+                ?.isNotEmpty() == true
+            _state.update { st ->
+                if (st.selectedContext != AppContext.GROUP) return@update st
+                if (st.momentExperience != MomentExperienceKind.FIRST_MOMENT &&
+                    st.momentExperience != MomentExperienceKind.BETWEEN_MOMENTS
+                ) {
+                    return@update st.copy(groupHasCompletedHistory = hasCompleted)
+                }
+                if (!hasCompleted) {
+                    return@update st.copy(groupHasCompletedHistory = false)
+                }
+                // Active inventory empty but completed exists — not a true first-moment.
+                st.copy(
+                    groupHasCompletedHistory = true,
+                    momentExperience = MomentExperienceKind.BETWEEN_MOMENTS,
+                    contextContent = ShellContentState.Empty,
+                    showMomentSwitcher = true,
+                )
+            }
+        }
+    }
+
     /**
      * Open a COMPLETED Group moment into the live shell (Pulse/Finance) so members can settle expenses.
      * Bootstrap only lists ACTIVE moments — we merge this summary and preserve it across heal.
@@ -564,36 +606,57 @@ class AppShellViewModel(
 
     /**
      * Opens a moment from a push/inbox deep link, switching Personal/Group/Business if needed.
-     * Returns false when bootstrap inventory is not ready or the moment is not found (caller should retry).
+     * Returns false when bootstrap inventory is not ready or the moment is not found yet
+     * (caller should keep PendingDeepLink / retry). Kicks off an async completed-inventory lookup
+     * so COMPLETED group moments still open after bootstrap-only miss.
      */
     fun openMomentFromDeepLink(momentId: String): Boolean {
         if (_state.value.moments.any { it.momentId == momentId }) {
             selectMoment(momentId)
             return true
         }
-        val boot = bootstrap ?: return false
-        val candidates = listOf(
-            AppContext.GROUP to boot.groupMoments,
-            AppContext.BUSINESS to boot.businessMoments,
-            AppContext.PERSONAL to boot.personalMoments,
-        )
-        for ((ctx, list) in candidates) {
-            if (list.none { it.momentId == momentId }) continue
-            _state.update {
-                it.copy(selectedMomentByContext = it.selectedMomentByContext + (ctx to momentId))
+        val boot = bootstrap
+        if (boot != null) {
+            val candidates = listOf(
+                AppContext.GROUP to boot.groupMoments,
+                AppContext.BUSINESS to boot.businessMoments,
+                AppContext.PERSONAL to boot.personalMoments,
+            )
+            for ((ctx, list) in candidates) {
+                if (list.none { it.momentId == momentId }) continue
+                _state.update {
+                    it.copy(selectedMomentByContext = it.selectedMomentByContext + (ctx to momentId))
+                }
+                if (_state.value.selectedContext != ctx) {
+                    selectContext(ctx)
+                } else {
+                    ensureContextContent()
+                }
+                if (_state.value.moments.any { it.momentId == momentId }) {
+                    selectMoment(momentId)
+                    return true
+                }
+                return _state.value.selectedMomentId == momentId
             }
-            if (_state.value.selectedContext != ctx) {
-                selectContext(ctx)
-            } else {
-                ensureContextContent()
-            }
-            if (_state.value.moments.any { it.momentId == momentId }) {
-                selectMoment(momentId)
-                return true
-            }
-            return _state.value.selectedMomentId == momentId
+        }
+        // Bootstrap active lists miss COMPLETED (and some join races) — resolve async.
+        viewModelScope.launch {
+            resolveDeepLinkFromCompletedGroup(momentId)
         }
         return false
+    }
+
+    private suspend fun resolveDeepLinkFromCompletedGroup(momentId: String): Boolean {
+        if (_state.value.moments.any { it.momentId == momentId }) {
+            selectMoment(momentId)
+            return true
+        }
+        val hit = meRepository.listGroupMoments(limit = 50, lifecycle = "completed")
+            .getOrNull()
+            ?.firstOrNull { it.momentId == momentId }
+            ?: return false
+        selectCompletedGroupMoment(hit)
+        return true
     }
 
     fun onMomentCreated(

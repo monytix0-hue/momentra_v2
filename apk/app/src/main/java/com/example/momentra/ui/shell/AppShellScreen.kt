@@ -337,6 +337,7 @@ fun AppShellScreen(
     var groupParticipantsSheetOpen by remember { mutableStateOf(false) }
     var groupInviteSheetOpen by remember { mutableStateOf(false) }
     var groupMomentDirectoryOpen by remember { mutableStateOf(false) }
+    var groupDirectoryPreferCompleted by remember { mutableStateOf(false) }
     var groupViewerReadOnly by remember { mutableStateOf(false) }
     var groupCollabKind by remember { mutableStateOf<GroupCollabKind?>(null) }
     var groupFinanceOpen by remember { mutableStateOf(false) }
@@ -545,7 +546,10 @@ fun AppShellScreen(
                         null
                     },
                     useDirectorySelector = state.selectedContext == AppContext.GROUP,
-                    onOpenDirectory = { groupMomentDirectoryOpen = true },
+                    onOpenDirectory = {
+                        groupDirectoryPreferCompleted = false
+                        groupMomentDirectoryOpen = true
+                    },
                 )
             }
             Row(
@@ -729,6 +733,10 @@ fun AppShellScreen(
                     onOpenRelationshipsActivity = { relationshipsActivityOpen = true },
                     onViewAllActivity = { recentActivityOpen = true },
                     onViewAllGroupActivity = { groupRecentActivityOpen = true },
+                    onOpenCompletedMoments = {
+                        groupDirectoryPreferCompleted = true
+                        groupMomentDirectoryOpen = true
+                    },
                 )
             }
             if (
@@ -753,23 +761,31 @@ fun AppShellScreen(
                 moments = state.moments,
                 selectedMomentId = state.selectedMomentId,
                 visible = groupMomentDirectoryOpen && state.selectedContext == AppContext.GROUP,
-                onDismiss = { groupMomentDirectoryOpen = false },
+                onDismiss = {
+                    groupMomentDirectoryOpen = false
+                    groupDirectoryPreferCompleted = false
+                },
                 onSelectMoment = { momentId ->
                     shellViewModel.selectMoment(momentId)
                     groupMomentDirectoryOpen = false
+                    groupDirectoryPreferCompleted = false
                 },
                 onSelectCompletedMoment = { moment ->
                     shellViewModel.selectCompletedGroupMoment(moment)
                     groupMomentDirectoryOpen = false
+                    groupDirectoryPreferCompleted = false
                 },
                 onOpenStory = { momentId ->
                     storyMomentId = momentId
                     groupMomentDirectoryOpen = false
+                    groupDirectoryPreferCompleted = false
                 },
                 onCreateMoment = {
                     groupMomentDirectoryOpen = false
+                    groupDirectoryPreferCompleted = false
                     openNewMoment()
                 },
+                initialCompletedTab = groupDirectoryPreferCompleted,
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding(),
@@ -1462,6 +1478,7 @@ private fun ShellDestinationContent(
     onOpenRelationshipsActivity: () -> Unit = {},
     onViewAllActivity: () -> Unit = {},
     onViewAllGroupActivity: () -> Unit = {},
+    onOpenCompletedMoments: (() -> Unit)? = null,
 ) {
     when (content) {
         ShellContentState.Loading, ShellContentState.Idle -> {
@@ -1514,6 +1531,7 @@ private fun ShellDestinationContent(
                 groupCreatePhase = groupCreatePhase,
                 onGroupCreatePhase = onGroupCreatePhase,
                 onOpenGroupCreateTab = onOpenGroupCreateTab,
+                onOpenCompletedMoments = onOpenCompletedMoments,
             )
         }
         is ShellContentState.Ready -> {

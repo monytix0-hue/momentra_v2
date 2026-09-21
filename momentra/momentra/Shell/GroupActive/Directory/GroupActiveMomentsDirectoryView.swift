@@ -83,13 +83,35 @@ struct GroupActiveMomentsDirectoryView: View {
     var onSelectCompletedMoment: (MomentSummary) -> Void = { _ in }
     var onOpenStory: (String) -> Void = { _ in }
     var onCreateMoment: () -> Void
+    var initialCompletedTab: Bool = false
 
     @State private var query = ""
     @State private var selectedBucket: GroupMomentDirectoryBucket?
-    @State private var lifecycleTab: LifecycleTab = .ongoing
+    @State private var lifecycleTab: LifecycleTab
     @State private var completedMoments: [MomentSummary] = []
     @State private var loadingCompleted = false
     @State private var completedError: String?
+
+    init(
+        moments: [MomentSummary],
+        selectedMomentId: String?,
+        onDismiss: @escaping () -> Void,
+        onSelectMoment: @escaping (String) -> Void,
+        onSelectCompletedMoment: @escaping (MomentSummary) -> Void = { _ in },
+        onOpenStory: @escaping (String) -> Void = { _ in },
+        onCreateMoment: @escaping () -> Void,
+        initialCompletedTab: Bool = false
+    ) {
+        self.moments = moments
+        self.selectedMomentId = selectedMomentId
+        self.onDismiss = onDismiss
+        self.onSelectMoment = onSelectMoment
+        self.onSelectCompletedMoment = onSelectCompletedMoment
+        self.onOpenStory = onOpenStory
+        self.onCreateMoment = onCreateMoment
+        self.initialCompletedTab = initialCompletedTab
+        _lifecycleTab = State(initialValue: initialCompletedTab ? .completed : .ongoing)
+    }
 
     private var active: [MomentSummary] {
         moments.filter(\.isActiveStatus)

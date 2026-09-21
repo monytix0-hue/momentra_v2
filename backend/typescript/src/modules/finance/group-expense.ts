@@ -15,6 +15,22 @@ import {
 import { emitLeanBusinessEvent, loadMomentTaxonomy } from '../analytics/lean-events';
 import { loadMomentTitle, mapParticipantUserIds } from '../../platform/notifications/dispatch';
 
+async function loadMomentLifecycleStatus(
+  client: PoolClient,
+  momentId: string
+): Promise<string | null> {
+  const row = await client.query<{ status: string }>(
+    `SELECT status FROM core.moment WHERE moment_id = $1`,
+    [momentId]
+  );
+  return row.rows[0]?.status ?? null;
+}
+
+function shouldSuppressExpenseNotifications(momentStatus: string | null): boolean {
+  const s = (momentStatus ?? '').toUpperCase();
+  return s === 'COMPLETED' || s === 'CANCELLED' || s === 'ARCHIVED' || s === 'DELETED';
+}
+
 /** Canonical finance fields for recipient-aware notification copy (no recomputation in worker). */
 async function buildExpenseNotifyPayload(
   client: PoolClient,
@@ -477,6 +493,19 @@ export async function createGroupExpense(
     paidByParticipantId: body.paidByParticipantId,
     shares: shareRows.map((s) => ({ participantId: s.participantId, shareAmount: s.shareAmount })),
   });
+  const momentStatus = await loadMomentLifecycleStatus(client, momentId);
+  const suppressNotifications = shouldSuppressExpenseNotifications(momentStatus);
+  if (suppressNotifications) {
+    console.info(
+      JSON.stringify({
+        msg: 'expense_notify_suppressed',
+        momentId,
+        expenseId,
+        momentStatus,
+        eventName: 'GroupExpenseRecorded',
+      })
+    );
+  }
 
   const { domainEventId } = await recordCommandSideEffects(client, ctx, {
     eventName: 'GroupExpenseRecorded',
@@ -494,6 +523,9 @@ export async function createGroupExpense(
       splitStrategy: body.splitStrategy,
       shareCount: shareRows.length,
       ...notifyExtra,
+      ...(suppressNotifications
+        ? { suppressNotifications: true, targetUserIds: [] as string[] }
+        : {}),
     },
     auditActionCode: 'EXPENSE_CREATE',
     auditResourceType: 'EXPENSE',
@@ -901,6 +933,19 @@ export async function updateGroupExpense(
     paidByParticipantId: body.paidByParticipantId,
     shares: shareRows.map((s) => ({ participantId: s.participantId, shareAmount: s.shareAmount })),
   });
+  const momentStatus = await loadMomentLifecycleStatus(client, momentId);
+  const suppressNotifications = shouldSuppressExpenseNotifications(momentStatus);
+  if (suppressNotifications) {
+    console.info(
+      JSON.stringify({
+        msg: 'expense_notify_suppressed',
+        momentId,
+        expenseId,
+        momentStatus,
+        eventName: 'GroupExpenseUpdated',
+      })
+    );
+  }
   const { domainEventId } = await recordCommandSideEffects(client, ctx, {
     eventName: 'GroupExpenseUpdated',
     domainCode: 'GROUP',
@@ -916,6 +961,9 @@ export async function updateGroupExpense(
       paidByParticipantId: body.paidByParticipantId,
       splitStrategy: body.splitStrategy,
       ...notifyExtra,
+      ...(suppressNotifications
+        ? { suppressNotifications: true, targetUserIds: [] as string[] }
+        : {}),
     },
     auditActionCode: 'EXPENSE_UPDATE',
     auditResourceType: 'EXPENSE',

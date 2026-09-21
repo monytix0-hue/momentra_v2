@@ -48,10 +48,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.R
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.MomentStoryDto
 import com.example.momentra.data.api.MomentStoryMetricKeyDto
@@ -147,20 +149,28 @@ fun MomentStoryViewerScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column {
-                Text(
-                    "momentra",
-                    color = if (chromeDark) MomentraBrandColors.TextOnDark else MomentraBrandColors.StoryTerracotta,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSans,
-                    fontSize = 18.sp,
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Image(
+                    painter = painterResource(R.drawable.momentra_official_logo),
+                    contentDescription = "Momentra",
+                    modifier = Modifier.height(28.dp).width(28.dp),
+                    contentScale = ContentScale.Fit,
                 )
-                Text(
-                    snap?.display?.displayLabel ?: "Moment Story",
-                    color = if (chromeDark) MomentraBrandColors.Indigo100 else MomentraBrandColors.StoryMuted,
-                    fontSize = 12.sp,
-                    fontFamily = PlusJakartaSans,
-                )
+                Column {
+                    Text(
+                        "momentra",
+                        color = if (chromeDark) MomentraBrandColors.TextOnDark else MomentraBrandColors.StoryTerracotta,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 18.sp,
+                    )
+                    Text(
+                        snap?.display?.displayLabel ?: "Moment Story",
+                        color = if (chromeDark) MomentraBrandColors.Indigo100 else MomentraBrandColors.StoryMuted,
+                        fontSize = 12.sp,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
             }
             TextButton(onClick = onClose) {
                 Text(
@@ -391,8 +401,8 @@ private fun MomentChapter(snap: MomentStorySnapshotDto?) {
         )
         Spacer(Modifier.height(10.dp))
         HorizontalTimeline(snap?.timeline.orEmpty().take(6))
-        val photos = snap?.photos.orEmpty().drop(1).take(3)
-        if (photos.isNotEmpty()) {
+        val mosaic = snap?.photos.orEmpty().filter { !it.url.isNullOrBlank() }
+        if (mosaic.isNotEmpty()) {
             Spacer(Modifier.height(20.dp))
             Text(
                 "PHOTO STORY",
@@ -407,14 +417,8 @@ private fun MomentChapter(snap: MomentStorySnapshotDto?) {
                 fontSize = 22.sp,
                 fontFamily = FontFamily.Serif,
             )
-            photos.forEach { p ->
-                val url = p.url ?: return@forEach
-                Spacer(Modifier.height(10.dp))
-                RemoteStoryImage(
-                    url = url,
-                    modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(16.dp)),
-                )
-            }
+            Spacer(Modifier.height(10.dp))
+            PhotoMosaic(urls = mosaic.mapNotNull { it.url }.take(4))
         }
     }
 }
@@ -493,8 +497,9 @@ private fun TogetherChapter(snap: MomentStorySnapshotDto?) {
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            val plansN = metricInt(snap?.metrics, "plans")
             PrepCard(
-                value = metricInt(snap?.metrics, "plans")?.toString() ?: "—",
+                value = plansN?.takeIf { it > 0 }?.toString() ?: "—",
                 label = "Plans",
                 modifier = Modifier.weight(1f),
             )
@@ -505,8 +510,9 @@ private fun TogetherChapter(snap: MomentStorySnapshotDto?) {
                 label = "Contributed",
                 modifier = Modifier.weight(1f),
             )
+            val decisionsN = metricInt(snap?.metrics, "decisions")
             PrepCard(
-                value = metricInt(snap?.metrics, "decisions")?.toString() ?: "—",
+                value = decisionsN?.takeIf { it > 0 }?.toString() ?: "—",
                 label = "Decisions",
                 modifier = Modifier.weight(1f),
             )
@@ -651,7 +657,7 @@ private fun MoneyChapter(snap: MomentStorySnapshotDto?) {
                 expenses.take(6).forEach { e ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(Modifier.weight(1f)) {
-                            Text(e.description ?: "Expense", color = Color.White, fontSize = 12.sp)
+                            Text(cleanExpenseTitle(e.description), color = Color.White, fontSize = 12.sp)
                             Text(
                                 listOfNotNull(e.category, e.payer).joinToString(" · "),
                                 color = MomentraBrandColors.Indigo100,
@@ -711,6 +717,13 @@ private fun CloseChapter(snap: MomentStorySnapshotDto?) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center,
     ) {
+        Image(
+            painter = painterResource(R.drawable.momentra_official_logo),
+            contentDescription = "Momentra",
+            modifier = Modifier.height(36.dp).width(36.dp),
+            contentScale = ContentScale.Fit,
+        )
+        Spacer(Modifier.height(16.dp))
         Text(
             "TOGETHER · FORWARD",
             color = MomentraBrandColors.Ember500,
@@ -742,7 +755,7 @@ private fun CloseChapter(snap: MomentStorySnapshotDto?) {
         val plans = metricInt(snap?.metrics, "plans")
         val decisions = metricInt(snap?.metrics, "decisions")
         Spacer(Modifier.height(20.dp))
-        if (plans != null) {
+        if (plans != null && plans > 0) {
             Text("✓  $plans plans on the checklist", color = MomentraBrandColors.Indigo100, fontSize = 14.sp)
             Spacer(Modifier.height(6.dp))
         }
@@ -756,6 +769,37 @@ private fun CloseChapter(snap: MomentStorySnapshotDto?) {
         snap?.narrative?.insights.orEmpty().take(2).forEach {
             Spacer(Modifier.height(10.dp))
             Text(it, color = MomentraBrandColors.Indigo100, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+private fun PhotoMosaic(urls: List<String>) {
+    if (urls.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        RemoteStoryImage(
+            url = urls[0],
+            modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(16.dp)),
+        )
+        if (urls.size > 1) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                urls.drop(1).take(2).forEach { url ->
+                    RemoteStoryImage(
+                        url = url,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(110.dp)
+                            .clip(RoundedCornerShape(14.dp)),
+                    )
+                }
+                if (urls.size == 2) Spacer(Modifier.weight(1f))
+            }
+        }
+        urls.drop(3).take(1).forEach { url ->
+            RemoteStoryImage(
+                url = url,
+                modifier = Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(14.dp)),
+            )
         }
     }
 }
@@ -966,6 +1010,17 @@ private fun formatMetricValue(
 
 private fun formatInrGrouped(value: Double): String =
     NumberFormat.getIntegerInstance(Locale("en", "IN")).format(value.toLong())
+
+/** Strip trailing " | Category" so titles don't duplicate the category subline. */
+private fun cleanExpenseTitle(description: String?): String {
+    val raw = description?.trim().orEmpty()
+    if (raw.isEmpty()) return "Expense"
+    val sep = " | "
+    val idx = raw.lastIndexOf(sep)
+    if (idx < 0) return raw
+    val note = raw.substring(0, idx).trim()
+    return note.ifEmpty { "Expense" }
+}
 
 private fun dateRangeLabel(start: String?, end: String?): String? {
     val s = formatStoryDate(start)

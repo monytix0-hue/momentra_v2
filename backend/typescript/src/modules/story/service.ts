@@ -5,7 +5,7 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGovernanceAllowed } from '../governance/resolver';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { listOtherMemberUserIds } from '../collaboration/group-membership';
-import { buildMomentStorySnapshot, type StorySnapshot } from './snapshot';
+import { buildMomentStorySnapshot, hydrateStoryMoneyCategories, loadFreshStoryPhotos, type StorySnapshot } from './snapshot';
 import {
   renderBookletHtml,
   renderChapterSvg,
@@ -235,13 +235,19 @@ export async function getMomentStory(
     throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Story snapshot not ready.', 404);
   }
   const snapshot = snap.rows[0].snapshot_json;
+  // Re-sign memory media on every read — frozen snapshot URLs expire (~1h).
+  const freshPhotos = await loadFreshStoryPhotos(client, momentId, 5);
+  const hydrated: StorySnapshot = hydrateStoryMoneyCategories({
+    ...snapshot,
+    photos: freshPhotos,
+  });
   return {
     storyId: story.rows[0].story_id,
     storyVersion: story.rows[0].story_version,
     status: story.rows[0].status,
     familyProfile: story.rows[0].family_profile,
-    snapshot,
-    chapters: snapshot.chapters ?? STORY_CHAPTER_ORDER,
+    snapshot: hydrated,
+    chapters: hydrated.chapters ?? STORY_CHAPTER_ORDER,
   };
 }
 

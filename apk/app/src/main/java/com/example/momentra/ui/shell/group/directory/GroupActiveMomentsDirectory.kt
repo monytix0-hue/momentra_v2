@@ -146,6 +146,8 @@ fun GroupActiveMomentsDirectory(
     onSelectCompletedMoment: (MomentSummary) -> Unit = {},
     onOpenStory: (String) -> Unit = {},
     onCreateMoment: () -> Unit,
+    /** Open on Completed lifecycle tab (empty Group with only completed history). */
+    initialCompletedTab: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
@@ -168,6 +170,7 @@ fun GroupActiveMomentsDirectory(
             onSelectCompletedMoment = onSelectCompletedMoment,
             onOpenStory = onOpenStory,
             onCreateMoment = onCreateMoment,
+            initialCompletedTab = initialCompletedTab,
         )
     }
 }
@@ -183,10 +186,15 @@ private fun GroupActiveMomentsDirectoryBody(
     onSelectCompletedMoment: (MomentSummary) -> Unit,
     onOpenStory: (String) -> Unit,
     onCreateMoment: () -> Unit,
+    initialCompletedTab: Boolean = false,
 ) {
     val meRepository = remember { MeRepository() }
     val active = remember(moments) { moments.filter { it.isActiveStatus() } }
-    var lifecycleTab by remember { mutableStateOf(DirectoryLifecycleTab.ONGOING) }
+    var lifecycleTab by remember(initialCompletedTab) {
+        mutableStateOf(
+            if (initialCompletedTab) DirectoryLifecycleTab.COMPLETED else DirectoryLifecycleTab.ONGOING,
+        )
+    }
     var completedMoments by remember { mutableStateOf<List<MomentSummary>>(emptyList()) }
     var loadingCompleted by remember { mutableStateOf(false) }
     var completedError by remember { mutableStateOf<String?>(null) }

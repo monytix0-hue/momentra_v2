@@ -83,6 +83,8 @@ fun ContextEmptyExperience(
     onGroupCreatePhase: (GroupCreatePhase) -> Unit = {},
     /** Opens Group Create tab without resetting phase (Pulse type cards → setup). */
     onOpenGroupCreateTab: () -> Unit = onCreateMoment,
+    /** Open Active Moments directory on Completed tab (Group between / completed-only). */
+    onOpenCompletedMoments: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val accent = ShellTokens.contextSelectedColor(context)
@@ -111,6 +113,7 @@ fun ContextEmptyExperience(
             groupCreatePhase = groupCreatePhase,
             onGroupCreatePhase = onGroupCreatePhase,
             onOpenGroupCreateTab = onOpenGroupCreateTab,
+            onOpenCompletedMoments = onOpenCompletedMoments,
             modifier = modifier,
         )
 
@@ -223,6 +226,7 @@ private fun GroupEmpty(
     groupCreatePhase: GroupCreatePhase,
     onGroupCreatePhase: (GroupCreatePhase) -> Unit,
     onOpenGroupCreateTab: () -> Unit,
+    onOpenCompletedMoments: (() -> Unit)? = null,
     modifier: Modifier,
 ) {
     val first = experience == MomentExperienceKind.FIRST_MOMENT
@@ -254,22 +258,22 @@ private fun GroupEmpty(
                 modifier = modifier,
             )
         } else {
-            GroupBetweenEmpty(history, onCreateMoment, modifier)
+            GroupBetweenEmpty(history, onCreateMoment, onOpenCompletedMoments, modifier)
         }
         BottomDestination.MOMENTS -> if (first) {
             GroupMomentsEmptyContent(onCreateMoment = onCreateMoment, modifier = modifier)
         } else {
-            GroupBetweenEmpty(history, onCreateMoment, modifier)
+            GroupBetweenEmpty(history, onCreateMoment, onOpenCompletedMoments, modifier)
         }
         BottomDestination.LIFE -> if (first) {
             GroupLifeEmptyContent(onCreateMoment = onCreateMoment, modifier = modifier)
         } else {
-            GroupBetweenEmpty(history, onCreateMoment, modifier)
+            GroupBetweenEmpty(history, onCreateMoment, onOpenCompletedMoments, modifier)
         }
         BottomDestination.MEMORY -> if (first) {
             GroupMemoryEmptyContent(onCreateMoment = onCreateMoment, modifier = modifier)
         } else {
-            GroupBetweenEmpty(history, onCreateMoment, modifier)
+            GroupBetweenEmpty(history, onCreateMoment, onOpenCompletedMoments, modifier)
         }
     }
 }
@@ -343,43 +347,27 @@ fun GroupCreateFlow(
 
 
 @Composable
-
 private fun GroupBetweenEmpty(
-
     history: List<MomentSummary>,
-
     onCreateMoment: () -> Unit,
-
+    onOpenCompletedMoments: (() -> Unit)? = null,
     modifier: Modifier,
-
 ) {
-
     MomentEmptyState(
-
         config = MomentEmptyConfig(
-
             eyebrow = "GROUP",
-
             title = "Between group moments",
-
             body = "Nothing is active together right now. Recent moments together stay here.",
-
             primaryLabel = "+ Start something new",
-
             onPrimary = onCreateMoment,
-
+            secondaryLabel = onOpenCompletedMoments?.let { "View completed moments" },
+            onSecondary = onOpenCompletedMoments,
             historyTitle = "Recent moments together",
-
             history = history,
-
             accent = Color(0xFFE8621A),
-
         ),
-
         modifier = modifier,
-
     )
-
 }
 
 

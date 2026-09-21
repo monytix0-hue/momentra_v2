@@ -135,6 +135,9 @@ export async function resolveRecipients(
   ev: DomainEventRow
 ): Promise<RecipientPrefs[]> {
   const payload = ev.payload ?? {};
+  if (payload.suppressNotifications === true) {
+    return [];
+  }
   const momentId =
     (typeof payload.momentId === 'string' ? payload.momentId : null) ?? ev.scope_id;
 

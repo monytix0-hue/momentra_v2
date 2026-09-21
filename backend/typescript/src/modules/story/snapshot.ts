@@ -36,10 +36,117 @@ export interface StorySnapshot {
   places: Array<{ label: string; startAt: string | null; endAt: string | null }>;
   decisions: Array<{ title: string; status: string }>;
   memories: Array<{ text: string | null; mediaUrl: string | null; at: string | null }>;
-  photos: Array<{ url: string; at: string | null }>;
+  photos: Array<{ url: string; at: string | null; mediaId?: string | null }>;
   narrative: { opening: string; insights: string[] };
   chapters: StoryChapterId[];
   display: ReturnType<typeof getStoryComposer>;
+}
+
+/** Resolve category from category_code or client-embedded "note | Category" description. */
+export function resolveExpenseCategory(
+  categoryCode: string | null | undefined,
+  description: string | null | undefined
+): { category: string; cleanDescription: string } {
+  const raw = description?.trim() ?? '';
+  const sep = ' | ';
+  const idx = raw.lastIndexOf(sep);
+  let parsedCat: string | null = null;
+  let note = raw;
+  if (idx >= 0) {
+    parsedCat = raw.slice(idx + sep.length).trim() || null;
+    note = raw.slice(0, idx).trim();
+  }
+  const code = categoryCode?.trim();
+  const category =
+    code && code.toLowerCase() !== 'other'
+      ? code
+      : parsedCat || code || 'Other';
+  return {
+    category,
+    cleanDescription: note || category || 'Expense',
+  };
+}
+
+/** Re-parse frozen expense categories (fixes "Other" when note embeds "| Food"). */
+export function hydrateStoryMoneyCategories(snapshot: StorySnapshot): StorySnapshot {
+  const money = snapshot.money;
+  if (!money?.expenses?.length) return snapshot;
+  const expenses = money.expenses.map((e) => {
+    const { category, cleanDescription } = resolveExpenseCategory(
+      e.category === 'Other' ? null : e.category,
+      e.description
+    );
+    return {
+      ...e,
+      description: cleanDescription,
+      category,
+    };
+  });
+  const categoryMap = new Map<string, number>();
+  for (const e of expenses) {
+    const cat = e.category.trim() || 'Other';
+    categoryMap.set(cat, (categoryMap.get(cat) ?? 0) + (e.amount || 0));
+  }
+  const categories = [...categoryMap.entries()]
+    .map(([name, amount]) => ({ name, amount }))
+    .sort((a, b) => b.amount - a.amount);
+  return {
+    ...snapshot,
+    money: {
+      ...money,
+      expenses,
+      categories: categories.length > 0 ? categories : money.categories,
+    },
+  };
+}
+
+/** Fresh signed photo URLs for a moment (story read path). */
+export async function loadFreshStoryPhotos(
+  client: PoolClient,
+  momentId: string,
+  limit = 5
+): Promise<StorySnapshot['photos']> {
+  const photoMedia = await client.query<{
+    media_upload_id: string;
+    bucket: string | null;
+    object_key: string | null;
+    created_at: Date | null;
+  }>(
+    `SELECT mu.media_upload_id, mu.bucket, mu.object_key, me.created_at
+     FROM memory.memory_evidence me
+     JOIN memory.memory m ON m.memory_id = me.memory_id
+     JOIN platform.media_upload mu ON mu.media_upload_id = me.source_id
+     WHERE m.moment_id = $1
+       AND m.status = 'ACTIVE'
+       AND me.source_type = 'MEDIA'
+       AND mu.status = 'COMPLETED'
+       AND mu.bucket IS NOT NULL
+       AND mu.object_key IS NOT NULL
+     ORDER BY me.created_at DESC
+     LIMIT $2`,
+    [momentId, limit]
+  ).catch(() => ({
+    rows: [] as Array<{
+      media_upload_id: string;
+      bucket: string | null;
+      object_key: string | null;
+      created_at: Date | null;
+    }>,
+  }));
+
+  const photos: StorySnapshot['photos'] = [];
+  for (const row of photoMedia.rows) {
+    if (!row.bucket || !row.object_key) continue;
+    const url = await trySignedDownloadUrl(row.bucket, row.object_key);
+    if (url) {
+      photos.push({
+        url,
+        at: row.created_at?.toISOString() ?? null,
+        mediaId: row.media_upload_id,
+      });
+    }
+  }
+  return photos;
 }
 
 function daysBetween(start: string | null, end: string | null): number {
@@ -129,11 +236,11 @@ export async function buildMomentStorySnapshot(
     description: string | null;
     amount: string;
     paid_by_name: string | null;
-    category: string | null;
+    category_code: string | null;
   }>(
     `SELECT e.description, e.amount::text,
             COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName', 'Someone') AS paid_by_name,
-            COALESCE(e.category_code, 'Other') AS category
+            e.category_code
      FROM finance.expense e
      INNER JOIN finance.group_expense_context g ON g.expense_id = e.expense_id AND g.moment_id = e.moment_id
      LEFT JOIN collaboration.moment_participant mp
@@ -146,7 +253,24 @@ export async function buildMomentStorySnapshot(
      ORDER BY e.effective_at DESC
      LIMIT 50`,
     [momentId]
-  ).catch(() => ({ rows: [] as Array<{ description: string | null; amount: string; paid_by_name: string | null; category: string | null }> }));
+  ).catch(() => ({
+    rows: [] as Array<{
+      description: string | null;
+      amount: string;
+      paid_by_name: string | null;
+      category_code: string | null;
+    }>,
+  }));
+
+  const resolvedExpenses = expenseRows.rows.map((e) => {
+    const { category, cleanDescription } = resolveExpenseCategory(e.category_code, e.description);
+    return {
+      description: cleanDescription,
+      amount: parseFloat(e.amount) || 0,
+      paid_by_name: e.paid_by_name,
+      category,
+    };
+  });
 
   const contribRows = await client.query<{
     amount: string;
@@ -171,25 +295,25 @@ export async function buildMomentStorySnapshot(
     [momentId]
   ).catch(() => ({ rows: [] as Array<{ amount: string; currency_code: string }> }));
 
-  const spent = expenseRows.rows.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+  const spent = resolvedExpenses.reduce((s, e) => s + e.amount, 0);
   const contributed = contribRows.rows.reduce((s, c) => s + (parseFloat(c.amount) || 0), 0);
   const target = budgetRow.rows[0] ? parseFloat(budgetRow.rows[0].amount) || null : null;
   const remaining = target != null ? Math.max(0, target - spent) : Math.max(0, contributed - spent);
 
   const categoryMap = new Map<string, number>();
-  for (const e of expenseRows.rows) {
-    const cat = (e.category ?? 'Other').trim() || 'Other';
-    categoryMap.set(cat, (categoryMap.get(cat) ?? 0) + (parseFloat(e.amount) || 0));
+  for (const e of resolvedExpenses) {
+    const cat = e.category.trim() || 'Other';
+    categoryMap.set(cat, (categoryMap.get(cat) ?? 0) + e.amount);
   }
   const categories = [...categoryMap.entries()]
     .map(([name, amount]) => ({ name, amount }))
     .sort((a, b) => b.amount - a.amount);
 
   const payerMap = new Map<string, { amount: number; payments: number }>();
-  for (const e of expenseRows.rows) {
+  for (const e of resolvedExpenses) {
     const name = e.paid_by_name ?? 'Someone';
     const cur = payerMap.get(name) ?? { amount: 0, payments: 0 };
-    cur.amount += parseFloat(e.amount) || 0;
+    cur.amount += e.amount;
     cur.payments += 1;
     payerMap.set(name, cur);
   }
@@ -251,11 +375,12 @@ export async function buildMomentStorySnapshot(
   ).catch(() => ({ rows: [{ n: '0' }] }));
 
   const photoMedia = await client.query<{
+    media_upload_id: string;
     bucket: string | null;
     object_key: string | null;
     created_at: Date | null;
   }>(
-    `SELECT mu.bucket, mu.object_key, me.created_at
+    `SELECT mu.media_upload_id, mu.bucket, mu.object_key, me.created_at
      FROM memory.memory_evidence me
      JOIN memory.memory m ON m.memory_id = me.memory_id
      JOIN platform.media_upload mu ON mu.media_upload_id = me.source_id
@@ -268,14 +393,25 @@ export async function buildMomentStorySnapshot(
      ORDER BY me.created_at DESC
      LIMIT 5`,
     [momentId]
-  ).catch(() => ({ rows: [] as Array<{ bucket: string | null; object_key: string | null; created_at: Date | null }> }));
+  ).catch(() => ({
+    rows: [] as Array<{
+      media_upload_id: string;
+      bucket: string | null;
+      object_key: string | null;
+      created_at: Date | null;
+    }>,
+  }));
 
   const photos: StorySnapshot['photos'] = [];
   for (const row of photoMedia.rows) {
     if (!row.bucket || !row.object_key) continue;
     const url = await trySignedDownloadUrl(row.bucket, row.object_key);
     if (url) {
-      photos.push({ url, at: row.created_at?.toISOString() ?? null });
+      photos.push({
+        url,
+        at: row.created_at?.toISOString() ?? null,
+        mediaId: row.media_upload_id,
+      });
     }
   }
 
@@ -431,11 +567,11 @@ export async function buildMomentStorySnapshot(
       categories,
       contributors: [...contribMap.entries()].map(([name, amount]) => ({ name, amount })),
       payers: [...payerMap.entries()].map(([name, v]) => ({ name, amount: v.amount, payments: v.payments })),
-      expenses: expenseRows.rows.slice(0, 8).map((e) => ({
-        description: e.description ?? 'Expense',
-        category: e.category ?? 'Other',
+      expenses: resolvedExpenses.slice(0, 8).map((e) => ({
+        description: e.description,
+        category: e.category,
         payer: e.paid_by_name ?? 'Someone',
-        amount: parseFloat(e.amount) || 0,
+        amount: e.amount,
       })),
     },
     places,
