@@ -13,7 +13,12 @@ import {
   renderShareCoverSvg,
   renderVideoReelSpec,
 } from './render';
-import { STORY_CHAPTER_ORDER, type StoryChapterId } from './profiles';
+import {
+  getStoryComposer,
+  STORY_CHAPTER_ORDER,
+  type StoryChapterId,
+  type StoryFamilyProfile,
+} from './profiles';
 
 function checksum(body: string): string {
   return createHash('sha256').update(body).digest('hex').slice(0, 32);
@@ -326,16 +331,21 @@ export async function getSharePack(
   const share = await createStoryShare(client, ctx, story.storyId);
   const cover = await getStoryArtifact(client, ctx, story.storyId, 'SHARE_COVER');
   const base = process.env.PUBLIC_WEB_BASE_URL?.replace(/\/$/, '') ?? '';
-  const metrics = story.snapshot.metrics;
-  const blurb = story.snapshot.display.shareBlurb(story.snapshot.identity.title, metrics);
+  const metrics = story.snapshot.metrics ?? {};
+  const title = story.snapshot.identity.title;
+  const profile = (story.familyProfile ||
+    story.snapshot.identity.familyProfile ||
+    'SHARED_EXPERIENCE') as StoryFamilyProfile;
+  const blurb = getStoryComposer(profile).shareBlurb(title, metrics);
+  const webUrl = base ? `${base}${share.webPath}` : null;
   return {
     coverSvg: cover.body,
     blurb,
-    webUrl: base ? `${base}${share.webPath}` : null,
+    webUrl,
     webPath: share.webPath,
     appDeepLink: `momentra://moments/${momentId}/story`,
     storyId: story.storyId,
-    title: story.snapshot.identity.title,
+    title,
   };
 }
 

@@ -201,8 +201,10 @@ export async function buildMomentStorySnapshot(
 
   const plans = await client.query<{ n: string; done: string }>(
     `SELECT COUNT(*)::text AS n,
-            COUNT(*) FILTER (WHERE status IN ('DONE', 'COMPLETED', 'CANCELLED'))::text AS done
-     FROM work.planning_item WHERE moment_id = $1`,
+            COUNT(*) FILTER (WHERE status = 'DONE')::text AS done
+     FROM collaboration.planning_item
+     WHERE moment_id = $1
+       AND status IN ('OPEN', 'IN_PROGRESS', 'DONE')`,
     [momentId]
   ).catch(() => ({ rows: [{ n: '0', done: '0' }] }));
 

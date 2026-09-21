@@ -23,6 +23,8 @@ data class MomentStorySnapshotDto(
     val narrative: MomentStoryNarrativeDto? = null,
     val display: MomentStoryDisplayDto? = null,
     val chapters: List<String>? = null,
+    val timeline: List<MomentStoryTimelineItemDto>? = null,
+    val decisions: List<MomentStoryDecisionDto>? = null,
     val money: MomentStoryMoneyDto? = null,
 )
 
@@ -45,11 +47,28 @@ data class MomentStoryDisplayDto(
     val closeLine: String? = null,
 )
 
+data class MomentStoryTimelineItemDto(
+    val at: String? = null,
+    val label: String? = null,
+    val detail: String? = null,
+)
+
+data class MomentStoryDecisionDto(
+    val title: String? = null,
+    val status: String? = null,
+)
+
+data class MomentStoryMoneyCategoryDto(
+    val name: String? = null,
+    val amount: Double? = null,
+)
+
 data class MomentStoryMoneyDto(
     val contributed: Double? = null,
     val spent: Double? = null,
     val remaining: Double? = null,
     val unsettled: Double? = null,
+    val categories: List<MomentStoryMoneyCategoryDto>? = null,
 )
 
 data class MomentStorySharePackDto(

@@ -1145,6 +1145,9 @@ final class APIClient {
         let narrative: MomentStoryNarrative?
         let display: MomentStoryDisplay?
         let chapters: [String]?
+        let timeline: [MomentStoryTimelineItem]?
+        let decisions: [MomentStoryDecision]?
+        let money: MomentStoryMoney?
     }
 
     struct MomentStoryIdentity: Decodable {
@@ -1164,6 +1167,33 @@ final class APIClient {
         let displayLabel: String?
         let coverEyebrow: String?
         let closeLine: String?
+    }
+
+    struct MomentStoryTimelineItem: Decodable, Identifiable {
+        var id: String { "\(at ?? "")|\(label ?? "")|\(detail ?? "")" }
+        let at: String?
+        let label: String?
+        let detail: String?
+    }
+
+    struct MomentStoryDecision: Decodable, Identifiable {
+        var id: String { "\(title ?? "")|\(status ?? "")" }
+        let title: String?
+        let status: String?
+    }
+
+    struct MomentStoryMoneyCategory: Decodable, Identifiable {
+        var id: String { "\(name ?? "")|\(amount ?? 0)" }
+        let name: String?
+        let amount: Double?
+    }
+
+    struct MomentStoryMoney: Decodable {
+        let contributed: Double?
+        let spent: Double?
+        let remaining: Double?
+        let unsettled: Double?
+        let categories: [MomentStoryMoneyCategory]?
     }
 
     enum MomentStoryMetricValue: Decodable {

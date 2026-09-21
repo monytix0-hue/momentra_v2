@@ -1765,8 +1765,8 @@ export async function completionReview(
   }
 
   const openPlans = await client.query<{ n: string }>(
-    `SELECT COUNT(*)::text AS n FROM work.planning_item
-     WHERE moment_id = $1 AND status IN ('OPEN', 'IN_PROGRESS', 'TODO')`,
+    `SELECT COUNT(*)::text AS n FROM collaboration.planning_item
+     WHERE moment_id = $1 AND status IN ('OPEN', 'IN_PROGRESS')`,
     [momentId]
   ).catch(() => ({ rows: [{ n: '0' }] }));
   if (parseInt(openPlans.rows[0]?.n ?? '0', 10) > 0) {

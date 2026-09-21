@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -43,7 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.MomentStoryDto
+import com.example.momentra.data.api.MomentStoryMoneyDto
 import com.example.momentra.data.api.MomentStorySharePackDto
+import com.example.momentra.data.api.MomentStorySnapshotDto
 import com.example.momentra.ui.theme.MomentraBrandColors
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
@@ -88,6 +91,9 @@ fun MomentStoryViewerScreen(
                 story = ApiClient.apiService.getMomentStory(momentId).data
                 runCatching {
                     sharePack = ApiClient.apiService.getMomentStorySharePack(momentId).data
+                }.onFailure {
+                    Log.w("MomentStory", "share-pack failed: ${it.message}")
+                    sharePack = null
                 }
             } catch (e: Exception) {
                 error = e.message ?: "Could not load Story"
@@ -166,14 +172,21 @@ fun MomentStoryViewerScreen(
                     Button(
                         onClick = {
                             val pack = sharePack
+                            val blurb = pack?.blurb?.trim().orEmpty()
+                            val title = snap?.identity?.title ?: "Moment Story"
+                            val link = pack?.webUrl?.takeIf { it.isNotBlank() }
+                                ?: pack?.appDeepLink?.takeIf { it.isNotBlank() }
+                                ?: ""
                             val text = buildString {
-                                append(pack?.blurb ?: snap?.identity?.title ?: "Moment Story")
-                                val link = pack?.webUrl ?: pack?.webPath ?: pack?.appDeepLink
-                                if (!link.isNullOrBlank()) {
+                                append(if (blurb.isNotEmpty()) blurb else title)
+                                if (link.isNotEmpty()) {
                                     append("\n")
                                     append(link)
                                 }
                             }.trim()
+                            if (pack == null) {
+                                Log.w("MomentStory", "sharing title fallback — share pack unavailable")
+                            }
                             shareMomentStory(context, text)
                         },
                         modifier = Modifier.weight(1f),
@@ -221,17 +234,12 @@ private fun StoryChapterPage(chapter: String, story: MomentStoryDto?) {
             "alive" -> {
                 Text("How it came alive", color = MomentraBrandColors.TextOnDark, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
                 Spacer(Modifier.height(12.dp))
-                Text("Plans, people, and decisions that shaped this moment.", color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
+                AliveChapterContent(snap)
             }
             "money" -> {
                 Text("Money & fairness", color = MomentraBrandColors.TextOnDark, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
                 Spacer(Modifier.height(12.dp))
-                val money = snap?.money
-                Text(
-                    "Spent ₹${money?.spent?.toInt() ?: 0} · Remaining ₹${money?.remaining?.toInt() ?: 0}",
-                    color = MomentraBrandColors.Indigo100,
-                    fontFamily = PlusJakartaSans,
-                )
+                MoneyChapterContent(snap?.money)
             }
             "memories" -> {
                 Text("Memories that stayed", color = MomentraBrandColors.TextOnDark, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
@@ -247,6 +255,131 @@ private fun StoryChapterPage(chapter: String, story: MomentStoryDto?) {
                 Spacer(Modifier.height(24.dp))
                 Text(title, color = MomentraBrandColors.Indigo100.copy(alpha = 0.5f), fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
+        }
+    }
+}
+
+@Composable
+private fun AliveChapterContent(snap: MomentStorySnapshotDto?) {
+    val timeline = snap?.timeline.orEmpty()
+    val decisions = snap?.decisions.orEmpty()
+    if (timeline.isEmpty()) {
+        Text(
+            "The moment unfolded together.",
+            color = MomentraBrandColors.Indigo100,
+            fontFamily = PlusJakartaSans,
+        )
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            timeline.forEach { item ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MomentraBrandColors.Indigo500.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                ) {
+                    val dateLabel = formatStoryDate(item.at)
+                    if (!dateLabel.isNullOrBlank()) {
+                        Text(
+                            dateLabel,
+                            color = MomentraBrandColors.Ember500,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    Text(
+                        item.label ?: "Milestone",
+                        color = MomentraBrandColors.TextOnDark,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                    if (!item.detail.isNullOrBlank()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(item.detail, color = MomentraBrandColors.Indigo100, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+                    }
+                }
+            }
+        }
+    }
+    if (decisions.isNotEmpty()) {
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Decisions",
+            color = MomentraBrandColors.Ember500,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
+        )
+        Spacer(Modifier.height(8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            decisions.forEach { d ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MomentraBrandColors.Indigo500.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        d.title ?: "Decision",
+                        color = MomentraBrandColors.TextOnDark,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (!d.status.isNullOrBlank()) {
+                        Text(
+                            d.status,
+                            color = MomentraBrandColors.Ember500,
+                            fontSize = 11.sp,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoneyChapterContent(money: MomentStoryMoneyDto?) {
+    val spent = money?.spent ?: 0.0
+    val remaining = money?.remaining ?: 0.0
+    val contributed = money?.contributed ?: 0.0
+    val unsettled = money?.unsettled ?: 0.0
+    val categories = money?.categories.orEmpty()
+    val hasMoney = spent > 0 || contributed > 0 || remaining != 0.0 || unsettled > 0 || categories.isNotEmpty()
+    if (!hasMoney) {
+        Text("No expenses recorded.", color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
+        return
+    }
+    Text(
+        "Spent ₹${formatInr(spent)} · Remaining ₹${formatInr(remaining)}",
+        color = MomentraBrandColors.Indigo100,
+        fontFamily = PlusJakartaSans,
+    )
+    if (contributed > 0) {
+        Spacer(Modifier.height(8.dp))
+        Text("Contributed ₹${formatInr(contributed)}", color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
+    }
+    if (unsettled > 0) {
+        Spacer(Modifier.height(8.dp))
+        Text("Unsettled ₹${formatInr(unsettled)}", color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
+    }
+    categories.take(6).forEach { cat ->
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MomentraBrandColors.Indigo500.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(cat.name ?: "Other", color = MomentraBrandColors.TextOnDark, fontFamily = PlusJakartaSans)
+            Text("₹${formatInr(cat.amount ?: 0.0)}", color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
         }
     }
 }
@@ -273,6 +406,20 @@ private fun MetricGrid(metrics: Map<String, Any?>?) {
                 repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+    }
+}
+
+private fun formatInr(value: Double): String =
+    if (value == value.toLong().toDouble()) value.toLong().toString() else value.toInt().toString()
+
+private fun formatStoryDate(iso: String?): String? {
+    if (iso.isNullOrBlank()) return null
+    return try {
+        val instant = java.time.Instant.parse(iso)
+        val date = instant.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+        date.format(java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM))
+    } catch (_: Exception) {
+        iso.take(10)
     }
 }
 
