@@ -8,7 +8,7 @@ export type StoryFamilyProfile =
   | 'SHARED_PURCHASE'
   | 'SHARED_LIVING';
 
-export type StoryChapterId = 'cover' | 'alive' | 'money' | 'memories' | 'close';
+export type StoryChapterId = 'cover' | 'moment' | 'together' | 'money' | 'close' | 'alive' | 'memories';
 
 export interface StoryMetricDef {
   key: string;
@@ -154,4 +154,4 @@ export function getStoryComposer(profile: StoryFamilyProfile): StoryFamilyCompos
   }
 }
 
-export const STORY_CHAPTER_ORDER: StoryChapterId[] = ['cover', 'alive', 'money', 'memories', 'close'];
+export const STORY_CHAPTER_ORDER: StoryChapterId[] = ['cover', 'moment', 'together', 'money', 'close'];

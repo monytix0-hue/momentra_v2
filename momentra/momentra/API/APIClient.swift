@@ -1149,6 +1149,9 @@ final class APIClient {
         let decisions: [MomentStoryDecision]?
         let money: MomentStoryMoney?
         let memories: [MomentStoryMemory]?
+        let photos: [MomentStoryPhoto]?
+        let places: [MomentStoryPlace]?
+        let people: [MomentStoryPerson]?
     }
 
     struct MomentStoryIdentity: Decodable {
@@ -1189,6 +1192,26 @@ final class APIClient {
         let status: String?
     }
 
+    struct MomentStoryPlace: Decodable, Identifiable {
+        var id: String { "\(label ?? "")|\(startAt ?? "")" }
+        let label: String?
+        let startAt: String?
+        let endAt: String?
+    }
+
+    struct MomentStoryPerson: Decodable, Identifiable {
+        var id: String { userId ?? displayName ?? UUID().uuidString }
+        let userId: String?
+        let displayName: String?
+        let roleCode: String?
+    }
+
+    struct MomentStoryPhoto: Decodable, Identifiable {
+        var id: String { url ?? "\(at ?? "")" }
+        let url: String?
+        let at: String?
+    }
+
     struct MomentStoryMoneyCategory: Decodable, Identifiable {
         var id: String { "\(name ?? "")|\(amount ?? 0)" }
         let name: String?
@@ -1202,13 +1225,24 @@ final class APIClient {
         let payments: Int?
     }
 
+    struct MomentStoryMoneyExpense: Decodable, Identifiable {
+        var id: String { "\(description ?? "")|\(amount ?? 0)|\(payer ?? "")" }
+        let description: String?
+        let category: String?
+        let payer: String?
+        let amount: Double?
+    }
+
     struct MomentStoryMoney: Decodable {
         let contributed: Double?
         let spent: Double?
         let remaining: Double?
         let unsettled: Double?
+        let target: Double?
         let categories: [MomentStoryMoneyCategory]?
         let payers: [MomentStoryMoneyPayer]?
+        let contributors: [MomentStoryMoneyCategory]?
+        let expenses: [MomentStoryMoneyExpense]?
     }
 
     struct MomentStoryMemory: Decodable, Identifiable {

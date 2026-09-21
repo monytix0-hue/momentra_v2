@@ -5,6 +5,7 @@ import {
   type StoryChapterId,
   type StoryFamilyProfile,
 } from './profiles';
+import { trySignedDownloadUrl } from '../media/service';
 
 export interface StorySnapshot {
   identity: {
@@ -238,12 +239,45 @@ export async function buildMomentStorySnapshot(
   ).catch(() => ({ rows: [] as Array<{ body_text: string | null; created_at: Date | null }> }));
 
   const photoCount = await client.query<{ n: string }>(
-    `SELECT COUNT(*)::text AS n FROM platform.media_upload mu
-     JOIN memory.memory_media mm ON mm.media_id = mu.media_id
-     JOIN memory.memory m ON m.memory_id = mm.memory_id
-     WHERE m.moment_id = $1 AND mu.status = 'COMPLETED'`,
+    `SELECT COUNT(*)::text AS n
+     FROM memory.memory_evidence me
+     JOIN memory.memory m ON m.memory_id = me.memory_id
+     JOIN platform.media_upload mu ON mu.media_upload_id = me.source_id
+     WHERE m.moment_id = $1
+       AND m.status = 'ACTIVE'
+       AND me.source_type = 'MEDIA'
+       AND mu.status = 'COMPLETED'`,
     [momentId]
   ).catch(() => ({ rows: [{ n: '0' }] }));
+
+  const photoMedia = await client.query<{
+    bucket: string | null;
+    object_key: string | null;
+    created_at: Date | null;
+  }>(
+    `SELECT mu.bucket, mu.object_key, me.created_at
+     FROM memory.memory_evidence me
+     JOIN memory.memory m ON m.memory_id = me.memory_id
+     JOIN platform.media_upload mu ON mu.media_upload_id = me.source_id
+     WHERE m.moment_id = $1
+       AND m.status = 'ACTIVE'
+       AND me.source_type = 'MEDIA'
+       AND mu.status = 'COMPLETED'
+       AND mu.bucket IS NOT NULL
+       AND mu.object_key IS NOT NULL
+     ORDER BY me.created_at DESC
+     LIMIT 5`,
+    [momentId]
+  ).catch(() => ({ rows: [] as Array<{ bucket: string | null; object_key: string | null; created_at: Date | null }> }));
+
+  const photos: StorySnapshot['photos'] = [];
+  for (const row of photoMedia.rows) {
+    if (!row.bucket || !row.object_key) continue;
+    const url = await trySignedDownloadUrl(row.bucket, row.object_key);
+    if (url) {
+      photos.push({ url, at: row.created_at?.toISOString() ?? null });
+    }
+  }
 
   const planItems = await client.query<{ title: string; status: string; created_at: Date | null }>(
     `SELECT title, status, created_at
@@ -353,12 +387,16 @@ export async function buildMomentStorySnapshot(
   if (parseInt(plans.rows[0]?.n ?? '0', 10) > 0) {
     insights.push(`Plans met reality: ${plans.rows[0]?.done ?? 0} of ${plans.rows[0]?.n ?? 0} closed.`);
   }
-
-  const chapters: StoryChapterId[] = ['cover', 'alive', 'money'];
-  if (memoryRows.rows.length > 0 || parseInt(photoCount.rows[0]?.n ?? '0', 10) >= 4) {
-    chapters.push('memories');
+  if (categories.length >= 2 && spent > 0) {
+    const topShare = (categories[0]!.amount + categories[1]!.amount) / spent;
+    if (topShare >= 0.5) {
+      insights.push(
+        `${categories[0]!.name} and ${categories[1]!.name} together accounted for more than half of the shared spend.`
+      );
+    }
   }
-  chapters.push('close');
+
+  const chapters: StoryChapterId[] = ['cover', 'moment', 'together', 'money', 'close'];
 
   const opening =
     familyProfile === 'HOUSE_PARTY'
@@ -407,8 +445,8 @@ export async function buildMomentStorySnapshot(
       mediaUrl: null,
       at: m.created_at?.toISOString() ?? null,
     })),
-    photos: [],
-    narrative: { opening, insights: insights.slice(0, 3) },
+    photos,
+    narrative: { opening, insights: insights.slice(0, 4) },
     chapters,
     display: composer,
   };

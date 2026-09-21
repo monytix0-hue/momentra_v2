@@ -27,6 +27,9 @@ data class MomentStorySnapshotDto(
     val decisions: List<MomentStoryDecisionDto>? = null,
     val money: MomentStoryMoneyDto? = null,
     val memories: List<MomentStoryMemoryDto>? = null,
+    val photos: List<MomentStoryPhotoDto>? = null,
+    val places: List<MomentStoryPlaceDto>? = null,
+    val people: List<MomentStoryPersonDto>? = null,
 )
 
 data class MomentStoryIdentityDto(
@@ -65,6 +68,23 @@ data class MomentStoryDecisionDto(
     val status: String? = null,
 )
 
+data class MomentStoryPlaceDto(
+    val label: String? = null,
+    val startAt: String? = null,
+    val endAt: String? = null,
+)
+
+data class MomentStoryPersonDto(
+    val userId: String? = null,
+    val displayName: String? = null,
+    val roleCode: String? = null,
+)
+
+data class MomentStoryPhotoDto(
+    val url: String? = null,
+    val at: String? = null,
+)
+
 data class MomentStoryMoneyCategoryDto(
     val name: String? = null,
     val amount: Double? = null,
@@ -76,13 +96,23 @@ data class MomentStoryMoneyPayerDto(
     val payments: Int? = null,
 )
 
+data class MomentStoryMoneyExpenseDto(
+    val description: String? = null,
+    val category: String? = null,
+    val payer: String? = null,
+    val amount: Double? = null,
+)
+
 data class MomentStoryMoneyDto(
     val contributed: Double? = null,
     val spent: Double? = null,
     val remaining: Double? = null,
     val unsettled: Double? = null,
+    val target: Double? = null,
     val categories: List<MomentStoryMoneyCategoryDto>? = null,
     val payers: List<MomentStoryMoneyPayerDto>? = null,
+    val contributors: List<MomentStoryMoneyCategoryDto>? = null,
+    val expenses: List<MomentStoryMoneyExpenseDto>? = null,
 )
 
 data class MomentStoryMemoryDto(

@@ -48,7 +48,13 @@ function chapterHtml(snapshot: StorySnapshot, chapter: StoryChapterId, screen: b
       <div class="tiles">${metricTiles(snapshot)}</div>
     </section>`;
   }
-  if (chapter === 'alive') {
+  if (chapter === 'alive' || chapter === 'together' || chapter === 'moment') {
+    const heading =
+      chapter === 'moment'
+        ? 'A moment to remember'
+        : chapter === 'together'
+          ? 'How the Moment came together'
+          : 'How it came alive';
     const items = snapshot.timeline
       .map((t) => `<li><strong>${esc(t.at.slice(0, 10))}</strong> — ${esc(t.label)}${t.detail ? `<span>${esc(t.detail)}</span>` : ''}</li>`)
       .join('');
@@ -56,9 +62,14 @@ function chapterHtml(snapshot: StorySnapshot, chapter: StoryChapterId, screen: b
       .slice(0, 4)
       .map((d) => `<div class="chip">${esc(d.title)}</div>`)
       .join('');
+    const opening =
+      chapter === 'moment'
+        ? `<p class="open">${esc(snapshot.narrative.opening)}</p>`
+        : '';
     return `<section class="page" style="background:${bg};color:${fg}">
       ${logo}
-      <h2>How it came alive</h2>
+      <h2>${esc(heading)}</h2>
+      ${opening}
       <ol class="timeline">${items || '<li>The moment unfolded together.</li>'}</ol>
       <div class="chips">${decisions}</div>
     </section>`;
@@ -165,13 +176,15 @@ export function renderChapterSvg(snapshot: StorySnapshot, chapter: StoryChapterI
   const title =
     chapter === 'cover'
       ? snapshot.identity.title
-      : chapter === 'alive'
-        ? 'How it came alive'
-        : chapter === 'money'
-          ? 'Money & fairness'
-          : chapter === 'memories'
-            ? 'Memories'
-            : 'TOGETHER · FORWARD';
+      : chapter === 'alive' || chapter === 'together'
+        ? 'How it came together'
+        : chapter === 'moment'
+          ? 'A moment to remember'
+          : chapter === 'money'
+            ? 'Money & fairness'
+            : chapter === 'memories'
+              ? 'Memories'
+              : 'TOGETHER · FORWARD';
   const subtitle =
     chapter === 'cover'
       ? snapshot.narrative.opening
@@ -201,13 +214,15 @@ export function renderVideoReelSpec(snapshot: StorySnapshot): Record<string, unk
     title:
       chapter === 'cover'
         ? snapshot.identity.title
-        : chapter === 'alive'
-          ? 'How it came alive'
-          : chapter === 'money'
-            ? 'Money & fairness'
-            : chapter === 'memories'
-              ? 'Memories'
-              : 'TOGETHER · FORWARD',
+        : chapter === 'alive' || chapter === 'together'
+          ? 'How it came together'
+          : chapter === 'moment'
+            ? 'A moment to remember'
+            : chapter === 'money'
+              ? 'Money & fairness'
+              : chapter === 'memories'
+                ? 'Memories'
+                : 'TOGETHER · FORWARD',
     subtitle:
       chapter === 'cover'
         ? snapshot.narrative.opening

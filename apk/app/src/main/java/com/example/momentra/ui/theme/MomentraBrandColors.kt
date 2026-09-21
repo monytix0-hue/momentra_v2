@@ -42,6 +42,16 @@ object MomentraBrandColors {
     val TextPrimary = Indigo900
     val TextSecondary = Color(0xFF3C3489)
 
+    // Moment Story editorial (Figma cream + purple accent)
+    val StoryCream = Color(0xFFF7F4EE)
+    val StoryCreamBright = Color(0xFFFFFEFB)
+    val StoryInk = Color(0xFF25231F)
+    val StoryMuted = Color(0xFF746F67)
+    val StoryTerracotta = Color(0xFFB45F3D)
+    val StoryAccentPurple = Color(0xFF6C4EF2)
+    val StoryDarkClose = Color(0xFF201E28)
+    val StoryPeach = Color(0xFFF4E5DA)
+
     // Component
     val MomentCardBg = Indigo700
     val MomentCardOnBrandBg = Indigo500
