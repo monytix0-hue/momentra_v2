@@ -92,9 +92,14 @@ struct MomentStoryViewerView: View {
                     Text(snap?.identity?.title ?? "Moment")
                         .font(.system(size: 28, weight: .bold))
                         .foregroundStyle(Color(hex: "#F5F0FF"))
+                    if let range = Self.dateRangeLabel(start: snap?.identity?.startAt, end: snap?.identity?.endAt) {
+                        Text(range)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color(hex: "#C4BDEE").opacity(0.85))
+                    }
                     Text(snap?.narrative?.opening ?? "")
                         .foregroundStyle(Color(hex: "#C4BDEE"))
-                    metricGrid(snap?.metrics)
+                    metricGrid(metrics: snap?.metrics, keys: snap?.display?.metricKeys)
                 case "alive":
                     Text("How it came alive")
                         .font(.system(size: 24, weight: .bold))
@@ -109,9 +114,7 @@ struct MomentStoryViewerView: View {
                     Text("Memories that stayed")
                         .font(.system(size: 24, weight: .bold))
                         .foregroundStyle(Color(hex: "#F5F0FF"))
-                    ForEach(snap?.narrative?.insights ?? [], id: \.self) { insight in
-                        Text(insight).foregroundStyle(Color(hex: "#C4BDEE"))
-                    }
+                    memoriesContent(snap)
                 default:
                     Text("TOGETHER · FORWARD")
                         .font(.system(size: 14, weight: .bold))
@@ -119,6 +122,15 @@ struct MomentStoryViewerView: View {
                     Text(snap?.display?.closeLine ?? "Life happens in moments.")
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(Color(hex: "#F5F0FF"))
+                    Text(snap?.identity?.title ?? "Moment")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#C4BDEE").opacity(0.5))
+                    ForEach((snap?.narrative?.insights ?? []).prefix(2), id: \.self) { insight in
+                        Text(insight)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color(hex: "#C4BDEE"))
+                            .padding(.top, 4)
+                    }
                 }
             }
             .padding(20)
@@ -168,33 +180,76 @@ struct MomentStoryViewerView: View {
     }
 
     @ViewBuilder
+    private func memoriesContent(_ snap: APIClient.MomentStorySnapshot?) -> some View {
+        let quotes = (snap?.memories ?? []).compactMap { m -> String? in
+            guard let text = m.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+            return text
+        }
+        if quotes.isEmpty {
+            Text("Photos and memories will glow here next time.")
+                .foregroundStyle(Color(hex: "#C4BDEE"))
+        } else {
+            ForEach(Array(quotes.prefix(3)), id: \.self) { quote in
+                Text(quote)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Color(hex: "#F5F0FF"))
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(hex: "#4B3EA8").opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        ForEach(snap?.narrative?.insights ?? [], id: \.self) { insight in
+            Text(insight)
+                .foregroundStyle(Color(hex: "#C4BDEE"))
+                .padding(.top, 4)
+        }
+    }
+
+    @ViewBuilder
     private func moneyContent(_ money: APIClient.MomentStoryMoney?) -> some View {
         let spent = money?.spent ?? 0
         let remaining = money?.remaining ?? 0
         let contributed = money?.contributed ?? 0
         let unsettled = money?.unsettled ?? 0
         let categories = money?.categories ?? []
-        let hasMoney = spent > 0 || contributed > 0 || remaining != 0 || unsettled > 0 || !categories.isEmpty
+        let payers = money?.payers ?? []
+        let hasMoney = spent > 0 || contributed > 0 || remaining != 0 || unsettled > 0 || !categories.isEmpty || !payers.isEmpty
         if !hasMoney {
             Text("No expenses recorded.")
                 .foregroundStyle(Color(hex: "#C4BDEE"))
         } else {
-            Text("Spent ₹\(Self.formatAmount(spent)) · Remaining ₹\(Self.formatAmount(remaining))")
-                .foregroundStyle(Color(hex: "#C4BDEE"))
-            if contributed > 0 {
-                Text("Contributed ₹\(Self.formatAmount(contributed))")
-                    .foregroundStyle(Color(hex: "#C4BDEE"))
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                moneyTile(label: "Contributed", value: contributed)
+                moneyTile(label: "Spent", value: spent)
+                moneyTile(label: "Remaining", value: remaining)
+                moneyTile(label: "Unsettled", value: unsettled)
             }
-            if unsettled > 0 {
-                Text("Unsettled ₹\(Self.formatAmount(unsettled))")
-                    .foregroundStyle(Color(hex: "#C4BDEE"))
+            let onlyOther = categories.count <= 1 && (categories.first?.name ?? "Other").caseInsensitiveCompare("Other") == .orderedSame
+            if onlyOther, !payers.isEmpty {
+                Text("Who paid")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color(hex: "#E8621A"))
+                    .padding(.top, 4)
+                ForEach(payers.prefix(5)) { payer in
+                    HStack {
+                        Text(payer.name ?? "Someone")
+                            .foregroundStyle(Color(hex: "#F5F0FF"))
+                        Spacer()
+                        Text("₹\(Self.formatInrAmount(payer.amount ?? 0))")
+                            .foregroundStyle(Color(hex: "#C4BDEE"))
+                    }
+                    .padding(12)
+                    .background(Color(hex: "#4B3EA8").opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
             }
-            ForEach(categories.prefix(6)) { cat in
+            ForEach(categories.prefix(5)) { cat in
                 HStack {
                     Text(cat.name ?? "Other")
                         .foregroundStyle(Color(hex: "#F5F0FF"))
                     Spacer()
-                    Text("₹\(Self.formatAmount(cat.amount ?? 0))")
+                    Text("₹\(Self.formatInrAmount(cat.amount ?? 0))")
                         .foregroundStyle(Color(hex: "#C4BDEE"))
                 }
                 .padding(12)
@@ -204,19 +259,65 @@ struct MomentStoryViewerView: View {
         }
     }
 
-    private func metricGrid(_ metrics: [String: APIClient.MomentStoryMetricValue]?) -> some View {
-        let keys = ["people", "days", "hours", "months", "plans", "decisions", "photos", "spent", "raised"]
-        let shown = keys.compactMap { k -> (String, String)? in
-            guard let v = metrics?[k] else { return nil }
-            return (k, v.label)
+    private func moneyTile(label: String, value: Double) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(Color(hex: "#C4BDEE"))
+            Text("₹\(Self.formatInrAmount(value))")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(Color(hex: "#F5F0FF"))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(hex: "#4B3EA8").opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func metricGrid(
+        metrics: [String: APIClient.MomentStoryMetricValue]?,
+        keys: [APIClient.MomentStoryMetricKey]?
+    ) -> some View {
+        let defs: [(String, String)] = {
+            if let keys, !keys.isEmpty {
+                return keys.compactMap { k in
+                    guard let key = k.key, !key.isEmpty else { return nil }
+                    return (key, k.label ?? key.capitalized)
+                }
+            }
+            return [
+                ("people", "People"),
+                ("days", "Days"),
+                ("plans", "Plans"),
+                ("decisions", "Decisions"),
+                ("photos", "Photos"),
+                ("spent", "Spent"),
+            ]
+        }()
+        let countKeys: Set<String> = ["people", "days", "hours", "months", "plans", "decisions", "photos", "bills"]
+        let moneyKeys: Set<String> = ["spent", "raised", "target", "remaining", "contributed"]
+        let shown = defs.compactMap { key, label -> (String, String, String)? in
+            guard let raw = metrics?[key] else { return nil }
+            if countKeys.contains(key), let n = raw.numericValue, n == 0 { return nil }
+            let display: String
+            if case .string(let s) = raw, moneyKeys.contains(key) {
+                display = s
+            } else if countKeys.contains(key), let n = raw.numericValue {
+                display = String(Int(n.rounded()))
+            } else if moneyKeys.contains(key), let n = raw.numericValue {
+                display = "₹\(Self.formatInrAmount(n))"
+            } else {
+                display = Self.formatMetricDisplay(raw, key: key, countKeys: countKeys, moneyKeys: moneyKeys)
+            }
+            return (key, label, display)
         }.prefix(6)
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
             ForEach(Array(shown), id: \.0) { item in
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(item.1)
+                    Text(item.2)
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(Color(hex: "#F5F0FF"))
-                    Text(item.0.capitalized)
+                    Text(item.1)
                         .font(.system(size: 11))
                         .foregroundStyle(Color(hex: "#C4BDEE"))
                 }
@@ -229,9 +330,35 @@ struct MomentStoryViewerView: View {
         .padding(.top, 8)
     }
 
-    private static func formatAmount(_ value: Double) -> String {
-        if value.rounded() == value { return String(Int(value)) }
-        return String(format: "%.0f", value)
+    private static func formatMetricDisplay(
+        _ raw: APIClient.MomentStoryMetricValue,
+        key: String,
+        countKeys: Set<String>,
+        moneyKeys: Set<String>
+    ) -> String {
+        if case .string(let s) = raw { return s }
+        if countKeys.contains(key), let n = raw.numericValue { return String(Int(n.rounded())) }
+        if moneyKeys.contains(key), let n = raw.numericValue { return "₹\(formatInrAmount(n))" }
+        return raw.label
+    }
+
+    private static func formatInrAmount(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = Locale(identifier: "en_IN")
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? String(Int(value.rounded()))
+    }
+
+    private static func dateRangeLabel(start: String?, end: String?) -> String? {
+        let s = start.flatMap { formatStoryDate($0) }
+        let e = end.flatMap { formatStoryDate($0) }
+        switch (s, e) {
+        case let (a?, b?) where a != b: return "\(a) · \(b)"
+        case let (a?, _): return a
+        case let (_, b?): return b
+        default: return nil
+        }
     }
 
     private static func formatStoryDate(_ iso: String) -> String? {
@@ -279,19 +406,28 @@ struct MomentStoryViewerView: View {
         }
     }
 
+    private func nonEmptyTrimmed(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
     private func share() {
-        let blurb = sharePack?.blurb?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let title = story?.snapshot?.identity?.title ?? "Moment Story"
-        let link = sharePack?.webUrl?.trimmingCharacters(in: .whitespacesAndNewlines).flatMap { $0.isEmpty ? nil : $0 }
-            ?? sharePack?.appDeepLink?.trimmingCharacters(in: .whitespacesAndNewlines).flatMap { $0.isEmpty ? nil : $0 }
+        let headline = nonEmptyTrimmed(sharePack?.blurb)
+            ?? story?.snapshot?.identity?.title
+            ?? "Moment Story"
+        let link = nonEmptyTrimmed(sharePack?.webUrl)
+            ?? nonEmptyTrimmed(sharePack?.appDeepLink)
             ?? ""
-        let text = [blurb.isEmpty ? title : blurb, link]
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
+        var parts = [headline]
+        if !link.isEmpty {
+            parts.append(link)
+        }
         if sharePack == nil {
             print("[MomentStory] sharing title fallback — share pack unavailable")
         }
-        InviteOutboundShare.presentSystemShare(items: [text])
+        InviteOutboundShare.presentSystemShare(items: [parts.joined(separator: "\n")])
     }
 }
 

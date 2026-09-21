@@ -245,6 +245,18 @@ export async function buildMomentStorySnapshot(
     [momentId]
   ).catch(() => ({ rows: [{ n: '0' }] }));
 
+  const planItems = await client.query<{ title: string; status: string; created_at: Date | null }>(
+    `SELECT title, status, created_at
+     FROM collaboration.planning_item
+     WHERE moment_id = $1
+       AND status IN ('OPEN', 'IN_PROGRESS', 'DONE')
+     ORDER BY
+       CASE status WHEN 'DONE' THEN 0 WHEN 'IN_PROGRESS' THEN 1 ELSE 2 END,
+       created_at ASC
+     LIMIT 3`,
+    [momentId]
+  ).catch(() => ({ rows: [] as Array<{ title: string; status: string; created_at: Date | null }> }));
+
   const startAt = row.start_at?.toISOString() ?? null;
   const endAt = row.end_at?.toISOString() ?? null;
   const completedAt = row.completed_at?.toISOString() ?? null;
@@ -266,9 +278,60 @@ export async function buildMomentStorySnapshot(
     remaining: formatInr(remaining),
   };
 
+  const experienceLike =
+    familyProfile === 'TRIP' ||
+    familyProfile === 'SHARED_EXPERIENCE' ||
+    familyProfile === 'WEDDING' ||
+    familyProfile === 'HOUSE_PARTY';
+  const startedLabel =
+    familyProfile === 'TRIP'
+      ? 'Trip started'
+      : familyProfile === 'HOUSE_PARTY'
+        ? 'Night kicked off'
+        : familyProfile === 'WEDDING'
+          ? 'Celebration began'
+          : experienceLike
+            ? 'Chapter began'
+            : 'Moment activated';
+  const wrappedLabel =
+    familyProfile === 'TRIP'
+      ? 'Trip wrapped up'
+      : familyProfile === 'HOUSE_PARTY'
+        ? 'Night saved'
+        : familyProfile === 'WEDDING'
+          ? 'Celebration closed'
+          : experienceLike
+            ? 'Wrapped up'
+            : 'Moment completed';
+
   const timeline: StorySnapshot['timeline'] = [];
-  if (startAt) timeline.push({ at: startAt, label: 'Moment activated', detail: 'The chapter began.' });
-  if (target) timeline.push({ at: startAt ?? completedAt ?? new Date().toISOString(), label: `Budget set ${formatInr(target)}` });
+  if (startAt) {
+    timeline.push({
+      at: startAt,
+      label: startedLabel,
+      detail: 'The chapter began.',
+    });
+  }
+  if (target) {
+    timeline.push({
+      at: startAt ?? completedAt ?? new Date().toISOString(),
+      label: `Budget set ${formatInr(target)}`,
+    });
+  }
+  for (const place of places.slice(0, 4)) {
+    timeline.push({
+      at: place.startAt ?? startAt ?? completedAt ?? new Date().toISOString(),
+      label: place.label,
+      detail: 'Place on the itinerary',
+    });
+  }
+  for (const item of planItems.rows) {
+    timeline.push({
+      at: item.created_at?.toISOString() ?? startAt ?? completedAt ?? new Date().toISOString(),
+      label: item.title,
+      detail: item.status === 'DONE' ? 'Done' : item.status === 'IN_PROGRESS' ? 'In progress' : 'Planned',
+    });
+  }
   for (const poll of polls.rows.slice(0, 3)) {
     timeline.push({
       at: completedAt ?? endAt ?? new Date().toISOString(),
@@ -276,7 +339,13 @@ export async function buildMomentStorySnapshot(
       detail: poll.status,
     });
   }
-  if (completedAt) timeline.push({ at: completedAt, label: 'Moment completed', detail: 'Story unlocked.' });
+  if (completedAt) {
+    timeline.push({
+      at: completedAt,
+      label: wrappedLabel,
+      detail: 'Ready to relive.',
+    });
+  }
 
   const insights: string[] = [];
   if (people.length >= 3) insights.push(`${people.length} people showed up for this moment.`);

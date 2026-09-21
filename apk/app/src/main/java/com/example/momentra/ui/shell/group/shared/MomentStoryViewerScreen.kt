@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.MomentStoryDto
+import com.example.momentra.data.api.MomentStoryMetricKeyDto
 import com.example.momentra.data.api.MomentStoryMoneyDto
 import com.example.momentra.data.api.MomentStorySharePackDto
 import com.example.momentra.data.api.MomentStorySnapshotDto
@@ -226,10 +227,14 @@ private fun StoryChapterPage(chapter: String, story: MomentStoryDto?) {
         when (chapter) {
             "cover" -> {
                 Text(title, color = MomentraBrandColors.TextOnDark, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+                dateRangeLabel(snap?.identity?.startAt, snap?.identity?.endAt)?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(it, color = MomentraBrandColors.Indigo100.copy(alpha = 0.85f), fontSize = 13.sp, fontFamily = PlusJakartaSans)
+                }
                 Spacer(Modifier.height(12.dp))
                 Text(snap?.narrative?.opening.orEmpty(), color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
                 Spacer(Modifier.height(20.dp))
-                MetricGrid(snap?.metrics)
+                MetricGrid(metrics = snap?.metrics, metricKeys = snap?.display?.metricKeys)
             }
             "alive" -> {
                 Text("How it came alive", color = MomentraBrandColors.TextOnDark, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
@@ -243,17 +248,19 @@ private fun StoryChapterPage(chapter: String, story: MomentStoryDto?) {
             }
             "memories" -> {
                 Text("Memories that stayed", color = MomentraBrandColors.TextOnDark, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
-                snap?.narrative?.insights.orEmpty().forEach {
-                    Spacer(Modifier.height(8.dp))
-                    Text(it, color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
-                }
+                Spacer(Modifier.height(12.dp))
+                MemoriesChapterContent(snap)
             }
             else -> {
                 Text("TOGETHER · FORWARD", color = MomentraBrandColors.Ember500, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
                 Spacer(Modifier.height(16.dp))
                 Text(snap?.display?.closeLine ?: "Life happens in moments.", color = MomentraBrandColors.TextOnDark, fontSize = 22.sp, fontFamily = PlusJakartaSans)
-                Spacer(Modifier.height(24.dp))
-                Text(title, color = MomentraBrandColors.Indigo100.copy(alpha = 0.5f), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(16.dp))
+                Text(title, color = MomentraBrandColors.Indigo100.copy(alpha = 0.5f), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                snap?.narrative?.insights.orEmpty().take(2).forEach {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, color = MomentraBrandColors.Indigo100, fontSize = 14.sp, fontFamily = PlusJakartaSans)
+                }
             }
         }
     }
@@ -345,31 +352,84 @@ private fun AliveChapterContent(snap: MomentStorySnapshotDto?) {
 }
 
 @Composable
+private fun MemoriesChapterContent(snap: MomentStorySnapshotDto?) {
+    val quotes = snap?.memories.orEmpty().mapNotNull { it.text?.trim()?.takeIf { t -> t.isNotEmpty() } }
+    if (quotes.isEmpty()) {
+        Text(
+            "Photos and memories will glow here next time.",
+            color = MomentraBrandColors.Indigo100,
+            fontFamily = PlusJakartaSans,
+        )
+    } else {
+        quotes.take(3).forEach { quote ->
+            Text(
+                quote,
+                color = MomentraBrandColors.TextOnDark,
+                fontWeight = FontWeight.Medium,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MomentraBrandColors.Indigo500.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .padding(12.dp),
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+    snap?.narrative?.insights.orEmpty().forEach {
+        Spacer(Modifier.height(4.dp))
+        Text(it, color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
+    }
+}
+
+@Composable
 private fun MoneyChapterContent(money: MomentStoryMoneyDto?) {
     val spent = money?.spent ?: 0.0
     val remaining = money?.remaining ?: 0.0
     val contributed = money?.contributed ?: 0.0
     val unsettled = money?.unsettled ?: 0.0
     val categories = money?.categories.orEmpty()
-    val hasMoney = spent > 0 || contributed > 0 || remaining != 0.0 || unsettled > 0 || categories.isNotEmpty()
+    val payers = money?.payers.orEmpty()
+    val hasMoney = spent > 0 || contributed > 0 || remaining != 0.0 || unsettled > 0 || categories.isNotEmpty() || payers.isNotEmpty()
     if (!hasMoney) {
         Text("No expenses recorded.", color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
         return
     }
-    Text(
-        "Spent ₹${formatInr(spent)} · Remaining ₹${formatInr(remaining)}",
-        color = MomentraBrandColors.Indigo100,
-        fontFamily = PlusJakartaSans,
-    )
-    if (contributed > 0) {
-        Spacer(Modifier.height(8.dp))
-        Text("Contributed ₹${formatInr(contributed)}", color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            MoneyTile("Contributed", contributed, Modifier.weight(1f))
+            MoneyTile("Spent", spent, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            MoneyTile("Remaining", remaining, Modifier.weight(1f))
+            MoneyTile("Unsettled", unsettled, Modifier.weight(1f))
+        }
     }
-    if (unsettled > 0) {
-        Spacer(Modifier.height(8.dp))
-        Text("Unsettled ₹${formatInr(unsettled)}", color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
+    val onlyOther = categories.size <= 1 &&
+        (categories.firstOrNull()?.name ?: "Other").equals("Other", ignoreCase = true)
+    if (onlyOther && payers.isNotEmpty()) {
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Who paid",
+            color = MomentraBrandColors.Ember500,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
+        )
+        payers.take(5).forEach { payer ->
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MomentraBrandColors.Indigo500.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(payer.name ?: "Someone", color = MomentraBrandColors.TextOnDark, fontFamily = PlusJakartaSans)
+                Text("₹${formatInrGrouped(payer.amount ?: 0.0)}", color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
+            }
+        }
     }
-    categories.take(6).forEach { cat ->
+    categories.take(5).forEach { cat ->
         Spacer(Modifier.height(8.dp))
         Row(
             modifier = Modifier
@@ -379,28 +439,72 @@ private fun MoneyChapterContent(money: MomentStoryMoneyDto?) {
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(cat.name ?: "Other", color = MomentraBrandColors.TextOnDark, fontFamily = PlusJakartaSans)
-            Text("₹${formatInr(cat.amount ?: 0.0)}", color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
+            Text("₹${formatInrGrouped(cat.amount ?: 0.0)}", color = MomentraBrandColors.Indigo100, fontFamily = PlusJakartaSans)
         }
     }
 }
 
 @Composable
-private fun MetricGrid(metrics: Map<String, Any?>?) {
+private fun MoneyTile(label: String, value: Double, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(MomentraBrandColors.Indigo500.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .padding(12.dp),
+    ) {
+        Text(label, color = MomentraBrandColors.Indigo100, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "₹${formatInrGrouped(value)}",
+            color = MomentraBrandColors.TextOnDark,
+            fontWeight = FontWeight.Bold,
+            fontFamily = PlusJakartaSans,
+        )
+    }
+}
+
+@Composable
+private fun MetricGrid(
+    metrics: Map<String, Any?>?,
+    metricKeys: List<MomentStoryMetricKeyDto>?,
+) {
     if (metrics.isNullOrEmpty()) return
-    val keys = listOf("people", "days", "hours", "months", "plans", "decisions", "photos", "spent", "raised", "target")
-    val shown = keys.mapNotNull { k -> metrics[k]?.let { k to it } }.take(6)
+    val defs = if (!metricKeys.isNullOrEmpty()) {
+        metricKeys.mapNotNull { mk ->
+            val key = mk.key?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            key to (mk.label?.takeIf { it.isNotBlank() } ?: key.replaceFirstChar { it.uppercase() })
+        }
+    } else {
+        listOf(
+            "people" to "People",
+            "days" to "Days",
+            "plans" to "Plans",
+            "decisions" to "Decisions",
+            "photos" to "Photos",
+            "spent" to "Spent",
+        )
+    }
+    val countKeys = setOf("people", "days", "hours", "months", "plans", "decisions", "photos", "bills")
+    val moneyKeys = setOf("spent", "raised", "target", "remaining", "contributed")
+    val shown = defs.mapNotNull { (key, label) ->
+        val raw = metrics[key] ?: return@mapNotNull null
+        val numeric = metricNumeric(raw)
+        if (key in countKeys && numeric != null && numeric == 0.0) return@mapNotNull null
+        val display = formatMetricValue(raw, key, countKeys, moneyKeys)
+        Triple(key, label, display)
+    }.take(6)
+    if (shown.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         shown.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                row.forEach { (k, v) ->
+                row.forEach { (_, label, display) ->
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .background(MomentraBrandColors.Indigo500.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                             .padding(12.dp),
                     ) {
-                        Text(v.toString(), color = MomentraBrandColors.TextOnDark, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
-                        Text(k.replaceFirstChar { it.uppercase() }, color = MomentraBrandColors.Indigo100, fontSize = 11.sp)
+                        Text(display, color = MomentraBrandColors.TextOnDark, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+                        Text(label, color = MomentraBrandColors.Indigo100, fontSize = 11.sp)
                     }
                 }
                 repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
@@ -409,8 +513,44 @@ private fun MetricGrid(metrics: Map<String, Any?>?) {
     }
 }
 
-private fun formatInr(value: Double): String =
-    if (value == value.toLong().toDouble()) value.toLong().toString() else value.toInt().toString()
+private fun metricNumeric(raw: Any?): Double? = when (raw) {
+    is Number -> raw.toDouble()
+    is String -> raw.replace(Regex("[^0-9.]"), "").toDoubleOrNull()
+    else -> null
+}
+
+private fun formatMetricValue(
+    raw: Any?,
+    key: String,
+    countKeys: Set<String>,
+    moneyKeys: Set<String>,
+): String {
+    if (raw is String && key in moneyKeys) return raw
+    val n = metricNumeric(raw)
+    return when {
+        key in countKeys && n != null -> n.toInt().toString()
+        key in moneyKeys && n != null -> "₹${formatInrGrouped(n)}"
+        raw is String -> raw
+        n != null && n == n.toLong().toDouble() -> n.toLong().toString()
+        else -> raw.toString()
+    }
+}
+
+private fun formatInrGrouped(value: Double): String {
+    val formatter = java.text.NumberFormat.getIntegerInstance(java.util.Locale("en", "IN"))
+    return formatter.format(value.toLong())
+}
+
+private fun dateRangeLabel(start: String?, end: String?): String? {
+    val s = formatStoryDate(start)
+    val e = formatStoryDate(end)
+    return when {
+        s != null && e != null && s != e -> "$s · $e"
+        s != null -> s
+        e != null -> e
+        else -> null
+    }
+}
 
 private fun formatStoryDate(iso: String?): String? {
     if (iso.isNullOrBlank()) return null

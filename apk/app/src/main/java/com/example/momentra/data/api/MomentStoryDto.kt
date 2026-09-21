@@ -26,6 +26,7 @@ data class MomentStorySnapshotDto(
     val timeline: List<MomentStoryTimelineItemDto>? = null,
     val decisions: List<MomentStoryDecisionDto>? = null,
     val money: MomentStoryMoneyDto? = null,
+    val memories: List<MomentStoryMemoryDto>? = null,
 )
 
 data class MomentStoryIdentityDto(
@@ -41,10 +42,16 @@ data class MomentStoryNarrativeDto(
     val insights: List<String>? = null,
 )
 
+data class MomentStoryMetricKeyDto(
+    val key: String? = null,
+    val label: String? = null,
+)
+
 data class MomentStoryDisplayDto(
     val displayLabel: String? = null,
     val coverEyebrow: String? = null,
     val closeLine: String? = null,
+    val metricKeys: List<MomentStoryMetricKeyDto>? = null,
 )
 
 data class MomentStoryTimelineItemDto(
@@ -63,12 +70,25 @@ data class MomentStoryMoneyCategoryDto(
     val amount: Double? = null,
 )
 
+data class MomentStoryMoneyPayerDto(
+    val name: String? = null,
+    val amount: Double? = null,
+    val payments: Int? = null,
+)
+
 data class MomentStoryMoneyDto(
     val contributed: Double? = null,
     val spent: Double? = null,
     val remaining: Double? = null,
     val unsettled: Double? = null,
     val categories: List<MomentStoryMoneyCategoryDto>? = null,
+    val payers: List<MomentStoryMoneyPayerDto>? = null,
+)
+
+data class MomentStoryMemoryDto(
+    val text: String? = null,
+    val mediaUrl: String? = null,
+    val at: String? = null,
 )
 
 data class MomentStorySharePackDto(

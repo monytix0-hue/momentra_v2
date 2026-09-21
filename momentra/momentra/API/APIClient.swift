@@ -1148,6 +1148,7 @@ final class APIClient {
         let timeline: [MomentStoryTimelineItem]?
         let decisions: [MomentStoryDecision]?
         let money: MomentStoryMoney?
+        let memories: [MomentStoryMemory]?
     }
 
     struct MomentStoryIdentity: Decodable {
@@ -1163,10 +1164,16 @@ final class APIClient {
         let insights: [String]?
     }
 
+    struct MomentStoryMetricKey: Decodable {
+        let key: String?
+        let label: String?
+    }
+
     struct MomentStoryDisplay: Decodable {
         let displayLabel: String?
         let coverEyebrow: String?
         let closeLine: String?
+        let metricKeys: [MomentStoryMetricKey]?
     }
 
     struct MomentStoryTimelineItem: Decodable, Identifiable {
@@ -1188,12 +1195,27 @@ final class APIClient {
         let amount: Double?
     }
 
+    struct MomentStoryMoneyPayer: Decodable, Identifiable {
+        var id: String { "\(name ?? "")|\(amount ?? 0)|\(payments ?? 0)" }
+        let name: String?
+        let amount: Double?
+        let payments: Int?
+    }
+
     struct MomentStoryMoney: Decodable {
         let contributed: Double?
         let spent: Double?
         let remaining: Double?
         let unsettled: Double?
         let categories: [MomentStoryMoneyCategory]?
+        let payers: [MomentStoryMoneyPayer]?
+    }
+
+    struct MomentStoryMemory: Decodable, Identifiable {
+        var id: String { "\(at ?? "")|\(text ?? "")" }
+        let text: String?
+        let mediaUrl: String?
+        let at: String?
     }
 
     enum MomentStoryMetricValue: Decodable {
@@ -1213,6 +1235,16 @@ final class APIClient {
             case .string(let s): return s
             case .number(let d): return String(format: "%g", d)
             case .int(let i): return String(i)
+            }
+        }
+
+        var numericValue: Double? {
+            switch self {
+            case .int(let i): return Double(i)
+            case .number(let d): return d
+            case .string(let s):
+                let cleaned = s.replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+                return Double(cleaned)
             }
         }
     }
