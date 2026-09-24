@@ -1255,11 +1255,12 @@ final class APIClient {
     }
 
     struct MomentStoryMoneyExpense: Decodable, Identifiable {
-        var id: String { "\(description ?? "")|\(amount ?? 0)|\(payer ?? "")" }
+        var id: String { "\(at ?? "")|\(description ?? "")|\(amount ?? 0)|\(payer ?? "")" }
         let description: String?
         let category: String?
         let payer: String?
         let amount: Double?
+        let at: String?
     }
 
     struct MomentStoryMoney: Decodable {

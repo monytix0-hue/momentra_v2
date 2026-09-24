@@ -31,7 +31,7 @@ export interface StorySnapshot {
     categories: Array<{ name: string; amount: number }>;
     contributors: Array<{ name: string; amount: number }>;
     payers: Array<{ name: string; amount: number; payments: number }>;
-    expenses: Array<{ description: string; category: string; payer: string; amount: number }>;
+    expenses: Array<{ description: string; category: string; payer: string; amount: number; at: string | null }>;
   };
   places: Array<{ label: string; startAt: string | null; endAt: string | null }>;
   decisions: Array<{ title: string; status: string }>;
@@ -237,8 +237,9 @@ export async function buildMomentStorySnapshot(
     amount: string;
     paid_by_name: string | null;
     category_code: string | null;
+    effective_at: Date | null;
   }>(
-    `SELECT e.description, e.amount::text,
+    `SELECT e.description, e.amount::text, e.effective_at,
             COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName', 'Someone') AS paid_by_name,
             e.category_code
      FROM finance.expense e
@@ -250,8 +251,7 @@ export async function buildMomentStorySnapshot(
      WHERE e.moment_id = $1::uuid
        AND e.domain_code = 'GROUP'
        AND e.status = 'POSTED'
-     ORDER BY e.effective_at DESC
-     LIMIT 50`,
+     ORDER BY e.effective_at ASC`,
     [momentId]
   ).catch(() => ({
     rows: [] as Array<{
@@ -259,6 +259,7 @@ export async function buildMomentStorySnapshot(
       amount: string;
       paid_by_name: string | null;
       category_code: string | null;
+      effective_at: Date | null;
     }>,
   }));
 
@@ -269,6 +270,7 @@ export async function buildMomentStorySnapshot(
       amount: parseFloat(e.amount) || 0,
       paid_by_name: e.paid_by_name,
       category,
+      at: e.effective_at?.toISOString() ?? null,
     };
   });
 
@@ -567,11 +569,12 @@ export async function buildMomentStorySnapshot(
       categories,
       contributors: [...contribMap.entries()].map(([name, amount]) => ({ name, amount })),
       payers: [...payerMap.entries()].map(([name, v]) => ({ name, amount: v.amount, payments: v.payments })),
-      expenses: resolvedExpenses.slice(0, 8).map((e) => ({
+      expenses: resolvedExpenses.map((e) => ({
         description: e.description,
         category: e.category,
         payer: e.paid_by_name ?? 'Someone',
         amount: e.amount,
+        at: e.at,
       })),
     },
     places,

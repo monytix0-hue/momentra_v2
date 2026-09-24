@@ -102,6 +102,7 @@ data class MomentStoryMoneyExpenseDto(
     val category: String? = null,
     val payer: String? = null,
     val amount: Double? = null,
+    val at: String? = null,
 )
 
 data class MomentStoryMoneyDto(

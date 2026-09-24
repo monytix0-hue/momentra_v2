@@ -419,31 +419,13 @@ struct MomentStoryViewerView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(Color(hex: "#0A6640"))
                 }
-                let categories = money?.categories ?? []
+                let categories = (money?.categories ?? []).filter { ($0.amount ?? 0) > 0 }
                 if !categories.isEmpty, spent > 0 {
                     Text("WHERE THE MONEY WENT")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(Color(hex: "#6C4EF2"))
                         .padding(.top, 4)
-                    ForEach(categories.prefix(5)) { cat in
-                        let amount = cat.amount ?? 0
-                        let pctCat = Int((amount / spent * 100).rounded())
-                        HStack {
-                            Text(cat.name ?? "Other").foregroundStyle(Color(hex: "#25231F"))
-                            Spacer()
-                            Text("\(pctCat)%").bold().foregroundStyle(Color(hex: "#25231F"))
-                        }
-                        .font(.system(size: 13))
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Color(hex: "#C4BDEE"))
-                                Capsule()
-                                    .fill(Color(hex: "#6C4EF2"))
-                                    .frame(width: max(8, geo.size.width * CGFloat(pctCat) / 100))
-                            }
-                        }
-                        .frame(height: 7)
-                    }
+                    categoryDonut(categories, spent: spent, currency: currency)
                 }
                 let expenses = money?.expenses ?? []
                 if !expenses.isEmpty {
@@ -451,28 +433,40 @@ struct MomentStoryViewerView: View {
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(Color(hex: "#6C4EF2"))
                         .padding(.top, 4)
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(expenses.prefix(6)) { e in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(Self.cleanExpenseTitle(e.description))
+                    ForEach(Array(Self.groupStoryExpenses(expenses).enumerated()), id: \.offset) { _, day in
+                        HStack {
+                            Text(day.label)
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(Color(hex: "#25231F"))
+                            Spacer()
+                            Text(Self.formatStoryMoney(day.total, currencyCode: currency))
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color(hex: "#746F67"))
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(day.items.enumerated()), id: \.offset) { _, e in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(Self.cleanExpenseTitle(e.description))
+                                            .foregroundStyle(.white)
+                                            .font(.system(size: 12))
+                                        Text([e.category, e.payer].compactMap { $0 }.joined(separator: " · "))
+                                            .foregroundStyle(Color(hex: "#C4BDEE"))
+                                            .font(.system(size: 10))
+                                    }
+                                    Spacer()
+                                    Text(Self.formatStoryMoney(e.amount ?? 0, currencyCode: currency))
+                                        .bold()
                                         .foregroundStyle(.white)
                                         .font(.system(size: 12))
-                                    Text([e.category, e.payer].compactMap { $0 }.joined(separator: " · "))
-                                        .foregroundStyle(Color(hex: "#C4BDEE"))
-                                        .font(.system(size: 10))
                                 }
-                                Spacer()
-                                Text(Self.formatStoryMoney(e.amount ?? 0, currencyCode: currency))
-                                    .bold()
-                                    .foregroundStyle(.white)
-                                    .font(.system(size: 12))
                             }
                         }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(hex: "#201E28"))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
-                    .padding(14)
-                    .background(Color(hex: "#201E28"))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 if let insight = snap?.narrative?.insights?.first(where: {
                     $0.localizedCaseInsensitiveContains("accounted") || $0.localizedCaseInsensitiveContains("spend")
@@ -802,6 +796,70 @@ struct MomentStoryViewerView: View {
         }
     }
 
+    private struct StoryExpenseDay {
+        let label: String
+        let total: Double
+        let items: [APIClient.MomentStoryMoneyExpense]
+    }
+
+    private func categoryDonut(
+        _ categories: [APIClient.MomentStoryMoneyCategory],
+        spent: Double,
+        currency: String
+    ) -> some View {
+        let amounts = categories.map { $0.amount ?? 0 }
+        let percents = Self.categoryPercents(amounts, spent: spent)
+        let colors = Self.storySliceColors
+        return HStack(alignment: .center, spacing: 12) {
+            Canvas { context, size in
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                let radius = min(size.width, size.height) / 2
+                var start = -Double.pi / 2
+                for (index, cat) in categories.enumerated() {
+                    let sweep = ((cat.amount ?? 0) / spent) * 2 * Double.pi
+                    guard sweep > 0 else { continue }
+                    var path = Path()
+                    path.move(to: center)
+                    path.addArc(
+                        center: center,
+                        radius: radius,
+                        startAngle: .radians(start),
+                        endAngle: .radians(start + sweep),
+                        clockwise: false
+                    )
+                    path.closeSubpath()
+                    context.fill(path, with: .color(colors[index % colors.count]))
+                    start += sweep
+                }
+                let hole = radius * 0.58
+                let holeRect = CGRect(x: center.x - hole, y: center.y - hole, width: hole * 2, height: hole * 2)
+                context.fill(Path(ellipseIn: holeRect), with: .color(Color(hex: "#F7F4EE")))
+            }
+            .frame(width: 132, height: 132)
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(categories.enumerated()), id: \.offset) { index, cat in
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(colors[index % colors.count])
+                            .frame(width: 8, height: 8)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(cat.name ?? "Other")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color(hex: "#25231F"))
+                            Text(Self.formatStoryMoney(cat.amount ?? 0, currencyCode: currency))
+                                .font(.system(size: 11))
+                                .foregroundStyle(Color(hex: "#746F67"))
+                        }
+                        Spacer(minLength: 4)
+                        Text("\(percents.indices.contains(index) ? percents[index] : 0)%")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color(hex: "#25231F"))
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Formatters
 
     private static func metricInt(_ metrics: [String: APIClient.MomentStoryMetricValue]?, _ key: String) -> Int? {
@@ -886,6 +944,56 @@ struct MomentStoryViewerView: View {
         out.locale = Locale(identifier: "en_US_POSIX")
         out.dateFormat = "d MMM"
         return out.string(from: date).uppercased()
+    }
+
+    private static let storySliceColors: [Color] = [
+        Color(hex: "#4B3EA8"),
+        Color(hex: "#E8621A"),
+        Color(hex: "#0F7A6A"),
+        Color(hex: "#C4893A"),
+        Color(hex: "#6C4EF2"),
+        Color(hex: "#B45F3D"),
+        Color(hex: "#3D6B9A"),
+        Color(hex: "#8A6A4A"),
+    ]
+
+    private static func groupStoryExpenses(_ expenses: [APIClient.MomentStoryMoneyExpense]) -> [StoryExpenseDay] {
+        var buckets: [String: [APIClient.MomentStoryMoneyExpense]] = [:]
+        var undated: [APIClient.MomentStoryMoneyExpense] = []
+        let dayKey = DateFormatter()
+        dayKey.locale = Locale(identifier: "en_US_POSIX")
+        dayKey.dateFormat = "yyyy-MM-dd"
+        let heading = DateFormatter()
+        heading.locale = Locale(identifier: "en_US_POSIX")
+        heading.dateFormat = "EEEE, d MMM"
+        for expense in expenses {
+            guard let iso = expense.at, let date = parseISO(iso) else {
+                undated.append(expense)
+                continue
+            }
+            let key = dayKey.string(from: date)
+            buckets[key, default: []].append(expense)
+        }
+        var days = buckets.keys.sorted().map { key -> StoryExpenseDay in
+            let items = buckets[key] ?? []
+            let label = dayKey.date(from: key).map { heading.string(from: $0) } ?? key
+            let total = items.reduce(0) { $0 + ($1.amount ?? 0) }
+            return StoryExpenseDay(label: label, total: total, items: items)
+        }
+        if !undated.isEmpty {
+            days.append(StoryExpenseDay(label: "Undated", total: undated.reduce(0) { $0 + ($1.amount ?? 0) }, items: undated))
+        }
+        return days
+    }
+
+    private static func categoryPercents(_ amounts: [Double], spent: Double) -> [Int] {
+        guard spent > 0, !amounts.isEmpty else { return amounts.map { _ in 0 } }
+        var raw = amounts.map { Int(($0 / spent * 100).rounded()) }
+        let drift = 100 - raw.reduce(0, +)
+        if drift != 0, let largest = amounts.indices.max(by: { amounts[$0] < amounts[$1] }) {
+            raw[largest] = max(0, raw[largest] + drift)
+        }
+        return raw
     }
 
     private static func parseISO(_ iso: String) -> Date? {

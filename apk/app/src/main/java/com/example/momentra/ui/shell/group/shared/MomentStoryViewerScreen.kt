@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -59,6 +60,8 @@ import com.example.momentra.R
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.MomentStoryDto
 import com.example.momentra.data.api.MomentStoryMetricKeyDto
+import com.example.momentra.data.api.MomentStoryMoneyCategoryDto
+import com.example.momentra.data.api.MomentStoryMoneyExpenseDto
 import com.example.momentra.data.api.MomentStorySnapshotDto
 import com.example.momentra.ui.theme.MomentraBrandColors
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -677,61 +680,45 @@ private fun MoneyChapter(snap: MomentStorySnapshotDto?) {
                 fontFamily = PlusJakartaSans,
             )
         }
-        val categories = money?.categories.orEmpty()
+        val categories = money?.categories.orEmpty().filter { (it.amount ?: 0.0) > 0.0 }
         if (categories.isNotEmpty() && spent > 0) {
             Spacer(Modifier.height(18.dp))
             Text("WHERE THE MONEY WENT", color = MomentraBrandColors.StoryAccentPurple, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            categories.take(5).forEach { cat ->
-                val pctCat = ((cat.amount ?: 0.0) / spent * 100).roundToInt()
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(cat.name ?: "Other", color = MomentraBrandColors.StoryInk, fontSize = 13.sp)
-                    Text("$pctCat%", color = MomentraBrandColors.StoryInk, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(7.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(MomentraBrandColors.Indigo100),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(fraction = (pctCat / 100f).coerceIn(0.05f, 1f))
-                            .height(7.dp)
-                            .background(MomentraBrandColors.StoryAccentPurple, RoundedCornerShape(999.dp)),
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-            }
+            Spacer(Modifier.height(10.dp))
+            CategoryDonut(categories, spent, currency)
         }
         val expenses = money?.expenses.orEmpty()
         if (expenses.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
             Text("EXPENSES BEHIND THE MOMENT", color = MomentraBrandColors.StoryAccentPurple, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MomentraBrandColors.StoryDarkClose, RoundedCornerShape(16.dp))
-                    .padding(14.dp),
-            ) {
-                expenses.take(6).forEach { e ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) {
-                            Text(cleanExpenseTitle(e.description), color = Color.White, fontSize = 12.sp)
-                            Text(
-                                listOfNotNull(e.category, e.payer).joinToString(" · "),
-                                color = MomentraBrandColors.Indigo100,
-                                fontSize = 10.sp,
-                            )
+            groupStoryExpenses(expenses).forEach { day ->
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(day.label, color = MomentraBrandColors.StoryInk, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(formatStoryMoney(day.total, currency), color = MomentraBrandColors.StoryMuted, fontSize = 12.sp)
+                }
+                Spacer(Modifier.height(6.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MomentraBrandColors.StoryDarkClose, RoundedCornerShape(16.dp))
+                        .padding(14.dp),
+                ) {
+                    day.items.forEach { e ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(Modifier.weight(1f)) {
+                                Text(cleanExpenseTitle(e.description), color = Color.White, fontSize = 12.sp)
+                                Text(
+                                    listOfNotNull(e.category, e.payer).joinToString(" · "),
+                                    color = MomentraBrandColors.Indigo100,
+                                    fontSize = 10.sp,
+                                )
+                            }
+                            Text(formatStoryMoney(e.amount ?: 0.0, currency), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
-                        Text(formatStoryMoney(e.amount ?: 0.0, currency), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Spacer(Modifier.height(8.dp))
                     }
-                    Spacer(Modifier.height(8.dp))
                 }
             }
         }
@@ -756,6 +743,108 @@ private fun MoneyChapter(snap: MomentStorySnapshotDto?) {
             Text("No expenses recorded.", color = MomentraBrandColors.StoryMuted)
         }
     }
+}
+
+@Composable
+private val storySliceColors = listOf(
+    Color(0xFF4B3EA8),
+    Color(0xFFE8621A),
+    Color(0xFF0F7A6A),
+    Color(0xFFC4893A),
+    Color(0xFF6C4EF2),
+    Color(0xFFB45F3D),
+    Color(0xFF3D6B9A),
+    Color(0xFF8A6A4A),
+)
+
+@Composable
+private fun CategoryDonut(
+    categories: List<MomentStoryMoneyCategoryDto>,
+    spent: Double,
+    currencyCode: String,
+) {
+    val amounts = categories.map { it.amount ?: 0.0 }
+    val percents = categoryPercents(amounts, spent)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Canvas(Modifier.size(132.dp)) {
+            var start = -90f
+            categories.forEachIndexed { index, cat ->
+                val sweep = (((cat.amount ?: 0.0) / spent) * 360f).toFloat()
+                if (sweep <= 0f) return@forEachIndexed
+                drawArc(
+                    color = storySliceColors[index % storySliceColors.size],
+                    startAngle = start,
+                    sweepAngle = sweep,
+                    useCenter = true,
+                )
+                start += sweep
+            }
+            drawCircle(color = MomentraBrandColors.StoryCream, radius = size.minDimension * 0.29f)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            categories.forEachIndexed { index, cat ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .background(storySliceColors[index % storySliceColors.size], CircleShape),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(cat.name ?: "Other", color = MomentraBrandColors.StoryInk, fontSize = 13.sp)
+                        Text(
+                            formatStoryMoney(cat.amount ?: 0.0, currencyCode),
+                            color = MomentraBrandColors.StoryMuted,
+                            fontSize = 11.sp,
+                        )
+                    }
+                    Text(
+                        "${percents.getOrElse(index) { 0 }}%",
+                        color = MomentraBrandColors.StoryInk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private data class StoryExpenseDay(
+    val label: String,
+    val total: Double,
+    val items: List<MomentStoryMoneyExpenseDto>,
+)
+
+private fun groupStoryExpenses(expenses: List<MomentStoryMoneyExpenseDto>): List<StoryExpenseDay> {
+    val zone = java.time.ZoneId.systemDefault()
+    val heading = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMM", java.util.Locale.US)
+    val buckets = linkedMapOf<java.time.LocalDate, MutableList<MomentStoryMoneyExpenseDto>>()
+    val undated = mutableListOf<MomentStoryMoneyExpenseDto>()
+    expenses.forEach { expense ->
+        val day = expense.at?.let { iso ->
+            runCatching { java.time.Instant.parse(iso).atZone(zone).toLocalDate() }.getOrNull()
+        }
+        if (day == null) undated.add(expense) else buckets.getOrPut(day) { mutableListOf() }.add(expense)
+    }
+    val days = buckets.keys.sorted().map { day ->
+        val items = buckets.getValue(day)
+        StoryExpenseDay(day.format(heading), items.sumOf { it.amount ?: 0.0 }, items)
+    }
+    if (undated.isEmpty()) return days
+    return days + StoryExpenseDay("Undated", undated.sumOf { it.amount ?: 0.0 }, undated)
+}
+
+private fun categoryPercents(amounts: List<Double>, spent: Double): List<Int> {
+    if (spent <= 0.0 || amounts.isEmpty()) return amounts.map { 0 }
+    val raw = amounts.map { ((it / spent) * 100).roundToInt() }.toMutableList()
+    val drift = 100 - raw.sum()
+    if (drift != 0) {
+        val largest = amounts.indices.maxBy { amounts[it] }
+        raw[largest] = (raw[largest] + drift).coerceAtLeast(0)
+    }
+    return raw
 }
 
 @Composable

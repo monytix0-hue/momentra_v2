@@ -88,7 +88,7 @@ export async function generateMomentStoryArtifacts(
   client: PoolClient,
   ctx: RequestContext,
   storyId: string,
-  opts?: { notify?: boolean }
+  opts?: { notify?: boolean; keepReady?: boolean }
 ): Promise<void> {
   const story = await client.query<{ moment_id: string; story_version: number }>(
     `SELECT moment_id, story_version FROM core.moment_story WHERE story_id = $1`,
@@ -158,15 +158,17 @@ export async function generateMomentStoryArtifacts(
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Story generation failed';
-    try {
-      await client.query(
-        `UPDATE core.moment_story
-         SET status = 'FAILED', error_message = $2, updated_at = now()
-         WHERE story_id = $1`,
-        [storyId, message.slice(0, 500)]
-      );
-    } catch {
-      // The surrounding transaction may already be aborted. The caller records FAILED separately.
+    if (!opts?.keepReady) {
+      try {
+        await client.query(
+          `UPDATE core.moment_story
+           SET status = 'FAILED', error_message = $2, updated_at = now()
+           WHERE story_id = $1`,
+          [storyId, message.slice(0, 500)]
+        );
+      } catch {
+        // The surrounding transaction may already be aborted. The caller records FAILED separately.
+      }
     }
     throw err;
   }
@@ -275,6 +277,16 @@ export async function getMomentStory(
   chapters: StoryChapterId[];
 }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'GROUP_ACCESS', resourceType: 'MOMENT', momentId });
+  await client.query('SAVEPOINT story_refresh');
+  try {
+    await refreshReadyMomentStory(client, ctx, momentId, { keepReady: true });
+    await client.query('RELEASE SAVEPOINT story_refresh');
+  } catch (err) {
+    await client.query('ROLLBACK TO SAVEPOINT story_refresh');
+    console.log(
+      JSON.stringify({ level: 'warn', msg: 'story_refresh_on_read_failed', momentId, err: String(err) })
+    );
+  }
   const story = await client.query<{
     story_id: string;
     story_version: number;
@@ -358,7 +370,8 @@ export function publicStoryWebBase(): string {
 export async function refreshReadyMomentStory(
   client: PoolClient,
   ctx: RequestContext,
-  momentId: string
+  momentId: string,
+  opts?: { keepReady?: boolean }
 ): Promise<void> {
   const moment = await client.query<{ status: string; domain_code: string }>(
     `SELECT status, domain_code FROM core.moment WHERE moment_id = $1`,
@@ -374,7 +387,7 @@ export async function refreshReadyMomentStory(
   );
   const storyId = story.rows[0]?.story_id;
   if (!storyId) return;
-  await generateMomentStoryArtifacts(client, ctx, storyId, { notify: false });
+  await generateMomentStoryArtifacts(client, ctx, storyId, { notify: false, keepReady: opts?.keepReady });
   await client.query(
     `UPDATE core.moment_story
      SET data_version = data_version + 1, updated_at = now()
