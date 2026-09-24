@@ -150,10 +150,18 @@ function drawWordmarkChip(doc: PDFKit.PDFDocument, x: number, y: number): void {
   doc.restore();
 }
 
-function ensure(doc: PDFKit.PDFDocument, y: number, needed: number): number {
-  if (y + needed <= doc.page.height - 48) return y;
+function room(doc: PDFKit.PDFDocument, y: number, needed: number): boolean {
+  return y + needed <= doc.page.height - 36;
+}
+
+/** Next page of the same screen. A short label, not a new chapter. */
+function continuePage(doc: PDFKit.PDFDocument, label: 'Photos' | 'Expenses' | 'The moment' | 'The money'): number {
   doc.addPage();
-  return 48;
+  if (label === 'Photos' || label === 'The moment') {
+    doc.rect(0, 0, doc.page.width, doc.page.height).fill(CREAM);
+  }
+  doc.fillColor(EMBER).fontSize(12).text(label, 48, 40, { lineBreak: false });
+  return 68;
 }
 
 function coverPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
@@ -164,82 +172,142 @@ function coverPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
     characterSpacing: 1.2,
     lineBreak: false,
   });
-  doc.fillColor('#F5F0FF').fontSize(32).text(snapshot.identity.title, 48, top + 28, { width: 500 });
+  doc.fillColor('#F5F0FF').fontSize(32).text(snapshot.identity.title, 48, top + 28, {
+    width: 500,
+    height: 70,
+    ellipsis: true,
+  });
   const place = snapshot.places[0]?.label;
   const dates = dateRange(snapshot.identity.startAt, snapshot.identity.endAt);
   doc.fillColor('#C4BDEE').fontSize(12).text([place, dates].filter(Boolean).join('   '), 48, top + 108, { width: 500 });
   if (snapshot.narrative.opening) {
-    doc.fillColor('#F5F0FF').fontSize(13).text(snapshot.narrative.opening, 48, top + 148, { width: 480 });
+    doc.fillColor('#F5F0FF').fontSize(13).text(snapshot.narrative.opening, 48, top + 148, {
+      width: 480,
+      height: 72,
+    });
   }
   const tiles = snapshot.display.metricKeys.slice(0, 6);
-  let x = 48;
-  let y = top + 248;
+  if (tiles.length === 0) return;
+  const bandH = 92;
+  const bandY = doc.page.height - 48 - bandH;
+  doc.roundedRect(32, bandY, doc.page.width - 64, bandH, 14).fill('#4B3EA8');
+  const cellW = (doc.page.width - 64) / tiles.length;
   tiles.forEach((metric, index) => {
-    if (index === 3) {
-      x = 48;
-      y += 78;
-    }
-    doc.roundedRect(x, y, 150, 64, 8).fill('#4B3EA8');
-    doc.fillColor('#F5F0FF').fontSize(16).text(metricValue(snapshot, metric.key), x + 12, y + 14, {
-      width: 126,
+    const x = 32 + index * cellW;
+    doc.fillColor('#F5F0FF').fontSize(13).text(metricValue(snapshot, metric.key), x + 6, bandY + 24, {
+      width: cellW - 12,
+      align: 'center',
       lineBreak: false,
     });
-    doc.fontSize(10).fillColor('#C4BDEE').text(metric.label, x + 12, y + 38, { width: 126, lineBreak: false });
-    x += 166;
+    doc.fillColor('#C4BDEE').fontSize(9).text(metric.label, x + 6, bandY + 48, {
+      width: cellW - 12,
+      align: 'center',
+      lineBreak: false,
+    });
   });
 }
 
 type PdfPhoto = { image: Buffer; title: string | null };
 
-function togetherPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot, photos: PdfPhoto[]): void {
+function momentPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot, photos: PdfPhoto[]): void {
   doc.addPage();
-  doc.rect(0, 0, doc.page.width, 88).fill(CREAM);
-  drawWordmarkChip(doc, 48, 20);
-  doc.fillColor(INDIGO).fontSize(22).text('Together', 220, 36, { lineBreak: false });
-  let y = 110;
-  doc.fontSize(12).fillColor(EMBER).text('People', 48, y, { lineBreak: false });
+  doc.rect(0, 0, doc.page.width, doc.page.height).fill(CREAM);
+  drawWordmarkChip(doc, 48, 24);
+  doc.fillColor(INDIGO).fontSize(22).text('The moment', 220, 36, { lineBreak: false });
+  let y = 92;
+  doc.fontSize(11).fillColor(EMBER).text('People', 48, y, { lineBreak: false });
   y += 18;
-  const people = snapshot.people;
-  if (people.length === 0) {
-    doc.fillColor(MUTED).fontSize(11).text('No people recorded.', 48, y, { lineBreak: false });
-    y += 20;
+  y = drawPeopleChips(doc, snapshot.people, y);
+  y += 10;
+  if (!room(doc, y, 36)) y = continuePage(doc, 'The moment');
+  doc.fillColor(EMBER).fontSize(11).text('Timeline', 48, y, { lineBreak: false });
+  y += 16;
+  if (snapshot.timeline.length === 0) {
+    doc.fillColor(MUTED).fontSize(11).text('No timeline recorded.', 48, y, { lineBreak: false });
+    y += 18;
   } else {
-    people.forEach((person) => {
-      y = ensure(doc, y, 20);
-      doc.fillColor(INK).fontSize(11).text(`${person.displayName}  ·  ${person.roleCode}`, 48, y, { width: 500 });
-      y += 16;
-    });
+    y = drawTimelineRail(doc, snapshot.timeline, y);
   }
-  y += 12;
-  y = ensure(doc, y, 36);
-  doc.fillColor(EMBER).fontSize(12).text('Timeline', 48, y, { lineBreak: false });
-  y += 18;
-  snapshot.timeline.forEach((item) => {
-    y = ensure(doc, y, 36);
-    doc.rect(48, y + 4, 8, 8).fill(EMBER);
-    doc.fillColor(INK).fontSize(11).text(item.label, 66, y, { width: 460 });
-    const when = formatHumanDate(item.at) ?? item.at.slice(0, 10);
-    doc.fillColor(MUTED).fontSize(9).text(`${when}${item.detail ? `  ·  ${item.detail}` : ''}`, 66, y + 14, { width: 460 });
-    y += 32;
-  });
   if (snapshot.decisions.length > 0) {
     y += 8;
-    y = ensure(doc, y, 36);
-    doc.fillColor(EMBER).fontSize(12).text('Decisions', 48, y, { lineBreak: false });
-    y += 18;
+    if (!room(doc, y, 32)) y = continuePage(doc, 'The moment');
+    doc.fillColor(EMBER).fontSize(11).text('Decisions', 48, y, { lineBreak: false });
+    y += 16;
     snapshot.decisions.forEach((decision) => {
-      y = ensure(doc, y, 20);
-      doc.fillColor(INK).fontSize(11).text(`${decision.title}  ·  ${decision.status}`, 48, y, { width: 500 });
+      if (!room(doc, y, 18)) y = continuePage(doc, 'The moment');
+      doc.fillColor(INK).fontSize(11).text(`${decision.title}  ·  ${decision.status}`, 48, y, {
+        width: 500,
+        lineBreak: false,
+      });
       y += 16;
     });
   }
   if (photos.length > 0) {
     y += 12;
-    y = ensure(doc, y, 36);
-    doc.fillColor(EMBER).fontSize(12).text('Photos', 48, y, { lineBreak: false });
-    y += 20;
-    y = drawPhotoCollage(doc, photos, y);
+    if (!room(doc, y, 210)) {
+      y = continuePage(doc, 'Photos');
+    } else {
+      doc.fillColor(EMBER).fontSize(11).text('Photos', 48, y, { lineBreak: false });
+      y += 18;
+    }
+    drawPhotoCollage(doc, photos, y);
   }
+}
+
+function drawPeopleChips(
+  doc: PDFKit.PDFDocument,
+  people: StorySnapshot['people'],
+  startY: number
+): number {
+  if (people.length === 0) {
+    doc.fillColor(MUTED).fontSize(11).text('No people recorded.', 48, startY, { lineBreak: false });
+    return startY + 18;
+  }
+  let x = 48;
+  let y = startY;
+  const maxX = doc.page.width - 48;
+  doc.fontSize(9);
+  people.forEach((person) => {
+    const label = `${person.displayName}  ·  ${person.roleCode}`;
+    const chipW = Math.min(Math.max(doc.widthOfString(label) + 20, 48), 240);
+    if (x + chipW > maxX) {
+      x = 48;
+      y += 26;
+    }
+    if (!room(doc, y, 22)) {
+      y = continuePage(doc, 'The moment');
+      x = 48;
+    }
+    doc.roundedRect(x, y, chipW, 20, 10).fill(INDIGO);
+    doc.fillColor('#F5F0FF').fontSize(9).text(label, x + 8, y + 5, { width: chipW - 16, lineBreak: false });
+    x += chipW + 8;
+  });
+  return y + 26;
+}
+
+function drawTimelineRail(
+  doc: PDFKit.PDFDocument,
+  timeline: StorySnapshot['timeline'],
+  startY: number
+): number {
+  let y = startY;
+  timeline.forEach((item, index) => {
+    if (!room(doc, y, 20)) y = continuePage(doc, 'The moment');
+    if (index < timeline.length - 1) {
+      doc.moveTo(56, y + 8).lineTo(56, y + 20).lineWidth(1.5).strokeColor(EMBER).stroke();
+    }
+    doc.circle(56, y + 6, 3.5).fill(EMBER);
+    const when = formatHumanDate(item.at) ?? item.at.slice(0, 10);
+    const detail = item.detail ? `  ·  ${item.detail}` : '';
+    doc.fillColor(INK).fontSize(10).text(item.label, 72, y, { width: 300, lineBreak: false });
+    doc.fillColor(MUTED).fontSize(9).text(`${when}${detail}`, 376, y + 1, {
+      width: 168,
+      align: 'right',
+      lineBreak: false,
+    });
+    y += 20;
+  });
+  return y;
 }
 
 function drawPdfPhoto(
@@ -271,9 +339,12 @@ function drawPhotoCollage(doc: PDFKit.PDFDocument, photos: PdfPhoto[], startY: n
   const colW = 240;
   const gap = 12;
   let y = startY;
+  const place = (needed: number): void => {
+    if (!room(doc, y, needed)) y = continuePage(doc, 'Photos');
+  };
   const first = photos[0];
   if (!first) return y;
-  y = ensure(doc, y, 200);
+  place(200);
   const firstH = drawPdfPhoto(doc, first, 48, y, fullW, 180);
   y += firstH + gap;
   let index = 1;
@@ -282,13 +353,13 @@ function drawPhotoCollage(doc: PDFKit.PDFDocument, photos: PdfPhoto[], startY: n
     const photo = photos[index];
     if (!photo) break;
     if (wide || index === photos.length - 1) {
-      y = ensure(doc, y, 160);
+      place(160);
       const drawn = drawPdfPhoto(doc, photo, 48, y, fullW, 130);
       y += drawn + gap;
       index += 1;
     } else {
       const next = photos[index + 1];
-      y = ensure(doc, y, 140);
+      place(140);
       const left = drawPdfPhoto(doc, photo, 48, y, colW, 110);
       const right = next ? drawPdfPhoto(doc, next, 48 + colW + gap, y, colW, 110) : 0;
       y += Math.max(left, right) + gap;
@@ -356,27 +427,35 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
   const money = snapshot.money;
   const currency = snapshot.identity.currencyCode;
   doc.addPage();
-  drawWordmarkChip(doc, 48, 36);
-  doc.fillColor(INDIGO).fontSize(22).text('Money', 220, 48, { lineBreak: false });
-  const figuresTop = drawMoneyHighlightCards(doc, snapshot, 100);
+  drawWordmarkChip(doc, 48, 28);
+  doc.fillColor(INDIGO).fontSize(22).text('The money', 220, 40, { lineBreak: false });
+  const figuresTop = drawMoneyHighlightCards(doc, snapshot, 92);
   const figures: Array<[string, number]> = [
     ['Contributed', money.contributed],
     ['Spent', money.spent],
     ['Remaining', money.remaining],
     ['Unsettled', money.unsettled],
   ];
+  const figureGap = 8;
+  const figureW = (499 - figureGap * 3) / 4;
   figures.forEach(([label, amount], index) => {
-    const x = 48 + (index % 2) * 250;
-    const y = figuresTop + Math.floor(index / 2) * 58;
-    doc.roundedRect(x, y, 230, 48, 8).fill(CREAM);
-    doc.fillColor(INDIGO).fontSize(14).text(formatMoney(amount, currency), x + 12, y + 8, { width: 206, lineBreak: false });
-    doc.fillColor(MUTED).fontSize(10).text(label, x + 12, y + 28, { lineBreak: false });
+    const x = 48 + index * (figureW + figureGap);
+    doc.roundedRect(x, figuresTop, figureW, 52, 8).fill(CREAM);
+    doc.fillColor(INDIGO).fontSize(11).text(formatMoney(amount, currency), x + 6, figuresTop + 8, {
+      width: figureW - 12,
+      lineBreak: false,
+    });
+    doc.fillColor(MUTED).fontSize(8).text(label, x + 6, figuresTop + 30, {
+      width: figureW - 12,
+      lineBreak: false,
+    });
   });
 
-  let y = figuresTop + 116 + 16;
+  let y = figuresTop + 68;
   const categories = money.categories.filter((c) => c.amount > 0);
   const spent = money.spent || categories.reduce((sum, c) => sum + c.amount, 0);
   if (categories.length > 0 && spent > 0) {
+    if (!room(doc, y, 160)) y = continuePage(doc, 'The money');
     doc.fillColor(EMBER).fontSize(12).text('Where the money went', 48, y, { lineBreak: false });
     y += 16;
     const pieTop = y;
@@ -386,8 +465,12 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
       spent
     );
     let legendY = pieTop;
+    let legendContinued = false;
     categories.forEach((category, index) => {
-      legendY = ensure(doc, legendY, 18);
+      if (!room(doc, legendY, 18)) {
+        legendY = continuePage(doc, 'The money');
+        legendContinued = true;
+      }
       doc.rect(210, legendY + 2, 10, 10).fill(SLICE[index % SLICE.length]!);
       doc
         .fillColor(INK)
@@ -400,7 +483,7 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
         );
       legendY += 18;
     });
-    y = Math.max(pieTop + 150, legendY + 12);
+    y = (legendContinued ? legendY : Math.max(pieTop + 150, legendY)) + 12;
   }
 
   const groups = new Map<string, Expense[]>();
@@ -416,9 +499,12 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
     return a[0] < b[0] ? -1 : 1;
   });
 
-  y = ensure(doc, y, 28);
-  doc.fillColor(EMBER).fontSize(12).text('Expenses', 48, y, { lineBreak: false });
-  y += 18;
+  if (!room(doc, y, 56)) {
+    y = continuePage(doc, 'Expenses');
+  } else {
+    doc.fillColor(EMBER).fontSize(12).text('Expenses', 48, y, { lineBreak: false });
+    y += 18;
+  }
   if (ordered.length === 0) {
     doc.fillColor(MUTED).fontSize(11).text('No expenses recorded.', 48, y, { lineBreak: false });
     return;
@@ -426,7 +512,7 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
   ordered.forEach(([key, expenses]) => {
     const heading = key ? formatDayHeading(expenses[0]?.at ?? key) : 'Undated';
     const dayTotal = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
-    y = ensure(doc, y, 40);
+    if (!room(doc, y, 40)) y = continuePage(doc, 'Expenses');
     doc.roundedRect(48, y, 499, 28, 6).fill(CREAM);
     doc.fillColor(INDIGO).fontSize(11).text(heading, 60, y + 8, { width: 280, lineBreak: false });
     doc.fillColor(INDIGO).fontSize(11).text(formatMoney(dayTotal, currency), 340, y + 8, {
@@ -436,8 +522,13 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
     });
     y += 36;
     expenses.forEach((expense) => {
-      y = ensure(doc, y, 32);
-      doc.fillColor(INK).fontSize(11).text(expense.description || expense.category, 48, y, { width: 280 });
+      if (!room(doc, y, 32)) y = continuePage(doc, 'Expenses');
+      doc.fillColor(INK).fontSize(11).text(expense.description || expense.category, 48, y, {
+        width: 280,
+        height: 14,
+        ellipsis: true,
+        lineBreak: false,
+      });
       doc.fillColor(MUTED).fontSize(9).text(`${expense.category}  ·  ${expense.payer}`, 48, y + 13, { width: 280 });
       doc.fillColor(INDIGO).fontSize(11).text(formatMoney(expense.amount, currency), 360, y, { width: 180, align: 'right', lineBreak: false });
       y += 30;
@@ -449,22 +540,40 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
 function closePage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
   doc.addPage();
   doc.rect(0, 0, doc.page.width, doc.page.height).fill(INDIGO);
-  drawWordmark(doc, 48, 56, 56, 180);
-  doc.fillColor(EMBER).fontSize(12).text('TOGETHER  ·  FORWARD', 48, 132, { characterSpacing: 1.4, lineBreak: false });
+  drawWordmark(doc, 48, 48, 56, 180);
+  doc.fillColor(EMBER).fontSize(12).text('TOGETHER  ·  FORWARD', 48, 120, { characterSpacing: 1.4, lineBreak: false });
   const celebration = ['HOUSE_PARTY', 'WEDDING', 'SHARED_EXPERIENCE'].includes(snapshot.identity.familyProfile);
   const headline = celebration ? 'The celebration ended.\nThe Moment stayed.' : snapshot.display.closeLine;
-  doc.fillColor('#F5F0FF').fontSize(26).text(headline, 48, 164, { width: 500 });
+  doc.fillColor('#F5F0FF').fontSize(26).text(headline, 48, 148, { width: 500 });
+  let awardTop = celebration ? 248 : 230;
   if (celebration) {
-    doc.fillColor('#C4BDEE').fontSize(14).text(snapshot.display.closeLine, 48, 250, { width: 500 });
+    doc.fillColor('#C4BDEE').fontSize(13).text(snapshot.display.closeLine, 48, 230, { width: 500, height: 32 });
+    awardTop = 276;
   }
-  let awardY = celebration ? 300 : 250;
-  (snapshot.highlights ?? []).forEach((award) => {
-    awardY = ensure(doc, awardY, 36);
-    doc.fillColor(EMBER).fontSize(11).text(award.title, 48, awardY, { width: 500, lineBreak: false });
-    doc.fillColor('#C4BDEE').fontSize(12).text(award.detail, 48, awardY + 16, { width: 500 });
-    awardY += 40;
+  const awards = snapshot.highlights ?? [];
+  const cardW = 242;
+  const cardH = 70;
+  const gap = 12;
+  awards.forEach((award, index) => {
+    const col = index % 2;
+    const row = Math.floor(index / 2);
+    const x = 48 + col * (cardW + gap);
+    const y = awardTop + row * (cardH + gap);
+    doc.roundedRect(x, y, cardW, cardH, 10).fill('#3F2F78');
+    doc.fillColor(EMBER).fontSize(11).text(award.title, x + 12, y + 12, {
+      width: cardW - 24,
+      height: 16,
+      ellipsis: true,
+      lineBreak: false,
+    });
+    doc.fillColor('#F5F0FF').fontSize(10).text(award.detail, x + 12, y + 32, {
+      width: cardW - 24,
+      height: 28,
+    });
   });
-  doc.fillColor('#F5F0FF').fontSize(16).text(snapshot.identity.title, 48, awardY + 8, { width: 500 });
+  const rows = Math.ceil(awards.length / 2);
+  const titleY = awards.length === 0 ? awardTop : awardTop + rows * (cardH + gap) + 8;
+  doc.fillColor('#F5F0FF').fontSize(16).text(snapshot.identity.title, 48, titleY, { width: 500 });
 }
 
 async function loadPhotoBuffers(snapshot: StorySnapshot): Promise<PdfPhoto[]> {
@@ -495,7 +604,7 @@ export async function renderStoryPdf(snapshot: StorySnapshot): Promise<Buffer> {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
     coverPage(doc, snapshot);
-    togetherPage(doc, snapshot, photos);
+    momentPage(doc, snapshot, photos);
     if (!moneyIsEmpty(snapshot.money)) moneyPage(doc, snapshot);
     closePage(doc, snapshot);
     doc.end();

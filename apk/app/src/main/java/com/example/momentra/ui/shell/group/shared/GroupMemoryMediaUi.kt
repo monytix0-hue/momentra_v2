@@ -495,7 +495,7 @@ fun MemoryGalleryListSheet(
                                     }
                                 }
                             }
-                            repeat(columns - rowUrls.size) {
+                            repeat(columns - rowPhotos.size) {
                                 Box(modifier = Modifier.weight(1f))
                             }
                         }
