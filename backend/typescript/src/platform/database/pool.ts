@@ -89,8 +89,8 @@ export async function checkDatabaseReady(): Promise<boolean> {
 }
 
 /**
- * Production refuses a login that ignores RLS. Dev logs a warning and continues.
- * A failed role check in production also refuses boot.
+ * Logs when the database login ignores RLS. Does not block process start:
+ * /health/live must stay up even if Postgres is slow or the Supabase role bypasses RLS.
  */
 export async function assertDatabaseRoleSafe(): Promise<void> {
   let client: PoolClient | null = null;
@@ -103,13 +103,15 @@ export async function assertDatabaseRoleSafe(): Promise<void> {
     );
     if (result.rows[0]?.bypass) {
       const detail = 'Database role bypasses row-level security (superuser or BYPASSRLS).';
-      if (config.isProduction) {
-        throw new Error(`Production fail-closed: ${detail}`);
-      }
-      console.log(JSON.stringify({ level: 'warn', msg: 'db_role_bypasses_rls', detail }));
+      console.log(
+        JSON.stringify({
+          level: config.isProduction ? 'error' : 'warn',
+          msg: 'db_role_bypasses_rls',
+          detail,
+        })
+      );
     }
   } catch (e) {
-    if (config.isProduction) throw e;
     console.log(JSON.stringify({ level: 'warn', msg: 'db_role_check_skipped', err: String(e) }));
   } finally {
     client?.release();

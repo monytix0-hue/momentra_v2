@@ -107,14 +107,10 @@ export function startServer(): ReturnType<typeof createServer> {
     });
   });
 
-  void assertDatabaseRoleSafe()
-    .then(() => {
-      listen();
-    })
-    .catch((err) => {
-      console.log(JSON.stringify({ level: 'error', msg: 'db_role_check_failed', err: String(err) }));
-      process.exit(1);
-    });
+  listen();
+  void assertDatabaseRoleSafe().catch((err) => {
+    console.log(JSON.stringify({ level: 'warn', msg: 'db_role_check_failed', err: String(err) }));
+  });
 
   const shutdown = async () => {
     console.log(JSON.stringify({ level: 'info', msg: 'graceful shutdown' }));
