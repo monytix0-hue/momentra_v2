@@ -156,7 +156,7 @@ struct AccountHubView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .keyboardType(.URL)
-                        Text("Physical devices cannot reach 127.0.0.1. Production: api.momentra.tech. Fallback while HTTPS is down: \(APIConfig.dokployDirectAPIBase)")
+                        Text("Physical devices cannot reach 127.0.0.1. Production uses https://api.momentra.tech. Debug builds may use a private LAN http host.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         Button("Save override") {
@@ -168,11 +168,6 @@ struct AccountHubView: View {
                             APIConfig.baseURLOverride = APIConfig.productionAPIBase
                             apiBaseOverride = APIConfig.baseURLOverride
                             status = "API base set to \(APIConfig.baseURLDescription)"
-                        }
-                        Button("Use Dokploy direct (200.141.7.52:3001)") {
-                            APIConfig.baseURLOverride = APIConfig.dokployDirectAPIBase
-                            apiBaseOverride = APIConfig.baseURLOverride
-                            status = "API base set to \(APIConfig.baseURLDescription). HTTP fallback until HTTPS is fixed."
                         }
                         Button("Clear override", role: .destructive) {
                             APIConfig.baseURLOverride = ""

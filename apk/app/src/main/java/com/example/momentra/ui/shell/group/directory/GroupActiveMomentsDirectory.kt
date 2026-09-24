@@ -148,6 +148,8 @@ fun GroupActiveMomentsDirectory(
     onCreateMoment: () -> Unit,
     /** Open on Completed lifecycle tab (empty Group with only completed history). */
     initialCompletedTab: Boolean = false,
+    /** Home mode has no Close — dismissing would return to the create-empty screen. */
+    allowDismiss: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
@@ -171,6 +173,7 @@ fun GroupActiveMomentsDirectory(
             onOpenStory = onOpenStory,
             onCreateMoment = onCreateMoment,
             initialCompletedTab = initialCompletedTab,
+            allowDismiss = allowDismiss,
         )
     }
 }
@@ -187,6 +190,7 @@ private fun GroupActiveMomentsDirectoryBody(
     onOpenStory: (String) -> Unit,
     onCreateMoment: () -> Unit,
     initialCompletedTab: Boolean = false,
+    allowDismiss: Boolean = true,
 ) {
     val meRepository = remember { MeRepository() }
     val active = remember(moments) { moments.filter { it.isActiveStatus() } }
@@ -285,16 +289,18 @@ private fun GroupActiveMomentsDirectoryBody(
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            Icon(
-                Icons.Outlined.Close,
-                contentDescription = "Close",
-                tint = MomentraBrandColors.TextOnDark.copy(alpha = 0.7f),
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = onDismiss)
-                    .padding(6.dp),
-            )
+            if (allowDismiss) {
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = "Close",
+                    tint = MomentraBrandColors.TextOnDark.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onDismiss)
+                        .padding(6.dp),
+                )
+            }
         }
 
         Row(

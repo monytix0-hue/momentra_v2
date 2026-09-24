@@ -165,6 +165,44 @@ class AppShellViewModelTest {
         advanceUntilIdle()
         assertEquals(MomentExperienceKind.FIRST_MOMENT, vm.state.value.momentExperience)
         assertFalse(vm.state.value.showMomentSwitcher)
+        assertFalse(vm.state.value.groupHasCompletedHistory)
+        assertFalse(vm.state.value.groupMomentDirectoryHome)
+    }
+
+    @Test
+    fun groupCompletedOnlyShowsDirectoryHome() = runTest {
+        val vm = AppShellViewModel(
+            FakeMeGateway(
+                groupMoments = emptyList(),
+                completedGroupMoments = listOf(MomentSummary("g1", "Trip", "COMPLETED")),
+            ),
+        )
+        vm.bindIdentity(ShellIdentity("u1", null, null, null))
+        vm.selectContext(AppContext.GROUP)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.groupHasCompletedHistory)
+        assertTrue(vm.state.value.groupMomentDirectoryHome)
+        assertEquals(MomentExperienceKind.BETWEEN_MOMENTS, vm.state.value.momentExperience)
+        vm.selectBottomDestination(BottomDestination.CREATE)
+        assertFalse(vm.state.value.groupMomentDirectoryHome)
+        vm.selectBottomDestination(BottomDestination.PULSE)
+        assertTrue(vm.state.value.groupMomentDirectoryHome)
+    }
+
+    @Test
+    fun groupCompletedOnlyFromCacheShowsDirectoryHome() = runTest {
+        val vm = AppShellViewModel(
+            FakeMeGateway(
+                groupMoments = emptyList(),
+                completedGroupMoments = listOf(MomentSummary("g1", "Trip", "COMPLETED")),
+                cacheFresh = true,
+            ),
+        )
+        vm.bindIdentity(ShellIdentity("u1", null, null, null))
+        vm.selectContext(AppContext.GROUP)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.groupMomentDirectoryHome)
+        assertEquals(MomentExperienceKind.BETWEEN_MOMENTS, vm.state.value.momentExperience)
     }
 
     @Test
@@ -401,42 +439,45 @@ private open class FakeMeGateway(
     private val companies: List<CompanySummary> = emptyList(),
     private val personalMoments: List<MomentSummary> = emptyList(),
     private val groupMoments: List<MomentSummary> = emptyList(),
+    private val completedGroupMoments: List<MomentSummary> = groupMoments,
     private val businessMoments: List<MomentSummary> = emptyList(),
     private val hasLife360: Boolean = false,
     private val bootstrapError: Throwable? = null,
+    private val cacheFresh: Boolean = false,
 ) : MeGateway {
     override suspend fun getMe(): Result<ShellIdentity> =
         Result.success(ShellIdentity(userId, null, null, null))
 
     override suspend fun getBootstrap(): Result<com.example.momentra.domain.ShellBootstrap> {
         if (bootstrapError != null) return Result.failure(bootstrapError)
-        return Result.success(
-            com.example.momentra.domain.ShellBootstrap(
-                identity = ShellIdentity(userId, null, null, null),
-                supportedContexts = listOf(
-                    AppContext.PERSONAL,
-                    AppContext.GROUP,
-                    AppContext.BUSINESS,
-                    AppContext.CIRCLE,
-                ),
-                currentlySelectedContext = AppContext.PERSONAL,
-                personalMoments = personalMoments,
-                groupMoments = groupMoments,
-                businessMoments = businessMoments,
-                companies = companies,
-                selectedCompany = companies.firstOrNull(),
-                capabilities = emptyList(),
-                roles = listOf("USER"),
-                preferencesTimezone = "UTC",
-                preferencesLocale = null,
-                featureFlags = emptyMap(),
-            ),
-        )
+        return Result.success(bootstrapSnapshot())
     }
 
-    override fun cachedBootstrap(userId: String): com.example.momentra.domain.ShellBootstrap? = null
+    override fun cachedBootstrap(userId: String): com.example.momentra.domain.ShellBootstrap? =
+        if (cacheFresh) bootstrapSnapshot() else null
 
-    override fun isBootstrapCacheFresh(userId: String, maxAgeMs: Long): Boolean = false
+    override fun isBootstrapCacheFresh(userId: String, maxAgeMs: Long): Boolean = cacheFresh
+
+    private fun bootstrapSnapshot() = com.example.momentra.domain.ShellBootstrap(
+        identity = ShellIdentity(userId, null, null, null),
+        supportedContexts = listOf(
+            AppContext.PERSONAL,
+            AppContext.GROUP,
+            AppContext.BUSINESS,
+            AppContext.CIRCLE,
+        ),
+        currentlySelectedContext = AppContext.PERSONAL,
+        personalMoments = personalMoments,
+        groupMoments = groupMoments,
+        businessMoments = businessMoments,
+        companies = companies,
+        selectedCompany = companies.firstOrNull(),
+        capabilities = emptyList(),
+        roles = listOf("USER"),
+        preferencesTimezone = "UTC",
+        preferencesLocale = null,
+        featureFlags = emptyMap(),
+    )
 
     override fun clearBootstrapCache(userId: String?) {}
 
@@ -449,8 +490,10 @@ private open class FakeMeGateway(
     override suspend fun listPersonalMoments(limit: Int): Result<List<MomentSummary>> =
         Result.success(personalMoments.take(limit))
 
-    override suspend fun listGroupMoments(limit: Int, lifecycle: String): Result<List<MomentSummary>> =
-        Result.success(groupMoments.take(limit))
+    override suspend fun listGroupMoments(limit: Int, lifecycle: String): Result<List<MomentSummary>> {
+        val source = if (lifecycle == "completed") completedGroupMoments else groupMoments
+        return Result.success(source.take(limit))
+    }
 
     override suspend fun listBusinessMoments(limit: Int): Result<List<MomentSummary>> =
         Result.success(businessMoments.take(limit))

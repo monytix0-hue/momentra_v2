@@ -8,7 +8,9 @@ import { after, before, describe, it } from 'node:test';
 import { randomUUID } from 'crypto';
 import request from 'supertest';
 import { createApp } from '../src/app';
-import { closePool, getPool } from '../src/platform/database/pool';
+import { closePool, getPool, withTransaction } from '../src/platform/database/pool';
+import { updateExpense } from '../src/modules/finance/service';
+import type { RequestContext } from '../src/platform/request-context/context';
 import { firebaseUserId } from '../src/platform/auth/uuid';
 import { config } from '../src/platform/config';
 
@@ -280,5 +282,47 @@ describe('Phase 8 expense create', () => {
     } finally {
       process.env.ALLOW_DEV_AUTH = prev ?? '1';
     }
+  });
+
+  it('rolls back an expense update when a later statement fails', async () => {
+    const uid = `p8-rb-${randomUUID().slice(0, 8)}`;
+    const userId = userIdFor(uid);
+    await ensureUser(userId, `${uid}@phase8.local`);
+    const momentId = await createPersonalMoment(uid);
+    const created = await request(app)
+      .post(`/v1/moments/${momentId}/expenses`)
+      .set('X-Dev-Firebase-Uid', uid)
+      .set('Idempotency-Key', `p8-rb-${randomUUID()}`)
+      .send({ amount: '10.00', currencyCode: 'INR', merchantName: 'Before' });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    const expenseId = created.body.data.expenseId as string;
+
+    const ctx: RequestContext = Object.freeze({
+      firebaseUid: uid,
+      firebaseProjectId: projectId,
+      userId,
+      correlationId: randomUUID(),
+      roles: [],
+      permissions: [],
+    });
+
+    await assert.rejects(
+      () =>
+        withTransaction(async (client) => {
+          await updateExpense(client, ctx, momentId, expenseId, {
+            amount: '99.00',
+            merchantName: 'After',
+          });
+          throw new Error('boom after expense update');
+        }, userId),
+      /boom after expense update/
+    );
+
+    const row = await getPool().query<{ amount: string; merchant_name: string }>(
+      `SELECT amount::text AS amount, merchant_name FROM finance.expense WHERE expense_id = $1`,
+      [expenseId]
+    );
+    assert.match(row.rows[0]?.amount ?? '', /^10(\.0+)?$/);
+    assert.equal(row.rows[0]?.merchant_name, 'Before');
   });
 });

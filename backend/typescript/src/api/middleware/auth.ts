@@ -9,6 +9,7 @@ import {
 } from '../../platform/auth';
 import { config } from '../../platform/config';
 import { getCorrelationId } from '../../platform/observability/correlation';
+import { runWithRequestUser } from '../../platform/request-context/store';
 
 const DEV_UID_HEADER = 'x-dev-firebase-uid';
 
@@ -55,6 +56,8 @@ export async function optionalAuthMiddleware(req: Request, _res: Response, next:
           email: `${devIdentity.userId}@dev.momentra.local`,
           displayName: 'Dev User',
         });
+        runWithRequestUser(req.requestContext.userId, () => next());
+        return;
       }
       return next();
     }
@@ -65,7 +68,7 @@ export async function optionalAuthMiddleware(req: Request, _res: Response, next:
     }
     const decoded = await verifyFirebaseToken(header.slice(7));
     req.requestContext = await buildContext(req, resolveIdentityFromToken(decoded));
-    next();
+    runWithRequestUser(req.requestContext.userId, () => next());
   } catch {
     next();
   }
@@ -86,7 +89,8 @@ export async function authMiddleware(req: Request, _res: Response, next: NextFun
         email: `${devIdentity.userId}@dev.momentra.local`,
         displayName: 'Dev User',
       });
-      return next();
+      runWithRequestUser(req.requestContext.userId, () => next());
+      return;
     }
 
     const header = req.header('authorization');
@@ -95,7 +99,7 @@ export async function authMiddleware(req: Request, _res: Response, next: NextFun
     }
     const decoded = await verifyFirebaseToken(header.slice(7));
     req.requestContext = await buildContext(req, resolveIdentityFromToken(decoded));
-    next();
+    runWithRequestUser(req.requestContext.userId, () => next());
   } catch (e) {
     if (e instanceof AppError) {
       next(e);

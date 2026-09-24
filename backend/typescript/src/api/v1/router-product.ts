@@ -16,7 +16,8 @@
  */
 import { Router } from 'express';
 import { z } from 'zod';
-import { getPool } from '../../platform/database/pool';
+import { getPool, withUserConnection } from '../../platform/database/pool';
+import { currentRequestUserId } from '../../platform/request-context/store';
 import { runCommand } from '../../platform/transaction/run-command';
 import { AppError, ErrorCode, commandEnvelope, projectionEnvelope } from '../../platform/errors/errors';
 import { authMiddleware, requireIdempotencyKey } from '../middleware/auth';
@@ -44,12 +45,16 @@ v1Router.use('/telemetry', telemetryRouter);
 v1Router.use(authMiddleware);
 
 async function withDb<T>(fn: (client: import('pg').PoolClient) => Promise<T>): Promise<T> {
-  const client = await getPool().connect();
-  try {
-    return await fn(client);
-  } finally {
-    client.release();
+  const userId = currentRequestUserId();
+  if (!userId) {
+    const client = await getPool().connect();
+    try {
+      return await fn(client);
+    } finally {
+      client.release();
+    }
   }
+  return withUserConnection(userId, fn);
 }
 
 function parseBody<T>(schema: z.ZodSchema<T>, body: unknown): T {

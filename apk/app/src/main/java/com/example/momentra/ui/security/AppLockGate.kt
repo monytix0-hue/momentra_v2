@@ -132,3 +132,26 @@ fun AppLockGate(
         }
     }
 }
+
+@Composable
+fun AppLockUnavailableScreen(onSignOut: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ShellTokens.TopBarBackground)
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("App lock could not be verified", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.White)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            "Sign out to continue. You can set a new PIN after you sign in again.",
+            color = Color.White.copy(alpha = 0.7f),
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
+            Text("Sign out")
+        }
+    }
+}

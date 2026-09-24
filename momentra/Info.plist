@@ -33,13 +33,6 @@
 	<string>https://api.momentra.tech/</string>
 	<key>SENTRY_DSN</key>
 	<string></string>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Momentra uses the camera to capture photos and to scan invite QR codes so you can join a group.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

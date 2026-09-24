@@ -84,6 +84,7 @@ import com.example.momentra.ui.shell.empty.ContextEmptyExperience
 import com.example.momentra.ui.shell.group.directory.GroupActiveMomentsDirectory
 import com.example.momentra.ui.shell.empty.GroupCreateFlow
 import com.example.momentra.ui.shell.empty.group.GroupCreatePhase
+import com.example.momentra.ui.shell.empty.business.CompanyJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
 import com.example.momentra.ui.shell.empty.personal.PersonalCreateEmptyContent
@@ -219,6 +220,7 @@ fun AppShellScreen(
     val tourRegistry = rememberTourTargetRegistry()
 
     var pendingGroupJoinCode by remember { mutableStateOf<String?>(null) }
+    var pendingCompanyJoinCode by remember { mutableStateOf<String?>(null) }
     var inboxOpen by remember { mutableStateOf(false) }
     var storyMomentId by remember { mutableStateOf<String?>(null) }
     var unreadNotificationCount by remember { mutableIntStateOf(0) }
@@ -276,24 +278,7 @@ fun AppShellScreen(
         PendingCompanyJoinInvite.code.collect { offered ->
             if (offered.isNullOrBlank()) return@collect
             val code = PendingCompanyJoinInvite.consume(prefs) ?: return@collect
-            shellViewModel.redeemCompanyInvite(code) { result ->
-                result.fold(
-                    onSuccess = {
-                        Toast.makeText(
-                            context,
-                            if (it.alreadyMember) "Already a company member" else "Joined company",
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    },
-                    onFailure = {
-                        Toast.makeText(
-                            context,
-                            it.message ?: "Could not join company",
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    },
-                )
-            }
+            pendingCompanyJoinCode = code
         }
     }
 
@@ -461,7 +446,11 @@ fun AppShellScreen(
             .fillMaxSize()
             .background(ShellTokens.SurfaceContent),
     ) {
-        if (!(groupMomentDirectoryOpen && state.selectedContext == AppContext.GROUP)) {
+        val groupDirectoryHome = state.groupMomentDirectoryHome &&
+            state.selectedContext == AppContext.GROUP
+        val groupDirectoryVisible = state.selectedContext == AppContext.GROUP &&
+            (groupMomentDirectoryOpen || groupDirectoryHome)
+        if (!groupDirectoryVisible) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -522,7 +511,7 @@ fun AppShellScreen(
                     onAvatar = { shellViewModel.openProfile(true) },
                 )
             }
-            if (!newMomentOpen && state.showMomentSwitcher && !groupMomentDirectoryOpen) {
+            if (!newMomentOpen && state.showMomentSwitcher && !groupDirectoryVisible) {
                 MomentSwitcher(
                     selectedTitle = state.selectedMomentTitle,
                     selectedMomentId = state.selectedMomentId,
@@ -760,10 +749,12 @@ fun AppShellScreen(
             GroupActiveMomentsDirectory(
                 moments = state.moments,
                 selectedMomentId = state.selectedMomentId,
-                visible = groupMomentDirectoryOpen && state.selectedContext == AppContext.GROUP,
+                visible = groupDirectoryVisible,
                 onDismiss = {
-                    groupMomentDirectoryOpen = false
-                    groupDirectoryPreferCompleted = false
+                    if (!groupDirectoryHome) {
+                        groupMomentDirectoryOpen = false
+                        groupDirectoryPreferCompleted = false
+                    }
                 },
                 onSelectMoment = { momentId ->
                     shellViewModel.selectMoment(momentId)
@@ -785,7 +776,9 @@ fun AppShellScreen(
                     groupDirectoryPreferCompleted = false
                     openNewMoment()
                 },
-                initialCompletedTab = groupDirectoryPreferCompleted,
+                initialCompletedTab = groupDirectoryPreferCompleted ||
+                    (groupDirectoryHome && state.moments.none { it.isActiveStatus() }),
+                allowDismiss = !groupDirectoryHome,
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding(),
@@ -982,24 +975,7 @@ fun AppShellScreen(
                 },
                 onCompanyCode = { code ->
                     showJoinQrScanner = false
-                    shellViewModel.redeemCompanyInvite(code) { result ->
-                        result.fold(
-                            onSuccess = {
-                                Toast.makeText(
-                                    context,
-                                    if (it.alreadyMember) "Already a company member" else "Joined company",
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            },
-                            onFailure = {
-                                Toast.makeText(
-                                    context,
-                                    it.message ?: "Could not join company",
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            },
-                        )
-                    }
+                    pendingCompanyJoinCode = code
                 },
                 onDismiss = { showJoinQrScanner = false },
             )
@@ -1036,6 +1012,34 @@ fun AppShellScreen(
                                 Toast.makeText(
                                     context,
                                     it.message ?: "Could not join",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            },
+                        )
+                    }
+                },
+            )
+        }
+        pendingCompanyJoinCode?.let { code ->
+            CompanyJoinConfirmSheet(
+                code = code,
+                visible = true,
+                onDismiss = { pendingCompanyJoinCode = null },
+                onJoin = {
+                    shellViewModel.redeemCompanyInvite(code) { result ->
+                        result.fold(
+                            onSuccess = {
+                                pendingCompanyJoinCode = null
+                                Toast.makeText(
+                                    context,
+                                    if (it.alreadyMember) "Already a company member" else "Joined company",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            },
+                            onFailure = {
+                                Toast.makeText(
+                                    context,
+                                    it.message ?: "Could not join company",
                                     Toast.LENGTH_SHORT,
                                 ).show()
                             },

@@ -12,6 +12,7 @@ import {
   assertActiveCompanyMember,
   assertCanApproveCompanyFinance,
   assertCompanyMomentAccess,
+  assertNotCompanyObserver,
 } from '../business/membership';
 
 function isUniqueViolation(err: unknown, constraint?: string): boolean {
@@ -197,6 +198,7 @@ async function prepareBusinessExpenseGate(
     );
   }
   const r = row.rows[0];
+  assertNotCompanyObserver(r.membership_type);
   if (!config.governanceFailOpen && parseInt(r.policy_n ?? '0', 10) === 0) {
     throw new AppError(
       ErrorCode.GOVERNANCE_DENIED,
@@ -750,6 +752,7 @@ export async function createBusinessRevenue(
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Amount must be positive.', 400);
   }
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
+  assertNotCompanyObserver(scope.membershipType);
 
   const inserted = await client.query<{ revenue_id: string }>(
     `WITH r AS (
@@ -836,6 +839,7 @@ export async function createBusinessInvoice(
   status: string;
 }> {
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
+  assertNotCompanyObserver(scope.membershipType);
 
   let subtotal = new Decimal(0);
   let taxTotal = new Decimal(0);

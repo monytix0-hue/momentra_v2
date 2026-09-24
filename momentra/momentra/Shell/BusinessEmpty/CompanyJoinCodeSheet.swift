@@ -122,7 +122,6 @@ struct CompanyJoinCodeSheet: View {
                 onCompanyCode: { scanned in
                     showScanner = false
                     code = scanned
-                    submit()
                 },
                 onDismiss: { showScanner = false }
             )

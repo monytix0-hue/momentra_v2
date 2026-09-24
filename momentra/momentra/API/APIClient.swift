@@ -205,10 +205,8 @@ enum APIConfig {
     /// UserDefaults key for Account → Developer API server override (LAN IP for device testing).
     static let baseURLOverrideKey = "momentra_api_base_url_override"
 
-    /// Production HTTPS (canonical once Dokploy TLS is healthy).
+    /// Production HTTPS.
     static let productionAPIBase = "https://api.momentra.tech/"
-    /// Direct Dokploy host port while `api.momentra.tech` HTTPS is misconfigured (HTTP only).
-    static let dokployDirectAPIBase = "http://200.141.7.52:3001/"
 
     /// Resolution order:
     /// 1. Scheme env `MOMENTRA_API_BASE_URL`
@@ -218,6 +216,7 @@ enum APIConfig {
     ///
     /// Physical devices must not rely on `127.0.0.1` — set Override to e.g. `http://192.168.x.x:3000/`.
     static var baseURL: URL {
+        clearInsecureOverrideIfNeeded()
         if let env = ProcessInfo.processInfo.environment["MOMENTRA_API_BASE_URL"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !env.isEmpty,
@@ -232,11 +231,10 @@ enum APIConfig {
            let url = Self.normalizedBaseURL(plist) {
             return url
         }
-#if targetEnvironment(simulator)
+#if DEBUG
         return URL(string: "http://127.0.0.1:3000/")!
 #else
-        // Device fallback is loopback only as last resort — configure override or plist for LAN.
-        return URL(string: "http://127.0.0.1:3000/")!
+        return URL(string: Self.productionAPIBase)!
 #endif
     }
 
@@ -254,11 +252,37 @@ enum APIConfig {
         }
     }
 
+    /// Release builds drop a stored http override so a bearer token cannot follow it.
+    static func clearInsecureOverrideIfNeeded() {
+        #if !DEBUG
+        guard let override = UserDefaults.standard.string(forKey: baseURLOverrideKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              override.hasPrefix("http://") else { return }
+        UserDefaults.standard.removeObject(forKey: baseURLOverrideKey)
+        #endif
+    }
+
     private static func normalizedBaseURL(_ raw: String) -> URL? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let withSlash = trimmed.hasSuffix("/") ? trimmed : trimmed + "/"
-        return URL(string: withSlash)
+        guard let url = URL(string: withSlash), let scheme = url.scheme?.lowercased() else { return nil }
+        if scheme == "https" { return url }
+        #if DEBUG
+        if scheme == "http", isLoopbackOrPrivateLan(url) { return url }
+        #endif
+        return nil
+    }
+
+    private static func isLoopbackOrPrivateLan(_ url: URL) -> Bool {
+        let host = (url.host ?? "").lowercased()
+        if host == "localhost" || host == "127.0.0.1" || host == "::1" { return true }
+        if host.hasPrefix("10.") || host.hasPrefix("192.168.") { return true }
+        let parts = host.split(separator: ".")
+        if host.hasPrefix("172."), parts.count >= 2, let second = Int(parts[1]), (16...31).contains(second) {
+            return true
+        }
+        return false
     }
 }
 

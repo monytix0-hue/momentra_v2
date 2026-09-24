@@ -37,6 +37,7 @@ export const updatePersonalIncomeSchema = z
     financialAccountId: z.string().uuid().nullable().optional(),
     paymentMethodCode: paymentMethodCodeSchema.nullable().optional(),
     effectiveAt: z.string().datetime().optional(),
+    expectedVersion: z.number().int().positive().optional(),
   })
   .strict()
   .refine(
@@ -172,7 +173,8 @@ export async function getPersonalIncome(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  incomeId: string
+  incomeId: string,
+  forUpdate = false
 ): Promise<PersonalIncomeDetail> {
   const row = await client.query<{
     financial_movement_id: string;
@@ -193,7 +195,8 @@ export async function getPersonalIncome(
        AND EXISTS (
          SELECT 1 FROM finance.financial_account fa
          WHERE fa.financial_account_id = fm.financial_account_id AND fa.owner_user_id = $3
-       )`,
+       )
+       ${forUpdate ? 'FOR UPDATE OF fm' : ''}`,
     [incomeId, momentId, ctx.userId]
   );
   if (!row.rows[0]) {
@@ -224,9 +227,12 @@ export async function updatePersonalIncome(
   body: z.infer<typeof updatePersonalIncomeSchema>
 ): Promise<PersonalIncomeResult> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'EXPENSE_CREATE', resourceType: 'EXPENSE', momentId });
-  const existing = await getPersonalIncome(client, ctx, momentId, incomeId);
+  const existing = await getPersonalIncome(client, ctx, momentId, incomeId, true);
   if (existing.status !== 'POSTED') {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Only posted income can be updated.', 400);
+  }
+  if (body.expectedVersion != null && body.expectedVersion !== existing.version) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Income version conflict.', 409);
   }
 
   const nextCurrency = body.currencyCode ?? existing.currencyCode;
@@ -247,10 +253,13 @@ export async function updatePersonalIncome(
        effective_at = $5::timestamptz,
        version = version + 1,
        updated_at = now()
-     WHERE financial_movement_id = $1
+     WHERE financial_movement_id = $1 AND version = $6
      RETURNING version`,
-    [incomeId, nextAmount, nextCurrency, nextAccountId, nextEffectiveAt]
+    [incomeId, nextAmount, nextCurrency, nextAccountId, nextEffectiveAt, existing.version]
   );
+  if (!updated.rows[0]) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Income version conflict.', 409);
+  }
 
   const title = body.description ?? body.merchantName ?? existing.description ?? 'Income';
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
@@ -307,19 +316,26 @@ export async function voidPersonalIncome(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  incomeId: string
+  incomeId: string,
+  expectedVersion?: number
 ): Promise<PersonalIncomeResult> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'EXPENSE_CREATE', resourceType: 'EXPENSE', momentId });
-  const existing = await getPersonalIncome(client, ctx, momentId, incomeId);
+  const existing = await getPersonalIncome(client, ctx, momentId, incomeId, true);
   if (existing.status === 'VOIDED') {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Income already voided.', 400);
   }
+  if (expectedVersion != null && expectedVersion !== existing.version) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Income version conflict.', 409);
+  }
 
-  await client.query(
+  const voided = await client.query(
     `UPDATE finance.financial_movement SET status = 'VOIDED', updated_at = now(), version = version + 1
-     WHERE financial_movement_id = $1`,
-    [incomeId]
+     WHERE financial_movement_id = $1 AND version = $2`,
+    [incomeId, existing.version]
   );
+  if ((voided.rowCount ?? 0) === 0) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Income version conflict.', 409);
+  }
 
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'IncomeVoided',

@@ -15,26 +15,23 @@ import javax.crypto.AEADBadTagException
  * Stores only a salted hash in EncryptedSharedPreferences (Keystore-backed master key).
  *
  * If Keystore/master-key decryption fails (reinstall, OEM keystore wipe, AEADBadTag),
- * wipe the corrupt prefs and recreate empty store so launch never crashes.
+ * keep the encrypted prefs and stay locked. Sign-out is what clears the store.
  */
 class AppLockStore(context: Context) {
     private val appContext = context.applicationContext
     private val prefs: SharedPreferences by lazy { openOrRecoverPrefs() }
+
+    val lockUnavailable: Boolean
+        get() = AppLockSession.lockUnavailable
 
     private fun openOrRecoverPrefs(): SharedPreferences {
         return try {
             createEncryptedPrefs()
         } catch (e: Throwable) {
             if (!isCorruptCrypto(e)) throw e
-            Log.w(TAG, "Encrypted app-lock prefs unreadable; resetting. ${e.javaClass.simpleName}: ${e.message}")
-            wipeCorruptLockStorage()
-            try {
-                createEncryptedPrefs()
-            } catch (retry: Throwable) {
-                Log.e(TAG, "Encrypted prefs recreate failed; falling back to plain prefs", retry)
-                wipeCorruptLockStorage()
-                appContext.getSharedPreferences("${PREFS_NAME}_plain", Context.MODE_PRIVATE)
-            }
+            Log.w(TAG, "Encrypted app-lock prefs unreadable; staying locked. ${e.javaClass.simpleName}: ${e.message}")
+            AppLockSession.markLockUnavailable()
+            UnavailableLockPrefs
         }
     }
 
@@ -105,7 +102,10 @@ class AppLockStore(context: Context) {
         return false
     }
 
-    fun isPinEnabled(): Boolean = !prefs.getString(KEY_PIN_HASH, null).isNullOrBlank()
+    fun isPinEnabled(): Boolean {
+        if (AppLockSession.lockUnavailable) return true
+        return !prefs.getString(KEY_PIN_HASH, null).isNullOrBlank()
+    }
 
     fun biometricsEnabled(): Boolean = prefs.getBoolean(KEY_BIOMETRICS, false)
 
@@ -142,7 +142,13 @@ class AppLockStore(context: Context) {
     }
 
     fun clearForLogout() {
-        // Keep lock settings device-local; clear unlock session only via AppLockSession.
+        // Keep a healthy lock device-local. A broken store is wiped only after sign-out.
+    }
+
+    /** Sign-out is the only way past an unreadable PIN store. */
+    fun wipeAfterFailedLockSignOut() {
+        wipeCorruptLockStorage()
+        AppLockSession.clearLockUnavailable()
     }
 
     private fun hash(pin: String, salt: String): String {
@@ -161,6 +167,10 @@ class AppLockStore(context: Context) {
     }
 }
 
+/** True when an unreadable PIN store must keep the signed-in shell closed. */
+fun requiresAppLock(lockUnavailable: Boolean, pinEnabled: Boolean, unlocked: Boolean): Boolean =
+    lockUnavailable || (pinEnabled && !unlocked)
+
 /** In-memory unlock state for the process. */
 object AppLockSession {
     @Volatile
@@ -168,10 +178,24 @@ object AppLockSession {
         private set
 
     @Volatile
+    var lockUnavailable: Boolean = false
+        private set
+
+    fun markLockUnavailable() {
+        lockUnavailable = true
+        unlocked = false
+    }
+
+    fun clearLockUnavailable() {
+        lockUnavailable = false
+    }
+
+    @Volatile
     var lastBackgroundAtMs: Long = 0L
         private set
 
     fun markUnlocked() {
+        if (lockUnavailable) return
         unlocked = true
     }
 
@@ -188,5 +212,33 @@ object AppLockSession {
         if (autoLockSeconds <= 0) return true
         val elapsed = System.currentTimeMillis() - lastBackgroundAtMs
         return elapsed >= autoLockSeconds * 1000L
+    }
+}
+
+/** Empty prefs used only while the encrypted store cannot be read. Nothing is written. */
+private object UnavailableLockPrefs : SharedPreferences {
+    override fun getAll(): MutableMap<String, *> = mutableMapOf<String, Any?>()
+    override fun getString(key: String?, defValue: String?): String? = defValue
+    override fun getStringSet(key: String?, defValues: MutableSet<String>?): MutableSet<String>? = defValues
+    override fun getInt(key: String?, defValue: Int): Int = defValue
+    override fun getLong(key: String?, defValue: Long): Long = defValue
+    override fun getFloat(key: String?, defValue: Float): Float = defValue
+    override fun getBoolean(key: String?, defValue: Boolean): Boolean = defValue
+    override fun contains(key: String?): Boolean = false
+    override fun edit(): SharedPreferences.Editor = Editor
+    override fun registerOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener?) = Unit
+    override fun unregisterOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener?) = Unit
+
+    private object Editor : SharedPreferences.Editor {
+        override fun putString(key: String?, value: String?) = this
+        override fun putStringSet(key: String?, values: MutableSet<String>?) = this
+        override fun putInt(key: String?, value: Int) = this
+        override fun putLong(key: String?, value: Long) = this
+        override fun putFloat(key: String?, value: Float) = this
+        override fun putBoolean(key: String?, value: Boolean) = this
+        override fun remove(key: String?) = this
+        override fun clear() = this
+        override fun commit(): Boolean = false
+        override fun apply() = Unit
     }
 }

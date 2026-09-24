@@ -45,6 +45,7 @@ struct AppShellView: View {
     @State private var showJoinQrScanner = false
     @State private var showReferComingSoon = false
     @State private var pendingGroupJoin: PendingGroupJoin?
+    @State private var pendingCompanyJoin: PendingCompanyJoin?
     @State private var companyMenuOpen = false
     @State private var joinFeedbackMessage: String?
     @State private var inboxOpen = false
@@ -59,7 +60,7 @@ struct AppShellView: View {
                     pendingGroupJoin = PendingGroupJoin(id: pending)
                 }
                 if let companyCode = JoinCompanyInviteStore.shared.consume() {
-                    redeemCompanyInviteCode(companyCode)
+                    pendingCompanyJoin = PendingCompanyJoin(id: companyCode)
                 }
                 handlePendingPushDeepLink()
                 Task { await inboxBadge.refresh() }
@@ -73,8 +74,9 @@ struct AppShellView: View {
             }
             .onReceive(JoinCompanyInviteStore.shared.$pendingCode) { code in
                 guard let code, !code.isEmpty else { return }
+                guard pendingCompanyJoin == nil else { return }
                 if let pending = JoinCompanyInviteStore.shared.consume() {
-                    redeemCompanyInviteCode(pending)
+                    pendingCompanyJoin = PendingCompanyJoin(id: pending)
                 }
             }
             .onReceive(PushDeepLinkStore.shared.$pendingLink) { link in
@@ -304,6 +306,21 @@ struct AppShellView: View {
                 )
             }
         }
+        .sheet(item: $pendingCompanyJoin) { pending in
+            CompanyJoinConfirmSheet(
+                code: pending.code,
+                onClose: { pendingCompanyJoin = nil },
+                onJoin: {
+                    let code = pending.code
+                    Task {
+                        let joined = await model.redeemCompanyInviteCode(code, using: createModel)
+                        pendingCompanyJoin = nil
+                        newMomentOpen = false
+                        joinFeedbackMessage = joined ? "Joined company" : "Could not join company"
+                    }
+                }
+            )
+        }
         .sheet(item: $pendingGroupJoin) { pending in
             GroupJoinConfirmSheet(
                 code: pending.code,
@@ -379,7 +396,7 @@ struct AppShellView: View {
                 },
                 onCompanyCode: { code in
                     showJoinQrScanner = false
-                    redeemCompanyInviteCode(code)
+                    pendingCompanyJoin = PendingCompanyJoin(id: code)
                 },
                 onDismiss: { showJoinQrScanner = false }
             )
@@ -749,13 +766,6 @@ struct AppShellView: View {
 
     private func redeemJoinCode(_ code: String) {
         pendingGroupJoin = PendingGroupJoin(id: code)
-    }
-
-    private func redeemCompanyInviteCode(_ code: String) {
-        Task {
-            await model.redeemCompanyInviteCode(code, using: createModel)
-            newMomentOpen = false
-        }
     }
 
     private var shellAccent: Color {

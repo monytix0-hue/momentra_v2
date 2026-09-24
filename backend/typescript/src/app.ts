@@ -5,7 +5,7 @@ import { config } from './platform/config';
 import { correlationMiddleware } from './api/middleware/correlation';
 import { requestLogMiddleware } from './platform/observability/logging';
 import { errorHandler } from './platform/errors/errors';
-import { checkDatabaseReady, closePool, prewarmPool } from './platform/database/pool';
+import { assertDatabaseRoleSafe, checkDatabaseReady, closePool, prewarmPool } from './platform/database/pool';
 import { v1Router } from './api/v1/router';
 import { adminRouter } from './api/admin/router';
 import { attachSseRoutes } from './realtime/sse';
@@ -82,7 +82,7 @@ export function startServer(): ReturnType<typeof createServer> {
   const app = createApp();
   const server = createServer(app);
 
-  server.listen(config.port, '0.0.0.0', () => {
+  const listen = () => server.listen(config.port, '0.0.0.0', () => {
     console.log(
       JSON.stringify({
         level: 'info',
@@ -106,6 +106,15 @@ export function startServer(): ReturnType<typeof createServer> {
       );
     });
   });
+
+  void assertDatabaseRoleSafe()
+    .then(() => {
+      listen();
+    })
+    .catch((err) => {
+      console.log(JSON.stringify({ level: 'error', msg: 'db_role_check_failed', err: String(err) }));
+      process.exit(1);
+    });
 
   const shutdown = async () => {
     console.log(JSON.stringify({ level: 'info', msg: 'graceful shutdown' }));

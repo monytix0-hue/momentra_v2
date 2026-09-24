@@ -71,6 +71,7 @@ export async function authorize(
       domain_code: string | null;
       moment_type_id: string | null;
       participant_role: string | null;
+      company_membership_type: string | null;
       is_organizer: boolean;
     }>(
       `SELECT
@@ -99,6 +100,14 @@ export async function authorize(
            WHERE mp.moment_id = $2 AND mp.user_id = $1 AND mp.status = 'ACTIVE'
            LIMIT 1
          ) AS participant_role,
+         (
+           SELECT UPPER(cm.membership_type)
+           FROM business.business_moment_context bmc
+           JOIN business.company_membership cm
+             ON cm.company_id = bmc.company_id AND cm.user_id = $1 AND cm.status = 'ACTIVE'
+           WHERE bmc.moment_id = $2
+           LIMIT 1
+         ) AS company_membership_type,
          EXISTS (
            SELECT 1 FROM collaboration.group_moment_context gmc
            WHERE gmc.moment_id = $2 AND gmc.organizer_user_id = $1
@@ -115,6 +124,10 @@ export async function authorize(
       (role === 'OBSERVER' || role === 'VIEWER');
     if (isObserver && OBSERVER_DENIED_ACTIONS.has(input.actionCode)) {
       return { allowed: false, reason: 'Viewers can view but not create or edit.' };
+    }
+    const companyRole = access.rows[0].company_membership_type;
+    if (companyRole === 'OBSERVER' && OBSERVER_DENIED_ACTIONS.has(input.actionCode)) {
+      return { allowed: false, reason: 'Observers can view but not create or edit.' };
     }
 
     // V019 contract: catalog capabilities must be mapped on the moment type.
@@ -137,15 +150,27 @@ export async function authorize(
   }
 
   if (input.companyId) {
-    const membership = await client.query<{ ok: boolean }>(
+    const membership = await client.query<{ ok: boolean; membership_type: string | null }>(
       `SELECT EXISTS (
          SELECT 1 FROM business.company_membership cm
          WHERE cm.company_id = $2 AND cm.user_id = $1 AND cm.status = 'ACTIVE'
-       ) AS ok`,
+       ) AS ok,
+       (
+         SELECT UPPER(cm.membership_type)
+         FROM business.company_membership cm
+         WHERE cm.company_id = $2 AND cm.user_id = $1 AND cm.status = 'ACTIVE'
+         LIMIT 1
+       ) AS membership_type`,
       [ctx.userId, input.companyId]
     );
     if (!membership.rows[0]?.ok) {
       return { allowed: false, reason: 'Not an active company member.' };
+    }
+    if (
+      membership.rows[0].membership_type === 'OBSERVER' &&
+      OBSERVER_DENIED_ACTIONS.has(input.actionCode)
+    ) {
+      return { allowed: false, reason: 'Observers can view but not create or edit.' };
     }
   }
 

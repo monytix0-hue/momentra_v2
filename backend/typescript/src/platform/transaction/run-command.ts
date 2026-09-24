@@ -39,5 +39,5 @@ export async function runCommand<TBody, TResult>(opts: CommandOptions<TBody, TRe
       }
       throw e;
     }
-  });
+  }, opts.ctx.userId);
 }

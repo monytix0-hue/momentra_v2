@@ -306,6 +306,41 @@ describe('Phase 3 platform foundation', () => {
         assert.equal(denied.allowed, false);
       });
     });
+
+    it('Business: OBSERVER cannot EXPENSE_CREATE, MEMBER can', async () => {
+      const observer = ctxFor(`biz-obs-${randomUUID().slice(0, 8)}`);
+      const member = ctxFor(`biz-mem-${randomUUID().slice(0, 8)}`);
+      await ensureUser(observer.userId, `${observer.userId}@phase3.local`);
+      await ensureUser(member.userId, `${member.userId}@phase3.local`);
+
+      const companyId = randomUUID();
+      await getPool().query(
+        `INSERT INTO business.company (company_id, legal_name, display_name, status, version, created_by_user_id)
+         VALUES ($1, 'Observer Co', 'Observer', 'ACTIVE', 1, $2)`,
+        [companyId, member.userId]
+      );
+      await getPool().query(
+        `INSERT INTO business.company_membership (company_id, user_id, membership_type, status)
+         VALUES ($1, $2, 'OBSERVER', 'ACTIVE'), ($1, $3, 'MEMBER', 'ACTIVE')`,
+        [companyId, observer.userId, member.userId]
+      );
+
+      await withTransaction(async (client) => {
+        const denied = await authorize(client, observer, {
+          actionCode: 'EXPENSE_CREATE',
+          resourceType: 'EXPENSE',
+          companyId,
+        });
+        assert.equal(denied.allowed, false);
+
+        const allowed = await authorize(client, member, {
+          actionCode: 'EXPENSE_CREATE',
+          resourceType: 'EXPENSE',
+          companyId,
+        });
+        assert.equal(allowed.allowed, true);
+      });
+    });
   });
 
   describe('transaction + audit/event/outbox + idempotency', () => {

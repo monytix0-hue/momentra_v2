@@ -69,6 +69,7 @@ export const updateExpenseSchema = z
     recurringScheduleId: z.string().uuid().nullable().optional(),
     sharedExperienceCode: sharedExperienceCodeSchema.optional(),
     sharedExperienceLabel: z.string().max(200).nullable().optional(),
+    expectedVersion: z.number().int().positive().optional(),
     transactionType: z.never().optional(),
   })
   .strict()
@@ -177,7 +178,8 @@ async function loadOwnedExpense(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  expenseId: string
+  expenseId: string,
+  forUpdate = false
 ): Promise<{
   expense_id: string;
   moment_id: string;
@@ -206,7 +208,8 @@ async function loadOwnedExpense(
             e.shared_experience_label
      FROM finance.expense e
      JOIN finance.personal_expense_context pec ON pec.expense_id = e.expense_id
-     WHERE e.expense_id = $1 AND pec.user_id = $2`,
+     WHERE e.expense_id = $1 AND pec.user_id = $2
+     ${forUpdate ? 'FOR UPDATE OF e' : ''}`,
     [expenseId, ctx.userId]
   );
   if (!existing.rows[0]) {
@@ -427,9 +430,13 @@ export async function updateExpense(
     momentId,
   });
 
-  const row = await loadOwnedExpense(client, ctx, momentId, expenseId);
+  const row = await loadOwnedExpense(client, ctx, momentId, expenseId, true);
   if (row.status !== 'POSTED') {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Only posted expenses can be updated.', 400);
+  }
+  const lockedVersion = parseInt(row.version, 10);
+  if (body.expectedVersion != null && body.expectedVersion !== lockedVersion) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Expense version conflict.', 409);
   }
 
   const nextCurrency = body.currencyCode ?? row.currency_code;
@@ -480,7 +487,7 @@ export async function updateExpense(
        shared_experience_label = $13,
        version = version + 1,
        updated_at = now()
-     WHERE expense_id = $1
+     WHERE expense_id = $1 AND version = $14
      RETURNING expense_id, version`,
     [
       expenseId,
@@ -496,8 +503,12 @@ export async function updateExpense(
       nextRecurring,
       nextShared,
       nextSharedLabel,
+      lockedVersion,
     ]
   );
+  if (!updated.rows[0]) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Expense version conflict.', 409);
+  }
 
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'ExpenseUpdated',
@@ -574,7 +585,8 @@ export async function voidExpense(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  expenseId: string
+  expenseId: string,
+  expectedVersion?: number
 ): Promise<ExpenseResult> {
   await assertGovernanceAllowed(client, ctx, {
     actionCode: 'EXPENSE_CREATE',
@@ -582,18 +594,25 @@ export async function voidExpense(
     momentId,
   });
 
-  const row = await loadOwnedExpense(client, ctx, momentId, expenseId);
+  const row = await loadOwnedExpense(client, ctx, momentId, expenseId, true);
   if (row.status === 'VOIDED') {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Expense already voided.', 400);
+  }
+  const lockedVersion = parseInt(row.version, 10);
+  if (expectedVersion != null && expectedVersion !== lockedVersion) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Expense version conflict.', 409);
   }
 
   const canonicalMomentId = row.moment_id;
 
-  await client.query(
+  const voided = await client.query(
     `UPDATE finance.expense SET status = 'VOIDED', reversed_at = now(), version = version + 1, updated_at = now()
-     WHERE expense_id = $1`,
-    [expenseId]
+     WHERE expense_id = $1 AND version = $2`,
+    [expenseId, lockedVersion]
   );
+  if ((voided.rowCount ?? 0) === 0) {
+    throw new AppError(ErrorCode.VERSION_CONFLICT, 'Expense version conflict.', 409);
+  }
 
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'ExpenseVoided',

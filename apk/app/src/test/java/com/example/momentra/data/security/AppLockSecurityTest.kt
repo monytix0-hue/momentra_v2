@@ -29,4 +29,22 @@ class AppLockSessionTest {
         // 0 seconds means immediate relock
         assertTrue(AppLockSession.shouldRelock(0))
     }
+
+    @Test
+    fun unavailableStoreStaysLocked() {
+        AppLockSession.clearLockUnavailable()
+        AppLockSession.markLocked()
+        try {
+            AppLockSession.markLockUnavailable()
+            assertTrue(AppLockSession.lockUnavailable)
+            assertFalse(AppLockSession.unlocked)
+            AppLockSession.markUnlocked()
+            assertFalse(AppLockSession.unlocked)
+            assertTrue(requiresAppLock(lockUnavailable = true, pinEnabled = false, unlocked = true))
+        } finally {
+            AppLockSession.clearLockUnavailable()
+            AppLockSession.markLocked()
+        }
+        assertFalse(AppLockSession.lockUnavailable)
+    }
 }

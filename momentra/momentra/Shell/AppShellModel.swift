@@ -675,8 +675,9 @@ final class AppShellModel: ObservableObject {
     }
 
     /// Redeem company invite then select the joined company in Business.
-    func redeemCompanyInviteCode(_ code: String, using createModel: MomentCreateModel) async {
-        guard let result = await createModel.redeemCompanyInvite(code: code) else { return }
+    @discardableResult
+    func redeemCompanyInviteCode(_ code: String, using createModel: MomentCreateModel) async -> Bool {
+        guard let result = await createModel.redeemCompanyInvite(code: code) else { return false }
         if selectedContext != .business {
             selectContext(.business)
         }
@@ -687,6 +688,7 @@ final class AppShellModel: ObservableObject {
         } else {
             onCompanyCreated(CompanySummary(companyId: result.companyId, displayName: "Company"))
         }
+        return true
     }
 
     func exitCreateDestination() {

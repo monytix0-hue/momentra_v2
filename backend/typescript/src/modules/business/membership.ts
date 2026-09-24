@@ -91,6 +91,17 @@ export async function assertActiveCompanyMember(
   };
 }
 
+/** Company observers can read. They cannot post expenses, revenue, or invoices. */
+export function assertNotCompanyObserver(membershipType: string): void {
+  if (membershipType.toUpperCase() === 'OBSERVER') {
+    throw new AppError(
+      ErrorCode.GOVERNANCE_DENIED,
+      'Observers can view but not create or edit.',
+      403
+    );
+  }
+}
+
 /** Approve rights via membership_type mapped through governance action — not native enum alone. */
 export async function assertCanApproveCompanyFinance(
   client: PoolClient,

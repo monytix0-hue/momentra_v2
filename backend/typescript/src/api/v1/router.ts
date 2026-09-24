@@ -5,7 +5,8 @@
  */
 import { Router } from 'express';
 import { z } from 'zod';
-import { getPool } from '../../platform/database/pool';
+import { getPool, withTransaction, withUserConnection } from '../../platform/database/pool';
+import { currentRequestUserId } from '../../platform/request-context/store';
 import { runCommand } from '../../platform/transaction/run-command';
 import { AppError, ErrorCode, commandEnvelope, projectionEnvelope } from '../../platform/errors/errors';
 import { authMiddleware, requireIdempotencyKey } from '../middleware/auth';
@@ -69,12 +70,16 @@ v1Router.use(
 );
 
 async function withDb<T>(fn: (client: import('pg').PoolClient) => Promise<T>): Promise<T> {
-  const client = await getPool().connect();
-  try {
-    return await fn(client);
-  } finally {
-    client.release();
+  const userId = currentRequestUserId();
+  if (!userId) {
+    const client = await getPool().connect();
+    try {
+      return await fn(client);
+    } finally {
+      client.release();
+    }
   }
+  return withUserConnection(userId, fn);
 }
 
 function parseBody<T>(schema: z.ZodSchema<T>, body: unknown): T {
@@ -93,6 +98,17 @@ function parseVersion(body: unknown): number {
   const v = (body as { expectedVersion?: number })?.expectedVersion;
   if (!v || v < 1) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'expectedVersion is required.', 400);
+  }
+  return v;
+}
+
+/** Present-and-mismatch is 409 inside the service. Absent stays optional so current clients keep working. */
+function readOptionalExpectedVersion(body: unknown): number | undefined {
+  if (body == null || typeof body !== 'object' || !('expectedVersion' in body)) return undefined;
+  const v = (body as { expectedVersion?: unknown }).expectedVersion;
+  if (v == null) return undefined;
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 1) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'expectedVersion must be a positive integer.', 400);
   }
   return v;
 }
@@ -2125,14 +2141,16 @@ v1Router.patch('/moments/:momentId/expenses/:expenseId', async (req, res, next) 
   try {
     const ctx = req.requestContext!;
     const body = parseBody(financeService.updateExpenseSchema, req.body);
-    const data = await withDb((client) =>
-      financeService.updateExpense(
-        client,
-        ctx,
-        param(req.params.momentId),
-        param(req.params.expenseId),
-        body
-      )
+    const data = await withTransaction(
+      (client) =>
+        financeService.updateExpense(
+          client,
+          ctx,
+          param(req.params.momentId),
+          param(req.params.expenseId),
+          body
+        ),
+      ctx.userId
     );
     const hints = ['personal.activity', 'personal.pulse'] as const;
     publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
@@ -2149,8 +2167,16 @@ v1Router.patch('/moments/:momentId/expenses/:expenseId', async (req, res, next) 
 v1Router.delete('/moments/:momentId/expenses/:expenseId', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
-    const data = await withDb((client) =>
-      financeService.voidExpense(client, ctx, param(req.params.momentId), param(req.params.expenseId))
+    const data = await withTransaction(
+      (client) =>
+        financeService.voidExpense(
+          client,
+          ctx,
+          param(req.params.momentId),
+          param(req.params.expenseId),
+          readOptionalExpectedVersion(req.body)
+        ),
+      ctx.userId
     );
     const hints = ['personal.activity', 'personal.pulse'] as const;
     publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
@@ -2313,14 +2339,16 @@ v1Router.patch('/moments/:momentId/income/:incomeId', async (req, res, next) => 
   try {
     const ctx = req.requestContext!;
     const body = parseBody(personalIncomeService.updatePersonalIncomeSchema, req.body);
-    const data = await withDb((client) =>
-      personalIncomeService.updatePersonalIncome(
-        client,
-        ctx,
-        param(req.params.momentId),
-        param(req.params.incomeId),
-        body
-      )
+    const data = await withTransaction(
+      (client) =>
+        personalIncomeService.updatePersonalIncome(
+          client,
+          ctx,
+          param(req.params.momentId),
+          param(req.params.incomeId),
+          body
+        ),
+      ctx.userId
     );
     const hints = ['personal.activity', 'personal.pulse'] as const;
     publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
@@ -2333,13 +2361,16 @@ v1Router.patch('/moments/:momentId/income/:incomeId', async (req, res, next) => 
 v1Router.delete('/moments/:momentId/income/:incomeId', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
-    const data = await withDb((client) =>
-      personalIncomeService.voidPersonalIncome(
-        client,
-        ctx,
-        param(req.params.momentId),
-        param(req.params.incomeId)
-      )
+    const data = await withTransaction(
+      (client) =>
+        personalIncomeService.voidPersonalIncome(
+          client,
+          ctx,
+          param(req.params.momentId),
+          param(req.params.incomeId),
+          readOptionalExpectedVersion(req.body)
+        ),
+      ctx.userId
     );
     const hints = ['personal.activity', 'personal.pulse'] as const;
     publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
@@ -3260,19 +3291,15 @@ v1Router.get('/group/moments/:momentId/group-expenses', async (req, res, next) =
 v1Router.get('/moments/:momentId/group-expenses/:expenseId', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
-    const pool = getPool();
-    const client = await pool.connect();
-    try {
-      const data = await groupExpenseService.getGroupExpense(
+    const data = await withDb((client) =>
+      groupExpenseService.getGroupExpense(
         client,
         ctx,
         param(req.params.momentId),
         param(req.params.expenseId)
-      );
-      res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
-    } finally {
-      client.release();
-    }
+      )
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {
     next(e);
   }

@@ -12,7 +12,7 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
-// Default production; override in local.properties — see local.properties.example (incl. http://200.141.7.52:3001/ fallback).
+// Default production HTTPS. Debug may override with a private http host in local.properties.
 val apiBaseUrl = localProperties.getProperty("API_BASE_URL", "https://api.momentra.tech/")
 val googleWebClientId = localProperties.getProperty(
         "GOOGLE_WEB_CLIENT_ID",
@@ -72,6 +72,16 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+tasks.configureEach {
+    if (name == "assembleRelease" || name == "bundleRelease" || name.startsWith("compileRelease")) {
+        doFirst {
+            if (!apiBaseUrl.trim().startsWith("https://")) {
+                throw GradleException("Release API_BASE_URL must use https. Got: $apiBaseUrl")
+            }
+        }
     }
 }
 

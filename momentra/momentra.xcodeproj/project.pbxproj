@@ -477,6 +477,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Momentra;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Momentra uses the camera to capture photos and to scan invite QR codes so you can join a group.";
 				INFOPLIST_KEY_NSContactsUsageDescription = "Momentra uses your contacts to help you invite people to circles and moments.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Momentra uses Face ID to protect your account.";

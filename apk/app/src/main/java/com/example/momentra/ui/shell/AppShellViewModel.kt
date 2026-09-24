@@ -75,10 +75,14 @@ data class AppShellUiState(
     val groupTabRefreshToken: Long = 0L,
     val businessTabRefreshToken: Long = 0L,
     /**
-     * Group inventory empty of ACTIVE/DRAFT but user has COMPLETED membership —
-     * show Between empty (not Begin Story) and allow Completed directory.
+     * Group inventory has no ACTIVE/DRAFT moment, but the user still belongs to a COMPLETED group.
      */
     val groupHasCompletedHistory: Boolean = false,
+    /**
+     * Group home is the Ongoing/Completed moment picker.
+     * True only for Group, no active moments, completed history, and not on Create.
+     */
+    val groupMomentDirectoryHome: Boolean = false,
     /** Elapsed ms from bindIdentity to first cached shell paint; null if no cache. */
     val ttcsMs: Long? = null,
 )
@@ -404,6 +408,15 @@ class AppShellViewModel(
         val switcherCount = activeMomentCount(mergedMoments).coerceAtLeast(
             if (selectedMoment?.isCompletedStatus() == true) 1 else 0,
         )
+        val keptCompletedHistory = healed.selectedContext == AppContext.GROUP &&
+            current.groupHasCompletedHistory
+        val noActiveGroup = healed.selectedContext == AppContext.GROUP &&
+            mergedMoments.none { it.isActiveStatus() } &&
+            experience != MomentExperienceKind.ACTIVE
+        // Don't paint the create-a-group empty until we know whether completed groups exist.
+        val awaitingCompletedProbe = noActiveGroup && !keptCompletedHistory
+        val paintedExperience = if (awaitingCompletedProbe) MomentExperienceKind.LOADING else experience
+        val paintedContent = if (awaitingCompletedProbe) ShellContentState.Loading else content
         _state.update {
             it.copy(
                 identity = boot.identity,
@@ -428,16 +441,19 @@ class AppShellViewModel(
                     (healed.selectedContext to healed.selectedMomentId),
                 tabByContext = healed.selectedTabByContext,
                 bottomDestination = tab,
-                momentExperience = experience,
-                contextContent = content,
-                groupHasCompletedHistory = if (healed.selectedContext == AppContext.GROUP) {
-                    it.groupHasCompletedHistory
-                } else {
-                    false
-                },
+                momentExperience = paintedExperience,
+                contextContent = paintedContent,
+                groupHasCompletedHistory = keptCompletedHistory,
+                groupMomentDirectoryHome = groupDirectoryHome(
+                    context = healed.selectedContext,
+                    hasCompletedHistory = keptCompletedHistory,
+                    moments = mergedMoments,
+                    experience = paintedExperience,
+                    destination = tab,
+                ),
                 showMomentSwitcher = ShellVisibilityPolicy.showMomentSwitcher(
                     context = healed.selectedContext,
-                    content = content,
+                    content = paintedContent,
                     destination = tab,
                     activeMomentCount = switcherCount,
                     authReady = true,
@@ -449,10 +465,7 @@ class AppShellViewModel(
             )
         }
         persistCompany(company?.companyId)
-        if (healed.selectedContext == AppContext.GROUP &&
-            experience == MomentExperienceKind.FIRST_MOMENT &&
-            networkRefresh
-        ) {
+        if (noActiveGroup) {
             probeGroupCompletedHistory()
         }
         if (healed.selectedContext == AppContext.GROUP &&
@@ -494,7 +507,7 @@ class AppShellViewModel(
             }.let { d -> if (d == BottomDestination.CREATE) BottomDestination.MOMENTS else d }
             val tabMap = it.tabByContext + (it.selectedContext to destination)
             val content = it.contextContent
-            it.copy(
+            val next = it.copy(
                 bottomDestination = destination,
                 lastNonCreateDestination = remembered,
                 tabByContext = tabMap,
@@ -506,6 +519,7 @@ class AppShellViewModel(
                     authReady = true,
                 ),
             )
+            next.copy(groupMomentDirectoryHome = groupDirectoryHome(next))
         }
         if (destination == BottomDestination.CREATE) {
             ShellPerf.instant("quick_add_presentation", mapOf("context" to _state.value.selectedContext.name))
@@ -542,25 +556,69 @@ class AppShellViewModel(
                 .getOrNull()
                 ?.isNotEmpty() == true
             _state.update { st ->
-                if (st.selectedContext != AppContext.GROUP) return@update st
-                if (st.momentExperience != MomentExperienceKind.FIRST_MOMENT &&
-                    st.momentExperience != MomentExperienceKind.BETWEEN_MOMENTS
+                if (st.selectedContext != AppContext.GROUP) {
+                    return@update st.copy(
+                        groupHasCompletedHistory = false,
+                        groupMomentDirectoryHome = false,
+                    )
+                }
+                // A selected completed moment is already open in the product shell.
+                if (st.momentExperience == MomentExperienceKind.ACTIVE ||
+                    st.moments.any { it.isActiveStatus() }
                 ) {
-                    return@update st.copy(groupHasCompletedHistory = hasCompleted)
+                    return@update st.copy(
+                        groupHasCompletedHistory = hasCompleted || st.groupHasCompletedHistory,
+                        groupMomentDirectoryHome = false,
+                    )
                 }
                 if (!hasCompleted) {
-                    return@update st.copy(groupHasCompletedHistory = false)
+                    val resolved = resolveMomentExperience(st.moments)
+                    return@update st.copy(
+                        groupHasCompletedHistory = false,
+                        groupMomentDirectoryHome = false,
+                        momentExperience = resolved,
+                        contextContent = if (resolved == MomentExperienceKind.ACTIVE) {
+                            ShellContentState.Ready(null)
+                        } else {
+                            ShellContentState.Empty
+                        },
+                    )
                 }
                 // Active inventory empty but completed exists — not a true first-moment.
-                st.copy(
+                val experience = if (st.momentExperience == MomentExperienceKind.PAUSED_ONLY) {
+                    MomentExperienceKind.PAUSED_ONLY
+                } else {
+                    MomentExperienceKind.BETWEEN_MOMENTS
+                }
+                val next = st.copy(
                     groupHasCompletedHistory = true,
-                    momentExperience = MomentExperienceKind.BETWEEN_MOMENTS,
+                    momentExperience = experience,
                     contextContent = ShellContentState.Empty,
-                    showMomentSwitcher = true,
                 )
+                next.copy(groupMomentDirectoryHome = groupDirectoryHome(next))
             }
         }
     }
+
+    private fun groupDirectoryHome(state: AppShellUiState): Boolean = groupDirectoryHome(
+        context = state.selectedContext,
+        hasCompletedHistory = state.groupHasCompletedHistory,
+        moments = state.moments,
+        experience = state.momentExperience,
+        destination = state.bottomDestination,
+    )
+
+    private fun groupDirectoryHome(
+        context: AppContext,
+        hasCompletedHistory: Boolean,
+        moments: List<MomentSummary>,
+        experience: MomentExperienceKind,
+        destination: BottomDestination,
+    ): Boolean = context == AppContext.GROUP &&
+        hasCompletedHistory &&
+        moments.none { it.isActiveStatus() } &&
+        experience != MomentExperienceKind.ACTIVE &&
+        destination != BottomDestination.CREATE
 
     /**
      * Open a COMPLETED Group moment into the live shell (Pulse/Finance) so members can settle expenses.
@@ -590,6 +648,7 @@ class AppShellViewModel(
                 momentExperience = MomentExperienceKind.ACTIVE,
                 contextContent = ShellContentState.Ready(null),
                 showMomentSwitcher = true,
+                groupMomentDirectoryHome = false,
             )
         }
         persistContext(AppContext.GROUP)
@@ -697,6 +756,7 @@ class AppShellViewModel(
                 tabByContext = it.tabByContext + (ctx to BottomDestination.PULSE),
                 selectedMomentByContext = it.selectedMomentByContext + (ctx to momentId),
                 moments = updatedMoments,
+                groupMomentDirectoryHome = false,
             )
         }
         reloadCurrentContext()

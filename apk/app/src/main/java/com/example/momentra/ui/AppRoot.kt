@@ -45,6 +45,7 @@ import com.example.momentra.ui.onboarding.ConsentGateScreen
 import com.example.momentra.ui.onboarding.OnboardingMode
 import com.example.momentra.ui.onboarding.OnboardingScreen
 import com.example.momentra.ui.security.AppLockGate
+import com.example.momentra.ui.security.AppLockUnavailableScreen
 import com.example.momentra.ui.shell.AppShellScreen
 import com.example.momentra.ui.shell.AppShellViewModel
 import com.example.momentra.ui.splash.SplashScreen
@@ -133,6 +134,16 @@ fun AppRoot() {
 
     Box(modifier = Modifier.fillMaxSize()) {
         when {
+            authState.isLoggedIn && authState.identity != null && lockStore.lockUnavailable -> {
+                AppLockUnavailableScreen(
+                    onSignOut = {
+                        lockStore.wipeAfterFailedLockSignOut()
+                        AppLockSession.markLocked()
+                        shellViewModel.clearForLogout()
+                        authViewModel.signOut()
+                    },
+                )
+            }
             authState.isLoggedIn && authState.identity != null && needsLock -> {
                 @Suppress("UNUSED_EXPRESSION")
                 lockTick
