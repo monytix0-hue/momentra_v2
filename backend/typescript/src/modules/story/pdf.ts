@@ -259,6 +259,17 @@ function togetherPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot, photos: 
   }
 }
 
+type PdfArc = PDFKit.PDFDocument & {
+  arc(
+    x: number,
+    y: number,
+    radius: number,
+    startAngle: number,
+    endAngle: number,
+    anticlockwise?: boolean
+  ): PDFKit.PDFDocument;
+};
+
 function drawDonut(
   doc: PDFKit.PDFDocument,
   cx: number,
@@ -275,7 +286,7 @@ function drawDonut(
     doc.save();
     doc.fillColor(SLICE[index % SLICE.length]!);
     doc.moveTo(cx, cy);
-    doc.arc(cx, cy, radius, angle, end, false);
+    (doc as PdfArc).arc(cx, cy, radius, angle, end, false);
     doc.lineTo(cx, cy);
     doc.fill();
     doc.restore();
@@ -388,12 +399,15 @@ function closePage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
 
 async function loadPhotoBuffers(snapshot: StorySnapshot): Promise<PdfPhoto[]> {
   const loaded = await Promise.all(
-    snapshot.photos.map(async (photo) => {
+    snapshot.photos.map(async (photo): Promise<PdfPhoto | null> => {
       if (!photo.url) return null;
       try {
         const response = await fetch(photo.url);
         if (!response.ok) return null;
-        return { image: Buffer.from(await response.arrayBuffer()), title: photo.title?.trim() || null };
+        return {
+          image: Buffer.from(await response.arrayBuffer()) as Buffer,
+          title: photo.title?.trim() || null,
+        };
       } catch {
         return null;
       }
