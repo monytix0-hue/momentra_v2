@@ -38,6 +38,7 @@ data class MomentStoryIdentityDto(
     val familyProfile: String? = null,
     val startAt: String? = null,
     val endAt: String? = null,
+    val currencyCode: String? = null,
 )
 
 data class MomentStoryNarrativeDto(

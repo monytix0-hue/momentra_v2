@@ -1771,6 +1771,20 @@ v1Router.post('/moments/:momentId/stories', requireIdempotencyKey, async (req, r
   }
 });
 
+v1Router.get('/moments/:momentId/story/booklet.pdf', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const pdf = await withDb((client) =>
+      storyService.renderMomentStoryPdf(client, ctx, param(req.params.momentId))
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="moment-story.pdf"');
+    res.send(pdf);
+  } catch (e) {
+    next(e);
+  }
+});
+
 v1Router.get('/moments/:momentId/story/share-pack', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
@@ -3217,6 +3231,7 @@ v1Router.post('/moments/:momentId/group-expenses', requireIdempotencyKey, async 
     });
     const hints = ['group.activity', 'group.pulse', 'group.finance'] as const;
     publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    await storyService.refreshStoryAfterExpense(ctx, param(req.params.momentId));
     res.status(201).json(
       commandEnvelope(result, ctx.correlationId, {
         resourceVersion: result.version,
@@ -3286,6 +3301,7 @@ v1Router.patch('/moments/:momentId/group-expenses/:expenseId', requireIdempotenc
     });
     const hints = ['group.activity', 'group.pulse', 'group.finance'] as const;
     publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    await storyService.refreshStoryAfterExpense(ctx, param(req.params.momentId));
     res.json(
       commandEnvelope(result, ctx.correlationId, {
         resourceVersion: result.version,
@@ -3318,6 +3334,7 @@ v1Router.delete('/moments/:momentId/group-expenses/:expenseId', requireIdempoten
     });
     const hints = ['group.activity', 'group.pulse', 'group.finance'] as const;
     publishProjectionUpdated(ctx.userId, hints.map((h) => h.toUpperCase().replace('.', '_')), ctx.correlationId);
+    await storyService.refreshStoryAfterExpense(ctx, param(req.params.momentId));
     res.json(
       commandEnvelope(result, ctx.correlationId, {
         resourceVersion: result.version,

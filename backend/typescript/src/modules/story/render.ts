@@ -146,10 +146,18 @@ const BASE_CSS = `
   .watermark { opacity: 0.35; font-size: 28px; font-weight: 800; margin-top: 40px; }
 `;
 
-export function renderInteractiveStoryHtml(snapshot: StorySnapshot): string {
-  const pages = snapshot.chapters.map((c) => chapterHtml(snapshot, c, true)).join('\n');
+export function renderInteractiveStoryHtml(snapshot: StorySnapshot, opts?: { ogUrl?: string }): string {
+  const title = esc(snapshot.identity.title);
+  const description = esc(snapshot.narrative.opening || snapshot.display.closeLine);
+  const og = opts?.ogUrl
+    ? `<meta property="og:type" content="website"/>
+<meta property="og:title" content="${title}"/>
+<meta property="og:description" content="${description}"/>
+<meta property="og:url" content="${esc(opts.ogUrl)}"/>`
+    : '';
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>${esc(snapshot.identity.title)} · Moment Story</title>
+<title>${title} · Moment Story</title>
+${og}
 <style>${BASE_CSS}
   .pager { position: sticky; top: 0; z-index: 2; display: flex; gap: 6px; padding: 10px 16px; background: ${BRAND.indigo700}; }
   .pager a { color: ${BRAND.indigo100}; text-decoration: none; font-size: 12px; }

@@ -88,15 +88,99 @@ export async function checkDatabaseReady(): Promise<boolean> {
   }
 }
 
-export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+/**
+ * Production refuses a login that ignores RLS. Dev logs a warning and continues.
+ * A failed role check in production also refuses boot.
+ */
+export async function assertDatabaseRoleSafe(): Promise<void> {
+  let client: PoolClient | null = null;
+  try {
+    client = await getPool().connect();
+    const result = await client.query<{ bypass: boolean }>(
+      `SELECT (rolsuper OR rolbypassrls) AS bypass
+       FROM pg_roles
+       WHERE rolname = current_user`
+    );
+    if (result.rows[0]?.bypass) {
+      const detail = 'Database role bypasses row-level security (superuser or BYPASSRLS).';
+      if (config.isProduction) {
+        throw new Error(`Production fail-closed: ${detail}`);
+      }
+      console.log(JSON.stringify({ level: 'warn', msg: 'db_role_bypasses_rls', detail }));
+    }
+  } catch (e) {
+    if (config.isProduction) throw e;
+    console.log(JSON.stringify({ level: 'warn', msg: 'db_role_check_skipped', err: String(e) }));
+  } finally {
+    client?.release();
+  }
+}
+
+function releaseClient(client: PoolClient, destroy: boolean): void {
+  client.release(destroy ? new Error('discard pooled connection') : undefined);
+}
+
+async function clearRequestUser(client: PoolClient): Promise<void> {
+  await client.query(`SELECT set_config('request.jwt.claim.sub', '', false)`);
+}
+
+/** Session-scoped caller id for non-transaction checkouts. Cleared before the client returns to the pool. */
+export async function withUserConnection<T>(
+  userId: string,
+  fn: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  const client = await getPool().connect();
+  let released = false;
+  const release = (destroy: boolean) => {
+    if (released) return;
+    released = true;
+    releaseClient(client, destroy);
+  };
+  try {
+    await client.query(`SELECT set_config('request.jwt.claim.sub', $1, false)`, [userId]);
+    return await fn(client);
+  } catch (e) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // No open transaction, or the connection is already dead.
+    }
+    throw e;
+  } finally {
+    try {
+      await clearRequestUser(client);
+      release(false);
+    } catch {
+      try {
+        await client.query('ROLLBACK');
+        await clearRequestUser(client);
+        release(false);
+      } catch {
+        release(true);
+      }
+    }
+  }
+}
+
+export async function withTransaction<T>(
+  fn: (client: PoolClient) => Promise<T>,
+  userId?: string
+): Promise<T> {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
+    if (userId) {
+      await client.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [userId]);
+    }
     const result = await fn(client);
     await client.query('COMMIT');
     return result;
   } catch (e) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // Connection already aborted.
+    }
     throw e;
   } finally {
     client.release();

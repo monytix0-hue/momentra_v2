@@ -5,11 +5,12 @@ struct MomentStoryViewerView: View {
     let momentId: String
     var onClose: () -> Void
 
-    @State private var loading = true
-    @State private var errorText: String?
+    @State private var phase = "loading"
+    @State private var message: String?
     @State private var story: APIClient.MomentStoryPayload?
-    @State private var sharePack: APIClient.MomentStorySharePack?
     @State private var page = 0
+    @State private var sharing = false
+    @State private var shareNotice: String?
 
     private var chapters: [String] {
         Self.resolveChapters(story: story)
@@ -56,17 +57,28 @@ struct MomentStoryViewerView: View {
                 }
                 .padding(16)
 
-                if loading {
+                if phase == "loading" || phase == "generating" {
                     Spacer()
                     ProgressView().tint(Color(hex: "#E8621A"))
+                    if phase == "generating" {
+                        Text("Generating your Moment Story…")
+                            .foregroundStyle(chromeDark ? Color(hex: "#F5F0FF") : Color(hex: "#25231F"))
+                            .padding(.top, 12)
+                    }
                     Spacer()
-                } else if let errorText, story == nil {
+                } else if phase == "failed" || phase == "error" {
                     Spacer()
-                    Text(errorText)
+                    Text(message ?? "Could not load Story")
                         .foregroundStyle(chromeDark ? Color(hex: "#F5F0FF") : Color(hex: "#25231F"))
                         .padding()
                     Button("Retry") { Task { await load() } }
                         .foregroundStyle(Color(hex: "#E8621A"))
+                    Spacer()
+                } else if phase == "not_started" {
+                    Spacer()
+                    Text(message ?? "No Story yet — complete the moment to unlock it.")
+                        .foregroundStyle(chromeDark ? Color(hex: "#F5F0FF") : Color(hex: "#25231F"))
+                        .padding()
                     Spacer()
                 } else {
                     TabView(selection: $page) {
@@ -78,8 +90,8 @@ struct MomentStoryViewerView: View {
                     }
                     .tabViewStyle(.page(indexDisplayMode: .automatic))
 
-                    HStack {
-                        Button(action: share) {
+                    HStack(spacing: 8) {
+                        Button(action: { Task { await share() } }) {
                             Text("Share")
                                 .font(.system(size: 15, weight: .semibold))
                                 .frame(maxWidth: .infinity)
@@ -88,6 +100,17 @@ struct MomentStoryViewerView: View {
                                 .foregroundStyle(.white)
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
+                        .disabled(sharing)
+                        Button(action: { Task { await sharePdf() } }) {
+                            Text("Share PDF")
+                                .font(.system(size: 15, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color(hex: "#2D1F5E"))
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .disabled(sharing)
                         Text("\(page + 1) / \(chapters.count)")
                             .foregroundStyle(chromeDark ? Color(hex: "#C4BDEE") : Color(hex: "#746F67"))
                             .font(.system(size: 13))
@@ -97,14 +120,42 @@ struct MomentStoryViewerView: View {
             }
         }
         .task { await load() }
+        .alert("Moment Story", isPresented: Binding(
+            get: { shareNotice != nil },
+            set: { if !$0 { shareNotice = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(shareNotice ?? "")
+        }
+    }
+
+    static func moneyChapterEmpty(_ story: APIClient.MomentStoryPayload?) -> Bool {
+        guard let money = story?.snapshot?.money else { return true }
+        return (money.contributed ?? 0) == 0
+            && (money.spent ?? 0) == 0
+            && (money.remaining ?? 0) == 0
+            && (money.expenses ?? []).isEmpty
     }
 
     static func resolveChapters(story: APIClient.MomentStoryPayload?) -> [String] {
         let raw = story?.chapters ?? story?.snapshot?.chapters
+        let chapters: [String]
         if let raw, raw.contains(where: { $0 == "moment" || $0 == "together" }) {
-            return raw
+            chapters = raw
+        } else {
+            chapters = ["cover", "moment", "together", "money", "close"]
         }
-        return ["cover", "moment", "together", "money", "close"]
+        return moneyChapterEmpty(story) ? chapters.filter { $0 != "money" } : chapters
+    }
+
+    private func storyCurrency(_ snap: APIClient.MomentStorySnapshot?) -> String {
+        if let code = snap?.identity?.currencyCode, code.count == 3 { return code }
+        return "INR"
+    }
+
+    private func celebrationFamily(_ family: String?) -> Bool {
+        family == "HOUSE_PARTY" || family == "WEDDING" || family == "SHARED_EXPERIENCE"
     }
 
     @ViewBuilder
@@ -165,7 +216,7 @@ struct MomentStoryViewerView: View {
                 }
                 Text(snap?.narrative?.opening ?? "")
                     .foregroundStyle(Color(hex: "#C4BDEE"))
-                metricGrid(metrics: snap?.metrics, keys: snap?.display?.metricKeys, onDark: true)
+                metricGrid(metrics: snap?.metrics, keys: snap?.display?.metricKeys, onDark: true, currencyCode: storyCurrency(snap))
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -356,11 +407,12 @@ struct MomentStoryViewerView: View {
                             .foregroundStyle(Color(hex: "#25231F"))
                     }
                 }
+                let currency = storyCurrency(snap)
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    moneyFlowTile("Contributed", money?.contributed ?? 0)
-                    moneyFlowTile("Spent", spent)
-                    moneyFlowTile("Remaining", money?.remaining ?? 0)
-                    moneyFlowTile("Unsettled", money?.unsettled ?? 0)
+                    moneyFlowTile("Contributed", money?.contributed ?? 0, currency)
+                    moneyFlowTile("Spent", spent, currency)
+                    moneyFlowTile("Remaining", money?.remaining ?? 0, currency)
+                    moneyFlowTile("Unsettled", money?.unsettled ?? 0, currency)
                 }
                 if (money?.unsettled ?? 0) <= 0, spent > 0 {
                     Text("✓  All recorded balances settled.")
@@ -411,7 +463,7 @@ struct MomentStoryViewerView: View {
                                         .font(.system(size: 10))
                                 }
                                 Spacer()
-                                Text("₹\(Self.formatInrAmount(e.amount ?? 0))")
+                                Text(Self.formatStoryMoney(e.amount ?? 0, currencyCode: currency))
                                     .bold()
                                     .foregroundStyle(.white)
                                     .font(.system(size: 12))
@@ -450,9 +502,9 @@ struct MomentStoryViewerView: View {
         }
     }
 
-    private func moneyFlowTile(_ label: String, _ value: Double) -> some View {
+    private func moneyFlowTile(_ label: String, _ value: Double, _ currencyCode: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("₹\(Self.formatInrAmount(value))")
+            Text(Self.formatStoryMoney(value, currencyCode: currencyCode))
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(Color(hex: "#25231F"))
             Text(label)
@@ -479,12 +531,15 @@ struct MomentStoryViewerView: View {
                     .font(.system(size: 12, weight: .bold))
                     .tracking(1)
                     .foregroundStyle(Color(hex: "#E8621A"))
-                Text("The celebration ended.\nThe Moment stayed.")
+                let celebration = celebrationFamily(snap?.identity?.familyProfile)
+                Text(celebration ? "The celebration ended.\nThe Moment stayed." : (snap?.display?.closeLine ?? "Life happens in moments."))
                     .font(.system(size: 28, design: .serif))
                     .foregroundStyle(.white)
-                Text(snap?.display?.closeLine ?? "Life happens in moments.")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Color(hex: "#C4BDEE"))
+                if celebration {
+                    Text(snap?.display?.closeLine ?? "Life happens in moments.")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color(hex: "#C4BDEE"))
+                }
                 Text(snap?.identity?.title ?? "")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.45))
@@ -589,7 +644,7 @@ struct MomentStoryViewerView: View {
         ForEach(Array(defs.prefix(6)), id: \.0) { key, label in
             if let raw = metrics[key] {
                 if !(countKeys.contains(key) && (raw.numericValue ?? -1) == 0) {
-                    let value = Self.formatMetricDisplay(raw, key: key, countKeys: countKeys, moneyKeys: moneyKeys)
+                    let value = Self.formatMetricDisplay(raw, key: key, countKeys: countKeys, moneyKeys: moneyKeys, currencyCode: storyCurrency(snap))
                     HStack(alignment: .top, spacing: 12) {
                         Text("\(value) \(label)")
                             .font(.system(size: 12, weight: .bold))
@@ -639,7 +694,8 @@ struct MomentStoryViewerView: View {
     private func metricGrid(
         metrics: [String: APIClient.MomentStoryMetricValue]?,
         keys: [APIClient.MomentStoryMetricKey]?,
-        onDark: Bool
+        onDark: Bool,
+        currencyCode: String
     ) -> some View {
         let defs: [(String, String)] = {
             if let keys, !keys.isEmpty {
@@ -658,7 +714,7 @@ struct MomentStoryViewerView: View {
         let shown = defs.compactMap { key, label -> (String, String, String)? in
             guard let raw = metrics?[key] else { return nil }
             if countKeys.contains(key), let n = raw.numericValue, n == 0 { return nil }
-            return (key, label, Self.formatMetricDisplay(raw, key: key, countKeys: countKeys, moneyKeys: moneyKeys))
+            return (key, label, Self.formatMetricDisplay(raw, key: key, countKeys: countKeys, moneyKeys: moneyKeys, currencyCode: currencyCode))
         }.prefix(6)
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
             ForEach(Array(shown), id: \.0) { item in
@@ -680,32 +736,29 @@ struct MomentStoryViewerView: View {
     }
 
     private func load() async {
-        loading = true
-        errorText = nil
-        defer { loading = false }
+        phase = "loading"
+        message = nil
         do {
             let status = try await APIClient.shared.getMomentStoryStatus(momentId: momentId)
             if status.status == "GENERATING" {
-                errorText = "Generating your Moment Story…"
+                phase = "generating"
                 return
             }
             if status.status == "FAILED" {
-                errorText = status.errorMessage ?? "Story generation failed."
+                phase = "failed"
+                message = status.errorMessage ?? "Story generation failed."
                 return
             }
             if status.status == "NOT_STARTED" {
-                errorText = "No Story yet — complete the moment to unlock it."
+                phase = "not_started"
+                message = "No Story yet — complete the moment to unlock it."
                 return
             }
             story = try await APIClient.shared.getMomentStory(momentId: momentId)
-            do {
-                sharePack = try await APIClient.shared.getMomentStorySharePack(momentId: momentId)
-            } catch {
-                print("[MomentStory] share-pack failed: \(error.localizedDescription)")
-                sharePack = nil
-            }
+            phase = "ready"
         } catch {
-            errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            phase = "error"
+            message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 
@@ -716,19 +769,37 @@ struct MomentStoryViewerView: View {
         return trimmed
     }
 
-    private func share() {
-        let headline = nonEmptyTrimmed(sharePack?.blurb)
-            ?? story?.snapshot?.identity?.title
-            ?? "Moment Story"
-        let link = nonEmptyTrimmed(sharePack?.webUrl)
-            ?? nonEmptyTrimmed(sharePack?.appDeepLink)
-            ?? ""
-        var parts = [headline]
-        if !link.isEmpty { parts.append(link) }
-        if sharePack == nil {
-            print("[MomentStory] sharing title fallback — share pack unavailable")
+    private func share() async {
+        guard !sharing else { return }
+        sharing = true
+        defer { sharing = false }
+        do {
+            let pack = try await APIClient.shared.getMomentStorySharePack(momentId: momentId)
+            guard let link = nonEmptyTrimmed(pack.webUrl), link.hasPrefix("https://") else {
+                shareNotice = "Story link is not ready."
+                return
+            }
+            let headline = nonEmptyTrimmed(pack.blurb)
+                ?? story?.snapshot?.identity?.title
+                ?? "Moment Story"
+            InviteOutboundShare.presentSystemShare(items: ["\(headline)\n\(link)"])
+        } catch {
+            shareNotice = (error as? LocalizedError)?.errorDescription ?? "Could not share story."
         }
-        InviteOutboundShare.presentSystemShare(items: [parts.joined(separator: "\n")])
+    }
+
+    private func sharePdf() async {
+        guard !sharing else { return }
+        sharing = true
+        defer { sharing = false }
+        do {
+            let data = try await APIClient.shared.getMomentStoryPdf(momentId: momentId)
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("moment-story.pdf")
+            try data.write(to: url, options: .atomic)
+            InviteOutboundShare.presentSystemShare(items: [url])
+        } catch {
+            shareNotice = (error as? LocalizedError)?.errorDescription ?? "Could not share PDF."
+        }
     }
 
     // MARK: - Formatters
@@ -742,21 +813,23 @@ struct MomentStoryViewerView: View {
         _ raw: APIClient.MomentStoryMetricValue,
         key: String,
         countKeys: Set<String>,
-        moneyKeys: Set<String>
+        moneyKeys: Set<String>,
+        currencyCode: String
     ) -> String {
         if case .string(let s) = raw, moneyKeys.contains(key) { return s }
         if countKeys.contains(key), let n = raw.numericValue { return String(Int(n.rounded())) }
-        if moneyKeys.contains(key), let n = raw.numericValue { return "₹\(formatInrAmount(n))" }
+        if moneyKeys.contains(key), let n = raw.numericValue { return formatStoryMoney(n, currencyCode: currencyCode) }
         if case .string(let s) = raw { return s }
         return raw.label
     }
 
-    private static func formatInrAmount(_ value: Double) -> String {
+    private static func formatStoryMoney(_ value: Double, currencyCode: String) -> String {
+        let code = currencyCode.count == 3 ? currencyCode : "INR"
         let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.locale = Locale(identifier: "en_IN")
+        formatter.numberStyle = .currency
+        formatter.currencyCode = code
         formatter.maximumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: value)) ?? String(Int(value.rounded()))
+        return formatter.string(from: NSNumber(value: value)) ?? "\(code) \(Int(value.rounded()))"
     }
 
     /// Strip trailing " | Category" so titles don't duplicate the category subline.

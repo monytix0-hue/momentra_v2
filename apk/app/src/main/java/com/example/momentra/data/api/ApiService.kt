@@ -1,5 +1,6 @@
 package com.example.momentra.data.api
 
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -8,6 +9,7 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 /** Hand-maintained Retrofit contract — Phase 4/5 shell endpoints only. */
 interface ApiService {
@@ -229,6 +231,12 @@ interface ApiService {
     suspend fun getMomentStorySharePack(
         @Path("momentId") momentId: String,
     ): SuccessEnvelope<MomentStorySharePackDto>
+
+    @Streaming
+    @GET("v1/moments/{momentId}/story/booklet.pdf")
+    suspend fun getMomentStoryPdf(
+        @Path("momentId") momentId: String,
+    ): ResponseBody
 
     @GET("v1/stories/{storyId}/artifacts/{artifactType}")
     suspend fun getStoryArtifact(

@@ -6,8 +6,8 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.util.Log
 import android.widget.Toast
+import androidx.core.content.FileProvider
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -20,8 +20,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -57,15 +59,16 @@ import com.example.momentra.R
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.MomentStoryDto
 import com.example.momentra.data.api.MomentStoryMetricKeyDto
-import com.example.momentra.data.api.MomentStorySharePackDto
 import com.example.momentra.data.api.MomentStorySnapshotDto
 import com.example.momentra.ui.theme.MomentraBrandColors
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.net.URL
 import java.text.NumberFormat
+import java.util.Currency
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -80,45 +83,38 @@ fun MomentStoryViewerScreen(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var phase by remember { mutableStateOf("loading") }
+    var message by remember { mutableStateOf<String?>(null) }
     var story by remember { mutableStateOf<MomentStoryDto?>(null) }
-    var sharePack by remember { mutableStateOf<MomentStorySharePackDto?>(null) }
+    var sharing by remember { mutableStateOf(false) }
 
     fun reload() {
         scope.launch {
-            loading = true
-            error = null
+            phase = "loading"
+            message = null
             try {
                 val status = ApiClient.apiService.getMomentStoryStatus(momentId).data
                 when (status.status) {
                     "GENERATING" -> {
-                        error = "Generating your Moment Story…"
-                        loading = false
+                        phase = "generating"
                         return@launch
                     }
                     "FAILED" -> {
-                        error = status.errorMessage ?: "Story generation failed."
-                        loading = false
+                        phase = "failed"
+                        message = status.errorMessage ?: "Story generation failed."
                         return@launch
                     }
                     "NOT_STARTED" -> {
-                        error = "No Story yet — complete the moment to unlock it."
-                        loading = false
+                        phase = "not_started"
+                        message = "No Story yet — complete the moment to unlock it."
                         return@launch
                     }
                 }
                 story = ApiClient.apiService.getMomentStory(momentId).data
-                runCatching {
-                    sharePack = ApiClient.apiService.getMomentStorySharePack(momentId).data
-                }.onFailure {
-                    Log.w("MomentStory", "share-pack failed: ${it.message}")
-                    sharePack = null
-                }
+                phase = "ready"
             } catch (e: Exception) {
-                error = e.message ?: "Could not load Story"
-            } finally {
-                loading = false
+                phase = "error"
+                message = e.message ?: "Could not load Story"
             }
         }
     }
@@ -134,6 +130,8 @@ fun MomentStoryViewerScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .background(
                 when (page) {
                     "cover" -> MomentraBrandColors.Indigo700
@@ -180,14 +178,23 @@ fun MomentStoryViewerScreen(
             }
         }
 
-        when {
-            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MomentraBrandColors.Ember500)
+        when (phase) {
+            "loading", "generating" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = MomentraBrandColors.Ember500)
+                    if (phase == "generating") {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "Generating your Moment Story…",
+                            color = if (chromeDark) MomentraBrandColors.TextOnDark else MomentraBrandColors.StoryInk,
+                        )
+                    }
+                }
             }
-            error != null && story == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            "failed", "error" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        error!!,
+                        message ?: "Could not load Story",
                         color = if (chromeDark) MomentraBrandColors.TextOnDark else MomentraBrandColors.StoryInk,
                         modifier = Modifier.padding(24.dp),
                     )
@@ -196,6 +203,13 @@ fun MomentStoryViewerScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = MomentraBrandColors.Ember500),
                     ) { Text("Retry") }
                 }
+            }
+            "not_started" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    message ?: "No Story yet — complete the moment to unlock it.",
+                    color = if (chromeDark) MomentraBrandColors.TextOnDark else MomentraBrandColors.StoryInk,
+                    modifier = Modifier.padding(24.dp),
+                )
             }
             else -> {
                 HorizontalPager(
@@ -214,27 +228,56 @@ fun MomentStoryViewerScreen(
                 ) {
                     Button(
                         onClick = {
-                            val pack = sharePack
-                            val blurb = pack?.blurb?.trim().orEmpty()
-                            val title = snap?.identity?.title ?: "Moment Story"
-                            val link = pack?.webUrl?.takeIf { it.isNotBlank() }
-                                ?: pack?.appDeepLink?.takeIf { it.isNotBlank() }
-                                ?: ""
-                            val text = buildString {
-                                append(if (blurb.isNotEmpty()) blurb else title)
-                                if (link.isNotEmpty()) {
-                                    append("\n")
-                                    append(link)
+                            if (sharing) return@Button
+                            scope.launch {
+                                sharing = true
+                                try {
+                                    val pack = ApiClient.apiService.getMomentStorySharePack(momentId).data
+                                    val link = pack.webUrl?.takeIf { it.startsWith("https://") }
+                                    if (link.isNullOrBlank()) {
+                                        Toast.makeText(context, "Story link is not ready.", Toast.LENGTH_SHORT).show()
+                                        return@launch
+                                    }
+                                    val blurb = pack.blurb?.trim().orEmpty()
+                                    val title = snap?.identity?.title ?: "Moment Story"
+                                    val text = buildString {
+                                        append(if (blurb.isNotEmpty()) blurb else title)
+                                        append("\n")
+                                        append(link)
+                                    }
+                                    shareMomentStory(context, text)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, e.message ?: "Could not share story", Toast.LENGTH_SHORT).show()
+                                } finally {
+                                    sharing = false
                                 }
-                            }.trim()
-                            if (pack == null) {
-                                Log.w("MomentStory", "sharing title fallback — share pack unavailable")
                             }
-                            shareMomentStory(context, text)
                         },
                         modifier = Modifier.weight(1f),
+                        enabled = !sharing,
                         colors = ButtonDefaults.buttonColors(containerColor = MomentraBrandColors.Ember500),
                     ) { Text("Share") }
+                    Button(
+                        onClick = {
+                            if (sharing) return@Button
+                            scope.launch {
+                                sharing = true
+                                try {
+                                    val bytes = withContext(Dispatchers.IO) {
+                                        ApiClient.apiService.getMomentStoryPdf(momentId).bytes()
+                                    }
+                                    shareMomentStoryPdf(context, bytes)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, e.message ?: "Could not share PDF", Toast.LENGTH_SHORT).show()
+                                } finally {
+                                    sharing = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = !sharing,
+                        colors = ButtonDefaults.buttonColors(containerColor = MomentraBrandColors.Indigo700),
+                    ) { Text("Share PDF") }
                     Text(
                         "${pagerState.currentPage + 1} / ${chapters.size}",
                         color = if (chromeDark) MomentraBrandColors.Indigo100 else MomentraBrandColors.StoryMuted,
@@ -246,13 +289,29 @@ fun MomentStoryViewerScreen(
     }
 }
 
+private fun moneyChapterEmpty(story: MomentStoryDto?): Boolean {
+    val money = story?.snapshot?.money ?: return true
+    return (money.contributed ?: 0.0) == 0.0 &&
+        (money.spent ?: 0.0) == 0.0 &&
+        (money.remaining ?: 0.0) == 0.0 &&
+        money.expenses.isNullOrEmpty()
+}
+
 private fun resolveStoryChapters(story: MomentStoryDto?): List<String> {
     val raw = story?.chapters ?: story?.snapshot?.chapters
-    if (raw != null && raw.any { it == "moment" || it == "together" }) {
-        return raw
+    val chapters = if (raw != null && raw.any { it == "moment" || it == "together" }) {
+        raw
+    } else {
+        listOf("cover", "moment", "together", "money", "close")
     }
-    return listOf("cover", "moment", "together", "money", "close")
+    return if (moneyChapterEmpty(story)) chapters.filter { it != "money" } else chapters
 }
+
+private fun storyCurrency(snap: MomentStorySnapshotDto?): String =
+    snap?.identity?.currencyCode?.takeIf { it.length == 3 } ?: "INR"
+
+private fun celebrationFamily(family: String?): Boolean =
+    family == "HOUSE_PARTY" || family == "WEDDING" || family == "SHARED_EXPERIENCE"
 
 @Composable
 private fun StoryChapterPage(chapter: String, story: MomentStoryDto?) {
@@ -325,7 +384,12 @@ private fun CoverChapter(snap: MomentStorySnapshotDto?) {
             fontSize = 15.sp,
         )
         Spacer(Modifier.height(20.dp))
-        MetricGrid(metrics = snap?.metrics, metricKeys = snap?.display?.metricKeys, onDark = true)
+        MetricGrid(
+            metrics = snap?.metrics,
+            metricKeys = snap?.display?.metricKeys,
+            onDark = true,
+            currencyCode = storyCurrency(snap),
+        )
     }
 }
 
@@ -594,14 +658,15 @@ private fun MoneyChapter(snap: MomentStorySnapshotDto?) {
             }
         }
         Spacer(Modifier.height(10.dp))
+        val currency = storyCurrency(snap)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            MoneyFlowTile("Contributed", money?.contributed ?: 0.0, Modifier.weight(1f))
-            MoneyFlowTile("Spent", spent, Modifier.weight(1f))
+            MoneyFlowTile("Contributed", money?.contributed ?: 0.0, currency, Modifier.weight(1f))
+            MoneyFlowTile("Spent", spent, currency, Modifier.weight(1f))
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            MoneyFlowTile("Remaining", money?.remaining ?: 0.0, Modifier.weight(1f))
-            MoneyFlowTile("Unsettled", money?.unsettled ?: 0.0, Modifier.weight(1f))
+            MoneyFlowTile("Remaining", money?.remaining ?: 0.0, currency, Modifier.weight(1f))
+            MoneyFlowTile("Unsettled", money?.unsettled ?: 0.0, currency, Modifier.weight(1f))
         }
         if ((money?.unsettled ?: 0.0) <= 0.0 && spent > 0) {
             Spacer(Modifier.height(10.dp))
@@ -664,7 +729,7 @@ private fun MoneyChapter(snap: MomentStorySnapshotDto?) {
                                 fontSize = 10.sp,
                             )
                         }
-                        Text("₹${formatInrGrouped(e.amount ?: 0.0)}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(formatStoryMoney(e.amount ?: 0.0, currency), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                     Spacer(Modifier.height(8.dp))
                 }
@@ -694,13 +759,13 @@ private fun MoneyChapter(snap: MomentStorySnapshotDto?) {
 }
 
 @Composable
-private fun MoneyFlowTile(label: String, value: Double, modifier: Modifier = Modifier) {
+private fun MoneyFlowTile(label: String, value: Double, currencyCode: String, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .background(MomentraBrandColors.StoryCreamBright, RoundedCornerShape(14.dp))
             .padding(12.dp),
     ) {
-        Text("₹${formatInrGrouped(value)}", color = MomentraBrandColors.StoryInk, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text(formatStoryMoney(value, currencyCode), color = MomentraBrandColors.StoryInk, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         Text(label, color = MomentraBrandColors.StoryMuted, fontSize = 11.sp)
     }
 }
@@ -732,19 +797,22 @@ private fun CloseChapter(snap: MomentStorySnapshotDto?) {
             letterSpacing = 1.sp,
         )
         Spacer(Modifier.height(16.dp))
+        val celebration = celebrationFamily(snap?.identity?.familyProfile)
         Text(
-            "The celebration ended.\nThe Moment stayed.",
+            if (celebration) "The celebration ended.\nThe Moment stayed." else (snap?.display?.closeLine ?: "Life happens in moments."),
             color = Color.White,
             fontSize = 28.sp,
             fontFamily = FontFamily.Serif,
             lineHeight = 34.sp,
         )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            snap?.display?.closeLine ?: "Life happens in moments.",
-            color = MomentraBrandColors.Indigo100,
-            fontSize = 16.sp,
-        )
+        if (celebration) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                snap?.display?.closeLine ?: "Life happens in moments.",
+                color = MomentraBrandColors.Indigo100,
+                fontSize = 16.sp,
+            )
+        }
         Spacer(Modifier.height(20.dp))
         Text(
             snap?.identity?.title ?: "",
@@ -823,7 +891,13 @@ private fun FactRows(snap: MomentStorySnapshotDto?) {
         val raw = metrics[key] ?: return@forEach
         val n = metricNumeric(raw)
         if (key in countKeys && n != null && n == 0.0) return@forEach
-        val value = formatMetricValue(raw, key, countKeys, setOf("spent", "raised", "target", "remaining", "contributed"))
+        val value = formatMetricValue(
+            raw,
+            key,
+            countKeys,
+            setOf("spent", "raised", "target", "remaining", "contributed"),
+            storyCurrency(snap),
+        )
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -898,6 +972,7 @@ private fun MetricGrid(
     metrics: Map<String, Any?>?,
     metricKeys: List<MomentStoryMetricKeyDto>?,
     onDark: Boolean,
+    currencyCode: String,
 ) {
     if (metrics.isNullOrEmpty()) return
     val defs = if (!metricKeys.isNullOrEmpty()) {
@@ -921,7 +996,7 @@ private fun MetricGrid(
         val raw = metrics[key] ?: return@mapNotNull null
         val numeric = metricNumeric(raw)
         if (key in countKeys && numeric != null && numeric == 0.0) return@mapNotNull null
-        Triple(key, label, formatMetricValue(raw, key, countKeys, moneyKeys))
+        Triple(key, label, formatMetricValue(raw, key, countKeys, moneyKeys, currencyCode))
     }.take(6)
     if (shown.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -996,20 +1071,30 @@ private fun formatMetricValue(
     key: String,
     countKeys: Set<String>,
     moneyKeys: Set<String>,
+    currencyCode: String,
 ): String {
     if (raw is String && key in moneyKeys) return raw
     val n = metricNumeric(raw)
     return when {
         key in countKeys && n != null -> n.toInt().toString()
-        key in moneyKeys && n != null -> "₹${formatInrGrouped(n)}"
+        key in moneyKeys && n != null -> formatStoryMoney(n, currencyCode)
         raw is String -> raw
         n != null && n == n.toLong().toDouble() -> n.toLong().toString()
         else -> raw.toString()
     }
 }
 
-private fun formatInrGrouped(value: Double): String =
-    NumberFormat.getIntegerInstance(Locale("en", "IN")).format(value.toLong())
+private fun formatStoryMoney(value: Double, currencyCode: String): String {
+    val code = currencyCode.takeIf { it.length == 3 } ?: "INR"
+    return try {
+        val format = NumberFormat.getCurrencyInstance(Locale.getDefault())
+        format.currency = Currency.getInstance(code)
+        format.maximumFractionDigits = 0
+        format.format(value)
+    } catch (_: Exception) {
+        "$code ${value.roundToInt()}"
+    }
+}
 
 /** Strip trailing " | Category" so titles don't duplicate the category subline. */
 private fun cleanExpenseTitle(description: String?): String {
@@ -1052,6 +1137,28 @@ private fun formatStoryDateShort(iso: String?): String? {
         date.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)).uppercase()
     } catch (_: Exception) {
         iso.take(10)
+    }
+}
+
+private fun shareMomentStoryPdf(context: Context, bytes: ByteArray) {
+    val file = File(context.cacheDir, "moment-story.pdf")
+    file.writeBytes(bytes)
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "application/pdf"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    val chooser = Intent.createChooser(send, "Share Moment Story PDF").apply {
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        if (context.findActivity() == null) {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    }
+    try {
+        (context.findActivity() ?: context).startActivity(chooser)
+    } catch (e: Exception) {
+        Toast.makeText(context, e.message ?: "Sharing unavailable", Toast.LENGTH_SHORT).show()
     }
 }
 

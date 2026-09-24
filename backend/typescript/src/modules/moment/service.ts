@@ -1642,13 +1642,33 @@ export async function completeMoment(
 
   let storyId: string | undefined;
   if (!opts?.skipStory && row.domain_code === 'GROUP') {
-    const { queueMomentStoryGeneration } = await import('../story/service');
-    const story = await queueMomentStoryGeneration(client, ctx, {
-      momentId,
-      completionId,
-      completedByUserId: ctx.userId,
-    });
-    storyId = story.storyId;
+    const { queueMomentStoryGeneration, recordStoryGenerationFailure } = await import('../story/service');
+    await client.query('SAVEPOINT moment_story');
+    try {
+      const story = await queueMomentStoryGeneration(client, ctx, {
+        momentId,
+        completionId,
+        completedByUserId: ctx.userId,
+      });
+      storyId = story.storyId;
+      await client.query('RELEASE SAVEPOINT moment_story');
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK TO SAVEPOINT moment_story');
+      } catch {
+        // Savepoint is already gone if the connection died.
+      }
+      const message = err instanceof Error ? err.message : 'Story generation failed';
+      console.log(JSON.stringify({ level: 'warn', msg: 'moment_story_generation_failed', momentId, err: message }));
+      await recordStoryGenerationFailure({
+        momentId,
+        completionId,
+        completedByUserId: ctx.userId,
+        message,
+      }).catch((recordErr) => {
+        console.log(JSON.stringify({ level: 'warn', msg: 'moment_story_failure_unrecorded', momentId, err: String(recordErr) }));
+      });
+    }
   }
 
   return {

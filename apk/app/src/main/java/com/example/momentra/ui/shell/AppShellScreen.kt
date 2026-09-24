@@ -1288,11 +1288,12 @@ fun AppShellScreen(
         if (storyMomentId != null) {
             val momentId = storyMomentId
             if (momentId != null) {
-                ModalBottomSheet(
+                androidx.compose.ui.window.Dialog(
                     onDismissRequest = { storyMomentId = null },
-                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                    containerColor = Color(0xFF2D1F5E),
-                    dragHandle = null,
+                    properties = androidx.compose.ui.window.DialogProperties(
+                        usePlatformDefaultWidth = false,
+                        decorFitsSystemWindows = false,
+                    ),
                 ) {
                     MomentStoryViewerScreen(
                         momentId = momentId,

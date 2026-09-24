@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'crypto';
 import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
+import { getPool, withTransaction } from '../../platform/database/pool';
 import { assertGovernanceAllowed } from '../governance/resolver';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { listOtherMemberUserIds } from '../collaboration/group-membership';
@@ -13,6 +14,7 @@ import {
   renderShareCoverSvg,
   renderVideoReelSpec,
 } from './render';
+import { renderStoryPdf } from './pdf';
 import {
   getStoryComposer,
   STORY_CHAPTER_ORDER,
@@ -85,7 +87,8 @@ export async function queueMomentStoryGeneration(
 export async function generateMomentStoryArtifacts(
   client: PoolClient,
   ctx: RequestContext,
-  storyId: string
+  storyId: string,
+  opts?: { notify?: boolean }
 ): Promise<void> {
   const story = await client.query<{ moment_id: string; story_version: number }>(
     `SELECT moment_id, story_version FROM core.moment_story WHERE story_id = $1`,
@@ -135,31 +138,70 @@ export async function generateMomentStoryArtifacts(
       [storyId, snapshot.identity.familyProfile]
     );
 
-    const peers = await listOtherMemberUserIds(client, row.moment_id, ctx.userId);
-    const allTargets = Array.from(new Set([ctx.userId, ...peers]));
-    await insertDomainEventAndOutbox(client, ctx, {
-      eventName: 'MomentStoryReady',
-      domainCode: 'GROUP',
-      aggregateType: 'MOMENT',
-      aggregateId: row.moment_id,
-      payload: {
-        momentId: row.moment_id,
-        storyId,
-        storyVersion: row.story_version,
-        title: snapshot.identity.title,
-        targetUserIds: allTargets,
-        deepLink: `momentra://moments/${row.moment_id}/story`,
-      },
-    });
+    if (opts?.notify !== false) {
+      const peers = await listOtherMemberUserIds(client, row.moment_id, ctx.userId);
+      const allTargets = Array.from(new Set([ctx.userId, ...peers]));
+      await insertDomainEventAndOutbox(client, ctx, {
+        eventName: 'MomentStoryReady',
+        domainCode: 'GROUP',
+        aggregateType: 'MOMENT',
+        aggregateId: row.moment_id,
+        payload: {
+          momentId: row.moment_id,
+          storyId,
+          storyVersion: row.story_version,
+          title: snapshot.identity.title,
+          targetUserIds: allTargets,
+          deepLink: `momentra://moments/${row.moment_id}/story`,
+        },
+      });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Story generation failed';
-    await client.query(
-      `UPDATE core.moment_story
-       SET status = 'FAILED', error_message = $2, updated_at = now()
-       WHERE story_id = $1`,
-      [storyId, message.slice(0, 500)]
-    );
+    try {
+      await client.query(
+        `UPDATE core.moment_story
+         SET status = 'FAILED', error_message = $2, updated_at = now()
+         WHERE story_id = $1`,
+        [storyId, message.slice(0, 500)]
+      );
+    } catch {
+      // The surrounding transaction may already be aborted. The caller records FAILED separately.
+    }
     throw err;
+  }
+}
+
+/** Persist a failed story on its own connection so a rolled-back completion transaction cannot erase it. */
+export async function recordStoryGenerationFailure(args: {
+  momentId: string;
+  completionId: string;
+  completedByUserId: string;
+  message: string;
+}): Promise<void> {
+  const client = await getPool().connect();
+  try {
+    const ver = await client.query<{ v: string }>(
+      `SELECT COALESCE(MAX(story_version), 0)::text AS v FROM core.moment_story WHERE moment_id = $1`,
+      [args.momentId]
+    );
+    const storyVersion = parseInt(ver.rows[0]?.v ?? '0', 10) + 1;
+    await client.query(
+      `INSERT INTO core.moment_story (
+         story_id, moment_id, completion_id, story_version, status, family_profile,
+         generated_by_user_id, error_message, created_at, updated_at
+       ) VALUES ($1, $2, $3, $4, 'FAILED', 'SHARED_EXPERIENCE', $5, $6, now(), now())`,
+      [
+        randomUUID(),
+        args.momentId,
+        args.completionId,
+        storyVersion,
+        args.completedByUserId,
+        args.message.slice(0, 500),
+      ]
+    );
+  } finally {
+    client.release();
   }
 }
 
@@ -175,6 +217,26 @@ export async function getMomentStoryStatus(
   errorMessage: string | null;
 }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'GROUP_ACCESS', resourceType: 'MOMENT', momentId });
+  const ready = await client.query<{
+    story_id: string;
+    story_version: number;
+    family_profile: string;
+  }>(
+    `SELECT story_id, story_version, family_profile
+     FROM core.moment_story
+     WHERE moment_id = $1 AND status = 'READY'
+     ORDER BY story_version DESC LIMIT 1`,
+    [momentId]
+  );
+  if (ready.rows[0]) {
+    return {
+      status: 'READY',
+      storyId: ready.rows[0].story_id,
+      storyVersion: ready.rows[0].story_version,
+      familyProfile: ready.rows[0].family_profile,
+      errorMessage: null,
+    };
+  }
   const row = await client.query<{
     story_id: string;
     status: string;
@@ -220,7 +282,8 @@ export async function getMomentStory(
     family_profile: string;
   }>(
     `SELECT story_id, story_version, status, family_profile
-     FROM core.moment_story WHERE moment_id = $1
+     FROM core.moment_story
+     WHERE moment_id = $1 AND status = 'READY'
      ORDER BY story_version DESC LIMIT 1`,
     [momentId]
   );
@@ -284,6 +347,51 @@ export async function getStoryArtifact(
   };
 }
 
+const DEFAULT_PUBLIC_WEB_BASE = 'https://api.momentra.tech';
+
+export function publicStoryWebBase(): string {
+  const configured = process.env.PUBLIC_WEB_BASE_URL?.trim().replace(/\/$/, '');
+  return configured || DEFAULT_PUBLIC_WEB_BASE;
+}
+
+/** Rebuild the latest READY snapshot in place after a completed group moment's money changes. */
+export async function refreshReadyMomentStory(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string
+): Promise<void> {
+  const moment = await client.query<{ status: string; domain_code: string }>(
+    `SELECT status, domain_code FROM core.moment WHERE moment_id = $1`,
+    [momentId]
+  );
+  const row = moment.rows[0];
+  if (!row || row.domain_code !== 'GROUP' || row.status !== 'COMPLETED') return;
+  const story = await client.query<{ story_id: string }>(
+    `SELECT story_id FROM core.moment_story
+     WHERE moment_id = $1 AND status = 'READY'
+     ORDER BY story_version DESC LIMIT 1`,
+    [momentId]
+  );
+  const storyId = story.rows[0]?.story_id;
+  if (!storyId) return;
+  await generateMomentStoryArtifacts(client, ctx, storyId, { notify: false });
+  await client.query(
+    `UPDATE core.moment_story
+     SET data_version = data_version + 1, updated_at = now()
+     WHERE story_id = $1`,
+    [storyId]
+  );
+}
+
+/** Runs after the expense transaction commits. A failure here does not undo the expense. */
+export async function refreshStoryAfterExpense(ctx: RequestContext, momentId: string): Promise<void> {
+  try {
+    await withTransaction((client) => refreshReadyMomentStory(client, ctx, momentId), ctx.userId);
+  } catch (err) {
+    console.log(JSON.stringify({ level: 'warn', msg: 'story_refresh_failed', momentId, err: String(err) }));
+  }
+}
+
 export async function createStoryShare(
   client: PoolClient,
   ctx: RequestContext,
@@ -334,21 +442,32 @@ export async function getSharePack(
   if (story.status !== 'READY') {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Story is not ready.', 400);
   }
-  const share = await createStoryShare(client, ctx, story.storyId);
+  const existing = await client.query<{ share_token: string }>(
+    `SELECT share_token FROM core.moment_story_share
+     WHERE story_id = $1
+       AND revoked_at IS NULL
+       AND (expires_at IS NULL OR expires_at > now())
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [story.storyId]
+  );
+  const share = existing.rows[0]
+    ? { shareToken: existing.rows[0].share_token, webPath: `/story/${existing.rows[0].share_token}` }
+    : await createStoryShare(client, ctx, story.storyId);
   const cover = await getStoryArtifact(client, ctx, story.storyId, 'SHARE_COVER');
-  const base = process.env.PUBLIC_WEB_BASE_URL?.replace(/\/$/, '') ?? '';
   const metrics = story.snapshot.metrics ?? {};
   const title = story.snapshot.identity.title;
   const profile = (story.familyProfile ||
     story.snapshot.identity.familyProfile ||
     'SHARED_EXPERIENCE') as StoryFamilyProfile;
   const blurb = getStoryComposer(profile).shareBlurb(title, metrics);
-  const webUrl = base ? `${base}${share.webPath}` : null;
+  const webPath = share.webPath;
+  const webUrl = `${publicStoryWebBase()}${webPath}`;
   return {
     coverSvg: cover.body,
     blurb,
     webUrl,
-    webPath: share.webPath,
+    webPath,
     appDeepLink: `momentra://moments/${momentId}/story`,
     storyId: story.storyId,
     title,
@@ -372,20 +491,23 @@ export async function getPublicStoryByToken(
   if (!s || s.revoked_at || (s.expires_at && s.expires_at.getTime() < Date.now())) {
     return { html: '<html><body><p>This Moment Story link is no longer available.</p></body></html>', title: 'Unavailable', revoked: true };
   }
-  const art = await client.query<{ inline_body: string }>(
-    `SELECT inline_body FROM core.moment_story_artifact
-     WHERE story_id = $1 AND artifact_type = 'CHAPTER_HTML'
-     ORDER BY generated_at DESC LIMIT 1`,
+  const snapRow = await client.query<{ moment_id: string; snapshot_json: StorySnapshot; title: string | null }>(
+    `SELECT st.moment_id, ss.snapshot_json, ss.snapshot_json->'identity'->>'title' AS title
+     FROM core.moment_story st
+     JOIN core.moment_story_snapshot ss ON ss.story_id = st.story_id
+     WHERE st.story_id = $1`,
     [s.story_id]
   );
-  const titleRow = await client.query<{ title: string }>(
-    `SELECT snapshot_json->'identity'->>'title' AS title
-     FROM core.moment_story_snapshot WHERE story_id = $1`,
-    [s.story_id]
-  );
+  const stored = snapRow.rows[0];
+  if (!stored) {
+    return { html: '<html><body><p>Story not ready.</p></body></html>', title: 'Moment Story', revoked: false };
+  }
+  const freshPhotos = await loadFreshStoryPhotos(client, stored.moment_id, 5);
+  const hydrated = hydrateStoryMoneyCategories({ ...stored.snapshot_json, photos: freshPhotos });
+  const webUrl = `${publicStoryWebBase()}/story/${shareToken}`;
   return {
-    html: art.rows[0]?.inline_body ?? '<html><body><p>Story not ready.</p></body></html>',
-    title: titleRow.rows[0]?.title ?? 'Moment Story',
+    html: renderInteractiveStoryHtml(hydrated, { ogUrl: webUrl }),
+    title: stored.title ?? hydrated.identity.title ?? 'Moment Story',
     revoked: false,
   };
 }
@@ -414,6 +536,15 @@ export async function revokeStoryShare(
     [shareId]
   );
   return { shareId, revokedAt: updated.rows[0].revoked_at.toISOString() };
+}
+
+export async function renderMomentStoryPdf(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string
+): Promise<Buffer> {
+  const story = await getMomentStory(client, ctx, momentId);
+  return renderStoryPdf(story.snapshot);
 }
 
 export async function regenerateMomentStory(

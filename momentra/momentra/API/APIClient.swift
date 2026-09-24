@@ -1118,6 +1118,10 @@ final class APIClient {
         try await authorizedGet(path: "v1/moments/\(momentId)/story/share-pack")
     }
 
+    func getMomentStoryPdf(momentId: String) async throws -> Data {
+        try await authorizedGetData(path: "v1/moments/\(momentId)/story/booklet.pdf", accept: "application/pdf")
+    }
+
     func getStoryArtifact(storyId: String, artifactType: String) async throws -> MomentStoryArtifact {
         try await authorizedGet(path: "v1/stories/\(storyId)/artifacts/\(artifactType)")
     }
@@ -1160,6 +1164,7 @@ final class APIClient {
         let familyProfile: String?
         let startAt: String?
         let endAt: String?
+        let currencyCode: String?
     }
 
     struct MomentStoryNarrative: Decodable {
@@ -5456,6 +5461,55 @@ final class APIClient {
         guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
+    }
+
+    private func authorizedGetData(
+        path: String,
+        accept: String,
+        forceRefreshToken: Bool = false,
+        networkAttempt: Int = 0
+    ) async throws -> Data {
+        guard Auth.auth().currentUser != nil else {
+            throw APIErrorKind.unauthenticated("UNAUTHORIZED")
+        }
+        let token = try await AuthTokenCache.shared.get(forceRefresh: forceRefreshToken)
+        var request = URLRequest(url: APIConfig.baseURL.appendingPathComponent(path))
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(accept, forHTTPHeaderField: "Accept")
+        request.setValue(QaCorrelationHolder.takeCorrelationId(), forHTTPHeaderField: "X-Correlation-Id")
+        if let runId = QaCorrelationHolder.peekRunId() {
+            request.setValue(runId, forHTTPHeaderField: "X-Maestro-Run-Id")
+        }
+        request.setValue("true", forHTTPHeaderField: "ngrok-skip-browser-warning")
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            if Self.isCancellation(error) { throw CancellationError() }
+            if networkAttempt < 1 {
+                return try await authorizedGetData(
+                    path: path,
+                    accept: accept,
+                    forceRefreshToken: forceRefreshToken,
+                    networkAttempt: networkAttempt + 1
+                )
+            }
+            throw APIErrorKind.network(Self.networkFailureMessage(error))
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw APIErrorKind.network("NETWORK_UNAVAILABLE")
+        }
+        if http.statusCode == 401, !forceRefreshToken {
+            return try await authorizedGetData(path: path, accept: accept, forceRefreshToken: true)
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = try? decoder.decode(APIErrorBody.self, from: data)
+            throw APIErrorKind.from(status: http.statusCode, code: body?.code, message: body?.message)
+        }
+        return data
     }
 
     private func authorizedGet<T: Decodable>(
