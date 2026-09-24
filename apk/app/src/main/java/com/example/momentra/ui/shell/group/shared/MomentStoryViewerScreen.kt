@@ -745,7 +745,6 @@ private fun MoneyChapter(snap: MomentStorySnapshotDto?) {
     }
 }
 
-@Composable
 private val storySliceColors = listOf(
     Color(0xFF4B3EA8),
     Color(0xFFE8621A),
