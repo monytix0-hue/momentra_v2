@@ -277,12 +277,14 @@ export async function getMomentStory(
   chapters: StoryChapterId[];
 }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'GROUP_ACCESS', resourceType: 'MOMENT', momentId });
-  await client.query('SAVEPOINT story_refresh');
+  // Story reads use a non-transaction connection, so a savepoint is illegal here.
+  // Refresh on its own transaction: a failure rolls back and the existing READY story is still returned.
   try {
-    await refreshReadyMomentStory(client, ctx, momentId, { keepReady: true });
-    await client.query('RELEASE SAVEPOINT story_refresh');
+    await withTransaction(
+      (tx) => refreshReadyMomentStory(tx, ctx, momentId, { keepReady: true }),
+      ctx.userId
+    );
   } catch (err) {
-    await client.query('ROLLBACK TO SAVEPOINT story_refresh');
     console.log(
       JSON.stringify({ level: 'warn', msg: 'story_refresh_on_read_failed', momentId, err: String(err) })
     );
