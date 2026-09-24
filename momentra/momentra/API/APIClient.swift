@@ -1180,6 +1180,20 @@ final class APIClient {
         let photos: [MomentStoryPhoto]?
         let places: [MomentStoryPlace]?
         let people: [MomentStoryPerson]?
+        let highlights: [MomentStoryHighlight]?
+    }
+
+    struct MomentStoryHighlight: Decodable, Identifiable {
+        var id: String { key ?? title ?? detail ?? "highlight" }
+        let key: String?
+        let title: String?
+        let detail: String?
+
+        enum CodingKeys: String, CodingKey {
+            case key = "id"
+            case title
+            case detail
+        }
     }
 
     struct MomentStoryIdentity: Decodable {

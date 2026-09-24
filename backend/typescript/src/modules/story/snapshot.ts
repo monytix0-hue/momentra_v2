@@ -37,6 +37,7 @@ export interface StorySnapshot {
   decisions: Array<{ title: string; status: string }>;
   memories: Array<{ text: string | null; mediaUrl: string | null; at: string | null }>;
   photos: Array<{ url: string; at: string | null; title: string | null; mediaId?: string | null }>;
+  highlights?: Array<{ id: string; title: string; detail: string }>;
   narrative: { opening: string; insights: string[] };
   chapters: StoryChapterId[];
   display: ReturnType<typeof getStoryComposer>;
@@ -206,6 +207,7 @@ export function applyFreshStoryMoney(snapshot: StorySnapshot, money: StorySnapsh
       remaining: formatInr(money.remaining),
     },
     money,
+    highlights: buildStoryHighlights(snapshot, money),
     narrative: {
       opening: snapshot.narrative?.opening ?? '',
       insights,
@@ -318,6 +320,115 @@ function hoursBetween(start: string | null, end: string | null): number {
   const b = Date.parse(end);
   if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return 0;
   return Math.max(1, Math.round((b - a) / 3600000));
+}
+
+const STORY_ZONE = 'Asia/Kolkata';
+
+function formatStoryAmount(amount: number, currency: string): string {
+  const code = /^[A-Z]{3}$/.test(currency) ? currency : 'INR';
+  try {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: code,
+      maximumFractionDigits: 0,
+    }).format(Math.round(amount));
+  } catch {
+    return `${code} ${Math.round(amount)}`;
+  }
+}
+
+function storyDayKey(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: STORY_ZONE,
+  }).format(new Date(iso));
+}
+
+function storyDayLabel(iso: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    timeZone: STORY_ZONE,
+  }).format(new Date(iso));
+}
+
+/** Awards for the money chapter and the close page. Skip any fact that has no data. */
+export function buildStoryHighlights(
+  snapshot: StorySnapshot,
+  money: StorySnapshot['money']
+): NonNullable<StorySnapshot['highlights']> {
+  const currency = snapshot.identity?.currencyCode || 'INR';
+  const highlights: NonNullable<StorySnapshot['highlights']> = [];
+
+  const byDay = new Map<string, { total: number; sample: string }>();
+  for (const expense of money.expenses) {
+    if (!expense.at || expense.amount <= 0) continue;
+    const key = storyDayKey(expense.at);
+    const current = byDay.get(key) ?? { total: 0, sample: expense.at };
+    current.total += expense.amount;
+    byDay.set(key, current);
+  }
+  let busiest: { total: number; sample: string } | null = null;
+  for (const day of byDay.values()) {
+    if (!busiest || day.total > busiest.total) busiest = day;
+  }
+  if (busiest && busiest.total > 0) {
+    highlights.push({
+      id: 'busiest-day',
+      title: 'Busiest day',
+      detail: `${storyDayLabel(busiest.sample)} · ${formatStoryAmount(busiest.total, currency)}`,
+    });
+  }
+
+  const largest = money.expenses.reduce<(typeof money.expenses)[number] | null>(
+    (best, expense) => (expense.amount > (best?.amount ?? 0) ? expense : best),
+    null
+  );
+  if (largest && largest.amount > 0) {
+    highlights.push({
+      id: 'largest-expense',
+      title: 'The one they will remember',
+      detail: `${largest.description} · ${largest.payer} · ${formatStoryAmount(largest.amount, currency)}`,
+    });
+  }
+
+  const topCategory = money.categories[0];
+  if (topCategory && topCategory.amount > 0 && money.spent > 0) {
+    const share = Math.round((topCategory.amount / money.spent) * 100);
+    highlights.push({
+      id: 'top-category',
+      title: 'Where it went',
+      detail: `${topCategory.name} · ${share}% of the spend`,
+    });
+  }
+
+  const topPayer = [...money.payers].sort((a, b) => b.amount - a.amount)[0];
+  if (topPayer && topPayer.amount > 0) {
+    const payments = topPayer.payments === 1 ? '1 payment' : `${topPayer.payments} payments`;
+    highlights.push({
+      id: 'top-payer',
+      title: 'Who carried it',
+      detail: `${topPayer.name} · ${formatStoryAmount(topPayer.amount, currency)} · ${payments}`,
+    });
+  }
+
+  const people = snapshot.people?.length ?? 0;
+  const photos = (snapshot.photos ?? []).filter((photo) => photo.url).length;
+  if (people > 0 || photos > 0) {
+    const parts: string[] = [];
+    if (people > 0) parts.push(people === 1 ? '1 person' : `${people} people`);
+    if (photos > 0) parts.push(photos === 1 ? '1 photo' : `${photos} photos`);
+    highlights.push({
+      id: 'crew',
+      title: 'The crew',
+      detail: parts.join(' · '),
+    });
+  }
+
+  return highlights;
 }
 
 function formatInr(n: number): string {

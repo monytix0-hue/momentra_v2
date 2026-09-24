@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -659,6 +661,37 @@ private fun MoneyChapter(snap: MomentStorySnapshotDto?) {
             color = MomentraBrandColors.StoryMuted,
             fontSize = 14.sp,
         )
+        val moneyCards = snap?.highlights.orEmpty().filter {
+            it.id == "busiest-day" || it.id == "largest-expense" || it.id == "top-category"
+        }
+        if (moneyCards.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                moneyCards.forEach { card ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MomentraBrandColors.StoryCreamBright, RoundedCornerShape(14.dp))
+                            .padding(12.dp),
+                    ) {
+                        Text(
+                            card.title ?: "",
+                            color = MomentraBrandColors.StoryAccentPurple,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            card.detail ?: "",
+                            color = MomentraBrandColors.StoryInk,
+                            fontSize = 14.sp,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                }
+            }
+        }
         Spacer(Modifier.height(14.dp))
         val spent = money?.spent ?: 0.0
         val target = money?.target
@@ -702,31 +735,102 @@ private fun MoneyChapter(snap: MomentStorySnapshotDto?) {
             Text("EXPENSES BEHIND THE MOMENT", color = MomentraBrandColors.StoryAccentPurple, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             groupStoryExpenses(expenses).forEach { day ->
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(day.label, color = MomentraBrandColors.StoryInk, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    Text(formatStoryMoney(day.total, currency), color = MomentraBrandColors.StoryMuted, fontSize = 12.sp)
-                }
-                Spacer(Modifier.height(6.dp))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MomentraBrandColors.StoryDarkClose, RoundedCornerShape(16.dp))
-                        .padding(14.dp),
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    day.items.forEach { e ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column(Modifier.weight(1f)) {
-                                Text(cleanExpenseTitle(e.description), color = Color.White, fontSize = 12.sp)
-                                Text(
-                                    listOfNotNull(e.category, e.payer).joinToString(" · "),
-                                    color = MomentraBrandColors.Indigo100,
-                                    fontSize = 10.sp,
+                    if (day.dayNumber == null) {
+                        Text(
+                            "Undated",
+                            color = MomentraBrandColors.StoryInk,
+                            fontSize = 18.sp,
+                            fontFamily = FontFamily.Serif,
+                        )
+                    } else {
+                        Text(
+                            day.dayNumber,
+                            color = MomentraBrandColors.StoryInk,
+                            fontSize = 28.sp,
+                            fontFamily = FontFamily.Serif,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                day.month ?: "",
+                                color = MomentraBrandColors.StoryInk,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = PlusJakartaSans,
+                            )
+                            Text(
+                                day.weekday ?: "",
+                                color = MomentraBrandColors.StoryMuted,
+                                fontSize = 12.sp,
+                                fontFamily = PlusJakartaSans,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        formatStoryMoney(day.total, currency),
+                        color = MomentraBrandColors.StoryInk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                    Box(
+                        Modifier
+                            .width(3.dp)
+                            .fillMaxHeight()
+                            .background(MomentraBrandColors.Ember500, RoundedCornerShape(2.dp)),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(MomentraBrandColors.StoryCreamBright, RoundedCornerShape(14.dp))
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                    ) {
+                        day.items.forEachIndexed { index, expense ->
+                            if (index > 0) {
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(MomentraBrandColors.StoryMuted.copy(alpha = 0.2f)),
                                 )
                             }
-                            Text(formatStoryMoney(e.amount ?: 0.0, currency), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        cleanExpenseTitle(expense.description),
+                                        color = MomentraBrandColors.StoryInk,
+                                        fontSize = 13.sp,
+                                        fontFamily = PlusJakartaSans,
+                                    )
+                                    Text(
+                                        listOfNotNull(expense.category, expense.payer).joinToString(" · "),
+                                        color = MomentraBrandColors.StoryMuted,
+                                        fontSize = 11.sp,
+                                        fontFamily = PlusJakartaSans,
+                                    )
+                                }
+                                Text(
+                                    formatStoryMoney(expense.amount ?: 0.0, currency),
+                                    color = MomentraBrandColors.StoryInk,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    fontFamily = PlusJakartaSans,
+                                )
+                            }
                         }
-                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }
@@ -821,14 +925,17 @@ private fun CategoryDonut(
 }
 
 private data class StoryExpenseDay(
-    val label: String,
+    val dayNumber: String?,
+    val month: String?,
+    val weekday: String?,
     val total: Double,
     val items: List<MomentStoryMoneyExpenseDto>,
 )
 
 private fun groupStoryExpenses(expenses: List<MomentStoryMoneyExpenseDto>): List<StoryExpenseDay> {
     val zone = java.time.ZoneId.systemDefault()
-    val heading = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMM", java.util.Locale.US)
+    val monthFmt = java.time.format.DateTimeFormatter.ofPattern("MMM", java.util.Locale.US)
+    val weekdayFmt = java.time.format.DateTimeFormatter.ofPattern("EEEE", java.util.Locale.US)
     val buckets = linkedMapOf<java.time.LocalDate, MutableList<MomentStoryMoneyExpenseDto>>()
     val undated = mutableListOf<MomentStoryMoneyExpenseDto>()
     expenses.forEach { expense ->
@@ -839,10 +946,16 @@ private fun groupStoryExpenses(expenses: List<MomentStoryMoneyExpenseDto>): List
     }
     val days = buckets.keys.sorted().map { day ->
         val items = buckets.getValue(day)
-        StoryExpenseDay(day.format(heading), items.sumOf { it.amount ?: 0.0 }, items)
+        StoryExpenseDay(
+            day.dayOfMonth.toString(),
+            day.format(monthFmt),
+            day.format(weekdayFmt),
+            items.sumOf { it.amount ?: 0.0 },
+            items,
+        )
     }
     if (undated.isEmpty()) return days
-    return days + StoryExpenseDay("Undated", undated.sumOf { it.amount ?: 0.0 }, undated)
+    return days + StoryExpenseDay(null, null, null, undated.sumOf { it.amount ?: 0.0 }, undated)
 }
 
 private fun categoryPercents(amounts: List<Double>, spent: Double): List<Int> {
@@ -932,9 +1045,22 @@ private fun CloseChapter(snap: MomentStorySnapshotDto?) {
         if ((snap?.money?.unsettled ?: 0.0) <= 0.0 && (snap?.money?.spent ?: 0.0) > 0) {
             Text("✓  All balances settled", color = MomentraBrandColors.Indigo100, fontSize = 14.sp)
         }
-        snap?.narrative?.insights.orEmpty().take(2).forEach {
-            Spacer(Modifier.height(10.dp))
-            Text(it, color = MomentraBrandColors.Indigo100, fontSize = 13.sp)
+        snap?.highlights.orEmpty().forEach { award ->
+            Spacer(Modifier.height(12.dp))
+            Text(
+                award.title ?: "",
+                color = MomentraBrandColors.Ember500,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = PlusJakartaSans,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                award.detail ?: "",
+                color = MomentraBrandColors.Indigo100,
+                fontSize = 14.sp,
+                fontFamily = PlusJakartaSans,
+            )
         }
     }
 }
@@ -943,46 +1069,44 @@ private fun CloseChapter(snap: MomentStorySnapshotDto?) {
 private fun PhotoMosaic(photos: List<MomentStoryPhotoDto>) {
     val visible = photos.filter { !it.url.isNullOrBlank() }
     if (visible.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        StoryPhotoCell(
-            photo = visible[0],
-            modifier = Modifier.fillMaxWidth().height(180.dp),
-            corner = 16.dp,
-        )
-        visible.drop(1).chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                row.forEach { photo ->
-                    StoryPhotoCell(
-                        photo = photo,
-                        modifier = Modifier.weight(1f).height(110.dp),
-                        corner = 14.dp,
-                    )
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        CollagePhoto(visible[0], Modifier.fillMaxWidth().height(200.dp), 16.dp)
+        val rest = visible.drop(1)
+        var index = 0
+        var wide = true
+        while (index < rest.size) {
+            if (wide || index == rest.lastIndex) {
+                CollagePhoto(rest[index], Modifier.fillMaxWidth().height(150.dp), 14.dp)
+                index += 1
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    CollagePhoto(rest[index], Modifier.weight(1f).height(120.dp), 14.dp)
+                    CollagePhoto(rest[index + 1], Modifier.weight(1f).height(120.dp), 14.dp)
                 }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
+                index += 2
             }
+            wide = !wide
         }
     }
 }
 
 @Composable
-private fun StoryPhotoCell(photo: MomentStoryPhotoDto, modifier: Modifier, corner: Dp) {
+private fun CollagePhoto(photo: MomentStoryPhotoDto, imageModifier: Modifier, corner: Dp) {
     val url = photo.url ?: return
-    Box(modifier.clip(RoundedCornerShape(corner))) {
-        RemoteStoryImage(url = url, modifier = Modifier.fillMaxSize())
+    Column {
+        RemoteStoryImage(
+            url = url,
+            modifier = imageModifier.clip(RoundedCornerShape(corner)),
+        )
         photo.title?.takeIf { it.isNotBlank() }?.let { label ->
+            Spacer(Modifier.height(4.dp))
             Text(
                 label,
-                color = Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
+                color = MomentraBrandColors.StoryInk,
+                fontSize = 12.sp,
                 fontFamily = PlusJakartaSans,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
             )
         }
     }

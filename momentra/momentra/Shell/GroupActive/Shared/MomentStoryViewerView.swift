@@ -398,6 +398,27 @@ struct MomentStoryViewerView: View {
                 Text("How contributions became days together.")
                     .font(.system(size: 14))
                     .foregroundStyle(Color(hex: "#746F67"))
+                let moneyCards = (snap?.highlights ?? []).filter {
+                    $0.key == "busiest-day" || $0.key == "largest-expense" || $0.key == "top-category"
+                }
+                if !moneyCards.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(moneyCards) { card in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(card.title ?? "")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(Color(hex: "#6C4EF2"))
+                                Text(card.detail ?? "")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(Color(hex: "#25231F"))
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(hex: "#FFFEFB"))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                    }
+                }
                 HStack {
                     Text("BUDGET AT A GLANCE")
                         .font(.system(size: 11, weight: .bold))
@@ -436,38 +457,64 @@ struct MomentStoryViewerView: View {
                         .foregroundStyle(Color(hex: "#6C4EF2"))
                         .padding(.top, 4)
                     ForEach(Array(Self.groupStoryExpenses(expenses).enumerated()), id: \.offset) { _, day in
-                        HStack {
-                            Text(day.label)
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(Color(hex: "#25231F"))
+                        HStack(alignment: .center) {
+                            if let number = day.dayNumber {
+                                Text(number)
+                                    .font(.system(size: 28, design: .serif))
+                                    .foregroundStyle(Color(hex: "#25231F"))
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(day.month ?? "")
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundStyle(Color(hex: "#25231F"))
+                                    Text(day.weekday ?? "")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color(hex: "#746F67"))
+                                }
+                            } else {
+                                Text("Undated")
+                                    .font(.system(size: 18, design: .serif))
+                                    .foregroundStyle(Color(hex: "#25231F"))
+                            }
                             Spacer()
                             Text(Self.formatStoryMoney(day.total, currencyCode: currency))
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color(hex: "#746F67"))
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color(hex: "#25231F"))
                         }
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(day.items.enumerated()), id: \.offset) { _, e in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(Self.cleanExpenseTitle(e.description))
-                                            .foregroundStyle(.white)
-                                            .font(.system(size: 12))
-                                        Text([e.category, e.payer].compactMap { $0 }.joined(separator: " · "))
-                                            .foregroundStyle(Color(hex: "#C4BDEE"))
-                                            .font(.system(size: 10))
+                        .padding(.top, 8)
+                        VStack(alignment: .leading, spacing: 0) {
+                                ForEach(Array(day.items.enumerated()), id: \.offset) { index, expense in
+                                    if index > 0 {
+                                        Rectangle()
+                                            .fill(Color(hex: "#746F67").opacity(0.2))
+                                            .frame(height: 1)
                                     }
-                                    Spacer()
-                                    Text(Self.formatStoryMoney(e.amount ?? 0, currencyCode: currency))
-                                        .bold()
-                                        .foregroundStyle(.white)
-                                        .font(.system(size: 12))
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(Self.cleanExpenseTitle(expense.description))
+                                                .foregroundStyle(Color(hex: "#25231F"))
+                                                .font(.system(size: 13))
+                                            Text([expense.category, expense.payer].compactMap { $0 }.joined(separator: " · "))
+                                                .foregroundStyle(Color(hex: "#746F67"))
+                                                .font(.system(size: 11))
+                                        }
+                                        Spacer()
+                                        Text(Self.formatStoryMoney(expense.amount ?? 0, currencyCode: currency))
+                                            .font(.system(size: 13, weight: .bold))
+                                            .foregroundStyle(Color(hex: "#25231F"))
+                                    }
+                                    .padding(.vertical, 8)
                                 }
                             }
-                        }
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(hex: "#201E28"))
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .padding(.horizontal, 12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(hex: "#FFFEFB"))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .overlay(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color(hex: "#E8621A"))
+                                    .frame(width: 3)
+                                    .padding(.vertical, 8)
+                            }
                     }
                 }
                 if let insight = snap?.narrative?.insights?.first(where: {
@@ -552,11 +599,16 @@ struct MomentStoryViewerView: View {
                     Text("✓  All balances settled")
                         .foregroundStyle(Color(hex: "#C4BDEE"))
                 }
-                ForEach(Array((snap?.narrative?.insights ?? []).prefix(2)), id: \.self) { insight in
-                    Text(insight)
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color(hex: "#C4BDEE"))
-                        .padding(.top, 4)
+                ForEach(snap?.highlights ?? []) { award in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(award.title ?? "")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color(hex: "#E8621A"))
+                        Text(award.detail ?? "")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color(hex: "#C4BDEE"))
+                    }
+                    .padding(.top, 4)
                 }
             }
             .padding(24)
@@ -570,29 +622,48 @@ struct MomentStoryViewerView: View {
 
     @ViewBuilder
     private func photoMosaic(_ photos: [(url: URL, title: String?)]) -> some View {
-        VStack(spacing: 8) {
-            if let first = photos.first {
-                storyPhoto(first.url, title: first.title, height: 180, radius: 16)
-            }
-            let rest = Array(photos.dropFirst())
-            let rows = stride(from: 0, to: rest.count, by: 2).map { start in
-                Array(rest[start..<min(start + 2, rest.count)])
-            }
+        let rows = collageRows(photos)
+        VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: 8) {
-                    ForEach(Array(row.enumerated()), id: \.offset) { _, photo in
-                        storyPhoto(photo.url, title: photo.title, height: 110, radius: 14)
-                    }
-                    if row.count == 1 {
-                        Color.clear.frame(maxWidth: .infinity).frame(height: 110)
+                if row.photos.count == 1, let photo = row.photos.first {
+                    collagePhoto(photo.url, title: photo.title, height: row.wide ? 200 : 150, radius: row.wide ? 16 : 14)
+                } else {
+                    HStack(alignment: .top, spacing: 8) {
+                        ForEach(Array(row.photos.enumerated()), id: \.offset) { _, photo in
+                            collagePhoto(photo.url, title: photo.title, height: 120, radius: 14)
+                        }
                     }
                 }
             }
         }
     }
 
-    private func storyPhoto(_ url: URL, title: String?, height: CGFloat, radius: CGFloat) -> some View {
-        ZStack(alignment: .bottomLeading) {
+    private struct CollageRow {
+        let photos: [(url: URL, title: String?)]
+        let wide: Bool
+    }
+
+    private func collageRows(_ photos: [(url: URL, title: String?)]) -> [CollageRow] {
+        guard let first = photos.first else { return [] }
+        var rows = [CollageRow(photos: [first], wide: true)]
+        let rest = Array(photos.dropFirst())
+        var index = 0
+        var wide = true
+        while index < rest.count {
+            if wide || index == rest.count - 1 {
+                rows.append(CollageRow(photos: [rest[index]], wide: false))
+                index += 1
+            } else {
+                rows.append(CollageRow(photos: [rest[index], rest[index + 1]], wide: false))
+                index += 2
+            }
+            wide.toggle()
+        }
+        return rows
+    }
+
+    private func collagePhoto(_ url: URL, title: String?, height: CGFloat, radius: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let img):
@@ -601,21 +672,18 @@ struct MomentStoryViewerView: View {
                     Color(hex: "#E7E0D6")
                 }
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: radius))
             if let title {
                 Text(title)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(hex: "#25231F"))
                     .lineLimit(2)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.black.opacity(0.55))
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: height)
-        .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: radius))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -797,7 +865,9 @@ struct MomentStoryViewerView: View {
     }
 
     private struct StoryExpenseDay {
-        let label: String
+        let dayNumber: String?
+        let month: String?
+        let weekday: String?
         let total: Double
         let items: [APIClient.MomentStoryMoneyExpense]
     }
@@ -964,9 +1034,6 @@ struct MomentStoryViewerView: View {
         let dayKey = DateFormatter()
         dayKey.locale = Locale(identifier: "en_US_POSIX")
         dayKey.dateFormat = "yyyy-MM-dd"
-        let heading = DateFormatter()
-        heading.locale = Locale(identifier: "en_US_POSIX")
-        heading.dateFormat = "EEEE, d MMM"
         for expense in expenses {
             guard let iso = expense.at, let date = parseISO(iso) else {
                 undated.append(expense)
@@ -975,14 +1042,26 @@ struct MomentStoryViewerView: View {
             let key = dayKey.string(from: date)
             buckets[key, default: []].append(expense)
         }
+        let monthFmt = DateFormatter()
+        monthFmt.locale = Locale(identifier: "en_US_POSIX")
+        monthFmt.dateFormat = "MMM"
+        let weekdayFmt = DateFormatter()
+        weekdayFmt.locale = Locale(identifier: "en_US_POSIX")
+        weekdayFmt.dateFormat = "EEEE"
         var days = buckets.keys.sorted().map { key -> StoryExpenseDay in
             let items = buckets[key] ?? []
-            let label = dayKey.date(from: key).map { heading.string(from: $0) } ?? key
+            let date = dayKey.date(from: key)
             let total = items.reduce(0) { $0 + ($1.amount ?? 0) }
-            return StoryExpenseDay(label: label, total: total, items: items)
+            return StoryExpenseDay(
+                dayNumber: date.map { Calendar.current.component(.day, from: $0) }.map(String.init),
+                month: date.map { monthFmt.string(from: $0) },
+                weekday: date.map { weekdayFmt.string(from: $0) },
+                total: total,
+                items: items
+            )
         }
         if !undated.isEmpty {
-            days.append(StoryExpenseDay(label: "Undated", total: undated.reduce(0) { $0 + ($1.amount ?? 0) }, items: undated))
+            days.append(StoryExpenseDay(dayNumber: nil, month: nil, weekday: nil, total: undated.reduce(0) { $0 + ($1.amount ?? 0) }, items: undated))
         }
         return days
     }

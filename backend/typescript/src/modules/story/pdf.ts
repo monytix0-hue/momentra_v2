@@ -238,32 +238,65 @@ function togetherPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot, photos: 
     y = ensure(doc, y, 36);
     doc.fillColor(EMBER).fontSize(12).text('Photos', 48, y, { lineBreak: false });
     y += 20;
-    const colW = 240;
-    const rowH = 160;
-    const captionH = 16;
-    const gap = 12;
-    const cellH = rowH + captionH;
-    photos.forEach((photo, index) => {
-      const col = index % 2;
-      if (col === 0) y = ensure(doc, y, cellH + gap);
-      const x = 48 + col * (colW + gap);
-      try {
-        doc.image(photo.image, x, y, { fit: [colW, rowH], align: 'center', valign: 'center' });
-      } catch {
-        // Skip a photo the PDF engine cannot decode.
-      }
-      const title = photo.title?.trim();
-      if (title) {
-        doc.fillColor(INK).fontSize(9).text(title, x, y + rowH + 2, {
-          width: colW,
-          height: captionH,
-          ellipsis: true,
-          lineBreak: false,
-        });
-      }
-      if (col === 1 || index === photos.length - 1) y += cellH + gap;
-    });
+    y = drawPhotoCollage(doc, photos, y);
   }
+}
+
+function drawPdfPhoto(
+  doc: PDFKit.PDFDocument,
+  photo: PdfPhoto,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): number {
+  try {
+    doc.image(photo.image, x, y, { fit: [width, height], align: 'center', valign: 'center' });
+  } catch {
+    // Skip a photo the PDF engine cannot decode.
+  }
+  const title = photo.title?.trim();
+  if (!title) return height;
+  doc.fillColor(INK).fontSize(9).text(title, x, y + height + 2, {
+    width,
+    height: 16,
+    ellipsis: true,
+    lineBreak: false,
+  });
+  return height + 18;
+}
+
+function drawPhotoCollage(doc: PDFKit.PDFDocument, photos: PdfPhoto[], startY: number): number {
+  const fullW = 492;
+  const colW = 240;
+  const gap = 12;
+  let y = startY;
+  const first = photos[0];
+  if (!first) return y;
+  y = ensure(doc, y, 200);
+  const firstH = drawPdfPhoto(doc, first, 48, y, fullW, 180);
+  y += firstH + gap;
+  let index = 1;
+  let wide = true;
+  while (index < photos.length) {
+    const photo = photos[index];
+    if (!photo) break;
+    if (wide || index === photos.length - 1) {
+      y = ensure(doc, y, 160);
+      const drawn = drawPdfPhoto(doc, photo, 48, y, fullW, 130);
+      y += drawn + gap;
+      index += 1;
+    } else {
+      const next = photos[index + 1];
+      y = ensure(doc, y, 140);
+      const left = drawPdfPhoto(doc, photo, 48, y, colW, 110);
+      const right = next ? drawPdfPhoto(doc, next, 48 + colW + gap, y, colW, 110) : 0;
+      y += Math.max(left, right) + gap;
+      index += 2;
+    }
+    wide = !wide;
+  }
+  return y;
 }
 
 type PdfArc = PDFKit.PDFDocument & {
@@ -302,12 +335,30 @@ function drawDonut(
   doc.circle(cx, cy, radius * 0.58).fill('#FFFFFF');
 }
 
+const MONEY_CARD_IDS = new Set(['busiest-day', 'largest-expense', 'top-category']);
+
+function drawMoneyHighlightCards(doc: PDFKit.PDFDocument, snapshot: StorySnapshot, y: number): number {
+  const cards = (snapshot.highlights ?? []).filter((item) => MONEY_CARD_IDS.has(item.id));
+  if (cards.length === 0) return y;
+  const gap = 8;
+  const cardW = (499 - gap * (cards.length - 1)) / cards.length;
+  const cardH = 78;
+  cards.forEach((card, index) => {
+    const x = 48 + index * (cardW + gap);
+    doc.roundedRect(x, y, cardW, cardH, 8).fill(CREAM);
+    doc.fillColor(EMBER).fontSize(9).text(card.title, x + 8, y + 8, { width: cardW - 16, lineBreak: false });
+    doc.fillColor(INK).fontSize(10).text(card.detail, x + 8, y + 26, { width: cardW - 16, height: 44 });
+  });
+  return y + cardH + 16;
+}
+
 function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
   const money = snapshot.money;
   const currency = snapshot.identity.currencyCode;
   doc.addPage();
   drawWordmarkChip(doc, 48, 36);
   doc.fillColor(INDIGO).fontSize(22).text('Money', 220, 48, { lineBreak: false });
+  const figuresTop = drawMoneyHighlightCards(doc, snapshot, 100);
   const figures: Array<[string, number]> = [
     ['Contributed', money.contributed],
     ['Spent', money.spent],
@@ -316,13 +367,13 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
   ];
   figures.forEach(([label, amount], index) => {
     const x = 48 + (index % 2) * 250;
-    const y = 108 + Math.floor(index / 2) * 58;
+    const y = figuresTop + Math.floor(index / 2) * 58;
     doc.roundedRect(x, y, 230, 48, 8).fill(CREAM);
     doc.fillColor(INDIGO).fontSize(14).text(formatMoney(amount, currency), x + 12, y + 8, { width: 206, lineBreak: false });
     doc.fillColor(MUTED).fontSize(10).text(label, x + 12, y + 28, { lineBreak: false });
   });
 
-  let y = 236;
+  let y = figuresTop + 116 + 16;
   const categories = money.categories.filter((c) => c.amount > 0);
   const spent = money.spent || categories.reduce((sum, c) => sum + c.amount, 0);
   if (categories.length > 0 && spent > 0) {
@@ -375,10 +426,15 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
   ordered.forEach(([key, expenses]) => {
     const heading = key ? formatDayHeading(expenses[0]?.at ?? key) : 'Undated';
     const dayTotal = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
-    y = ensure(doc, y, 48);
-    doc.fillColor(INDIGO).fontSize(12).text(heading, 48, y, { width: 320, lineBreak: false });
-    doc.fillColor(MUTED).fontSize(11).text(formatMoney(dayTotal, currency), 360, y, { width: 180, align: 'right', lineBreak: false });
-    y += 18;
+    y = ensure(doc, y, 40);
+    doc.roundedRect(48, y, 499, 28, 6).fill(CREAM);
+    doc.fillColor(INDIGO).fontSize(11).text(heading, 60, y + 8, { width: 280, lineBreak: false });
+    doc.fillColor(INDIGO).fontSize(11).text(formatMoney(dayTotal, currency), 340, y + 8, {
+      width: 190,
+      align: 'right',
+      lineBreak: false,
+    });
+    y += 36;
     expenses.forEach((expense) => {
       y = ensure(doc, y, 32);
       doc.fillColor(INK).fontSize(11).text(expense.description || expense.category, 48, y, { width: 280 });
@@ -386,7 +442,7 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
       doc.fillColor(INDIGO).fontSize(11).text(formatMoney(expense.amount, currency), 360, y, { width: 180, align: 'right', lineBreak: false });
       y += 30;
     });
-    y += 8;
+    y += 14;
   });
 }
 
@@ -401,7 +457,14 @@ function closePage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
   if (celebration) {
     doc.fillColor('#C4BDEE').fontSize(14).text(snapshot.display.closeLine, 48, 250, { width: 500 });
   }
-  doc.fillColor('#F5F0FF').fontSize(16).text(snapshot.identity.title, 48, 310, { width: 500 });
+  let awardY = celebration ? 300 : 250;
+  (snapshot.highlights ?? []).forEach((award) => {
+    awardY = ensure(doc, awardY, 36);
+    doc.fillColor(EMBER).fontSize(11).text(award.title, 48, awardY, { width: 500, lineBreak: false });
+    doc.fillColor('#C4BDEE').fontSize(12).text(award.detail, 48, awardY + 16, { width: 500 });
+    awardY += 40;
+  });
+  doc.fillColor('#F5F0FF').fontSize(16).text(snapshot.identity.title, 48, awardY + 8, { width: 500 });
 }
 
 async function loadPhotoBuffers(snapshot: StorySnapshot): Promise<PdfPhoto[]> {

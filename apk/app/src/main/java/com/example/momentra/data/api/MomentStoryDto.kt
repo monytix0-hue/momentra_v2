@@ -30,6 +30,13 @@ data class MomentStorySnapshotDto(
     val photos: List<MomentStoryPhotoDto>? = null,
     val places: List<MomentStoryPlaceDto>? = null,
     val people: List<MomentStoryPersonDto>? = null,
+    val highlights: List<MomentStoryHighlightDto>? = null,
+)
+
+data class MomentStoryHighlightDto(
+    val id: String? = null,
+    val title: String? = null,
+    val detail: String? = null,
 )
 
 data class MomentStoryIdentityDto(
