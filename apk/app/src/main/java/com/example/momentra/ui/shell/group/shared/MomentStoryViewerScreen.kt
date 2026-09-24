@@ -54,12 +54,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.MomentStoryDto
 import com.example.momentra.data.api.MomentStoryMetricKeyDto
+import com.example.momentra.data.api.MomentStoryPhotoDto
 import com.example.momentra.data.api.MomentStoryMoneyCategoryDto
 import com.example.momentra.data.api.MomentStoryMoneyExpenseDto
 import com.example.momentra.data.api.MomentStorySnapshotDto
@@ -154,24 +157,15 @@ fun MomentStoryViewerScreen(
                 Image(
                     painter = painterResource(R.drawable.momentra_official_logo),
                     contentDescription = "Momentra",
-                    modifier = Modifier.height(28.dp).width(28.dp),
+                    modifier = Modifier.height(48.dp).width(168.dp),
                     contentScale = ContentScale.Fit,
                 )
-                Column {
-                    Text(
-                        "momentra",
-                        color = if (chromeDark) MomentraBrandColors.TextOnDark else MomentraBrandColors.StoryTerracotta,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 18.sp,
-                    )
-                    Text(
-                        snap?.display?.displayLabel ?: "Moment Story",
-                        color = if (chromeDark) MomentraBrandColors.Indigo100 else MomentraBrandColors.StoryMuted,
-                        fontSize = 12.sp,
-                        fontFamily = PlusJakartaSans,
-                    )
-                }
+                Text(
+                    snap?.display?.displayLabel ?: "Moment Story",
+                    color = if (chromeDark) MomentraBrandColors.Indigo100 else MomentraBrandColors.StoryMuted,
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                )
             }
             TextButton(onClick = onClose) {
                 Text(
@@ -485,7 +479,7 @@ private fun MomentChapter(snap: MomentStorySnapshotDto?) {
                 fontFamily = FontFamily.Serif,
             )
             Spacer(Modifier.height(10.dp))
-            PhotoMosaic(urls = mosaic.mapNotNull { it.url }.take(4))
+            PhotoMosaic(photos = mosaic)
         }
     }
 }
@@ -873,7 +867,7 @@ private fun CloseChapter(snap: MomentStorySnapshotDto?) {
         Image(
             painter = painterResource(R.drawable.momentra_official_logo),
             contentDescription = "Momentra",
-            modifier = Modifier.height(36.dp).width(36.dp),
+            modifier = Modifier.height(56.dp).width(200.dp),
             contentScale = ContentScale.Fit,
         )
         Spacer(Modifier.height(16.dp))
@@ -930,31 +924,49 @@ private fun CloseChapter(snap: MomentStorySnapshotDto?) {
 }
 
 @Composable
-private fun PhotoMosaic(urls: List<String>) {
-    if (urls.isEmpty()) return
+private fun PhotoMosaic(photos: List<MomentStoryPhotoDto>) {
+    val visible = photos.filter { !it.url.isNullOrBlank() }
+    if (visible.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        RemoteStoryImage(
-            url = urls[0],
-            modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(16.dp)),
+        StoryPhotoCell(
+            photo = visible[0],
+            modifier = Modifier.fillMaxWidth().height(180.dp),
+            corner = 16.dp,
         )
-        if (urls.size > 1) {
+        visible.drop(1).chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                urls.drop(1).take(2).forEach { url ->
-                    RemoteStoryImage(
-                        url = url,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(110.dp)
-                            .clip(RoundedCornerShape(14.dp)),
+                row.forEach { photo ->
+                    StoryPhotoCell(
+                        photo = photo,
+                        modifier = Modifier.weight(1f).height(110.dp),
+                        corner = 14.dp,
                     )
                 }
-                if (urls.size == 2) Spacer(Modifier.weight(1f))
+                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
-        urls.drop(3).take(1).forEach { url ->
-            RemoteStoryImage(
-                url = url,
-                modifier = Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(14.dp)),
+    }
+}
+
+@Composable
+private fun StoryPhotoCell(photo: MomentStoryPhotoDto, modifier: Modifier, corner: Dp) {
+    val url = photo.url ?: return
+    Box(modifier.clip(RoundedCornerShape(corner))) {
+        RemoteStoryImage(url = url, modifier = Modifier.fillMaxSize())
+        photo.title?.takeIf { it.isNotBlank() }?.let { label ->
+            Text(
+                label,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
             )
         }
     }

@@ -313,7 +313,7 @@ export async function getMomentStory(
   }
   const snapshot = snap.rows[0].snapshot_json;
   // Re-sign memory media on every read — frozen snapshot URLs expire (~1h).
-  const freshPhotos = await loadFreshStoryPhotos(client, momentId, 5);
+  const freshPhotos = await loadFreshStoryPhotos(client, momentId);
   const hydrated: StorySnapshot = hydrateStoryMoneyCategories({
     ...snapshot,
     photos: freshPhotos,
@@ -517,7 +517,7 @@ export async function getPublicStoryByToken(
   if (!stored) {
     return { html: '<html><body><p>Story not ready.</p></body></html>', title: 'Moment Story', revoked: false };
   }
-  const freshPhotos = await loadFreshStoryPhotos(client, stored.moment_id, 5);
+  const freshPhotos = await loadFreshStoryPhotos(client, stored.moment_id);
   const hydrated = hydrateStoryMoneyCategories({ ...stored.snapshot_json, photos: freshPhotos });
   const webUrl = `${publicStoryWebBase()}/story/${shareToken}`;
   return {

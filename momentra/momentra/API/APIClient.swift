@@ -1236,9 +1236,10 @@ final class APIClient {
     }
 
     struct MomentStoryPhoto: Decodable, Identifiable {
-        var id: String { url ?? "\(at ?? "")" }
+        var id: String { url ?? "\(at ?? "")|\(title ?? "")" }
         let url: String?
         let at: String?
+        let title: String?
     }
 
     struct MomentStoryMoneyCategory: Decodable, Identifiable {

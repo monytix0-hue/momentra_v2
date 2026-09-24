@@ -41,15 +41,10 @@ struct MomentStoryViewerView: View {
                         Image("MomentraOfficialLogo")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 28, height: 28)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("momentra")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundStyle(chromeDark ? Color(hex: "#F5F0FF") : Color(hex: "#B45F3D"))
-                            Text(story?.snapshot?.display?.displayLabel ?? "Moment Story")
-                                .font(.system(size: 12))
-                                .foregroundStyle(chromeDark ? Color(hex: "#C4BDEE") : Color(hex: "#746F67"))
-                        }
+                            .frame(width: 168, height: 48)
+                        Text(story?.snapshot?.display?.displayLabel ?? "Moment Story")
+                            .font(.system(size: 12))
+                            .foregroundStyle(chromeDark ? Color(hex: "#C4BDEE") : Color(hex: "#746F67"))
                     }
                     Spacer()
                     Button("Close", action: onClose)
@@ -264,8 +259,11 @@ struct MomentStoryViewerView: View {
                     .foregroundStyle(Color(hex: "#25231F"))
                     .padding(.top, 8)
                 timelineList(Array((snap?.timeline ?? []).prefix(6)), dark: false)
-                let mosaicUrls = (snap?.photos ?? []).compactMap { $0.url }.filter { !$0.isEmpty }.prefix(4).compactMap { URL(string: $0) }
-                if !mosaicUrls.isEmpty {
+                let mosaic = (snap?.photos ?? []).compactMap { photo -> (url: URL, title: String?)? in
+                    guard let raw = photo.url, !raw.isEmpty, let url = URL(string: raw) else { return nil }
+                    return (url, memoryPhotoTitle(photo.title))
+                }
+                if !mosaic.isEmpty {
                     Text("PHOTO STORY")
                         .font(.system(size: 10, weight: .semibold))
                         .tracking(1.2)
@@ -274,7 +272,7 @@ struct MomentStoryViewerView: View {
                     Text("Celebrations, held close.")
                         .font(.system(size: 22, design: .serif))
                         .foregroundStyle(Color(hex: "#25231F"))
-                    photoMosaic(Array(mosaicUrls))
+                    photoMosaic(mosaic)
                 }
             }
             .padding(20)
@@ -520,7 +518,7 @@ struct MomentStoryViewerView: View {
                 Image("MomentraOfficialLogo")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 36, height: 36)
+                    .frame(width: 200, height: 56)
                 Text("TOGETHER · FORWARD")
                     .font(.system(size: 12, weight: .bold))
                     .tracking(1)
@@ -567,55 +565,53 @@ struct MomentStoryViewerView: View {
     // MARK: - Shared pieces
 
     @ViewBuilder
-    private func photoMosaic(_ urls: [URL]) -> some View {
+    private func photoMosaic(_ photos: [(url: URL, title: String?)]) -> some View {
         VStack(spacing: 8) {
-            if let first = urls.first {
-                AsyncImage(url: first) { phase in
-                    switch phase {
-                    case .success(let img):
-                        img.resizable().scaledToFill()
-                    default:
-                        Color(hex: "#E7E0D6")
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 180)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+            if let first = photos.first {
+                storyPhoto(first.url, title: first.title, height: 180, radius: 16)
             }
-            if urls.count > 1 {
+            let rest = Array(photos.dropFirst())
+            let rows = stride(from: 0, to: rest.count, by: 2).map { start in
+                Array(rest[start..<min(start + 2, rest.count)])
+            }
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: 8) {
-                    ForEach(Array(urls.dropFirst().prefix(2).enumerated()), id: \.offset) { _, url in
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let img):
-                                img.resizable().scaledToFill()
-                            default:
-                                Color(hex: "#E7E0D6")
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 110)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    ForEach(Array(row.enumerated()), id: \.offset) { _, photo in
+                        storyPhoto(photo.url, title: photo.title, height: 110, radius: 14)
                     }
-                    if urls.count == 2 {
+                    if row.count == 1 {
                         Color.clear.frame(maxWidth: .infinity).frame(height: 110)
                     }
                 }
             }
-            if urls.count > 3, let fourth = urls.dropFirst(3).first {
-                AsyncImage(url: fourth) { phase in
-                    switch phase {
-                    case .success(let img):
-                        img.resizable().scaledToFill()
-                    default:
-                        Color(hex: "#E7E0D6")
-                    }
+        }
+    }
+
+    private func storyPhoto(_ url: URL, title: String?, height: CGFloat, radius: CGFloat) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let img):
+                    img.resizable().scaledToFill()
+                default:
+                    Color(hex: "#E7E0D6")
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 140)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            if let title {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.black.opacity(0.55))
             }
         }
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: radius))
     }
 
     @ViewBuilder

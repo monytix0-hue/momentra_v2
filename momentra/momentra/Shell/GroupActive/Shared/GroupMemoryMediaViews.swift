@@ -13,13 +13,28 @@ func groupMemoryTypeCode(forChip label: String) -> String {
     }
 }
 
-func memoryGalleryUrls(from items: [GroupMemoryItem]) -> [URL] {
+func memoryPhotoTitle(_ raw: String?) -> String? {
+    let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return trimmed.isEmpty ? nil : trimmed
+}
+
+struct MemoryGalleryPhoto {
+    let url: URL
+    let title: String?
+}
+
+func memoryGalleryPhotos(from items: [GroupMemoryItem]) -> [MemoryGalleryPhoto] {
     items.flatMap { item in
-        (item.media ?? []).compactMap { media -> URL? in
-            guard let raw = media.downloadUrl, !raw.isEmpty else { return nil }
-            return URL(string: raw)
+        let title = memoryPhotoTitle(item.title)
+        return (item.media ?? []).compactMap { media -> MemoryGalleryPhoto? in
+            guard let raw = media.downloadUrl, !raw.isEmpty, let url = URL(string: raw) else { return nil }
+            return MemoryGalleryPhoto(url: url, title: title)
         }
     }
+}
+
+func memoryGalleryUrls(from items: [GroupMemoryItem]) -> [URL] {
+    memoryGalleryPhotos(from: items).map(\.url)
 }
 
 /// Remote memory photo via `AsyncImage` (signed download URLs from list/facet payloads).
@@ -64,12 +79,14 @@ struct RemoteMemoryImage: View {
 private struct MemoryPhotoViewerState: Identifiable {
     let id = UUID()
     let urls: [URL]
+    let titles: [String]
     let initialIndex: Int
 }
 
 /// Full-screen lightbox with pinch / double-tap zoom.
 struct MemoryPhotoFullscreenViewer: View {
     let urls: [URL]
+    var titles: [String] = []
     var initialIndex: Int = 0
     var onDismiss: () -> Void
 
@@ -79,8 +96,9 @@ struct MemoryPhotoFullscreenViewer: View {
     @State private var offset: CGSize = .zero
     @State private var dragOffset: CGFloat = 0
 
-    init(urls: [URL], initialIndex: Int = 0, onDismiss: @escaping () -> Void) {
+    init(urls: [URL], titles: [String] = [], initialIndex: Int = 0, onDismiss: @escaping () -> Void) {
         self.urls = urls
+        self.titles = titles
         self.initialIndex = initialIndex
         self.onDismiss = onDismiss
         _index = State(initialValue: min(max(0, initialIndex), max(urls.count - 1, 0)))
@@ -120,9 +138,19 @@ struct MemoryPhotoFullscreenViewer: View {
                     }
                     .accessibilityLabel("Close")
                 }
+                .padding(.horizontal, 20)
                 Spacer()
+                if urls.indices.contains(index), index < titles.count, !titles[index].isEmpty {
+                    Text(titles[index])
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
+                        .background(Color.black.opacity(0.55))
+                }
             }
-            .padding(.horizontal, 20)
             .padding(.top, 12)
         }
         .offset(y: dragOffset)
@@ -215,21 +243,28 @@ struct MemoryPhotoGalleryStrip: View {
 
     @State private var viewer: MemoryPhotoViewerState?
 
-    private var tiles: [(url: URL?, count: Int)] {
-        if showMediaCountBadge {
-            return items.compactMap { item -> (URL?, Int)? in
-                let count = item.mediaCount ?? item.media?.count ?? 0
-                guard let url = item.primaryDownloadUrl.flatMap({ URL(string: $0) }) else {
-                    return count > 0 ? (nil, count) : nil
-                }
-                return (url, max(count, 1))
-            }
-        }
-        return memoryGalleryUrls(from: items).map { ($0, 0) }
+    private struct GalleryTile {
+        let url: URL?
+        let count: Int
+        let title: String?
     }
 
-    private var openableUrls: [URL] {
-        tiles.compactMap(\.url)
+    private var tiles: [GalleryTile] {
+        if showMediaCountBadge {
+            return items.compactMap { item in
+                let count = item.mediaCount ?? item.media?.count ?? 0
+                let title = memoryPhotoTitle(item.title)
+                guard let url = item.primaryDownloadUrl.flatMap({ URL(string: $0) }) else {
+                    return count > 0 ? GalleryTile(url: nil, count: count, title: title) : nil
+                }
+                return GalleryTile(url: url, count: max(count, 1), title: title)
+            }
+        }
+        return memoryGalleryPhotos(from: items).map { GalleryTile(url: $0.url, count: 0, title: $0.title) }
+    }
+
+    private var openable: [GalleryTile] {
+        tiles.filter { $0.url != nil }
     }
 
     var body: some View {
@@ -246,25 +281,37 @@ struct MemoryPhotoGalleryStrip: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(Array(tiles.enumerated()), id: \.offset) { idx, tile in
-                        ZStack(alignment: .topTrailing) {
-                            RemoteMemoryImage(url: tile.url, placeholderColor: field)
-                                .frame(
-                                    width: showMediaCountBadge ? nil : tileSize,
-                                    height: showMediaCountBadge ? 140 : tileSize
-                                )
-                                .frame(maxWidth: showMediaCountBadge ? .infinity : nil)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                            if showMediaCountBadge, tile.count > 0 {
-                                Text("\(tile.count)")
-                                    .font(.plusJakarta(size: 10, weight: .bold))
+                        ZStack(alignment: .bottomLeading) {
+                            ZStack(alignment: .topTrailing) {
+                                RemoteMemoryImage(url: tile.url, placeholderColor: field)
+                                    .frame(
+                                        width: showMediaCountBadge ? nil : tileSize,
+                                        height: showMediaCountBadge ? 140 : tileSize
+                                    )
+                                    .frame(maxWidth: showMediaCountBadge ? .infinity : nil)
+                                if showMediaCountBadge, tile.count > 0 {
+                                    Text("\(tile.count)")
+                                        .font(.plusJakarta(size: 10, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.black.opacity(0.5))
+                                        .clipShape(Capsule())
+                                        .padding(6)
+                                }
+                            }
+                            if let title = tile.title {
+                                Text(title)
+                                    .font(.plusJakarta(size: 10, weight: .semibold))
                                     .foregroundStyle(.white)
-                                    .padding(.horizontal, 8)
+                                    .lineLimit(2)
+                                    .padding(.horizontal, 6)
                                     .padding(.vertical, 4)
-                                    .background(Color.black.opacity(0.5))
-                                    .clipShape(Capsule())
-                                    .padding(6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.black.opacity(0.55))
                             }
                         }
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16)
                                 .stroke(Color(hex: "#40E88A4F"), lineWidth: 1.5)
@@ -273,10 +320,15 @@ struct MemoryPhotoGalleryStrip: View {
                         .contentShape(RoundedRectangle(cornerRadius: 16))
                         .onTapGesture {
                             guard let url = tile.url else { return }
-                            let urls = openableUrls
+                            let photos = openable
+                            let urls = photos.compactMap(\.url)
                             let start = urls.firstIndex(of: url) ?? min(idx, max(urls.count - 1, 0))
                             guard !urls.isEmpty else { return }
-                            viewer = MemoryPhotoViewerState(urls: urls, initialIndex: start)
+                            viewer = MemoryPhotoViewerState(
+                                urls: urls,
+                                titles: photos.map { $0.title ?? "" },
+                                initialIndex: start
+                            )
                         }
                     }
                 }
@@ -284,6 +336,7 @@ struct MemoryPhotoGalleryStrip: View {
             .fullScreenCover(item: $viewer) { state in
                 MemoryPhotoFullscreenViewer(
                     urls: state.urls,
+                    titles: state.titles,
                     initialIndex: state.initialIndex,
                     onDismiss: { viewer = nil }
                 )
@@ -320,11 +373,12 @@ struct MemoryMediaThumb: View {
         .contentShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture {
             guard let url else { return }
-            viewer = MemoryPhotoViewerState(urls: [url], initialIndex: 0)
+            viewer = MemoryPhotoViewerState(urls: [url], titles: [], initialIndex: 0)
         }
         .fullScreenCover(item: $viewer) { state in
             MemoryPhotoFullscreenViewer(
                 urls: state.urls,
+                titles: state.titles,
                 initialIndex: state.initialIndex,
                 onDismiss: { viewer = nil }
             )
@@ -340,7 +394,7 @@ struct MemoryGalleryListSheet: View {
 
     @State private var viewer: MemoryPhotoViewerState?
 
-    private var urls: [URL] { memoryGalleryUrls(from: items) }
+    private var photos: [MemoryGalleryPhoto] { memoryGalleryPhotos(from: items) }
 
     private let columns = [
         GridItem(.flexible(), spacing: 8),
@@ -352,25 +406,41 @@ struct MemoryGalleryListSheet: View {
         NavigationStack {
             ScrollView {
                 Group {
-                    if urls.isEmpty {
+                    if photos.isEmpty {
                         GroupEmptySection(message: "No photos yet", detail: "Add a memory with a photo from Quick Add.")
                             .padding(.top, 24)
                     } else {
                         LazyVGrid(columns: columns, spacing: 8) {
-                            ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
-                                RemoteMemoryImage(url: url, placeholderColor: chrome.card)
-                                    .aspectRatio(1, contentMode: .fill)
-                                    .frame(maxWidth: .infinity)
-                                    .clipped()
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(chrome.border, lineWidth: 1)
-                                    )
-                                    .contentShape(RoundedRectangle(cornerRadius: 12))
-                                    .onTapGesture {
-                                        viewer = MemoryPhotoViewerState(urls: urls, initialIndex: index)
+                            ForEach(Array(photos.enumerated()), id: \.offset) { index, photo in
+                                ZStack(alignment: .bottomLeading) {
+                                    RemoteMemoryImage(url: photo.url, placeholderColor: chrome.card)
+                                        .aspectRatio(1, contentMode: .fill)
+                                        .frame(maxWidth: .infinity)
+                                    if let title = photo.title {
+                                        Text(title)
+                                            .font(.plusJakarta(size: 10, weight: .semibold))
+                                            .foregroundStyle(.white)
+                                            .lineLimit(2)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 4)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .background(Color.black.opacity(0.55))
                                     }
+                                }
+                                .clipped()
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(chrome.border, lineWidth: 1)
+                                )
+                                .contentShape(RoundedRectangle(cornerRadius: 12))
+                                .onTapGesture {
+                                    viewer = MemoryPhotoViewerState(
+                                        urls: photos.map(\.url),
+                                        titles: photos.map { $0.title ?? "" },
+                                        initialIndex: index
+                                    )
+                                }
                             }
                         }
                     }
@@ -390,6 +460,7 @@ struct MemoryGalleryListSheet: View {
         .fullScreenCover(item: $viewer) { state in
             MemoryPhotoFullscreenViewer(
                 urls: state.urls,
+                titles: state.titles,
                 initialIndex: state.initialIndex,
                 onDismiss: { viewer = nil }
             )

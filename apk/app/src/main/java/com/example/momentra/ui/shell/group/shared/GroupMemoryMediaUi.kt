@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,10 +68,18 @@ fun groupMemoryTypeCode(chipLabel: String): String =
         else -> "GENERAL"
     }
 
-fun memoryGalleryUrls(items: List<GroupMemoryItemDto>): List<String> =
+data class MemoryGalleryPhoto(val url: String, val title: String?)
+
+fun memoryGalleryPhotos(items: List<GroupMemoryItemDto>): List<MemoryGalleryPhoto> =
     items.flatMap { item ->
-        item.media.mapNotNull { m -> m.downloadUrl?.takeIf { it.isNotBlank() } }
+        val title = item.title?.trim()?.takeIf { it.isNotEmpty() }
+        item.media.mapNotNull { media ->
+            media.downloadUrl?.takeIf { it.isNotBlank() }?.let { MemoryGalleryPhoto(it, title) }
+        }
     }
+
+fun memoryGalleryUrls(items: List<GroupMemoryItemDto>): List<String> =
+    memoryGalleryPhotos(items).map { it.url }
 
 fun GroupMemoryItemDto.primaryDownloadUrl(): String? =
     media.firstOrNull { !it.downloadUrl.isNullOrBlank() }?.downloadUrl
@@ -130,6 +139,7 @@ fun RemoteMemoryImage(
 @Composable
 fun MemoryPhotoFullscreenDialog(
     urls: List<String>,
+    titles: List<String?> = emptyList(),
     initialIndex: Int = 0,
     onDismiss: () -> Unit,
 ) {
@@ -144,6 +154,9 @@ fun MemoryPhotoFullscreenDialog(
             dismissOnClickOutside = true,
         ),
     ) {
+        val pagerState = rememberPagerState(initialPage = start, pageCount = { urls.size })
+        val caption = titles.getOrNull(if (urls.size == 1) 0 else pagerState.currentPage)
+            ?.takeIf { it.isNotBlank() }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -152,7 +165,6 @@ fun MemoryPhotoFullscreenDialog(
             if (urls.size == 1) {
                 ZoomableMemoryPhoto(url = urls[0], modifier = Modifier.fillMaxSize())
             } else {
-                val pagerState = rememberPagerState(initialPage = start, pageCount = { urls.size })
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
@@ -160,6 +172,22 @@ fun MemoryPhotoFullscreenDialog(
                     ZoomableMemoryPhoto(url = urls[page], modifier = Modifier.fillMaxSize())
                 }
             }
+            caption?.let { label ->
+                    Text(
+                        label,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .background(Color.Black.copy(alpha = 0.55f))
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                    )
+                }
             Text(
                 "✕",
                 color = Color.White,
@@ -238,23 +266,26 @@ fun MemoryPhotoGalleryStrip(
     showMediaCountBadge: Boolean = false,
     emptyContent: (@Composable () -> Unit)? = null,
 ) {
-    data class Tile(val url: String?, val count: Int)
+    data class Tile(val url: String?, val count: Int, val title: String?)
     val tiles = remember(items, showMediaCountBadge) {
         if (showMediaCountBadge) {
             items.mapNotNull { item ->
                 val count = if (item.mediaCount > 0) item.mediaCount else item.media.size
                 val url = item.media.firstOrNull { !it.downloadUrl.isNullOrBlank() }?.downloadUrl
+                val title = item.title?.trim()?.takeIf { it.isNotEmpty() }
                 when {
-                    !url.isNullOrBlank() -> Tile(url, maxOf(count, 1))
-                    count > 0 -> Tile(null, count)
+                    !url.isNullOrBlank() -> Tile(url, maxOf(count, 1), title)
+                    count > 0 -> Tile(null, count, title)
                     else -> null
                 }
             }
         } else {
-            memoryGalleryUrls(items).map { Tile(it, 0) }
+            memoryGalleryPhotos(items).map { Tile(it.url, 0, it.title) }
         }
     }
-    val openableUrls = remember(tiles) { tiles.mapNotNull { it.url } }
+    val openable = remember(tiles) { tiles.filter { !it.url.isNullOrBlank() } }
+    val openableUrls = remember(openable) { openable.mapNotNull { it.url } }
+    val openableTitles = remember(openable) { openable.map { it.title } }
     var viewerIndex by remember { mutableStateOf<Int?>(null) }
 
     if (tiles.isEmpty()) {
@@ -311,6 +342,22 @@ fun MemoryPhotoGalleryStrip(
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                     )
                 }
+                tile.title?.takeIf { it.isNotBlank() }?.let { label ->
+                    Text(
+                        label,
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .background(Color.Black.copy(alpha = 0.55f))
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                    )
+                }
             }
         }
     }
@@ -318,6 +365,7 @@ fun MemoryPhotoGalleryStrip(
     viewerIndex?.let { start ->
         MemoryPhotoFullscreenDialog(
             urls = openableUrls,
+            titles = openableTitles,
             initialIndex = start,
             onDismiss = { viewerIndex = null },
         )
@@ -379,7 +427,7 @@ fun MemoryGalleryListSheet(
     chrome: MomentsChrome,
 ) {
     if (!visible) return
-    val urls = remember(items) { memoryGalleryUrls(items) }
+    val photos = remember(items) { memoryGalleryPhotos(items) }
     var viewerIndex by remember { mutableStateOf<Int?>(null) }
 
     MomentraModalBottomSheet(
@@ -404,17 +452,17 @@ fun MemoryGalleryListSheet(
                 fontWeight = FontWeight.Bold,
                 fontFamily = PlusJakartaSans,
             )
-            if (urls.isEmpty()) {
+            if (photos.isEmpty()) {
                 GroupEmptySection("No photos yet", "Add a memory with a photo from Quick Add.")
             } else {
                 val columns = 3
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    urls.chunked(columns).forEachIndexed { rowIndex, rowUrls ->
+                    photos.chunked(columns).forEachIndexed { rowIndex, rowPhotos ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            rowUrls.forEachIndexed { colIndex, url ->
+                            rowPhotos.forEachIndexed { colIndex, photo ->
                                 val startIndex = rowIndex * columns + colIndex
                                 Box(
                                     modifier = Modifier
@@ -426,9 +474,25 @@ fun MemoryGalleryListSheet(
                                         .clickable { viewerIndex = startIndex },
                                 ) {
                                     RemoteMemoryImage(
-                                        url = url,
+                                        url = photo.url,
                                         modifier = Modifier.fillMaxSize(),
                                     )
+                                    photo.title?.takeIf { it.isNotBlank() }?.let { label ->
+                                        Text(
+                                            label,
+                                            color = Color.White,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontFamily = PlusJakartaSans,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier
+                                                .align(Alignment.BottomStart)
+                                                .fillMaxWidth()
+                                                .background(Color.Black.copy(alpha = 0.55f))
+                                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                                        )
+                                    }
                                 }
                             }
                             repeat(columns - rowUrls.size) {
@@ -443,7 +507,8 @@ fun MemoryGalleryListSheet(
 
     viewerIndex?.let { start ->
         MemoryPhotoFullscreenDialog(
-            urls = urls,
+            urls = photos.map { it.url },
+            titles = photos.map { it.title },
             initialIndex = start,
             onDismiss = { viewerIndex = null },
         )

@@ -84,6 +84,7 @@ data class MomentStoryPersonDto(
 data class MomentStoryPhotoDto(
     val url: String? = null,
     val at: String? = null,
+    val title: String? = null,
 )
 
 data class MomentStoryMoneyCategoryDto(

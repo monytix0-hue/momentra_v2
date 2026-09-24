@@ -36,7 +36,7 @@ export interface StorySnapshot {
   places: Array<{ label: string; startAt: string | null; endAt: string | null }>;
   decisions: Array<{ title: string; status: string }>;
   memories: Array<{ text: string | null; mediaUrl: string | null; at: string | null }>;
-  photos: Array<{ url: string; at: string | null; mediaId?: string | null }>;
+  photos: Array<{ url: string; at: string | null; title: string | null; mediaId?: string | null }>;
   narrative: { opening: string; insights: string[] };
   chapters: StoryChapterId[];
   display: ReturnType<typeof getStoryComposer>;
@@ -103,16 +103,16 @@ export function hydrateStoryMoneyCategories(snapshot: StorySnapshot): StorySnaps
 /** Fresh signed photo URLs for a moment (story read path). */
 export async function loadFreshStoryPhotos(
   client: PoolClient,
-  momentId: string,
-  limit = 5
+  momentId: string
 ): Promise<StorySnapshot['photos']> {
   const photoMedia = await client.query<{
     media_upload_id: string;
     bucket: string | null;
     object_key: string | null;
     created_at: Date | null;
+    title: string | null;
   }>(
-    `SELECT mu.media_upload_id, mu.bucket, mu.object_key, me.created_at
+    `SELECT mu.media_upload_id, mu.bucket, mu.object_key, me.created_at, m.title
      FROM memory.memory_evidence me
      JOIN memory.memory m ON m.memory_id = me.memory_id
      JOIN platform.media_upload mu ON mu.media_upload_id = me.source_id
@@ -122,15 +122,15 @@ export async function loadFreshStoryPhotos(
        AND mu.status = 'COMPLETED'
        AND mu.bucket IS NOT NULL
        AND mu.object_key IS NOT NULL
-     ORDER BY me.created_at DESC
-     LIMIT $2`,
-    [momentId, limit]
+     ORDER BY me.created_at DESC`,
+    [momentId]
   ).catch(() => ({
     rows: [] as Array<{
       media_upload_id: string;
       bucket: string | null;
       object_key: string | null;
       created_at: Date | null;
+      title: string | null;
     }>,
   }));
 
@@ -142,6 +142,7 @@ export async function loadFreshStoryPhotos(
       photos.push({
         url,
         at: row.created_at?.toISOString() ?? null,
+        title: row.title?.trim() || null,
         mediaId: row.media_upload_id,
       });
     }
@@ -237,31 +238,25 @@ export async function buildMomentStorySnapshot(
     amount: string;
     paid_by_name: string | null;
     category_code: string | null;
-    effective_at: Date | null;
+    occurred_at: Date | null;
+    currency_code: string;
   }>(
-    `SELECT e.description, e.amount::text, e.effective_at,
+    `SELECT e.description, e.amount::text, e.currency_code,
+            COALESCE(e.effective_at, e.posted_at, e.created_at) AS occurred_at,
             COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName', 'Someone') AS paid_by_name,
             e.category_code
      FROM finance.expense e
-     INNER JOIN finance.group_expense_context g ON g.expense_id = e.expense_id AND g.moment_id = e.moment_id
+     LEFT JOIN finance.group_expense_context g
+       ON g.expense_id = e.expense_id AND g.moment_id = e.moment_id
      LEFT JOIN collaboration.moment_participant mp
        ON mp.participant_id = g.paid_by_participant_id AND mp.moment_id = e.moment_id
      LEFT JOIN core.user_profile up ON up.user_id = mp.user_id
      LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
      WHERE e.moment_id = $1::uuid
-       AND e.domain_code = 'GROUP'
        AND e.status = 'POSTED'
-     ORDER BY e.effective_at ASC`,
+     ORDER BY COALESCE(e.effective_at, e.posted_at, e.created_at) ASC`,
     [momentId]
-  ).catch(() => ({
-    rows: [] as Array<{
-      description: string | null;
-      amount: string;
-      paid_by_name: string | null;
-      category_code: string | null;
-      effective_at: Date | null;
-    }>,
-  }));
+  );
 
   const resolvedExpenses = expenseRows.rows.map((e) => {
     const { category, cleanDescription } = resolveExpenseCategory(e.category_code, e.description);
@@ -270,7 +265,7 @@ export async function buildMomentStorySnapshot(
       amount: parseFloat(e.amount) || 0,
       paid_by_name: e.paid_by_name,
       category,
-      at: e.effective_at?.toISOString() ?? null,
+      at: e.occurred_at?.toISOString() ?? null,
     };
   });
 
@@ -297,10 +292,17 @@ export async function buildMomentStorySnapshot(
     [momentId]
   ).catch(() => ({ rows: [] as Array<{ amount: string; currency_code: string }> }));
 
+  const outstandingRow = await client.query<{ outstanding: string }>(
+    `SELECT COALESCE(SUM(outstanding_total), 0)::text AS outstanding
+     FROM projection.group_finance_snapshot
+     WHERE moment_id = $1`,
+    [momentId]
+  );
   const spent = resolvedExpenses.reduce((s, e) => s + e.amount, 0);
   const contributed = contribRows.rows.reduce((s, c) => s + (parseFloat(c.amount) || 0), 0);
+  const outstanding = parseFloat(outstandingRow.rows[0]?.outstanding ?? '0') || 0;
   const target = budgetRow.rows[0] ? parseFloat(budgetRow.rows[0].amount) || null : null;
-  const remaining = target != null ? Math.max(0, target - spent) : Math.max(0, contributed - spent);
+  const remaining = target != null ? Math.max(0, target - spent) : outstanding;
 
   const categoryMap = new Map<string, number>();
   for (const e of resolvedExpenses) {
@@ -381,8 +383,9 @@ export async function buildMomentStorySnapshot(
     bucket: string | null;
     object_key: string | null;
     created_at: Date | null;
+    title: string | null;
   }>(
-    `SELECT mu.media_upload_id, mu.bucket, mu.object_key, me.created_at
+    `SELECT mu.media_upload_id, mu.bucket, mu.object_key, me.created_at, m.title
      FROM memory.memory_evidence me
      JOIN memory.memory m ON m.memory_id = me.memory_id
      JOIN platform.media_upload mu ON mu.media_upload_id = me.source_id
@@ -392,8 +395,7 @@ export async function buildMomentStorySnapshot(
        AND mu.status = 'COMPLETED'
        AND mu.bucket IS NOT NULL
        AND mu.object_key IS NOT NULL
-     ORDER BY me.created_at DESC
-     LIMIT 5`,
+     ORDER BY me.created_at DESC`,
     [momentId]
   ).catch(() => ({
     rows: [] as Array<{
@@ -401,6 +403,7 @@ export async function buildMomentStorySnapshot(
       bucket: string | null;
       object_key: string | null;
       created_at: Date | null;
+      title: string | null;
     }>,
   }));
 
@@ -412,6 +415,7 @@ export async function buildMomentStorySnapshot(
       photos.push({
         url,
         at: row.created_at?.toISOString() ?? null,
+        title: row.title?.trim() || null,
         mediaId: row.media_upload_id,
       });
     }
@@ -555,7 +559,7 @@ export async function buildMomentStorySnapshot(
       startAt,
       endAt,
       completedAt,
-      currencyCode: budgetRow.rows[0]?.currency_code ?? 'INR',
+      currencyCode: budgetRow.rows[0]?.currency_code ?? expenseRows.rows[0]?.currency_code ?? 'INR',
     },
     people,
     metrics,
@@ -564,7 +568,7 @@ export async function buildMomentStorySnapshot(
       contributed,
       spent,
       remaining,
-      unsettled: Math.max(0, spent - contributed),
+      unsettled: outstanding,
       target,
       categories,
       contributors: [...contribMap.entries()].map(([name, amount]) => ({ name, amount })),
