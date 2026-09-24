@@ -6,7 +6,7 @@ import { getPool, withTransaction } from '../../platform/database/pool';
 import { assertGovernanceAllowed } from '../governance/resolver';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { listOtherMemberUserIds } from '../collaboration/group-membership';
-import { buildMomentStorySnapshot, hydrateStoryMoneyCategories, loadFreshStoryPhotos, type StorySnapshot } from './snapshot';
+import { applyFreshStoryMoney, buildMomentStorySnapshot, hydrateStoryMoneyCategories, loadFreshStoryMoney, loadFreshStoryPhotos, type StorySnapshot } from './snapshot';
 import {
   renderBookletHtml,
   renderChapterSvg,
@@ -313,11 +313,18 @@ export async function getMomentStory(
   }
   const snapshot = snap.rows[0].snapshot_json;
   // Re-sign memory media on every read — frozen snapshot URLs expire (~1h).
-  const freshPhotos = await loadFreshStoryPhotos(client, momentId);
-  const hydrated: StorySnapshot = hydrateStoryMoneyCategories({
-    ...snapshot,
-    photos: freshPhotos,
-  });
+  // Money is live Group Finance, not the completion-time snapshot.
+  const [freshPhotos, freshMoney] = await Promise.all([
+    loadFreshStoryPhotos(client, momentId),
+    loadFreshStoryMoney(client, momentId),
+  ]);
+  const hydrated: StorySnapshot = applyFreshStoryMoney(
+    hydrateStoryMoneyCategories({
+      ...snapshot,
+      photos: freshPhotos,
+    }),
+    freshMoney
+  );
   return {
     storyId: story.rows[0].story_id,
     storyVersion: story.rows[0].story_version,
@@ -517,8 +524,14 @@ export async function getPublicStoryByToken(
   if (!stored) {
     return { html: '<html><body><p>Story not ready.</p></body></html>', title: 'Moment Story', revoked: false };
   }
-  const freshPhotos = await loadFreshStoryPhotos(client, stored.moment_id);
-  const hydrated = hydrateStoryMoneyCategories({ ...stored.snapshot_json, photos: freshPhotos });
+  const [freshPhotos, freshMoney] = await Promise.all([
+    loadFreshStoryPhotos(client, stored.moment_id),
+    loadFreshStoryMoney(client, stored.moment_id),
+  ]);
+  const hydrated = applyFreshStoryMoney(
+    hydrateStoryMoneyCategories({ ...stored.snapshot_json, photos: freshPhotos }),
+    freshMoney
+  );
   const webUrl = `${publicStoryWebBase()}/story/${shareToken}`;
   return {
     html: renderInteractiveStoryHtml(hydrated, { ogUrl: webUrl }),

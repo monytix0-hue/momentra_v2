@@ -154,12 +154,27 @@ fun MomentStoryViewerScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Image(
-                    painter = painterResource(R.drawable.momentra_official_logo),
-                    contentDescription = "Momentra",
-                    modifier = Modifier.height(48.dp).width(168.dp),
-                    contentScale = ContentScale.Fit,
-                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .then(
+                            if (chromeDark) {
+                                Modifier
+                            } else {
+                                Modifier
+                                    .background(MomentraBrandColors.StoryDarkClose)
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.momentra_official_logo),
+                        contentDescription = "Momentra",
+                        modifier = Modifier.height(40.dp).width(108.dp),
+                        contentScale = ContentScale.Fit,
+                    )
+                }
                 Text(
                     snap?.display?.displayLabel ?: "Moment Story",
                     color = if (chromeDark) MomentraBrandColors.Indigo100 else MomentraBrandColors.StoryMuted,
@@ -757,12 +772,13 @@ private fun CategoryDonut(
     currencyCode: String,
 ) {
     val amounts = categories.map { it.amount ?: 0.0 }
-    val percents = categoryPercents(amounts, spent)
+    val sliceTotal = amounts.sum().takeIf { it > 0.0 } ?: spent
+    val percents = categoryPercents(amounts, sliceTotal)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Canvas(Modifier.size(132.dp)) {
             var start = -90f
             categories.forEachIndexed { index, cat ->
-                val sweep = (((cat.amount ?: 0.0) / spent) * 360f).toFloat()
+                val sweep = (((cat.amount ?: 0.0) / sliceTotal) * 360f).toFloat()
                 if (sweep <= 0f) return@forEachIndexed
                 drawArc(
                     color = storySliceColors[index % storySliceColors.size],
@@ -862,12 +878,12 @@ private fun CloseChapter(snap: MomentStorySnapshotDto?) {
             .background(MomentraBrandColors.StoryDarkClose)
             .padding(24.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.Top,
     ) {
         Image(
             painter = painterResource(R.drawable.momentra_official_logo),
             contentDescription = "Momentra",
-            modifier = Modifier.height(56.dp).width(200.dp),
+            modifier = Modifier.height(48.dp).width(130.dp),
             contentScale = ContentScale.Fit,
         )
         Spacer(Modifier.height(16.dp))

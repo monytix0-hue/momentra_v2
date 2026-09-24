@@ -41,7 +41,11 @@ struct MomentStoryViewerView: View {
                         Image("MomentraOfficialLogo")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 168, height: 48)
+                            .frame(width: 108, height: 40)
+                            .padding(.horizontal, chromeDark ? 0 : 8)
+                            .padding(.vertical, chromeDark ? 0 : 4)
+                            .background(chromeDark ? Color.clear : Color(hex: "#201E28"))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                         Text(story?.snapshot?.display?.displayLabel ?? "Moment Story")
                             .font(.system(size: 12))
                             .foregroundStyle(chromeDark ? Color(hex: "#C4BDEE") : Color(hex: "#746F67"))
@@ -518,7 +522,7 @@ struct MomentStoryViewerView: View {
                 Image("MomentraOfficialLogo")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 200, height: 56)
+                    .frame(width: 130, height: 48)
                 Text("TOGETHER · FORWARD")
                     .font(.system(size: 12, weight: .bold))
                     .tracking(1)
@@ -804,7 +808,8 @@ struct MomentStoryViewerView: View {
         currency: String
     ) -> some View {
         let amounts = categories.map { $0.amount ?? 0 }
-        let percents = Self.categoryPercents(amounts, spent: spent)
+        let sliceTotal = amounts.reduce(0, +) > 0 ? amounts.reduce(0, +) : spent
+        let percents = Self.categoryPercents(amounts, spent: sliceTotal)
         let colors = Self.storySliceColors
         return HStack(alignment: .center, spacing: 12) {
             Canvas { context, size in
@@ -812,7 +817,7 @@ struct MomentStoryViewerView: View {
                 let radius = min(size.width, size.height) / 2
                 var start = -Double.pi / 2
                 for (index, cat) in categories.enumerated() {
-                    let sweep = ((cat.amount ?? 0) / spent) * 2 * Double.pi
+                    let sweep = ((cat.amount ?? 0) / sliceTotal) * 2 * Double.pi
                     guard sweep > 0 else { continue }
                     var path = Path()
                     path.move(to: center)

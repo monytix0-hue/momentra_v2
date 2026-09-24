@@ -67,6 +67,152 @@ export function resolveExpenseCategory(
   };
 }
 
+function asIso(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+/** Posted group expenses, matching Group Finance (`expense_total`). */
+export async function loadFreshStoryMoney(
+  client: PoolClient,
+  momentId: string
+): Promise<StorySnapshot['money']> {
+  const expenseRows = await client.query<{
+    description: string | null;
+    amount: string;
+    paid_by_name: string | null;
+    category_code: string | null;
+    occurred_at: Date | string | null;
+  }>(
+    `SELECT e.description, e.amount::text,
+            COALESCE(e.effective_at, e.posted_at, e.created_at) AS occurred_at,
+            COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName', 'Someone') AS paid_by_name,
+            e.category_code
+     FROM finance.expense e
+     INNER JOIN finance.group_expense_context g
+       ON g.expense_id = e.expense_id AND g.moment_id = e.moment_id
+     LEFT JOIN collaboration.moment_participant mp
+       ON mp.participant_id = g.paid_by_participant_id AND mp.moment_id = e.moment_id
+     LEFT JOIN core.user_profile up ON up.user_id = mp.user_id
+     LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
+     WHERE e.moment_id = $1::uuid
+       AND e.domain_code = 'GROUP'
+       AND e.status = 'POSTED'
+     ORDER BY COALESCE(e.effective_at, e.posted_at, e.created_at) ASC`,
+    [momentId]
+  );
+
+  const expenses = expenseRows.rows.map((row) => {
+    const { category, cleanDescription } = resolveExpenseCategory(row.category_code, row.description);
+    return {
+      description: cleanDescription,
+      category,
+      payer: row.paid_by_name ?? 'Someone',
+      amount: parseFloat(row.amount) || 0,
+      at: asIso(row.occurred_at),
+    };
+  });
+
+  const contribRows = await client.query<{ amount: string; name: string | null }>(
+    `SELECT c.amount::text,
+            COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName', 'Someone') AS name
+     FROM finance.contribution c
+     LEFT JOIN collaboration.moment_participant mp
+       ON mp.participant_id = c.participant_id AND mp.moment_id = c.moment_id
+     LEFT JOIN core.user_profile up ON up.user_id = mp.user_id
+     LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
+     WHERE c.moment_id = $1 AND c.status = 'RECORDED'`,
+    [momentId]
+  );
+
+  const budgetRow = await client.query<{ amount: string }>(
+    `SELECT amount::text FROM finance.budget
+     WHERE moment_id = $1 AND status = 'ACTIVE'
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    [momentId]
+  );
+
+  const outstandingRow = await client.query<{ outstanding: string }>(
+    `SELECT COALESCE(SUM(outstanding_total), 0)::text AS outstanding
+     FROM projection.group_finance_snapshot
+     WHERE moment_id = $1`,
+    [momentId]
+  );
+
+  const spent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const contributed = contribRows.rows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
+  const outstanding = parseFloat(outstandingRow.rows[0]?.outstanding ?? '0') || 0;
+  const target = budgetRow.rows[0] ? parseFloat(budgetRow.rows[0].amount) || null : null;
+  const remaining = target != null ? Math.max(0, target - spent) : outstanding;
+
+  const categoryMap = new Map<string, number>();
+  const payerMap = new Map<string, { amount: number; payments: number }>();
+  for (const expense of expenses) {
+    const category = expense.category.trim() || 'Other';
+    categoryMap.set(category, (categoryMap.get(category) ?? 0) + expense.amount);
+    const payer = payerMap.get(expense.payer) ?? { amount: 0, payments: 0 };
+    payer.amount += expense.amount;
+    payer.payments += 1;
+    payerMap.set(expense.payer, payer);
+  }
+  const contribMap = new Map<string, number>();
+  for (const row of contribRows.rows) {
+    const name = row.name ?? 'Someone';
+    contribMap.set(name, (contribMap.get(name) ?? 0) + (parseFloat(row.amount) || 0));
+  }
+
+  return {
+    contributed,
+    spent,
+    remaining,
+    unsettled: outstanding,
+    target,
+    categories: [...categoryMap.entries()]
+      .map(([name, amount]) => ({ name, amount }))
+      .sort((a, b) => b.amount - a.amount),
+    contributors: [...contribMap.entries()].map(([name, amount]) => ({ name, amount })),
+    payers: [...payerMap.entries()].map(([name, value]) => ({ name, amount: value.amount, payments: value.payments })),
+    expenses,
+  };
+}
+
+/** Swap frozen money for the live Group Finance figures and refresh spend lines. */
+export function applyFreshStoryMoney(snapshot: StorySnapshot, money: StorySnapshot['money']): StorySnapshot {
+  const spentLine = money.spent > 0 ? `Together you moved ${formatInr(money.spent)} through the moment.` : null;
+  const insights = (snapshot.narrative?.insights ?? []).filter(
+    (line) => !line.startsWith('Together you moved ') && !line.includes('accounted for more than half')
+  );
+  if (spentLine) insights.splice(Math.min(1, insights.length), 0, spentLine);
+  if (money.categories.length >= 2 && money.spent > 0) {
+    const topShare = (money.categories[0]!.amount + money.categories[1]!.amount) / money.spent;
+    if (topShare >= 0.5) {
+      insights.push(
+        `${money.categories[0]!.name} and ${money.categories[1]!.name} together accounted for more than half of the shared spend.`
+      );
+    }
+  }
+  return {
+    ...snapshot,
+    metrics: {
+      ...snapshot.metrics,
+      bills: money.expenses.length,
+      spent: formatInr(money.spent),
+      spentRaw: money.spent,
+      contributed: formatInr(money.contributed),
+      raised: formatInr(money.contributed > 0 ? money.contributed : money.target ?? money.spent),
+      target: money.target != null ? formatInr(money.target) : '—',
+      remaining: formatInr(money.remaining),
+    },
+    money,
+    narrative: {
+      opening: snapshot.narrative?.opening ?? '',
+      insights,
+    },
+  };
+}
+
 /** Re-parse frozen expense categories (fixes "Other" when note embeds "| Food"). */
 export function hydrateStoryMoneyCategories(snapshot: StorySnapshot): StorySnapshot {
   const money = snapshot.money;
@@ -246,13 +392,14 @@ export async function buildMomentStorySnapshot(
             COALESCE(up.display_name, ep.display_name, mp.metadata->>'displayName', 'Someone') AS paid_by_name,
             e.category_code
      FROM finance.expense e
-     LEFT JOIN finance.group_expense_context g
+     INNER JOIN finance.group_expense_context g
        ON g.expense_id = e.expense_id AND g.moment_id = e.moment_id
      LEFT JOIN collaboration.moment_participant mp
        ON mp.participant_id = g.paid_by_participant_id AND mp.moment_id = e.moment_id
      LEFT JOIN core.user_profile up ON up.user_id = mp.user_id
      LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
      WHERE e.moment_id = $1::uuid
+       AND e.domain_code = 'GROUP'
        AND e.status = 'POSTED'
      ORDER BY COALESCE(e.effective_at, e.posted_at, e.created_at) ASC`,
     [momentId]
@@ -265,7 +412,7 @@ export async function buildMomentStorySnapshot(
       amount: parseFloat(e.amount) || 0,
       paid_by_name: e.paid_by_name,
       category,
-      at: e.occurred_at?.toISOString() ?? null,
+      at: asIso(e.occurred_at),
     };
   });
 

@@ -143,6 +143,13 @@ function drawWordmark(
   }
 }
 
+function drawWordmarkChip(doc: PDFKit.PDFDocument, x: number, y: number): void {
+  doc.save();
+  doc.roundedRect(x, y, 156, 48, 8).fill(INDIGO);
+  drawWordmark(doc, x + 12, y + 8, 32, 132);
+  doc.restore();
+}
+
 function ensure(doc: PDFKit.PDFDocument, y: number, needed: number): number {
   if (y + needed <= doc.page.height - 48) return y;
   doc.addPage();
@@ -151,8 +158,8 @@ function ensure(doc: PDFKit.PDFDocument, y: number, needed: number): number {
 
 function coverPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
   doc.rect(0, 0, doc.page.width, doc.page.height).fill(INDIGO);
-  const branded = drawWordmark(doc, 48, 36, 44, 200);
-  const top = branded ? 96 : 72;
+  const branded = drawWordmark(doc, 48, 40, 56, 180);
+  const top = branded ? 112 : 72;
   doc.fillColor(EMBER).fontSize(11).text(snapshot.display.coverEyebrow.toUpperCase(), 48, top, {
     characterSpacing: 1.2,
     lineBreak: false,
@@ -187,8 +194,8 @@ type PdfPhoto = { image: Buffer; title: string | null };
 function togetherPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot, photos: PdfPhoto[]): void {
   doc.addPage();
   doc.rect(0, 0, doc.page.width, 88).fill(CREAM);
-  doc.fillColor(INDIGO).fontSize(22).text('Together', 48, 40, { lineBreak: false });
-  drawWordmark(doc, doc.page.width - 48 - 140, 28, 32, 140);
+  drawWordmarkChip(doc, 48, 20);
+  doc.fillColor(INDIGO).fontSize(22).text('Together', 220, 36, { lineBreak: false });
   let y = 110;
   doc.fontSize(12).fillColor(EMBER).text('People', 48, y, { lineBreak: false });
   y += 18;
@@ -299,8 +306,8 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
   const money = snapshot.money;
   const currency = snapshot.identity.currencyCode;
   doc.addPage();
-  doc.fillColor(INDIGO).fontSize(22).text('Money', 48, 48, { lineBreak: false });
-  drawWordmark(doc, doc.page.width - 48 - 120, 40, 28, 120);
+  drawWordmarkChip(doc, 48, 36);
+  doc.fillColor(INDIGO).fontSize(22).text('Money', 220, 48, { lineBreak: false });
   const figures: Array<[string, number]> = [
     ['Contributed', money.contributed],
     ['Spent', money.spent],
@@ -309,13 +316,13 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
   ];
   figures.forEach(([label, amount], index) => {
     const x = 48 + (index % 2) * 250;
-    const y = 90 + Math.floor(index / 2) * 58;
+    const y = 108 + Math.floor(index / 2) * 58;
     doc.roundedRect(x, y, 230, 48, 8).fill(CREAM);
     doc.fillColor(INDIGO).fontSize(14).text(formatMoney(amount, currency), x + 12, y + 8, { width: 206, lineBreak: false });
     doc.fillColor(MUTED).fontSize(10).text(label, x + 12, y + 28, { lineBreak: false });
   });
 
-  let y = 220;
+  let y = 236;
   const categories = money.categories.filter((c) => c.amount > 0);
   const spent = money.spent || categories.reduce((sum, c) => sum + c.amount, 0);
   if (categories.length > 0 && spent > 0) {
@@ -386,15 +393,15 @@ function moneyPage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
 function closePage(doc: PDFKit.PDFDocument, snapshot: StorySnapshot): void {
   doc.addPage();
   doc.rect(0, 0, doc.page.width, doc.page.height).fill(INDIGO);
-  drawWordmark(doc, 48, 48, 56, 220);
-  doc.fillColor(EMBER).fontSize(12).text('TOGETHER  ·  FORWARD', 48, 220, { characterSpacing: 1.4, lineBreak: false });
+  drawWordmark(doc, 48, 56, 56, 180);
+  doc.fillColor(EMBER).fontSize(12).text('TOGETHER  ·  FORWARD', 48, 132, { characterSpacing: 1.4, lineBreak: false });
   const celebration = ['HOUSE_PARTY', 'WEDDING', 'SHARED_EXPERIENCE'].includes(snapshot.identity.familyProfile);
   const headline = celebration ? 'The celebration ended.\nThe Moment stayed.' : snapshot.display.closeLine;
-  doc.fillColor('#F5F0FF').fontSize(26).text(headline, 48, 260, { width: 500 });
+  doc.fillColor('#F5F0FF').fontSize(26).text(headline, 48, 164, { width: 500 });
   if (celebration) {
-    doc.fillColor('#C4BDEE').fontSize(14).text(snapshot.display.closeLine, 48, 360, { width: 500 });
+    doc.fillColor('#C4BDEE').fontSize(14).text(snapshot.display.closeLine, 48, 250, { width: 500 });
   }
-  doc.fillColor('#F5F0FF').fontSize(16).text(snapshot.identity.title, 48, 430, { width: 500 });
+  doc.fillColor('#F5F0FF').fontSize(16).text(snapshot.identity.title, 48, 310, { width: 500 });
 }
 
 async function loadPhotoBuffers(snapshot: StorySnapshot): Promise<PdfPhoto[]> {
