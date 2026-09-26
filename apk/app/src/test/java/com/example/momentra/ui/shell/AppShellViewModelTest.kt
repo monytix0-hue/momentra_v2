@@ -104,8 +104,8 @@ class AppShellViewModelTest {
         val vm = AppShellViewModel(FakeMeGateway())
         vm.bindIdentity(ShellIdentity("u1", null, null, null))
         advanceUntilIdle()
-        assertTrue(vm.state.value.contextContent is ShellContentState.Empty)
-        assertEquals(MomentExperienceKind.FIRST_MOMENT, vm.state.value.momentExperience)
+        assertTrue(vm.state.value.contextContent is ShellContentState.Ready)
+        assertEquals(MomentExperienceKind.ACTIVE, vm.state.value.momentExperience)
         assertFalse(vm.state.value.showMomentSwitcher)
     }
 
@@ -121,8 +121,8 @@ class AppShellViewModelTest {
         )
         vm.bindIdentity(ShellIdentity("u1", null, null, null))
         advanceUntilIdle()
-        assertEquals(MomentExperienceKind.BETWEEN_MOMENTS, vm.state.value.momentExperience)
-        assertTrue(vm.state.value.contextContent is ShellContentState.Empty)
+        assertEquals(MomentExperienceKind.ACTIVE, vm.state.value.momentExperience)
+        assertTrue(vm.state.value.contextContent is ShellContentState.Ready)
         assertEquals(2, vm.state.value.moments.size)
         assertFalse(vm.state.value.showMomentSwitcher)
     }

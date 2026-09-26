@@ -9,29 +9,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -56,48 +45,29 @@ import com.example.momentra.analytics.MomentraAnalytics
 import com.example.momentra.domain.MomentSummary
 import com.example.momentra.domain.isActiveStatus
 import com.example.momentra.ui.shell.personal.shared.personalPulseFamilyFor
-import com.example.momentra.ui.shell.tour.LocalTourController
-import com.example.momentra.ui.shell.tour.TourSignal
 import com.example.momentra.ui.shell.tour.TourTargetId
 import com.example.momentra.ui.shell.tour.tourTarget
 import com.example.momentra.ui.theme.PlusJakartaSans
 
 /**
  * Figma `353:452` — Personal Create body only (shell chrome stays in AppShell).
- * Setup wizards open as a bottom sheet popup over Create.
+ * The four life systems are activated by default; cards open the existing moment.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PersonalCreateEmptyContent(
     history: List<MomentSummary> = emptyList(),
-    onMomentCreated: (momentId: String, title: String, momentTypeCode: String?, status: String) -> Unit = { _, _, _, _ -> },
     onOpenExisting: (momentId: String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var wizard by remember { mutableStateOf<PersonalSetupSystem?>(null) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val tour = LocalTourController.current
-
-    LaunchedEffect(wizard) {
-        if (wizard != null) {
-            tour?.onSignal(TourSignal.SETUP_SHEET_OPEN)
-        }
-    }
-
     fun activeMoment(system: PersonalSetupSystem): MomentSummary? =
         history.firstOrNull {
             it.isActiveStatus() && personalPulseFamilyFor(it.momentTypeCode) == system.toPulseFamily()
         }
 
     fun selectOrCreate(system: PersonalSetupSystem) {
-        if (system == PersonalSetupSystem.FUTURE_BUILDING || system == PersonalSetupSystem.LIFESTYLE) {
-            return
-        }
         val existing = activeMoment(system)
         if (existing != null) {
             onOpenExisting(existing.momentId)
-        } else {
-            wizard = system
         }
     }
 
@@ -106,46 +76,12 @@ fun PersonalCreateEmptyContent(
         onDispose { MomentraAnalytics.get().onScreenExit(AnalyticsScreens.PERSONAL_CREATE) }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        PersonalCreateChooser(
-            history = history,
-            activeMomentFor = { activeMoment(it) },
-            onSelect = { selectOrCreate(it) },
-            modifier = Modifier.fillMaxSize(),
-        )
-
-        wizard?.let { system ->
-            ModalBottomSheet(
-                onDismissRequest = { wizard = null },
-                sheetState = sheetState,
-                containerColor = PeBg,
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                dragHandle = {
-                    Box(
-                        modifier = Modifier
-                            .padding(top = 10.dp, bottom = 6.dp)
-                            .width(40.dp)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(Color.White.copy(alpha = 0.28f)),
-                    )
-                },
-            ) {
-                PersonalSetupWizardContent(
-                    system = system,
-                    onBack = { wizard = null },
-                    onCreated = { id, title, typeCode, status ->
-                        wizard = null
-                        onMomentCreated(id, title, typeCode, status)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.94f)
-                        .navigationBarsPadding(),
-                )
-            }
-        }
-    }
+    PersonalCreateChooser(
+        history = history,
+        activeMomentFor = { activeMoment(it) },
+        onSelect = { selectOrCreate(it) },
+        modifier = modifier.fillMaxSize(),
+    )
 }
 
 @Composable
@@ -214,14 +150,17 @@ private fun PersonalCreateChooser(
                     )
                     LifeSystemCard(
                         title = "Future Building",
-                        subtitle = "Goals, growth & progress",
-                        subtitleAccent = false,
+                        subtitle = if (activeMomentFor(PersonalSetupSystem.FUTURE_BUILDING) != null) {
+                            "Open existing"
+                        } else {
+                            "Goals, growth & progress"
+                        },
+                        subtitleAccent = activeMomentFor(PersonalSetupSystem.FUTURE_BUILDING) != null,
                         glyph = "↗",
                         accent = PeGreen,
                         accentDeep = Color(0xFF0F766E),
                         thumbRes = R.drawable.personal_create_thumb_future,
                         modifier = Modifier.weight(1f),
-                        comingSoon = true,
                         onClick = { onSelect(PersonalSetupSystem.FUTURE_BUILDING) },
                     )
                 }
@@ -231,14 +170,17 @@ private fun PersonalCreateChooser(
                 ) {
                     LifeSystemCard(
                         title = "Lifestyle",
-                        subtitle = "Experiences & wellbeing",
-                        subtitleAccent = false,
+                        subtitle = if (activeMomentFor(PersonalSetupSystem.LIFESTYLE) != null) {
+                            "Open existing"
+                        } else {
+                            "Experiences & wellbeing"
+                        },
+                        subtitleAccent = activeMomentFor(PersonalSetupSystem.LIFESTYLE) != null,
                         glyph = "◈",
                         accent = PeAmber,
                         accentDeep = Color(0xFFEA580C),
                         thumbRes = R.drawable.personal_create_thumb_lifestyle,
                         modifier = Modifier.weight(1f),
-                        comingSoon = true,
                         onClick = { onSelect(PersonalSetupSystem.LIFESTYLE) },
                     )
                     LifeSystemCard(

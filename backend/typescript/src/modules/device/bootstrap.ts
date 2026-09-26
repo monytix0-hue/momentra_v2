@@ -1,9 +1,10 @@
 import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
-import { getPool, getPoolStats } from '../../platform/database/pool';
+import { getPool, getPoolStats, withTransaction } from '../../platform/database/pool';
 import { provisionUserProfile } from '../../platform/auth';
 import * as projectionService from '../projection/service';
 import * as businessService from '../business/service';
+import * as personalSetupService from '../personal/setup-service';
 
 export type AppContextCode = 'PERSONAL' | 'GROUP' | 'BUSINESS' | 'CIRCLE';
 
@@ -129,6 +130,37 @@ const CAPABILITIES_SQL = `SELECT DISTINCT c.code
      ORDER BY c.code
      LIMIT 200`;
 
+/** Lock the profile row, then create any missing default Personal moments before inventory reads. */
+async function ensurePersonalMomentsForBootstrap(ctx: RequestContext): Promise<void> {
+  const profile = await getPool().query<{ timezone: string | null }>(
+    `SELECT timezone FROM core.user_profile WHERE user_id = $1`,
+    [ctx.userId]
+  );
+  if (!profile.rows[0]) {
+    await provisionUserProfile(ctx.userId, ctx.email, ctx.displayName);
+  }
+  await withTransaction(async (client) => {
+    const readProfile = () =>
+      client.query<{ timezone: string | null }>(
+        `SELECT timezone FROM core.user_profile WHERE user_id = $1 FOR UPDATE`,
+        [ctx.userId]
+      );
+    let locked = await readProfile();
+    if (!locked.rows[0]) {
+      await client.query(
+        `INSERT INTO core.user_profile (user_id, email, display_name, status)
+         VALUES ($1, $2, $3, 'ACTIVE')
+         ON CONFLICT (user_id) DO NOTHING`,
+        [ctx.userId, ctx.email ?? `${ctx.userId}@users.momentra.local`, ctx.displayName ?? null]
+      );
+      locked = await readProfile();
+    }
+    if (!locked.rows[0]) return;
+    const timezone = locked.rows[0].timezone || profile.rows[0]?.timezone || 'UTC';
+    await personalSetupService.ensureDefaultPersonalMoments(client, ctx, timezone);
+  }, ctx.userId);
+}
+
 /**
  * Shell bootstrap — one server fan-in for inventory.
  * Does NOT load Pulse / Life / Memory / Activity tab datasets.
@@ -139,6 +171,7 @@ const CAPABILITIES_SQL = `SELECT DISTINCT c.code
  * `_client` retained for call-site compatibility; unused (would serialize concurrency).
  */
 export async function getMeBootstrap(_client: PoolClient | null, ctx: RequestContext): Promise<MeBootstrap> {
+  await ensurePersonalMomentsForBootstrap(ctx);
   const concurrency = bootstrapConcurrency();
   // S9-H-OPT: one parallel inventory wave including capabilities (no second RTT wave).
   const wave = await mapWithConcurrency(

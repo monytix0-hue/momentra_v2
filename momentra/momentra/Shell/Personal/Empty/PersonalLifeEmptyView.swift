@@ -114,8 +114,8 @@ struct PersonalLifeEmptyView: View {
 
             VStack(spacing: 12) {
                 pillarRow("▣", "Life Operations", "Money, routines, commitments", PersonalEmptyTokens.purple, PersonalEmptyTokens.deepIndigo)
-                pillarRow("↗", "Future Building", "Goals, growth, milestones", PersonalEmptyTokens.green, PersonalEmptyTokens.tealDeep, comingSoon: true)
-                pillarRow("◇", "Lifestyle", "Experiences, wellbeing, creativity", PersonalEmptyTokens.amber, PersonalEmptyTokens.orangeDeep, comingSoon: true)
+                pillarRow("↗", "Future Building", "Goals, growth, milestones", PersonalEmptyTokens.green, PersonalEmptyTokens.tealDeep)
+                pillarRow("◇", "Lifestyle", "Experiences, wellbeing, creativity", PersonalEmptyTokens.amber, PersonalEmptyTokens.orangeDeep)
                 pillarRow("♡", "Relationships", "Connections, care, shared moments", PersonalEmptyTokens.pink, PersonalEmptyTokens.pinkDeep)
             }
 

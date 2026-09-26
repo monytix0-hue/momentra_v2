@@ -24,11 +24,9 @@ fun SetupWizardScaffold(
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
-    val navBottom = with(density) {
+    val footerBottomPad = with(density) {
         WindowInsets.navigationBars.getBottom(this).toDp()
     }
-    // Dialog hosts sometimes report 0 insets; keep a gesture-nav floor so Activate stays tappable.
-    val footerBottomPad = if (navBottom > 0.dp) navBottom else 28.dp
 
     Scaffold(
         modifier = modifier.fillMaxSize(),

@@ -4,7 +4,7 @@ import com.example.momentra.domain.BottomDestination
 
 object TourScripts {
 
-    fun personal(hasActiveMoment: Boolean): List<TourStep> {
+    fun personal(): List<TourStep> {
         val chrome = listOf(
             TourStep(
                 id = "personal_context",
@@ -19,62 +19,24 @@ object TourScripts {
                 target = TourTargetId.BOTTOM_NAV,
             ),
         )
-        val createPath = if (hasActiveMoment) {
-            listOf(
-                TourStep(
-                    id = "personal_create_qa",
-                    title = "Create = Quick Add",
-                    body = "With a Moment selected, the Create tab opens Quick Add — log money, mood, milestones, and more in seconds.",
-                    target = TourTargetId.BOTTOM_CREATE,
-                    advanceOn = setOf(TourSignal.OPENED_CREATE_TAB),
-                ),
-                TourStep(
-                    id = "personal_qa_tile",
-                    title = "Tap a Quick Add",
-                    body = "Pick any tile to capture something. You’ll see where it shows up after you save.",
-                    target = TourTargetId.QA_HUB_TILE,
-                    advanceOn = setOf(TourSignal.QUICKADD_SAVED),
-                ),
-            )
-        } else {
-            listOf(
-                TourStep(
-                    id = "personal_start_moment",
-                    title = "Start a Moment",
-                    body = "Tap Create to choose a life system — Life Operations, Future, Lifestyle, or Relationships.",
-                    target = TourTargetId.BOTTOM_CREATE,
-                    advanceOn = setOf(TourSignal.OPENED_CREATE_TAB),
-                ),
-                TourStep(
-                    id = "personal_chooser",
-                    title = "Pick a life system",
-                    body = "Each system is a Moment. Choose one to open setup — you can refine everything later.",
-                    target = TourTargetId.CREATE_CHOOSER,
-                    advanceOn = setOf(TourSignal.SETUP_SHEET_OPEN),
-                ),
-                TourStep(
-                    id = "personal_activate",
-                    title = "Activate or save draft",
-                    body = "Activate makes the Moment live and unlocks Pulse + Quick Adds. Save draft keeps progress — drafts already unlock the shell like active Moments.",
-                    target = TourTargetId.SETUP_ACTIVATE,
-                    advanceOn = setOf(TourSignal.MOMENT_CREATED),
-                ),
-                TourStep(
-                    id = "personal_create_qa_after",
-                    title = "Create is now Quick Add",
-                    body = "With your Moment selected, Create opens Quick Add instead of the chooser. Log something anytime.",
-                    target = TourTargetId.BOTTOM_CREATE,
-                    advanceOn = setOf(TourSignal.OPENED_CREATE_TAB),
-                ),
-                TourStep(
-                    id = "personal_qa_tile",
-                    title = "Try a Quick Add",
-                    body = "Tap a tile to capture an expense, mood, milestone, and more.",
-                    target = TourTargetId.QA_HUB_TILE,
-                    advanceOn = setOf(TourSignal.QUICKADD_SAVED),
-                ),
-            )
-        }
+        // The four Personal moments are active by default, so the tour always
+        // follows Quick Add and never waits on a setup sheet.
+        val createPath = listOf(
+            TourStep(
+                id = "personal_create_qa",
+                title = "Create = Quick Add",
+                body = "With a Moment selected, the Create tab opens Quick Add — log money, mood, milestones, and more in seconds.",
+                target = TourTargetId.BOTTOM_CREATE,
+                advanceOn = setOf(TourSignal.OPENED_CREATE_TAB),
+            ),
+            TourStep(
+                id = "personal_qa_tile",
+                title = "Tap a Quick Add",
+                body = "Pick any tile to capture something. You’ll see where it shows up after you save.",
+                target = TourTargetId.QA_HUB_TILE,
+                advanceOn = setOf(TourSignal.QUICKADD_SAVED),
+            ),
+        )
         val wrap = listOf(
             TourStep(
                 id = "personal_where",

@@ -182,21 +182,7 @@ struct ContextEmptyExperienceView: View {
             )
         case .create:
             PersonalCreateEmptyView(
-                history: between ? history : [],
-                onMomentCreated: { id, title, typeCode, status in
-                    onMomentCreated(
-                        CreateMomentOutcome(
-                            momentId: id,
-                            title: title,
-                            domainCode: "PERSONAL",
-                            status: status,
-                            version: 1,
-                            momentTypeCode: typeCode,
-                            setupId: nil,
-                            projectionHints: []
-                        )
-                    )
-                }
+                history: between ? history : []
             )
         case .pulse:
             PersonalPulseEmptyView(

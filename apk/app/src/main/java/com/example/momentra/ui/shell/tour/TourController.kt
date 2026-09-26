@@ -28,7 +28,7 @@ class TourController(
     val isActive: Boolean
         get() = activeTour != null && currentStep != null || oneOffHint != null
 
-    fun startPersonal(hasActiveMoment: Boolean, force: Boolean = false) {
+    fun startPersonal(force: Boolean = false) {
         if (!force && prefs.isTourPersonalDone()) return
         if (!force && activeTour == TourId.PERSONAL) return
         if (force) {
@@ -37,7 +37,7 @@ class TourController(
         }
         oneOffHint = null
         activeTour = TourId.PERSONAL
-        steps = TourScripts.personal(hasActiveMoment)
+        steps = TourScripts.personal()
         stepIndex = 0
     }
 

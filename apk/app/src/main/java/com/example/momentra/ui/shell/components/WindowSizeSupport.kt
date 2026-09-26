@@ -1,9 +1,12 @@
 package com.example.momentra.ui.shell.components
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -19,8 +22,16 @@ data class MomentraWindowSize(
     val isCompactWidth: Boolean,
     val isMediumWidth: Boolean,
     val isExpandedWidth: Boolean,
+    val isNarrowWidth: Boolean,
     val isShortHeight: Boolean,
 ) {
+    /** Null on a phone, so content stays full width. Tablets use a centered column. */
+    val contentMaxWidth: Dp?
+        get() = when {
+            isExpandedWidth -> 960.dp
+            isMediumWidth -> 720.dp
+            else -> null
+        }
     val contentHorizontalPadding: Dp
         get() = when {
             isExpandedWidth -> 32.dp
@@ -86,6 +97,7 @@ fun rememberMomentraWindowSize(): MomentraWindowSize {
             isCompactWidth = widthDp < 600,
             isMediumWidth = widthDp in 600..839,
             isExpandedWidth = widthDp >= 840,
+            isNarrowWidth = widthDp < 400,
             isShortHeight = heightDp < 700,
         )
     }
@@ -108,3 +120,7 @@ fun nestedListMaxHeight(window: MomentraWindowSize = rememberMomentraWindowSize(
     val screenH = rememberScreenHeightDp()
     return screenH * window.nestedSheetMaxHeightFraction
 }
+
+/** Full width on a phone. On a tablet, cap and fill that cap so the parent can center it. */
+fun Modifier.momentraMaxWidth(max: Dp?): Modifier =
+    if (max == null) fillMaxWidth() else widthIn(max = max).fillMaxWidth()

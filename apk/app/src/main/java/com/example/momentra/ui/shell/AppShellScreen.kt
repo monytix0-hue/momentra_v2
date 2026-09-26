@@ -76,7 +76,10 @@ import com.example.momentra.ui.shell.components.ContextSwitcher
 import com.example.momentra.ui.shell.components.EditMomentSetupHost
 import com.example.momentra.ui.shell.components.ManageMomentSheet
 import com.example.momentra.ui.shell.components.MomentSwitcher
+import com.example.momentra.ui.shell.components.MomentraFullscreenDialog
 import com.example.momentra.ui.shell.components.MomentraTopBar
+import com.example.momentra.ui.shell.components.momentraMaxWidth
+import com.example.momentra.ui.shell.components.rememberMomentraWindowSize
 import com.example.momentra.ui.shell.components.MomentraTopBarConfig
 import com.example.momentra.ui.shell.components.ShellBottomNavigation
 import com.example.momentra.ui.shell.components.label
@@ -87,7 +90,6 @@ import com.example.momentra.ui.shell.empty.group.GroupCreatePhase
 import com.example.momentra.ui.shell.empty.business.CompanyJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
-import com.example.momentra.ui.shell.empty.personal.PersonalCreateEmptyContent
 import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
 import com.example.momentra.ui.shell.empty.business.BusinessSetupBottomSheet
 import com.example.momentra.ui.shell.empty.business.CompanySetupContent
@@ -370,12 +372,7 @@ fun AppShellScreen(
     val openNewMoment: () -> Unit = {
         when (state.selectedContext) {
             AppContext.PERSONAL -> {
-                // Empty / no active Moment → Create chooser tab. Active Moment → overlay chooser for another Moment.
-                if (state.selectedMomentId != null && state.contextContent is ShellContentState.Ready) {
-                    newMomentOpen = true
-                } else {
-                    shellViewModel.selectBottomDestination(BottomDestination.CREATE)
-                }
+                shellViewModel.selectBottomDestination(BottomDestination.CREATE)
             }
             AppContext.GROUP -> {
                 groupCreatePhase = GroupCreatePhase.CHOOSER
@@ -416,9 +413,7 @@ fun AppShellScreen(
                 ) {
                     return@LaunchedEffect
                 }
-                val hasMoment = state.selectedMomentId != null ||
-                    state.moments.any { it.isActiveStatus() }
-                tourController.startPersonal(hasActiveMoment = hasMoment)
+                tourController.startPersonal()
             }
             AppContext.GROUP -> tourController.startGroupMini()
             AppContext.BUSINESS -> tourController.startBusinessMini()
@@ -535,6 +530,8 @@ fun AppShellScreen(
                         null
                     },
                     useDirectorySelector = state.selectedContext == AppContext.GROUP,
+                    startExpanded = state.selectedContext == AppContext.PERSONAL &&
+                        state.moments.count { it.isActiveStatus() } > 1,
                     onOpenDirectory = {
                         groupDirectoryPreferCompleted = false
                         groupMomentDirectoryOpen = true
@@ -557,25 +554,14 @@ fun AppShellScreen(
             }
         }
         }
+        val shellWindow = rememberMomentraWindowSize()
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .align(Alignment.CenterHorizontally)
+                .momentraMaxWidth(shellWindow.contentMaxWidth),
         ) {
-            if (newMomentOpen && state.selectedContext == AppContext.PERSONAL) {
-                PersonalCreateEmptyContent(
-                    history = state.moments,
-                    onMomentCreated = { momentId, title, momentTypeCode, status ->
-                        newMomentOpen = false
-                        shellViewModel.onMomentCreated(momentId, title, momentTypeCode, status)
-                        tourController.onSignal(TourSignal.MOMENT_CREATED)
-                    },
-                    onOpenExisting = { momentId ->
-                        newMomentOpen = false
-                        shellViewModel.selectMoment(momentId)
-                    },
-                )
-            } else if (newMomentOpen && state.selectedContext == AppContext.BUSINESS) {
+            if (newMomentOpen && state.selectedContext == AppContext.BUSINESS) {
                 if (state.selectedCompany == null) {
                     BusinessSetupBottomSheet(onDismiss = { newMomentOpen = false }) {
                         CompanySetupContent(
@@ -737,6 +723,7 @@ fun AppShellScreen(
                     BottomDestination.MOMENTS,
                     BottomDestination.LIFE,
                     BottomDestination.MEMORY,
+                    BottomDestination.CREATE,
                 )
             ) {
                 PersonalExpenseFab(
@@ -1292,13 +1279,7 @@ fun AppShellScreen(
         if (storyMomentId != null) {
             val momentId = storyMomentId
             if (momentId != null) {
-                androidx.compose.ui.window.Dialog(
-                    onDismissRequest = { storyMomentId = null },
-                    properties = androidx.compose.ui.window.DialogProperties(
-                        usePlatformDefaultWidth = false,
-                        decorFitsSystemWindows = false,
-                    ),
-                ) {
+                MomentraFullscreenDialog(onDismissRequest = { storyMomentId = null }) {
                     MomentStoryViewerScreen(
                         momentId = momentId,
                         onClose = { storyMomentId = null },
@@ -1393,11 +1374,7 @@ fun AppShellScreen(
                 },
                 onReplayTour = {
                     shellViewModel.openProfile(false)
-                    tourController.startPersonal(
-                        hasActiveMoment = state.selectedMomentId != null ||
-                            state.moments.any { it.isActiveStatus() },
-                        force = true,
-                    )
+                    tourController.startPersonal(force = true)
                 },
             )
         }

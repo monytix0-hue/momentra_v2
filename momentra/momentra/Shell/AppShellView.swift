@@ -706,11 +706,7 @@ struct AppShellView: View {
     private func openNewMoment() {
         switch model.selectedContext {
         case .personal:
-            if model.selectedMomentId != nil, case .ready = model.contextContent {
-                newMomentOpen = true
-            } else {
-                model.selectBottomDestination(.create)
-            }
+            model.selectBottomDestination(.create)
         case .group:
             groupCreatePhase = .chooser
             if model.selectedMomentId != nil, case .ready = model.contextContent {
@@ -819,7 +815,7 @@ struct AppShellView: View {
         model.selectedContext == .personal &&
         model.selectedMomentId != nil &&
         !newMomentOpen &&
-        [.pulse, .moments, .life, .memory].contains(model.bottomDestination)
+        [.pulse, .moments, .life, .memory, .create].contains(model.bottomDestination)
     }
 
     private var shellNavigationTitle: String {
@@ -982,7 +978,8 @@ struct AppShellView: View {
                             groupMomentDirectoryOpen = true
                         }
                     },
-                    selectedIsCompleted: selectedMomentIsCompleted
+                    selectedIsCompleted: selectedMomentIsCompleted,
+                    startExpanded: model.selectedContext == .personal && activeMomentPairs.count > 1
                 )
             }
         }
@@ -1006,19 +1003,7 @@ struct AppShellView: View {
 
     @ViewBuilder
     private var destinationBody: some View {
-        if newMomentOpen, model.selectedContext == .personal {
-            PersonalCreateEmptyView(
-                history: model.moments,
-                onMomentCreated: { id, title, typeCode, status in
-                    newMomentOpen = false
-                    model.onMomentCreated(momentId: id, title: title, momentTypeCode: typeCode, status: status)
-                },
-                onOpenExisting: { momentId in
-                    newMomentOpen = false
-                    model.selectMoment(id: momentId)
-                }
-            )
-        } else if newMomentOpen, model.selectedContext == .group {
+        if newMomentOpen, model.selectedContext == .group {
             groupCreateBody
         } else if newMomentOpen, model.selectedContext == .business {
             if let companyId = model.selectedCompany?.companyId {

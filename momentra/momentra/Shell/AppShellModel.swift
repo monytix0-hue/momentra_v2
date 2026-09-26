@@ -341,7 +341,10 @@ final class AppShellModel: ObservableObject {
             showMomentSwitcher = false
             groupHasCompletedHistory = false
         } else {
-            let experience = resolveMomentExperience(healed.moments)
+            // Personal moments are active by default; never land on the empty shell.
+            let experience = healed.selectedContext == .personal
+                ? MomentExperienceKind.active
+                : resolveMomentExperience(healed.moments)
             momentExperience = experience
             switch experience {
             case .active: contextContent = .ready(detail: nil)

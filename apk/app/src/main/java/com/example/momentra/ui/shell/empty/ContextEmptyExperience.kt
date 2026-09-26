@@ -99,7 +99,6 @@ fun ContextEmptyExperience(
             between = between,
             history = history,
             onCreateMoment = onCreateMoment,
-            onMomentCreated = onMomentCreated,
             modifier = modifier,
         )
         AppContext.GROUP -> GroupEmpty(
@@ -150,8 +149,6 @@ private fun PersonalEmpty(
 
     onCreateMoment: () -> Unit,
 
-    onMomentCreated: (String, String, String?, String) -> Unit,
-
     modifier: Modifier,
 
 ) {
@@ -171,8 +168,6 @@ private fun PersonalEmpty(
         BottomDestination.CREATE -> PersonalCreateEmptyContent(
 
             history = if (between) history else emptyList(),
-
-            onMomentCreated = onMomentCreated,
 
             modifier = modifier,
 

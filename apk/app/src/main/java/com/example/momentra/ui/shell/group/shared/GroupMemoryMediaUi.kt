@@ -16,7 +16,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -47,10 +55,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.example.momentra.data.api.GroupMemoryItemDto
 import com.example.momentra.data.api.GroupMemoryMediaDto
+import com.example.momentra.ui.shell.components.MomentraFullscreenDialog
 import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.Dispatchers
@@ -145,15 +152,7 @@ fun MemoryPhotoFullscreenDialog(
 ) {
     if (urls.isEmpty()) return
     val start = initialIndex.coerceIn(0, urls.lastIndex)
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = true,
-        ),
-    ) {
+    MomentraFullscreenDialog(onDismissRequest = onDismiss) {
         val pagerState = rememberPagerState(initialPage = start, pageCount = { urls.size })
         val caption = titles.getOrNull(if (urls.size == 1) 0 else pagerState.currentPage)
             ?.takeIf { it.isNotBlank() }
@@ -185,6 +184,11 @@ fun MemoryPhotoFullscreenDialog(
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
                             .background(Color.Black.copy(alpha = 0.55f))
+                            .windowInsetsPadding(
+                                WindowInsets.navigationBars
+                                    .union(WindowInsets.displayCutout)
+                                    .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
+                            )
                             .padding(horizontal = 20.dp, vertical = 16.dp),
                     )
                 }
@@ -195,6 +199,11 @@ fun MemoryPhotoFullscreenDialog(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .windowInsetsPadding(
+                        WindowInsets.statusBars
+                            .union(WindowInsets.displayCutout)
+                            .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                    )
                     .padding(16.dp)
                     .size(40.dp)
                     .clip(CircleShape)

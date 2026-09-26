@@ -41,8 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import com.example.momentra.ui.shell.components.MomentraFullscreenDialog
 import com.example.momentra.data.api.GroupFinancePayloadDto
 import com.example.momentra.data.api.GroupFinancePositionDto
 import com.example.momentra.data.api.GroupParticipantDto
@@ -235,10 +234,7 @@ fun GroupFinanceDetailFlow(
         people.onSuccess { participants = it.participants }
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-    ) {
+    MomentraFullscreenDialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -341,10 +337,7 @@ fun GroupExpenseSplitsFlow(
         people.onSuccess { participants = it.participants }
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-    ) {
+    MomentraFullscreenDialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

@@ -313,6 +313,7 @@ struct MomentSwitcherView: View {
     var useDirectorySelector: Bool = false
     var onOpenDirectory: (() -> Void)? = nil
     var selectedIsCompleted: Bool = false
+    var startExpanded: Bool = false
 
     @State private var expanded = false
 
@@ -455,6 +456,12 @@ struct MomentSwitcherView: View {
         .background(Color(hex: "#0C0F15"))
         .accessibilityLabel("Moment switcher: \(title)")
         .accessibilityIdentifier("moment.switcher")
+        .onAppear {
+            if startExpanded { expanded = true }
+        }
+        .onChange(of: startExpanded) { _, next in
+            if next { expanded = true }
+        }
     }
 }
 

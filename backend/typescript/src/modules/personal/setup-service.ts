@@ -177,6 +177,42 @@ export function getSetupByCode(code: string): PersonalSetupCatalogItem | undefin
   return PERSONAL_SETUP_CATALOG.find((s) => s.systemCode === code);
 }
 
+/**
+ * Activate any of the four Personal life systems the user does not already
+ * have an ACTIVE moment for, using catalog defaults. Existing setups are kept.
+ * Caller must hold a transaction that has locked the user profile row.
+ */
+export async function ensureDefaultPersonalMoments(
+  client: PoolClient,
+  ctx: RequestContext,
+  timezone = 'UTC'
+): Promise<void> {
+  const existing = await client.query<{ code: string }>(
+    `SELECT DISTINCT mc.code
+     FROM core.moment m
+     JOIN personal.personal_moment_context pmc ON pmc.moment_id = m.moment_id
+     JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+     JOIN core.moment_category mc ON mc.moment_category_id = mt.moment_category_id
+     WHERE pmc.user_id = $1
+       AND m.domain_code = 'PERSONAL'
+       AND m.status = 'ACTIVE'
+       AND mc.code = ANY($2::text[])`,
+    [ctx.userId, [...PERSONAL_SETUP_SYSTEM_CODES]]
+  );
+  const active = new Set(existing.rows.map((row) => row.code));
+  for (let index = 0; index < PERSONAL_SETUP_CATALOG.length; index++) {
+    const item = PERSONAL_SETUP_CATALOG[index]!;
+    if (active.has(item.systemCode)) continue;
+    const created = await activatePersonalSetup(client, ctx, item.systemCode, { timezone });
+    await client.query(
+      `UPDATE projection.personal_moments
+       SET display_rank = $3
+       WHERE user_id = $1 AND moment_id = $2`,
+      [ctx.userId, created.momentId, index + 1]
+    );
+  }
+}
+
 export async function activatePersonalSetup(
   client: PoolClient,
   ctx: RequestContext,

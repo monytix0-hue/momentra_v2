@@ -394,6 +394,8 @@ class AppShellViewModel(
         val selectedMoment = mergedMoments.firstOrNull { it.momentId == healed.selectedMomentId }
         val experience = when (healed.selectedContext) {
             AppContext.CIRCLE -> MomentExperienceKind.FIRST_MOMENT
+            // Personal moments are active by default; never land on the empty shell.
+            AppContext.PERSONAL -> MomentExperienceKind.ACTIVE
             else -> resolveMomentExperience(mergedMoments)
         }
         // S6: Circle Coming Soon — Empty (not Deferred); no Circle API fetch.

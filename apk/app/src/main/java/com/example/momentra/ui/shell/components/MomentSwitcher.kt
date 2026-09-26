@@ -69,9 +69,10 @@ fun MomentSwitcher(
     onOpenDirectory: (() -> Unit)? = null,
     selectedIsCompleted: Boolean = false,
     accent: Color = MomentraBrandColors.Cta,
+    startExpanded: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember(startExpanded) { mutableStateOf(startExpanded) }
     val title = when {
         isLoading -> "Loading moments…"
         isEmpty -> "No moments yet"

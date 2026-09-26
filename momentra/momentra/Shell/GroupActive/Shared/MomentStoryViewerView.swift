@@ -138,14 +138,12 @@ struct MomentStoryViewerView: View {
     }
 
     static func resolveChapters(story: APIClient.MomentStoryPayload?) -> [String] {
-        let raw = story?.chapters ?? story?.snapshot?.chapters
-        let chapters: [String]
-        if let raw, raw.contains(where: { $0 == "moment" || $0 == "together" }) {
-            chapters = raw
-        } else {
-            chapters = ["cover", "moment", "together", "money", "close"]
+        var pages = ["cover", "moment"]
+        if !moneyChapterEmpty(story) {
+            pages.append(contentsOf: ["money", "expenses"])
         }
-        return moneyChapterEmpty(story) ? chapters.filter { $0 != "money" } : chapters
+        pages.append("close")
+        return pages
     }
 
     private func storyCurrency(_ snap: APIClient.MomentStorySnapshot?) -> String {
@@ -157,6 +155,75 @@ struct MomentStoryViewerView: View {
         family == "HOUSE_PARTY" || family == "WEDDING" || family == "SHARED_EXPERIENCE"
     }
 
+    private func storySummaryLine(_ snap: APIClient.MomentStorySnapshot?, includePayments: Bool) -> String {
+        let people = snap?.people?.count ?? 0
+        let memories = (snap?.photos ?? []).filter { ($0.url ?? "").isEmpty == false }.count
+        let currency = storyCurrency(snap)
+        var parts = [
+            people == 1 ? "1 person" : "\(people) people",
+            memories == 1 ? "1 memory" : "\(memories) memories",
+            Self.formatStoryMoney(snap?.money?.spent ?? 0, currencyCode: currency),
+        ]
+        if includePayments {
+            let payments = snap?.money?.expenses?.count ?? 0
+            parts.append(payments == 1 ? "1 payment" : "\(payments) payments")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func expenseOutsideNote(_ snap: APIClient.MomentStorySnapshot?) -> String? {
+        let dated = (snap?.money?.expenses ?? []).compactMap { $0.at }.filter { !$0.isEmpty }
+        guard !dated.isEmpty else { return nil }
+        let start = snap?.identity?.startAt
+        let end = snap?.identity?.endAt
+        guard start != nil || end != nil else { return nil }
+        let earliest = dated.min() ?? ""
+        let latest = dated.max() ?? ""
+        let before = start.map { earliest.prefix(10) < $0.prefix(10) } ?? false
+        let after = end.map { latest.prefix(10) > $0.prefix(10) } ?? false
+        guard before || after else { return nil }
+        guard let momentSpan = Self.dateRangeLabel(start: start, end: end) else { return nil }
+        let span = [Self.formatStoryDate(earliest), Self.formatStoryDate(latest)].compactMap { $0 }.joined(separator: " – ")
+        return "Recorded expenses run \(span), while the Moment runs \(momentSpan)."
+    }
+
+    private func storyBeat(_ stamp: String, _ label: String) -> some View {
+        HStack {
+            Text(stamp)
+                .font(.system(size: 16, design: .serif))
+                .foregroundStyle(Color(hex: "#25231F"))
+            Spacer()
+            Text(label)
+                .font(.system(size: 14))
+                .foregroundStyle(Color(hex: "#746F67"))
+        }
+    }
+
+    @ViewBuilder
+    private func straightPhotos(_ photos: [APIClient.MomentStoryPhoto]) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(photos) { photo in
+                if let raw = photo.url, let url = URL(string: raw) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().scaledToFit()
+                        default:
+                            Color(hex: "#E7E0D6").frame(height: 180)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    if let title = memoryPhotoTitle(photo.title) {
+                        Text(title)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color(hex: "#746F67"))
+                    }
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private func chapterPage(_ chapter: String) -> some View {
         let snap = story?.snapshot
@@ -165,8 +232,8 @@ struct MomentStoryViewerView: View {
             coverChapter(snap)
         case "moment", "memories":
             momentChapter(snap)
-        case "together", "alive":
-            togetherChapter(snap)
+        case "expenses", "together", "alive":
+            expenseRecordChapter(snap)
         case "money":
             moneyChapter(snap)
         default:
@@ -180,42 +247,29 @@ struct MomentStoryViewerView: View {
     private func coverChapter(_ snap: APIClient.MomentStorySnapshot?) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text((snap?.display?.coverEyebrow ?? "Moment Story").uppercased())
-                    .font(.system(size: 11, weight: .semibold))
-                    .tracking(1)
+                Image("MomentraOfficialLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 160, height: 48, alignment: .leading)
+                Text("MEMORY")
+                    .font(.system(size: 12, weight: .semibold))
+                    .tracking(2)
                     .foregroundStyle(Color(hex: "#E8621A"))
                 Text(snap?.identity?.title ?? "Moment")
                     .font(.system(size: 28, weight: .bold, design: .serif))
                     .foregroundStyle(Color(hex: "#F5F0FF"))
-                HStack(spacing: 8) {
-                    if let place = snap?.places?.first?.label, !place.isEmpty {
-                        coverPill(place, Color(hex: "#0A6640"))
-                    }
-                    if let range = Self.dateRangeLabel(start: snap?.identity?.startAt, end: snap?.identity?.endAt) {
-                        coverPill(range, Color(hex: "#8C83D4"))
-                    }
-                    let people = Self.metricInt(snap?.metrics, "people")
-                    let days = Self.metricInt(snap?.metrics, "days")
-                    if people != nil || days != nil {
-                        let bits = [people.map { "\($0) people" }, days.map { "\($0) days" }].compactMap { $0 }
-                        coverPill(bits.joined(separator: " · "), Color(hex: "#4B3EA8"))
-                    }
-                }
-                if let urlStr = snap?.photos?.first?.url, let url = URL(string: urlStr) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let img):
-                            img.resizable().scaledToFill()
-                        default:
-                            Color(hex: "#4B3EA8").opacity(0.4)
-                        }
-                    }
-                    .frame(height: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                }
                 Text(snap?.narrative?.opening ?? "")
+                    .font(.system(size: 16))
                     .foregroundStyle(Color(hex: "#C4BDEE"))
-                metricGrid(metrics: snap?.metrics, keys: snap?.display?.metricKeys, onDark: true, currencyCode: storyCurrency(snap))
+                if let range = Self.dateRangeLabel(start: snap?.identity?.startAt, end: snap?.identity?.endAt) {
+                    Text(range)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color(hex: "#F5F0FF"))
+                }
+                Text(storySummaryLine(snap, includePayments: false))
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color(hex: "#C4BDEE"))
+                    .padding(.top, 8)
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -240,43 +294,36 @@ struct MomentStoryViewerView: View {
     private func momentChapter(_ snap: APIClient.MomentStorySnapshot?) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text("A MOMENT TO REMEMBER")
-                    .font(.system(size: 10, weight: .semibold))
+                Text("01  /  THE MOMENT")
+                    .font(.system(size: 11, weight: .semibold))
                     .tracking(1.2)
-                    .foregroundStyle(Color(hex: "#B45F3D"))
-                Text(snap?.identity?.title ?? "Moment")
-                    .font(.system(size: 26, weight: .regular, design: .serif))
+                    .foregroundStyle(Color(hex: "#E8621A"))
+                Text("What stayed")
+                    .font(.system(size: 26, design: .serif))
                     .foregroundStyle(Color(hex: "#25231F"))
-                Text(snap?.narrative?.opening ?? "")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Color(hex: "#25231F"))
-                Text("The Shape of This Moment")
-                    .font(.system(size: 20, design: .serif))
-                    .foregroundStyle(Color(hex: "#25231F"))
-                    .padding(.top, 8)
-                Text("Facts that hold the whole story.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color(hex: "#746F67"))
-                factRows(snap)
-                Text("How the Moment Came Together")
-                    .font(.system(size: 18, design: .serif))
-                    .foregroundStyle(Color(hex: "#25231F"))
-                    .padding(.top, 8)
-                timelineList(Array((snap?.timeline ?? []).prefix(6)), dark: false)
-                let mosaic = (snap?.photos ?? []).compactMap { photo -> (url: URL, title: String?)? in
-                    guard let raw = photo.url, !raw.isEmpty, let url = URL(string: raw) else { return nil }
-                    return (url, memoryPhotoTitle(photo.title))
+                let currency = storyCurrency(snap)
+                if let start = snap?.identity?.startAt, let stamp = Self.formatStoryDateShort(start) {
+                    storyBeat(stamp, "Moment began")
                 }
+                if let target = snap?.money?.target {
+                    storyBeat(Self.formatStoryMoney(target, currencyCode: currency), "Budget set")
+                }
+                if let end = snap?.identity?.endAt, let stamp = Self.formatStoryDateShort(end) {
+                    storyBeat(stamp, "Moment completed")
+                }
+                let mosaic = (snap?.photos ?? [])
+                    .filter { ($0.url ?? "").isEmpty == false }
+                    .sorted { a, b in
+                        switch (a.at, b.at) {
+                        case (nil, nil): return false
+                        case (nil, _): return false
+                        case (_, nil): return true
+                        case let (left?, right?): return left < right
+                        }
+                    }
                 if !mosaic.isEmpty {
-                    Text("PHOTO STORY")
-                        .font(.system(size: 10, weight: .semibold))
-                        .tracking(1.2)
-                        .foregroundStyle(Color(hex: "#B45F3D"))
+                    straightPhotos(mosaic)
                         .padding(.top, 8)
-                    Text("Celebrations, held close.")
-                        .font(.system(size: 22, design: .serif))
-                        .foregroundStyle(Color(hex: "#25231F"))
-                    photoMosaic(mosaic)
                 }
             }
             .padding(20)
@@ -286,73 +333,68 @@ struct MomentStoryViewerView: View {
         }
     }
 
-    // MARK: - Together
+    // MARK: - Expense record
 
     @ViewBuilder
-    private func togetherChapter(_ snap: APIClient.MomentStorySnapshot?) -> some View {
+    private func expenseRecordChapter(_ snap: APIClient.MomentStorySnapshot?) -> some View {
+        let money = snap?.money
+        let currency = storyCurrency(snap)
+        let expenses = (money?.expenses ?? []).sorted { a, b in
+            switch (a.at, b.at) {
+            case (nil, nil): return false
+            case (nil, _): return false
+            case (_, nil): return true
+            case let (left?, right?): return left < right
+            }
+        }
+        let count = expenses.count
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    Circle().fill(Color(hex: "#6C4EF2")).frame(width: 8, height: 8)
-                    Text("HOW IT CAME TOGETHER")
-                        .font(.system(size: 11, weight: .bold))
-                        .tracking(1)
-                        .foregroundStyle(Color(hex: "#6C4EF2"))
-                }
-                Text("How the Moment came together")
+                Text("03  /  EXPENSE RECORD")
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(1.2)
+                    .foregroundStyle(Color(hex: "#E8621A"))
+                Text(count == 1 ? "All 1 payment" : "All \(count) payments")
                     .font(.system(size: 26, design: .serif))
                     .foregroundStyle(Color(hex: "#25231F"))
-                Text("From the first invite to the last shared update.")
+                Text("The complete record, side by side.")
                     .font(.system(size: 14))
                     .foregroundStyle(Color(hex: "#746F67"))
-                let peopleCount = Self.metricInt(snap?.metrics, "people") ?? snap?.people?.count ?? 0
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("\(peopleCount) PEOPLE · NO RANKINGS")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Color(hex: "#C4BDEE"))
-                    Text("No rankings. Just many ways of showing up.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.white.opacity(0.85))
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(hex: "#201E28"))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                timelineList(snap?.timeline ?? [], dark: false)
-                Text("INVISIBLE PREP")
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(1)
-                    .foregroundStyle(Color(hex: "#6C4EF2"))
-                HStack(spacing: 8) {
-                    let plansN = Self.metricInt(snap?.metrics, "plans")
-                    prepCard((plansN.map { $0 > 0 ? "\($0)" : "—" }) ?? "—", "Plans")
-                    prepCard(
-                        snap?.metrics?["contributed"]?.label
-                            ?? snap?.metrics?["raised"]?.label
-                            ?? "—",
-                        "Contributed"
-                    )
-                    let decisionsN = Self.metricInt(snap?.metrics, "decisions")
-                    prepCard((decisionsN.map { $0 > 0 ? "\($0)" : "—" }) ?? "—", "Decisions")
-                }
-                let decisions = snap?.decisions ?? []
-                if !decisions.isEmpty {
-                    Text("Shared decisions")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color(hex: "#B45F3D"))
-                    ForEach(decisions.prefix(4)) { d in
-                        Text(d.title ?? "Decision")
-                            .foregroundStyle(Color(hex: "#25231F"))
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(hex: "#F7F4EE"))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    ForEach(Array(expenses.enumerated()), id: \.element.id) { index, expense in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(index + 1)   \(expense.at.flatMap { Self.formatStoryDateShort($0) } ?? "UNDATED")")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Color(hex: "#746F67"))
+                            Text(Self.cleanExpenseTitle(expense.description))
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color(hex: "#25231F"))
+                                .lineLimit(2)
+                            Text(Self.formatStoryMoney(expense.amount ?? 0, currencyCode: currency))
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(Color(hex: "#25231F"))
+                            Text((expense.category ?? "").uppercased())
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color(hex: "#746F67"))
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(hex: "#F7F4EE"))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                 }
+                Text("TOTAL RECORDED")
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(1)
+                    .foregroundStyle(Color(hex: "#746F67"))
+                    .padding(.top, 8)
+                Text(Self.formatStoryMoney(money?.spent ?? 0, currencyCode: currency))
+                    .font(.system(size: 22, design: .serif))
+                    .foregroundStyle(Color(hex: "#25231F"))
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(hex: "#FFFEFB"))
+            .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 20))
         }
     }
@@ -379,68 +421,28 @@ struct MomentStoryViewerView: View {
         let money = snap?.money
         let spent = money?.spent ?? 0
         let target = money?.target
-        let pct: Double? = {
-            guard let target, target > 0 else { return nil }
-            return (spent / target * 1000).rounded() / 10
-        }()
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    Circle().fill(Color(hex: "#6C4EF2")).frame(width: 8, height: 8)
-                    Text("THE MONEY BEHIND THE MOMENT")
-                        .font(.system(size: 11, weight: .bold))
-                        .tracking(1)
-                        .foregroundStyle(Color(hex: "#6C4EF2"))
-                }
-                Text("The Money Behind the Moment")
+                Text("02  /  WHAT IT TOOK")
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(1.2)
+                    .foregroundStyle(Color(hex: "#E8621A"))
+                Text("The financial story")
                     .font(.system(size: 26, design: .serif))
                     .foregroundStyle(Color(hex: "#25231F"))
-                Text("How contributions became days together.")
+                let currency = storyCurrency(snap)
+                let payments = money?.expenses?.count ?? 0
+                let over = target != nil && spent > (target ?? 0)
+                Text(Self.formatStoryMoney(spent, currencyCode: currency))
+                    .font(.system(size: 28, design: .serif))
+                    .foregroundStyle(Color(hex: "#25231F"))
+                Text(payments == 1 ? "spent across 1 payment" : "spent across \(payments) payments")
                     .font(.system(size: 14))
                     .foregroundStyle(Color(hex: "#746F67"))
-                let moneyCards = (snap?.highlights ?? []).filter {
-                    $0.key == "busiest-day" || $0.key == "largest-expense" || $0.key == "top-category"
-                }
-                if !moneyCards.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(moneyCards) { card in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(card.title ?? "")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(Color(hex: "#6C4EF2"))
-                                Text(card.detail ?? "")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(Color(hex: "#25231F"))
-                            }
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(hex: "#FFFEFB"))
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                        }
-                    }
-                }
-                HStack {
-                    Text("BUDGET AT A GLANCE")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Color(hex: "#6C4EF2"))
-                    Spacer()
-                    if let pct {
-                        Text("\(Self.formatPlain(pct))% budget used")
-                            .font(.system(size: 14, design: .serif))
-                            .foregroundStyle(Color(hex: "#25231F"))
-                    }
-                }
-                let currency = storyCurrency(snap)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    moneyFlowTile("Contributed", money?.contributed ?? 0, currency)
-                    moneyFlowTile("Spent", spent, currency)
-                    moneyFlowTile("Remaining", money?.remaining ?? 0, currency)
+                HStack(spacing: 8) {
+                    moneyFlowTile("Budget", target ?? 0, currency, blank: target == nil)
+                    moneyFlowTile(over ? "Over budget" : "Remaining", over ? spent - (target ?? 0) : (money?.remaining ?? 0), currency)
                     moneyFlowTile("Unsettled", money?.unsettled ?? 0, currency)
-                }
-                if (money?.unsettled ?? 0) <= 0, spent > 0 {
-                    Text("✓  All recorded balances settled.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color(hex: "#0A6640"))
                 }
                 let categories = (money?.categories ?? []).filter { ($0.amount ?? 0) > 0 }
                 if !categories.isEmpty, spent > 0 {
@@ -450,91 +452,35 @@ struct MomentStoryViewerView: View {
                         .padding(.top, 4)
                     categoryDonut(categories, spent: spent, currency: currency)
                 }
-                let expenses = money?.expenses ?? []
-                if !expenses.isEmpty {
-                    Text("EXPENSES BEHIND THE MOMENT")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Color(hex: "#6C4EF2"))
-                        .padding(.top, 4)
-                    ForEach(Array(Self.groupStoryExpenses(expenses).enumerated()), id: \.offset) { _, day in
-                        HStack(alignment: .center) {
-                            if let number = day.dayNumber {
-                                Text(number)
-                                    .font(.system(size: 28, design: .serif))
+                if let largest = (money?.expenses ?? []).max(by: { ($0.amount ?? 0) < ($1.amount ?? 0) }),
+                   (largest.amount ?? 0) > 0 {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("ONE PAYMENT STOOD ABOVE THE REST")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color(hex: "#E8621A"))
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(Self.cleanExpenseTitle(largest.description))
+                                    .font(.system(size: 15))
                                     .foregroundStyle(Color(hex: "#25231F"))
-                                VStack(alignment: .leading, spacing: 0) {
-                                    Text(day.month ?? "")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .foregroundStyle(Color(hex: "#25231F"))
-                                    Text(day.weekday ?? "")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(Color(hex: "#746F67"))
-                                }
-                            } else {
-                                Text("Undated")
-                                    .font(.system(size: 18, design: .serif))
-                                    .foregroundStyle(Color(hex: "#25231F"))
+                                Text([largest.category, largest.at.flatMap { Self.formatStoryDateShort($0) } ?? "Undated"].compactMap { $0 }.joined(separator: "  ·  "))
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color(hex: "#746F67"))
                             }
                             Spacer()
-                            Text(Self.formatStoryMoney(day.total, currencyCode: currency))
-                                .font(.system(size: 14, weight: .bold))
+                            Text(Self.formatStoryMoney(largest.amount ?? 0, currencyCode: currency))
+                                .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(Color(hex: "#25231F"))
                         }
-                        .padding(.top, 8)
-                        VStack(alignment: .leading, spacing: 0) {
-                                ForEach(Array(day.items.enumerated()), id: \.offset) { index, expense in
-                                    if index > 0 {
-                                        Rectangle()
-                                            .fill(Color(hex: "#746F67").opacity(0.2))
-                                            .frame(height: 1)
-                                    }
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(Self.cleanExpenseTitle(expense.description))
-                                                .foregroundStyle(Color(hex: "#25231F"))
-                                                .font(.system(size: 13))
-                                            Text([expense.category, expense.payer].compactMap { $0 }.joined(separator: " · "))
-                                                .foregroundStyle(Color(hex: "#746F67"))
-                                                .font(.system(size: 11))
-                                        }
-                                        Spacer()
-                                        Text(Self.formatStoryMoney(expense.amount ?? 0, currencyCode: currency))
-                                            .font(.system(size: 13, weight: .bold))
-                                            .foregroundStyle(Color(hex: "#25231F"))
-                                    }
-                                    .padding(.vertical, 8)
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(hex: "#FFFEFB"))
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                            .overlay(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(Color(hex: "#E8621A"))
-                                    .frame(width: 3)
-                                    .padding(.vertical, 8)
-                            }
                     }
-                }
-                if let insight = snap?.narrative?.insights?.first(where: {
-                    $0.localizedCaseInsensitiveContains("accounted") || $0.localizedCaseInsensitiveContains("spend")
-                }) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("HUMAN INSIGHT")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Color(hex: "#B45F3D"))
-                        Text(insight)
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color(hex: "#746F67"))
-                    }
-                    .padding(16)
+                    .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(hex: "#F4E5DA"))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .background(Color(hex: "#FFFEFB"))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
-                if money == nil || (spent <= 0 && (money?.contributed ?? 0) <= 0) {
-                    Text("No expenses recorded.")
+                if let outside = expenseOutsideNote(snap) {
+                    Text(outside)
+                        .font(.system(size: 13))
                         .foregroundStyle(Color(hex: "#746F67"))
                 }
             }
@@ -545,10 +491,10 @@ struct MomentStoryViewerView: View {
         }
     }
 
-    private func moneyFlowTile(_ label: String, _ value: Double, _ currencyCode: String) -> some View {
+    private func moneyFlowTile(_ label: String, _ value: Double, _ currencyCode: String, blank: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(Self.formatStoryMoney(value, currencyCode: currencyCode))
-                .font(.system(size: 16, weight: .bold))
+            Text(blank ? "—" : Self.formatStoryMoney(value, currencyCode: currencyCode))
+                .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(Color(hex: "#25231F"))
             Text(label)
                 .font(.system(size: 11))
@@ -570,46 +516,34 @@ struct MomentStoryViewerView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 130, height: 48)
-                Text("TOGETHER · FORWARD")
-                    .font(.system(size: 12, weight: .bold))
-                    .tracking(1)
-                    .foregroundStyle(Color(hex: "#E8621A"))
+                if let start = snap?.identity?.startAt, let stamp = Self.formatStoryDateShort(start) {
+                    Text(stamp)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color(hex: "#E8621A"))
+                    Text("This Moment began.")
+                        .font(.system(size: 16, design: .serif))
+                        .foregroundStyle(.white)
+                }
+                if let end = snap?.identity?.endAt, let stamp = Self.formatStoryDateShort(end) {
+                    Text(stamp)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color(hex: "#E8621A"))
+                    Text("It ended.")
+                        .font(.system(size: 16, design: .serif))
+                        .foregroundStyle(.white)
+                }
                 let celebration = celebrationFamily(snap?.identity?.familyProfile)
                 Text(celebration ? "The celebration ended.\nThe Moment stayed." : (snap?.display?.closeLine ?? "Life happens in moments."))
                     .font(.system(size: 28, design: .serif))
                     .foregroundStyle(.white)
-                if celebration {
-                    Text(snap?.display?.closeLine ?? "Life happens in moments.")
-                        .font(.system(size: 16))
-                        .foregroundStyle(Color(hex: "#C4BDEE"))
-                }
                 Text(snap?.identity?.title ?? "")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.45))
-                    .padding(.top, 8)
-                if let plans = Self.metricInt(snap?.metrics, "plans"), plans > 0 {
-                    Text("✓  \(plans) plans on the checklist")
-                        .foregroundStyle(Color(hex: "#C4BDEE"))
-                }
-                if let decisions = Self.metricInt(snap?.metrics, "decisions"), decisions > 0 {
-                    Text("✓  \(decisions) decisions closed")
-                        .foregroundStyle(Color(hex: "#C4BDEE"))
-                }
-                if (snap?.money?.unsettled ?? 0) <= 0, (snap?.money?.spent ?? 0) > 0 {
-                    Text("✓  All balances settled")
-                        .foregroundStyle(Color(hex: "#C4BDEE"))
-                }
-                ForEach(snap?.highlights ?? []) { award in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(award.title ?? "")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(Color(hex: "#E8621A"))
-                        Text(award.detail ?? "")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color(hex: "#C4BDEE"))
-                    }
+                    .font(.system(size: 18, design: .serif))
+                    .foregroundStyle(Color.white.opacity(0.7))
                     .padding(.top, 4)
-                }
+                Text(storySummaryLine(snap, includePayments: true))
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color(hex: "#C4BDEE"))
+                    .padding(.top, 8)
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)

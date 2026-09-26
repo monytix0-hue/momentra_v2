@@ -2,27 +2,10 @@ import SwiftUI
 
 struct PersonalCreateEmptyView: View {
     var history: [MomentSummary] = []
-    var onMomentCreated: (String, String, String?, String) -> Void = { _, _, _, _ in }
     var onOpenExisting: (String) -> Void = { _ in }
-
-    @State private var wizard: PersonalSetupSystem?
 
     var body: some View {
         chooser
-            .sheet(item: $wizard) { system in
-                PersonalSetupWizardView(
-                    system: system,
-                    onBack: { wizard = nil },
-                    onCreated: { id, title, typeCode, status in
-                        wizard = nil
-                        onMomentCreated(id, title, typeCode, status)
-                    }
-                )
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(24)
-                .preferredColorScheme(.dark)
-            }
     }
 
     private func activeMoment(for system: PersonalSetupSystem) -> MomentSummary? {
@@ -32,16 +15,9 @@ struct PersonalCreateEmptyView: View {
     }
 
     private func selectOrCreate(_ system: PersonalSetupSystem) {
-        if system == .futureBuilding || system == .lifestyle { return }
         if let existing = activeMoment(for: system) {
             onOpenExisting(existing.momentId)
-        } else {
-            wizard = system
         }
-    }
-
-    private func isComingSoon(_ system: PersonalSetupSystem) -> Bool {
-        system == .futureBuilding || system == .lifestyle
     }
 
     private var chooser: some View {
@@ -173,8 +149,7 @@ struct PersonalCreateEmptyView: View {
         deep: Color,
         thumb: String
     ) -> some View {
-        let comingSoon = isComingSoon(system)
-        let existing = comingSoon ? nil : activeMoment(for: system)
+        let existing = activeMoment(for: system)
         return Button { selectOrCreate(system) } label: {
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 0) {
@@ -218,25 +193,9 @@ struct PersonalCreateEmptyView: View {
                 .background(PersonalEmptyTokens.card)
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.06), lineWidth: 1))
                 .clipShape(RoundedRectangle(cornerRadius: 16))
-                .opacity(comingSoon ? 0.6 : 1)
-
-                if comingSoon {
-                    Text("Coming Soon")
-                        .font(.system(size: 9, weight: .semibold))
-                        .tracking(0.5)
-                        .foregroundStyle(Color(hex: "#98A3B8"))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(hex: "#4D4D59").opacity(0.85))
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .padding(.top, 8)
-                        .padding(.trailing, 8)
-                }
             }
         }
         .buttonStyle(.plain)
-        .disabled(comingSoon)
     }
 
     private func quickRow(

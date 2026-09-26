@@ -219,11 +219,18 @@ export async function listPersonalMoments(
        WHERE user_id = $1
        UNION ALL
        SELECT m.moment_id, m.title, m.status, mt.code AS moment_type_code,
-              (EXTRACT(EPOCH FROM m.updated_at)::bigint % 1000000000)::int AS display_rank
+              CASE mc.code
+                WHEN 'LIFE_OPERATIONS' THEN 1
+                WHEN 'FUTURE_BUILDING' THEN 2
+                WHEN 'LIFESTYLE' THEN 3
+                WHEN 'RELATIONSHIPS' THEN 4
+                ELSE (EXTRACT(EPOCH FROM m.updated_at)::bigint % 1000000000)::int
+              END AS display_rank
        FROM core.moment m
        JOIN personal.personal_moment_context pmc ON pmc.moment_id = m.moment_id AND pmc.user_id = $1
        JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
-       WHERE m.domain_code = 'PERSONAL' AND m.status = 'DRAFT'
+       JOIN core.moment_category mc ON mc.moment_category_id = mt.moment_category_id
+       WHERE m.domain_code = 'PERSONAL' AND m.status IN ('ACTIVE', 'DRAFT')
          AND NOT EXISTS (
            SELECT 1 FROM projection.personal_moments pm
            WHERE pm.user_id = $1 AND pm.moment_id = m.moment_id
@@ -470,6 +477,7 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
       `SELECT title, occurred_at, activity_code
        FROM projection.recent_activity
        WHERE user_id = $1
+         AND domain_code = 'PERSONAL'
          AND COALESCE(activity_payload->>'status', 'POSTED') <> 'VOIDED'
        ORDER BY occurred_at DESC
        LIMIT 8`,
@@ -654,6 +662,7 @@ export async function getPersonalActivity(
     `SELECT activity_code, title, occurred_at, recent_activity_id, activity_payload
      FROM projection.recent_activity
      WHERE user_id = $1
+       AND domain_code = 'PERSONAL'
        AND ($4::uuid IS NULL OR scope_id = $4::uuid)
        AND COALESCE(activity_payload->>'status', 'POSTED') <> 'VOIDED'
        AND (
@@ -1831,6 +1840,7 @@ export async function getMomentActivity(
        FROM projection.recent_activity
        WHERE scope_type = 'MOMENT'
          AND scope_id = $1::uuid
+         AND domain_code = 'GROUP'
        ORDER BY source_event_id, occurred_at DESC, recent_activity_id DESC
      ) scoped
      LEFT JOIN events.domain_event de ON de.domain_event_id = scoped.source_event_id

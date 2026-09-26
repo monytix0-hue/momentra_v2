@@ -79,6 +79,7 @@ fun MomentraTopBar(
     onAvatar: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val window = rememberMomentraWindowSize()
     val showCompanyChip =
         config.context == AppContext.BUSINESS && config.selectedCompany != null
     val showQr = config.qrScanAvailable &&
@@ -96,7 +97,7 @@ fun MomentraTopBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 MomentraWordmark(
-                    showTagline = true,
+                    showTagline = !window.isNarrowWidth,
                     titleSizeSp = 16f,
                     taglineSizeSp = 5.5f,
                     alignStart = true,
