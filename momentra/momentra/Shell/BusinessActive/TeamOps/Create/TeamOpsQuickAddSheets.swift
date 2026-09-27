@@ -69,7 +69,7 @@ struct TeamOpsGapQuickAddSheet: View {
                     case .memory:
                         TeamOpsMemoryForm(momentId: momentId, onClose: onClose, onSaved: onSaved)
                     default:
-                        Text("Unsupported Team Ops command")
+                        Text("Unsupported Team & Work command")
                             .font(.plusJakarta(size: 14))
                             .foregroundStyle(TeamOpsSheetTokens.muted)
                     }

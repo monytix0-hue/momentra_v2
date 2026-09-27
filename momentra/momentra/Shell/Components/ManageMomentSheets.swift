@@ -914,7 +914,12 @@ struct ManageMomentDeleteSheet: View {
             _ = try await APIClient.shared.deleteMoment(momentId: momentId, expectedVersion: detail.version)
             onDeleted()
         } catch {
-            errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            if message == "Moment is already deleted." {
+                onDeleted()
+            } else {
+                errorText = message
+            }
         }
     }
 }

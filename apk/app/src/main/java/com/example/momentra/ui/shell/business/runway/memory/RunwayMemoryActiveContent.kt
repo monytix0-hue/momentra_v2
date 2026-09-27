@@ -190,7 +190,7 @@ fun RunwayMemoryActiveContent(
 
         RunwayEmptyAiCard(
             title = "momentra intelligence",
-            emptyCopy = "\"Runway health improves when monthly closes and burn reviews share the same cadence.\" — moments intelligence",
+            emptyCopy = "No wisdom yet",
             theme = theme,
         )
 

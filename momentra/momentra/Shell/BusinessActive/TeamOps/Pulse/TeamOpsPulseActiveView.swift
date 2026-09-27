@@ -13,6 +13,7 @@ struct TeamOpsPulseActiveView: View {
     @State private var activities: [APIClient.ActivityItemPayload] = []
     @State private var capacityData: APIClient.BusinessCapacityPayload?
     @State private var workloadData: APIClient.BusinessWorkloadPayload?
+    @State private var spendRows: [(id: String, title: String, amount: String, category: String)] = []
     @State private var loading = true
     @State private var error: String?
 
@@ -86,6 +87,7 @@ struct TeamOpsPulseActiveView: View {
                         healthCard
                         TeamOpsWorkloadSection(theme: theme, workloadData: workloadData)
                         needsAttentionSection
+                        teamSpendingSection
                         recentDeliverySection
                         TeamOpsIntelligenceSection(theme: theme)
                     }
@@ -107,7 +109,7 @@ struct TeamOpsPulseActiveView: View {
             HStack(alignment: .center, spacing: 16) {
                 TeamOpsHeroHealthRing(score: healthScore, showLive: hasLive, theme: theme)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("EXECUTION HEALTH")
+                    Text("TEAM HEALTH")
                         .font(.plusJakarta(size: 10, weight: .bold))
                         .foregroundStyle(theme.muted)
                     Text(narrative)
@@ -161,10 +163,10 @@ struct TeamOpsPulseActiveView: View {
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
             } else {
-                ForEach(Array(items.enumerated()), id: \.offset) { index, act in
+                ForEach(Array(items.enumerated()), id: \.offset) { _, act in
                     attentionCard(
                         title: act.title.isEmpty ? act.activityCode : act.title,
-                        severity: index == 0 ? "HIGH" : "MED",
+                        severity: "",
                         detail: String(act.occurredAt.prefix(16))
                     )
                 }
@@ -173,27 +175,25 @@ struct TeamOpsPulseActiveView: View {
     }
 
     private func attentionCard(title: String, severity: String, detail: String) -> some View {
-        let badgeColor: Color = severity.contains("HIGH") ? TeamOpsColors.red : TeamOpsColors.amber
+        let badgeColor = theme.accent
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Circle().fill(badgeColor).frame(width: 8, height: 8)
-                Text(severity)
-                    .font(.plusJakarta(size: 9, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(badgeColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                if !severity.isEmpty {
+                    Text(severity)
+                        .font(.plusJakarta(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(badgeColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
                 Spacer()
             }
             Text(title)
                 .font(.plusJakarta(size: 14, weight: .semibold))
                 .foregroundStyle(theme.text)
             Text(detail)
-                .font(.plusJakarta(size: 12))
-                .foregroundStyle(theme.muted)
-            Capsule().fill(badgeColor.opacity(0.25)).frame(height: 4)
-            Text("Escalation API not mounted")
                 .font(.plusJakarta(size: 12))
                 .foregroundStyle(theme.muted)
         }
@@ -204,10 +204,51 @@ struct TeamOpsPulseActiveView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    private var teamSpendingSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Team Spending")
+                .font(.plusJakarta(size: 14, weight: .semibold))
+                .foregroundStyle(theme.text)
+            if spendRows.isEmpty {
+                Text("No team spending yet")
+                    .font(.plusJakarta(size: 13))
+                    .foregroundStyle(theme.secondary)
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(theme.card)
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+            } else {
+                ForEach(spendRows, id: \.id) { row in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.title)
+                                .font(.plusJakarta(size: 13, weight: .bold))
+                                .foregroundStyle(theme.text)
+                            if !row.category.isEmpty {
+                                Text(row.category)
+                                    .font(.plusJakarta(size: 11))
+                                    .foregroundStyle(theme.muted)
+                            }
+                        }
+                        Spacer()
+                        Text(row.amount)
+                            .font(.plusJakarta(size: 13, weight: .bold))
+                            .foregroundStyle(theme.text)
+                    }
+                    .padding(14)
+                    .background(theme.card)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.border))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+        }
+    }
+
     private var recentDeliverySection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Recent Delivery")
+                Text("Recent Progress")
                     .font(.plusJakarta(size: 14, weight: .semibold))
                     .foregroundStyle(theme.text)
                 Spacer()
@@ -259,12 +300,12 @@ struct TeamOpsPulseActiveView: View {
     private var ctaRow: some View {
         HStack(spacing: 12) {
             TeamOpsGradientPrimaryButton(
-                label: "+ Log Delivery",
+                label: "Add Progress",
                 enabled: momentId?.isEmpty == false,
                 action: onLogDelivery
             )
             TeamOpsOutlineButton(
-                label: "View This Week's Report",
+                label: "See this week",
                 enabled: true,
                 theme: theme,
                 action: onOpenQuickAdd
@@ -296,6 +337,18 @@ struct TeamOpsPulseActiveView: View {
             activities = tab.activities
             capacityData = tab.capacity
             workloadData = tab.workload
+            if let expenses = try? await APIClient.shared.listBusinessExpenses(momentId: momentId) {
+                spendRows = (expenses.items ?? []).enumerated().compactMap { index, item in
+                    guard let dict = item.value as? [String: Any] else { return nil }
+                    let title = (dict["description"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let amount = dict["amount"] as? String ?? ""
+                    let currency = dict["currencyCode"] as? String ?? ""
+                    let category = dict["categoryCode"] as? String ?? ""
+                    let id = dict["expenseId"] as? String ?? "\(index)"
+                    let shown = [currency, amount].filter { !$0.isEmpty }.joined(separator: " ")
+                    return (id, (title?.isEmpty == false ? title! : "Expense"), shown, category)
+                }
+            }
         } catch {
             self.error = error.localizedDescription
         }

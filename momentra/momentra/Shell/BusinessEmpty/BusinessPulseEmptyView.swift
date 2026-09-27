@@ -1,19 +1,15 @@
 import SwiftUI
 
-/// Figma: pulse-empty-b (657:9980)
+/// Figma: pulse-empty-b (1687:20594)
 struct BusinessPulseEmptyView: View {
     var onStartCta: () -> Void
 
-    private let metrics: [(String, Double)] = [
-        ("Operational Flow", 0.74),
-        ("Capital Efficiency", 0.48),
-        ("Velocity Index", 0.91),
-    ]
+    private let metrics = ["Money Spend", "Purchases tracked", "Expenses"]
 
     private let features: [(String, String, String)] = [
-        ("business_empty_activity", "Operations Feed", "Live activity diagnostics from integrated pipelines"),
-        ("business_empty_bell", "Smart Alerts", "Automated anomaly triggers protecting margins"),
-        ("business_empty_trending_up", "Growth Metrics", "High-density correlation arrays for fast decisions"),
+        ("business_empty_activity", "See every purchase", "Track what your business buys and how much it costs."),
+        ("business_empty_bell", "Keep expenses in check", "Know when spending is higher than usual."),
+        ("business_empty_trending_up", "See spending clearly", "See where your business spends the most."),
     ]
 
     var body: some View {
@@ -22,32 +18,25 @@ struct BusinessPulseEmptyView: View {
                 VStack(spacing: 24) {
                     BusinessEmptyPill(label: "PULSE")
                     BusinessEmptyHeadline(
-                        title: "Clarity in Real Time",
-                        bodyText: "Monitor every operation, expense, and milestone as it happens."
+                        title: "See Where Your Business Money Goes",
+                        bodyText: "Track purchases, expenses and spending across your business."
                     )
 
                     VStack(spacing: 12) {
-                        ForEach(metrics, id: \.0) { item in
+                        ForEach(metrics, id: \.self) { label in
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
-                                    Text(item.0)
+                                    Text(label)
                                         .font(.system(size: 11))
                                         .foregroundStyle(BusinessEmptyTokens.textSecondary)
                                     Spacer()
-                                    Text("\(Int(item.1 * 100))%")
+                                    Text("0")
                                         .font(.system(size: 11, design: .monospaced))
                                         .foregroundStyle(BusinessEmptyTokens.accent)
                                 }
-                                GeometryReader { geo in
-                                    ZStack(alignment: .leading) {
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(Color.white.opacity(0.10))
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(BusinessEmptyTokens.accent)
-                                            .frame(width: geo.size.width * item.1)
-                                    }
-                                }
-                                .frame(height: 6)
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.white.opacity(0.10))
+                                    .frame(height: 6)
                             }
                         }
                     }
@@ -89,7 +78,7 @@ struct BusinessPulseEmptyView: View {
                         }
                     }
 
-                    BusinessEmptyCTA(label: "Begin Tracking →", action: onStartCta)
+                    BusinessEmptyCTA(label: "Start Tracking →", action: onStartCta)
                 }
             }
         }

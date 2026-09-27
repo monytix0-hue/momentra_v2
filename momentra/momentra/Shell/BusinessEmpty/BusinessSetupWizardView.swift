@@ -144,7 +144,7 @@ struct BusinessSetupWizardView: View {
         switch kind {
         case .teamOperations:
             SetupPreviewCard(
-                title: "Team Ops Preview",
+                title: "Team & Work Preview",
                 subtitle: "\(selections["teamName"] as? String ?? "") · \(selections["workMode"] as? String ?? "") · \(selections["size"] as? String ?? "")",
                 bullets: [
                     "Reviews: \(selections["reviewCycle"] as? String ?? "")",
@@ -153,7 +153,7 @@ struct BusinessSetupWizardView: View {
             )
         case .businessRunway:
             SetupPreviewCard(
-                title: "Runway Preview",
+                title: "Money & Cash Flow Preview",
                 subtitle: "Cash \(selections["availableCash"] as? String ?? "") · Spend \(selections["monthlySpending"] as? String ?? "")/mo",
                 bullets: [
                     "Revenue: \(selections["monthlyRevenue"] as? String ?? "") (\(selections["revenueStage"] as? String ?? ""))",
@@ -162,7 +162,7 @@ struct BusinessSetupWizardView: View {
             )
         case .businessOperations:
             SetupPreviewCard(
-                title: "Ops Monitoring Preview",
+                title: "Daily Business Preview",
                 subtitle: "\(selections["scope"] as? String ?? "") · \(selections["model"] as? String ?? "") · \(selections["cadence"] as? String ?? "") cadence",
                 bullets: [
                     "Budget: \(selections["monthlyBudget"] as? String ?? "")",

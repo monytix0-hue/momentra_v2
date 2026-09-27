@@ -199,7 +199,7 @@ fun BusinessSetupWizardContent(
 private fun businessPreview(kind: BusinessSetupKind, selections: Map<String, Any>) {
     when (kind) {
         BusinessSetupKind.TEAM_OPERATIONS -> SetupPreviewCard(
-            title = "Team Ops Preview",
+            title = "Team & Work Preview",
             subtitle = "${selections["teamName"]} · ${selections["workMode"]} · ${selections["size"]}",
             bullets = listOf(
                 "Reviews: ${selections["reviewCycle"]}",
@@ -207,7 +207,7 @@ private fun businessPreview(kind: BusinessSetupKind, selections: Map<String, Any
             ),
         )
         BusinessSetupKind.BUSINESS_RUNWAY -> SetupPreviewCard(
-            title = "Runway Preview",
+            title = "Money & Cash Flow Preview",
             subtitle = "Cash ${selections["availableCash"]} · Spend ${selections["monthlySpending"]}/mo",
             bullets = listOf(
                 "Revenue: ${selections["monthlyRevenue"]} (${selections["revenueStage"]})",
@@ -215,7 +215,7 @@ private fun businessPreview(kind: BusinessSetupKind, selections: Map<String, Any
             ),
         )
         BusinessSetupKind.BUSINESS_OPERATIONS -> SetupPreviewCard(
-            title = "Ops Monitoring Preview",
+            title = "Daily Business Preview",
             subtitle = "${selections["scope"]} · ${selections["model"]} · ${selections["cadence"]} cadence",
             bullets = listOf(
                 "Budget: ${selections["monthlyBudget"]}",

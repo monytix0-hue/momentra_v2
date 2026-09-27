@@ -289,37 +289,17 @@ struct OpsIntelligenceSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Operations Intelligence")
-                    .font(.plusJakarta(size: 14, weight: .semibold))
-                    .foregroundStyle(theme.text)
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(LinearGradient(colors: [OpsColors.lavender, OpsColors.indigo, OpsColors.lavender], startPoint: .leading, endPoint: .trailing))
-                    .frame(width: 120, height: 2)
-                Text("AI-powered insights based on your operations data")
-                    .font(.plusJakarta(size: 11))
-                    .foregroundStyle(theme.muted)
-            }
-            ForEach(["Cost Optimization", "Vendor Pattern"], id: \.self) { title in
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(OpsColors.lavender.opacity(0.08))
-                        .frame(width: 28, height: 24)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.plusJakarta(size: 13, weight: .bold))
-                            .foregroundStyle(theme.text)
-                        Text("Insights unavailable until operations pulse projects signals.")
-                            .font(.plusJakarta(size: 12))
-                            .foregroundStyle(theme.secondary)
-                    }
-                }
+            Text("What Momentra Noticed")
+                .font(.plusJakarta(size: 14, weight: .semibold))
+                .foregroundStyle(theme.text)
+            Text("No insights yet")
+                .font(.plusJakarta(size: 13))
+                .foregroundStyle(theme.secondary)
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(theme.card)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08)))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
                 .clipShape(RoundedRectangle(cornerRadius: 16))
-            }
         }
     }
 }
@@ -332,10 +312,10 @@ struct OpsTimelineHeroCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Operations Timeline")
+            Text("Daily Timeline")
                 .font(.plusJakarta(size: 18, weight: .bold))
                 .foregroundStyle(theme.text)
-            Text("Live ops events from spend, vendors, issues, and updates.")
+            Text("Live events from spend, vendors, issues, and updates.")
                 .font(.plusJakarta(size: 12))
                 .foregroundStyle(theme.secondary)
             HStack(spacing: 8) {
@@ -493,7 +473,7 @@ struct OpsBiggestLearningCard: View {
                 Rectangle()
                     .fill(OpsColors.lavender)
                     .frame(width: 4)
-                Text(quote ?? "Your top ops learning appears here once memories are recorded.")
+                Text(quote ?? "Your top learning appears here once memories are recorded.")
                     .font(.plusJakarta(size: quote != nil ? 14 : 12, weight: quote != nil ? .semibold : .regular))
                     .italic(quote != nil)
                     .foregroundStyle(quote != nil ? theme.text : theme.secondary)

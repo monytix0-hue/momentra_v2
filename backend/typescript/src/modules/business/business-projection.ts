@@ -291,7 +291,7 @@ export async function refreshBusinessLifeProjection(
   const teamOpsPayload =
     family.includes('TEAM') ?
       {
-        statusLabel: 'Team operations active',
+        statusLabel: 'Team & Work',
         memberCapacity: prefs.teamSize ?? null,
         reviewCadence: prefs.reviewCadence ?? null,
         openItems: prefs.openItems ?? null,
@@ -301,7 +301,7 @@ export async function refreshBusinessLifeProjection(
   const runwayPayload =
     family.includes('RUNWAY') ?
       {
-        statusLabel: prefs.businessStage ?? 'Runway tracking',
+        statusLabel: prefs.businessStage ?? 'Money & Cash Flow',
         availableCash: prefs.availableCash ?? null,
         monthlySpending: prefs.monthlySpending ?? null,
         monthlyRevenue: prefs.monthlyRevenue ?? null,
@@ -313,7 +313,7 @@ export async function refreshBusinessLifeProjection(
   const opsPayload =
     family.includes('OPERATIONS') && !family.includes('TEAM') ?
       {
-        statusLabel: prefs.operatingModel ?? 'Operations active',
+        statusLabel: prefs.operatingModel ?? 'Daily Business',
         monthlyBudget: prefs.monthlyBudget ?? null,
         monitoringStyle: prefs.monitoringStyle ?? null,
         expenseTotal: fin.rows[0]?.expense_total ?? null,

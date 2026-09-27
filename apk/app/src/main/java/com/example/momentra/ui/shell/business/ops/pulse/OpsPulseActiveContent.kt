@@ -132,7 +132,7 @@ fun OpsPulseActiveContent(
     val attention = ops?.needsAttention.orEmpty().ifEmpty { issueAttention }
 
     val narrative = when (val n = slaPct) {
-        null -> if (openIssues > 0) "Needs attention" else "Awaiting live ops signal"
+        null -> if (openIssues > 0) "Needs attention" else "Awaiting live signal"
         in 90..100 -> "Stable & Optimizing"
         in 70..89 -> "Needs focus"
         else -> "At risk"
@@ -248,7 +248,7 @@ private fun OpsHealthHeroCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    "OPERATIONS HEALTH",
+                    "DAILY HEALTH",
                     color = theme.muted,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,

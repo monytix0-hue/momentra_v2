@@ -88,8 +88,8 @@ struct BusinessPulseActiveView: View {
 
     private var primaryCtaLabel: String {
         switch theme.typeLabel {
-        case "Business Runway": return "Log Expense"
-        case "Business Operations": return "Log Spend"
+        case "Money & Cash Flow": return "Log Expense"
+        case "Daily Business": return "Log Spend"
         default: return "Log Team Update"
         }
     }
@@ -136,8 +136,8 @@ struct BusinessPulseActiveView: View {
 
     private var runwayLabel: String {
         switch theme.typeLabel {
-        case "Business Runway": return "Runway"
-        case "Business Operations": return "Ops"
+        case "Money & Cash Flow": return "Money"
+        case "Daily Business": return "Daily"
         default: return "Capacity"
         }
     }

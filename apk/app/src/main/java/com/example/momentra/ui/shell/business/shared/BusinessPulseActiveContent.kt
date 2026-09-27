@@ -106,13 +106,13 @@ fun BusinessPulseActiveContent(
     val isEmpty = quality == "EMPTY" || facetStatus.equals("EMPTY", ignoreCase = true)
     val totals = finance?.totals.orEmpty()
     val primaryCta = when (theme.typeLabel) {
-        "Business Runway" -> "Log Expense"
-        "Business Operations" -> "Log Spend"
+        "Money & Cash Flow" -> "Log Expense"
+        "Daily Business" -> "Log Spend"
         else -> "Log Team Update"
     }
     val runwayLabel = when (theme.typeLabel) {
-        "Business Runway" -> "Runway"
-        "Business Operations" -> "Ops"
+        "Money & Cash Flow" -> "Money"
+        "Daily Business" -> "Daily"
         else -> "Capacity"
     }
     val familyLabel = businessFamily

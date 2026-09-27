@@ -483,21 +483,21 @@ export async function getBusinessSetupReport(client: PoolClient) {
     catalog: [
       {
         familyCode: 'TEAM_OPERATIONS',
-        title: 'Set up Team Operations',
+        title: 'Set up Team & Work',
         figmaNodeId: '692:34736',
         previewAsset: '/business-setups/business_setup_team_ops_scroll.png',
         analyticsScreen: 'screen_business_setup_team_ops',
       },
       {
         familyCode: 'BUSINESS_RUNWAY',
-        title: 'Set up Business Runway',
+        title: 'Set up Money & Cash Flow',
         figmaNodeId: '692:36690',
         previewAsset: '/business-setups/business_setup_runway_scroll.png',
         analyticsScreen: 'screen_business_setup_runway',
       },
       {
         familyCode: 'BUSINESS_OPERATIONS',
-        title: 'Set up Business Operations',
+        title: 'Set up Daily Business',
         figmaNodeId: '692:37188',
         previewAsset: '/business-setups/business_setup_ops_scroll.png',
         analyticsScreen: 'screen_business_setup_ops',

@@ -256,13 +256,13 @@ fun TeamOpsPulseActiveContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TeamOpsGradientPrimaryButton(
-                    label = "+ Log Delivery",
+                    label = "Add Progress",
                     enabled = !momentId.isNullOrBlank(),
                     onClick = onLogDelivery,
                     modifier = Modifier.weight(1f),
                 )
                 TeamOpsOutlineButton(
-                    label = "View This Week's Report",
+                    label = "See this week",
                     enabled = true,
                     onClick = onOpenQuickAdd,
                     theme = theme,
@@ -307,7 +307,7 @@ private fun TeamOpsHealthHeroCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    "EXECUTION HEALTH",
+                    "TEAM HEALTH",
                     color = theme.muted,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
@@ -491,10 +491,10 @@ private fun TeamOpsNeedsAttentionSection(
                     .padding(16.dp),
             )
         } else {
-            activities.forEachIndexed { index, act ->
+            activities.forEach { act ->
                 TeamOpsAttentionCard(
                     title = act.title.ifBlank { act.activityCode },
-                    severity = if (index == 0) "HIGH" else "MED",
+                    severity = null,
                     detail = act.occurredAt.take(16).ifBlank { act.activityCode },
                     theme = theme,
                 )
@@ -515,7 +515,7 @@ private fun TeamOpsRecentDeliverySection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Recent Delivery",
+                "Recent Progress",
                 color = theme.text,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,

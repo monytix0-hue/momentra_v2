@@ -91,9 +91,9 @@ fun BusinessCreateMomentContent(
 
     val categories = remember {
         listOf(
-            BizCategory("Team Operations", "Manage hiring, attendance, performance & team growth", R.drawable.ic_biz_create_users, R.drawable.ic_biz_create_card_team, false, BusinessSetupKind.TEAM_OPERATIONS, MaestroIds.BUSINESS_SETUP_TEAM),
-            BizCategory("Business Runway", "Monitor cash flow, spending and runway health.", R.drawable.ic_biz_create_trending, R.drawable.ic_biz_create_card_runway, false, BusinessSetupKind.BUSINESS_RUNWAY, MaestroIds.BUSINESS_SETUP_RUNWAY),
-            BizCategory("Business Operations", "Organize departments, processes and workflows.", R.drawable.ic_biz_create_credit_card, R.drawable.ic_biz_create_card_ops, false, BusinessSetupKind.BUSINESS_OPERATIONS, MaestroIds.BUSINESS_SETUP_OPS),
+            BizCategory("Team & Work", "Manage hiring, attendance, performance & team growth", R.drawable.ic_biz_create_users, R.drawable.ic_biz_create_card_team, false, BusinessSetupKind.TEAM_OPERATIONS, MaestroIds.BUSINESS_SETUP_TEAM),
+            BizCategory("Money & Cash Flow", "Monitor cash flow, spending and runway health.", R.drawable.ic_biz_create_trending, R.drawable.ic_biz_create_card_runway, false, BusinessSetupKind.BUSINESS_RUNWAY, MaestroIds.BUSINESS_SETUP_RUNWAY),
+            BizCategory("Daily Business", "Organize departments, processes and workflows.", R.drawable.ic_biz_create_credit_card, R.drawable.ic_biz_create_card_ops, false, BusinessSetupKind.BUSINESS_OPERATIONS, MaestroIds.BUSINESS_SETUP_OPS),
             BizCategory("Project Operations", "Organize tasks, milestones, sprints & deliverables", R.drawable.ic_biz_create_layers, R.drawable.ic_biz_create_card_project, true),
             BizCategory("Event Operations", "Organize events from planning through execution.", R.drawable.ic_biz_create_wallet, R.drawable.ic_biz_create_card_event, true),
             BizCategory("Vendor Operations", "Manage suppliers, contracts, procurement & partnerships", R.drawable.ic_biz_create_briefcase, R.drawable.ic_biz_create_card_vendor, true),

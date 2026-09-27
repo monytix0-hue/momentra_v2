@@ -68,7 +68,7 @@ struct OpsPulseActiveView: View {
 
     private var narrative: String {
         guard let n = ops?.slaCompliancePct, isReal("slaCompliance") else {
-            return openIssues > 0 ? "Needs attention" : "Awaiting live ops signal"
+            return openIssues > 0 ? "Needs attention" : "Awaiting live signal"
         }
         if n >= 90 { return "Stable & Optimizing" }
         if n >= 70 { return "Needs focus" }
@@ -122,7 +122,7 @@ struct OpsPulseActiveView: View {
             HStack(alignment: .center, spacing: 16) {
                 OpsHeroHealthRing(score: healthScore, showLive: showLive, theme: theme)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("OPERATIONS HEALTH")
+                    Text("DAILY HEALTH")
                         .font(.plusJakarta(size: 10, weight: .bold))
                         .foregroundStyle(theme.muted)
                     Text(narrative)
@@ -191,7 +191,7 @@ struct OpsPulseActiveView: View {
     private var recentActivitySection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Recent Operations Activity")
+                Text("Recent Daily Activity")
                     .font(.plusJakarta(size: 14, weight: .semibold))
                     .foregroundStyle(theme.text)
                 Spacer()

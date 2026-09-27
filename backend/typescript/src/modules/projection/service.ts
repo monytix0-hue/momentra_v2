@@ -214,9 +214,13 @@ export async function listPersonalMoments(
     display_rank: number;
   }>(
     `WITH combined AS (
-       SELECT moment_id, title, status, moment_type_code, display_rank
-       FROM projection.personal_moments
-       WHERE user_id = $1
+       SELECT pm.moment_id, pm.title, pm.status, pm.moment_type_code, pm.display_rank,
+              mc.code AS category_code, m.created_at
+       FROM projection.personal_moments pm
+       JOIN core.moment m ON m.moment_id = pm.moment_id
+       JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+       JOIN core.moment_category mc ON mc.moment_category_id = mt.moment_category_id
+       WHERE pm.user_id = $1 AND m.status IN ('ACTIVE', 'DRAFT')
        UNION ALL
        SELECT m.moment_id, m.title, m.status, mt.code AS moment_type_code,
               CASE mc.code
@@ -225,7 +229,8 @@ export async function listPersonalMoments(
                 WHEN 'LIFESTYLE' THEN 3
                 WHEN 'RELATIONSHIPS' THEN 4
                 ELSE (EXTRACT(EPOCH FROM m.updated_at)::bigint % 1000000000)::int
-              END AS display_rank
+              END AS display_rank,
+              mc.code AS category_code, m.created_at
        FROM core.moment m
        JOIN personal.personal_moment_context pmc ON pmc.moment_id = m.moment_id AND pmc.user_id = $1
        JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
@@ -235,10 +240,26 @@ export async function listPersonalMoments(
            SELECT 1 FROM projection.personal_moments pm
            WHERE pm.user_id = $1 AND pm.moment_id = m.moment_id
          )
+     ),
+     ranked AS (
+       SELECT moment_id, title, status, moment_type_code, display_rank,
+              ROW_NUMBER() OVER (
+                PARTITION BY CASE
+                  WHEN category_code IN ('LIFE_OPERATIONS', 'FUTURE_BUILDING', 'LIFESTYLE', 'RELATIONSHIPS')
+                  THEN category_code
+                  ELSE moment_id::text
+                END
+                ORDER BY
+                  CASE WHEN status = 'ACTIVE' THEN 0 ELSE 1 END,
+                  CASE WHEN display_rank BETWEEN 1 AND 4 THEN 0 ELSE 1 END,
+                  created_at ASC
+              ) AS area_rank
+       FROM combined
      )
      SELECT moment_id, title, status, moment_type_code, display_rank
-     FROM combined
-     WHERE ($2::int IS NULL OR display_rank > $2)
+     FROM ranked
+     WHERE area_rank = 1
+       AND ($2::int IS NULL OR display_rank > $2)
      ORDER BY display_rank ASC
      LIMIT $3`,
     [userId, cursor ? parseInt(cursor, 10) : null, safeLimit + 1]

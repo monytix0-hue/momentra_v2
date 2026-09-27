@@ -35,9 +35,9 @@ struct BusinessCreateMomentView: View {
     }
 
     private let categories: [Category] = [
-        Category(title: "Team Operations", body: "Manage hiring, attendance, performance & team growth", icon: "biz_create_users", card: "biz_create_card_team", comingSoon: false, setupKind: .teamOperations, testTag: "business.setup.team_operations"),
-        Category(title: "Business Runway", body: "Monitor cash flow, spending and runway health.", icon: "biz_create_trending", card: "biz_create_card_runway", comingSoon: false, setupKind: .businessRunway, testTag: "business.setup.business_runway"),
-        Category(title: "Business Operations", body: "Organize departments, processes and workflows.", icon: "biz_create_credit_card", card: "biz_create_card_ops", comingSoon: false, setupKind: .businessOperations, testTag: "business.setup.business_operations"),
+        Category(title: "Team & Work", body: "Manage hiring, attendance, performance & team growth", icon: "biz_create_users", card: "biz_create_card_team", comingSoon: false, setupKind: .teamOperations, testTag: "business.setup.team_operations"),
+        Category(title: "Money & Cash Flow", body: "Monitor cash flow, spending and runway health.", icon: "biz_create_trending", card: "biz_create_card_runway", comingSoon: false, setupKind: .businessRunway, testTag: "business.setup.business_runway"),
+        Category(title: "Daily Business", body: "Organize departments, processes and workflows.", icon: "biz_create_credit_card", card: "biz_create_card_ops", comingSoon: false, setupKind: .businessOperations, testTag: "business.setup.business_operations"),
         Category(title: "Project Operations", body: "Organize tasks, milestones, sprints & deliverables", icon: "biz_create_layers", card: "biz_create_card_project", comingSoon: true, setupKind: nil, testTag: nil),
         Category(title: "Event Operations", body: "Organize events from planning through execution.", icon: "biz_create_wallet", card: "biz_create_card_event", comingSoon: true, setupKind: nil, testTag: nil),
         Category(title: "Vendor Operations", body: "Manage suppliers, contracts, procurement & partnerships", icon: "biz_create_briefcase", card: "biz_create_card_vendor", comingSoon: true, setupKind: nil, testTag: nil),

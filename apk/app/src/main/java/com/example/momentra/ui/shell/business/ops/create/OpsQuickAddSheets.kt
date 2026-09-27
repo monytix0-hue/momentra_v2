@@ -217,7 +217,7 @@ private fun OpsSpendBody(
     OpsSheetHeader(
         iconRes = R.drawable.ic_biz_create_credit_card,
         title = "Log Spend Entry",
-        explanation = "Record an ops expense against budget",
+        explanation = "Record a daily expense against budget",
         onClose = onDismiss,
     )
     FieldBlock("Category") {
@@ -313,7 +313,7 @@ private fun OpsVendorBody(
     OpsSheetHeader(
         iconRes = R.drawable.ic_biz_create_briefcase,
         title = "Update Vendor",
-        explanation = "Add or update an ops supplier profile",
+        explanation = "Add or update a supplier profile",
         onClose = onDismiss,
     )
     if (existingVendors.isNotEmpty()) {
@@ -707,7 +707,7 @@ private fun OpsImprovementBody(
     OpsSheetHeader(
         iconRes = R.drawable.ic_biz_create_trending,
         title = "Log Improvement",
-        explanation = "Capture an optimization for the ops playbook",
+        explanation = "Capture an optimization for the playbook",
         onClose = onDismiss,
     )
     FieldBlock("Title") {
@@ -901,7 +901,7 @@ private fun OpsGeneralUpdateBody(
     OpsSheetHeader(
         iconRes = R.drawable.ic_biz_create_trending,
         title = "General Update",
-        explanation = "Share an operations status with the team",
+        explanation = "Share a daily status with the team",
         onClose = onDismiss,
     )
     FieldBlock("Update Title") {
@@ -935,7 +935,7 @@ private fun OpsGeneralUpdateBody(
                 repository.createBusinessUpdate(
                     momentId = id,
                     body = CreateBusinessUpdateBody(
-                        title = title.takeIf { it.isNotBlank() } ?: "Ops update",
+                        title = title.takeIf { it.isNotBlank() } ?: "Daily update",
                         body = body,
                     ),
                 ).fold(
@@ -967,7 +967,7 @@ private fun OpsMemoryBody(
     OpsSheetHeader(
         iconRes = R.drawable.ic_biz_create_layers,
         title = "Save to Memory",
-        explanation = "Capture an ops learning for the playbook",
+        explanation = "Capture a learning for the playbook",
         onClose = onDismiss,
     )
     FieldBlock("Title") {

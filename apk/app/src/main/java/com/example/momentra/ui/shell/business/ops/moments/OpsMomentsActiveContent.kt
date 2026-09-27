@@ -218,7 +218,7 @@ fun OpsMomentsActiveContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        "Nothing on the ops timeline yet",
+                        "Nothing on the timeline yet",
                         color = theme.text,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,

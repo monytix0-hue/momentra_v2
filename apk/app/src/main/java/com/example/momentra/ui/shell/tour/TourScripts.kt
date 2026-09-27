@@ -91,7 +91,7 @@ object TourScripts {
         TourStep(
             id = "biz_create_moment",
             title = "Then create a Moment",
-            body = "Pick Team Ops, Runway, or Operations — Activate unlocks tracking and Quick Adds.",
+            body = "Pick Team & Work, Money & Cash Flow, or Daily Business — Activate unlocks tracking and Quick Adds.",
             target = TourTargetId.BOTTOM_CREATE,
             advanceOn = setOf(TourSignal.OPENED_CREATE_TAB, TourSignal.MOMENT_CREATED),
         ),

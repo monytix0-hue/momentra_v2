@@ -40,13 +40,13 @@ struct BusinessActiveTheme {
         muted: Color(hex: "#64748B"),
         card: Color(hex: "#161B26"),
         border: Color(hex: "#1E293B"),
-        typeLabel: "Team Operations",
-        pulseTitle: "Team Pulse",
-        momentsTitle: "Team Moments",
-        lifeTitle: "Team Life",
-        memoryTitle: "Team Memory",
-        hubSubtitle: "Bring your team operations to life",
-        hubHeroTitle: "Bring your team operations to life",
+        typeLabel: "Team & Work",
+        pulseTitle: "Team & Work",
+        momentsTitle: "Team & Work",
+        lifeTitle: "Team & Work",
+        memoryTitle: "Team & Work",
+        hubSubtitle: "Add progress, decisions, and team updates",
+        hubHeroTitle: "Team & Work",
         hubHeroDetail: "Add people, plans, decisions, and updates",
         hubHeroAssetName: "TeamOpsHubHero",
         filterChips: ["Team Sync", "Sprint Review"],
@@ -70,13 +70,13 @@ struct BusinessActiveTheme {
         muted: Color(hex: "#64748B"),
         card: Color(hex: "#161B26"),
         border: Color(hex: "#1E293B"),
-        typeLabel: "Business Runway",
-        pulseTitle: "Runway Pulse",
-        momentsTitle: "Runway Moments",
-        lifeTitle: "Runway Life",
-        memoryTitle: "Runway Memory",
-        hubSubtitle: "Bring your finances to life",
-        hubHeroTitle: "Bring your finances to life",
+        typeLabel: "Money & Cash Flow",
+        pulseTitle: "Money & Cash Flow",
+        momentsTitle: "Money & Cash Flow",
+        lifeTitle: "Money & Cash Flow",
+        memoryTitle: "Money & Cash Flow",
+        hubSubtitle: "Track cash, spending, and forecasts",
+        hubHeroTitle: "Money & Cash Flow",
         hubHeroDetail: "Track revenue, expenses, taxes and forecasts",
         hubHeroAssetName: "RunwayHubHero",
         filterChips: ["Revenue", "Expenses"],
@@ -100,13 +100,13 @@ struct BusinessActiveTheme {
         muted: Color(hex: "#64748B"),
         card: Color(hex: "#161B26"),
         border: Color(hex: "#1E293B"),
-        typeLabel: "Business Operations",
-        pulseTitle: "Ops Pulse",
-        momentsTitle: "Ops Moments",
-        lifeTitle: "Ops Life",
-        memoryTitle: "Ops Memory",
-        hubSubtitle: "Bring your operations to life",
-        hubHeroTitle: "Bring your operations to life",
+        typeLabel: "Daily Business",
+        pulseTitle: "Daily Business",
+        momentsTitle: "Daily Business",
+        lifeTitle: "Daily Business",
+        memoryTitle: "Daily Business",
+        hubSubtitle: "Track spend, vendors, and daily work",
+        hubHeroTitle: "Daily Business",
         hubHeroDetail: "Add expenses, vendors, approvals and updates",
         hubHeroAssetName: "OpsHubHero",
         filterChips: ["Budget Ops", "Vendor Mgmt"],
@@ -299,9 +299,9 @@ enum BusinessQuickAddKind: String, Identifiable, CaseIterable {
 
     static func hubTiles(theme: BusinessActiveTheme) -> [BusinessQuickAddKind] {
         switch theme.typeLabel {
-        case "Business Runway":
+        case "Money & Cash Flow":
             return [.revenue, .expense, .taxEntry, .investorUpdate, .budgetAlert, .forecastUpdate, .invoice, .generalUpdate, .memory]
-        case "Business Operations":
+        case "Daily Business":
             return [.spendEntry, .updateVendor, .requestApproval, .reportIssue, .logImprovement, .budgetReview, .slaCheck, .generalUpdate, .memory]
         default:
             return [.teamUpdate, .decision, .blocker, .meeting, .recognition, .approval, .milestone, .retrospective, .riskFlag, .activityLog, .poll, .memory, .expense]

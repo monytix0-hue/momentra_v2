@@ -54,6 +54,8 @@ struct RunwayPulseActiveView: View {
         }
     }
 
+    private var statusLabel: String? { mapRunwayStr("statusLabel") }
+
     private var narrative: String {
         guard let n = Double(healthScore) else {
             return attentionCount > 0 ? "Needs attention" : "Awaiting live health signal"
@@ -67,7 +69,7 @@ struct RunwayPulseActiveView: View {
         if attentionCount > 0 {
             return "\(attentionCount) item\(attentionCount == 1 ? "" : "s") need your eye today."
         }
-        if hasLive { return "Capital runway from live pulse / finance projection." }
+        if hasLive { return statusLabel ?? "Live cash and burn from finance." }
         return "Status updates as finance activity projects."
     }
 
@@ -116,7 +118,7 @@ struct RunwayPulseActiveView: View {
             HStack(alignment: .center, spacing: 16) {
                 RunwayHeroHealthRing(score: healthScore, showLive: hasLive, theme: theme)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("RUNWAY HEALTH")
+                    Text("CASH HEALTH")
                         .font(.plusJakarta(size: 10, weight: .bold))
                         .foregroundStyle(theme.muted)
                     Text(narrative)

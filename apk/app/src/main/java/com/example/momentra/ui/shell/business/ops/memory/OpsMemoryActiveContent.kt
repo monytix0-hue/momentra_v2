@@ -133,7 +133,7 @@ fun OpsMemoryActiveContent(
             Text(it, color = theme.secondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         }
 
-        OpsScopeDropdown(label = "Operations", theme = theme)
+        OpsScopeDropdown(label = "Daily Business", theme = theme)
 
         OpsFilterChipRow(
             chips = Scopes,

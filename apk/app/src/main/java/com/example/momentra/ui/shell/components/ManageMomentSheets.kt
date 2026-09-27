@@ -193,7 +193,13 @@ fun ManageMomentSheet(
                 },
                 onFailure = {
                     busy = false
-                    error = it.message ?: "Request failed"
+                    val message = it.message ?: "Request failed"
+                    if (message == "Moment is already deleted.") {
+                        onLifecycleChanged()
+                        onDismiss()
+                    } else {
+                        error = message
+                    }
                 },
             )
         }

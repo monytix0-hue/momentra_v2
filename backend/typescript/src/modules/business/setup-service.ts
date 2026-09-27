@@ -27,12 +27,12 @@ export interface BusinessSetupCatalogItem {
 export const BUSINESS_SETUP_CATALOG: BusinessSetupCatalogItem[] = [
   {
     familyCode: 'TEAM_OPERATIONS',
-    title: 'Set up Team Operations',
+    title: 'Set up Team & Work',
     subtitle: "Configure your team's operating system in one go.",
     figmaNodeId: '692:34736',
     defaultMomentTypeCode: 'TEAM_OPERATIONS',
-    activateLabel: 'Activate Team Operations',
-    defaultTitle: 'Team Operations',
+    activateLabel: 'Activate Team & Work',
+    defaultTitle: 'Team & Work',
     defaultPreferences: {
       teamName: 'Growth & Product',
       size: '11-25 people',
@@ -54,12 +54,12 @@ export const BUSINESS_SETUP_CATALOG: BusinessSetupCatalogItem[] = [
   },
   {
     familyCode: 'BUSINESS_RUNWAY',
-    title: 'Set up Business Runway',
+    title: 'Set up Money & Cash Flow',
     subtitle: 'Configure your financial operating system on-the-go.',
     figmaNodeId: '692:36690',
     defaultMomentTypeCode: 'BUSINESS_RUNWAY',
-    activateLabel: 'Activate Business Runway',
-    defaultTitle: 'Business Runway',
+    activateLabel: 'Activate Money & Cash Flow',
+    defaultTitle: 'Money & Cash Flow',
     defaultPreferences: {
       businessStage: 'Scaling',
       goalHorizon: '18-months goal',
@@ -77,12 +77,12 @@ export const BUSINESS_SETUP_CATALOG: BusinessSetupCatalogItem[] = [
   },
   {
     familyCode: 'BUSINESS_OPERATIONS',
-    title: 'Set up Business Operations',
+    title: 'Set up Daily Business',
     subtitle: 'Configure operational capacity, monitoring and approvals.',
     figmaNodeId: '692:37188',
     defaultMomentTypeCode: 'BUSINESS_OPERATIONS',
-    activateLabel: 'Activate Business Operations',
-    defaultTitle: 'Business Operations',
+    activateLabel: 'Activate Daily Business',
+    defaultTitle: 'Daily Business',
     defaultPreferences: {
       coreOps: 'Growth & Product',
       scope: 'Company-wide',

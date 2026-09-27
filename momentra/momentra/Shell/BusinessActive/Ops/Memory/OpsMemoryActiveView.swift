@@ -77,7 +77,7 @@ struct OpsMemoryActiveView: View {
                             Text(shareMessage).font(.caption).foregroundStyle(theme.secondary)
                         }
 
-                        OpsScopeDropdown(label: "Operations", theme: theme)
+                        OpsScopeDropdown(label: "Daily Business", theme: theme)
 
                         OpsFilterChipRow(chips: scopes, selected: scope, onSelect: { scope = $0 }, theme: theme)
 
@@ -174,13 +174,9 @@ struct OpsMemoryActiveView: View {
 
     private var wisdomSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\"Operations wisdom compounds with every recorded learning.\"")
-                .font(.plusJakarta(size: 13, weight: .semibold))
-                .italic()
-                .foregroundStyle(theme.text)
-            Text("momentra intelligence")
-                .font(.plusJakarta(size: 10, weight: .bold))
-                .foregroundStyle(theme.muted)
+            Text("No wisdom yet")
+                .font(.plusJakarta(size: 13))
+                .foregroundStyle(theme.secondary)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

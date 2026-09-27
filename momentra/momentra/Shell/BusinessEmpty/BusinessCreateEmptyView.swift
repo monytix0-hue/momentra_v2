@@ -1,16 +1,16 @@
 import SwiftUI
 
-/// Figma: create-empty-b (657:10100)
+/// Figma: create-empty-b (1687:20701). Receipt tile uses the people glyph from the design.
 struct BusinessCreateEmptyView: View {
     var onStartCta: () -> Void
 
     private let tiles: [(String, String, String)] = [
-        ("business_empty_file_text", "Create Invoice", "Bill clients professionally"),
-        ("business_empty_dollar", "Log Expense", "Track every rupee spent"),
-        ("business_empty_users", "Add Team Member", "Grow your operations team"),
-        ("business_empty_folder", "New Project", "Organize work by project"),
-        ("business_empty_truck", "Add Vendor", "Manage supply chain"),
-        ("business_empty_bar_chart", "Generate Report", "Data-driven business insights"),
+        ("business_empty_file_text", "Add Purchase", "Something you bought for your business"),
+        ("business_empty_dollar", "Add Expense", "Money spent on daily things"),
+        ("business_empty_users", "Add Receipt", "Save the paper slip"),
+        ("business_empty_folder", "Add Bill", "Money you need to pay"),
+        ("business_empty_truck", "Add Supplier", "The person you buy from"),
+        ("business_empty_bar_chart", "View Summary", "See how much you spent"),
     ]
 
     var body: some View {
@@ -19,8 +19,8 @@ struct BusinessCreateEmptyView: View {
                 VStack(spacing: 24) {
                     BusinessEmptyPill(label: "CREATE")
                     BusinessEmptyHeadline(
-                        title: "Your Command Center",
-                        bodyText: "Invoices, expenses, vendors, projects - every business action in one place."
+                        title: "Add a Purchase or Expense",
+                        bodyText: "Keep track of money in and out. Add a receipt, bill, or anything you bought for your business."
                     )
 
                     VStack(spacing: 12) {
@@ -32,12 +32,12 @@ struct BusinessCreateEmptyView: View {
                         }
                     }
 
-                    Text("From solo founders to scaling teams")
-                        .font(.system(size: 12))
+                    Text("Built for every business")
+                        .font(.system(size: 14))
                         .foregroundStyle(BusinessEmptyTokens.textMuted)
                         .multilineTextAlignment(.center)
 
-                    BusinessEmptyCTA(label: "First Action →", action: onStartCta)
+                    BusinessEmptyCTA(label: "Add Your First Activity →", action: onStartCta)
                 }
             }
         }

@@ -9,6 +9,8 @@ import com.example.momentra.data.api.CreateExpenseResultDto
 import com.example.momentra.data.api.SuccessEnvelope
 import com.example.momentra.data.api.mapHttpFailure
 import com.example.momentra.data.create.IdempotencyKeyStore
+import com.example.momentra.data.local.OfflineOutbox
+import com.example.momentra.data.local.orQueueOffline
 import com.example.momentra.domain.CreateExpenseOutcome
 import com.example.momentra.domain.ProjectionHint
 import java.io.IOException
@@ -42,23 +44,40 @@ class ExpenseCreateRepository(
         merchantName: String?,
         categoryCode: String?,
         effectiveAt: String?,
-    ): Result<CreateExpenseOutcome> = runCatching {
+    ): Result<CreateExpenseOutcome> {
         val key = idempotency.keyFor(draftKey)
-        val envelope = api.createExpense(
-            momentId = momentId,
-            idempotencyKey = key,
-            body = CreateExpenseBody(
-                amount = amount,
-                currencyCode = currencyCode.uppercase(),
-                description = description?.takeIf { it.isNotBlank() },
-                merchantName = merchantName?.takeIf { it.isNotBlank() },
-                categoryCode = categoryCode?.takeIf { it.isNotBlank() },
-                effectiveAt = effectiveAt?.takeIf { it.isNotBlank() },
-            ),
+        val body = CreateExpenseBody(
+            amount = amount,
+            currencyCode = currencyCode.uppercase(),
+            description = description?.takeIf { it.isNotBlank() },
+            merchantName = merchantName?.takeIf { it.isNotBlank() },
+            categoryCode = categoryCode?.takeIf { it.isNotBlank() },
+            effectiveAt = effectiveAt?.takeIf { it.isNotBlank() },
         )
-        idempotency.clear(draftKey)
-        envelope.toOutcome()
-    }.recoverCatching { e -> throw mapThrowable(e) }
+        return runCatching {
+            val envelope = api.createExpense(
+                momentId = momentId,
+                idempotencyKey = key,
+                body = body,
+            )
+            idempotency.clear(draftKey)
+            envelope.toOutcome()
+        }.orQueueOffline(
+        path = "v1/moments/$momentId/expenses",
+        momentId = momentId,
+        idempotencyKey = key,
+        body = body,
+        placeholder = CreateExpenseOutcome(
+            expenseId = OfflineOutbox.LOCAL_ID,
+            momentId = momentId,
+            amount = amount,
+            currencyCode = currencyCode.uppercase(),
+            status = "QUEUED",
+            version = 0,
+        ),
+        mapError = ::mapThrowable,
+        )
+    }
 
     private fun SuccessEnvelope<CreateExpenseResultDto>.toOutcome() =
         CreateExpenseOutcome(

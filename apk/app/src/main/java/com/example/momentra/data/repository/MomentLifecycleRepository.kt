@@ -1,6 +1,7 @@
 package com.example.momentra.data.repository
 
 import com.example.momentra.data.api.ApiClient
+import com.example.momentra.data.local.orQueueOffline
 import com.example.momentra.data.api.ApiService
 import com.example.momentra.data.api.CreateMomentResultDto
 import com.example.momentra.data.api.DuplicateGroupMomentBody
@@ -38,21 +39,39 @@ class MomentLifecycleRepository(
         endAt: String? = null,
         customTypeLabel: String? = null,
         groupSetup: GroupSetupBlockDto? = null,
-    ): Result<MomentLifecycleResultDto> =
-        runCatching {
+    ): Result<MomentLifecycleResultDto> {
+        val key = UUID.randomUUID().toString()
+        val body = UpdateMomentBody(
+            title = title,
+            startAt = startAt,
+            endAt = endAt,
+            customTypeLabel = customTypeLabel,
+            expectedVersion = expectedVersion,
+            groupSetup = groupSetup,
+        )
+        return runCatching {
             api.updateMoment(
                 momentId = momentId,
-                idempotencyKey = UUID.randomUUID().toString(),
-                body = UpdateMomentBody(
-                    title = title,
-                    startAt = startAt,
-                    endAt = endAt,
-                    customTypeLabel = customTypeLabel,
-                    expectedVersion = expectedVersion,
-                    groupSetup = groupSetup,
-                ),
+                idempotencyKey = key,
+                body = body,
             ).data
         }.recoverCatching { e -> throw mapError(e) }
+            .orQueueOffline(
+                path = "v1/moments/$momentId",
+                momentId = momentId,
+                idempotencyKey = key,
+                body = body,
+                placeholder = MomentLifecycleResultDto(
+                    momentId = momentId,
+                    domainCode = "",
+                    title = title.orEmpty(),
+                    status = "ACTIVE",
+                    version = expectedVersion,
+                ),
+                mapError = { it },
+                method = "PATCH",
+            )
+    }
 
     suspend fun archive(momentId: String, expectedVersion: Long): Result<MomentLifecycleResultDto> =
         runCatching {
@@ -81,14 +100,31 @@ class MomentLifecycleRepository(
             ).data
         }.recoverCatching { e -> throw mapError(e) }
 
-    suspend fun delete(momentId: String, expectedVersion: Long): Result<MomentLifecycleResultDto> =
-        runCatching {
+    suspend fun delete(momentId: String, expectedVersion: Long): Result<MomentLifecycleResultDto> {
+        val key = UUID.randomUUID().toString()
+        val body = MomentVersionBody(expectedVersion = expectedVersion)
+        return runCatching {
             api.deleteMoment(
                 momentId = momentId,
-                idempotencyKey = UUID.randomUUID().toString(),
-                body = MomentVersionBody(expectedVersion = expectedVersion),
+                idempotencyKey = key,
+                body = body,
             ).data
         }.recoverCatching { e -> throw mapError(e) }
+            .orQueueOffline(
+                path = "v1/moments/$momentId/delete",
+                momentId = momentId,
+                idempotencyKey = key,
+                body = body,
+                placeholder = MomentLifecycleResultDto(
+                    momentId = momentId,
+                    domainCode = "",
+                    title = "",
+                    status = "DELETED",
+                    version = expectedVersion,
+                ),
+                mapError = { it },
+            )
+    }
 
     suspend fun leaveGroup(momentId: String, transferUserId: String?): Result<LeaveMomentResultDto> =
         runCatching {

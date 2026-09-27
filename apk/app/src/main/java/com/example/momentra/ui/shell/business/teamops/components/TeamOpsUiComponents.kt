@@ -350,14 +350,14 @@ fun TeamOpsWorkloadSection(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                "Workload by Department",
+                "Team Workload",
                 color = theme.text,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = PlusJakartaSans,
             )
             Text(
-                "Daily workload intensity this week",
+                "Open items by severity",
                 color = theme.muted,
                 fontSize = 11.sp,
                 fontFamily = PlusJakartaSans,
@@ -365,14 +365,11 @@ fun TeamOpsWorkloadSection(
         }
         if (deptRows.isEmpty()) {
             Text(
-                "Workload heatmap unavailable — department intensity API not mounted.",
+                "No workload yet",
                 color = theme.secondary,
                 fontSize = 13.sp,
                 fontFamily = PlusJakartaSans,
             )
-            listOf("Engineering", "Design", "Operations").forEach { dept ->
-                WorkloadDeptPlaceholder(dept = dept, theme = theme)
-            }
         } else {
             deptRows.forEach { (dept, count) ->
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -397,90 +394,29 @@ fun TeamOpsWorkloadSection(
     }
 }
 
-@Composable
-private fun WorkloadDeptPlaceholder(dept: String, theme: BusinessActiveTheme) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(dept, color = theme.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
-            Text("—", color = theme.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            repeat(7) {
-                Box(modifier = Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(2.dp)).background(TeamOpsColors.DayMuted.copy(alpha = 0.35f)))
-            }
-        }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            listOf("M", "T", "W", "T", "F", "S", "S").forEach { d ->
-                Text(d, color = theme.muted, fontSize = 9.sp, fontFamily = PlusJakartaSans, modifier = Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-/** Honest empty — no Team Intelligence AI feed. */
+/** Shown only when an insights payload exists. There is no insights API yet. */
 @Composable
 fun TeamOpsIntelligenceSection(theme: BusinessActiveTheme, modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                "Team Intelligence",
-                color = theme.text,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = PlusJakartaSans,
-            )
-            Box(
-                modifier = Modifier
-                    .width(120.dp)
-                    .height(2.dp)
-                    .clip(RoundedCornerShape(1.dp))
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(TeamOpsColors.EmeraldLight, TeamOpsColors.Emerald, TeamOpsColors.EmeraldLight),
-                        ),
-                    ),
-            )
-            Text(
-                "AI-powered insights based on your team data.",
-                color = theme.muted,
-                fontSize = 11.sp,
-                fontFamily = PlusJakartaSans,
-            )
-        }
-        listOf("Capacity Alert", "Pattern Found").forEach { title ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(theme.card)
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(TeamOpsColors.Lavender.copy(alpha = 0.08f)),
-                )
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        title,
-                        color = theme.text,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = PlusJakartaSans,
-                    )
-                    Text(
-                        "Insights unavailable until team intelligence API projects signals.",
-                        color = theme.secondary,
-                        fontSize = 12.sp,
-                        fontFamily = PlusJakartaSans,
-                    )
-                }
-            }
-        }
+        Text(
+            "What Momentra Noticed",
+            color = theme.text,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
+        )
+        Text(
+            "No insights yet",
+            color = theme.secondary,
+            fontSize = 13.sp,
+            fontFamily = PlusJakartaSans,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(theme.card)
+                .border(1.dp, theme.border, RoundedCornerShape(16.dp))
+                .padding(16.dp),
+        )
     }
 }
 
@@ -502,7 +438,7 @@ fun TeamOpsTimelineHeroCard(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            "TEAM OPERATIONS • MOMENTS",
+            "TEAM & WORK • MOMENTS",
             color = TeamOpsColors.IndigoLight,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
@@ -874,7 +810,6 @@ fun TeamOpsAttentionCard(
         sev.contains("MED") -> TeamOpsColors.Amber
         else -> theme.accent
     }
-    val action = "Escalation API not mounted"
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -906,14 +841,6 @@ fun TeamOpsAttentionCard(
         }
         Text(title, color = theme.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
         Text(detail, color = theme.muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(badgeColor.copy(alpha = 0.25f)),
-        )
-        Text(action, color = theme.muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
     }
 }
 
@@ -1017,7 +944,7 @@ fun TeamOpsExpenseTrackerSection(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                "Expense Tracker",
+                "Team Spending",
                 color = theme.text,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,

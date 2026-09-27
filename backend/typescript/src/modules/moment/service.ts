@@ -137,7 +137,7 @@ const PERSONAL_SYSTEM_LABELS: Record<string, string> = {
   RELATIONSHIPS: 'Relationships',
 };
 
-/** One ACTIVE Personal moment per life-system category (LIFE_OPERATIONS, etc.). */
+/** One ACTIVE or DRAFT Personal moment per life-system category (LIFE_OPERATIONS, etc.). */
 export async function assertNoActivePersonalSystem(
   client: PoolClient,
   userId: string,
@@ -152,7 +152,7 @@ export async function assertNoActivePersonalSystem(
      WHERE pmc.user_id = $1
        AND m.domain_code = 'PERSONAL'
        AND mc.code = $2
-       AND m.status = 'ACTIVE'
+       AND m.status IN ('ACTIVE', 'DRAFT')
      LIMIT 1`,
     [userId, systemCategoryCode]
   );
@@ -1861,6 +1861,22 @@ export async function deleteMoment(
     throw new AppError(ErrorCode.VERSION_CONFLICT, 'Moment version conflict.', 409);
   }
   const row = updated.rows[0];
+  if (row.domain_code === 'PERSONAL') {
+    const removed = await client.query<{ user_id: string }>(
+      `DELETE FROM projection.personal_moments WHERE moment_id = $1 RETURNING user_id`,
+      [momentId]
+    );
+    for (const owner of removed.rows) {
+      await client.query(
+        `UPDATE projection.personal_pulse SET
+           active_moment_count = GREATEST(active_moment_count - 1, 0),
+           projection_version = projection_version + 1,
+           updated_at = now()
+         WHERE user_id = $1`,
+        [owner.user_id]
+      );
+    }
+  }
   return {
     momentId: row.moment_id,
     domainCode: row.domain_code,

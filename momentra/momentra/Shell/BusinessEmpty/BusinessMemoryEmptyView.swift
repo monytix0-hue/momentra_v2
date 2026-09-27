@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// Figma: memory-empty-b (657:10208)
+/// Figma: memory-empty-b (1687:20818)
 struct BusinessMemoryEmptyView: View {
     var onStartCta: () -> Void
 
     private let rows = [
-        "Spending Patterns",
-        "Revenue Forecasts",
-        "Operational Trends",
+        "Old receipts",
+        "Past expenses",
+        "Business records",
     ]
 
     var body: some View {
@@ -16,8 +16,8 @@ struct BusinessMemoryEmptyView: View {
                 VStack(spacing: 24) {
                     BusinessEmptyPill(label: "MEMORY")
                     BusinessEmptyHeadline(
-                        title: "Intelligence That Compounds",
-                        bodyText: "AI-powered pattern recognition across spending, performance, and operations."
+                        title: "Remember What Happened in Your Business",
+                        bodyText: "Find past activity and let Momentra learn from your business over time."
                     )
 
                     VStack(spacing: 8) {
@@ -42,13 +42,13 @@ struct BusinessMemoryEmptyView: View {
                         }
                     }
 
-                    Text("“An enterprise with a memory is an enterprise with an unfair advantage.”")
+                    Text("\"Everything stays here so you can find it later.\"")
                         .font(.system(size: 13).italic())
                         .foregroundStyle(BusinessEmptyTokens.textSecondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
 
-                    BusinessEmptyCTA(label: "Activate Memory →", action: onStartCta)
+                    BusinessEmptyCTA(label: "Start Building Business Memory →", action: onStartCta)
                 }
             }
         }

@@ -156,7 +156,7 @@ fun RunwayPulseActiveContent(
     val subtitle = when {
         attentionCount > 0 ->
             "$attentionCount item${if (attentionCount == 1) "" else "s"} need your eye today."
-        hasLive -> statusLabel ?: "Capital runway is stable with current burn rates."
+        hasLive -> statusLabel ?: "Live cash and burn from finance."
         else -> "Status updates as finance activity projects."
     }
 
@@ -269,7 +269,7 @@ private fun RunwayHealthHeroCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    "RUNWAY HEALTH",
+                    "CASH HEALTH",
                     color = theme.muted,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,

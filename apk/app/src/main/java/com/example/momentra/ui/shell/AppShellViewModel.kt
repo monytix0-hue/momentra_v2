@@ -6,6 +6,7 @@ import com.example.momentra.data.api.ApiResultException
 import com.example.momentra.data.api.ProjectionUpdatedEvent
 import com.example.momentra.data.api.RedeemGroupInviteResultDto
 import com.example.momentra.data.local.AppPreferences
+import com.example.momentra.data.local.OfflineOutbox
 import com.example.momentra.data.realtime.SseClient
 import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.data.repository.GroupSliceRepository
@@ -85,6 +86,8 @@ data class AppShellUiState(
     val groupMomentDirectoryHome: Boolean = false,
     /** Elapsed ms from bindIdentity to first cached shell paint; null if no cache. */
     val ttcsMs: Long? = null,
+    /** Shown while the shell is on cached data or quick adds are waiting to sync. */
+    val offlineNotice: String? = null,
 )
 
 enum class BootstrapStatus { IDLE, CACHED, REFRESHING, READY, ERROR }
@@ -116,6 +119,8 @@ class AppShellViewModel(
 
     fun bindIdentity(identity: ShellIdentity) {
         bindStartedAtMs = System.currentTimeMillis()
+        OfflineOutbox.bindUser(identity.userId)
+        OfflineOutbox.onChanged = { publishOfflineNotice(networkDown = false) }
         _state.update { it.copy(identity = identity, bootstrapStatus = BootstrapStatus.REFRESHING) }
         meRepository.cachedBootstrap(identity.userId)?.let { cached ->
             bootstrap = cached
@@ -316,11 +321,13 @@ class AppShellViewModel(
                     bootstrap = boot
                     applyBootstrapInventory(boot, networkRefresh = true)
                     _state.update { it.copy(bootstrapStatus = BootstrapStatus.READY) }
+                    publishOfflineNotice(networkDown = false)
                 },
                 onFailure = { e ->
                     if (bootstrap != null) {
                         ensureContextContent()
                         _state.update { it.copy(bootstrapStatus = BootstrapStatus.CACHED) }
+                        publishOfflineNotice(networkDown = e is ApiResultException.Network)
                     } else {
                         applyError(_state.value.generation, e)
                         _state.update { it.copy(bootstrapStatus = BootstrapStatus.ERROR) }
@@ -726,6 +733,7 @@ class AppShellViewModel(
         momentTypeCode: String? = null,
         status: String = "ACTIVE",
     ) {
+        if (momentId == OfflineOutbox.LOCAL_ID) return
         val ctx = _state.value.selectedContext
         if (ctx == AppContext.PERSONAL) {
             preferredPersonalMomentId = momentId
@@ -777,6 +785,7 @@ class AppShellViewModel(
             val result = groupRepository.redeemGroupInvite(code.trim())
             result.onSuccess { dto ->
                 val momentId = dto.momentId
+                if (momentId == OfflineOutbox.LOCAL_ID) return@onSuccess
                 if (!momentId.isNullOrBlank()) {
                     _state.update {
                         val hasMoment = it.moments.any { m -> m.momentId == momentId }
@@ -836,6 +845,7 @@ class AppShellViewModel(
         viewModelScope.launch {
             val result = groupRepository.redeemCompanyInvite(code.trim())
             result.onSuccess { dto ->
+                if (dto.companyId == OfflineOutbox.LOCAL_ID) return@onSuccess
                 val companies = meRepository.listCompanies().getOrElse { emptyList() }
                 val matched = companies.firstOrNull { it.companyId == dto.companyId }
                     ?: CompanySummary(companyId = dto.companyId, displayName = "Company")
@@ -849,6 +859,37 @@ class AppShellViewModel(
             }
             onResult(result)
         }
+    }
+
+    /** Replay queued quick adds, then refresh the open tab when any of them sync. */
+    fun flushOfflineQueue() {
+        if (_state.value.identity?.userId.isNullOrBlank()) return
+        viewModelScope.launch {
+            val synced = withContext(Dispatchers.IO) { OfflineOutbox.flush() }
+            val refreshRoot = OfflineOutbox.takeBootstrapRefresh()
+            publishOfflineNotice(networkDown = false)
+            if (refreshRoot) refreshBootstrap()
+            if (synced > 0) {
+                when (_state.value.selectedContext) {
+                    AppContext.PERSONAL -> refreshVisiblePersonalTab()
+                    AppContext.GROUP -> refreshVisibleGroupTab(forcePrefetch = true)
+                    AppContext.BUSINESS -> refreshVisibleBusinessTab(forcePrefetch = true)
+                    AppContext.CIRCLE -> Unit
+                }
+            }
+        }
+    }
+
+    private fun publishOfflineNotice(networkDown: Boolean) {
+        val failed = OfflineOutbox.failedMessage()
+        val pending = OfflineOutbox.pendingCount()
+        val text = when {
+            failed != null -> failed
+            pending > 0 -> "Saved on this device. Changes will sync when you reconnect."
+            networkDown -> "You're offline. Saved changes will sync when you reconnect."
+            else -> null
+        }
+        _state.update { it.copy(offlineNotice = text) }
     }
 
     fun refreshVisiblePersonalTab() {

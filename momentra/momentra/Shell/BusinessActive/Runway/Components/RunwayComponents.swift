@@ -322,7 +322,7 @@ struct RunwayProgressSnapshot: View {
                     .padding(.vertical, 4)
                     .overlay(Capsule().stroke(theme.border))
             }
-            Text("How runway is tracking this quarter.")
+            Text("How cash is tracking this quarter.")
                 .font(.plusJakarta(size: 11))
                 .foregroundStyle(theme.muted)
             HStack(spacing: 12) {

@@ -219,20 +219,17 @@ struct TeamOpsWorkloadSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Workload by Department")
+                Text("Team Workload")
                     .font(.plusJakarta(size: 14, weight: .semibold))
                     .foregroundStyle(theme.text)
-                Text("Daily workload intensity this week")
+                Text("Open items by severity")
                     .font(.plusJakarta(size: 11))
                     .foregroundStyle(theme.muted)
             }
             if deptRows.isEmpty {
-                Text("Workload heatmap unavailable — department intensity API not mounted.")
+                Text("No workload yet")
                     .font(.plusJakarta(size: 13))
                     .foregroundStyle(theme.secondary)
-                ForEach(["Engineering", "Design", "Operations"], id: \.self) { dept in
-                    workloadDeptPlaceholder(dept)
-                }
             } else {
                 ForEach(Array(deptRows.enumerated()), id: \.offset) { _, row in
                     VStack(alignment: .leading, spacing: 6) {
@@ -259,35 +256,6 @@ struct TeamOpsWorkloadSection: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
-
-    private func workloadDeptPlaceholder(_ dept: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(dept)
-                    .font(.plusJakarta(size: 13, weight: .semibold))
-                    .foregroundStyle(theme.text)
-                Spacer()
-                Text("—")
-                    .font(.plusJakarta(size: 12, weight: .bold))
-                    .foregroundStyle(theme.muted)
-            }
-            HStack(spacing: 3) {
-                ForEach(0..<7, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(TeamOpsColors.dayMuted.opacity(0.35))
-                        .frame(height: 10)
-                }
-            }
-            HStack {
-                ForEach(["M", "T", "W", "T", "F", "S", "S"], id: \.self) { d in
-                    Text(d)
-                        .font(.plusJakarta(size: 9))
-                        .foregroundStyle(theme.muted)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-        }
-    }
 }
 
 struct TeamOpsIntelligenceSection: View {
@@ -295,41 +263,17 @@ struct TeamOpsIntelligenceSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Team Intelligence")
-                    .font(.plusJakarta(size: 14, weight: .semibold))
-                    .foregroundStyle(theme.text)
-                LinearGradient(
-                    colors: [TeamOpsColors.emeraldLight, TeamOpsColors.emerald, TeamOpsColors.emeraldLight],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .frame(width: 120, height: 2)
-                .clipShape(RoundedRectangle(cornerRadius: 1))
-                Text("AI-powered insights based on your team data.")
-                    .font(.plusJakarta(size: 11))
-                    .foregroundStyle(theme.muted)
-            }
-            ForEach(["Capacity Alert", "Pattern Found"], id: \.self) { title in
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(TeamOpsColors.lavender.opacity(0.08))
-                        .frame(width: 28, height: 28)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.plusJakarta(size: 13, weight: .bold))
-                            .foregroundStyle(theme.text)
-                        Text("Insights unavailable until team intelligence API projects signals.")
-                            .font(.plusJakarta(size: 12))
-                            .foregroundStyle(theme.secondary)
-                    }
-                    Spacer(minLength: 0)
-                }
+            Text("What Momentra Noticed")
+                .font(.plusJakarta(size: 14, weight: .semibold))
+                .foregroundStyle(theme.text)
+            Text("No insights yet")
+                .font(.plusJakarta(size: 13))
+                .foregroundStyle(theme.secondary)
                 .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(theme.card)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08)))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
                 .clipShape(RoundedRectangle(cornerRadius: 16))
-            }
         }
     }
 }
@@ -342,7 +286,7 @@ struct TeamOpsTimelineHeroCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("TEAM OPERATIONS • MOMENTS")
+            Text("TEAM & WORK • MOMENTS")
                 .font(.plusJakarta(size: 10, weight: .bold))
                 .foregroundStyle(TeamOpsColors.indigoLight)
             Text("Team Timeline")

@@ -4,12 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,24 +23,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 
-/** Figma: moments-empty-b (657:10043) */
+/** Figma: moments-empty-b (1687:20652) */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BusinessMomentsEmptyContent(
     onStartCta: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val timeline = listOf(
-        "Operational Milestone Reached" to "Today, 10:42 AM",
-        "Strategic Seed Round Confirmed" to "Oct 14, 2024",
-        "Inception & Core Architecture Setup" to "Sep 01, 2024",
+        "You bought supplies" to "Today, 10:42 AM",
+        "A customer paid" to "Oct 14, 2024",
+        "You saved a receipt" to "Sep 01, 2024",
     )
-    val chips = listOf("Decisions", "Revenue", "Partnerships", "Team", "Growth")
+    val chips = listOf("Purchases", "Expenses", "Receipts", "Activity")
 
     BusinessEmptyScrollColumn(modifier = modifier) {
         BusinessEmptyPill("MOMENTS")
         BusinessEmptyHeadline(
-            title = "Every Decision. Documented.",
-            body = "Capture milestones, wins, and pivotal moments that define your business story.",
+            title = "See what happened in your business",
+            body = "Keep purchases, expenses, receipts and important activity together.",
         )
 
         Column(
@@ -76,18 +78,15 @@ fun BusinessMomentsEmptyContent(
             }
         }
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
             verticalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                chips.take(4).forEach { Chip(it) }
-            }
-            Chip(chips[4])
+            chips.forEach { Chip(it) }
         }
 
-        BusinessEmptyCta("Record First Moment →", onStartCta)
+        BusinessEmptyCta("Add your first moment →", onStartCta)
     }
 }
 

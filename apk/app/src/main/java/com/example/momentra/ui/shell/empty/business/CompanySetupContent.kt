@@ -156,6 +156,7 @@ fun CompanySetupContent(
     var showJoinCode by remember { mutableStateOf(false) }
     var pendingActivation by remember { mutableStateOf<CompanySummary?>(null) }
     var pendingInviteSend by remember { mutableStateOf<PendingInviteSend?>(null) }
+    var showAddPeople by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -230,21 +231,7 @@ fun CompanySetupContent(
                 members = members,
                 inviteText = inviteText,
                 onInviteText = { inviteText = it },
-                onAddInvite = {
-                    val t = inviteText.trim()
-                    if (t.isNotEmpty()) {
-                        members.add(
-                            CoMember(
-                                initials = t.take(2).uppercase(),
-                                name = t,
-                                role = "Member",
-                                scope = "All Locations",
-                                color = CoAccent,
-                            ),
-                        )
-                        inviteText = ""
-                    }
-                },
+                onAddInvite = { showAddPeople = true },
                 activating = activating,
                 onActivate = {
                     if (activating) return@CoLaunchForm
@@ -330,6 +317,23 @@ fun CompanySetupContent(
             onActivated(company)
         },
     )
+    if (showAddPeople) {
+        com.example.momentra.ui.shell.business.gap.BusinessAddPeopleSheet(
+            onDismiss = { showAddPeople = false },
+            onConfirm = { name ->
+                members.add(
+                    CoMember(
+                        initials = name.take(2).uppercase(),
+                        name = name,
+                        role = "Member",
+                        scope = "All Locations",
+                        color = CoAccent,
+                    ),
+                )
+                showAddPeople = false
+            },
+        )
+    }
 
     InviteSendChooserDialog(
         pending = pendingInviteSend,
@@ -456,7 +460,7 @@ private fun CoWelcome(onGetStarted: () -> Unit, onHaveCode: () -> Unit) {
                 Text("Set Up Your Business", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "Get your company running on momentra in just a few steps.",
+                    text = "Tell us a little about your business to get started.",
                     color = CoMuted,
                     fontSize = 14.sp,
                 )
@@ -464,9 +468,9 @@ private fun CoWelcome(onGetStarted: () -> Unit, onHaveCode: () -> Unit) {
         }
         CoReveal(delayMs = 200) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                BenefitCard("2-minute setup", "Quick guided configuration", CoAccent.copy(alpha = 0.1f), "⏱")
-                BenefitCard("Multi-location ready", "Support for branches & units", CoGreen.copy(alpha = 0.1f), "▣")
-                BenefitCard("Edit anytime", "All settings adjustable later", CoAmber.copy(alpha = 0.1f), "✎")
+                BenefitCard("Quick Setup", "Takes about 2 minutes", CoAccent.copy(alpha = 0.1f), "⏱")
+                BenefitCard("Add locations anytime", "For shops, offices or branches", CoGreen.copy(alpha = 0.1f), "▣")
+                BenefitCard("Change anytime", "You can update these details later", CoAmber.copy(alpha = 0.1f), "✎")
             }
         }
         CoReveal(delayMs = 280) {
@@ -1037,9 +1041,9 @@ private fun CoLaunchForm(
             fontWeight = FontWeight.Medium,
         )
         listOf(
-            Triple("Team Operations", "Set review cycles, monitoring style, team pods", CoGreen),
-            Triple("Business Runway", "Configure financials, cash tracking, burn alerts", CoAmber),
-            Triple("Business Operations", "Define budgets, approval workflows, vendors", Color(0xFFA78BFA)),
+            Triple("Team & Work", "Set review cycles, monitoring style, team pods", CoGreen),
+            Triple("Money & Cash Flow", "Configure financials, cash tracking, burn alerts", CoAmber),
+            Triple("Daily Business", "Define budgets, approval workflows, vendors", Color(0xFFA78BFA)),
         ).forEach { (title, body, color) ->
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),

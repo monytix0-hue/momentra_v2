@@ -321,7 +321,14 @@ struct ContextEmptyExperienceView: View {
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
                 } else {
-                    CompanySetupFlowView(onClose: onCreateBack, onActivated: onCompanyActivated)
+                    CompanyFlowSheet(
+                        companies: [],
+                        selectedCompanyId: nil,
+                        startOnCreate: true,
+                        onClose: onCreateBack,
+                        onSelect: { _ in },
+                        onCreated: onCompanyActivated
+                    )
                         .transition(.asymmetric(
                             insertion: .move(edge: .leading).combined(with: .opacity),
                             removal: .move(edge: .leading).combined(with: .opacity)
@@ -396,7 +403,14 @@ struct ContextEmptyExperienceView: View {
                     onCreated: onMomentCreated
                 )
             } else {
-                CompanySetupFlowView(onClose: onCreateBack, onActivated: onCompanyActivated)
+                CompanyFlowSheet(
+                    companies: [],
+                    selectedCompanyId: nil,
+                    startOnCreate: true,
+                    onClose: onCreateBack,
+                    onSelect: { _ in },
+                    onCreated: onCompanyActivated
+                )
             }
         case .life:
             MomentEmptyStateView(

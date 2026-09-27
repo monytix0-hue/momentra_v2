@@ -3,7 +3,11 @@ package com.example.momentra.data.api
 import android.util.Log
 import com.example.momentra.BuildConfig
 import com.example.momentra.ui.shell.maestro.QaCorrelationHolder
+import com.example.momentra.data.local.OfflineReplay
 import com.google.firebase.FirebaseException
+import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import kotlinx.coroutines.runBlocking
@@ -12,13 +16,16 @@ import okhttp3.Authenticator
 import okhttp3.Interceptor
 import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.Route
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.io.IOException
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -179,6 +186,122 @@ object ApiClient {
         .build()
 
     val apiService: ApiService = retrofit.create(ApiService::class.java)
+
+    /** Replay a queued write. MEDIA redoes the signed upload from bytes stored on the device. */
+    fun replay(
+        method: String,
+        path: String,
+        idempotencyKey: String,
+        bodyJson: String,
+        mediaBytes: ByteArray? = null,
+    ): OfflineReplay {
+        if (method.equals("MEDIA", ignoreCase = true)) {
+            if (mediaBytes == null) return OfflineReplay.Rejected("The saved photo is missing on this device.")
+            return replayMedia(path, bodyJson, mediaBytes)
+        }
+        val body = if (method.equals("DELETE", ignoreCase = true)) null else bodyJson
+        return execute(method, path, idempotencyKey, body)
+    }
+
+    private fun replayMedia(attachPath: String, bodyJson: String, bytes: ByteArray): OfflineReplay {
+        val parsed = runCatching { JsonParser.parseString(bodyJson).asJsonObject }.getOrNull()
+            ?: return OfflineReplay.Rejected("Saved photo details were unreadable.")
+        val contentType = parsed.string("contentType") ?: "image/jpeg"
+        val scopeType = parsed.string("scopeType") ?: "MOMENT"
+        val scopeId = parsed.string("scopeId")
+            ?: return OfflineReplay.Rejected("Saved photo is missing its moment.")
+        val intentJson = buildString {
+            append("{\"contentType\":").append(Gson().toJson(contentType))
+            append(",\"byteSize\":").append(bytes.size)
+            append(",\"scopeType\":").append(Gson().toJson(scopeType))
+            append(",\"scopeId\":").append(Gson().toJson(scopeId))
+            append("}")
+        }
+        val intent = execute("POST", "v1/media/uploads", UUID.randomUUID().toString(), intentJson)
+        if (intent !is OfflineReplay.Synced) return intent
+        val data = jsonData(intent.body) ?: return OfflineReplay.Rejected("Upload did not start.")
+        val uploadId = data.string("uploadId") ?: return OfflineReplay.Rejected("Upload did not start.")
+        val signedUrl = data.string("signedUrl") ?: return OfflineReplay.Rejected("Upload link missing.")
+        val storageKey = data.string("storageKey") ?: return OfflineReplay.Rejected("Upload key missing.")
+        val put = putSigned(signedUrl, bytes, contentType)
+        if (put !is OfflineReplay.Synced) return put
+        val complete = execute(
+            "POST",
+            "v1/media/uploads/$uploadId/complete",
+            UUID.randomUUID().toString(),
+            "{\"storageKey\":${Gson().toJson(storageKey)}}",
+        )
+        if (complete !is OfflineReplay.Synced) return complete
+        return execute(
+            "POST",
+            attachPath,
+            UUID.randomUUID().toString(),
+            "{\"uploadId\":${Gson().toJson(uploadId)}}",
+        )
+    }
+
+    private fun execute(method: String, path: String, idempotencyKey: String, bodyJson: String?): OfflineReplay {
+        val url = ensureTrailingSlash(BuildConfig.API_BASE_URL) + path.removePrefix("/")
+        val builder = okhttp3.Request.Builder()
+            .url(url)
+            .header("Idempotency-Key", idempotencyKey)
+        val jsonBody = bodyJson?.toRequestBody("application/json".toMediaType())
+        when (method.uppercase()) {
+            "PATCH" -> builder.patch(jsonBody ?: "{}".toRequestBody("application/json".toMediaType()))
+            "DELETE" -> if (jsonBody == null) builder.delete() else builder.delete(jsonBody)
+            "PUT" -> builder.put(jsonBody ?: ByteArray(0).toRequestBody(null))
+            else -> builder.post(jsonBody ?: "{}".toRequestBody("application/json".toMediaType()))
+        }
+        return try {
+            okHttpClient.newCall(builder.build()).execute().use { response ->
+                classify(response.code, response.body?.string())
+            }
+        } catch (_: IOException) {
+            OfflineReplay.Offline
+        }
+    }
+
+    private fun putSigned(signedUrl: String, bytes: ByteArray, contentType: String): OfflineReplay {
+        val request = okhttp3.Request.Builder()
+            .url(signedUrl)
+            .put(bytes.toRequestBody(contentType.toMediaType()))
+            .header("Content-Type", contentType)
+            .build()
+        return try {
+            OkHttpClient.Builder().callTimeout(2, TimeUnit.MINUTES).build()
+                .newCall(request)
+                .execute()
+                .use { response ->
+                    if (response.isSuccessful) OfflineReplay.Synced(null)
+                    else if (response.code in 400..499) OfflineReplay.Rejected("Could not upload the saved photo.")
+                    else OfflineReplay.Offline
+                }
+        } catch (_: IOException) {
+            OfflineReplay.Offline
+        }
+    }
+
+    private fun classify(code: Int, raw: String?): OfflineReplay = when {
+        code in 200..299 -> OfflineReplay.Synced(raw)
+        code == 401 -> OfflineReplay.Unauthorized
+        code in 400..499 -> {
+            val message = Regex("\"message\"\\s*:\\s*\"([^\"]+)\"")
+                .find(raw.orEmpty())
+                ?.groupValues
+                ?.getOrNull(1)
+            OfflineReplay.Rejected(message)
+        }
+        else -> OfflineReplay.Offline
+    }
+
+    private fun jsonData(raw: String?): JsonObject? {
+        val root = runCatching { JsonParser.parseString(raw).asJsonObject }.getOrNull() ?: return null
+        val data = root.get("data")
+        return if (data != null && data.isJsonObject) data.asJsonObject else root
+    }
+
+    private fun JsonObject.string(name: String): String? =
+        get(name)?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotBlank() }
 
     private fun ensureTrailingSlash(url: String): String =
         if (url.endsWith("/")) url else "$url/"

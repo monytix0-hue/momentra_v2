@@ -26,19 +26,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 
-/** Figma: life-empty-b (657:10151) */
+/** Figma: life-empty-b (1687:20765) */
 @Composable
 fun BusinessLifeEmptyContent(
     onStartCta: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val stats = listOf("FTE Nodes", "Burn Rate", "Unit Margin")
+    val stats = listOf("Team", "Spending", "Earnings")
 
     BusinessEmptyScrollColumn(modifier = modifier) {
         BusinessEmptyPill("LIFE")
         BusinessEmptyHeadline(
-            title = "See the Full Picture",
-            body = "People, finances, operations — how every thread of your business weaves together.",
+            title = "See your business at a glance",
+            body = "See your money, work, progress and what needs attention.",
         )
 
         Column(
@@ -56,7 +56,7 @@ fun BusinessLifeEmptyContent(
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                LifeNode(R.drawable.ic_business_empty_users, "People")
+                LifeNode(R.drawable.ic_business_empty_users, "Team")
                 Spacer(modifier = Modifier.width(16.dp))
                 BusinessEmptyImage(
                     resId = R.drawable.ic_business_empty_connector_h,
@@ -64,7 +64,7 @@ fun BusinessLifeEmptyContent(
                     height = 2.dp,
                 )
                 Spacer(modifier = Modifier.width(16.dp))
-                LifeNode(R.drawable.ic_business_empty_dollar, "Finances")
+                LifeNode(R.drawable.ic_business_empty_dollar, "Money")
             }
 
             BusinessEmptyImage(
@@ -78,7 +78,7 @@ fun BusinessLifeEmptyContent(
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                LifeNode(R.drawable.ic_business_empty_cpu, "Operations")
+                LifeNode(R.drawable.ic_business_empty_cpu, "Work")
                 Spacer(modifier = Modifier.width(16.dp))
                 BusinessEmptyImage(
                     resId = R.drawable.ic_business_empty_connector_h,
@@ -86,7 +86,7 @@ fun BusinessLifeEmptyContent(
                     height = 2.dp,
                 )
                 Spacer(modifier = Modifier.width(16.dp))
-                LifeNode(R.drawable.ic_business_empty_activity, "Growth")
+                LifeNode(R.drawable.ic_business_empty_activity, "Progress")
             }
         }
 
@@ -106,7 +106,7 @@ fun BusinessLifeEmptyContent(
                         .padding(10.dp),
                 ) {
                     Text(
-                        text = "—",
+                        text = "-",
                         color = BusinessEmptyTokens.TextPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
@@ -117,7 +117,7 @@ fun BusinessLifeEmptyContent(
             }
         }
 
-        BusinessEmptyCta("Start Journey →", onStartCta)
+        BusinessEmptyCta("Start Your Business Journey →", onStartCta)
     }
 }
 

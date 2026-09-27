@@ -33,10 +33,10 @@ object BusinessSetupCatalog {
     private val currencyCodes = GroupTravelCurrencyCatalog.codes
 
     private val teamOps = BusinessSetupCatalogEntry(
-        defaultTitle = "Team Operations",
+        defaultTitle = "Team & Work",
         subtitle = "Configure your team's operating system in one go.",
         momentTypeCode = "TEAM_OPERATIONS",
-        activateLabel = "Activate Team Operations",
+        activateLabel = "Activate Team & Work",
         footerTagline = "YOUR TEAM RUNS ON CLARITY",
         defaultPreferences = mapOf(
             "teamName" to "Growth & Product",
@@ -93,10 +93,10 @@ object BusinessSetupCatalog {
     )
 
     private val runway = BusinessSetupCatalogEntry(
-        defaultTitle = "Business Runway",
+        defaultTitle = "Money & Cash Flow",
         subtitle = "Configure your financial operating system on-the-go.",
         momentTypeCode = "BUSINESS_RUNWAY",
-        activateLabel = "Activate Business Runway",
+        activateLabel = "Activate Money & Cash Flow",
         footerTagline = "RUNWAY CLARITY KEEPS YOU MOVING",
         defaultPreferences = mapOf(
             "businessStage" to "Scaling",
@@ -144,10 +144,10 @@ object BusinessSetupCatalog {
     )
 
     private val ops = BusinessSetupCatalogEntry(
-        defaultTitle = "Business Operations",
+        defaultTitle = "Daily Business",
         subtitle = "Configure operational capacity, monitoring and approvals.",
         momentTypeCode = "BUSINESS_OPERATIONS",
-        activateLabel = "Activate Business Operations",
+        activateLabel = "Activate Daily Business",
         footerTagline = "OPERATIONS WITH INTENTIONAL GUARDRAILS",
         defaultPreferences = mapOf(
             "coreOps" to "Growth & Product",

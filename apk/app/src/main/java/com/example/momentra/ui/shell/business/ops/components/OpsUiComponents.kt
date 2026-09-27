@@ -502,7 +502,7 @@ fun OpsActivityTimelineSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Recent Operations Activity",
+                "Recent Daily Activity",
                 color = theme.text,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -613,62 +613,25 @@ fun OpsActivityTimelineSection(
 @Composable
 fun OpsIntelligenceSection(theme: BusinessActiveTheme, modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                "Operations Intelligence",
-                color = theme.text,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = PlusJakartaSans,
-            )
-            Box(
-                modifier = Modifier
-                    .width(120.dp)
-                    .height(2.dp)
-                    .clip(RoundedCornerShape(1.dp))
-                    .background(Brush.horizontalGradient(listOf(OpsColors.Lavender, OpsColors.Indigo, OpsColors.Lavender))),
-            )
-            Text(
-                "AI-powered insights based on your operations data",
-                color = theme.muted,
-                fontSize = 11.sp,
-                fontFamily = PlusJakartaSans,
-            )
-        }
-        listOf("Cost Optimization", "Vendor Pattern").forEach { title ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(theme.card)
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(OpsColors.Lavender.copy(alpha = 0.08f)),
-                )
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        title,
-                        color = theme.text,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = PlusJakartaSans,
-                    )
-                    Text(
-                        "Insights unavailable until operations pulse projects signals.",
-                        color = theme.secondary,
-                        fontSize = 12.sp,
-                        fontFamily = PlusJakartaSans,
-                    )
-                }
-            }
-        }
+        Text(
+            "What Momentra Noticed",
+            color = theme.text,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
+        )
+        Text(
+            "No insights yet",
+            color = theme.secondary,
+            fontSize = 13.sp,
+            fontFamily = PlusJakartaSans,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(theme.card)
+                .border(1.dp, theme.border, RoundedCornerShape(16.dp))
+                .padding(16.dp),
+        )
     }
 }
 
@@ -690,14 +653,14 @@ fun OpsTimelineHeroCard(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            "Operations Timeline",
+            "Daily Timeline",
             color = theme.text,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             fontFamily = PlusJakartaSans,
         )
         Text(
-            "Live ops events from spend, vendors, issues, and updates.",
+            "Live events from spend, vendors, issues, and updates.",
             color = theme.secondary,
             fontSize = 12.sp,
             fontFamily = PlusJakartaSans,
@@ -1038,7 +1001,7 @@ fun OpsMemoryHeroSection(
             )
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Operations Memory",
+                    "Daily Business",
                     color = theme.muted,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
@@ -1109,7 +1072,7 @@ fun OpsBiggestLearningCard(
                     .background(OpsColors.Lavender),
             )
             Text(
-                quote ?: "Your top ops learning appears here once memories are recorded.",
+                quote ?: "Your top learning appears here once memories are recorded.",
                 color = if (quote != null) theme.text else theme.secondary,
                 fontSize = if (quote != null) 14.sp else 12.sp,
                 fontWeight = if (quote != null) FontWeight.SemiBold else FontWeight.Normal,
@@ -1228,18 +1191,9 @@ fun OpsWisdomQuoteSection(theme: BusinessActiveTheme, modifier: Modifier = Modif
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            "\"Operations wisdom compounds with every recorded learning.\"",
-            color = theme.text,
+            "No wisdom yet",
+            color = theme.secondary,
             fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-            fontFamily = PlusJakartaSans,
-        )
-        Text(
-            "momentra intelligence",
-            color = theme.muted,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
             fontFamily = PlusJakartaSans,
         )
     }

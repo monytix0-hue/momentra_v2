@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,12 +34,14 @@ import com.example.momentra.ui.shell.tour.tourTarget
  * Never infers company from a Moment.
  */
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun CompanySwitcher(
     companies: List<CompanySummary>,
     selected: CompanySummary?,
     menuOpen: Boolean,
     onToggle: (Boolean) -> Unit,
     onSelected: (CompanySummary) -> Unit,
+    locationName: String? = null,
     modifier: Modifier = Modifier,
 ) {
     if (companies.isEmpty()) return
@@ -52,7 +52,7 @@ fun CompanySwitcher(
                 .heightIn(min = 28.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color(0xFF1E293B))
-                .clickable { onToggle(!menuOpen) }
+                .clickable { onToggle(true) }
                 .tourTarget(TourTargetId.COMPANY_CHIP)
                 .testTag(MaestroIds.COMPANY_SWITCHER)
                 .semantics { contentDescription = "Switch company" }
@@ -61,7 +61,7 @@ fun CompanySwitcher(
         ) {
             androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = selected?.displayName ?: "Company",
+                    text = listOfNotNull(selected?.displayName ?: "Company", locationName?.takeIf { it.isNotBlank() }).joinToString(" · "),
                     color = Color.White,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
@@ -74,17 +74,6 @@ fun CompanySwitcher(
                     contentDescription = null,
                     tint = Color.White.copy(alpha = 0.8f),
                     modifier = Modifier.size(16.dp),
-                )
-            }
-        }
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { onToggle(false) }) {
-            companies.forEach { company ->
-                DropdownMenuItem(
-                    text = { Text(company.displayName) },
-                    onClick = {
-                        onSelected(company)
-                        onToggle(false)
-                    },
                 )
             }
         }

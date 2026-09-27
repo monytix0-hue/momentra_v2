@@ -59,9 +59,9 @@ object CompanyLifeColors {
 
 enum class CompanyLifeFilter(val label: String, val familyKey: String?) {
     ALL("All Modules", null),
-    TEAM("Team Ops", "TEAM_OPS"),
-    RUNWAY("Runway", "RUNWAY"),
-    OPS("Biz Ops", "OPERATIONS"),
+    TEAM("Team & Work", "TEAM_OPS"),
+    RUNWAY("Money & Cash Flow", "RUNWAY"),
+    OPS("Daily Business", "OPERATIONS"),
 }
 
 fun companyLifeFamilyColor(family: String?): Color = when (family?.uppercase()) {
@@ -284,6 +284,8 @@ fun CompanyLifeModuleCards(
     runway: BusinessLifeModuleCardDto?,
     ops: BusinessLifeModuleCardDto?,
     vendor: BusinessLifeModuleCardDto? = null,
+    onOpenFinance: () -> Unit = {},
+    onOpenVendor: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -299,37 +301,37 @@ fun CompanyLifeModuleCards(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             CompanyLifeModuleCard(
-                title = "Team Operations",
+                title = "Team & Work",
                 accent = CompanyLifeColors.Team,
                 card = team,
-                fallbackSubtitle = "Delivery Command",
+                fallbackSubtitle = "No team signal yet",
                 modifier = Modifier.weight(1f),
             )
             CompanyLifeModuleCard(
-                title = "Business Runway",
+                title = "Money & Cash Flow",
                 accent = CompanyLifeColors.Runway,
                 card = runway,
-                fallbackSubtitle = "Runway",
+                fallbackSubtitle = "No cash signal yet",
                 runwayMonths = runway?.runwayMonths,
+                onClick = onOpenFinance,
                 modifier = Modifier.weight(1f),
             )
             CompanyLifeModuleCard(
-                title = "Business Operations",
+                title = "Daily Business",
                 accent = CompanyLifeColors.Ops,
                 card = ops,
-                fallbackSubtitle = "Control Center",
+                fallbackSubtitle = "No daily signal yet",
                 modifier = Modifier.weight(1f),
             )
         }
-        if (vendor?.active == true) {
-            CompanyLifeModuleCard(
-                title = "Vendor Operations",
-                accent = CompanyLifeColors.Ops,
-                card = vendor,
-                fallbackSubtitle = "Vendor health",
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+        CompanyLifeModuleCard(
+            title = "Vendor Operations",
+            accent = CompanyLifeColors.Ops,
+            card = vendor,
+            fallbackSubtitle = "Vendor health",
+            onClick = onOpenVendor,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -341,6 +343,7 @@ private fun CompanyLifeModuleCard(
     fallbackSubtitle: String,
     modifier: Modifier = Modifier,
     runwayMonths: String? = null,
+    onClick: (() -> Unit)? = null,
 ) {
     val active = card?.active == true
     val subtitle = when {
@@ -360,6 +363,7 @@ private fun CompanyLifeModuleCard(
             .clip(RoundedCornerShape(12.dp))
             .background(accent.copy(alpha = 0.04f))
             .border(1.dp, accent.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -794,22 +798,22 @@ private fun CompanyLifeEmptyCard(message: String) {
 }
 
 private fun familyLabel(family: String?): String = when (family?.uppercase()) {
-    "TEAM_OPS", "TEAM_OPERATIONS" -> "TEAM OPS"
-    "RUNWAY", "BUSINESS_RUNWAY" -> "RUNWAY"
-    else -> "OPERATIONS"
+    "TEAM_OPS", "TEAM_OPERATIONS" -> "TEAM & WORK"
+    "RUNWAY", "BUSINESS_RUNWAY" -> "MONEY & CASH FLOW"
+    else -> "DAILY BUSINESS"
 }
 
 private fun familyDisplay(family: String?): String = when (family?.uppercase()) {
-    "TEAM_OPS", "TEAM_OPERATIONS" -> "Team Ops"
-    "RUNWAY", "BUSINESS_RUNWAY" -> "Runway"
-    else -> "Operations"
+    "TEAM_OPS", "TEAM_OPERATIONS" -> "Team & Work"
+    "RUNWAY", "BUSINESS_RUNWAY" -> "Money & Cash Flow"
+    else -> "Daily Business"
 }
 
 private fun journeyTitle(step: BusinessLifeJourneyDto): String {
     val labeled = when (step.familyCode.uppercase()) {
-        "TEAM_OPERATIONS" -> "Team Operations activated"
-        "BUSINESS_RUNWAY" -> "Business Runway launched"
-        "BUSINESS_OPERATIONS" -> "Operations module added"
+        "TEAM_OPERATIONS" -> "Team & Work activated"
+        "BUSINESS_RUNWAY" -> "Money & Cash Flow activated"
+        "BUSINESS_OPERATIONS" -> "Daily Business activated"
         else -> step.title.ifBlank { "${familyDisplay(step.family)} activated" }
     }
     return labeled

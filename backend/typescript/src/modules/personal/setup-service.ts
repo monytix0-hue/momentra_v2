@@ -179,7 +179,7 @@ export function getSetupByCode(code: string): PersonalSetupCatalogItem | undefin
 
 /**
  * Activate any of the four Personal life systems the user does not already
- * have an ACTIVE moment for, using catalog defaults. Existing setups are kept.
+ * have an ACTIVE or DRAFT moment for, using catalog defaults. Existing setups are kept.
  * Caller must hold a transaction that has locked the user profile row.
  */
 export async function ensureDefaultPersonalMoments(
@@ -195,7 +195,7 @@ export async function ensureDefaultPersonalMoments(
      JOIN core.moment_category mc ON mc.moment_category_id = mt.moment_category_id
      WHERE pmc.user_id = $1
        AND m.domain_code = 'PERSONAL'
-       AND m.status = 'ACTIVE'
+       AND m.status IN ('ACTIVE', 'DRAFT')
        AND mc.code = ANY($2::text[])`,
     [ctx.userId, [...PERSONAL_SETUP_SYSTEM_CODES]]
   );

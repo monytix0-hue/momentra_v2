@@ -8,6 +8,9 @@ import com.example.momentra.data.api.BusinessLifePayloadDto
 import com.example.momentra.data.api.BusinessMemoryPayloadDto
 import com.example.momentra.data.api.BusinessPulsePayloadDto
 import com.example.momentra.data.api.CreateBusinessMemoryBody
+import com.example.momentra.data.local.OfflineOutbox
+import com.example.momentra.data.local.orQueueOffline
+import com.example.momentra.data.local.orQueuePhoto
 import com.example.momentra.data.api.CreateBusinessMemoryResultDto
 import com.example.momentra.data.api.BusinessTimelineDto
 import com.example.momentra.data.api.CreateBusinessApprovalRequestBody
@@ -128,7 +131,18 @@ class BusinessSliceRepository(
         idempotencyKey: String = UUID.randomUUID().toString(),
     ): Result<CreateBusinessMemoryResultDto> = runCatching {
         api.createBusinessMemory(momentId = momentId, idempotencyKey = idempotencyKey, body = body).data
-    }.recoverCatching { e -> throw mapError(e) }
+    }.orQueueOffline(
+        path = "v1/business/moments/$momentId/memories",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = body,
+        placeholder = CreateBusinessMemoryResultDto(
+            memoryId = OfflineOutbox.LOCAL_ID,
+            momentId = momentId,
+            title = body.title,
+        ),
+        mapError = ::mapError,
+    )
 
     suspend fun createExpense(
         momentId: String,
@@ -136,7 +150,20 @@ class BusinessSliceRepository(
         idempotencyKey: String = UUID.randomUUID().toString(),
     ): Result<CreateBusinessExpenseResultDto> = runCatching {
         api.createBusinessExpense(momentId = momentId, idempotencyKey = idempotencyKey, body = body).data
-    }.recoverCatching { e -> throw mapError(e) }
+    }.orQueueOffline(
+        path = "v1/moments/$momentId/business-expenses",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = body,
+        placeholder = CreateBusinessExpenseResultDto(
+            expenseId = OfflineOutbox.LOCAL_ID,
+            momentId = momentId,
+            amount = body.amount,
+            currencyCode = body.currencyCode,
+            status = "QUEUED",
+        ),
+        mapError = ::mapError,
+    )
 
     suspend fun listExpenses(momentId: String): Result<BusinessExpenseListDto> = runCatching {
         api.listBusinessExpenses(momentId).data
@@ -148,7 +175,14 @@ class BusinessSliceRepository(
         bytes: ByteArray,
         contentType: String = "image/jpeg",
         idempotencyKey: String = UUID.randomUUID().toString(),
-    ): Result<ExpenseAttachmentDto> = runCatching {
+    ): Result<ExpenseAttachmentDto> {
+        val path = "v1/moments/$momentId/expenses/$expenseId/attachments"
+        val queued = ExpenseAttachmentDto(uploadId = OfflineOutbox.LOCAL_ID, status = "QUEUED")
+        if (expenseId == OfflineOutbox.LOCAL_ID) {
+            OfflineOutbox.enqueuePhoto(path, momentId, bytes, contentType, momentId, expenseId)
+            return Result.success(queued)
+        }
+        return runCatching {
         val uploadId = uploadMomentMedia(
             momentId = momentId,
             bytes = bytes,
@@ -160,7 +194,9 @@ class BusinessSliceRepository(
             expenseId = expenseId,
             body = AttachExpenseMediaBody(uploadId = uploadId),
         ).data
-    }.recoverCatching { e -> throw mapError(e) }
+        }.recoverCatching { e -> throw mapError(e) }
+            .orQueuePhoto(path, momentId, bytes, contentType, momentId, expenseId, queued, ::mapError)
+    }
 
     /** Upload bytes to moment-scoped media storage; returns uploadId. */
     suspend fun uploadMomentMedia(
@@ -203,7 +239,19 @@ class BusinessSliceRepository(
         idempotencyKey: String = UUID.randomUUID().toString(),
     ): Result<CreateBusinessRevenueResultDto> = runCatching {
         api.createBusinessRevenue(momentId = momentId, idempotencyKey = idempotencyKey, body = body).data
-    }.recoverCatching { e -> throw mapError(e) }
+    }.orQueueOffline(
+        path = "v1/moments/$momentId/revenues",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = body,
+        placeholder = CreateBusinessRevenueResultDto(
+            revenueId = OfflineOutbox.LOCAL_ID,
+            amount = body.amount,
+            currencyCode = body.currencyCode,
+            status = "QUEUED",
+        ),
+        mapError = ::mapError,
+    )
 
     suspend fun createInvoice(
         momentId: String,

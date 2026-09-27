@@ -15,6 +15,10 @@ struct AppShellView: View {
     @State private var groupParticipantsSheetPresented = false
     @State private var groupInviteSheetPresented = false
     @State private var groupMomentDirectoryOpen = false
+    @State private var businessGap: BusinessGapPage?
+    @State private var businessLocationName: String?
+    @State private var reopenCompanySettings = false
+    @State private var pendingActivation: PendingBusinessActivation?
     @State private var groupDirectoryPreferCompleted = false
     @State private var groupViewerReadOnly = false
     @State private var groupCollabKind: GroupCollabKind? = nil
@@ -106,6 +110,7 @@ struct AppShellView: View {
             }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
+                model.flushOfflineQueue()
                 Task { await inboxBadge.refresh() }
                 if model.selectedContext == .group {
                     model.refreshVisibleGroupTab()
@@ -306,17 +311,34 @@ struct AppShellView: View {
                 )
             }
         }
+        .sheet(isPresented: $companyMenuOpen) {
+            CompanyFlowSheet(
+                companies: model.companies,
+                selectedCompanyId: model.selectedCompany?.companyId,
+                startOnSettings: reopenCompanySettings,
+                onClose: {
+                    reopenCompanySettings = false
+                    companyMenuOpen = false
+                },
+                onSelect: { model.selectCompany($0) },
+                onCreated: { model.onCompanyCreated($0) },
+                onOpenLocations: {
+                    reopenCompanySettings = true
+                    companyMenuOpen = false
+                    businessGap = .locationPicker
+                }
+            )
+            .presentationDetents([.medium, .large])
+        }
         .sheet(item: $pendingCompanyJoin) { pending in
             CompanyJoinConfirmSheet(
                 code: pending.code,
                 onClose: { pendingCompanyJoin = nil },
-                onJoin: {
-                    let code = pending.code
-                    Task {
-                        let joined = await model.redeemCompanyInviteCode(code, using: createModel)
-                        pendingCompanyJoin = nil
-                        newMomentOpen = false
-                        joinFeedbackMessage = joined ? "Joined company" : "Could not join company"
+                onGoToCompany: { company in
+                    pendingCompanyJoin = nil
+                    model.onCompanyCreated(company)
+                    if model.selectedContext != .business {
+                        model.selectContext(.business)
                     }
                 }
             )
@@ -898,6 +920,45 @@ struct AppShellView: View {
                     ))
                     .zIndex(1)
                 }
+                if let businessGap, model.selectedContext == .business {
+                    BusinessGapHost(
+                        page: businessGap,
+                        companyId: model.selectedCompany?.companyId,
+                        companyName: model.selectedCompany?.displayName ?? "",
+                        moments: model.moments,
+                        locationName: $businessLocationName,
+                        onSelectMoment: { moment in
+                            model.selectMoment(id: moment.momentId)
+                            model.selectBottomDestination(.pulse)
+                            self.businessGap = nil
+                        },
+                        onCreateMoment: {
+                            self.businessGap = nil
+                            openNewMoment()
+                        },
+                        onClose: { self.businessGap = nil },
+                        onPage: { self.businessGap = $0 },
+                        onBackToSettings: {
+                            self.businessGap = nil
+                            reopenCompanySettings = true
+                            companyMenuOpen = true
+                        }
+                    )
+                    .zIndex(2)
+                }
+                if let pendingActivation {
+                    BusinessActivationSuccess(title: pendingActivation.title) {
+                        newMomentOpen = false
+                        model.onMomentCreated(
+                            momentId: pendingActivation.momentId,
+                            title: pendingActivation.title,
+                            momentTypeCode: pendingActivation.momentTypeCode,
+                            status: pendingActivation.status
+                        )
+                        self.pendingActivation = nil
+                    }
+                    .zIndex(3)
+                }
             }
             .animation(.easeInOut(duration: 0.28), value: groupMomentDirectoryOpen)
             .navigationTitle("")
@@ -922,6 +983,16 @@ struct AppShellView: View {
 
     private var shellTopChromeContent: some View {
         VStack(spacing: 0) {
+            if let notice = model.offlineNotice {
+                Text(notice)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color(hex: "#3A2A12"))
+            }
+
             MomentraTopBar(
                 context: model.selectedContext,
                 displayName: identity.displayName,
@@ -937,7 +1008,8 @@ struct AppShellView: View {
                 onRefer: { showReferComingSoon = true },
                 onInbox: { inboxOpen = true },
                 onAvatar: { model.openProfile(true) },
-                unreadNotificationCount: inboxBadge.unreadCount
+                unreadNotificationCount: inboxBadge.unreadCount,
+                locationName: businessLocationName
             )
 
             if !shellNavigationTitle.isEmpty {
@@ -971,11 +1043,15 @@ struct AppShellView: View {
                         showManageMoment = true
                     },
                     onInvite: model.selectedContext == .group ? { groupInviteSheetPresented = true } : nil,
-                    useDirectorySelector: model.selectedContext == .group,
+                    useDirectorySelector: model.selectedContext == .group || model.selectedContext == .business,
                     onOpenDirectory: {
-                        groupDirectoryPreferCompleted = false
-                        withAnimation(.easeInOut(duration: 0.28)) {
-                            groupMomentDirectoryOpen = true
+                        if model.selectedContext == .business {
+                            businessGap = .moments
+                        } else {
+                            groupDirectoryPreferCompleted = false
+                            withAnimation(.easeInOut(duration: 0.28)) {
+                                groupMomentDirectoryOpen = true
+                            }
                         }
                     },
                     selectedIsCompleted: selectedMomentIsCompleted,
@@ -1012,8 +1088,7 @@ struct AppShellView: View {
                     companyId: companyId,
                     onBack: { newMomentOpen = false },
                     onCreated: { outcome in
-                        newMomentOpen = false
-                        model.onMomentCreated(
+                        pendingActivation = PendingBusinessActivation(
                             momentId: outcome.momentId,
                             title: outcome.title,
                             momentTypeCode: outcome.momentTypeCode,
@@ -1022,10 +1097,14 @@ struct AppShellView: View {
                     }
                 )
             } else {
-                CompanySetupFlowView(
-                    onClose: { newMomentOpen = false },
-                    onActivated: { model.onCompanyCreated($0) }
-                )
+                    CompanyFlowSheet(
+                        companies: model.companies,
+                        selectedCompanyId: nil,
+                        startOnCreate: true,
+                        onClose: { newMomentOpen = false },
+                        onSelect: { model.selectCompany($0) },
+                        onCreated: { model.onCompanyCreated($0) }
+                    )
             }
         } else {
             switch model.contextContent {
@@ -1631,7 +1710,9 @@ struct AppShellView: View {
                         momentId: model.selectedMomentId,
                         momentTitle: model.selectedMomentTitle,
                         momentTypeCode: model.selectedMomentTypeCode,
-                        onViewReport: { model.selectBottomDestination(.pulse) }
+                        onViewReport: { businessGap = .finance },
+                        onOpenFinance: { businessGap = .finance },
+                        onOpenVendor: { businessGap = .vendor }
                     )
                 } else if model.selectedContext == .business, model.bottomDestination == .memory {
                     let code = (model.selectedMomentTypeCode ?? "").uppercased()

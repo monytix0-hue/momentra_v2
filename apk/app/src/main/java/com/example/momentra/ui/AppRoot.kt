@@ -11,8 +11,15 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import android.net.ConnectivityManager
+import android.net.Network
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.example.momentra.data.local.OfflineOutbox
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +79,7 @@ fun AppRoot() {
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                OfflineOutbox.install(context.applicationContext)
                 return AppShellViewModel(
                     meRepository = MeRepository(context.applicationContext),
                     prefs = AppPreferences(context.applicationContext),
@@ -82,6 +90,24 @@ fun AppRoot() {
     var onboardingDone by remember { mutableStateOf(prefs.isOnboardingSeen()) }
     var consentAck by remember { mutableStateOf(prefs.isConsentGateSeen()) }
     val authState by authViewModel.state.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, shellViewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) shellViewModel.flushOfflineQueue()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        val connectivity = context.getSystemService(ConnectivityManager::class.java)
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                shellViewModel.flushOfflineQueue()
+            }
+        }
+        runCatching { connectivity?.registerDefaultNetworkCallback(callback) }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            connectivity?.unregisterNetworkCallback(callback)
+        }
+    }
 
     var showSplash by remember { mutableStateOf(true) }
     var splashAnimationDone by remember { mutableStateOf(false) }

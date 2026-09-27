@@ -12,21 +12,21 @@ enum class BusinessSetupKind(
     val maestroTag: String,
 ) {
     TEAM_OPERATIONS(
-        "Set up Team Operations",
+        "Set up Team & Work",
         "TEAM_OPERATIONS",
         AnalyticsScreens.BUSINESS_SETUP_TEAM_OPS,
         Color(0xFF10B981),
         MaestroIds.BUSINESS_SETUP_TEAM,
     ),
     BUSINESS_RUNWAY(
-        "Set up Business Runway",
+        "Set up Money & Cash Flow",
         "BUSINESS_RUNWAY",
         AnalyticsScreens.BUSINESS_SETUP_RUNWAY,
         Color(0xFFFBBF24),
         MaestroIds.BUSINESS_SETUP_RUNWAY,
     ),
     BUSINESS_OPERATIONS(
-        "Set up Business Operations",
+        "Set up Daily Business",
         "BUSINESS_OPERATIONS",
         AnalyticsScreens.BUSINESS_SETUP_OPS,
         Color(0xFF818CF8),

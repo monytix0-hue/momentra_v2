@@ -23,28 +23,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 
-/** Figma: pulse-empty-b (657:9980) */
+/** Figma: pulse-empty-b (1687:20594) */
 @Composable
 fun BusinessPulseEmptyContent(
     onStartCta: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val metrics = listOf(
-        "Operational Flow" to 0.74f,
-        "Capital Efficiency" to 0.48f,
-        "Velocity Index" to 0.91f,
-    )
+    val metrics = listOf("Money Spend", "Purchases tracked", "Expenses")
     val features = listOf(
-        Triple(R.drawable.ic_business_empty_activity, "Operations Feed", "Live activity diagnostics from integrated pipelines"),
-        Triple(R.drawable.ic_business_empty_bell, "Smart Alerts", "Automated anomaly triggers protecting margins"),
-        Triple(R.drawable.ic_business_empty_trending_up, "Growth Metrics", "High-density correlation arrays for fast decisions"),
+        Triple(R.drawable.ic_business_empty_activity, "See every purchase", "Track what your business buys and how much it costs."),
+        Triple(R.drawable.ic_business_empty_bell, "Keep expenses in check", "Know when spending is higher than usual."),
+        Triple(R.drawable.ic_business_empty_trending_up, "See spending clearly", "See where your business spends the most."),
     )
 
     BusinessEmptyScrollColumn(modifier) {
         BusinessEmptyPill("PULSE")
         BusinessEmptyHeadline(
-            title = "Clarity in Real Time",
-            body = "Monitor every operation, expense, and milestone as it happens.",
+            title = "See Where Your Business Money Goes",
+            body = "Track purchases, expenses and spending across your business.",
         )
 
         Column(
@@ -56,8 +52,8 @@ fun BusinessPulseEmptyContent(
                 .background(BusinessEmptyTokens.CardFill)
                 .padding(16.dp),
         ) {
-            metrics.forEach { (label, progress) ->
-                MetricBar(label = label, progress = progress)
+            metrics.forEach { label ->
+                ZeroMetricBar(label = label)
             }
         }
 
@@ -93,12 +89,12 @@ fun BusinessPulseEmptyContent(
             }
         }
 
-        BusinessEmptyCta("Begin Tracking →", onStartCta)
+        BusinessEmptyCta("Start Tracking →", onStartCta)
     }
 }
 
 @Composable
-private fun MetricBar(label: String, progress: Float) {
+private fun ZeroMetricBar(label: String) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -106,7 +102,7 @@ private fun MetricBar(label: String, progress: Float) {
         ) {
             Text(label, color = BusinessEmptyTokens.TextSecondary, fontSize = 11.sp)
             Text(
-                text = "${(progress * 100).toInt()}%",
+                text = "0",
                 color = BusinessEmptyTokens.Accent,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
@@ -118,13 +114,6 @@ private fun MetricBar(label: String, progress: Float) {
                 .height(6.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(Color.White.copy(alpha = 0.10f)),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(progress)
-                    .height(6.dp)
-                    .background(BusinessEmptyTokens.Accent),
-            )
-        }
+        )
     }
 }

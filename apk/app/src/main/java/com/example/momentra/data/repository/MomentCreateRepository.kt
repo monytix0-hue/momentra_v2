@@ -1,6 +1,8 @@
 package com.example.momentra.data.repository
 
 import com.example.momentra.data.api.ApiClient
+import com.example.momentra.data.local.OfflineOutbox
+import com.example.momentra.data.local.orQueueOffline
 import com.example.momentra.data.api.ApiService
 import com.example.momentra.data.api.BusinessSetupBlockDto
 import com.example.momentra.data.api.CreateMomentBody
@@ -26,18 +28,26 @@ class MomentCreateRepository(
         preferences: Map<String, Any>? = null,
         status: String? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
-    ): Result<CreateMomentResultDto> = runCatching {
-        api.createMoment(
-            idempotencyKey = idempotencyKey,
-            body = CreateMomentBody(
-                domainCode = "PERSONAL",
-                momentTypeCode = momentTypeCode,
-                title = title,
-                status = status,
-                personalSetup = PersonalSetupBlockDto(systemCode = systemCode, preferences = preferences),
-            ),
-        ).data
-    }.recoverCatching { e -> throw mapCreateError(e) }
+    ): Result<CreateMomentResultDto> {
+        val body = CreateMomentBody(
+            domainCode = "PERSONAL",
+            momentTypeCode = momentTypeCode,
+            title = title,
+            status = status,
+            personalSetup = PersonalSetupBlockDto(systemCode = systemCode, preferences = preferences),
+        )
+        return runCatching {
+            api.createMoment(idempotencyKey = idempotencyKey, body = body).data
+        }.recoverCatching { e -> throw mapCreateError(e) }
+            .orQueueOffline(
+                path = "v1/moments",
+                momentId = "",
+                idempotencyKey = idempotencyKey,
+                body = body,
+                placeholder = queuedMoment("PERSONAL", title, status),
+                mapError = { it },
+            )
+    }
 
     suspend fun createBusinessMoment(
         companyId: String,
@@ -47,19 +57,27 @@ class MomentCreateRepository(
         preferences: Map<String, Any>? = null,
         status: String? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
-    ): Result<CreateMomentResultDto> = runCatching {
-        api.createMoment(
-            idempotencyKey = idempotencyKey,
-            body = CreateMomentBody(
-                domainCode = "BUSINESS",
-                momentTypeCode = momentTypeCode,
-                title = title,
-                companyId = companyId,
-                status = status,
-                businessSetup = BusinessSetupBlockDto(familyCode = familyCode, preferences = preferences),
-            ),
-        ).data
-    }.recoverCatching { e -> throw mapCreateError(e) }
+    ): Result<CreateMomentResultDto> {
+        val body = CreateMomentBody(
+            domainCode = "BUSINESS",
+            momentTypeCode = momentTypeCode,
+            title = title,
+            companyId = companyId,
+            status = status,
+            businessSetup = BusinessSetupBlockDto(familyCode = familyCode, preferences = preferences),
+        )
+        return runCatching {
+            api.createMoment(idempotencyKey = idempotencyKey, body = body).data
+        }.recoverCatching { e -> throw mapCreateError(e) }
+            .orQueueOffline(
+                path = "v1/moments",
+                momentId = "",
+                idempotencyKey = idempotencyKey,
+                body = body,
+                placeholder = queuedMoment("BUSINESS", title, status),
+                mapError = { it },
+            )
+    }
 
     suspend fun createGroupMoment(
         momentTypeCode: String,
@@ -73,25 +91,33 @@ class MomentCreateRepository(
         groupSetup: GroupSetupBlockDto? = null,
         status: String? = null,
         idempotencyKey: String = UUID.randomUUID().toString(),
-    ): Result<CreateMomentResultDto> = runCatching {
-        api.createMoment(
-            idempotencyKey = idempotencyKey,
-            body = CreateMomentBody(
-                domainCode = "GROUP",
-                momentTypeCode = momentTypeCode,
-                title = title,
-                description = description,
-                startAt = startAt,
-                endAt = endAt,
-                timezone = TimeZone.getDefault().id,
-                customTypeLabel = customTypeLabel,
-                participants = participants.ifEmpty { null },
-                inviteCode = inviteCode,
-                status = status,
-                groupSetup = groupSetup,
-            ),
-        ).data
-    }.recoverCatching { e -> throw mapCreateError(e) }
+    ): Result<CreateMomentResultDto> {
+        val body = CreateMomentBody(
+            domainCode = "GROUP",
+            momentTypeCode = momentTypeCode,
+            title = title,
+            description = description,
+            startAt = startAt,
+            endAt = endAt,
+            timezone = TimeZone.getDefault().id,
+            customTypeLabel = customTypeLabel,
+            participants = participants.ifEmpty { null },
+            inviteCode = inviteCode,
+            status = status,
+            groupSetup = groupSetup,
+        )
+        return runCatching {
+            api.createMoment(idempotencyKey = idempotencyKey, body = body).data
+        }.recoverCatching { e -> throw mapCreateError(e) }
+            .orQueueOffline(
+                path = "v1/moments",
+                momentId = "",
+                idempotencyKey = idempotencyKey,
+                body = body,
+                placeholder = queuedMoment("GROUP", title, status),
+                mapError = { it },
+            )
+    }
 
     suspend fun activateMoment(momentId: String): Result<CreateMomentResultDto> = runCatching {
         api.activateMoment(momentId, UUID.randomUUID().toString()).data
@@ -122,6 +148,14 @@ class MomentCreateRepository(
             body = MintGroupInviteBody(title = title, momentTypeCode = momentTypeCode),
         ).data
     }.recoverCatching { e -> throw mapCreateError(e) }
+
+    private fun queuedMoment(domainCode: String, title: String, status: String?) = CreateMomentResultDto(
+        momentId = OfflineOutbox.LOCAL_ID,
+        domainCode = domainCode,
+        title = title,
+        status = status ?: "ACTIVE",
+        version = 0,
+    )
 
     private fun mapCreateError(e: Throwable): Throwable = when (e) {
         is HttpException -> {

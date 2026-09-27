@@ -27,6 +27,7 @@ struct CompanySetupFlowView: View {
         ("AR", "Ananya R.", "Admin", "Bangalore Branch", Color(hex: "#F59E0B"), false),
     ]
     @State private var inviteText = ""
+    @State private var showAddPeople = false
     @State private var activating = false
     @State private var showJoinCode = false
     @State private var pendingActivation: CompanySummary?
@@ -91,6 +92,13 @@ struct CompanySetupFlowView: View {
         } message: {
             Text("Share the company invite link through Messages or WhatsApp.")
         }
+        .sheet(isPresented: $showAddPeople) {
+            BusinessAddPeopleSheet { name in
+                let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return }
+                members.append((String(trimmed.prefix(2)).uppercased(), trimmed, "Member", "All Locations", accent, false))
+            }
+        }
     }
 
     private func finishActivation() {
@@ -134,20 +142,20 @@ struct CompanySetupFlowView: View {
             .opacity(welcomeAppeared ? 1 : 0)
             VStack(spacing: 8) {
                 Text("Set Up Your Business").font(.system(size: 24, weight: .bold)).foregroundStyle(.white)
-                Text("Get your company running on momentra in just a few steps.")
+                Text("Tell us a little about your business to get started.")
                     .font(.system(size: 14))
                     .foregroundStyle(muted)
                     .multilineTextAlignment(.center)
             }
             .opacity(welcomeAppeared ? 1 : 0)
             .offset(y: welcomeAppeared ? 0 : 16)
-            benefit("2-minute setup", "Quick guided configuration", accent.opacity(0.1))
+            benefit("Quick Setup", "Takes about 2 minutes", accent.opacity(0.1))
                 .opacity(welcomeAppeared ? 1 : 0)
                 .offset(y: welcomeAppeared ? 0 : 20)
-            benefit("Multi-location ready", "Support for branches & units", green.opacity(0.1))
+            benefit("Add locations anytime", "For shops, offices or branches", green.opacity(0.1))
                 .opacity(welcomeAppeared ? 1 : 0)
                 .offset(y: welcomeAppeared ? 0 : 20)
-            benefit("Edit anytime", "All settings adjustable later", Color(hex: "#F59E0B").opacity(0.1))
+            benefit("Change anytime", "You can update these details later", Color(hex: "#F59E0B").opacity(0.1))
                 .opacity(welcomeAppeared ? 1 : 0)
                 .offset(y: welcomeAppeared ? 0 : 20)
             progressDots(current: 1, label: "Current: Welcome Setup")
@@ -379,10 +387,7 @@ struct CompanySetupFlowView: View {
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(border))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     Button("Add") {
-                        let t = inviteText.trimmingCharacters(in: .whitespaces)
-                        guard !t.isEmpty else { return }
-                        members.append((String(t.prefix(2)).uppercased(), t, "Member", "All Locations", accent, false))
-                        inviteText = ""
+                        showAddPeople = true
                     }
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(bg)
@@ -397,9 +402,9 @@ struct CompanySetupFlowView: View {
             section("02", "WHAT HAPPENS NEXT") {
                 Text("After activation, three module wizards will guide you:")
                     .font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
-                nextRow("Team Operations", "Set review cycles, monitoring style, team pods", green)
-                nextRow("Business Runway", "Configure financials, cash tracking, burn alerts", Color(hex: "#F59E0B"))
-                nextRow("Business Operations", "Define budgets, approval workflows, vendors", Color(hex: "#A78BFA"))
+                nextRow("Team & Work", "Set review cycles, monitoring style, team pods", green)
+                nextRow("Money & Cash Flow", "Configure financials, cash tracking, burn alerts", Color(hex: "#F59E0B"))
+                nextRow("Daily Business", "Define budgets, approval workflows, vendors", Color(hex: "#A78BFA"))
                 Text("Each takes about 1 minute to configure.")
                     .font(.system(size: 12).italic()).foregroundStyle(dim).frame(maxWidth: .infinity)
             }
@@ -643,9 +648,9 @@ struct CompanySettingsView: View {
                         .font(.system(size: 13)).foregroundStyle(Color(hex: "#94A3B8"))
                 }
                 settingsCard("ACTIVE MODULES") {
-                    moduleRow("Team Operations", Color(hex: "#10B981"))
-                    moduleRow("Business Runway", Color(hex: "#F59E0B"))
-                    moduleRow("Business Operations", Color(hex: "#818CF8"))
+                    moduleRow("Team & Work", Color(hex: "#10B981"))
+                    moduleRow("Money & Cash Flow", Color(hex: "#F59E0B"))
+                    moduleRow("Daily Business", Color(hex: "#818CF8"))
                 }
             }
             .padding(20)

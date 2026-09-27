@@ -843,7 +843,7 @@ private fun RunwayMemoryForm(
         label = if (submitting) "Saving…" else "Record Learning",
         enabled = !momentId.isNullOrBlank() && title.isNotBlank() && !submitting,
         loading = submitting,
-        footerHint = "Adds to Runway Memory",
+        footerHint = "Adds to Money & Cash Flow memory",
         accent = accent,
         onClick = {
             val id = momentId ?: return@RunwayPrimaryCta

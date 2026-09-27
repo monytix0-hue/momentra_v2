@@ -9,9 +9,9 @@ enum BusinessSetupKind: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .teamOperations: return "Set up Team Operations"
-        case .businessRunway: return "Set up Business Runway"
-        case .businessOperations: return "Set up Business Operations"
+        case .teamOperations: return "Set up Team & Work"
+        case .businessRunway: return "Set up Money & Cash Flow"
+        case .businessOperations: return "Set up Daily Business"
         }
     }
 

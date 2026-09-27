@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Network
 
 @MainActor
 final class AppShellModel: ObservableObject {
@@ -25,6 +26,7 @@ final class AppShellModel: ObservableObject {
     @Published private(set) var businessTabRefreshToken: UInt64 = 0
     @Published private(set) var capabilities: [String] = []
     @Published private(set) var ttcsMs: Int64?
+    @Published private(set) var offlineNotice: String?
     /// Group inventory empty of ACTIVE/DRAFT but user has COMPLETED membership.
     @Published private(set) var groupHasCompletedHistory = false
 
@@ -38,6 +40,8 @@ final class AppShellModel: ObservableObject {
     private var groupPrefetchTask: Task<Void, Never>?
     private var businessPrefetchTask: Task<Void, Never>?
     private var sseDebounceTask: Task<Void, Never>?
+    private let pathMonitor = NWPathMonitor()
+    private var pathMonitorStarted = false
     private let gateway: ShellMeGatewaying
 
     init(gateway: ShellMeGatewaying? = nil) {
@@ -47,6 +51,13 @@ final class AppShellModel: ObservableObject {
     func bindIdentity(_ identity: ShellIdentity) {
         bindStartedAt = Date()
         self.identity = identity
+        OfflineOutbox.shared.bindUser(identity.userId)
+        OfflineOutbox.shared.onChanged = { [weak self] in
+            Task { @MainActor in
+                self?.publishOfflineNotice(networkDown: false)
+            }
+        }
+        startOfflineMonitor()
         if let cached = gateway.cachedBootstrap(userId: identity.userId) {
             bootstrap = cached
             applyBootstrapInventory(cached, networkRefresh: false)
@@ -240,10 +251,15 @@ final class AppShellModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 bootstrap = boot
                 applyBootstrapInventory(boot, networkRefresh: true)
+                publishOfflineNotice(networkDown: false)
             } catch {
                 guard !Task.isCancelled else { return }
                 if bootstrap != nil {
                     ensureContextContent()
+                    publishOfflineNotice(networkDown: {
+                        if case .network = error as? APIErrorKind { return true }
+                        return false
+                    }())
                 } else {
                     applyError(generation, error)
                 }
@@ -548,6 +564,7 @@ final class AppShellModel: ObservableObject {
     }
 
     func onMomentCreated(momentId: String, title: String, momentTypeCode: String? = nil, status: String = "ACTIVE") {
+        if momentId == OfflineOutbox.localId { return }
         selectedMomentId = momentId
         selectedMomentTitle = title
         selectedMomentTypeCode = momentTypeCode ?? selectedMomentTypeCode
@@ -573,6 +590,51 @@ final class AppShellModel: ObservableObject {
         }
         if selectedContext == .business {
             refreshVisibleBusinessTab()
+        }
+    }
+
+    func flushOfflineQueue() {
+        guard identity != nil else { return }
+        Task {
+            let synced = await OfflineOutbox.shared.flush()
+            let refreshRoot = OfflineOutbox.shared.takeBootstrapRefresh()
+            publishOfflineNotice(networkDown: false)
+            if refreshRoot {
+                refreshBootstrap()
+            }
+            guard synced > 0 else { return }
+            switch selectedContext {
+            case .personal: refreshVisiblePersonalTab()
+            case .group: refreshVisibleGroupTab(forcePrefetch: true)
+            case .business: refreshVisibleBusinessTab(forcePrefetch: true)
+            case .circle: break
+            }
+        }
+    }
+
+    private func startOfflineMonitor() {
+        guard !pathMonitorStarted else { return }
+        pathMonitorStarted = true
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            guard path.status == .satisfied else { return }
+            Task { @MainActor in
+                self?.flushOfflineQueue()
+            }
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "momentra.offline-sync"))
+    }
+
+    private func publishOfflineNotice(networkDown: Bool) {
+        let failed = OfflineOutbox.shared.failedMessage()
+        let pending = OfflineOutbox.shared.pendingCount()
+        if let failed {
+            offlineNotice = failed
+        } else if pending > 0 {
+            offlineNotice = "Saved on this device. Changes will sync when you reconnect."
+        } else if networkDown {
+            offlineNotice = "You're offline. Saved changes will sync when you reconnect."
+        } else {
+            offlineNotice = nil
         }
     }
 
@@ -636,6 +698,7 @@ final class AppShellModel: ObservableObject {
     @discardableResult
     func redeemJoinCode(_ code: String, using createModel: MomentCreateModel) async -> RedeemGroupInviteResult? {
         guard let result = await createModel.redeemGroupInvite(code: code) else { return nil }
+        if result.momentId == OfflineOutbox.localId { return result }
         guard let momentId = result.momentId, !momentId.isEmpty else {
             // PENDING claim — stay put; caller shows honest messaging.
             return result
@@ -681,6 +744,7 @@ final class AppShellModel: ObservableObject {
     @discardableResult
     func redeemCompanyInviteCode(_ code: String, using createModel: MomentCreateModel) async -> Bool {
         guard let result = await createModel.redeemCompanyInvite(code: code) else { return false }
+        if result.companyId == OfflineOutbox.localId { return true }
         if selectedContext != .business {
             selectContext(.business)
         }

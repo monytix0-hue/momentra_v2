@@ -1,16 +1,16 @@
 import SwiftUI
 
-/// Figma: moments-empty-b (657:10043)
+/// Figma: moments-empty-b (1687:20652)
 struct BusinessMomentsEmptyView: View {
     var onStartCta: () -> Void
 
     private let timeline: [(String, String)] = [
-        ("Operational Milestone Reached", "Today, 10:42 AM"),
-        ("Strategic Seed Round Confirmed", "Oct 14, 2024"),
-        ("Inception & Core Architecture Setup", "Sep 01, 2024"),
+        ("You bought supplies", "Today, 10:42 AM"),
+        ("A customer paid", "Oct 14, 2024"),
+        ("You saved a receipt", "Sep 01, 2024"),
     ]
 
-    private let chips = ["Decisions", "Revenue", "Partnerships", "Team", "Growth"]
+    private let chips = ["Purchases", "Expenses", "Receipts", "Activity"]
 
     var body: some View {
         NativeDashboardScaffold(background: BusinessSheetTheme.bg) {
@@ -18,8 +18,8 @@ struct BusinessMomentsEmptyView: View {
                 VStack(spacing: 24) {
                     BusinessEmptyPill(label: "MOMENTS")
                     BusinessEmptyHeadline(
-                        title: "Every Decision. Documented.",
-                        bodyText: "Capture milestones, wins, and pivotal moments that define your business story."
+                        title: "See what happened in your business",
+                        bodyText: "Keep purchases, expenses, receipts and important activity together."
                     )
 
                     VStack(alignment: .leading, spacing: 0) {
@@ -57,15 +57,12 @@ struct BusinessMomentsEmptyView: View {
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 20))
 
-                    VStack(spacing: 6) {
-                        HStack(spacing: 6) {
-                            ForEach(chips.prefix(4), id: \.self, content: chipView)
-                        }
-                        chipView(chips[4])
+                    HStack(spacing: 6) {
+                        ForEach(chips, id: \.self, content: chipView)
                     }
                     .frame(maxWidth: .infinity)
 
-                    BusinessEmptyCTA(label: "Record First Moment →", action: onStartCta)
+                    BusinessEmptyCTA(label: "Add your first moment →", action: onStartCta)
                 }
             }
         }

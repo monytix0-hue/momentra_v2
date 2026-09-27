@@ -41,7 +41,7 @@ import com.example.momentra.ui.shell.empty.business.BusinessMemoryEmptyContent
 import com.example.momentra.ui.shell.empty.business.BusinessMomentsEmptyContent
 import com.example.momentra.ui.shell.empty.business.BusinessPulseEmptyContent
 import com.example.momentra.ui.shell.empty.business.BusinessSetupBottomSheet
-import com.example.momentra.ui.shell.empty.business.CompanySetupContent
+import com.example.momentra.ui.shell.empty.business.CompanyFlowSheet
 import com.example.momentra.ui.shell.empty.personal.PersonalLifeEmptyContent
 
 import androidx.compose.runtime.collectAsState
@@ -400,12 +400,14 @@ private fun BusinessEmpty(
             modifier = modifier,
         ) { companyReady ->
             if (!companyReady) {
-                BusinessSetupBottomSheet(onDismiss = onCreateBack) {
-                    CompanySetupContent(
-                        onClose = onCreateBack,
-                        onActivated = onCompanyActivated,
-                    )
-                }
+                CompanyFlowSheet(
+                    companies = emptyList(),
+                    selectedCompanyId = null,
+                    startOnCreate = true,
+                    onDismiss = onCreateBack,
+                    onSelect = { _ -> },
+                    onCreated = onCompanyActivated,
+                )
             } else {
                 BusinessCreateFlow(
                     companyId = companyId,

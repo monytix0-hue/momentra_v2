@@ -502,7 +502,7 @@ fun RunwayProgressSnapshot(
             )
         }
         Text(
-            "How runway is tracking this quarter.",
+            "How cash is tracking this quarter.",
             color = theme.muted,
             fontSize = 11.sp,
             fontFamily = PlusJakartaSans,

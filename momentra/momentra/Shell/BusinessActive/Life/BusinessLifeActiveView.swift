@@ -7,6 +7,8 @@ struct BusinessLifeActiveView: View {
     let momentTitle: String?
     var momentTypeCode: String? = nil
     var onViewReport: () -> Void = {}
+    var onOpenFinance: () -> Void = {}
+    var onOpenVendor: () -> Void = {}
 
     @State private var life: APIClient.BusinessLifePayload?
     @State private var loading = true
@@ -16,6 +18,27 @@ struct BusinessLifeActiveView: View {
     @State private var showReport = false
     @State private var actionMessage: String?
     @State private var shareBusy = false
+
+    private var teamLocked: Bool {
+        (momentTypeCode ?? "").uppercased().contains("TEAM_OPERATIONS")
+    }
+
+    private var cashFlowLocked: Bool {
+        let code = (momentTypeCode ?? "").uppercased()
+        return code.contains("RUNWAY") && !code.contains("TEAM")
+    }
+
+    private var dailyLocked: Bool {
+        let code = (momentTypeCode ?? "").uppercased()
+        return code.contains("OPERATIONS") && !code.contains("TEAM")
+    }
+
+    private var activeFilter: CompanyLifeFilter {
+        if teamLocked { return .team }
+        if cashFlowLocked { return .runway }
+        if dailyLocked { return .ops }
+        return filter
+    }
 
     private var inner: APIClient.BusinessLifePayload.LifeInner? { life?.payload }
     private var kpis: APIClient.BusinessLifePayload.LifeInner.LifeKpis? { inner?.kpis }
@@ -52,19 +75,19 @@ struct BusinessLifeActiveView: View {
 
     private var signals: [APIClient.BusinessLifePayload.LifeInner.LifeSignal] {
         let all = inner?.signals ?? []
-        guard let key = filter.familyKey else { return all }
+        guard let key = activeFilter.familyKey else { return all }
         return all.filter { ($0.family ?? "").uppercased() == key }
     }
 
     private var activity: [APIClient.BusinessLifePayload.LifeInner.LifeActivity] {
         let all = inner?.activity ?? []
-        guard let key = filter.familyKey else { return all }
+        guard let key = activeFilter.familyKey else { return all }
         return all.filter { ($0.family ?? "").uppercased() == key }
     }
 
     private var journey: [APIClient.BusinessLifePayload.LifeInner.LifeJourney] {
         let all = inner?.journey ?? []
-        guard let key = filter.familyKey else { return all }
+        guard let key = activeFilter.familyKey else { return all }
         let needle: String = {
             switch key {
             case "TEAM_OPS": return "TEAM"
@@ -101,7 +124,9 @@ struct BusinessLifeActiveView: View {
                                     .foregroundStyle(CompanyLifeColors.secondary)
                             }
 
-                            CompanyLifeFilterChips(selected: $filter)
+                            if !teamLocked && !cashFlowLocked && !dailyLocked {
+                                CompanyLifeFilterChips(selected: $filter)
+                            }
 
                             CompanyLifeHealthHeader(
                                 score: score,
@@ -122,7 +147,9 @@ struct BusinessLifeActiveView: View {
                                 team: inner?.modules?.teamOperations,
                                 runway: inner?.modules?.runway,
                                 ops: inner?.modules?.businessOperations,
-                                vendor: inner?.modules?.vendorOperations
+                                vendor: inner?.modules?.vendorOperations,
+                                onOpenFinance: onOpenFinance,
+                                onOpenVendor: onOpenVendor
                             )
 
                             CompanyLifeSignalsSection(signals: signals)

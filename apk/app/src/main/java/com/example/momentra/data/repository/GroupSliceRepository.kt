@@ -16,6 +16,11 @@ import com.example.momentra.data.api.CreateGroupExpenseResultDto
 import com.example.momentra.data.api.ExpenseAttachmentDto
 import com.example.momentra.data.api.GroupExpenseDetailDto
 import com.example.momentra.data.api.CreateMemoryBody
+import com.example.momentra.data.api.IdResultDto
+import com.example.momentra.data.api.MemoryAttachmentDto
+import com.example.momentra.data.local.OfflineOutbox
+import com.example.momentra.data.local.orQueueOffline
+import com.example.momentra.data.local.orQueuePhoto
 import com.example.momentra.data.api.CreatePlanningItemBody
 import com.example.momentra.data.api.UpdatePlanningItemBody
 import com.example.momentra.data.api.CreatePollBody
@@ -193,7 +198,23 @@ class GroupSliceRepository(
             idempotencyKey = idempotencyKey,
             body = body,
         ).data
-    }.recoverCatching { e -> throw mapError(e) }
+    }.orQueueOffline(
+        path = "v1/moments/$momentId/group-expenses",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = body,
+        placeholder = CreateGroupExpenseResultDto(
+            expenseId = OfflineOutbox.LOCAL_ID,
+            momentId = momentId,
+            amount = body.amount,
+            currencyCode = body.currencyCode,
+            status = "QUEUED",
+            version = 0,
+            paidByParticipantId = body.paidByParticipantId,
+            splitStrategy = body.splitStrategy,
+        ),
+        mapError = ::mapError,
+    )
 
     suspend fun getGroupExpense(
         momentId: String,
@@ -215,6 +236,24 @@ class GroupSliceRepository(
             body = body,
         ).data
     }.recoverCatching { e -> throw mapError(e) }
+        .orQueueOffline(
+            path = "v1/moments/$momentId/group-expenses/$expenseId",
+            momentId = momentId,
+            idempotencyKey = idempotencyKey,
+            body = body,
+            placeholder = CreateGroupExpenseResultDto(
+                expenseId = expenseId,
+                momentId = momentId,
+                amount = body.amount,
+                currencyCode = body.currencyCode,
+                status = "QUEUED",
+                version = 0,
+                paidByParticipantId = body.paidByParticipantId,
+                splitStrategy = body.splitStrategy,
+            ),
+            mapError = { it },
+            method = "PATCH",
+        )
 
     suspend fun voidGroupExpense(
         momentId: String,
@@ -227,6 +266,24 @@ class GroupSliceRepository(
             idempotencyKey = idempotencyKey,
         ).data
     }.recoverCatching { e -> throw mapError(e) }
+        .orQueueOffline(
+            path = "v1/moments/$momentId/group-expenses/$expenseId",
+            momentId = momentId,
+            idempotencyKey = idempotencyKey,
+            body = emptyMap<String, String>(),
+            placeholder = CreateGroupExpenseResultDto(
+                expenseId = expenseId,
+                momentId = momentId,
+                amount = "0",
+                currencyCode = "INR",
+                status = "QUEUED",
+                version = 0,
+                paidByParticipantId = "",
+                splitStrategy = "POOLED",
+            ),
+            mapError = { it },
+            method = "DELETE",
+        )
 
     suspend fun recordContribution(
         momentId: String,
@@ -319,7 +376,14 @@ class GroupSliceRepository(
         bytes: ByteArray,
         contentType: String = "image/jpeg",
         idempotencyKey: String = UUID.randomUUID().toString(),
-    ): Result<ExpenseAttachmentDto> = runCatching {
+    ): Result<ExpenseAttachmentDto> {
+        val path = "v1/moments/$momentId/expenses/$expenseId/attachments"
+        val queued = ExpenseAttachmentDto(uploadId = OfflineOutbox.LOCAL_ID, status = "QUEUED")
+        if (expenseId == OfflineOutbox.LOCAL_ID) {
+            OfflineOutbox.enqueuePhoto(path, momentId, bytes, contentType, momentId, expenseId)
+            return Result.success(queued)
+        }
+        return runCatching {
         val uploadId = uploadBookingMedia(
             momentId = momentId,
             bytes = bytes,
@@ -331,7 +395,9 @@ class GroupSliceRepository(
             expenseId = expenseId,
             body = AttachExpenseMediaBody(uploadId = uploadId),
         ).data
-    }.recoverCatching { e -> throw mapError(e) }
+        }.recoverCatching { e -> throw mapError(e) }
+            .orQueuePhoto(path, momentId, bytes, contentType, momentId, expenseId, queued, ::mapError)
+    }
 
     suspend fun createSettlement(
         momentId: String,
@@ -364,6 +430,19 @@ class GroupSliceRepository(
             idempotencyKey = idempotencyKey,
         ).data
     }.recoverCatching { e -> throw mapError(e) }
+        .orQueueOffline(
+            path = "v1/group/invites/$code/redeem",
+            momentId = "",
+            idempotencyKey = idempotencyKey,
+            body = emptyMap<String, String>(),
+            placeholder = RedeemGroupInviteResultDto(
+                inviteId = OfflineOutbox.LOCAL_ID,
+                inviteCode = code,
+                status = "QUEUED",
+                momentId = OfflineOutbox.LOCAL_ID,
+            ),
+            mapError = { it },
+        )
 
     suspend fun previewGroupInvite(code: String): Result<GroupInviteDto> = runCatching {
         api.getGroupInvite(code).data
@@ -396,6 +475,19 @@ class GroupSliceRepository(
             idempotencyKey = idempotencyKey,
         ).data
     }.recoverCatching { e -> throw mapError(e) }
+        .orQueueOffline(
+            path = "v1/company/invites/$code/redeem",
+            momentId = "",
+            idempotencyKey = idempotencyKey,
+            body = emptyMap<String, String>(),
+            placeholder = com.example.momentra.data.api.RedeemCompanyInviteResultDto(
+                inviteId = OfflineOutbox.LOCAL_ID,
+                inviteCode = code,
+                status = "QUEUED",
+                companyId = OfflineOutbox.LOCAL_ID,
+            ),
+            mapError = { it },
+        )
 
     suspend fun patchGroupBudget(
         momentId: String,
@@ -465,7 +557,22 @@ class GroupSliceRepository(
                 asDraft = asDraft,
             ),
         ).data
-    }.recoverCatching { e -> throw mapError(e) }
+    }.orQueueOffline(
+        path = "v1/moments/$momentId/planning-items",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = CreatePlanningItemBody(
+            title = title,
+            dueAt = dueAt,
+            categoryCode = categoryCode,
+            location = location,
+            priorityCode = priorityCode,
+            description = description,
+            asDraft = asDraft,
+        ),
+        placeholder = IdResultDto(planningItemId = OfflineOutbox.LOCAL_ID, momentId = momentId),
+        mapError = ::mapError,
+    )
 
     suspend fun updatePlanningItem(
         momentId: String,
@@ -496,6 +603,24 @@ class GroupSliceRepository(
             ),
         ).data
     }.recoverCatching { e -> throw mapError(e) }
+        .orQueueOffline(
+            path = "v1/moments/$momentId/planning-items/$planningItemId",
+            momentId = momentId,
+            idempotencyKey = idempotencyKey,
+            body = UpdatePlanningItemBody(
+                title = title,
+                dueAt = dueAt,
+                categoryCode = categoryCode,
+                location = location,
+                priorityCode = priorityCode,
+                description = description,
+                asDraft = asDraft,
+                status = status,
+            ),
+            placeholder = IdResultDto(planningItemId = planningItemId, momentId = momentId),
+            mapError = { it },
+            method = "PATCH",
+        )
 
     /** Deletes a moment-scoped checklist/planning item only (seed catalog is unchanged). */
     suspend fun deletePlanningItem(
@@ -511,7 +636,15 @@ class GroupSliceRepository(
             return@recoverCatching com.example.momentra.data.api.IdResultDto(planningItemId = planningItemId)
         }
         throw mapped
-    }
+    }.orQueueOffline(
+        path = "v1/moments/$momentId/planning-items/$planningItemId",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = emptyMap<String, String>(),
+        placeholder = IdResultDto(planningItemId = planningItemId, momentId = momentId),
+        mapError = { it },
+        method = "DELETE",
+    )
 
     suspend fun createBooking(
         momentId: String,
@@ -608,7 +741,19 @@ class GroupSliceRepository(
                 memoryType = memoryType,
             ),
         ).data
-    }.recoverCatching { e -> throw mapError(e) }
+    }.orQueueOffline(
+        path = "v1/moments/$momentId/memories",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = CreateMemoryBody(
+            title = title,
+            capturedAt = capturedAt,
+            asDraft = asDraft,
+            memoryType = memoryType,
+        ),
+        placeholder = IdResultDto(memoryId = OfflineOutbox.LOCAL_ID, momentId = momentId),
+        mapError = ::mapError,
+    )
 
     suspend fun uploadAndAttachMemoryMedia(
         momentId: String,
@@ -616,31 +761,40 @@ class GroupSliceRepository(
         bytes: ByteArray,
         contentType: String = "image/jpeg",
         idempotencyKey: String = UUID.randomUUID().toString(),
-    ) = runCatching {
-        val intent = api.createMediaUploadIntent(
-            idempotencyKey = idempotencyKey,
-            body = MediaUploadIntentBody(
-                contentType = contentType,
-                byteSize = bytes.size,
-                scopeType = "MOMENT",
-                scopeId = momentId,
-            ),
-        ).data
-        val storageKey = intent.storageKey ?: error("Upload intent missing storageKey")
-        val putOk = putBytesToSignedUrl(intent.signedUrl, bytes, contentType)
-        if (!putOk) error("Failed to upload media bytes to storage")
-        api.completeMediaUpload(
-            uploadId = intent.uploadId,
-            idempotencyKey = UUID.randomUUID().toString(),
-            body = MediaUploadCompleteBody(storageKey = storageKey),
-        )
-        api.attachMemoryMedia(
-            momentId = momentId,
-            memoryId = memoryId,
-            idempotencyKey = UUID.randomUUID().toString(),
-            body = AttachMemoryMediaBody(uploadId = intent.uploadId),
-        ).data
-    }.recoverCatching { e -> throw mapError(e) }
+    ): Result<MemoryAttachmentDto> {
+        val path = "v1/moments/$momentId/memories/$memoryId/media"
+        val queued = MemoryAttachmentDto(uploadId = OfflineOutbox.LOCAL_ID, status = "QUEUED")
+        if (memoryId == OfflineOutbox.LOCAL_ID) {
+            OfflineOutbox.enqueuePhoto(path, momentId, bytes, contentType, momentId, memoryId)
+            return Result.success(queued)
+        }
+        return runCatching {
+            val intent = api.createMediaUploadIntent(
+                idempotencyKey = idempotencyKey,
+                body = MediaUploadIntentBody(
+                    contentType = contentType,
+                    byteSize = bytes.size,
+                    scopeType = "MOMENT",
+                    scopeId = momentId,
+                ),
+            ).data
+            val storageKey = intent.storageKey ?: error("Upload intent missing storageKey")
+            val putOk = putBytesToSignedUrl(intent.signedUrl, bytes, contentType)
+            if (!putOk) error("Failed to upload media bytes to storage")
+            api.completeMediaUpload(
+                uploadId = intent.uploadId,
+                idempotencyKey = UUID.randomUUID().toString(),
+                body = MediaUploadCompleteBody(storageKey = storageKey),
+            )
+            api.attachMemoryMedia(
+                momentId = momentId,
+                memoryId = memoryId,
+                idempotencyKey = UUID.randomUUID().toString(),
+                body = AttachMemoryMediaBody(uploadId = intent.uploadId),
+            ).data
+        }.recoverCatching { e -> throw mapError(e) }
+            .orQueuePhoto(path, momentId, bytes, contentType, momentId, memoryId, queued, ::mapError)
+    }
 
     suspend fun mintInviteForMoment(
         title: String,

@@ -14,7 +14,7 @@ struct TeamOpsMemoryActiveView: View {
     @State private var error: String?
 
     private let theme = BusinessActiveTheme.teamOperations
-    private let scopes = ["All", "Team", "Runway", "Ops"]
+    private let scopes = ["All", "Team", "Cash Flow", "Daily Business"]
 
     private var items: [APIClient.BusinessMemoryPayload.MemoryInner.BusinessMemoryItem] {
         memory?.payload?.items ?? []
@@ -26,8 +26,8 @@ struct TeamOpsMemoryActiveView: View {
         return items.filter {
             let hay = ($0.title ?? "").lowercased()
             if q == "team" { return hay.contains("team") || hay.contains("owner") || hay.contains("delivery") }
-            if q == "runway" { return hay.contains("runway") || hay.contains("budget") || hay.contains("hire") }
-            if q == "ops" {
+            if q == "cash flow" || q == "runway" { return hay.contains("runway") || hay.contains("budget") || hay.contains("cash") }
+            if q == "ops" || q == "daily business" {
                 return hay.contains("ops") || hay.contains("vendor") || hay.contains("sla") || hay.contains("operation")
             }
             return true
@@ -71,20 +71,19 @@ struct TeamOpsMemoryActiveView: View {
                         )
                         TeamOpsEmptyAiCard(
                             title: "Biggest Learning",
-                            emptyCopy: biggestLearning
-                                ?? "Biggest learning appears when memory AI projects a signal — record learnings to seed it.",
+                            emptyCopy: biggestLearning ?? "No learning yet",
                             theme: theme
                         )
                         TeamOpsDiamondDivider(theme: theme)
                         TeamOpsEmptyAiCard(
                             title: "Pattern Network",
-                            emptyCopy: "Pattern network unavailable — memory.pattern API not mounted.",
+                            emptyCopy: "No patterns yet",
                             theme: theme
                         )
                         TeamOpsDiamondDivider(theme: theme)
                         TeamOpsEmptyAiCard(
                             title: "Business Playbook",
-                            emptyCopy: "Playbook rules deferred until AI rule projection exists.",
+                            emptyCopy: "No playbook yet",
                             theme: theme
                         )
                         TeamOpsDiamondDivider(theme: theme)
@@ -92,7 +91,7 @@ struct TeamOpsMemoryActiveView: View {
                         memoryList(title: "Risk Memory", empty: "No risk memories yet.", items: riskItems, accent: TeamOpsColors.red)
                         TeamOpsEmptyAiCard(
                             title: "Team Wisdom",
-                            emptyCopy: "\"Momentum stays strongest when financial and execution decisions share the same operating cadence.\" — moments intelligence",
+                            emptyCopy: "No wisdom yet",
                             theme: theme
                         )
                         TeamOpsEmptyAiCard(

@@ -63,6 +63,7 @@ data class MomentraTopBarConfig(
     val qrScanAvailable: Boolean = false,
     val referAvailable: Boolean = true,
     val unreadNotificationCount: Int = 0,
+    val locationName: String? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,6 +110,7 @@ fun MomentraTopBar(
                         menuOpen = config.companyMenuOpen,
                         onToggle = onCompanyMenuToggle,
                         onSelected = onCompanySelected,
+                        locationName = config.locationName,
                     )
                 }
             }

@@ -45,6 +45,9 @@ import com.example.momentra.data.api.UpdateLifestyleActivityBody
 import com.example.momentra.data.api.VoidLifestyleActivityResultDto
 import com.example.momentra.data.api.VoidRelationshipActivityResultDto
 import com.example.momentra.data.api.mapHttpFailure
+import com.example.momentra.data.local.OfflineOutbox
+import com.example.momentra.data.local.orQueueOffline
+import com.example.momentra.data.local.orQueuePhoto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -98,7 +101,21 @@ class PersonalSliceRepository(
                 note = note,
             ),
         ).data
-    }.recoverCatching { e -> throw mapError(e) }
+    }.orQueueOffline(
+        path = "v1/moments/$momentId/relationship-activities",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = CreateRelationshipActivityBody(
+            activityKind = activityKind,
+            displayName = displayName,
+            note = note,
+        ),
+        placeholder = CreateRelationshipActivityResultDto(
+            activityId = OfflineOutbox.LOCAL_ID,
+            displayName = displayName,
+        ),
+        mapError = ::mapError,
+    )
 
     suspend fun createExpense(
         momentId: String,
@@ -136,7 +153,35 @@ class PersonalSliceRepository(
                 sharedExperienceLabel = sharedExperienceLabel,
             ),
         ).data
-    }.recoverCatching { e -> throw mapError(e) }
+    }.orQueueOffline(
+        path = "v1/moments/$momentId/expenses",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = CreateExpenseBody(
+            amount = amount,
+            currencyCode = currencyCode,
+            description = description,
+            merchantName = merchantName,
+            categoryCode = categoryCode,
+            subcategoryCode = subcategoryCode,
+            financialAccountId = financialAccountId,
+            paymentMethodCode = paymentMethodCode,
+            effectiveAt = effectiveAt,
+            recurringScheduleId = recurringScheduleId,
+            asDraft = asDraft,
+            sharedExperienceCode = sharedExperienceCode,
+            sharedExperienceLabel = sharedExperienceLabel,
+        ),
+        placeholder = CreateExpenseResultDto(
+            expenseId = OfflineOutbox.LOCAL_ID,
+            momentId = momentId,
+            amount = amount,
+            currencyCode = currencyCode,
+            status = "QUEUED",
+            version = 0,
+        ),
+        mapError = ::mapError,
+    )
 
     suspend fun getExpense(momentId: String, expenseId: String): Result<ExpenseDetailDto> = runCatching {
         api.getExpense(momentId = momentId, expenseId = expenseId).data
@@ -164,9 +209,28 @@ class PersonalSliceRepository(
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 
-    suspend fun voidExpense(momentId: String, expenseId: String): Result<CreateExpenseResultDto> = runCatching {
-        api.voidExpense(momentId = momentId, expenseId = expenseId).data
-    }.recoverCatching { e -> throw mapError(e) }
+    suspend fun voidExpense(momentId: String, expenseId: String): Result<CreateExpenseResultDto> {
+        val key = UUID.randomUUID().toString()
+        return runCatching {
+            api.voidExpense(momentId = momentId, expenseId = expenseId).data
+        }.recoverCatching { e -> throw mapError(e) }
+            .orQueueOffline(
+                path = "v1/moments/$momentId/expenses/$expenseId",
+                momentId = momentId,
+                idempotencyKey = key,
+                body = emptyMap<String, String>(),
+                placeholder = CreateExpenseResultDto(
+                    expenseId = expenseId,
+                    momentId = momentId,
+                    amount = "0",
+                    currencyCode = "INR",
+                    status = "QUEUED",
+                    version = 0,
+                ),
+                mapError = { it },
+                method = "DELETE",
+            )
+    }
 
     suspend fun createPersonalIncome(
         momentId: String,
@@ -194,11 +258,53 @@ class PersonalSliceRepository(
                 effectiveAt = effectiveAt,
             ),
         ).data
-    }.recoverCatching { e -> throw mapError(e) }
+    }.orQueueOffline(
+        path = "v1/moments/$momentId/income",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = CreatePersonalIncomeBody(
+            amount = amount,
+            currencyCode = currencyCode,
+            description = description,
+            merchantName = merchantName,
+            categoryCode = categoryCode,
+            financialAccountId = financialAccountId,
+            paymentMethodCode = paymentMethodCode,
+            effectiveAt = effectiveAt,
+        ),
+        placeholder = PersonalIncomeResultDto(
+            incomeId = OfflineOutbox.LOCAL_ID,
+            momentId = momentId,
+            amount = amount,
+            currencyCode = currencyCode,
+            status = "QUEUED",
+            version = 0,
+        ),
+        mapError = ::mapError,
+    )
 
-    suspend fun voidPersonalIncome(momentId: String, incomeId: String): Result<PersonalIncomeResultDto> = runCatching {
-        api.voidPersonalIncome(momentId = momentId, incomeId = incomeId).data
-    }.recoverCatching { e -> throw mapError(e) }
+    suspend fun voidPersonalIncome(momentId: String, incomeId: String): Result<PersonalIncomeResultDto> {
+        val key = UUID.randomUUID().toString()
+        return runCatching {
+            api.voidPersonalIncome(momentId = momentId, incomeId = incomeId).data
+        }.recoverCatching { e -> throw mapError(e) }
+            .orQueueOffline(
+                path = "v1/moments/$momentId/income/$incomeId",
+                momentId = momentId,
+                idempotencyKey = key,
+                body = emptyMap<String, String>(),
+                placeholder = PersonalIncomeResultDto(
+                    incomeId = incomeId,
+                    momentId = momentId,
+                    amount = "0",
+                    currencyCode = "INR",
+                    status = "QUEUED",
+                    version = 0,
+                ),
+                mapError = { it },
+                method = "DELETE",
+            )
+    }
 
     suspend fun uploadAndAttachExpenseMedia(
         momentId: String,
@@ -206,7 +312,14 @@ class PersonalSliceRepository(
         bytes: ByteArray,
         contentType: String = "image/jpeg",
         idempotencyKey: String = UUID.randomUUID().toString(),
-    ): Result<ExpenseAttachmentDto> = runCatching {
+    ): Result<ExpenseAttachmentDto> {
+        val path = "v1/moments/$momentId/expenses/$expenseId/attachments"
+        val queued = ExpenseAttachmentDto(uploadId = OfflineOutbox.LOCAL_ID, status = "QUEUED")
+        if (expenseId == OfflineOutbox.LOCAL_ID) {
+            OfflineOutbox.enqueuePhoto(path, momentId, bytes, contentType, momentId, expenseId)
+            return Result.success(queued)
+        }
+        return runCatching {
         val intent = api.createMediaUploadIntent(
             idempotencyKey = idempotencyKey,
             body = MediaUploadIntentBody(
@@ -237,7 +350,9 @@ class PersonalSliceRepository(
             expenseId = expenseId,
             body = AttachExpenseMediaBody(uploadId = intent.uploadId),
         ).data
-    }.recoverCatching { e -> throw mapError(e) }
+        }.recoverCatching { e -> throw mapError(e) }
+            .orQueuePhoto(path, momentId, bytes, contentType, momentId, expenseId, queued, ::mapError)
+    }
 
     suspend fun createRecurringSchedule(
         momentId: String,
@@ -319,7 +434,26 @@ class PersonalSliceRepository(
                 description = description,
             ),
         ).data
-    }.recoverCatching { e -> throw mapError(e) }
+    }.orQueueOffline(
+        path = "v1/moments/$momentId/movements",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = CreateMovementBody(
+            movementType = movementType,
+            amount = amount,
+            currencyCode = currencyCode,
+            accountId = accountId,
+            goalId = goalId,
+            description = description,
+        ),
+        placeholder = CreateMovementResultDto(
+            movementId = OfflineOutbox.LOCAL_ID,
+            momentId = momentId,
+            amount = amount,
+            movementType = movementType,
+        ),
+        mapError = ::mapError,
+    )
 
     suspend fun recordObservation(
         momentId: String,
@@ -437,7 +571,27 @@ class PersonalSliceRepository(
                 progressType = progressType,
             ),
         ).data
-    }.recoverCatching { e -> throw mapError(e) }
+    }.orQueueOffline(
+        path = "v1/moments/$momentId/future-items",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = CreateFutureItemBody(
+            kind = kind,
+            title = title,
+            description = description,
+            progressValue = progressValue,
+            opportunityType = opportunityType,
+            pivotReason = pivotReason,
+            providerName = providerName,
+            progressType = progressType,
+        ),
+        placeholder = CreateFutureItemResultDto(
+            itemId = OfflineOutbox.LOCAL_ID,
+            kind = kind,
+            title = title,
+        ),
+        mapError = ::mapError,
+    )
 
     suspend fun createLifestyleActivity(
         momentId: String,
@@ -457,7 +611,23 @@ class PersonalSliceRepository(
                 wellbeingRating = wellbeingRating,
             ),
         ).data
-    }.recoverCatching { e -> throw mapError(e) }
+    }.orQueueOffline(
+        path = "v1/moments/$momentId/lifestyle-activities",
+        momentId = momentId,
+        idempotencyKey = idempotencyKey,
+        body = CreateLifestyleActivityBody(
+            lifestyleContext = lifestyleContext,
+            title = title,
+            description = description,
+            wellbeingRating = wellbeingRating,
+        ),
+        placeholder = CreateLifestyleActivityResultDto(
+            activityId = OfflineOutbox.LOCAL_ID,
+            lifestyleContext = lifestyleContext,
+            title = title,
+        ),
+        mapError = ::mapError,
+    )
 
     suspend fun updateLifestyleActivity(
         momentId: String,
@@ -465,31 +635,81 @@ class PersonalSliceRepository(
         title: String? = null,
         description: String? = null,
         wellbeingRating: Double? = null,
-    ): Result<CreateLifestyleActivityResultDto> = runCatching {
-        api.updateLifestyleActivity(
-            momentId = momentId,
-            activityId = activityId,
-            body = UpdateLifestyleActivityBody(
-                title = title,
-                description = description,
-                wellbeingRating = wellbeingRating,
-            ),
-        ).data
-    }.recoverCatching { e -> throw mapError(e) }
+    ): Result<CreateLifestyleActivityResultDto> {
+        val key = UUID.randomUUID().toString()
+        val body = UpdateLifestyleActivityBody(
+            title = title,
+            description = description,
+            wellbeingRating = wellbeingRating,
+        )
+        return runCatching {
+            api.updateLifestyleActivity(
+                momentId = momentId,
+                activityId = activityId,
+                body = body,
+            ).data
+        }.recoverCatching { e -> throw mapError(e) }
+            .orQueueOffline(
+                path = "v1/moments/$momentId/lifestyle-activities/$activityId",
+                momentId = momentId,
+                idempotencyKey = key,
+                body = body,
+                placeholder = CreateLifestyleActivityResultDto(
+                    activityId = activityId,
+                    lifestyleContext = "",
+                    title = title.orEmpty(),
+                ),
+                mapError = { it },
+                method = "PATCH",
+            )
+    }
 
     suspend fun voidLifestyleActivity(
         momentId: String,
         activityId: String,
-    ): Result<VoidLifestyleActivityResultDto> = runCatching {
-        api.voidLifestyleActivity(momentId = momentId, activityId = activityId).data
-    }.recoverCatching { e -> throw mapError(e) }
+    ): Result<VoidLifestyleActivityResultDto> {
+        val key = UUID.randomUUID().toString()
+        return runCatching {
+            api.voidLifestyleActivity(momentId = momentId, activityId = activityId).data
+        }.recoverCatching { e -> throw mapError(e) }
+            .orQueueOffline(
+                path = "v1/moments/$momentId/lifestyle-activities/$activityId",
+                momentId = momentId,
+                idempotencyKey = key,
+                body = emptyMap<String, String>(),
+                placeholder = VoidLifestyleActivityResultDto(
+                    activityId = activityId,
+                    lifestyleContext = "",
+                    title = "",
+                    status = "QUEUED",
+                ),
+                mapError = { it },
+                method = "DELETE",
+            )
+    }
 
     suspend fun voidRelationshipActivity(
         momentId: String,
         activityId: String,
-    ): Result<VoidRelationshipActivityResultDto> = runCatching {
-        api.voidRelationshipActivity(momentId = momentId, activityId = activityId).data
-    }.recoverCatching { e -> throw mapError(e) }
+    ): Result<VoidRelationshipActivityResultDto> {
+        val key = UUID.randomUUID().toString()
+        return runCatching {
+            api.voidRelationshipActivity(momentId = momentId, activityId = activityId).data
+        }.recoverCatching { e -> throw mapError(e) }
+            .orQueueOffline(
+                path = "v1/moments/$momentId/relationship-activities/$activityId",
+                momentId = momentId,
+                idempotencyKey = key,
+                body = emptyMap<String, String>(),
+                placeholder = VoidRelationshipActivityResultDto(
+                    activityId = activityId,
+                    title = "",
+                    status = "QUEUED",
+                ),
+                mapError = { it },
+                method = "DELETE",
+            )
+    }
 
     suspend fun updateExpense(
         momentId: String,
@@ -506,26 +726,46 @@ class PersonalSliceRepository(
         recurringScheduleId: String? = null,
         sharedExperienceCode: String? = null,
         sharedExperienceLabel: String? = null,
-    ): Result<CreateExpenseResultDto> = runCatching {
-        api.updateExpense(
-            momentId = momentId,
-            expenseId = expenseId,
-            body = UpdateExpenseBody(
-                amount = amount,
-                currencyCode = currencyCode,
-                description = description,
-                merchantName = merchantName,
-                categoryCode = categoryCode,
-                subcategoryCode = subcategoryCode,
-                financialAccountId = financialAccountId,
-                paymentMethodCode = paymentMethodCode,
-                effectiveAt = effectiveAt,
-                recurringScheduleId = recurringScheduleId,
-                sharedExperienceCode = sharedExperienceCode,
-                sharedExperienceLabel = sharedExperienceLabel,
-            ),
-        ).data
-    }.recoverCatching { e -> throw mapError(e) }
+    ): Result<CreateExpenseResultDto> {
+        val key = UUID.randomUUID().toString()
+        val body = UpdateExpenseBody(
+            amount = amount,
+            currencyCode = currencyCode,
+            description = description,
+            merchantName = merchantName,
+            categoryCode = categoryCode,
+            subcategoryCode = subcategoryCode,
+            financialAccountId = financialAccountId,
+            paymentMethodCode = paymentMethodCode,
+            effectiveAt = effectiveAt,
+            recurringScheduleId = recurringScheduleId,
+            sharedExperienceCode = sharedExperienceCode,
+            sharedExperienceLabel = sharedExperienceLabel,
+        )
+        return runCatching {
+            api.updateExpense(
+                momentId = momentId,
+                expenseId = expenseId,
+                body = body,
+            ).data
+        }.recoverCatching { e -> throw mapError(e) }
+            .orQueueOffline(
+                path = "v1/moments/$momentId/expenses/$expenseId",
+                momentId = momentId,
+                idempotencyKey = key,
+                body = body,
+                placeholder = CreateExpenseResultDto(
+                    expenseId = expenseId,
+                    momentId = momentId,
+                    amount = amount ?: "0",
+                    currencyCode = currencyCode ?: "INR",
+                    status = "QUEUED",
+                    version = 0,
+                ),
+                mapError = { it },
+                method = "PATCH",
+            )
+    }
 
     private fun mapError(e: Throwable): Throwable = when (e) {
         is HttpException -> {

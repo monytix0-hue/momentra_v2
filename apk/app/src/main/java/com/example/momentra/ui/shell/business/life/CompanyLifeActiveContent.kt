@@ -52,7 +52,10 @@ fun CompanyLifeActiveContent(
     momentTitle: String?,
     refreshToken: Long,
     onViewReport: () -> Unit = {},
+    onOpenFinance: () -> Unit = {},
+    onOpenVendor: () -> Unit = {},
     repository: BusinessSliceRepository = remember { BusinessSliceRepository() },
+    focusFilter: CompanyLifeFilter? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -60,7 +63,7 @@ fun CompanyLifeActiveContent(
     var loading by remember { mutableStateOf(true) }
     var payload by remember { mutableStateOf<BusinessLifePayloadDto?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var filter by remember { mutableStateOf(CompanyLifeFilter.ALL) }
+    var filter by remember { mutableStateOf(focusFilter ?: CompanyLifeFilter.ALL) }
     var report by remember { mutableStateOf<WeeklyReportDto?>(null) }
     var showReport by remember { mutableStateOf(false) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
@@ -174,7 +177,9 @@ fun CompanyLifeActiveContent(
             )
         }
 
-        CompanyLifeFilterChips(selected = filter, onSelect = { filter = it })
+        if (focusFilter == null) {
+            CompanyLifeFilterChips(selected = filter, onSelect = { filter = it })
+        }
 
         CompanyLifeHealthHeader(
             score = score,
@@ -190,6 +195,8 @@ fun CompanyLifeActiveContent(
             runway = payload?.modules?.runway,
             ops = payload?.modules?.businessOperations,
             vendor = payload?.modules?.vendorOperations,
+            onOpenFinance = onOpenFinance,
+            onOpenVendor = onOpenVendor,
         )
 
         CompanyLifeSignalsSection(signals = signals)

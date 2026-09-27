@@ -96,7 +96,7 @@ struct RunwayMemoryActiveView: View {
                         memoryList(title: "Risk Memory", empty: "No risk memories yet.", items: riskItems, accent: RunwayColors.red)
                         RunwayEmptyAiCard(
                             title: "Financial Wisdom",
-                            emptyCopy: "\"Capital efficiency beats growth velocity when runway is measured in quarters, not years.\" — runway intelligence",
+                            emptyCopy: "No wisdom yet",
                             theme: theme
                         )
                         RunwayEmptyAiCard(

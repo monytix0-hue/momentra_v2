@@ -16,6 +16,7 @@ struct MomentraTopBar: View {
     var onAvatar: () -> Void
     var referAvailable: Bool = true
     var unreadNotificationCount: Int = 0
+    var locationName: String? = nil
 
     /// Figma: company chip only when Business + selected company (`692:34971`).
     private var showCompanyChip: Bool {
@@ -79,19 +80,21 @@ struct MomentraTopBar: View {
                         .scaledToFit()
                         .frame(width: 12, height: 12)
                 }
-                labeledAction(
-                    caption: createLabel,
-                    bg: GlobalTheme.createMomentCta,
-                    a11y: showCompanyChip ? "Open moments" : "Create moment",
-                    id: "topbar.new_moment",
-                    captionColor: .white.opacity(0.92),
-                    action: onNewMoment
-                ) {
-                    Image("ShellPlus")
-                        .resizable()
-                        .renderingMode(.template)
-                        .foregroundStyle(.white)
-                        .frame(width: 10, height: 10)
+                if context != .personal {
+                    labeledAction(
+                        caption: createLabel,
+                        bg: GlobalTheme.createMomentCta,
+                        a11y: showCompanyChip ? "Open moments" : "Create moment",
+                        id: "topbar.new_moment",
+                        captionColor: .white.opacity(0.92),
+                        action: onNewMoment
+                    ) {
+                        Image("ShellPlus")
+                            .resizable()
+                            .renderingMode(.template)
+                            .foregroundStyle(.white)
+                            .frame(width: 10, height: 10)
+                    }
                 }
                 labeledAction(
                     caption: "Alerts",
@@ -156,16 +159,18 @@ struct MomentraTopBar: View {
         .accessibilityIdentifier("topbar.root")
     }
 
+    private var companyChipTitle: String {
+        let company = selectedCompany?.displayName ?? "Company"
+        guard let locationName, !locationName.isEmpty else { return company }
+        return "\(company) · \(locationName)"
+    }
+
     private var companyChip: some View {
-        Menu {
-            ForEach(companies) { company in
-                Button(company.displayName) {
-                    onCompanySelected(company)
-                }
-            }
+        Button {
+            companyMenuOpen = true
         } label: {
             HStack(spacing: 6) {
-                Text(selectedCompany?.displayName ?? "Company")
+                Text(companyChipTitle)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(MomentraBrandTokens.textOnDark)
                     .lineLimit(1)
@@ -177,6 +182,7 @@ struct MomentraTopBar: View {
             .padding(.vertical, 6)
             .background(Color(hex: "#1E293B"), in: RoundedRectangle(cornerRadius: 8))
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(
             selectedCompany.map { "Selected company \($0.displayName)" } ?? "Company selector"
         )
@@ -524,14 +530,16 @@ struct ShellToolbarContent: ToolbarContent {
             .accessibilityLabel("Open Life360")
             .accessibilityIdentifier("topbar.life360")
 
-            Button(action: onNewMoment) {
-                Image("ShellPlus")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 16, height: 16)
+            if context != .personal {
+                Button(action: onNewMoment) {
+                    Image("ShellPlus")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
+                }
+                .accessibilityLabel(context == .business ? "Open moments" : "Create moment")
+                .accessibilityIdentifier("topbar.new_moment")
             }
-            .accessibilityLabel(context == .business ? "Open moments" : "Create moment")
-            .accessibilityIdentifier("topbar.new_moment")
 
             Button(action: onRefer) {
                 Image("ShellGift")

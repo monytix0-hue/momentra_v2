@@ -26,10 +26,10 @@ enum BusinessSetupCatalog {
     private static let currencyCodes = TravelCurrencyCatalog.codes
 
     private static let teamOps = BusinessSetupCatalogEntry(
-        defaultTitle: "Team Operations",
+        defaultTitle: "Team & Work",
         subtitle: "Configure your team's operating system in one go.",
         momentTypeCode: "TEAM_OPERATIONS",
-        activateLabel: "Activate Team Operations",
+        activateLabel: "Activate Team & Work",
         footerTagline: "Run your team with clarity",
         sections: [
             BusinessSetupSectionSpec(
@@ -88,10 +88,10 @@ enum BusinessSetupCatalog {
     )
 
     private static let runway = BusinessSetupCatalogEntry(
-        defaultTitle: "Business Runway",
+        defaultTitle: "Money & Cash Flow",
         subtitle: "Configure your financial operating system on-the-go.",
         momentTypeCode: "BUSINESS_RUNWAY",
-        activateLabel: "Activate Business Runway",
+        activateLabel: "Activate Money & Cash Flow",
         footerTagline: "Know your runway",
         sections: [
             BusinessSetupSectionSpec(
@@ -137,10 +137,10 @@ enum BusinessSetupCatalog {
     )
 
     private static let ops = BusinessSetupCatalogEntry(
-        defaultTitle: "Business Operations",
+        defaultTitle: "Daily Business",
         subtitle: "Configure operational capacity, monitoring and approvals.",
         momentTypeCode: "BUSINESS_OPERATIONS",
-        activateLabel: "Activate Business Operations",
+        activateLabel: "Activate Daily Business",
         footerTagline: "Operate with precision",
         sections: [
             BusinessSetupSectionSpec(

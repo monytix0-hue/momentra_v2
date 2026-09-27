@@ -23,9 +23,9 @@ enum CompanyLifeFilter: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .all: return "All Modules"
-        case .team: return "Team Ops"
-        case .runway: return "Runway"
-        case .ops: return "Biz Ops"
+        case .team: return "Team & Work"
+        case .runway: return "Money & Cash Flow"
+        case .ops: return "Daily Business"
         }
     }
     var familyKey: String? {
@@ -182,6 +182,8 @@ struct CompanyLifeModuleCards: View {
     let runway: APIClient.BusinessLifePayload.LifeInner.LifeModuleCard?
     let ops: APIClient.BusinessLifePayload.LifeInner.LifeModuleCard?
     var vendor: APIClient.BusinessLifePayload.LifeInner.LifeModuleCard? = nil
+    var onOpenFinance: () -> Void = {}
+    var onOpenVendor: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -190,33 +192,33 @@ struct CompanyLifeModuleCards: View {
                 .foregroundStyle(CompanyLifeColors.text)
             HStack(alignment: .top, spacing: 8) {
                 moduleCard(
-                    title: "Team Operations",
+                    title: "Team & Work",
                     accent: CompanyLifeColors.team,
                     card: team,
-                    fallback: "Delivery Command"
+                    fallback: "No team signal yet"
                 )
                 moduleCard(
-                    title: "Business Runway",
+                    title: "Money & Cash Flow",
                     accent: CompanyLifeColors.runway,
                     card: runway,
-                    fallback: "Runway",
-                    runwayMonths: runway?.runwayMonths
+                    fallback: "No cash signal yet",
+                    runwayMonths: runway?.runwayMonths,
+                    action: onOpenFinance
                 )
                 moduleCard(
-                    title: "Business Operations",
+                    title: "Daily Business",
                     accent: CompanyLifeColors.ops,
                     card: ops,
-                    fallback: "Control Center"
+                    fallback: "No daily signal yet"
                 )
             }
-            if vendor?.active == true {
-                moduleCard(
-                    title: "Vendor Operations",
-                    accent: CompanyLifeColors.ops,
-                    card: vendor,
-                    fallback: "Vendor health"
-                )
-            }
+            moduleCard(
+                title: "Vendor Operations",
+                accent: CompanyLifeColors.ops,
+                card: vendor,
+                fallback: "Vendor health",
+                action: onOpenVendor
+            )
         }
     }
 
@@ -225,7 +227,8 @@ struct CompanyLifeModuleCards: View {
         accent: Color,
         card: APIClient.BusinessLifePayload.LifeInner.LifeModuleCard?,
         fallback: String,
-        runwayMonths: String? = nil
+        runwayMonths: String? = nil,
+        action: (() -> Void)? = nil
     ) -> some View {
         let active = card?.active == true
         let subtitle: String = {
@@ -266,6 +269,8 @@ struct CompanyLifeModuleCards: View {
         .background(accent.opacity(0.04))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(accent.opacity(0.12)))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .onTapGesture { action?() }
     }
 }
 
@@ -530,23 +535,23 @@ private func emptyCard(_ message: String) -> some View {
 
 private func familyLabel(_ family: String?) -> String {
     let f = (family ?? "").uppercased()
-    if f.contains("TEAM") { return "TEAM OPS" }
-    if f.contains("RUNWAY") { return "RUNWAY" }
-    return "OPERATIONS"
+    if f.contains("TEAM") { return "TEAM & WORK" }
+    if f.contains("RUNWAY") { return "MONEY & CASH FLOW" }
+    return "DAILY BUSINESS"
 }
 
 private func familyDisplay(_ family: String?) -> String {
     let f = (family ?? "").uppercased()
-    if f.contains("TEAM") { return "Team Ops" }
-    if f.contains("RUNWAY") { return "Runway" }
-    return "Operations"
+    if f.contains("TEAM") { return "Team & Work" }
+    if f.contains("RUNWAY") { return "Money & Cash Flow" }
+    return "Daily Business"
 }
 
 private func journeyTitle(_ step: APIClient.BusinessLifePayload.LifeInner.LifeJourney) -> String {
     switch step.familyCode.uppercased() {
-    case "TEAM_OPERATIONS": return "Team Operations activated"
-    case "BUSINESS_RUNWAY": return "Business Runway launched"
-    case "BUSINESS_OPERATIONS": return "Operations module added"
+    case "TEAM_OPERATIONS": return "Team & Work activated"
+    case "BUSINESS_RUNWAY": return "Money & Cash Flow activated"
+    case "BUSINESS_OPERATIONS": return "Daily Business activated"
     default:
         return step.title.isEmpty ? "\(familyDisplay(step.family)) activated" : step.title
     }

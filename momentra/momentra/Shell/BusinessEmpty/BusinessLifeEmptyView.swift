@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Figma: life-empty-b (657:10151)
+/// Figma: life-empty-b (1687:20765)
 struct BusinessLifeEmptyView: View {
     var onStartCta: () -> Void
 
-    private let stats = ["FTE Nodes", "Burn Rate", "Unit Margin"]
+    private let stats = ["Team", "Spending", "Earnings"]
 
     var body: some View {
         NativeDashboardScaffold(background: BusinessSheetTheme.bg) {
@@ -12,17 +12,17 @@ struct BusinessLifeEmptyView: View {
                 VStack(spacing: 24) {
                     BusinessEmptyPill(label: "LIFE")
                     BusinessEmptyHeadline(
-                        title: "See the Full Picture",
-                        bodyText: "People, finances, operations — how every thread of your business weaves together."
+                        title: "See your business at a glance",
+                        bodyText: "See your money, work, progress and what needs attention."
                     )
 
                     VStack(spacing: 16) {
                         HStack(spacing: 0) {
-                            nodeView(icon: "business_empty_users", title: "People")
+                            nodeView(icon: "business_empty_users", title: "Team")
                             Spacer(minLength: 8)
                             BusinessEmptyAssetImage(name: "business_empty_connector_h", width: 24, height: 1)
                             Spacer(minLength: 8)
-                            nodeView(icon: "business_empty_dollar", title: "Finances")
+                            nodeView(icon: "business_empty_dollar", title: "Money")
                         }
 
                         // Figma connector_v is 16×1; rotate for the vertical gap.
@@ -31,11 +31,11 @@ struct BusinessLifeEmptyView: View {
                             .frame(width: 1, height: 16)
 
                         HStack(spacing: 0) {
-                            nodeView(icon: "business_empty_cpu", title: "Operations")
+                            nodeView(icon: "business_empty_cpu", title: "Work")
                             Spacer(minLength: 8)
                             BusinessEmptyAssetImage(name: "business_empty_connector_h", width: 24, height: 1)
                             Spacer(minLength: 8)
-                            nodeView(icon: "business_empty_activity", title: "Growth")
+                            nodeView(icon: "business_empty_activity", title: "Progress")
                         }
                     }
                     .padding(20)
@@ -50,7 +50,7 @@ struct BusinessLifeEmptyView: View {
                     HStack(spacing: 8) {
                         ForEach(stats, id: \.self) { label in
                             VStack(spacing: 4) {
-                                Text("—")
+                                Text("-")
                                     .font(.system(size: 15, weight: .bold, design: .monospaced))
                                     .foregroundStyle(BusinessEmptyTokens.textPrimary)
                                 Text(label)
@@ -68,7 +68,7 @@ struct BusinessLifeEmptyView: View {
                         }
                     }
 
-                    BusinessEmptyCTA(label: "Start Journey →", action: onStartCta)
+                    BusinessEmptyCTA(label: "Start Your Business Journey →", action: onStartCta)
                 }
             }
         }

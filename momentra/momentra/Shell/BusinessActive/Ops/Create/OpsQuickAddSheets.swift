@@ -48,7 +48,7 @@ struct OpsQuickAddSheet: View {
                     case .memory:
                         OpsMemoryForm(momentId: momentId, momentTitle: momentTitle, onClose: onClose, onSaved: onSaved)
                     default:
-                        Text("Unsupported Ops command")
+                        Text("Unsupported Daily Business command")
                             .font(.plusJakarta(size: 14))
                             .foregroundStyle(OpsSheetTokens.muted)
                     }
@@ -97,7 +97,7 @@ private struct OpsSpendForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            OpsSheetHeader(emoji: "💳", title: "Log Spend Entry", explanation: "Record an ops expense against budget", onClose: onClose)
+            OpsSheetHeader(emoji: "💳", title: "Log Spend Entry", explanation: "Record a daily expense against budget", onClose: onClose)
             OpsFieldBlock(label: "Category") {
                 OpsDropdownField(value: category, options: categories, onSelect: { category = $0 }, placeholder: "Select category")
             }
@@ -187,7 +187,7 @@ private struct OpsVendorForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            OpsSheetHeader(emoji: "🏷", title: "Update Vendor", explanation: "Add or update an ops supplier profile", onClose: onClose)
+            OpsSheetHeader(emoji: "🏷", title: "Update Vendor", explanation: "Add or update a supplier profile", onClose: onClose)
             if !existingVendors.isEmpty {
                 OpsFieldBlock(label: "Select Existing") {
                     let vendorNames = ["Create new"] + existingVendors.map { $0.name }
@@ -495,7 +495,7 @@ private struct OpsImprovementForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            OpsSheetHeader(emoji: "✨", title: "Log Improvement", explanation: "Capture an optimization for the ops playbook", onClose: onClose)
+            OpsSheetHeader(emoji: "✨", title: "Log Improvement", explanation: "Capture an optimization for the playbook", onClose: onClose)
             OpsFieldBlock(label: "Title") { OpsTextField(value: $title, placeholder: "Improvement title") }
             OpsFieldBlock(label: "Impact Area") {
                 OpsDropdownField(value: impactArea, options: areas, onSelect: { impactArea = $0 }, placeholder: "Select area")
@@ -671,7 +671,7 @@ private struct OpsGeneralUpdateForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            OpsSheetHeader(emoji: "📢", title: "General Update", explanation: "Share an operations status with the team", onClose: onClose)
+            OpsSheetHeader(emoji: "📢", title: "General Update", explanation: "Share a daily status with the team", onClose: onClose)
             OpsFieldBlock(label: "Update Title") { OpsTextField(value: $title, placeholder: "Optional title") }
             OpsFieldBlock(label: "Visibility") { OpsChipRow(options: visibilities, selected: $visibility) }
             OpsFieldBlock(label: "Status") { OpsChipRow(options: statuses, selected: $status) }
@@ -697,7 +697,7 @@ private struct OpsGeneralUpdateForm: View {
             _ = try await APIClient.shared.createBusinessUpdate(
                 momentId: momentId,
                 body: body,
-                title: title.trimmingCharacters(in: .whitespaces).isEmpty ? "Ops update" : title.trimmingCharacters(in: .whitespaces)
+                title: title.trimmingCharacters(in: .whitespaces).isEmpty ? "Daily update" : title.trimmingCharacters(in: .whitespaces)
             )
             onSaved(); onClose()
         } catch {
@@ -728,7 +728,7 @@ private struct OpsMemoryForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            OpsSheetHeader(emoji: "📦", title: "Save to Memory", explanation: "Capture an ops learning for the playbook", onClose: onClose)
+            OpsSheetHeader(emoji: "📦", title: "Save to Memory", explanation: "Capture a learning for the playbook", onClose: onClose)
             OpsFieldBlock(label: "Title") { OpsTextField(value: $title, placeholder: "Memory title") }
             OpsFieldBlock(label: "Category") {
                 OpsDropdownField(value: category, options: categories, onSelect: { category = $0 }, placeholder: "Select category")

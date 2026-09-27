@@ -162,7 +162,7 @@ struct OpsMomentsActiveView: View {
 
     private var emptyTimelineCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Nothing on the ops timeline yet")
+            Text("Nothing on the timeline yet")
                 .font(.plusJakarta(size: 15, weight: .bold))
                 .foregroundStyle(theme.text)
             Text("Spend, vendors, issues, and updates appear after live writes.")

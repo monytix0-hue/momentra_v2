@@ -3,6 +3,7 @@ package com.example.momentra.ui.shell.empty.business
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,25 +21,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 
-/** Figma: memory-empty-b (657:10208) */
+/** Figma: memory-empty-b (1687:20818) */
 @Composable
 fun BusinessMemoryEmptyContent(
     onStartCta: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val rows = listOf(
-        "Spending Patterns",
-        "Revenue Forecasts",
-        "Operational Trends",
+        "Old receipts",
+        "Past expenses",
+        "Business records",
     )
 
     BusinessEmptyScrollColumn(modifier = modifier) {
         BusinessEmptyPill("MEMORY")
         BusinessEmptyHeadline(
-            title = "Intelligence That Compounds",
-            body = "AI-powered pattern recognition across spending, performance, and operations.",
+            title = "Remember What Happened in Your Business",
+            body = "Find past activity and let Momentra learn from your business over time.",
         )
 
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
         rows.forEach { title ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -65,9 +70,10 @@ fun BusinessMemoryEmptyContent(
                 )
             }
         }
+        }
 
         Text(
-            text = "“An enterprise with a memory is an enterprise with an unfair advantage.”",
+            text = "\"Everything stays here so you can find it later.\"",
             color = BusinessEmptyTokens.TextSecondary,
             fontSize = 13.sp,
             fontStyle = FontStyle.Italic,
@@ -76,6 +82,6 @@ fun BusinessMemoryEmptyContent(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        BusinessEmptyCta("Activate Memory →", onStartCta)
+        BusinessEmptyCta("Start Building Business Memory →", onStartCta)
     }
 }

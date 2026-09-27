@@ -1009,7 +1009,27 @@ final class APIClient {
     }
 
     func createMoment(body: CreateMomentRequest, idempotencyKey: String) async throws -> CreateMomentAPIResponse {
-        try await authorizedPostWithHints(path: "v1/moments", body: body, idempotencyKey: idempotencyKey)
+        try await queueIfOffline(
+            method: "POST",
+            path: "v1/moments",
+            body: body,
+            idempotencyKey: idempotencyKey,
+            momentId: "",
+            placeholder: CreateMomentAPIResponse(
+                result: CreateMomentResult(
+                    momentId: OfflineOutbox.localId,
+                    title: body.title,
+                    domainCode: body.domainCode,
+                    status: body.status ?? "ACTIVE",
+                    version: 0,
+                    momentTypeCode: body.momentTypeCode,
+                    setupId: nil
+                ),
+                projectionHints: []
+            )
+        ) {
+            try await self.authorizedPostWithHints(path: "v1/moments", body: body, idempotencyKey: idempotencyKey)
+        }
     }
 
     func getGroupSetupPrefill(momentId: String) async throws -> GroupSetupPrefill {
@@ -1090,18 +1110,34 @@ final class APIClient {
             let customTypeLabel: String?
             let groupSetup: CreateMomentRequest.GroupSetupBlock?
         }
-        return try await authorizedPatch(
-            path: "v1/moments/\(momentId)",
-            body: Body(
-                title: title,
-                expectedVersion: expectedVersion,
-                startAt: startAt,
-                endAt: endAt,
-                customTypeLabel: customTypeLabel,
-                groupSetup: groupSetup
-            ),
-            idempotencyKey: idempotencyKey
+        let body = Body(
+            title: title,
+            expectedVersion: expectedVersion,
+            startAt: startAt,
+            endAt: endAt,
+            customTypeLabel: customTypeLabel,
+            groupSetup: groupSetup
         )
+        return try await queueIfOffline(
+            method: "PATCH",
+            path: "v1/moments/\(momentId)",
+            body: body,
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: MomentLifecycleResult(
+                momentId: momentId,
+                domainCode: "",
+                title: title ?? "",
+                status: "ACTIVE",
+                version: expectedVersion
+            )
+        ) {
+            try await self.authorizedPatch(
+                path: "v1/moments/\(momentId)",
+                body: body,
+                idempotencyKey: idempotencyKey
+            )
+        }
     }
 
     func archiveMoment(
@@ -1363,11 +1399,27 @@ final class APIClient {
         idempotencyKey: String = UUID().uuidString
     ) async throws -> MomentLifecycleResult {
         struct Body: Encodable { let expectedVersion: Int }
-        return try await authorizedPost(
+        let body = Body(expectedVersion: expectedVersion)
+        return try await queueIfOffline(
+            method: "POST",
             path: "v1/moments/\(momentId)/delete",
-            body: Body(expectedVersion: expectedVersion),
-            idempotencyKey: idempotencyKey
-        )
+            body: body,
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: MomentLifecycleResult(
+                momentId: momentId,
+                domainCode: "",
+                title: "",
+                status: "DELETED",
+                version: expectedVersion
+            )
+        ) {
+            try await self.authorizedPost(
+                path: "v1/moments/\(momentId)/delete",
+                body: body,
+                idempotencyKey: idempotencyKey
+            )
+        }
     }
 
     struct LeaveResult: Decodable {
@@ -1466,11 +1518,26 @@ final class APIClient {
 
     func redeemGroupInvite(code: String, idempotencyKey: String) async throws -> RedeemGroupInviteResult {
         struct EmptyBody: Codable {}
-        return try await authorizedPost(
+        return try await queueIfOffline(
+            method: "POST",
             path: "v1/group/invites/\(code)/redeem",
             body: EmptyBody(),
-            idempotencyKey: idempotencyKey
-        )
+            idempotencyKey: idempotencyKey,
+            momentId: "",
+            placeholder: RedeemGroupInviteResult(
+                inviteCode: code,
+                status: "QUEUED",
+                momentId: OfflineOutbox.localId,
+                participantId: nil,
+                alreadyMember: nil
+            )
+        ) {
+            try await self.authorizedPost(
+                path: "v1/group/invites/\(code)/redeem",
+                body: EmptyBody(),
+                idempotencyKey: idempotencyKey
+            )
+        }
     }
 
     func mintCompanyInvite(
@@ -1495,11 +1562,28 @@ final class APIClient {
 
     func redeemCompanyInvite(code: String, idempotencyKey: String) async throws -> RedeemCompanyInviteResult {
         struct EmptyBody: Codable {}
-        return try await authorizedPost(
+        return try await queueIfOffline(
+            method: "POST",
             path: "v1/company/invites/\(code)/redeem",
             body: EmptyBody(),
-            idempotencyKey: idempotencyKey
-        )
+            idempotencyKey: idempotencyKey,
+            momentId: "",
+            placeholder: RedeemCompanyInviteResult(
+                inviteId: nil,
+                inviteCode: code,
+                status: "QUEUED",
+                companyId: OfflineOutbox.localId,
+                membershipId: nil,
+                membershipType: nil,
+                alreadyMember: nil
+            )
+        ) {
+            try await self.authorizedPost(
+                path: "v1/company/invites/\(code)/redeem",
+                body: EmptyBody(),
+                idempotencyKey: idempotencyKey
+            )
+        }
     }
 
     func createPersonalMoment(
@@ -1560,7 +1644,7 @@ final class APIClient {
             let sharedExperienceCode: String?
             let sharedExperienceLabel: String?
         }
-        return try await authorizedPost(
+        return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/expenses",
             body: Body(
                 amount: amount,
@@ -1576,7 +1660,16 @@ final class APIClient {
                 sharedExperienceCode: sharedExperienceCode,
                 sharedExperienceLabel: sharedExperienceLabel
             ),
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CreateExpenseResult(
+                expenseId: OfflineOutbox.localId,
+                momentId: momentId,
+                amount: amount,
+                currencyCode: currencyCode,
+                status: "QUEUED",
+                version: 0
+            )
         )
     }
 
@@ -1607,7 +1700,7 @@ final class APIClient {
             let description: String?
             let effectiveAt: String?
         }
-        return try await authorizedPost(
+        return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/movements",
             body: Body(
                 movementType: movementType,
@@ -1618,7 +1711,14 @@ final class APIClient {
                 description: description,
                 effectiveAt: effectiveAt
             ),
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CreateMovementResult(
+                movementId: OfflineOutbox.localId,
+                momentId: momentId,
+                amount: amount,
+                movementType: movementType
+            )
         )
     }
 
@@ -1787,7 +1887,7 @@ final class APIClient {
             let providerName: String?
             let progressType: String?
         }
-        return try await authorizedPost(
+        return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/future-items",
             body: Body(
                 kind: kind,
@@ -1801,7 +1901,9 @@ final class APIClient {
                 providerName: providerName,
                 progressType: progressType
             ),
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CreateFutureItemResult(itemId: OfflineOutbox.localId, kind: kind, title: title)
         )
     }
 
@@ -1902,7 +2004,7 @@ final class APIClient {
             let description: String?
             let wellbeingRating: Double?
         }
-        return try await authorizedPost(
+        return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/lifestyle-activities",
             body: Body(
                 lifestyleContext: lifestyleContext,
@@ -1910,7 +2012,13 @@ final class APIClient {
                 description: description,
                 wellbeingRating: wellbeingRating
             ),
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CreateLifestyleActivityResult(
+                activityId: OfflineOutbox.localId,
+                lifestyleContext: lifestyleContext,
+                title: title
+            )
         )
     }
 
@@ -1926,10 +2034,25 @@ final class APIClient {
             let description: String?
             let wellbeingRating: Double?
         }
-        return try await authorizedPatch(
+        let body = Body(title: title, description: description, wellbeingRating: wellbeingRating)
+        let key = UUID().uuidString
+        return try await queueIfOffline(
+            method: "PATCH",
             path: "v1/moments/\(momentId)/lifestyle-activities/\(activityId)",
-            body: Body(title: title, description: description, wellbeingRating: wellbeingRating)
-        )
+            body: body,
+            idempotencyKey: key,
+            momentId: momentId,
+            placeholder: CreateLifestyleActivityResult(
+                activityId: activityId,
+                lifestyleContext: "",
+                title: title ?? ""
+            )
+        ) {
+            try await self.authorizedPatch(
+                path: "v1/moments/\(momentId)/lifestyle-activities/\(activityId)",
+                body: body
+            )
+        }
     }
 
     struct VoidLifestyleActivityResult: Decodable {
@@ -1940,7 +2063,20 @@ final class APIClient {
     }
 
     func voidLifestyleActivity(momentId: String, activityId: String) async throws -> VoidLifestyleActivityResult {
-        try await authorizedDelete(path: "v1/moments/\(momentId)/lifestyle-activities/\(activityId)")
+        try await queueIfOffline(
+            method: "DELETE",
+            path: "v1/moments/\(momentId)/lifestyle-activities/\(activityId)",
+            idempotencyKey: UUID().uuidString,
+            momentId: momentId,
+            placeholder: VoidLifestyleActivityResult(
+                activityId: activityId,
+                lifestyleContext: "",
+                title: "",
+                status: "QUEUED"
+            )
+        ) {
+            try await self.authorizedDelete(path: "v1/moments/\(momentId)/lifestyle-activities/\(activityId)")
+        }
     }
 
     struct VoidRelationshipActivityResult: Decodable {
@@ -1950,7 +2086,15 @@ final class APIClient {
     }
 
     func voidRelationshipActivity(momentId: String, activityId: String) async throws -> VoidRelationshipActivityResult {
-        try await authorizedDelete(path: "v1/moments/\(momentId)/relationship-activities/\(activityId)")
+        try await queueIfOffline(
+            method: "DELETE",
+            path: "v1/moments/\(momentId)/relationship-activities/\(activityId)",
+            idempotencyKey: UUID().uuidString,
+            momentId: momentId,
+            placeholder: VoidRelationshipActivityResult(activityId: activityId, title: "", status: "QUEUED")
+        ) {
+            try await self.authorizedDelete(path: "v1/moments/\(momentId)/relationship-activities/\(activityId)")
+        }
     }
 
     struct UpdateExpenseResult: Decodable {
@@ -2035,7 +2179,22 @@ final class APIClient {
     }
 
     func voidExpense(momentId: String, expenseId: String) async throws -> UpdateExpenseResult {
-        try await authorizedDelete(path: "v1/moments/\(momentId)/expenses/\(expenseId)")
+        try await queueIfOffline(
+            method: "DELETE",
+            path: "v1/moments/\(momentId)/expenses/\(expenseId)",
+            idempotencyKey: UUID().uuidString,
+            momentId: momentId,
+            placeholder: UpdateExpenseResult(
+                expenseId: expenseId,
+                momentId: momentId,
+                amount: "0",
+                currencyCode: "INR",
+                status: "QUEUED",
+                version: 0
+            )
+        ) {
+            try await self.authorizedDelete(path: "v1/moments/\(momentId)/expenses/\(expenseId)")
+        }
     }
 
     struct PersonalIncomeResult: Decodable {
@@ -2069,7 +2228,7 @@ final class APIClient {
             let paymentMethodCode: String?
             let effectiveAt: String?
         }
-        return try await authorizedPost(
+        return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/income",
             body: Body(
                 amount: amount,
@@ -2081,12 +2240,36 @@ final class APIClient {
                 paymentMethodCode: paymentMethodCode,
                 effectiveAt: effectiveAt
             ),
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: PersonalIncomeResult(
+                incomeId: OfflineOutbox.localId,
+                momentId: momentId,
+                amount: amount,
+                currencyCode: currencyCode,
+                status: "QUEUED",
+                version: 0
+            )
         )
     }
 
     func voidPersonalIncome(momentId: String, incomeId: String) async throws -> PersonalIncomeResult {
-        try await authorizedDelete(path: "v1/moments/\(momentId)/income/\(incomeId)")
+        try await queueIfOffline(
+            method: "DELETE",
+            path: "v1/moments/\(momentId)/income/\(incomeId)",
+            idempotencyKey: UUID().uuidString,
+            momentId: momentId,
+            placeholder: PersonalIncomeResult(
+                incomeId: incomeId,
+                momentId: momentId,
+                amount: "0",
+                currencyCode: "INR",
+                status: "QUEUED",
+                version: 0
+            )
+        ) {
+            try await self.authorizedDelete(path: "v1/moments/\(momentId)/income/\(incomeId)")
+        }
     }
 
     struct ExpenseAttachment: Decodable {
@@ -2132,6 +2315,40 @@ final class APIClient {
         bytes: Data,
         contentType: String = "image/jpeg"
     ) async throws -> ExpenseAttachment {
+        let path = "v1/moments/\(momentId)/expenses/\(expenseId)/attachments"
+        let queued = ExpenseAttachment(
+            uploadId: OfflineOutbox.localId,
+            contentType: contentType,
+            status: "QUEUED",
+            downloadUrl: nil,
+            createdAt: nil
+        )
+        if expenseId == OfflineOutbox.localId {
+            storeQueuedPhoto(path: path, momentId: momentId, resourceId: expenseId, bytes: bytes, contentType: contentType)
+            return queued
+        }
+        do {
+            return try await uploadExpenseMediaOnline(
+                momentId: momentId,
+                expenseId: expenseId,
+                bytes: bytes,
+                contentType: contentType
+            )
+        } catch {
+            if isTransportFailure(error) {
+                storeQueuedPhoto(path: path, momentId: momentId, resourceId: expenseId, bytes: bytes, contentType: contentType)
+                return queued
+            }
+            throw error
+        }
+    }
+
+    private func uploadExpenseMediaOnline(
+        momentId: String,
+        expenseId: String,
+        bytes: Data,
+        contentType: String
+    ) async throws -> ExpenseAttachment {
         struct IntentBody: Encodable {
             let contentType: String
             let byteSize: Int
@@ -2171,6 +2388,39 @@ final class APIClient {
         bytes: Data,
         contentType: String = "image/jpeg"
     ) async throws -> MemoryAttachment {
+        let path = "v1/moments/\(momentId)/memories/\(memoryId)/media"
+        let queued = MemoryAttachment(
+            uploadId: OfflineOutbox.localId,
+            contentType: contentType,
+            status: "QUEUED",
+            createdAt: nil
+        )
+        if memoryId == OfflineOutbox.localId {
+            storeQueuedPhoto(path: path, momentId: momentId, resourceId: memoryId, bytes: bytes, contentType: contentType)
+            return queued
+        }
+        do {
+            return try await uploadMemoryMediaOnline(
+                momentId: momentId,
+                memoryId: memoryId,
+                bytes: bytes,
+                contentType: contentType
+            )
+        } catch {
+            if isTransportFailure(error) {
+                storeQueuedPhoto(path: path, momentId: momentId, resourceId: memoryId, bytes: bytes, contentType: contentType)
+                return queued
+            }
+            throw error
+        }
+    }
+
+    private func uploadMemoryMediaOnline(
+        momentId: String,
+        memoryId: String,
+        bytes: Data,
+        contentType: String
+    ) async throws -> MemoryAttachment {
         struct IntentBody: Encodable {
             let contentType: String
             let byteSize: Int
@@ -2202,6 +2452,28 @@ final class APIClient {
             body: AttachBody(uploadId: intent.uploadId),
             idempotencyKey: UUID().uuidString
         )
+    }
+
+    private func storeQueuedPhoto(
+        path: String,
+        momentId: String,
+        resourceId: String,
+        bytes: Data,
+        contentType: String
+    ) {
+        OfflineOutbox.shared.enqueueMedia(
+            attachPath: path,
+            momentId: momentId,
+            bytes: bytes,
+            contentType: contentType,
+            scopeId: momentId,
+            resourceId: resourceId
+        )
+    }
+
+    private func isTransportFailure(_ error: Error) -> Bool {
+        if let kind = error as? APIErrorKind, case .network = kind { return true }
+        return error is URLError
     }
 
     private func putBytesToSignedUrl(signedUrl: String, bytes: Data, contentType: String) async throws {
@@ -2246,23 +2518,41 @@ final class APIClient {
             let sharedExperienceCode: String?
             let sharedExperienceLabel: String?
         }
-        return try await authorizedPatch(
-            path: "v1/moments/\(momentId)/expenses/\(expenseId)",
-            body: Body(
-                amount: amount,
-                currencyCode: currencyCode,
-                description: description,
-                merchantName: merchantName,
-                categoryCode: categoryCode,
-                subcategoryCode: subcategoryCode,
-                financialAccountId: financialAccountId,
-                paymentMethodCode: paymentMethodCode,
-                effectiveAt: effectiveAt,
-                recurringScheduleId: recurringScheduleId,
-                sharedExperienceCode: sharedExperienceCode,
-                sharedExperienceLabel: sharedExperienceLabel
-            )
+        let body = Body(
+            amount: amount,
+            currencyCode: currencyCode,
+            description: description,
+            merchantName: merchantName,
+            categoryCode: categoryCode,
+            subcategoryCode: subcategoryCode,
+            financialAccountId: financialAccountId,
+            paymentMethodCode: paymentMethodCode,
+            effectiveAt: effectiveAt,
+            recurringScheduleId: recurringScheduleId,
+            sharedExperienceCode: sharedExperienceCode,
+            sharedExperienceLabel: sharedExperienceLabel
         )
+        let key = UUID().uuidString
+        return try await queueIfOffline(
+            method: "PATCH",
+            path: "v1/moments/\(momentId)/expenses/\(expenseId)",
+            body: body,
+            idempotencyKey: key,
+            momentId: momentId,
+            placeholder: UpdateExpenseResult(
+                expenseId: expenseId,
+                momentId: momentId,
+                amount: amount ?? "0",
+                currencyCode: currencyCode ?? "INR",
+                status: "QUEUED",
+                version: 0
+            )
+        ) {
+            try await self.authorizedPatch(
+                path: "v1/moments/\(momentId)/expenses/\(expenseId)",
+                body: body
+            )
+        }
     }
 
     func getPersonalPulse(momentId: String? = nil) async throws -> PersonalPulsePayload {
@@ -2553,7 +2843,7 @@ final class APIClient {
             let note: String?
             let occurredAt: String?
         }
-        return try await authorizedPost(
+        return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/relationship-activities",
             body: Body(
                 activityKind: activityKind,
@@ -2561,7 +2851,12 @@ final class APIClient {
                 note: note,
                 occurredAt: occurredAt
             ),
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CreateRelationshipActivityResult(
+                activityId: OfflineOutbox.localId,
+                displayName: displayName
+            )
         )
     }
 
@@ -2966,7 +3261,7 @@ final class APIClient {
             let splitInputs: [GroupSplitInput]
             let asDraft: Bool?
         }
-        return try await authorizedPost(
+        return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/group-expenses",
             body: Body(
                 amount: amount,
@@ -2977,7 +3272,18 @@ final class APIClient {
                 splitInputs: splitInputs,
                 asDraft: asDraft
             ),
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CreateGroupExpenseResult(
+                expenseId: OfflineOutbox.localId,
+                momentId: momentId,
+                amount: amount,
+                currencyCode: currencyCode,
+                status: "QUEUED",
+                version: 0,
+                paidByParticipantId: paidByParticipantId,
+                splitStrategy: splitStrategy
+            )
         )
     }
 
@@ -3004,18 +3310,37 @@ final class APIClient {
             let splitStrategy: String
             let splitInputs: [GroupSplitInput]
         }
-        return try await authorizedPatch(
+        let body = Body(
+            amount: amount,
+            currencyCode: currencyCode,
+            description: description,
+            paidByParticipantId: paidByParticipantId,
+            splitStrategy: splitStrategy,
+            splitInputs: splitInputs
+        )
+        return try await queueIfOffline(
+            method: "PATCH",
             path: "v1/moments/\(momentId)/group-expenses/\(expenseId)",
-            body: Body(
+            body: body,
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CreateGroupExpenseResult(
+                expenseId: expenseId,
+                momentId: momentId,
                 amount: amount,
                 currencyCode: currencyCode,
-                description: description,
+                status: "QUEUED",
+                version: 0,
                 paidByParticipantId: paidByParticipantId,
-                splitStrategy: splitStrategy,
-                splitInputs: splitInputs
-            ),
-            idempotencyKey: idempotencyKey
-        )
+                splitStrategy: splitStrategy
+            )
+        ) {
+            try await self.authorizedPatch(
+                path: "v1/moments/\(momentId)/group-expenses/\(expenseId)",
+                body: body,
+                idempotencyKey: idempotencyKey
+            )
+        }
     }
 
     func voidGroupExpense(
@@ -3023,11 +3348,28 @@ final class APIClient {
         expenseId: String,
         idempotencyKey: String = UUID().uuidString
     ) async throws -> CreateGroupExpenseResult {
-        try await authorizedDelete(
+        try await queueIfOffline(
+            method: "DELETE",
             path: "v1/moments/\(momentId)/group-expenses/\(expenseId)",
-            body: Optional<String>.none as String?,
-            idempotencyKey: idempotencyKey
-        )
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CreateGroupExpenseResult(
+                expenseId: expenseId,
+                momentId: momentId,
+                amount: "0",
+                currencyCode: "INR",
+                status: "QUEUED",
+                version: 0,
+                paidByParticipantId: nil,
+                splitStrategy: nil
+            )
+        ) {
+            try await self.authorizedDelete(
+                path: "v1/moments/\(momentId)/group-expenses/\(expenseId)",
+                body: Optional<String>.none as String?,
+                idempotencyKey: idempotencyKey
+            )
+        }
     }
 
     func recordContribution(
@@ -3181,7 +3523,7 @@ final class APIClient {
             let description: String?
             let asDraft: Bool?
         }
-        return try await authorizedPost(
+        return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/planning-items",
             body: Body(
                 title: title,
@@ -3192,7 +3534,20 @@ final class APIClient {
                 description: description,
                 asDraft: asDraft
             ),
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CollabIdResult(
+                planningItemId: OfflineOutbox.localId,
+                bookingId: nil,
+                pollId: nil,
+                updateId: nil,
+                memoryId: nil,
+                purchaseItemId: nil,
+                residentId: nil,
+                sharedAssetId: nil,
+                maintenanceRecordId: nil,
+                momentId: momentId
+            )
         )
     }
 
@@ -3219,20 +3574,41 @@ final class APIClient {
             let asDraft: Bool?
             let status: String?
         }
-        return try await authorizedPatch(
-            path: "v1/moments/\(momentId)/planning-items/\(planningItemId)",
-            body: Body(
-                title: title,
-                dueAt: dueAt,
-                categoryCode: categoryCode,
-                location: location,
-                priorityCode: priorityCode,
-                description: description,
-                asDraft: asDraft,
-                status: status
-            ),
-            idempotencyKey: idempotencyKey
+        let body = Body(
+            title: title,
+            dueAt: dueAt,
+            categoryCode: categoryCode,
+            location: location,
+            priorityCode: priorityCode,
+            description: description,
+            asDraft: asDraft,
+            status: status
         )
+        return try await queueIfOffline(
+            method: "PATCH",
+            path: "v1/moments/\(momentId)/planning-items/\(planningItemId)",
+            body: body,
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CollabIdResult(
+                planningItemId: planningItemId,
+                bookingId: nil,
+                pollId: nil,
+                updateId: nil,
+                memoryId: nil,
+                purchaseItemId: nil,
+                residentId: nil,
+                sharedAssetId: nil,
+                maintenanceRecordId: nil,
+                momentId: momentId
+            )
+        ) {
+            try await self.authorizedPatch(
+                path: "v1/moments/\(momentId)/planning-items/\(planningItemId)",
+                body: body,
+                idempotencyKey: idempotencyKey
+            )
+        }
     }
 
     /// Deletes a moment-scoped checklist/planning item only (seed catalog is unchanged).
@@ -3243,11 +3619,30 @@ final class APIClient {
         idempotencyKey: String = UUID().uuidString
     ) async throws -> CollabIdResult {
         do {
-            return try await authorizedDelete(
+            return try await queueIfOffline(
+                method: "DELETE",
                 path: "v1/moments/\(momentId)/planning-items/\(planningItemId)",
-                body: Optional<String>.none as String?,
-                idempotencyKey: idempotencyKey
-            )
+                idempotencyKey: idempotencyKey,
+                momentId: momentId,
+                placeholder: CollabIdResult(
+                    planningItemId: planningItemId,
+                    bookingId: nil,
+                    pollId: nil,
+                    updateId: nil,
+                    memoryId: nil,
+                    purchaseItemId: nil,
+                    residentId: nil,
+                    sharedAssetId: nil,
+                    maintenanceRecordId: nil,
+                    momentId: momentId
+                )
+            ) {
+                try await self.authorizedDelete(
+                    path: "v1/moments/\(momentId)/planning-items/\(planningItemId)",
+                    body: Optional<String>.none as String?,
+                    idempotencyKey: idempotencyKey
+                )
+            }
         } catch APIErrorKind.notFound(_) {
             return CollabIdResult(
                 planningItemId: planningItemId,
@@ -3716,10 +4111,23 @@ final class APIClient {
             let asDraft: Bool?
             let memoryType: String?
         }
-        return try await authorizedPost(
+        return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/memories",
             body: Body(title: title, capturedAt: capturedAt, asDraft: asDraft, memoryType: memoryType),
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CollabIdResult(
+                planningItemId: nil,
+                bookingId: nil,
+                pollId: nil,
+                updateId: nil,
+                memoryId: OfflineOutbox.localId,
+                purchaseItemId: nil,
+                residentId: nil,
+                sharedAssetId: nil,
+                maintenanceRecordId: nil,
+                momentId: momentId
+            )
         )
     }
 
@@ -4509,10 +4917,16 @@ final class APIClient {
             let body: String?
             let memoryType: String?
         }
-        return try await authorizedPost(
+        return try await authorizedPostOrQueue(
             path: "v1/business/moments/\(momentId)/memories",
             body: Body(title: title, body: body, memoryType: memoryType),
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: BusinessCreateMemoryResult(
+                memoryId: OfflineOutbox.localId,
+                momentId: momentId,
+                title: title
+            )
         )
     }
 
@@ -4546,7 +4960,7 @@ final class APIClient {
             let effectiveAt: String?
             let receiptUploadId: String?
         }
-        return try await authorizedPost(
+        return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/business-expenses",
             body: Body(
                 amount: amount,
@@ -4559,7 +4973,22 @@ final class APIClient {
                 effectiveAt: effectiveAt,
                 receiptUploadId: receiptUploadId
             ),
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CreateBusinessExpenseResult(
+                expenseId: OfflineOutbox.localId,
+                momentId: momentId,
+                companyId: nil,
+                amount: amount,
+                currencyCode: currencyCode,
+                categoryCode: categoryCode,
+                status: "QUEUED",
+                approvalRequestId: nil,
+                version: 0,
+                paidBy: paidBy,
+                effectiveAt: effectiveAt,
+                receiptUploadId: nil
+            )
         )
     }
 
@@ -4577,7 +5006,7 @@ final class APIClient {
             let description: String?
             let categoryCode: String?
         }
-        return try await authorizedPost(
+        return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/revenues",
             body: Body(
                 amount: amount,
@@ -4585,7 +5014,15 @@ final class APIClient {
                 description: description,
                 categoryCode: categoryCode
             ),
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            momentId: momentId,
+            placeholder: CreateBusinessRevenueResult(
+                revenueId: OfflineOutbox.localId,
+                companyId: nil,
+                amount: amount,
+                currencyCode: currencyCode,
+                status: "QUEUED"
+            )
         )
     }
 
@@ -5661,6 +6098,203 @@ final class APIClient {
             result: envelope.data,
             projectionHints: envelope.projectionHints ?? []
         )
+    }
+
+    private func queueIfOffline<T, B: Encodable>(
+        method: String,
+        path: String,
+        body: B,
+        idempotencyKey: String,
+        momentId: String,
+        placeholder: T,
+        perform: () async throws -> T
+    ) async throws -> T {
+        do {
+            return try await perform()
+        } catch let error as APIErrorKind {
+            guard case .network = error else { throw error }
+            let data = (try? JSONEncoder().encode(body)) ?? Data()
+            let json = String(data: data, encoding: .utf8) ?? "{}"
+            OfflineOutbox.shared.enqueue(
+                path: path,
+                momentId: momentId,
+                idempotencyKey: idempotencyKey,
+                bodyJson: json,
+                method: method
+            )
+            return placeholder
+        }
+    }
+
+    private func queueIfOffline<T>(
+        method: String,
+        path: String,
+        idempotencyKey: String,
+        momentId: String,
+        placeholder: T,
+        perform: () async throws -> T
+    ) async throws -> T {
+        do {
+            return try await perform()
+        } catch let error as APIErrorKind {
+            guard case .network = error else { throw error }
+            OfflineOutbox.shared.enqueue(
+                path: path,
+                momentId: momentId,
+                idempotencyKey: idempotencyKey,
+                bodyJson: "{}",
+                method: method
+            )
+            return placeholder
+        }
+    }
+
+    private func authorizedPostOrQueue<T: Decodable, B: Encodable>(
+        path: String,
+        body: B,
+        idempotencyKey: String,
+        momentId: String,
+        placeholder: T
+    ) async throws -> T {
+        do {
+            return try await authorizedPost(path: path, body: body, idempotencyKey: idempotencyKey)
+        } catch let error as APIErrorKind {
+            if case .network = error {
+                let data = (try? JSONEncoder().encode(body)) ?? Data()
+                let json = String(data: data, encoding: .utf8) ?? "{}"
+                OfflineOutbox.shared.enqueue(
+                    path: path,
+                    momentId: momentId,
+                    idempotencyKey: idempotencyKey,
+                    bodyJson: json
+                )
+                return placeholder
+            }
+            throw error
+        }
+    }
+
+    func replayQueued(_ command: OfflineCommand, media: Data?) async -> OfflineReplay {
+        let method = command.method ?? "POST"
+        if method == "MEDIA" {
+            guard let media else { return .rejected("The saved photo is missing on this device.") }
+            return await replayMedia(attachPath: command.path, bodyJson: command.bodyJson, bytes: media)
+        }
+        let body = method == "DELETE" ? nil : command.bodyJson
+        return await replayRaw(method: method, path: command.path, idempotencyKey: command.idempotencyKey, bodyJson: body)
+    }
+
+    private func replayMedia(attachPath: String, bodyJson: String, bytes: Data) async -> OfflineReplay {
+        guard let rawBody = bodyJson.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: rawBody) as? [String: Any] else {
+            return .rejected("Saved photo details were unreadable.")
+        }
+        let contentType = obj["contentType"] as? String ?? "image/jpeg"
+        let scopeType = obj["scopeType"] as? String ?? "MOMENT"
+        guard let scopeId = obj["scopeId"] as? String else {
+            return .rejected("Saved photo is missing its moment.")
+        }
+        let intentBody: [String: Any] = [
+            "contentType": contentType,
+            "byteSize": bytes.count,
+            "scopeType": scopeType,
+            "scopeId": scopeId,
+        ]
+        let intentJson = String(data: (try? JSONSerialization.data(withJSONObject: intentBody)) ?? Data(), encoding: .utf8) ?? "{}"
+        let intent = await replayRaw(
+            method: "POST",
+            path: "v1/media/uploads",
+            idempotencyKey: UUID().uuidString,
+            bodyJson: intentJson
+        )
+        guard case .synced(let raw) = intent else { return intent }
+        guard let fields = Self.jsonObjectData(raw),
+              let uploadId = fields["uploadId"] as? String,
+              let signedUrl = fields["signedUrl"] as? String,
+              let storageKey = fields["storageKey"] as? String else {
+            return .rejected("Upload did not start.")
+        }
+        guard let url = URL(string: signedUrl) else { return .rejected("Upload link missing.") }
+        var put = URLRequest(url: url)
+        put.httpMethod = "PUT"
+        put.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        put.httpBody = bytes
+        do {
+            let (_, response) = try await URLSession.shared.data(for: put)
+            guard let http = response as? HTTPURLResponse else { return .offline }
+            if !(200..<300).contains(http.statusCode) {
+                if (400..<500).contains(http.statusCode) {
+                    return .rejected("Could not upload the saved photo.")
+                }
+                return .offline
+            }
+        } catch {
+            return .offline
+        }
+        let completeJson = String(
+            data: (try? JSONSerialization.data(withJSONObject: ["storageKey": storageKey])) ?? Data(),
+            encoding: .utf8
+        ) ?? "{}"
+        let complete = await replayRaw(
+            method: "POST",
+            path: "v1/media/uploads/\(uploadId)/complete",
+            idempotencyKey: UUID().uuidString,
+            bodyJson: completeJson
+        )
+        guard case .synced = complete else { return complete }
+        let attachJson = String(
+            data: (try? JSONSerialization.data(withJSONObject: ["uploadId": uploadId])) ?? Data(),
+            encoding: .utf8
+        ) ?? "{}"
+        return await replayRaw(
+            method: "POST",
+            path: attachPath,
+            idempotencyKey: UUID().uuidString,
+            bodyJson: attachJson
+        )
+    }
+
+    private func replayRaw(method: String, path: String, idempotencyKey: String, bodyJson: String?) async -> OfflineReplay {
+        guard Auth.auth().currentUser != nil else { return .unauthorized }
+        let token: String
+        do {
+            token = try await AuthTokenCache.shared.get()
+        } catch {
+            return .unauthorized
+        }
+        var request = URLRequest(url: APIConfig.baseURL.appendingPathComponent(path))
+        request.httpMethod = method
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
+        request.setValue("true", forHTTPHeaderField: "ngrok-skip-browser-warning")
+        if let bodyJson {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = bodyJson.data(using: .utf8)
+        }
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            return .offline
+        }
+        guard let http = response as? HTTPURLResponse else { return .offline }
+        if (200 ..< 300).contains(http.statusCode) {
+            return .synced(String(data: data, encoding: .utf8))
+        }
+        if http.statusCode == 401 { return .unauthorized }
+        if (400 ..< 500).contains(http.statusCode) {
+            let message = (try? JSONDecoder().decode(APIErrorBody.self, from: data))?.message
+            return .rejected(message)
+        }
+        return .offline
+    }
+
+    private static func jsonObjectData(_ raw: String?) -> [String: Any]? {
+        guard let raw, let data = raw.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return obj["data"] as? [String: Any] ?? obj
     }
 
     private func authorizedPost<T: Decodable, B: Encodable>(

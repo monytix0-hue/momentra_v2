@@ -37,7 +37,7 @@ import com.example.momentra.ui.shell.business.teamops.components.TeamOpsMemoryLi
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsOutlineButton
 import com.example.momentra.ui.theme.PlusJakartaSans
 
-private val Scopes = listOf("All", "Team", "Runway", "Ops")
+private val Scopes = listOf("All", "Team", "Cash Flow", "Daily Business")
 
 /** Figma `692:35410` — multi-section stack; live memory lists; AI shells honest empty. */
 @Composable
@@ -93,8 +93,8 @@ fun TeamOpsMemoryActiveContent(
                 val hay = "$title $body"
                 when {
                     q == "team" -> hay.contains("team") || hay.contains("owner") || hay.contains("delivery")
-                    q == "runway" -> hay.contains("runway") || hay.contains("budget") || hay.contains("hire")
-                    q == "ops" -> hay.contains("ops") || hay.contains("vendor") || hay.contains("sla") ||
+                    q == "cash flow" || q == "runway" -> hay.contains("runway") || hay.contains("budget") || hay.contains("cash")
+                    q == "ops" || q == "daily business" -> hay.contains("ops") || hay.contains("vendor") || hay.contains("sla") ||
                         hay.contains("operation")
                     else -> true
                 }
@@ -143,8 +143,7 @@ fun TeamOpsMemoryActiveContent(
 
         TeamOpsEmptyAiCard(
             title = "Biggest Learning",
-            emptyCopy = biggestLearning
-                ?: "Biggest learning appears when memory AI projects a signal — record learnings to seed it.",
+            emptyCopy = biggestLearning ?: "No learning yet",
             theme = theme,
         )
 
@@ -152,7 +151,7 @@ fun TeamOpsMemoryActiveContent(
 
         TeamOpsEmptyAiCard(
             title = "Pattern Network",
-            emptyCopy = "Pattern network unavailable — memory.pattern API not mounted.",
+            emptyCopy = "No patterns yet",
             theme = theme,
         )
 
@@ -160,7 +159,7 @@ fun TeamOpsMemoryActiveContent(
 
         TeamOpsEmptyAiCard(
             title = "Business Playbook",
-            emptyCopy = "Playbook rules deferred until AI rule projection exists.",
+            emptyCopy = "No playbook yet",
             theme = theme,
         )
 
@@ -184,7 +183,7 @@ fun TeamOpsMemoryActiveContent(
 
         TeamOpsEmptyAiCard(
             title = "Team Wisdom",
-            emptyCopy = "\"Momentum stays strongest when financial and execution decisions share the same operating cadence.\" — moments intelligence",
+            emptyCopy = "No wisdom yet",
             theme = theme,
         )
 

@@ -92,7 +92,7 @@ import com.example.momentra.ui.shell.empty.group.GroupJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
 import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
 import com.example.momentra.ui.shell.empty.business.BusinessSetupBottomSheet
-import com.example.momentra.ui.shell.empty.business.CompanySetupContent
+import com.example.momentra.ui.shell.empty.business.CompanyFlowSheet
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
 import com.example.momentra.ui.shell.business.shared.BusinessExpenseSheet
 import com.example.momentra.ui.shell.business.shared.BusinessGapQuickAddSheet
@@ -101,6 +101,18 @@ import com.example.momentra.ui.shell.business.life.BusinessLifeActiveContent
 import com.example.momentra.ui.shell.business.shared.BusinessMembersSheet
 import com.example.momentra.ui.shell.business.shared.BusinessMemoryActiveContent
 import com.example.momentra.ui.shell.business.shared.BusinessMomentsActiveContent
+import com.example.momentra.ui.shell.business.gap.BusinessActivationSuccess
+import com.example.momentra.ui.shell.business.gap.BusinessCompanyPulseScreen
+import com.example.momentra.ui.shell.business.gap.BusinessFinanceScreen
+import com.example.momentra.ui.shell.business.gap.BusinessGapHost
+import com.example.momentra.ui.shell.business.gap.BusinessGapPage
+import com.example.momentra.ui.shell.business.gap.BusinessLocationFlow
+import com.example.momentra.ui.shell.business.gap.BusinessMilestoneSettingsScreen
+import com.example.momentra.ui.shell.business.gap.BusinessMomentsDirectory
+import com.example.momentra.ui.shell.business.gap.BusinessMomentsSettingsScreen
+import com.example.momentra.ui.shell.business.gap.BusinessVisibilitySettingsScreen
+import com.example.momentra.ui.shell.business.gap.PendingBusinessActivation
+import com.example.momentra.ui.shell.business.gap.VendorOperationsScreen
 import com.example.momentra.ui.shell.business.shared.BusinessPulseActiveContent
 import com.example.momentra.ui.shell.business.shared.BusinessQuickAddHub
 import com.example.momentra.ui.shell.business.shared.BusinessQuickAddKind
@@ -351,6 +363,10 @@ fun AppShellScreen(
     var recentActivityOpen by remember { mutableStateOf(false) }
     var groupRecentActivityOpen by remember { mutableStateOf(false) }
     var newMomentOpen by remember { mutableStateOf(false) }
+    var businessGap by remember { mutableStateOf<BusinessGapPage?>(null) }
+    var businessLocation by remember { mutableStateOf<com.example.momentra.data.api.LocationItemDto?>(null) }
+    var reopenCompanySettings by remember { mutableStateOf(false) }
+    var pendingActivation by remember { mutableStateOf<PendingBusinessActivation?>(null) }
     var groupCreatePhase by remember { mutableStateOf(GroupCreatePhase.CHOOSER) }
     var preferGroupCreateFlow by remember { mutableStateOf(false) }
     var showManageMoment by remember { mutableStateOf(false) }
@@ -441,6 +457,18 @@ fun AppShellScreen(
             .fillMaxSize()
             .background(ShellTokens.SurfaceContent),
     ) {
+        state.offlineNotice?.let { notice ->
+            Text(
+                text = notice,
+                color = Color.White,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF3A2A12))
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+        }
         val groupDirectoryHome = state.groupMomentDirectoryHome &&
             state.selectedContext == AppContext.GROUP
         val groupDirectoryVisible = state.selectedContext == AppContext.GROUP &&
@@ -465,8 +493,9 @@ fun AppShellScreen(
                             companies = state.companies,
                             selectedCompany = state.selectedCompany,
                             companyMenuOpen = state.companyMenuOpen,
+                            locationName = businessLocation?.name,
                             life360Available = true,
-                            globalCreateAvailable = true,
+                            globalCreateAvailable = state.selectedContext != AppContext.PERSONAL,
                             qrScanAvailable = true,
                             referAvailable = true,
                             unreadNotificationCount = unreadNotificationCount,
@@ -501,6 +530,7 @@ fun AppShellScreen(
             }
             if (!topChromeExpanded) {
                 CompactShellChrome(
+                    showNewMoment = state.selectedContext != AppContext.PERSONAL,
                     onExpand = { topChromeExpanded = true },
                     onNewMoment = openNewMoment,
                     onAvatar = { shellViewModel.openProfile(true) },
@@ -529,12 +559,17 @@ fun AppShellScreen(
                     } else {
                         null
                     },
-                    useDirectorySelector = state.selectedContext == AppContext.GROUP,
+                    useDirectorySelector = state.selectedContext == AppContext.GROUP ||
+                        state.selectedContext == AppContext.BUSINESS,
                     startExpanded = state.selectedContext == AppContext.PERSONAL &&
                         state.moments.count { it.isActiveStatus() } > 1,
                     onOpenDirectory = {
-                        groupDirectoryPreferCompleted = false
-                        groupMomentDirectoryOpen = true
+                        if (state.selectedContext == AppContext.BUSINESS) {
+                            businessGap = BusinessGapPage.Moments
+                        } else {
+                            groupDirectoryPreferCompleted = false
+                            groupMomentDirectoryOpen = true
+                        }
                     },
                 )
             }
@@ -563,20 +598,20 @@ fun AppShellScreen(
         ) {
             if (newMomentOpen && state.selectedContext == AppContext.BUSINESS) {
                 if (state.selectedCompany == null) {
-                    BusinessSetupBottomSheet(onDismiss = { newMomentOpen = false }) {
-                        CompanySetupContent(
-                            onClose = { newMomentOpen = false },
-                            onActivated = shellViewModel::onCompanyCreated,
-                        )
-                    }
+                    CompanyFlowSheet(
+                        companies = state.companies,
+                        selectedCompanyId = null,
+                        startOnCreate = true,
+                        onDismiss = { newMomentOpen = false },
+                        onSelect = shellViewModel::selectCompany,
+                        onCreated = shellViewModel::onCompanyCreated,
+                    )
                 } else {
                     BusinessCreateFlow(
                         companyId = state.selectedCompany!!.companyId,
                         onCreateBack = { newMomentOpen = false },
                         onMomentCreated = { momentId, title, momentTypeCode, status ->
-                            newMomentOpen = false
-                            shellViewModel.onMomentCreated(momentId, title, momentTypeCode, status)
-                            tourController.onSignal(TourSignal.MOMENT_CREATED)
+                            pendingActivation = PendingBusinessActivation(momentId, title, momentTypeCode, status)
                         },
                     )
                 }
@@ -697,9 +732,9 @@ fun AppShellScreen(
                     onAddInvoice = { businessInvoiceSheetOpen = true },
                     onAddMembers = { businessMembersSheetOpen = true },
                     onOpenQuickAdd = { shellViewModel.selectBottomDestination(BottomDestination.CREATE) },
-                    onViewBusinessReport = {
-                        shellViewModel.selectBottomDestination(BottomDestination.PULSE)
-                    },
+                    onViewBusinessReport = { businessGap = BusinessGapPage.Finance },
+                    onOpenBusinessFinance = { businessGap = BusinessGapPage.Finance },
+                    onOpenVendor = { businessGap = BusinessGapPage.Vendor },
                     onLifeOpsQuickAdd = { lifeOpsQa = it },
                     onMoneyQuickAdd = { moneyQa = it },
                     onFutureQuickAdd = { futureQa = it },
@@ -770,6 +805,43 @@ fun AppShellScreen(
                     .fillMaxSize()
                     .statusBarsPadding(),
             )
+            BusinessGapHost(
+                page = businessGap,
+                companyId = state.selectedCompany?.companyId,
+                companyName = state.selectedCompany?.displayName.orEmpty(),
+                moments = state.moments,
+                location = businessLocation,
+                onLocation = { businessLocation = it },
+                onPage = { businessGap = it },
+                onClose = { businessGap = null },
+                onSelectMoment = { moment ->
+                    shellViewModel.selectMoment(moment.momentId)
+                    shellViewModel.selectBottomDestination(BottomDestination.PULSE)
+                    businessGap = null
+                },
+                onCreateMoment = {
+                    businessGap = null
+                    openNewMoment()
+                },
+                onBackToSettings = {
+                    businessGap = null
+                    reopenCompanySettings = true
+                    shellViewModel.toggleCompanyMenu(true)
+                },
+            )
+            pendingActivation?.let { pending ->
+                BusinessActivationSuccess(title = pending.title) {
+                    newMomentOpen = false
+                    shellViewModel.onMomentCreated(
+                        pending.momentId,
+                        pending.title,
+                        pending.momentTypeCode,
+                        pending.status,
+                    )
+                    tourController.onSignal(TourSignal.MOMENT_CREATED)
+                    pendingActivation = null
+                }
+            }
         }
         if (state.selectedMomentId != null && state.selectedContext == AppContext.PERSONAL) {
             moneyQa?.let { kind ->
@@ -1007,31 +1079,34 @@ fun AppShellScreen(
                 },
             )
         }
+        if (state.companyMenuOpen && state.selectedContext == AppContext.BUSINESS) {
+            CompanyFlowSheet(
+                companies = state.companies,
+                selectedCompanyId = state.selectedCompany?.companyId,
+                startOnCreate = false,
+                startOnSettings = reopenCompanySettings,
+                onDismiss = {
+                    reopenCompanySettings = false
+                    shellViewModel.toggleCompanyMenu(false)
+                },
+                onSelect = shellViewModel::selectCompany,
+                onCreated = shellViewModel::onCompanyCreated,
+                onOpenLocations = {
+                    reopenCompanySettings = true
+                    shellViewModel.toggleCompanyMenu(false)
+                    businessGap = BusinessGapPage.LocationPicker
+                },
+            )
+        }
         pendingCompanyJoinCode?.let { code ->
             CompanyJoinConfirmSheet(
                 code = code,
                 visible = true,
                 onDismiss = { pendingCompanyJoinCode = null },
-                onJoin = {
-                    shellViewModel.redeemCompanyInvite(code) { result ->
-                        result.fold(
-                            onSuccess = {
-                                pendingCompanyJoinCode = null
-                                Toast.makeText(
-                                    context,
-                                    if (it.alreadyMember) "Already a company member" else "Joined company",
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            },
-                            onFailure = {
-                                Toast.makeText(
-                                    context,
-                                    it.message ?: "Could not join company",
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            },
-                        )
-                    }
+                onGoToCompany = { company ->
+                    pendingCompanyJoinCode = null
+                    shellViewModel.onCompanyCreated(company)
+                    shellViewModel.selectContext(AppContext.BUSINESS)
                 },
             )
         }
@@ -1452,6 +1527,8 @@ private fun ShellDestinationContent(
     onAddMembers: () -> Unit = {},
     onOpenQuickAdd: () -> Unit = {},
     onViewBusinessReport: () -> Unit = {},
+    onOpenBusinessFinance: () -> Unit = {},
+    onOpenVendor: () -> Unit = {},
     onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Unit = {},
     onMoneyQuickAdd: (MoneyQuickAddKind) -> Unit = {},
     onFutureQuickAdd: (FutureQuickAddKind) -> Unit = {},
@@ -1965,6 +2042,8 @@ private fun ShellDestinationContent(
                                 refreshToken = businessTabRefreshToken,
                                 momentTypeCode = businessTypeCode,
                                 onViewReport = onViewBusinessReport,
+                                onOpenFinance = onOpenBusinessFinance,
+                                onOpenVendor = onOpenVendor,
                             )
                         }
                         context == AppContext.BUSINESS && destination == BottomDestination.MEMORY -> {
@@ -2177,6 +2256,7 @@ private fun EmptyPanel(
 /** Slim chrome when top bar + context tabs are collapsed. */
 @Composable
 private fun CompactShellChrome(
+    showNewMoment: Boolean,
     onExpand: () -> Unit,
     onNewMoment: () -> Unit,
     onAvatar: () -> Unit,
@@ -2200,15 +2280,17 @@ private fun CompactShellChrome(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(ShellTokens.IconTap)
-                    .clip(CircleShape)
-                    .background(MomentraBrandColors.Cta)
-                    .clickable(onClick = onNewMoment),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("+", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            if (showNewMoment) {
+                Box(
+                    modifier = Modifier
+                        .size(ShellTokens.IconTap)
+                        .clip(CircleShape)
+                        .background(MomentraBrandColors.Cta)
+                        .clickable(onClick = onNewMoment),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("+", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
             }
             Box(
                 modifier = Modifier

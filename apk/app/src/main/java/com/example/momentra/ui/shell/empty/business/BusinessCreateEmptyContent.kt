@@ -30,26 +30,26 @@ private data class CreateTileData(
     val body: String,
 )
 
-/** Figma: create-empty-b (657:10100) */
+/** Figma: create-empty-b (1687:20701). Receipt tile uses the people glyph from the design. */
 @Composable
 fun BusinessCreateEmptyContent(
     onStartCta: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val tiles = listOf(
-        CreateTileData(R.drawable.ic_business_empty_file_text, "Create Invoice", "Bill clients professionally"),
-        CreateTileData(R.drawable.ic_business_empty_dollar, "Log Expense", "Track every rupee spent"),
-        CreateTileData(R.drawable.ic_business_empty_users, "Add Team Member", "Grow your operations team"),
-        CreateTileData(R.drawable.ic_business_empty_folder, "New Project", "Organize work by project"),
-        CreateTileData(R.drawable.ic_business_empty_truck, "Add Vendor", "Manage supply chain"),
-        CreateTileData(R.drawable.ic_business_empty_bar_chart, "Generate Report", "Data-driven business insights"),
+        CreateTileData(R.drawable.ic_business_empty_file_text, "Add Purchase", "Something you bought for your business"),
+        CreateTileData(R.drawable.ic_business_empty_dollar, "Add Expense", "Money spent on daily things"),
+        CreateTileData(R.drawable.ic_business_empty_users, "Add Receipt", "Save the paper slip"),
+        CreateTileData(R.drawable.ic_business_empty_folder, "Add Bill", "Money you need to pay"),
+        CreateTileData(R.drawable.ic_business_empty_truck, "Add Supplier", "The person you buy from"),
+        CreateTileData(R.drawable.ic_business_empty_bar_chart, "View Summary", "See how much you spent"),
     )
 
     BusinessEmptyScrollColumn(modifier = modifier) {
         BusinessEmptyPill("CREATE")
         BusinessEmptyHeadline(
-            title = "Your Command Center",
-            body = "Invoices, expenses, vendors, projects - every business action in one place.",
+            title = "Add a Purchase or Expense",
+            body = "Keep track of money in and out. Add a receipt, bill, or anything you bought for your business.",
         )
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
@@ -62,14 +62,14 @@ fun BusinessCreateEmptyContent(
         }
 
         Text(
-            text = "From solo founders to scaling teams",
+            text = "Built for every business",
             color = BusinessEmptyTokens.TextMuted,
-            fontSize = 12.sp,
+            fontSize = 14.sp,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
 
-        BusinessEmptyCta("First Action →", onStartCta)
+        BusinessEmptyCta("Add Your First Activity →", onStartCta)
     }
 }
 
