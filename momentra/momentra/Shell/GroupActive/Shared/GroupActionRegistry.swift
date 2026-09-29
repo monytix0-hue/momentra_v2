@@ -47,9 +47,9 @@ struct GroupActionTile: Identifiable {
 }
 
 enum GroupActionRegistry {
-    /// Figma 575:14655 — Trip Action Center 3×3 grid (no Settle / Purchase / Resident on hub).
+    /// Figma 575:14655 — Trip Action Center grid (includes Settle for discovery parity with Pulse).
     static let tripHubTileIds: [String] = [
-        "expense", "planning", "checklist", "budget", "booking", "poll", "memory", "update", "contribution", "invite",
+        "expense", "planning", "checklist", "budget", "booking", "poll", "memory", "update", "contribution", "invite", "settle",
     ]
 
     static func destination(for capabilityCode: String) -> GroupActionDestination? {

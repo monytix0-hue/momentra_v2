@@ -17,10 +17,11 @@ struct GroupActionRegistryTests {
         #expect(GroupActionCode.allCases.count == 11)
     }
 
-    @Test func tripHubShowsNineFigmaTiles() {
-        let tiles = GroupActionRegistry.figmaTripHubTiles(hasActiveMoment: true)
-        #expect(tiles.count == 9)
+    @Test func tripHubIncludesSettleTile() {
+        let tiles = GroupActionRegistry.figmaTripHubTiles(hasActiveMoment: true, capabilityCodes: ["SETTLEMENT_RECORD"])
+        #expect(tiles.count == GroupActionRegistry.tripHubTileIds.count)
         #expect(tiles.map(\.tileId) == GroupActionRegistry.tripHubTileIds)
+        #expect(tiles.contains { $0.tileId == "settle" })
         #expect(tiles.first { $0.tileId == "expense" }?.icon == "GroupQaWallet")
     }
 
@@ -33,7 +34,10 @@ struct GroupActionRegistryTests {
     }
 
     @Test func collabTilesLiveWithoutApiGap() {
-        let tiles = GroupActionRegistry.tiles(hasActiveMoment: true)
+        let tiles = GroupActionRegistry.tiles(
+            hasActiveMoment: true,
+            capabilityCodes: GroupActionCode.allCases.map(\.rawValue)
+        )
         let planning = tiles.first { $0.tileId == "planning" }
         #expect(planning != nil)
         #expect(planning?.apiGap == false)
@@ -44,8 +48,18 @@ struct GroupActionRegistryTests {
         #expect(tiles.first { $0.tileId == "memory" }?.apiGap == false)
     }
 
+    @Test func emptyCapabilitiesFailClosedExceptBudget() {
+        let tiles = GroupActionRegistry.tiles(hasActiveMoment: true, capabilityCodes: [])
+        #expect(tiles.first { $0.tileId == "budget" }?.enabledWhenMomentActive == true)
+        #expect(tiles.first { $0.tileId == "expense" }?.enabledWhenMomentActive == false)
+        #expect(tiles.first { $0.tileId == "settle" }?.enabledWhenMomentActive == false)
+    }
+
     @Test func settlementTileEnabledWhenMomentActive() {
-        let tiles = GroupActionRegistry.tiles(hasActiveMoment: true)
+        let tiles = GroupActionRegistry.tiles(
+            hasActiveMoment: true,
+            capabilityCodes: ["SETTLEMENT_RECORD", "EXPENSE_CREATE"]
+        )
         let settle = tiles.first { $0.code == .settlementRecord }
         #expect(settle != nil)
         #expect(settle?.enabledWhenMomentActive == true)

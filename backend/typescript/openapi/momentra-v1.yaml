@@ -2716,22 +2716,11 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: Success
+          description: Success — Personal Life projection (thisWeek.byFamily/highlights, journey.familyCode, leverage.ctaAction)
           content:
             application/json:
               schema:
                 $ref: './schemas/common.yaml#/ProjectionEnvelope'
-        '400':
-          $ref: './schemas/responses.yaml#/Error400'
-        '401':
-          $ref: './schemas/responses.yaml#/Error401'
-        '403':
-          $ref: './schemas/responses.yaml#/Error403'
-        '404':
-          $ref: './schemas/responses.yaml#/Error404'
-        '500':
-          $ref: './schemas/responses.yaml#/Error500'
-  /personal/memory:
     get:
       operationId: getPersonalMemory
       summary: Personal memory projection

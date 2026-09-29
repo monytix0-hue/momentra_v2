@@ -404,6 +404,9 @@ struct AppShellView: View {
                     reopenCompanySettings = true
                     companyMenuOpen = false
                     businessGap = .locationPicker
+                },
+                onCompaniesChanged: {
+                    model.clearSelectedMomentAfterLeave()
                 }
             )
             .presentationDetents([.medium, .large])
@@ -427,21 +430,17 @@ struct AppShellView: View {
                 onClose: { pendingGroupJoin = nil },
                 onJoin: {
                     let code = pending.code
-                    Task {
-                        let result = await model.redeemJoinCode(code, using: createModel)
-                        pendingGroupJoin = nil
-                        newMomentOpen = false
-                        groupCreatePhase = .chooser
-                        if let result {
-                            if result.alreadyMember == true {
-                                joinFeedbackMessage = "Already a member"
-                            } else if result.momentId == nil || result.momentId?.isEmpty == true {
-                                joinFeedbackMessage =
-                                    "Invite claimed — you’ll join when the organizer finishes creating the group."
-                            } else {
-                                joinFeedbackMessage = "Joined group"
-                            }
-                        }
+                    let result = try await model.redeemJoinCode(code, using: createModel)
+                    pendingGroupJoin = nil
+                    newMomentOpen = false
+                    groupCreatePhase = .chooser
+                    if result.alreadyMember == true {
+                        joinFeedbackMessage = "Already a member"
+                    } else if result.momentId == nil || result.momentId?.isEmpty == true {
+                        joinFeedbackMessage =
+                            "Invite claimed — you’ll join when the organizer finishes creating the group."
+                    } else {
+                        joinFeedbackMessage = "Joined group"
                     }
                 }
             )
@@ -628,9 +627,14 @@ struct AppShellView: View {
                         businessGapQa = kind
                     }
                 },
-                onNewMoment: {
+                            onNewMoment: {
                     businessQuickAddPresented = false
                     model.selectBottomDestination(.create)
+                },
+                onOpenCompanySettings: {
+                    businessQuickAddPresented = false
+                    reopenCompanySettings = true
+                    companyMenuOpen = true
                 },
                 onExpense: {
                     businessQuickAddPresented = false
@@ -1014,29 +1018,27 @@ struct AppShellView: View {
     }
 
     private func openMoneyQa(_ kind: MoneyQuickAddKind) {
-        let m = PersonalUnified.resolveFamilyTarget(
+        guard let m = PersonalUnified.resolveFamilyTarget(
             moments: model.moments,
             family: .lifeOperations,
             currentSelectedId: model.selectedMomentId
-        ) ?? PersonalUnified.resolvePreferred(
-            moments: model.moments,
-            currentSelectedId: model.selectedMomentId
-        )
-        guard let m else { return }
+        ) else {
+            personalSetupSystem = .lifeOperations
+            return
+        }
         personalQaMomentId = m.momentId
         moneyQa = kind
     }
 
     private func openLifeOpsQa(_ kind: LifeOpsQuickAddKind) {
-        let m = PersonalUnified.resolveFamilyTarget(
+        guard let m = PersonalUnified.resolveFamilyTarget(
             moments: model.moments,
             family: .lifeOperations,
             currentSelectedId: model.selectedMomentId
-        ) ?? PersonalUnified.resolvePreferred(
-            moments: model.moments,
-            currentSelectedId: model.selectedMomentId
-        )
-        guard let m else { return }
+        ) else {
+            personalSetupSystem = .lifeOperations
+            return
+        }
         personalQaMomentId = m.momentId
         lifeOpsQa = kind
     }
@@ -1576,12 +1578,17 @@ struct AppShellView: View {
                         momentTitle: model.selectedMomentTitle,
                         onQuickAction: { action in
                             switch action {
-                            case .experience, .goal:
+                            case .experience:
                                 if isWedding { weddingGapQa = .planning }
                                 else if isExperience { experienceGapQa = .planning }
                                 else if isPurchase { purchaseGapQa = .purchaseItem }
                                 else if isLiving { livingGapQa = .task }
                                 else { groupCollabKind = .planning }
+                            case .goal, .community:
+                                // Goal / Community moments are Coming Soon — do not open unrelated sheets.
+                                joinFeedbackMessage = action == .goal
+                                    ? "Goal moments are coming soon."
+                                    : "Community moments are coming soon."
                             case .purchase:
                                 if isWedding { weddingGapQa = .expense }
                                 else if isExperience { experienceGapQa = .expense }
@@ -1594,12 +1601,6 @@ struct AppShellView: View {
                                 else if isPurchase { purchaseGapQa = purchaseTheme.includesVendor ? .vendor : .contribution }
                                 else if isLiving { groupInviteSheetPresented = true }
                                 else { groupCollabKind = .booking }
-                            case .community:
-                                if isWedding { weddingGapQa = .update }
-                                else if isExperience { experienceGapQa = .update }
-                                else if isPurchase { purchaseGapQa = .update }
-                                else if isLiving { livingGapQa = .update }
-                                else { groupCollabKind = .update }
                             }
                         }
                     )
@@ -1649,8 +1650,10 @@ struct AppShellView: View {
                             momentTitle: model.selectedMomentTitle,
                             hasActiveMoment: model.selectedMomentId != nil,
                             capabilityCodes: model.capabilities,
+                            viewerReadOnly: groupViewerReadOnly,
                             onClose: { model.exitCreateDestination() },
                             onTile: { kind in
+                                guard !groupViewerReadOnly else { return }
                                 weddingGapQa = kind
                             },
                             onNewMoment: {
@@ -1687,8 +1690,10 @@ struct AppShellView: View {
                             momentTitle: model.selectedMomentTitle,
                             hasActiveMoment: model.selectedMomentId != nil,
                             capabilityCodes: model.capabilities,
+                            viewerReadOnly: groupViewerReadOnly,
                             onClose: { model.exitCreateDestination() },
                             onTile: { kind in
+                                guard !groupViewerReadOnly else { return }
                                 if kind == .contributor {
                                     groupInviteSheetPresented = true
                                 } else {
@@ -1707,8 +1712,10 @@ struct AppShellView: View {
                             momentTitle: model.selectedMomentTitle,
                             hasActiveMoment: model.selectedMomentId != nil,
                             capabilityCodes: model.capabilities,
+                            viewerReadOnly: groupViewerReadOnly,
                             onClose: { model.exitCreateDestination() },
                             onTile: { kind in
+                                guard !groupViewerReadOnly else { return }
                                 if kind == .resident {
                                     groupInviteSheetPresented = true
                                 } else {
@@ -1727,6 +1734,7 @@ struct AppShellView: View {
                             capabilityCodes: model.capabilities,
                             momentTypeCode: model.selectedMomentTypeCode,
                             momentTitle: model.selectedMomentTitle,
+                            viewerReadOnly: groupViewerReadOnly,
                             onClose: { model.exitCreateDestination() },
                             onExpense: {
                                 guard !groupViewerReadOnly else { return }
@@ -1736,18 +1744,51 @@ struct AppShellView: View {
                                 guard !groupViewerReadOnly else { return }
                                 groupContributionSheetPresented = true
                             },
-                            onSettle: { groupSettlementSheetPresented = true },
+                            onSettle: {
+                                guard !groupViewerReadOnly else { return }
+                                groupSettlementSheetPresented = true
+                            },
                             onParticipants: { groupParticipantsSheetPresented = true },
-                            onInvite: { groupInviteSheetPresented = true },
-                            onBudget: { groupBudgetSheetPresented = true },
-                            onPlanning: { groupCollabKind = .planning },
-                            onChecklist: { groupCollabKind = .checklist },
-                            onBooking: { groupCollabKind = .booking },
-                            onPoll: { groupCollabKind = .poll },
-                            onUpdate: { groupCollabKind = .update },
-                            onMemory: { groupCollabKind = .memory },
-                            onPurchaseItem: { groupCollabKind = .purchaseItem },
-                            onResident: { groupInviteSheetPresented = true },
+                            onInvite: {
+                                guard !groupViewerReadOnly else { return }
+                                groupInviteSheetPresented = true
+                            },
+                            onBudget: {
+                                guard !groupViewerReadOnly else { return }
+                                groupBudgetSheetPresented = true
+                            },
+                            onPlanning: {
+                                guard !groupViewerReadOnly else { return }
+                                groupCollabKind = .planning
+                            },
+                            onChecklist: {
+                                guard !groupViewerReadOnly else { return }
+                                groupCollabKind = .checklist
+                            },
+                            onBooking: {
+                                guard !groupViewerReadOnly else { return }
+                                groupCollabKind = .booking
+                            },
+                            onPoll: {
+                                guard !groupViewerReadOnly else { return }
+                                groupCollabKind = .poll
+                            },
+                            onUpdate: {
+                                guard !groupViewerReadOnly else { return }
+                                groupCollabKind = .update
+                            },
+                            onMemory: {
+                                guard !groupViewerReadOnly else { return }
+                                groupCollabKind = .memory
+                            },
+                            onPurchaseItem: {
+                                guard !groupViewerReadOnly else { return }
+                                groupCollabKind = .purchaseItem
+                            },
+                            onResident: {
+                                guard !groupViewerReadOnly else { return }
+                                groupInviteSheetPresented = true
+                            },
                             onNewMoment: {
                                 groupCreatePhase = .chooser
                                 newMomentOpen = true
@@ -1773,8 +1814,7 @@ struct AppShellView: View {
                                 recentActivityOpen = true
                             }
                         },
-                        forceCollapsed: true,
-                        onEnableSimpleMode: {}
+                        forceCollapsed: true
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .moments, isFutureBuilding {
                     PersonalFutureMomentsActiveView(
@@ -1831,7 +1871,9 @@ struct AppShellView: View {
                 } else if model.selectedContext == .personal, model.bottomDestination == .life {
                     PersonalLifeActiveView(
                         refreshToken: model.personalTabRefreshToken,
-                        onLogRecovery: { openLifeOpsQa(.recovery) }
+                        onLogRecovery: { openLifeOpsQa(.recovery) },
+                        onLogSpend: { openMoneyQa(.masterExpense) },
+                        onOpenAdd: { model.selectBottomDestination(.create) }
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .create {
                     PersonalQuickAddHubView(
@@ -1843,6 +1885,7 @@ struct AppShellView: View {
                         presentFamilies: PersonalUnified.presentFamilies(model.moments),
                         onSetupMissing: { personalSetupChooserOpen = true },
                         onClose: { model.exitCreateDestination() },
+                        onSpend: { openMoneyQa(.masterExpense) },
                         onIncome: { openMoneyQa(.income) },
                         onRecovery: { openLifeOpsQa(.recovery) },
                         onMood: { openLifeOpsQa(.mood) },
@@ -2021,6 +2064,10 @@ struct AppShellView: View {
                                 }
                             },
                             onNewMoment: { newMomentOpen = true },
+                            onOpenCompanySettings: {
+                                reopenCompanySettings = true
+                                companyMenuOpen = true
+                            },
                             onExpense: { businessExpenseSheetPresented = true },
                             onRevenue: {
                                 businessRevenueSheetPresented = true

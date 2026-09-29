@@ -55,6 +55,7 @@ fun BusinessQuickAddHub(
     onInvoice: () -> Unit = {},
     onMembers: () -> Unit = {},
     onCreateMoment: () -> Unit = {},
+    onOpenCompanySettings: () -> Unit = {},
     onTile: (BusinessQuickAddKind) -> Unit = {},
     momentId: String? = null,
     momentTypeCode: String? = null,
@@ -73,9 +74,21 @@ fun BusinessQuickAddHub(
     val isTeamOps = !isRunway && !isOps
     val useLegacyExpenseShortcuts = isTeamOps
     var search by remember { mutableStateOf("") }
-    var smallShop by remember { mutableStateOf(false) }
-    LaunchedEffect(momentId) {
-        smallShop = BusinessAudience.isSmallShopMoment(momentId, context = context)
+    var smallShop by remember {
+        mutableStateOf(
+            companyId?.let { BusinessAudience.isSmallShop(BusinessAudience.forCompany(context, it)) } == true,
+        )
+    }
+    var hubHint by remember {
+        mutableStateOf(IndustryTemplateCatalog.hubHintForCompany(context, companyId))
+    }
+    LaunchedEffect(momentId, companyId) {
+        smallShop = BusinessAudience.isSmallShopMoment(
+            momentId,
+            context = context,
+            fallbackCompanyId = companyId,
+        )
+        hubHint = IndustryTemplateCatalog.hubHintForCompany(context, companyId)
     }
     val tiles = remember(theme, search, smallShop) {
         val all = businessHubTiles(theme, smallShop)
@@ -91,8 +104,29 @@ fun BusinessQuickAddHub(
             tiles.chunked(3)
         }
     }
-    val hubSubtitle = remember(theme, smallShop) { businessHubSubtitle(theme, smallShop) }
+    val hubSubtitle = remember(theme, smallShop, hubHint, isRunway) {
+        if (smallShop && isRunway && !hubHint.isNullOrBlank()) {
+            hubHint!!
+        } else {
+            businessHubSubtitle(theme, smallShop)
+        }
+    }
     val filterChips = remember(theme, smallShop) { businessHubFilterChips(theme, smallShop) }
+    val showFilterChips = filterChips.isNotEmpty()
+    val disabledReason = remember(hasActiveMoment, momentTypeCode, tiles, capabilities) {
+        val financeDisabled = tiles.any { kind ->
+            val dest = kind.registryDestination()
+            (dest == BusinessActionRegistry.Destination.REVENUE ||
+                dest == BusinessActionRegistry.Destination.INVOICE ||
+                dest == BusinessActionRegistry.Destination.SPEND) &&
+                !(hasActiveMoment && kind.isCapabilityEnabled(capabilities, momentTypeCode))
+        }
+        if (financeDisabled) {
+            BusinessActionRegistry.disabledReason(hasActiveMoment, momentTypeCode)
+        } else {
+            null
+        }
+    }
 
     Column(
         modifier = modifier
@@ -139,13 +173,7 @@ fun BusinessQuickAddHub(
         }
 
         if (!moduleEnabled) {
-            Text(
-                "This module is off for your company",
-                color = theme.secondary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = PlusJakartaSans,
-                textAlign = TextAlign.Center,
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 48.dp, bottom = 48.dp)
@@ -153,14 +181,38 @@ fun BusinessQuickAddHub(
                     .background(theme.card)
                     .border(1.dp, theme.border, RoundedCornerShape(16.dp))
                     .padding(24.dp),
-            )
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    "This module is off for your company",
+                    color = theme.secondary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = PlusJakartaSans,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    "Open company settings",
+                    color = theme.accent,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier.clickable {
+                        onClose()
+                        onOpenCompanySettings()
+                    },
+                )
+            }
         } else {
-        Row(
-            Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            HubChip(theme.typeLabel, selected = true, theme = theme)
-            filterChips.forEach { HubChip(it, selected = false, theme = theme) }
+        if (showFilterChips) {
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                HubChip(theme.typeLabel, selected = true, theme = theme)
+                filterChips.forEach { HubChip(it, selected = false, theme = theme) }
+            }
         }
 
         Row(
@@ -226,6 +278,16 @@ fun BusinessQuickAddHub(
                     }
                     inner()
                 },
+            )
+        }
+
+        if (!disabledReason.isNullOrBlank()) {
+            Text(
+                disabledReason,
+                color = theme.secondary,
+                fontSize = 12.sp,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
 
@@ -363,7 +425,10 @@ private fun ActionTile(
                 .background(stripe),
         )
         Column(
-            modifier = Modifier.fillMaxSize().padding(start = 6.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 6.dp)
+                .then(if (enabled) Modifier else Modifier),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         ) {
@@ -378,7 +443,7 @@ private fun ActionTile(
             }
             Text(
                 kind.label(smallShop),
-                color = stripe,
+                color = stripe.copy(alpha = if (enabled) 1f else 0.45f),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = PlusJakartaSans,
@@ -388,7 +453,7 @@ private fun ActionTile(
             )
             Text(
                 kind.subtitle(),
-                color = theme.muted,
+                color = theme.muted.copy(alpha = if (enabled) 1f else 0.45f),
                 fontSize = 9.sp,
                 fontFamily = PlusJakartaSans,
                 maxLines = 1,

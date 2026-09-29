@@ -333,3 +333,91 @@ export async function leaveCompany(
 
   return { companyId, status: 'LEFT', transferredToUserId };
 }
+
+export const transferCompanyOwnershipSchema = z
+  .object({
+    transferUserId: z.string().uuid(),
+  })
+  .strict();
+
+export type TransferCompanyOwnershipInput = z.infer<typeof transferCompanyOwnershipSchema>;
+
+/**
+ * OWNER transfers primary ownership to another ACTIVE member and stays as ADMIN.
+ */
+export async function transferCompanyOwnership(
+  client: PoolClient,
+  ctx: RequestContext,
+  companyId: string,
+  body: TransferCompanyOwnershipInput
+): Promise<{ companyId: string; ownerUserId: string; previousOwnerUserId: string }> {
+  const me = await assertActiveCompanyMember(client, ctx, companyId);
+  if (me.membershipType !== 'OWNER') {
+    throw new AppError(
+      ErrorCode.GOVERNANCE_DENIED,
+      'Only the company owner can transfer ownership.',
+      403
+    );
+  }
+  if (body.transferUserId === ctx.userId) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Pick another member to become owner.', 400);
+  }
+
+  const target = await client.query<{ user_id: string; membership_type: string }>(
+    `SELECT user_id, membership_type
+     FROM business.company_membership
+     WHERE company_id = $1 AND user_id = $2 AND status = 'ACTIVE'`,
+    [companyId, body.transferUserId]
+  );
+  if (!target.rows[0]) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      'transferUserId must be another ACTIVE company member.',
+      400
+    );
+  }
+
+  await client.query(
+    `UPDATE business.company_membership
+     SET membership_type = 'OWNER', updated_at = now(), version = version + 1
+     WHERE company_id = $1 AND user_id = $2 AND status = 'ACTIVE'`,
+    [companyId, body.transferUserId]
+  );
+  await client.query(
+    `UPDATE business.company_membership
+     SET membership_type = 'ADMIN', updated_at = now(), version = version + 1
+     WHERE company_id = $1 AND user_id = $2 AND status = 'ACTIVE'`,
+    [companyId, ctx.userId]
+  );
+  // Keep a single primary owner.
+  await client.query(
+    `UPDATE business.company_membership
+     SET membership_type = 'ADMIN', updated_at = now(), version = version + 1
+     WHERE company_id = $1
+       AND user_id <> $2
+       AND user_id <> $3
+       AND membership_type = 'OWNER'
+       AND status = 'ACTIVE'`,
+    [companyId, body.transferUserId, ctx.userId]
+  );
+
+  await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'CompanyOwnershipTransferred',
+    domainCode: 'BUSINESS',
+    aggregateType: 'COMPANY',
+    aggregateId: companyId,
+    scopeType: 'COMPANY',
+    scopeId: companyId,
+    payload: {
+      companyId,
+      previousOwnerUserId: ctx.userId,
+      ownerUserId: body.transferUserId,
+    },
+  });
+
+  return {
+    companyId,
+    ownerUserId: body.transferUserId,
+    previousOwnerUserId: ctx.userId,
+  };
+}

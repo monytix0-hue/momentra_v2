@@ -141,32 +141,39 @@ struct BusinessKhataHomeView: View {
                     Text(formatDue(party.balanceDue))
                         .font(.system(size: 16, weight: .heavy))
                         .foregroundStyle(due > 0 ? Color(hex: "#F59E0B") : Color(hex: "#F1F5F9"))
+                    Text("›")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(Color(hex: "#64748B"))
                 }
             }
             .buttonStyle(.plain)
 
-            HStack(spacing: 8) {
-                miniBtn(supplier ? "Udhaar liya" : "Udhaar diya") {
-                    entryType = "CREDIT"
-                    entryParty = party
-                }
-                miniBtn(supplier ? "Paisa diya" : "Paisa mila") {
-                    entryType = "PAYMENT"
-                    entryParty = party
-                }
-                if !supplier {
-                    miniBtn("Cash sale") {
-                        cashSaleParty = party
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    miniBtn(supplier ? "Udhaar liya" : "Udhaar diya") {
+                        entryType = "CREDIT"
+                        entryParty = party
+                    }
+                    miniBtn(supplier ? "Paisa diya" : "Paisa mila") {
+                        entryType = "PAYMENT"
+                        entryParty = party
+                    }
+                    if !supplier {
+                        miniBtn("Cash sale") {
+                            cashSaleParty = party
+                        }
                     }
                 }
                 if let phone = party.phone, !phone.isEmpty, due > 0 {
-                    miniBtn("Remind") {
-                        let msg = khataReminderMessage(
-                            partyName: party.name,
-                            amountDue: party.balanceDue,
-                            shopName: shopName
-                        )
-                        InviteOutboundShare.sendWhatsApp(phone: phone, message: msg)
+                    HStack(spacing: 8) {
+                        miniBtn("Remind") {
+                            let msg = khataReminderMessage(
+                                partyName: party.name,
+                                amountDue: party.balanceDue,
+                                shopName: shopName
+                            )
+                            InviteOutboundShare.sendWhatsApp(phone: phone, message: msg)
+                        }
                     }
                 }
             }
@@ -442,7 +449,7 @@ private struct BusinessKhataCashSaleView: View {
                 Spacer()
             }
             .padding(16)
-            .navigationTitle("Cash sale · Nakal becha")
+            .navigationTitle("Cash sale · Naqd becha")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

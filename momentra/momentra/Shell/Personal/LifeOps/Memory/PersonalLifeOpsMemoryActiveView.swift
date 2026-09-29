@@ -32,7 +32,6 @@ struct PersonalLifeOpsMemoryActiveView: View {
                         returnBehaviors
                         emotionalDna
                         evolutionTimeline
-                        aiInterpretation
                         growthEdge
                         insightsCard
                     }
@@ -122,21 +121,7 @@ struct PersonalLifeOpsMemoryActiveView: View {
 
     private var patternConfidenceLabel: String {
         if thinData { return "Patterns appear after a few logs" }
-        let n = min(92, 40 + activities.count * 5)
-        return "\(n)% pattern confidence"
-    }
-
-    private var aiBody: String {
-        if thinData {
-            return "Start on Pulse — log recovery, mood, or spend to unlock patterns."
-        }
-        if hasRecovery {
-            return "Your system rewards recovery placed immediately after pressure, not the next morning."
-        }
-        if hasExpense {
-            return "Spend signals are present — pair them with recovery blocks to keep pressure from compounding."
-        }
-        return "Keep logging pressure and recovery together to reveal how your system stabilizes."
+        return "Pattern strength is not scored yet"
     }
 
     // MARK: - Sections
@@ -398,28 +383,6 @@ struct PersonalLifeOpsMemoryActiveView: View {
                     }
                 }
             }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.05))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08), lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
-    private var aiInterpretation: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Text("9 AI INTERPRETATION")
-                    .font(.system(size: 12, weight: .bold))
-                    .tracking(1.2)
-                    .foregroundStyle(Color(hex: "#C9C4D8"))
-                Image(systemName: "sparkle")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(Color(hex: "#7C5CFC"))
-            }
-            Text(aiBody)
-                .font(.system(size: 14))
-                .foregroundStyle(Color(hex: "#E5E0EE"))
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

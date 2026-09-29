@@ -1047,3 +1047,129 @@ AvailableActionItem:
     sortOrder:
       type: integer
 
+# Personal Life projection enrichments (Unified Personal / Life cross-family feed)
+PersonalFamilyCode:
+  type: string
+  enum: [LIFE_OPERATIONS, FUTURE_BUILDING, LIFESTYLE, RELATIONSHIPS]
+
+PersonalLifeCtaAction:
+  type: string
+  enum: [LOG_RECOVERY, LOG_SPEND, OPEN_ADD, NONE]
+  description: Stable client routing for Life leverage CTA — do not parse ctaLabel.
+
+PersonalLifeByFamily:
+  type: object
+  required: [familyCode, label, expenseTotal, incomeTotal, periodLogs, moodOrRecoveryLogs]
+  properties:
+    familyCode:
+      $ref: '#/PersonalFamilyCode'
+    label:
+      type: string
+    expenseTotal:
+      type: string
+    incomeTotal:
+      type: string
+    periodLogs:
+      type: integer
+    moodOrRecoveryLogs:
+      type: integer
+
+PersonalLifeHighlight:
+  type: object
+  required: [familyCode, title, occurredAt, activityCode]
+  properties:
+    familyCode:
+      $ref: '#/PersonalFamilyCode'
+    title:
+      type: string
+    occurredAt:
+      type: string
+      format: date-time
+    activityCode:
+      type: string
+
+PersonalLifeThisWeek:
+  type: object
+  required: [expenseTotal, incomeTotal, periodLogs, moodOrRecoveryLogs, periodStart, periodEnd, byFamily, highlights]
+  properties:
+    expenseTotal:
+      type: string
+    incomeTotal:
+      type: string
+    currencyCode:
+      type: string
+      nullable: true
+    spendByCurrency:
+      type: object
+      additionalProperties:
+        type: string
+    periodLogs:
+      type: integer
+    moodOrRecoveryLogs:
+      type: integer
+    periodStart:
+      type: string
+      format: date-time
+    periodEnd:
+      type: string
+      format: date-time
+    byFamily:
+      type: array
+      items:
+        $ref: '#/PersonalLifeByFamily'
+    highlights:
+      type: array
+      items:
+        $ref: '#/PersonalLifeHighlight'
+
+PersonalLifeJourneyItem:
+  type: object
+  required: [icon, title, when, value, tone, familyCode]
+  properties:
+    icon:
+      type: string
+    title:
+      type: string
+    when:
+      type: string
+      format: date-time
+    value:
+      type: string
+    tone:
+      type: string
+      enum: [up, down, neutral]
+    familyCode:
+      $ref: '#/PersonalFamilyCode'
+    momentId:
+      type: string
+      format: uuid
+    activityCode:
+      type: string
+
+PersonalLifeLeverage:
+  type: object
+  required: [title, actionTitle, actionBody, ctaLabel, ctaAction]
+  properties:
+    title:
+      type: string
+    actionTitle:
+      type: string
+    actionBody:
+      type: string
+    ctaLabel:
+      type: string
+    ctaAction:
+      $ref: '#/PersonalLifeCtaAction'
+    impacts:
+      type: array
+      items:
+        type: object
+        properties:
+          label:
+            type: string
+          delta:
+            type: string
+          tone:
+            type: string
+            enum: [up, down, neutral]
+

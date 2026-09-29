@@ -134,7 +134,7 @@ private fun PersonalCreateChooser(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     LifeSystemCard(
-                        title = "Life Operations",
+                        title = "Everyday",
                         subtitle = if (activeMomentFor(PersonalSetupSystem.LIFE_OPERATIONS) != null) {
                             "Open existing"
                         } else {
@@ -219,7 +219,7 @@ private fun PersonalCreateChooser(
                     emoji = "☀️",
                     title = "Morning check-in",
                     subtitle = if (activeMomentFor(PersonalSetupSystem.LIFE_OPERATIONS) != null) {
-                        "Open existing Life Operations"
+                        "Open existing Everyday"
                     } else {
                         "How are you feeling today?"
                     },
@@ -229,9 +229,9 @@ private fun PersonalCreateChooser(
                 )
                 QuickStartRow(
                     emoji = "💰",
-                    title = "Track expense",
+                    title = "Track spend",
                     subtitle = if (activeMomentFor(PersonalSetupSystem.LIFE_OPERATIONS) != null) {
-                        "Open existing Life Operations"
+                        "Open existing Everyday"
                     } else {
                         "Record a transaction"
                     },

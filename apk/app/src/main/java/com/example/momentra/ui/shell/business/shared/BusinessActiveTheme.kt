@@ -407,6 +407,6 @@ fun businessHubSubtitle(theme: BusinessActiveTheme, smallShop: Boolean): String 
 }
 
 fun businessHubFilterChips(theme: BusinessActiveTheme, smallShop: Boolean): List<String> {
-    if (smallShop) return emptyList()
-    return theme.filterChips
+    // Chips are decorative only today — hide when non-interactive (both audiences).
+    return emptyList()
 }

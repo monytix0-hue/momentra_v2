@@ -16,6 +16,12 @@ enum PersonalActionCode: String, CaseIterable, Equatable {
     case movementRecord = "MOVEMENT_RECORD"
 }
 
+struct PersonalHubSection: Identifiable {
+    var id: String { title ?? "root" }
+    let title: String?
+    let tiles: [PersonalActionTile]
+}
+
 struct PersonalActionTile: Identifiable {
     var id: String { "\(code.rawValue)-\(label)" }
     let code: PersonalActionCode
@@ -88,6 +94,45 @@ enum PersonalActionRegistry {
         }
     }
 
+    /// Unified Personal catalog with section headers (Everyday, Future, Lifestyle, People).
+    static func unifiedSections(
+        presentFamilies: Set<PersonalPulseFamily>,
+        hasActiveMoment: Bool,
+        capabilityCodes: [String]? = nil
+    ) -> [PersonalHubSection] {
+        var sections: [PersonalHubSection] = []
+        let order: [(PersonalPulseFamily, String)] = [
+            (.lifeOperations, "Everyday"),
+            (.futureBuilding, "Future"),
+            (.lifestyle, "Lifestyle"),
+            (.relationships, "People"),
+        ]
+        for (family, title) in order where presentFamilies.contains(family) {
+            let caps = capabilityCodes ?? defaultCodes(for: family).map(\.rawValue)
+            let tiles = catalogTiles(for: family).map { tile in
+                let enabled = hasActiveMoment && tile.tappable && (
+                    family != .lifeOperations
+                        || isTileEnabled(tile, hasActiveMoment: true, capabilityCodes: caps.isEmpty ? defaultCodes(for: .lifeOperations).map(\.rawValue) : caps)
+                )
+                return PersonalActionTile(
+                    code: tile.code,
+                    label: tile.label,
+                    icon: tile.icon,
+                    colors: tile.colors,
+                    enabledWhenMomentActive: family == .lifeOperations ? enabled : (hasActiveMoment && tile.tappable),
+                    tappable: tile.tappable
+                )
+            }
+            if !tiles.isEmpty {
+                sections.append(PersonalHubSection(title: title, tiles: tiles))
+            }
+        }
+        if sections.isEmpty && hasActiveMoment {
+            sections.append(PersonalHubSection(title: "Everyday", tiles: Array(catalogTiles(for: .lifeOperations).prefix(3))))
+        }
+        return sections
+    }
+
     /// Unified Personal catalog — Everyday first, then present family tiles (presence unlocks).
     static func unifiedTiles(
         presentFamilies: Set<PersonalPulseFamily>,
@@ -145,7 +190,7 @@ enum PersonalActionRegistry {
         let effectiveCaps = capabilityCodes ?? defaultCodes(for: family).map(\.rawValue)
         var catalog = catalogTiles(for: family)
         if simpleMode && family == .lifeOperations {
-            let keep = Set(["Expense", "Mood", "Recovery"])
+            let keep = Set(["Spend", "Mood", "Recovery"])
             catalog = catalog.filter { keep.contains($0.label) }
         }
         return catalog.map { tile in
@@ -174,7 +219,7 @@ enum PersonalActionRegistry {
         guard !capabilityCodes.isEmpty else { return false }
 
         switch tile.label {
-        case "Expense", "Transfer", "Savings":
+        case "Spend", "Expense", "Income", "Transfer", "Savings":
             return isMoneyQuickAddEnabled(capabilityCodes)
         default:
             return isDestinationEnabled(capabilityCodes, destination: destination(for: tile.code))
@@ -210,7 +255,8 @@ enum PersonalActionRegistry {
             ]
         case .lifeOperations:
             return [
-                tile(.expenseCreate, "Expense", "QaWallet", "#8B5CF6", "#6C4EF2"),
+                tile(.expenseCreate, "Spend", "QaWallet", "#8B5CF6", "#6C4EF2"),
+                tile(.expenseCreate, "Income", "QaTrending", "#10B981", "#047857"),
                 tile(.lifeObservationRecord, "Recovery", "QaActivity", "#3B82F6", "#1D4ED8"),
                 tile(.lifeObservationRecord, "Mood", "QaSmile", "#06B6D4", "#0891B2"),
                 tile(.lifeObservationRecord, "Attention", "QaTarget", "#A78BFA", "#7C3AED"),

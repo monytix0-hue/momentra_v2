@@ -4,11 +4,14 @@ import SwiftUI
 struct PersonalLifeActiveView: View {
     let refreshToken: UInt64
     var onLogRecovery: () -> Void = {}
+    var onLogSpend: () -> Void = {}
+    var onOpenAdd: () -> Void = {}
 
     @State private var life: APIClient.PersonalLifePayload?
     @State private var loading = true
     @State private var error: String?
-    @State private var selectedChip = "Life Health"
+    /// nil = All; otherwise LIFE_OPERATIONS | FUTURE_BUILDING | LIFESTYLE | RELATIONSHIPS
+    @State private var selectedFamilyFilter: String? = nil
 
     private let bg = Color(red: 0.078, green: 0.071, blue: 0.106)
     private let card = Color(red: 0.110, green: 0.106, blue: 0.180)
@@ -86,20 +89,19 @@ struct PersonalLifeActiveView: View {
     // MARK: - Chips
 
     private var chipRow: some View {
-        VStack(spacing: 0) {
+        let chips: [(String, String?, Color)] = [
+            ("All", nil, dim),
+            ("Everyday", "LIFE_OPERATIONS", purple),
+            ("Future", "FUTURE_BUILDING", blue),
+            ("Lifestyle", "LIFESTYLE", amber),
+            ("People", "RELATIONSHIPS", pink),
+        ]
+        return VStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    chip("Life Health", color: purple)
-                    chip("Future Building", color: blue)
-                    chip("Lifestyle", color: amber)
-                    Spacer(minLength: 8)
-                    Text("⚙")
-                        .font(.plusJakarta(size: 12))
-                        .foregroundStyle(Color(red: 0.5, green: 0.5, blue: 0.58))
-                        .frame(width: 32, height: 32)
-                        .background(cardAlt)
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08)))
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    ForEach(Array(chips.enumerated()), id: \.offset) { _, chip in
+                        familyChip(chip.0, familyCode: chip.1, color: chip.2)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
@@ -109,8 +111,8 @@ struct PersonalLifeActiveView: View {
         .background(Color(red: 0.047, green: 0.059, blue: 0.082))
     }
 
-    private func chip(_ label: String, color: Color) -> some View {
-        let active = selectedChip == label
+    private func familyChip(_ label: String, familyCode: String?, color: Color) -> some View {
+        let active = selectedFamilyFilter == familyCode
         return HStack(spacing: 6) {
             Circle().fill(color).frame(width: 6, height: 6)
             Text(label)
@@ -119,13 +121,13 @@ struct PersonalLifeActiveView: View {
         }
         .padding(.horizontal, active ? 12 : 10)
         .padding(.vertical, 6)
-        .background(active ? purple.opacity(0.12) : cardAlt)
+        .background(active ? color.opacity(0.12) : cardAlt)
         .overlay(
             RoundedRectangle(cornerRadius: 20)
-                .stroke(active ? purple.opacity(0.5) : Color.white.opacity(0.08), lineWidth: active ? 1.5 : 1)
+                .stroke(active ? color.opacity(0.5) : Color.white.opacity(0.08), lineWidth: active ? 1.5 : 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 20))
-        .onTapGesture { selectedChip = label }
+        .onTapGesture { selectedFamilyFilter = familyCode }
     }
 
     // MARK: - Sections
@@ -134,12 +136,20 @@ struct PersonalLifeActiveView: View {
         let emotion = life?.dominantEmotion?.headline.isEmpty == false
             ? life?.dominantEmotion?.headline
             : life?.emotionalTrend?.subtitle
-        let journeyCount = life?.journey?.items?.count ?? 0
+        let journeyCount = (life?.journey?.items ?? []).filter {
+            matchesLifeFamilyFilter($0.familyCode, filter: selectedFamilyFilter)
+        }.count
         let week = life?.thisWeek
-        let expenseAmount = Double(week?.expenseTotal ?? "0") ?? 0
+        let familyRow = selectedFamilyFilter.flatMap { code in
+            week?.byFamily?.first { $0.familyCode.caseInsensitiveCompare(code) == .orderedSame }
+        }
+        let expenseAmount = Double(familyRow?.expenseTotal ?? week?.expenseTotal ?? "0") ?? 0
         let currencyCode = week?.currencyCode
             ?? week?.spendByCurrency?.max(by: { (Double($0.value) ?? 0) < (Double($1.value) ?? 0) })?.key
-        let extraCurrencies = max(0, (week?.spendByCurrency?.count ?? 0) - (currencyCode != nil ? 1 : 0))
+        let extraCurrencies: Int = {
+            if selectedFamilyFilter != nil { return 0 }
+            return max(0, (week?.spendByCurrency?.count ?? 0) - (currencyCode != nil ? 1 : 0))
+        }()
         let moneyLine: String = {
             if expenseAmount > 0 {
                 let symbol = (currencyCode == nil || currencyCode == "INR") ? "₹" : "\(currencyCode!) "
@@ -154,18 +164,32 @@ struct PersonalLifeActiveView: View {
             }
             return "Money · Log spend from Add"
         }()
-        let checkIns = week?.moodOrRecoveryLogs ?? 0
+        let checkIns = familyRow?.moodOrRecoveryLogs ?? week?.moodOrRecoveryLogs ?? 0
         let energyLine: String = {
+            if selectedFamilyFilter != nil {
+                if checkIns > 0 { return "Energy · \(checkIns) check-ins this week" }
+                return "Energy · Log recovery or mood from Add"
+            }
             if let emotion, !emotion.isEmpty { return "Energy · \(emotion)" }
             if checkIns > 0 { return "Energy · \(checkIns) check-ins this week" }
             return "Energy · Log recovery or mood from Add"
         }()
         let people = life?.areaScores?.first(where: { $0.code.uppercased().contains("RELATION") })
+        let showPeople = selectedFamilyFilter == nil
+            || selectedFamilyFilter?.uppercased() == "RELATIONSHIPS"
+        let highlights = (week?.highlights ?? []).filter {
+            matchesLifeFamilyFilter($0.familyCode, filter: selectedFamilyFilter)
+        }
+        let filterSubtitle = lifeFamilyFilterLabel(selectedFamilyFilter).map { "This week · \($0)" }
+            ?? "Across Everyday, Future, Lifestyle, and People"
+        let lev = life?.leverage
+        let ctaLabel = (lev?.ctaLabel.isEmpty == false ? lev?.ctaLabel : nil) ?? "Log today's recovery"
+        let ctaAction = resolveLifeCtaAction(lev?.ctaAction)
         return VStack(alignment: .leading, spacing: 10) {
             Text("This week")
                 .font(.plusJakarta(size: 12, weight: .bold))
                 .foregroundStyle(purple)
-            Text("Across Everyday, Future, Lifestyle, and People")
+            Text(filterSubtitle)
                 .font(.plusJakarta(size: 11))
                 .foregroundStyle(dim)
             Text(moneyLine)
@@ -174,7 +198,7 @@ struct PersonalLifeActiveView: View {
             Text(energyLine)
                 .font(.plusJakarta(size: 13))
                 .foregroundStyle(muted)
-            if let people {
+            if showPeople, let people {
                 Text("People · \(people.label) \(people.score.map(String.init) ?? "—")")
                     .font(.plusJakarta(size: 13))
                     .foregroundStyle(muted)
@@ -184,12 +208,21 @@ struct PersonalLifeActiveView: View {
                     .font(.plusJakarta(size: 12))
                     .foregroundStyle(dim)
             }
-            Button(action: onLogRecovery) {
-                Text(life?.leverage?.ctaLabel.isEmpty == false ? (life?.leverage?.ctaLabel ?? "Log today’s recovery") : "Log today’s recovery")
-                    .font(.plusJakarta(size: 13, weight: .bold))
-                    .foregroundStyle(green)
+            ForEach(Array(highlights.enumerated()), id: \.offset) { _, h in
+                if !h.title.isEmpty {
+                    Text(h.title)
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(dim)
+                }
             }
-            .buttonStyle(.plain)
+            if let ctaAction {
+                Button(action: ctaAction) {
+                    Text(ctaLabel)
+                        .font(.plusJakarta(size: 13, weight: .bold))
+                        .foregroundStyle(green)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -337,15 +370,19 @@ struct PersonalLifeActiveView: View {
                             .foregroundStyle(muted)
                     }
                     Spacer()
-                    Text(lev.ctaLabel)
-                        .font(.plusJakarta(size: 12, weight: .semibold))
-                        .foregroundStyle(green)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(green.opacity(0.15))
-                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(green.opacity(0.4)))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .onTapGesture(perform: onLogRecovery)
+                    if let ctaAction = resolveLifeCtaAction(lev.ctaAction) {
+                        Button(action: ctaAction) {
+                            Text(lev.ctaLabel)
+                                .font(.plusJakarta(size: 12, weight: .semibold))
+                                .foregroundStyle(green)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(green.opacity(0.15))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(green.opacity(0.4)))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
                 Text("EXPECTED IMPACT")
@@ -512,6 +549,9 @@ struct PersonalLifeActiveView: View {
     @ViewBuilder
     private var journeyCard: some View {
         if let journey = life?.journey {
+            let items = (journey.items ?? []).filter {
+                matchesLifeFamilyFilter($0.familyCode, filter: selectedFamilyFilter)
+            }
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(journey.title)
@@ -521,7 +561,12 @@ struct PersonalLifeActiveView: View {
                         .font(.plusJakarta(size: 12))
                         .foregroundStyle(dim)
                 }
-                ForEach(Array((journey.items ?? []).enumerated()), id: \.offset) { _, item in
+                if items.isEmpty {
+                    Text(selectedFamilyFilter != nil ? "No journey notes for this area yet." : "No journey notes yet.")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(dim)
+                }
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     HStack(spacing: 12) {
                         Text(item.icon)
                             .frame(width: 36, height: 36)
@@ -573,6 +618,30 @@ struct PersonalLifeActiveView: View {
             )
             .overlay(RoundedRectangle(cornerRadius: 20).stroke(purple.opacity(0.25)))
             .clipShape(RoundedRectangle(cornerRadius: 20))
+        }
+    }
+
+    private func matchesLifeFamilyFilter(_ itemFamilyCode: String?, filter: String?) -> Bool {
+        guard let filter else { return true }
+        return itemFamilyCode?.caseInsensitiveCompare(filter) == .orderedSame
+    }
+
+    private func lifeFamilyFilterLabel(_ filterCode: String?) -> String? {
+        switch filterCode?.uppercased() {
+        case "LIFE_OPERATIONS": return "Everyday"
+        case "FUTURE_BUILDING": return "Future"
+        case "LIFESTYLE": return "Lifestyle"
+        case "RELATIONSHIPS": return "People"
+        default: return nil
+        }
+    }
+
+    private func resolveLifeCtaAction(_ ctaAction: String?) -> (() -> Void)? {
+        switch ctaAction?.uppercased() {
+        case "LOG_RECOVERY": return onLogRecovery
+        case "LOG_SPEND": return onLogSpend
+        case "OPEN_ADD": return onOpenAdd
+        default: return nil
         }
     }
 }

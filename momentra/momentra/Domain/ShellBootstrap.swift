@@ -102,6 +102,7 @@ extension MeBootstrap {
             BusinessAudience.saveForCompany(companyId: item.companyId, audience: audience)
         }
         CompanyModules.rehydrateFromProfile(companyId: item.companyId, profileJson: item.profileJson)
+        IndustryTemplateCatalog.rehydrateHubHint(companyId: item.companyId, profileJson: item.profileJson)
         return CompanySummary(
             companyId: item.companyId,
             displayName: item.displayName,

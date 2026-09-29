@@ -85,7 +85,6 @@ fun PersonalLifeOpsPulseActiveContent(
     momentId: String?,
     momentTypeCode: String? = null,
     forceCollapsed: Boolean = false,
-    onEnableSimpleMode: () -> Unit = {},
     onAddExpense: () -> Unit,
     onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Unit = {},
     onFutureQuickAdd: (FutureQuickAddKind) -> Unit = {},
@@ -101,11 +100,6 @@ fun PersonalLifeOpsPulseActiveContent(
     val isFuture = family == PersonalPulseFamily.FUTURE_BUILDING
     val isLifestyle = family == PersonalPulseFamily.LIFESTYLE
     val isRelationships = family == PersonalPulseFamily.RELATIONSHIPS
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val habitPrefs = remember { com.example.momentra.data.local.AppPreferences(context) }
-    var simpleCtaDismissed by remember {
-        mutableStateOf(habitPrefs.isPersonalSimpleCtaDismissed())
-    }
     var loading by remember { mutableStateOf(true) }
     var pulse by remember { mutableStateOf<PersonalPulseDto?>(null) }
     var activities by remember { mutableStateOf<List<ActivityItemDto>>(emptyList()) }
@@ -114,10 +108,6 @@ fun PersonalLifeOpsPulseActiveContent(
     LaunchedEffect(forceCollapsed) {
         if (forceCollapsed) seeMoreExpanded = false
     }
-    val showTrySimpleCta = isLifeOps &&
-        !forceCollapsed &&
-        habitPrefs.hasPersonalTodaySave() &&
-        !simpleCtaDismissed
 
     LaunchedEffect(refreshToken, momentId) {
         error = null
@@ -396,42 +386,6 @@ fun PersonalLifeOpsPulseActiveContent(
             fontSize = 13.sp,
             fontFamily = PlusJakartaSans,
         )
-        if (showTrySimpleCta) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(PulsePurple.copy(alpha = 0.12f))
-                    .border(1.dp, PulsePurpleSoft.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    "Try Simple mode — Everyday only",
-                    color = PulsePurpleSoft,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSans,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            habitPrefs.setPersonalSimpleCtaDismissed(true)
-                            simpleCtaDismissed = true
-                            onEnableSimpleMode()
-                        },
-                )
-                Text(
-                    "Not now",
-                    color = PulseMuted,
-                    fontSize = 12.sp,
-                    fontFamily = PlusJakartaSans,
-                    modifier = Modifier.clickable {
-                        habitPrefs.setPersonalSimpleCtaDismissed(true)
-                        simpleCtaDismissed = true
-                    },
-                )
-            }
-        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()

@@ -11,6 +11,11 @@ import {
   loadLifeTrendSeries,
   mapFamily,
 } from '../business/business-life-enrichment';
+import {
+  personalFamilyFromMomentTypeCode,
+  personalFamilyLabel,
+  type PersonalFamilyCode,
+} from '../personal/moment-family';
 
 export interface CursorPage<T> {
   items: T[];
@@ -279,6 +284,24 @@ export async function listPersonalMoments(
 /** Per-section honesty for Life (S2 G3). */
 export type LifeSectionQuality = 'REAL_DATA' | 'EMPTY_SUPPORTED' | 'API_GAP' | 'DEFERRED';
 
+export type PersonalLifeCtaAction = 'LOG_RECOVERY' | 'LOG_SPEND' | 'OPEN_ADD' | 'NONE';
+
+export interface PersonalLifeByFamilyDto {
+  familyCode: PersonalFamilyCode;
+  label: string;
+  expenseTotal: string;
+  incomeTotal: string;
+  periodLogs: number;
+  moodOrRecoveryLogs: number;
+}
+
+export interface PersonalLifeHighlightDto {
+  familyCode: PersonalFamilyCode;
+  title: string;
+  occurredAt: string;
+  activityCode: string;
+}
+
 /** Personal Life Health dashboard — Figma `1047:7689` / body `1047:7707`. User-scoped, cross-moment. */
 export interface PersonalLifeThisWeekDto {
   expenseTotal: string;
@@ -289,6 +312,21 @@ export interface PersonalLifeThisWeekDto {
   moodOrRecoveryLogs: number;
   periodStart: string;
   periodEnd: string;
+  /** Per-family rollup for Life chip filters (only families with activity or active setup). */
+  byFamily: PersonalLifeByFamilyDto[];
+  /** Recent PERSONAL activity with family derived from moment type. */
+  highlights: PersonalLifeHighlightDto[];
+}
+
+export interface PersonalLifeJourneyItemDto {
+  icon: string;
+  title: string;
+  when: string;
+  value: string;
+  tone: 'up' | 'down' | 'neutral';
+  familyCode: PersonalFamilyCode;
+  momentId?: string;
+  activityCode?: string;
 }
 
 export interface PersonalLifeDto {
@@ -315,6 +353,8 @@ export interface PersonalLifeDto {
     actionTitle: string;
     actionBody: string;
     ctaLabel: string;
+    /** Stable client routing — do not parse ctaLabel. */
+    ctaAction: PersonalLifeCtaAction;
     impacts: { label: string; delta: string; tone: 'up' | 'down' | 'neutral' }[];
   };
   balance: { code: string; label: string; score: number; badge: string; badgeTone: string }[];
@@ -331,7 +371,7 @@ export interface PersonalLifeDto {
   journey: {
     title: string;
     subtitle: string;
-    items: { icon: string; title: string; when: string; value: string; tone: 'up' | 'down' | 'neutral' }[];
+    items: PersonalLifeJourneyItemDto[];
   };
   aiInsights: { title: string; lead: string; body: string };
   /** Rolling 7-day spend + check-in counts across the user's Personal moments. */
@@ -370,6 +410,53 @@ function emptyThisWeek(): PersonalLifeThisWeekDto {
     moodOrRecoveryLogs: 0,
     periodStart: periodStart.toISOString(),
     periodEnd: periodEnd.toISOString(),
+    byFamily: [],
+    highlights: [],
+  };
+}
+
+const ALL_PERSONAL_FAMILIES: PersonalFamilyCode[] = [
+  'LIFE_OPERATIONS',
+  'FUTURE_BUILDING',
+  'LIFESTYLE',
+  'RELATIONSHIPS',
+];
+
+function deriveLifeLeverageCta(thisWeek: PersonalLifeThisWeekDto, hasActivity: boolean): {
+  ctaAction: PersonalLifeCtaAction;
+  ctaLabel: string;
+  actionTitle: string;
+  actionBody: string;
+} {
+  if (!hasActivity && thisWeek.periodLogs === 0 && (parseFloat(thisWeek.expenseTotal) || 0) === 0) {
+    return {
+      ctaAction: 'NONE',
+      ctaLabel: 'Coming soon',
+      actionTitle: 'Not available yet',
+      actionBody: 'Leverage suggestions appear after you log Everyday recovery or spend.',
+    };
+  }
+  if (thisWeek.moodOrRecoveryLogs === 0) {
+    return {
+      ctaAction: 'LOG_RECOVERY',
+      ctaLabel: 'Log recovery',
+      actionTitle: 'Check in on recovery',
+      actionBody: 'A quick recovery log keeps Everyday rhythm visible on Life.',
+    };
+  }
+  if ((parseFloat(thisWeek.expenseTotal) || 0) === 0) {
+    return {
+      ctaAction: 'LOG_SPEND',
+      ctaLabel: 'Log spend',
+      actionTitle: 'Capture this week\'s spend',
+      actionBody: 'Everyday spend keeps This week and Life filters honest.',
+    };
+  }
+  return {
+    ctaAction: 'OPEN_ADD',
+    ctaLabel: 'Add something',
+    actionTitle: 'Keep the week moving',
+    actionBody: 'Log mood, recovery, or spend from Add.',
   };
 }
 
@@ -440,6 +527,144 @@ async function buildPersonalLifeThisWeek(
     )
     .catch(() => ({ rows: [] as Array<{ period_logs: string; mood_recovery_logs: string }> }));
 
+  const activeSetups = await client
+    .query<{ system_code: string }>(
+      `SELECT DISTINCT system_code
+       FROM personal.life_system_setup
+       WHERE user_id = $1 AND status = 'ACTIVE'`,
+      [userId]
+    )
+    .catch(() => ({ rows: [] as Array<{ system_code: string }> }));
+  const activeFamilySet = new Set(
+    activeSetups.rows.map((r) => personalFamilyFromMomentTypeCode(r.system_code))
+  );
+
+  const spendByFamily = await client
+    .query<{ moment_type_code: string; spend_amount: string }>(
+      `SELECT mt.code AS moment_type_code, COALESCE(SUM(e.amount), 0)::text AS spend_amount
+       FROM finance.expense e
+       JOIN core.moment m ON m.moment_id = e.moment_id
+       JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+       JOIN personal.personal_moment_context pmc ON pmc.moment_id = e.moment_id AND pmc.user_id = $1
+       WHERE e.created_by_user_id = $1
+         AND e.status IN ('POSTED', 'DRAFT')
+         AND e.effective_at >= now() - ($2 || ' days')::interval
+       GROUP BY mt.code`,
+      [userId, String(days)]
+    )
+    .catch(() => ({ rows: [] as Array<{ moment_type_code: string; spend_amount: string }> }));
+
+  const incomeByFamily = await client
+    .query<{ moment_type_code: string; income_amount: string }>(
+      `SELECT mt.code AS moment_type_code, COALESCE(SUM(fm.amount), 0)::text AS income_amount
+       FROM finance.financial_movement fm
+       JOIN core.moment m ON m.moment_id = fm.source_id
+       JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+       JOIN personal.personal_moment_context pmc ON pmc.moment_id = fm.source_id AND pmc.user_id = $1
+       WHERE fm.source_type = 'PERSONAL_INCOME'
+         AND fm.status = 'POSTED'
+         AND fm.effective_at >= now() - ($2 || ' days')::interval
+       GROUP BY mt.code`,
+      [userId, String(days)]
+    )
+    .catch(() => ({ rows: [] as Array<{ moment_type_code: string; income_amount: string }> }));
+
+  const activityByFamily = await client
+    .query<{ moment_type_code: string | null; period_logs: string; mood_recovery_logs: string }>(
+      `SELECT mt.code AS moment_type_code,
+              COUNT(*)::text AS period_logs,
+              COUNT(*) FILTER (
+                WHERE UPPER(ra.activity_code) LIKE '%MOOD%'
+                   OR UPPER(ra.activity_code) LIKE '%RECOVERY%'
+                   OR UPPER(ra.activity_code) LIKE '%WELLBEING%'
+              )::text AS mood_recovery_logs
+       FROM projection.recent_activity ra
+       LEFT JOIN core.moment m ON m.moment_id = ra.scope_id::uuid AND m.domain_code = 'PERSONAL'
+       LEFT JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+       WHERE ra.user_id = $1
+         AND ra.domain_code = 'PERSONAL'
+         AND ra.occurred_at >= now() - ($2 || ' days')::interval
+         AND COALESCE(ra.activity_payload->>'status', 'POSTED') <> 'VOIDED'
+       GROUP BY mt.code`,
+      [userId, String(days)]
+    )
+    .catch(() => ({
+      rows: [] as Array<{ moment_type_code: string | null; period_logs: string; mood_recovery_logs: string }>,
+    }));
+
+  const familyAgg = new Map<
+    PersonalFamilyCode,
+    { expense: number; income: number; periodLogs: number; moodOrRecoveryLogs: number }
+  >();
+  for (const fam of ALL_PERSONAL_FAMILIES) {
+    familyAgg.set(fam, { expense: 0, income: 0, periodLogs: 0, moodOrRecoveryLogs: 0 });
+  }
+  for (const r of spendByFamily.rows) {
+    const fam = personalFamilyFromMomentTypeCode(r.moment_type_code);
+    const cur = familyAgg.get(fam)!;
+    cur.expense += parseFloat(r.spend_amount) || 0;
+  }
+  for (const r of incomeByFamily.rows) {
+    const fam = personalFamilyFromMomentTypeCode(r.moment_type_code);
+    const cur = familyAgg.get(fam)!;
+    cur.income += parseFloat(r.income_amount) || 0;
+  }
+  for (const r of activityByFamily.rows) {
+    const fam = personalFamilyFromMomentTypeCode(r.moment_type_code);
+    const cur = familyAgg.get(fam)!;
+    cur.periodLogs += parseInt(r.period_logs ?? '0', 10);
+    cur.moodOrRecoveryLogs += parseInt(r.mood_recovery_logs ?? '0', 10);
+  }
+
+  const byFamily: PersonalLifeByFamilyDto[] = ALL_PERSONAL_FAMILIES.filter((fam) => {
+    const cur = familyAgg.get(fam)!;
+    return (
+      activeFamilySet.has(fam) ||
+      cur.expense > 0 ||
+      cur.income > 0 ||
+      cur.periodLogs > 0
+    );
+  }).map((fam) => {
+    const cur = familyAgg.get(fam)!;
+    return {
+      familyCode: fam,
+      label: personalFamilyLabel(fam),
+      expenseTotal: cur.expense.toFixed(2),
+      incomeTotal: cur.income.toFixed(2),
+      periodLogs: cur.periodLogs,
+      moodOrRecoveryLogs: cur.moodOrRecoveryLogs,
+    };
+  });
+
+  const highlightRows = await client
+    .query<{ title: string; occurred_at: Date; activity_code: string; moment_type_code: string | null }>(
+      `SELECT ra.title, ra.occurred_at, ra.activity_code, mt.code AS moment_type_code
+       FROM projection.recent_activity ra
+       LEFT JOIN core.moment m ON m.moment_id = ra.scope_id::uuid AND m.domain_code = 'PERSONAL'
+       LEFT JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+       WHERE ra.user_id = $1
+         AND ra.domain_code = 'PERSONAL'
+         AND COALESCE(ra.activity_payload->>'status', 'POSTED') <> 'VOIDED'
+       ORDER BY ra.occurred_at DESC
+       LIMIT 8`,
+      [userId]
+    )
+    .catch(() => ({
+      rows: [] as Array<{
+        title: string;
+        occurred_at: Date;
+        activity_code: string;
+        moment_type_code: string | null;
+      }>,
+    }));
+
+  const highlights: PersonalLifeHighlightDto[] = highlightRows.rows.map((r) => ({
+    familyCode: personalFamilyFromMomentTypeCode(r.moment_type_code),
+    title: r.title,
+    occurredAt: r.occurred_at.toISOString(),
+    activityCode: r.activity_code,
+  }));
+
   return {
     expenseTotal: spendRows.rows.length ? expenseTotal : '0',
     incomeTotal: incomeRow.rows[0]?.income_total ?? '0',
@@ -449,6 +674,8 @@ async function buildPersonalLifeThisWeek(
     moodOrRecoveryLogs: parseInt(actRow.rows[0]?.mood_recovery_logs ?? '0', 10),
     periodStart: periodStart.toISOString(),
     periodEnd: periodEnd.toISOString(),
+    byFamily,
+    highlights,
   };
 }
 
@@ -476,6 +703,7 @@ function honestEmptyLife(userId: string, activeAreaCount: number): PersonalLifeD
       actionTitle: 'Not available yet',
       actionBody: 'Leverage suggestions require analytics refresh — core Momentra works without them.',
       ctaLabel: 'Coming soon',
+      ctaAction: 'NONE',
       impacts: [],
     },
     balance: [],
@@ -587,10 +815,10 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
   const pulseRow = pulse.rows[0];
 
   const areaLabel: Record<string, { label: string; color: string }> = {
-    LIFE_OPERATIONS: { label: 'Life Ops', color: '#3B82F6' },
+    LIFE_OPERATIONS: { label: 'Everyday', color: '#3B82F6' },
     FUTURE_BUILDING: { label: 'Future', color: '#10B981' },
     LIFESTYLE: { label: 'Lifestyle', color: '#F59E0B' },
-    RELATIONSHIPS: { label: 'Relations', color: '#E12A9E' },
+    RELATIONSHIPS: { label: 'People', color: '#E12A9E' },
   };
   const areaScores = areas.rows.slice(0, 4).map((r) => {
     const meta = areaLabel[r.system_code] ?? { label: r.system_code, color: '#8C8C9E' };
@@ -603,24 +831,44 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
   });
 
   const journeyRows = await client
-    .query<{ title: string; occurred_at: Date; activity_code: string }>(
-      `SELECT title, occurred_at, activity_code
-       FROM projection.recent_activity
-       WHERE user_id = $1
-         AND domain_code = 'PERSONAL'
-         AND COALESCE(activity_payload->>'status', 'POSTED') <> 'VOIDED'
-       ORDER BY occurred_at DESC
-       LIMIT 8`,
+    .query<{
+      title: string;
+      occurred_at: Date;
+      activity_code: string;
+      scope_id: string | null;
+      moment_type_code: string | null;
+    }>(
+      `SELECT ra.title, ra.occurred_at, ra.activity_code, ra.scope_id::text AS scope_id,
+              mt.code AS moment_type_code
+       FROM projection.recent_activity ra
+       LEFT JOIN core.moment m ON m.moment_id = ra.scope_id::uuid AND m.domain_code = 'PERSONAL'
+       LEFT JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+       WHERE ra.user_id = $1
+         AND ra.domain_code = 'PERSONAL'
+         AND COALESCE(ra.activity_payload->>'status', 'POSTED') <> 'VOIDED'
+       ORDER BY ra.occurred_at DESC
+       LIMIT 12`,
       [userId]
     )
-    .catch(() => ({ rows: [] as Array<{ title: string; occurred_at: Date; activity_code: string }> }));
+    .catch(() => ({
+      rows: [] as Array<{
+        title: string;
+        occurred_at: Date;
+        activity_code: string;
+        scope_id: string | null;
+        moment_type_code: string | null;
+      }>,
+    }));
 
-  const journeyItems = journeyRows.rows.map((r) => ({
+  const journeyItems: PersonalLifeJourneyItemDto[] = journeyRows.rows.map((r) => ({
     icon: '•',
     title: r.title,
     when: r.occurred_at.toISOString(),
     value: r.activity_code,
     tone: 'neutral' as const,
+    familyCode: personalFamilyFromMomentTypeCode(r.moment_type_code),
+    momentId: r.scope_id ?? undefined,
+    activityCode: r.activity_code,
   }));
 
   const hasAreaScores = areaScores.some((a) => a.score != null);
@@ -629,6 +877,7 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
     (parseFloat(thisWeek.expenseTotal) || 0) > 0 ||
     (parseFloat(thisWeek.incomeTotal) || 0) > 0 ||
     thisWeek.periodLogs > 0;
+  const leverageCta = deriveLifeLeverageCta(thisWeek, journeyItems.length > 0 || hasThisWeekData);
   const sectionQuality: Record<string, LifeSectionQuality> = {
     ...LIFE_HONEST_EMPTY_SECTION_QUALITY,
     activeAreaCount: 'REAL_DATA',
@@ -636,6 +885,12 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
     areaScores: areaScores.length ? (hasAreaScores ? 'REAL_DATA' : 'EMPTY_SUPPORTED') : 'EMPTY_SUPPORTED',
     journey: journeyItems.length ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
     thisWeek: hasThisWeekData ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
+    leverage: leverageCta.ctaAction === 'NONE' ? 'EMPTY_SUPPORTED' : 'REAL_DATA',
+  };
+
+  const leverage = {
+    ...base.leverage,
+    ...leverageCta,
   };
 
   const insight = await client
@@ -656,6 +911,7 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
     return {
       ...base,
       areaScores,
+      leverage,
       journey: { title: 'Life Journey', subtitle: journeyItems.length ? 'Recent activity' : 'Key shifts', items: journeyItems },
       thisWeek,
       sectionQuality,
@@ -668,6 +924,7 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
   return {
     ...base,
     areaScores,
+    leverage,
     journey: { title: 'Life Journey', subtitle: journeyItems.length ? 'Recent activity' : 'Key shifts', items: journeyItems },
     thisWeek,
     sectionQuality,

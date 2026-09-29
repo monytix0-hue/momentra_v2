@@ -93,11 +93,15 @@ fun PersonalRelationshipsMemoryActiveContent(
     val axes = PersonalRelationshipsDerived.bondAxes(pulse)
     val subtitle = PersonalRelationshipsDerived.bondSubtitle(pulse)
     val thinData = activities.size < 2 && bond == "—"
-    val patternConfidence = if (thinData) "Patterns appear after a few logs" else "${(40 + activities.size * 5).coerceAtMost(92)}% pattern confidence"
-    val aiBody = when {
-        thinData -> "Start on Pulse — log connections or support to unlock patterns."
-        axes.trust != "—" -> "Trust signals from logged connection are shaping your bond memory."
-        else -> "Keep logging care and presence to reveal relationship patterns."
+    val patternConfidence = if (thinData) {
+        "Patterns appear after a few logs"
+    } else {
+        "Pattern strength is not scored yet"
+    }
+    val memoryInterpretation = if (thinData) {
+        "Log more on Pulse to unlock Memory interpretation."
+    } else {
+        "Memory insights are not available yet — summaries below come from your activity timeline."
     }
 
     Column(
@@ -157,7 +161,7 @@ fun PersonalRelationshipsMemoryActiveContent(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("MEMORY INTERPRETATION", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
-            Text(aiBody, color = TextMain, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+            Text(memoryInterpretation, color = TextMain, fontSize = 13.sp, fontFamily = PlusJakartaSans)
         }
 
         FamilyMemoryBody(

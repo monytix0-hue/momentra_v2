@@ -36,12 +36,12 @@ struct PersonalActionRegistryTests {
         )
         let transfer = tiles.first { $0.label == "Transfer" }
         let savings = tiles.first { $0.label == "Savings" }
-        let expense = tiles.first { $0.label == "Expense" }
+        let spend = tiles.first { $0.label == "Spend" }
         #expect(transfer?.code == .movementRecord)
         #expect(transfer?.enabledWhenMomentActive == true)
         #expect(savings?.enabledWhenMomentActive == true)
-        #expect(expense?.enabledWhenMomentActive == true)
-        #expect(expense?.icon == "QaWallet")
+        #expect(spend?.enabledWhenMomentActive == true)
+        #expect(spend?.icon == "QaWallet")
     }
 
     @Test func emptyCapabilitiesShowAllTilesDisabled() {
@@ -50,7 +50,7 @@ struct PersonalActionRegistryTests {
             hasActiveMoment: true,
             capabilityCodes: []
         )
-        #expect(tiles.count == 8)
+        #expect(tiles.count == 9)
         #expect(tiles.allSatisfy { !$0.enabledWhenMomentActive })
         #expect(!PersonalActionRegistry.isDestinationEnabled([], destination: .expense))
         #expect(!PersonalActionRegistry.isDestinationEnabled(nil, destination: .expense))

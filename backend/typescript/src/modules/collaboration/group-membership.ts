@@ -159,6 +159,59 @@ export async function assertParticipantsOnMoment(
 
 const LEADER_ROLES = new Set(['ORGANIZER', 'CO_ORGANIZER']);
 
+/** Lock all ACTIVE participants for a moment (stable order) to serialize leave/role/remove. */
+async function lockActiveParticipants(
+  client: PoolClient,
+  momentId: string
+): Promise<
+  Array<{
+    participantId: string;
+    userId: string | null;
+    roleCode: string;
+  }>
+> {
+  const rows = await client.query<{
+    participant_id: string;
+    user_id: string | null;
+    participant_role: string;
+  }>(
+    `SELECT participant_id, user_id, participant_role
+     FROM collaboration.moment_participant
+     WHERE moment_id = $1 AND status = 'ACTIVE'
+     ORDER BY participant_id
+     FOR UPDATE`,
+    [momentId]
+  );
+  return rows.rows.map((r) => ({
+    participantId: r.participant_id,
+    userId: r.user_id,
+    roleCode: r.participant_role,
+  }));
+}
+
+async function lockGroupMomentContext(
+  client: PoolClient,
+  momentId: string
+): Promise<{ organizerUserId: string }> {
+  const row = await client.query<{ organizer_user_id: string }>(
+    `SELECT organizer_user_id
+     FROM collaboration.group_moment_context
+     WHERE moment_id = $1
+     FOR UPDATE`,
+    [momentId]
+  );
+  if (!row.rows[0]) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Group moment context not found.', 404);
+  }
+  return { organizerUserId: row.rows[0].organizer_user_id };
+}
+
+function countLeaders(
+  participants: Array<{ roleCode: string }>
+): number {
+  return participants.filter((p) => LEADER_ROLES.has(p.roleCode)).length;
+}
+
 export const leaveGroupMomentSchema = z
   .object({
     transferUserId: z.string().uuid().optional(),
@@ -169,6 +222,7 @@ export type LeaveGroupMomentInput = z.infer<typeof leaveGroupMomentSchema>;
 
 /**
  * Self-leave a Group moment. Leaders must transfer ORGANIZER to another ACTIVE user first.
+ * Participant rows are locked so concurrent leaves cannot orphan the group.
  */
 export async function leaveGroupMoment(
   client: PoolClient,
@@ -178,31 +232,23 @@ export async function leaveGroupMoment(
 ): Promise<{ momentId: string; status: 'LEFT'; transferredToUserId: string | null }> {
   const me = await assertGroupMember(client, ctx, momentId);
 
-  const ctxRow = await client.query<{ organizer_user_id: string }>(
-    `SELECT organizer_user_id FROM collaboration.group_moment_context WHERE moment_id = $1`,
-    [momentId]
-  );
-  if (!ctxRow.rows[0]) {
-    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Group moment context not found.', 404);
+  // Serialize membership mutations for this moment.
+  const ctxLocked = await lockGroupMomentContext(client, momentId);
+  const active = await lockActiveParticipants(client, momentId);
+  const myLocked = active.find((p) => p.userId === ctx.userId);
+  if (!myLocked) {
+    throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Not an active member of this group moment.', 403);
   }
 
   const isLeader =
-    LEADER_ROLES.has(me.role) || ctxRow.rows[0].organizer_user_id === ctx.userId;
+    LEADER_ROLES.has(myLocked.roleCode) || ctxLocked.organizerUserId === ctx.userId;
 
-  const others = await client.query<{ user_id: string; participant_role: string }>(
-    `SELECT user_id, participant_role
-     FROM collaboration.moment_participant
-     WHERE moment_id = $1
-       AND status = 'ACTIVE'
-       AND user_id IS NOT NULL
-       AND user_id <> $2`,
-    [momentId, ctx.userId]
-  );
+  const others = active.filter((p) => p.userId != null && p.userId !== ctx.userId);
 
   let transferredToUserId: string | null = null;
 
   if (isLeader) {
-    if (others.rows.length === 0) {
+    if (others.length === 0) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
         'Invite another member and transfer organizer before leaving, or delete the moment.',
@@ -216,7 +262,7 @@ export async function leaveGroupMoment(
         400
       );
     }
-    const successor = others.rows.find((r) => r.user_id === body.transferUserId);
+    const successor = others.find((r) => r.userId === body.transferUserId);
     if (!successor) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
@@ -318,48 +364,7 @@ export function assertCallerIsOrganizer(me: GroupMemberInfo): void {
   }
 }
 
-async function countActiveOrganizers(client: PoolClient, momentId: string): Promise<number> {
-  const rows = await client.query<{ c: string }>(
-    `SELECT COUNT(*)::text AS c
-     FROM collaboration.moment_participant
-     WHERE moment_id = $1
-       AND status = 'ACTIVE'
-       AND participant_role IN ('ORGANIZER', 'CO_ORGANIZER')`,
-    [momentId]
-  );
-  return Number(rows.rows[0]?.c ?? 0);
-}
-
-async function loadActiveParticipant(
-  client: PoolClient,
-  momentId: string,
-  participantId: string
-): Promise<{
-  participantId: string;
-  userId: string | null;
-  roleCode: string;
-}> {
-  const row = await client.query<{
-    participant_id: string;
-    user_id: string | null;
-    participant_role: string;
-  }>(
-    `SELECT participant_id, user_id, participant_role
-     FROM collaboration.moment_participant
-     WHERE moment_id = $1 AND participant_id = $2 AND status = 'ACTIVE'`,
-    [momentId, participantId]
-  );
-  if (!row.rows[0]) {
-    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Active participant not found.', 404);
-  }
-  return {
-    participantId: row.rows[0].participant_id,
-    userId: row.rows[0].user_id,
-    roleCode: row.rows[0].participant_role,
-  };
-}
-
-async function loadRemovableParticipant(
+async function loadRemovableParticipantLocked(
   client: PoolClient,
   momentId: string,
   participantId: string
@@ -377,7 +382,8 @@ async function loadRemovableParticipant(
   }>(
     `SELECT participant_id, user_id, participant_role, status
      FROM collaboration.moment_participant
-     WHERE moment_id = $1 AND participant_id = $2 AND status IN ('ACTIVE', 'INVITED')`,
+     WHERE moment_id = $1 AND participant_id = $2 AND status IN ('ACTIVE', 'INVITED')
+     FOR UPDATE`,
     [momentId, participantId]
   );
   if (!row.rows[0]) {
@@ -405,14 +411,19 @@ export async function updateGroupParticipantRole(
   const me = await assertGroupMember(client, ctx, momentId);
   assertCallerIsOrganizer(me);
 
-  const target = await loadActiveParticipant(client, momentId, participantId);
+  await lockGroupMomentContext(client, momentId);
+  const active = await lockActiveParticipants(client, momentId);
+  const target = active.find((p) => p.participantId === participantId);
+  if (!target) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Active participant not found.', 404);
+  }
+
   const nextRole = body.roleCode;
   const wasLeader = LEADER_ROLES.has(target.roleCode);
   const willBeLeader = LEADER_ROLES.has(nextRole);
 
   if (wasLeader && !willBeLeader) {
-    const organizers = await countActiveOrganizers(client, momentId);
-    if (organizers <= 1) {
+    if (countLeaders(active) <= 1) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
         'Cannot demote the only organizer. Promote someone else first.',
@@ -488,10 +499,13 @@ export async function removeGroupParticipant(
     );
   }
 
-  const target = await loadRemovableParticipant(client, momentId, participantId);
+  await lockGroupMomentContext(client, momentId);
+  const active = await lockActiveParticipants(client, momentId);
+  // Target may be INVITED (not in ACTIVE lock set) — lock that row too.
+  const target = await loadRemovableParticipantLocked(client, momentId, participantId);
+
   if (LEADER_ROLES.has(target.roleCode) && target.status === 'ACTIVE') {
-    const organizers = await countActiveOrganizers(client, momentId);
-    if (organizers <= 1) {
+    if (countLeaders(active) <= 1) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
         'Cannot remove the only organizer.',

@@ -6,6 +6,7 @@ struct GroupQuickAddHubView: View {
     var capabilityCodes: [String]? = nil
     var momentTypeCode: String? = nil
     var momentTitle: String? = nil
+    var viewerReadOnly: Bool = false
     var onClose: () -> Void
     var onExpense: () -> Void
     var onContribution: () -> Void
@@ -29,7 +30,7 @@ struct GroupQuickAddHubView: View {
 
     private var actions: [GroupActionTile] {
         GroupActionRegistry.figmaTripHubTiles(
-            hasActiveMoment: hasActiveMoment,
+            hasActiveMoment: hasActiveMoment && !viewerReadOnly,
             capabilityCodes: capabilityCodes
         )
     }
@@ -144,6 +145,28 @@ struct GroupQuickAddHubView: View {
                             Color.clear.frame(maxWidth: .infinity)
                         }
                     }
+                }
+
+                if hasActiveMoment && (capabilityCodes?.isEmpty ?? true) {
+                    Text("Permissions are still loading for this moment. Actions stay locked until capabilities arrive.")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(Color(hex: "#A8A19E"))
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(hex: "#171618"))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#403C40")))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+
+                if viewerReadOnly {
+                    Text("You’re viewing as a guest. Creating and editing stay with organizers and members.")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(Color(hex: "#A8A19E"))
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(hex: "#171618"))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#403C40")))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 
                 Button(action: onNewMoment) {

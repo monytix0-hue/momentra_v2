@@ -19,7 +19,7 @@ enum PersonalSetupSystem: String, CaseIterable, Identifiable, Hashable {
 
     var defaultTitle: String {
         switch self {
-        case .lifeOperations: return "My life operations rhythm"
+        case .lifeOperations: return "My everyday rhythm"
         case .futureBuilding: return "My future building"
         case .lifestyle: return "My intentional lifestyle"
         case .relationships: return "My relationships"
@@ -28,7 +28,7 @@ enum PersonalSetupSystem: String, CaseIterable, Identifiable, Hashable {
 
     var label: String {
         switch self {
-        case .lifeOperations: return "Life Operations"
+        case .lifeOperations: return "Everyday"
         case .futureBuilding: return "Future Building"
         case .lifestyle: return "Lifestyle"
         case .relationships: return "Relationships"

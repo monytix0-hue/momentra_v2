@@ -28,10 +28,10 @@ data class PersonalSetupFieldSpec(
 /** Defaults + allowedKeys must match backend PERSONAL_SETUP_CATALOG (Figma field model). */
 object PersonalSetupCatalog {
     private val lifeOps = PersonalSetupCatalogEntry(
-        defaultTitle = "My life operations rhythm",
+        defaultTitle = "My everyday rhythm",
         subtitle = "Create a calmer operating system for everyday life. Everything can be refined later.",
         momentTypeCode = "LIFE_RHYTHM",
-        activateLabel = "Activate Life Operations →",
+        activateLabel = "Activate Everyday →",
         footerTagline = "Private by default · Change anytime",
         defaultPreferences = mapOf(
             "lifeFocus" to "Daily balance",

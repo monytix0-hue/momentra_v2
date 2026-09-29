@@ -71,6 +71,24 @@ data class PersonalLifeThisWeekDto(
     @SerializedName("moodOrRecoveryLogs") val moodOrRecoveryLogs: Int = 0,
     @SerializedName("periodStart") val periodStart: String = "",
     @SerializedName("periodEnd") val periodEnd: String = "",
+    @SerializedName("byFamily") val byFamily: List<PersonalLifeByFamilyDto> = emptyList(),
+    val highlights: List<PersonalLifeHighlightDto> = emptyList(),
+)
+
+data class PersonalLifeByFamilyDto(
+    @SerializedName("familyCode") val familyCode: String = "",
+    val label: String = "",
+    @SerializedName("expenseTotal") val expenseTotal: String = "0",
+    @SerializedName("incomeTotal") val incomeTotal: String = "0",
+    @SerializedName("periodLogs") val periodLogs: Int = 0,
+    @SerializedName("moodOrRecoveryLogs") val moodOrRecoveryLogs: Int = 0,
+)
+
+data class PersonalLifeHighlightDto(
+    @SerializedName("familyCode") val familyCode: String = "",
+    val title: String = "",
+    @SerializedName("occurredAt") val occurredAt: String = "",
+    @SerializedName("activityCode") val activityCode: String = "",
 )
 
 data class PersonalActivitySummaryDto(
@@ -104,6 +122,8 @@ data class LifeLeverageDto(
     @SerializedName("actionTitle") val actionTitle: String,
     @SerializedName("actionBody") val actionBody: String,
     @SerializedName("ctaLabel") val ctaLabel: String,
+    /** LOG_RECOVERY | LOG_SPEND | OPEN_ADD | NONE — route by this, not ctaLabel. */
+    @SerializedName("ctaAction") val ctaAction: String = "NONE",
     val impacts: List<LifeImpactDto> = emptyList(),
 )
 
@@ -163,6 +183,9 @@ data class LifeJourneyItemDto(
     @SerializedName("when") val whenLabel: String = "",
     val value: String,
     val tone: String = "neutral",
+    @SerializedName("familyCode") val familyCode: String? = null,
+    @SerializedName("momentId") val momentId: String? = null,
+    @SerializedName("activityCode") val activityCode: String? = null,
 )
 
 data class LifeAiInsightsDto(

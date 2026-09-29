@@ -27,7 +27,7 @@ struct PersonalUnifiedChromeView: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(.white.opacity(0.85))
                 }
-                .accessibilityLabel("Manage")
+                .accessibilityLabel("Manage Personal")
             }
         }
         .padding(.horizontal, 14)

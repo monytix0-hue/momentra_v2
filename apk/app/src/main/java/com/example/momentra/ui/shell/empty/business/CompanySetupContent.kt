@@ -70,7 +70,13 @@ import com.example.momentra.data.api.CreateCompanyBody
 import com.example.momentra.data.api.CreateLocationBody
 import com.example.momentra.data.api.MintCompanyInviteBody
 import com.example.momentra.data.repository.BusinessSliceRepository
+import com.example.momentra.data.repository.MomentCreateRepository
 import com.example.momentra.domain.CompanySummary
+import com.example.momentra.ui.shell.business.shared.BusinessAudience
+import com.example.momentra.ui.shell.business.shared.CompanyModules
+import com.example.momentra.ui.shell.business.shared.IndustryTemplate
+import com.example.momentra.ui.shell.business.shared.IndustryTemplateCatalog
+import com.example.momentra.ui.shell.empty.business.BusinessSetupCatalog
 import com.google.firebase.auth.FirebaseAuth
 import com.example.momentra.ui.shell.empty.group.InviteSendChooserDialog
 import com.example.momentra.ui.shell.empty.group.PendingInviteSend
@@ -92,13 +98,18 @@ private val CoAmber = Color(0xFFF59E0B)
 
 private val CoIndustryOptions = listOf(
     "Retail / Kirana",
+    "Pet store / Specialty",
+    "Manufacturing / Workshop",
     "Restaurant / F&B",
     "Fashion / Apparel",
     "Services",
     "Wholesale",
     "Technology & Software",
+    "E-commerce",
     "Other",
 )
+
+private val CoSizeOptions = listOf("Solo (1)", "Small (2-25)", "Medium (26-100)")
 
 private val CoCurrencyOptions = listOf(
     "₹ INR — Indian Rupee",
@@ -175,6 +186,13 @@ fun CompanySetupContent(
     var fyCycle by remember { mutableStateOf("Apr-Mar") }
     var timezone by remember { mutableStateOf("IST (UTC+5:30)") }
     var audience by remember { mutableStateOf(com.example.momentra.ui.shell.business.shared.BusinessAudience.SMALL_SHOP) }
+    var industryTemplate by remember { mutableStateOf(IndustryTemplateCatalog.KIRANA) }
+    var templateManuallyPicked by remember { mutableStateOf(false) }
+    var sellWhat by remember { mutableStateOf("Physical items") }
+    var billHow by remember { mutableStateOf("Counter billing") }
+    var customMoney by remember { mutableStateOf(true) }
+    var customDaily by remember { mutableStateOf(true) }
+    var customTeam by remember { mutableStateOf(false) }
     var structure by remember { mutableStateOf("Single Location") }
     val locations = remember { mutableStateListOf<CoLocation>() }
     val members = remember {
@@ -202,6 +220,8 @@ fun CompanySetupContent(
     var memberNameDraft by remember { mutableStateOf("") }
     var activating by remember { mutableStateOf(false) }
     var nameError by remember { mutableStateOf<String?>(null) }
+    var activateError by remember { mutableStateOf<String?>(null) }
+    var activateWarning by remember { mutableStateOf<String?>(null) }
     var showJoinCode by remember { mutableStateOf(false) }
     var pendingActivation by remember { mutableStateOf<CompanySummary?>(null) }
     var pendingInviteSend by remember { mutableStateOf<PendingInviteSend?>(null) }
@@ -279,12 +299,42 @@ fun CompanySetupContent(
                         industry = "Retail / Kirana"
                         companySize = "Solo (1)"
                         entityType = "Sole Prop"
+                        industryTemplate = IndustryTemplateCatalog.KIRANA
+                        templateManuallyPicked = false
                     } else {
                         industry = "Technology & Software"
                         companySize = "Small (2-25)"
                         entityType = "Pvt Ltd"
                     }
                 },
+                industryTemplate = industryTemplate,
+                onIndustryTemplate = { tpl ->
+                    industryTemplate = tpl
+                    templateManuallyPicked = true
+                    tpl.profileDefaults["industry"]?.toString()?.let { industry = it }
+                },
+                sellWhat = sellWhat,
+                onSellWhat = { answer ->
+                    sellWhat = answer
+                    if (!templateManuallyPicked) {
+                        industryTemplate = IndustryTemplateCatalog.suggest(answer, billHow)
+                        industryTemplate.profileDefaults["industry"]?.toString()?.let { industry = it }
+                    }
+                },
+                billHow = billHow,
+                onBillHow = { answer ->
+                    billHow = answer
+                    if (!templateManuallyPicked) {
+                        industryTemplate = IndustryTemplateCatalog.suggest(sellWhat, answer)
+                        industryTemplate.profileDefaults["industry"]?.toString()?.let { industry = it }
+                    }
+                },
+                customMoney = customMoney,
+                onCustomMoney = { customMoney = it },
+                customDaily = customDaily,
+                onCustomDaily = { customDaily = it },
+                customTeam = customTeam,
+                onCustomTeam = { customTeam = it },
                 logoPreview = logoPreview,
                 logoError = logoError,
                 onLogoPicked = { bytes, preview ->
@@ -343,6 +393,15 @@ fun CompanySetupContent(
                 },
                 logoError = logoError,
                 nameError = nameError,
+                activateError = activateError,
+                activateWarning = activateWarning,
+                nextSteps = coLaunchNextSteps(
+                    audience = audience,
+                    template = industryTemplate,
+                    customMoney = customMoney,
+                    customDaily = customDaily,
+                    customTeam = customTeam,
+                ),
                 activating = activating,
                 onActivate = {
                     if (activating) return@CoLaunchForm
@@ -352,11 +411,52 @@ fun CompanySetupContent(
                         step = 2
                         return@CoLaunchForm
                     }
+                    val smallShop = BusinessAudience.isSmallShop(audience)
+                    val customMods = mapOf(
+                        "money" to customMoney,
+                        "dailyBusiness" to customDaily,
+                        "teamOps" to customTeam,
+                    )
+                    if (smallShop && industryTemplate.isCustom) {
+                        val kinds = IndustryTemplateCatalog.setupKindsFor(industryTemplate, customMods)
+                        if (kinds.isEmpty()) {
+                            activateError = "Turn on at least one moment (Money, Daily Business, or Team)"
+                            return@CoLaunchForm
+                        }
+                    }
                     nameError = null
+                    activateError = null
+                    activateWarning = null
                     activating = true
                     scope.launch {
                         try {
                             val tz = coTimezoneToIana(timezone)
+                            val template = if (smallShop) industryTemplate else null
+                            val modules = template?.let {
+                                IndustryTemplateCatalog.modulesFor(it, customMods)
+                            } ?: mapOf(
+                                "money" to true,
+                                "dailyBusiness" to true,
+                                "teamOps" to true,
+                                "vendors" to true,
+                            )
+                            val profile = mutableMapOf<String, Any>(
+                                "industry" to industry,
+                                "companySize" to companySize,
+                                "currency" to currency,
+                                "financialYear" to fyCycle,
+                                "structure" to structure,
+                                "audience" to audience,
+                                "settings" to mapOf("modules" to modules),
+                            )
+                            if (template != null) {
+                                profile[IndustryTemplateCatalog.PROFILE_KEY] = template.id
+                                template.profileDefaults.forEach { (k, v) ->
+                                    if (k != "industry" || industry.isBlank()) {
+                                        profile.putIfAbsent(k, v)
+                                    }
+                                }
+                            }
                             val created = ApiClient.apiService.createCompany(
                                 idempotencyKey = UUID.randomUUID().toString(),
                                 body = CreateCompanyBody(
@@ -365,21 +465,18 @@ fun CompanySetupContent(
                                     timezone = tz,
                                     companyType = entityType,
                                     taxIdentifier = gstin.ifBlank { null },
-                                    profileJson = mapOf(
-                                        "industry" to industry,
-                                        "companySize" to companySize,
-                                        "currency" to currency,
-                                        "financialYear" to fyCycle,
-                                        "structure" to structure,
-                                        "audience" to audience,
-                                    ),
+                                    profileJson = profile,
                                 ),
                             ).data
-                            com.example.momentra.ui.shell.business.shared.BusinessAudience.saveForCompany(
+                            BusinessAudience.saveForCompany(
                                 context,
                                 created.companyId,
                                 audience,
                             )
+                            CompanyModules.saveModules(context, created.companyId, modules)
+                            IndustryTemplateCatalog.hubHintFromProfile(profile)?.let {
+                                IndustryTemplateCatalog.saveHubHint(context, created.companyId, it)
+                            }
                             for (loc in locations) {
                                 runCatching {
                                     ApiClient.apiService.createLocation(
@@ -393,6 +490,7 @@ fun CompanySetupContent(
                                     )
                                 }
                             }
+                            val softWarnings = mutableListOf<String>()
                             val bytes = logoBytes
                             if (bytes != null) {
                                 val uploaded = BusinessSliceRepository().uploadCompanyLogo(
@@ -411,13 +509,47 @@ fun CompanySetupContent(
                                                 ),
                                             )
                                         }.onFailure {
+                                            softWarnings += "Logo could not be saved"
                                             logoError = it.message ?: "Could not save logo"
                                         }
                                     },
                                     onFailure = {
+                                        softWarnings += "Logo could not be uploaded"
                                         logoError = it.message ?: "Could not upload logo"
                                     },
                                 )
+                            }
+                            if (template != null) {
+                                val kinds = IndustryTemplateCatalog.setupKindsFor(template, customMods)
+                                val momentRepo = MomentCreateRepository()
+                                val failedKinds = mutableListOf<String>()
+                                for (kind in kinds) {
+                                    val entry = BusinessSetupCatalog.forKind(kind)
+                                    val prefs = BusinessSetupCatalog.defaultPreferences(
+                                        kind,
+                                        audience,
+                                    ).toMutableMap()
+                                    prefs["audience"] = audience
+                                    prefs[IndustryTemplateCatalog.PROFILE_KEY] = template.id
+                                    val result = momentRepo.createBusinessMoment(
+                                        companyId = created.companyId,
+                                        familyCode = kind.familyCode,
+                                        momentTypeCode = entry.momentTypeCode,
+                                        title = entry.defaultTitle,
+                                        preferences = prefs,
+                                        status = "ACTIVE",
+                                    )
+                                    if (result.isFailure) {
+                                        failedKinds += entry.defaultTitle
+                                    }
+                                }
+                                if (failedKinds.isNotEmpty()) {
+                                    softWarnings +=
+                                        "Company created; ${failedKinds.joinToString()} could not be set up—open Create to add"
+                                }
+                            }
+                            if (softWarnings.isNotEmpty()) {
+                                activateWarning = softWarnings.joinToString(" · ")
                             }
                             val summary = CompanySummary(
                                 companyId = created.companyId,
@@ -445,15 +577,16 @@ fun CompanySetupContent(
                             } else {
                                 onActivated(summary)
                             }
-                        } catch (_: Exception) {
-                            onClose()
+                        } catch (e: Exception) {
+                            activateError = e.message?.takeIf { it.isNotBlank() }
+                                ?: "Could not activate company. Check your connection and try again."
                         } finally {
                             activating = false
                         }
                     }
                 },
                 onBack = { step = 3 },
-                onDraft = onClose,
+                onCloseSetup = onClose,
             )
             }
         }
@@ -882,6 +1015,28 @@ private fun CoPill(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
+private fun CoModuleToggle(label: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(CoCard)
+            .clickable { onChecked(!checked) }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(
+            if (checked) "On" else "Off",
+            color = if (checked) CoGreen else CoDim,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
 private fun CoPrimaryButton(label: String, onClick: () -> Unit, color: Color = CoAccent, enabled: Boolean = true) {
     Box(
         modifier = Modifier
@@ -926,6 +1081,18 @@ private fun CoCompanyForm(
     onTimezone: (String) -> Unit,
     audience: String,
     onAudience: (String) -> Unit,
+    industryTemplate: IndustryTemplate,
+    onIndustryTemplate: (IndustryTemplate) -> Unit,
+    sellWhat: String,
+    onSellWhat: (String) -> Unit,
+    billHow: String,
+    onBillHow: (String) -> Unit,
+    customMoney: Boolean,
+    onCustomMoney: (Boolean) -> Unit,
+    customDaily: Boolean,
+    onCustomDaily: (Boolean) -> Unit,
+    customTeam: Boolean,
+    onCustomTeam: (Boolean) -> Unit,
     logoPreview: ImageBitmap?,
     logoError: String?,
     onLogoPicked: (ByteArray?, ImageBitmap?) -> Unit,
@@ -943,6 +1110,7 @@ private fun CoCompanyForm(
         }
         onLogoPicked(bytes, preview)
     }
+    val smallShop = BusinessAudience.isSmallShop(audience)
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -953,15 +1121,57 @@ private fun CoCompanyForm(
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             CoPill(
                 "Small shop / Retail",
-                audience == com.example.momentra.ui.shell.business.shared.BusinessAudience.SMALL_SHOP,
+                audience == BusinessAudience.SMALL_SHOP,
             ) {
-                onAudience(com.example.momentra.ui.shell.business.shared.BusinessAudience.SMALL_SHOP)
+                onAudience(BusinessAudience.SMALL_SHOP)
             }
             CoPill(
                 "Growing business",
-                audience == com.example.momentra.ui.shell.business.shared.BusinessAudience.GROWING,
+                audience == BusinessAudience.GROWING,
             ) {
-                onAudience(com.example.momentra.ui.shell.business.shared.BusinessAudience.GROWING)
+                onAudience(BusinessAudience.GROWING)
+            }
+        }
+        if (smallShop) {
+            CoFieldLabel("WHAT DO YOU SELL?")
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("Physical items", "Made-to-order", "Services & repairs").forEach {
+                    CoPill(it, sellWhat == it) { onSellWhat(it) }
+                }
+            }
+            CoFieldLabel("HOW DO YOU BILL?")
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("Counter billing", "On-site / digital invoices").forEach {
+                    CoPill(it, billHow == it) { onBillHow(it) }
+                }
+            }
+            CoFieldLabel("STARTER TEMPLATE")
+            Text(
+                "Start with a template — change anytime in Company Settings.",
+                color = CoDim,
+                fontSize = 12.sp,
+            )
+            IndustryTemplateCatalog.all.forEach { tpl ->
+                val selected = industryTemplate.id == tpl.id
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, if (selected) CoAccent else CoBorder, RoundedCornerShape(12.dp))
+                        .background(if (selected) CoAccent.copy(alpha = 0.12f) else CoCard)
+                        .clickable { onIndustryTemplate(tpl) }
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(tpl.label, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(tpl.subtitle, color = CoMuted, fontSize = 12.sp)
+                }
+            }
+            if (industryTemplate.isCustom) {
+                CoFieldLabel("WHICH MOMENTS TO START WITH?")
+                CoModuleToggle("Money & Cash Flow", customMoney, onCustomMoney)
+                CoModuleToggle("Daily Business", customDaily, onCustomDaily)
+                CoModuleToggle("Team & Work", customTeam, onCustomTeam)
             }
         }
         CoFieldLabel("COMPANY NAME")
@@ -973,7 +1183,7 @@ private fun CoCompanyForm(
         CoDropdownField(value = industry, options = CoIndustryOptions, onSelect = onIndustry)
         CoFieldLabel("COMPANY SIZE")
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("Solo (1)", "Small (2-25)", "Medium (26-100)").forEach {
+            CoSizeOptions.forEach {
                 CoPill(it, companySize == it) { onCompanySize(it) }
             }
         }
@@ -1211,6 +1421,58 @@ private fun CoLocationsForm(
     }
 }
 
+private data class CoLaunchNextStep(
+    val title: String,
+    val body: String,
+    val color: Color,
+)
+
+private fun coLaunchNextSteps(
+    audience: String,
+    template: IndustryTemplate,
+    customMoney: Boolean,
+    customDaily: Boolean,
+    customTeam: Boolean,
+): Pair<String, List<CoLaunchNextStep>> {
+    if (!BusinessAudience.isSmallShop(audience)) {
+        return "After activation, open Create to add Money, Daily Business, or Team moments" to emptyList()
+    }
+    val customMods = mapOf(
+        "money" to customMoney,
+        "dailyBusiness" to customDaily,
+        "teamOps" to customTeam,
+    )
+    val kinds = IndustryTemplateCatalog.setupKindsFor(template, customMods)
+    if (kinds.isEmpty()) {
+        return "Turn on at least one moment before activating" to emptyList()
+    }
+    val steps = kinds.map { kind ->
+        when (kind) {
+            BusinessSetupKind.BUSINESS_RUNWAY -> CoLaunchNextStep(
+                "Money & Cash Flow",
+                "Revenue, Khata, invoices, and spend tracking",
+                CoAmber,
+            )
+            BusinessSetupKind.BUSINESS_OPERATIONS -> CoLaunchNextStep(
+                "Daily Business",
+                "Day-to-day ops, vendors, and routines",
+                Color(0xFFA78BFA),
+            )
+            BusinessSetupKind.TEAM_OPERATIONS -> CoLaunchNextStep(
+                "Team & Work",
+                "Team rhythm, reviews, and collaboration",
+                CoGreen,
+            )
+        }
+    }
+    val intro = if (steps.size == 1) {
+        "After activation, we'll set up:"
+    } else {
+        "After activation, we'll set up these moments:"
+    }
+    return intro to steps
+}
+
 @Composable
 private fun CoLaunchForm(
     companyName: String,
@@ -1222,10 +1484,13 @@ private fun CoLaunchForm(
     onDeleteMember: (Int) -> Unit,
     logoError: String?,
     nameError: String? = null,
+    activateError: String? = null,
+    activateWarning: String? = null,
+    nextSteps: Pair<String, List<CoLaunchNextStep>>,
     activating: Boolean,
     onActivate: () -> Unit,
     onBack: () -> Unit,
-    onDraft: () -> Unit,
+    onCloseSetup: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1334,7 +1599,7 @@ private fun CoLaunchForm(
             }
         }
         Text(
-            "3 free members included · Upgrade for more",
+            "Invite teammates after you activate",
             color = CoDim,
             fontSize = 11.sp,
             modifier = Modifier.fillMaxWidth(),
@@ -1342,16 +1607,12 @@ private fun CoLaunchForm(
     }
     CoSectionCard("02", "WHAT HAPPENS NEXT") {
         Text(
-            "After activation, three module wizards will guide you:",
+            nextSteps.first,
             color = Color.White,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
         )
-        listOf(
-            Triple("Team & Work", "Set review cycles, monitoring style, team pods", CoGreen),
-            Triple("Money & Cash Flow", "Configure financials, cash tracking, burn alerts", CoAmber),
-            Triple("Daily Business", "Define budgets, approval workflows, vendors", Color(0xFFA78BFA)),
-        ).forEach { (title, body, color) ->
+        nextSteps.second.forEach { step ->
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1360,23 +1621,25 @@ private fun CoLaunchForm(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(color.copy(alpha = 0.1f)),
+                        .background(step.color.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("●", color = color, fontSize = 10.sp)
+                    Text("●", color = step.color, fontSize = 10.sp)
                 }
                 Column {
-                    Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text(body, color = CoMuted, fontSize = 11.sp)
+                    Text(step.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(step.body, color = CoMuted, fontSize = 11.sp)
                 }
             }
         }
-        Text(
-            "Each takes about 1 minute to configure.",
-            color = CoDim,
-            fontSize = 12.sp,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        if (nextSteps.second.isNotEmpty()) {
+            Text(
+                "You can customize each moment later from Create.",
+                color = CoDim,
+                fontSize = 12.sp,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1404,6 +1667,12 @@ private fun CoLaunchForm(
     if (!nameError.isNullOrBlank()) {
         Text(nameError, color = Color(0xFFF87171), fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
+    if (!activateError.isNullOrBlank()) {
+        Text(activateError, color = Color(0xFFF87171), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    }
+    if (!activateWarning.isNullOrBlank()) {
+        Text(activateWarning, color = CoAmber, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    }
     CoPrimaryButton(
         label = if (companyName.isBlank()) "Activate Company →" else "Activate $companyName →",
         onClick = onActivate,
@@ -1422,12 +1691,12 @@ private fun CoLaunchForm(
             .padding(8.dp),
     )
     Text(
-        "Save as draft",
+        "Close",
         color = CoDim,
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
         textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth().clickable(enabled = !activating, onClick = onDraft).padding(8.dp),
+        modifier = Modifier.fillMaxWidth().clickable(enabled = !activating, onClick = onCloseSetup).padding(8.dp),
     )
     }
 }

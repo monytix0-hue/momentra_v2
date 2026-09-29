@@ -514,6 +514,32 @@ v1Router.post('/companies/:companyId/leave', requireIdempotencyKey, async (req, 
   }
 });
 
+v1Router.post('/companies/:companyId/transfer-ownership', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(businessMembership.transferCompanyOwnershipSchema, req.body ?? {});
+    const result = await runCommand({
+      operationCode: 'COMPANY_OWNERSHIP_TRANSFER',
+      idempotencyKey: req.idempotencyKey!,
+      body,
+      ctx,
+      resourceType: 'COMPANY_MEMBERSHIP',
+      execute: async (client, b) => {
+        const r = await businessMembership.transferCompanyOwnership(
+          client,
+          ctx,
+          param(req.params.companyId),
+          b as z.infer<typeof businessMembership.transferCompanyOwnershipSchema>
+        );
+        return { result: r, resourceId: r.companyId };
+      },
+    });
+    res.json(commandEnvelope(result, ctx.correlationId));
+  } catch (e) {
+    next(e);
+  }
+});
+
 v1Router.post('/companies/:companyId/members', requireIdempotencyKey, async (req, res, next) => {
   try {
     const ctx = req.requestContext!;

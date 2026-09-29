@@ -93,7 +93,7 @@ fun GroupParticipantsSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                if (isWedding) "Add Participant" else "People",
+                "People",
                 color = textPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold,

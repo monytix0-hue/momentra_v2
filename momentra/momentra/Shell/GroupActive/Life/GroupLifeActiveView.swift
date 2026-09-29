@@ -124,8 +124,8 @@ struct GroupLifeActiveView: View {
                                 quickPill("Experience", orange) { onQuickAction(.experience) }
                                 quickPill("Purchase", yellow) { onQuickAction(.purchase) }
                                 quickPill("Living", teal) { onQuickAction(.living) }
-                                quickPill("Goal", green) { onQuickAction(.goal) }
-                                quickPill("Community", purple) { onQuickAction(.community) }
+                                quickPill("Goal · Soon", green) { onQuickAction(.goal) }
+                                quickPill("Community · Soon", purple) { onQuickAction(.community) }
                             }
                         }
 

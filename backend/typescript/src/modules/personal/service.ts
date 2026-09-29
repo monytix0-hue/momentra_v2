@@ -4,6 +4,7 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { insertAudit, insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
 import { clampScore, recomputeOverallWellbeing } from './personal-wellbeing';
+import { assertLifeOpsMoment } from './moment-family';
 
 const OBS_TYPES = ['RECOVERY', 'MOOD', 'RHYTHM', 'WELLBEING'] as const;
 const LIFESTYLE_CONTEXTS = ['EXPERIENCE', 'WELLBEING', 'DISCOVERY', 'CREATION', 'LIFESTYLE'] as const;
@@ -89,6 +90,7 @@ export async function recordObservation(
   body: z.infer<typeof observationSchema>
 ): Promise<{ observationId: string; momentId: string; observationType: string }> {
   await assertPersonalMoment(client, ctx, momentId);
+  await assertLifeOpsMoment(client, ctx, momentId);
   const inserted = await client.query<{ life_operation_observation_id: string }>(
     `INSERT INTO personal.life_operation_observation (
        moment_id, user_id, observation_type, observed_at, numeric_value, text_value, note

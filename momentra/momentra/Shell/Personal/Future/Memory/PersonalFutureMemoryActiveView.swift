@@ -32,7 +32,6 @@ struct PersonalFutureMemoryActiveView: View {
                         returnBehaviors
                         emotionalDna
                         evolutionTimeline
-                        aiInterpretation
                         growthEdge
                         insightsCard
                     }
@@ -58,7 +57,7 @@ struct PersonalFutureMemoryActiveView: View {
 
     private var confidenceLabel: String {
         if thinData { return "Building…" }
-        return "\(min(92, 55 + activities.count * 3))% confidence"
+        return "Confidence is not scored yet"
     }
 
     private var identityBody: String {
@@ -90,23 +89,7 @@ struct PersonalFutureMemoryActiveView: View {
 
     private var patternConfidenceLabel: String {
         if thinData { return "Patterns appear after a few logs" }
-        return "\(min(92, 40 + activities.count * 5))% pattern confidence"
-    }
-
-    private var aiBody: String {
-        if thinData {
-            return "Start on Pulse — log milestones, learning, or progress to unlock patterns."
-        }
-        if hasLearning && hasProgress {
-            return "Your future compounds when learning is paired with execution, not stored for later."
-        }
-        if hasMilestone {
-            return "Milestone reviews keep momentum from drifting — protect them before the week fills up."
-        }
-        if hasExpense {
-            return "Capital signals are present — pair them with learning blocks so spend fuels growth."
-        }
-        return "Keep logging learning and execution together to reveal how your future compounds."
+        return "Pattern strength is not scored yet"
     }
 
     // MARK: - Sections
@@ -341,28 +324,6 @@ struct PersonalFutureMemoryActiveView: View {
                     }
                 }
             }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.05))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08), lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
-    private var aiInterpretation: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Text("9 AI INTERPRETATION")
-                    .font(.system(size: 12, weight: .bold))
-                    .tracking(1.2)
-                    .foregroundStyle(Color(hex: "#C9C4D8"))
-                Image(systemName: "sparkle")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(Color(hex: "#10B981"))
-            }
-            Text(aiBody)
-                .font(.system(size: 14))
-                .foregroundStyle(Color(hex: "#E5E0EE"))
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

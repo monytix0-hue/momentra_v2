@@ -772,9 +772,10 @@ final class AppShellModel: ObservableObject {
 
     /// Redeem invite code then select the joined Moment on Pulse.
     /// Returns the redeem result so UI can show PENDING vs joined messaging.
+    /// Throws when the API rejects the invite so the sheet can show an error.
     @discardableResult
-    func redeemJoinCode(_ code: String, using createModel: MomentCreateModel) async -> RedeemGroupInviteResult? {
-        guard let result = await createModel.redeemGroupInvite(code: code) else { return nil }
+    func redeemJoinCode(_ code: String, using createModel: MomentCreateModel) async throws -> RedeemGroupInviteResult {
+        let result = try await createModel.redeemGroupInvite(code: code)
         if result.momentId == OfflineOutbox.localId { return result }
         guard let momentId = result.momentId, !momentId.isEmpty else {
             // PENDING claim — stay put; caller shows honest messaging.

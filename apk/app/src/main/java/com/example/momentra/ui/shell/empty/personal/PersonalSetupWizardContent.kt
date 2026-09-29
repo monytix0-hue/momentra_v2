@@ -19,8 +19,8 @@ enum class PersonalSetupSystem(
     val analyticsScreen: String,
 ) {
     LIFE_OPERATIONS(
-        "LIFE_OPERATIONS", "LIFE_RHYTHM", "My life operations rhythm", "Life Operations",
-        "Set up Life Operations", com.example.momentra.analytics.AnalyticsScreens.PERSONAL_SETUP_LIFE_OPS,
+        "LIFE_OPERATIONS", "LIFE_RHYTHM", "My everyday rhythm", "Everyday",
+        "Set up Everyday", com.example.momentra.analytics.AnalyticsScreens.PERSONAL_SETUP_LIFE_OPS,
     ),
     FUTURE_BUILDING(
         "FUTURE_BUILDING", "FUTURE_GOAL", "My future building", "Future Building",

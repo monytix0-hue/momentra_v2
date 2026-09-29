@@ -9,7 +9,8 @@ struct PendingGroupJoin: Identifiable {
 struct GroupJoinConfirmSheet: View {
     let code: String
     var onClose: () -> Void
-    var onJoin: () -> Void
+    /// Redeem the invite. Throw to keep the sheet open and show the error.
+    var onJoin: () async throws -> Void
 
     @StateObject private var createModel = MomentCreateModel()
     @State private var preview: GroupInvite?
@@ -38,6 +39,7 @@ struct GroupJoinConfirmSheet: View {
                         Button("Close", action: onClose)
                             .font(.plusJakarta(size: 13, weight: .semibold))
                             .foregroundStyle(accent)
+                            .disabled(submitting)
                     }
                     if loading {
                         ProgressView().tint(accent)
@@ -49,7 +51,7 @@ struct GroupJoinConfirmSheet: View {
                             Text(preview.momentTypeCode)
                                 .font(.plusJakarta(size: 12, weight: .semibold))
                                 .foregroundStyle(Color(hex: "#9E9AA8"))
-                            Text("Status: \(preview.status)")
+                            Text(statusCopy(for: preview.status))
                                 .font(.plusJakarta(size: 12))
                                 .foregroundStyle(Color(hex: "#9E9AA8"))
                         }
@@ -76,13 +78,25 @@ struct GroupJoinConfirmSheet: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(submitting || loading || preview == nil)
-                    .opacity(loading || preview == nil ? 0.45 : 1)
+                    .opacity(loading || preview == nil || submitting ? 0.45 : 1)
                 }
                 .padding(20)
                 Spacer()
             }
         }
+        .interactiveDismissDisabled(submitting)
         .task(id: code) { await loadPreview() }
+    }
+
+    private func statusCopy(for status: String) -> String {
+        switch status.uppercased() {
+        case "PENDING":
+            return "Ready to join — you’ll enter when the organizer activates the group."
+        case "ACTIVE", "OPEN":
+            return "Ready to join this group moment."
+        default:
+            return "Invite status: \(status)"
+        }
     }
 
     private func loadPreview() async {
@@ -98,6 +112,14 @@ struct GroupJoinConfirmSheet: View {
     private func join() {
         guard !submitting, preview != nil else { return }
         submitting = true
-        onJoin()
+        error = nil
+        Task {
+            do {
+                try await onJoin()
+            } catch {
+                self.error = error.localizedDescription
+                submitting = false
+            }
+        }
     }
 }

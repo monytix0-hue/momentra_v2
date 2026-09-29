@@ -216,7 +216,7 @@ private fun LifePillarsSection() {
     )
 
     val pillars = listOf(
-        Pillar("▣", "Life Operations", "Money, routines, commitments", PePurple, Color(0xFF4F46E5)),
+        Pillar("▣", "Everyday", "Money, routines, commitments", PePurple, Color(0xFF4F46E5)),
         Pillar("↗", "Future Building", "Goals, growth, milestones", PeGreen, Color(0xFF0F766E)),
         Pillar("◇", "Lifestyle", "Experiences, wellbeing, creativity", PeAmber, Color(0xFFEA580C)),
         Pillar("♡", "Relationships", "Connections, care, shared moments", PePink, Color(0xFFBE185D)),

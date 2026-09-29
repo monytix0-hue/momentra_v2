@@ -4,17 +4,12 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
 import { recomputeOverallWellbeing } from './personal-wellbeing';
+import { assertLifeOpsMoment } from './moment-family';
 
 /** Life Ops precision writers + RP-01..05 reads (pack V042–V045 / UI-frozen PER-LO). */
 
 async function assertPersonalMoment(client: PoolClient, ctx: RequestContext, momentId: string): Promise<void> {
-  const row = await client.query(
-    `SELECT 1 FROM personal.personal_moment_context WHERE moment_id = $1 AND user_id = $2`,
-    [momentId, ctx.userId]
-  );
-  if (!row.rowCount) {
-    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Personal moment not found.', 404);
-  }
+  await assertLifeOpsMoment(client, ctx, momentId);
 }
 
 function clampScore(value: number): number {

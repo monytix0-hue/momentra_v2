@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -289,6 +291,7 @@ fun BusinessKhataHomeSheet(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun KhataPartyRow(
     party: KhataPartyItemDto,
@@ -338,8 +341,12 @@ private fun KhataPartyRow(
                 fontSize = 16.sp,
                 fontFamily = PlusJakartaSans,
             )
+            Text("›", color = TeamOpsSheetTokens.Muted, fontSize = 18.sp)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             KhataMiniBtn(
                 if (party.partyKind.equals("SUPPLIER", true)) "Udhaar liya" else "Udhaar diya",
                 onCredit,
@@ -645,7 +652,7 @@ fun BusinessKhataCashSaleSheet(
         ) {
             TeamOpsSheetHandle()
             Text(
-                "Cash sale · Nakal becha",
+                "Cash sale · Naqd becha",
                 color = TeamOpsSheetTokens.Text,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold,

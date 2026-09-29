@@ -114,6 +114,7 @@ object MaestroIds {
     const val BUSINESS_REVENUE_SUBMIT = "business.revenue.submit"
 
     const val BUSINESS_INVOICE_CUSTOMER = "business.invoice.customer"
+    const val BUSINESS_INVOICE_NUMBER = "business.invoice.number"
     const val BUSINESS_INVOICE_AMOUNT = "business.invoice.amount"
     const val BUSINESS_INVOICE_LINE_ADD = "business.invoice.line.add"
     const val BUSINESS_INVOICE_SUBMIT = "business.invoice.submit"

@@ -207,6 +207,7 @@ private struct BootstrapCacheEnvelope: Codable {
         companies = (me.companies ?? []).map { item in
             let audience = (item.profileJson?[BusinessAudience.prefKey]?.value as? String)
             CompanyModules.rehydrateFromProfile(companyId: item.companyId, profileJson: item.profileJson)
+            IndustryTemplateCatalog.rehydrateHubHint(companyId: item.companyId, profileJson: item.profileJson)
             return CachedCompany(
                 companyId: item.companyId,
                 displayName: item.displayName,

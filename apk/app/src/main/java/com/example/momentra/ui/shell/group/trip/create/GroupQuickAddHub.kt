@@ -82,6 +82,7 @@ fun GroupQuickAddHub(
     momentTitle: String? = null,
     momentTypeCode: String? = null,
     capabilities: List<String> = emptyList(),
+    viewerReadOnly: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var search by remember { mutableStateOf("") }
@@ -253,7 +254,8 @@ fun GroupQuickAddHub(
                 maxItemsInEachRow = window.hubColumnCount,
             ) {
                 tiles.forEach { tile ->
-                    val enabled = GroupActionRegistry.hubTileEnabled(hasActiveMoment, capabilities, tile)
+                    val enabled = !viewerReadOnly &&
+                        GroupActionRegistry.hubTileEnabled(hasActiveMoment, capabilities, tile)
                     HubFigmaTile(
                         tile = tile,
                         enabled = enabled,
@@ -280,6 +282,36 @@ fun GroupQuickAddHub(
                         },
                     )
                 }
+            }
+
+            if (hasActiveMoment && capabilities.isEmpty()) {
+                Text(
+                    "Permissions are still loading for this moment. Actions stay locked until capabilities arrive.",
+                    color = Color(0xFFA8A19E),
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF171618))
+                        .border(1.dp, Color(0xFF403C40), RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                )
+            }
+
+            if (viewerReadOnly) {
+                Text(
+                    "You’re viewing as a guest. Creating and editing stay with organizers and members.",
+                    color = Color(0xFFA8A19E),
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF171618))
+                        .border(1.dp, Color(0xFF403C40), RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                )
             }
 
             Text(

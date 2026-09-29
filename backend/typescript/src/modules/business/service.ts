@@ -24,6 +24,7 @@ export const updateCompanySchema = z
     companyType: z.string().max(100).optional(),
     taxIdentifier: z.string().max(100).optional(),
     profileJson: z.record(z.string(), z.unknown()).optional(),
+    status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
     expectedVersion: z.number().int().positive(),
   })
   .strict();
@@ -172,7 +173,7 @@ export async function listCompanies(
     `SELECT c.company_id, c.display_name, c.profile_json
      FROM business.company c
      JOIN business.company_membership cm ON cm.company_id = c.company_id
-     WHERE cm.user_id = $1 AND cm.status = 'ACTIVE'
+     WHERE cm.user_id = $1 AND cm.status = 'ACTIVE' AND c.status = 'ACTIVE'
      ORDER BY c.display_name`,
     [ctx.userId]
   );
@@ -190,8 +191,19 @@ export async function updateCompany(
   ctx: RequestContext,
   companyId: string,
   body: z.infer<typeof updateCompanySchema>
-): Promise<{ companyId: string; displayName: string; version: number }> {
+): Promise<{ companyId: string; displayName: string; version: number; status?: string }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'COMPANY_UPDATE', resourceType: 'COMPANY', companyId });
+  if (body.status != null) {
+    const { assertActiveCompanyMember } = await import('./membership');
+    const me = await assertActiveCompanyMember(client, ctx, companyId);
+    if (me.membershipType !== 'OWNER') {
+      throw new AppError(
+        ErrorCode.GOVERNANCE_DENIED,
+        'Only the company owner can archive or deactivate the business.',
+        403
+      );
+    }
+  }
   // Deep-merge settings inside profileJson so toggle patches don't wipe sibling keys.
   let profilePayload: string | null =
     body.profileJson == null ? null : JSON.stringify(body.profileJson);
@@ -229,7 +241,7 @@ export async function updateCompany(
       },
     });
   }
-  const updated = await client.query<{ company_id: string; display_name: string; version: string }>(
+  const updated = await client.query<{ company_id: string; display_name: string; version: string; status: string }>(
     `UPDATE business.company SET
        display_name = COALESCE($3, display_name),
        legal_name = COALESCE($4, legal_name),
@@ -240,10 +252,11 @@ export async function updateCompany(
          WHEN $6::jsonb IS NULL THEN profile_json
          ELSE COALESCE(profile_json, '{}'::jsonb) || $6::jsonb
        END,
+       status = COALESCE($9, status),
        version = version + 1,
        updated_at = now()
      WHERE company_id = $1 AND version = $2
-     RETURNING company_id, display_name, version`,
+     RETURNING company_id, display_name, version, status`,
     [
       companyId,
       body.expectedVersion,
@@ -253,13 +266,30 @@ export async function updateCompany(
       profilePayload,
       body.companyType ?? null,
       body.taxIdentifier ?? null,
+      body.status ?? null,
     ]
   );
   if (!updated.rows[0]) {
     throw new AppError(ErrorCode.VERSION_CONFLICT, 'Company version conflict.', 409);
   }
   const r = updated.rows[0];
-  return { companyId: r.company_id, displayName: r.display_name, version: parseInt(r.version, 10) };
+  if (body.status != null) {
+    await insertDomainEventAndOutbox(client, ctx, {
+      eventName: body.status === 'ARCHIVED' ? 'CompanyArchived' : body.status === 'INACTIVE' ? 'CompanyDeactivated' : 'CompanyReactivated',
+      domainCode: 'BUSINESS',
+      aggregateType: 'COMPANY',
+      aggregateId: companyId,
+      scopeType: 'COMPANY',
+      scopeId: companyId,
+      payload: { companyId, status: body.status },
+    });
+  }
+  return {
+    companyId: r.company_id,
+    displayName: r.display_name,
+    version: parseInt(r.version, 10),
+    status: r.status,
+  };
 }
 
 export async function createLocation(

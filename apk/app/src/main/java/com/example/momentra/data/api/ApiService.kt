@@ -576,6 +576,13 @@ interface ApiService {
         @Body body: LeaveMomentBody,
     ): SuccessEnvelope<LeaveCompanyResultDto>
 
+    @POST("v1/companies/{companyId}/transfer-ownership")
+    suspend fun transferCompanyOwnership(
+        @Path("companyId") companyId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: LeaveMomentBody,
+    ): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+
     @PATCH("v1/group/moments/{momentId}/participants/{participantId}")
     suspend fun updateGroupParticipantRole(
         @Path("momentId") momentId: String,

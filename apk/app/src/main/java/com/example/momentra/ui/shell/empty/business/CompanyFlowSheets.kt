@@ -55,6 +55,7 @@ import com.example.momentra.data.api.CreateCompanyBody
 import com.example.momentra.domain.CompanySummary
 import com.example.momentra.ui.shell.business.shared.BusinessAudience
 import com.example.momentra.ui.shell.business.shared.CompanyModules
+import com.example.momentra.ui.shell.business.shared.IndustryTemplateCatalog
 import java.util.UUID
 import kotlinx.coroutines.launch
 
@@ -67,15 +68,19 @@ private val TextMuted = Color(0xFF64748B)
 private val CardStroke = Color.White.copy(alpha = 0.10f)
 
 private val IndustryOptions = listOf(
+    "Retail / Kirana",
+    "Pet store / Specialty",
+    "Manufacturing / Workshop",
+    "Restaurant / F&B",
+    "Fashion / Apparel",
+    "Services",
+    "Wholesale",
     "Technology & Software",
     "E-commerce",
-    "Retail",
-    "Services",
-    "Manufacturing",
     "Other",
 )
 
-private val SizeOptions = listOf("1-10", "11-50", "51-200", "201-500", "500+")
+private val SizeOptions = listOf("Solo (1)", "Small (2-25)", "Medium (26-100)")
 
 private val EntityTypeOptions = listOf("Pvt Ltd", "LLP", "Partnership", "Sole Prop")
 
@@ -119,6 +124,7 @@ fun CompanyFlowSheet(
     onSelect: (CompanySummary) -> Unit,
     onCreated: (CompanySummary) -> Unit,
     onOpenLocations: () -> Unit = {},
+    onCompaniesChanged: () -> Unit = {},
 ) {
     var page by remember {
         mutableStateOf(
@@ -166,6 +172,10 @@ fun CompanyFlowSheet(
                     if (startOnCreate) onDismiss() else page = CompanySheetPage.Switch
                 },
                 onOpenLocations = onOpenLocations,
+                onCompaniesChanged = {
+                    onCompaniesChanged()
+                    onDismiss()
+                },
             )
             CompanySheetPage.Create -> Unit
         }
@@ -298,10 +308,16 @@ private fun CompanySettingsPage(
     companyName: String,
     onClose: () -> Unit,
     onOpenLocations: () -> Unit,
+    onCompaniesChanged: () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val headerName = companyName.ifBlank { "Company" }
+    val currentUserId = remember {
+        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        uid?.let { com.example.momentra.data.local.AppPreferences(context).getCachedIdentity(it)?.first }
+            .orEmpty()
+    }
 
     var loading by remember(companyId) { mutableStateOf(true) }
     var loadError by remember(companyId) { mutableStateOf<String?>(null) }
@@ -316,6 +332,7 @@ private fun CompanySettingsPage(
     var currency by remember(companyId) { mutableStateOf(CurrencyOptions.first()) }
     var financialYear by remember(companyId) { mutableStateOf("—") }
     var smallShop by remember(companyId) { mutableStateOf(false) }
+    var industryTemplateId by remember(companyId) { mutableStateOf<String?>(null) }
 
     var moduleToggles by remember(companyId) {
         mutableStateOf(ModuleToggleDefs.associate { it.key to true })
@@ -328,15 +345,28 @@ private fun CompanySettingsPage(
     var members by remember(companyId) { mutableStateOf<List<CompanyMemberDto>>(emptyList()) }
     var defaultLocationName by remember(companyId) { mutableStateOf<String?>(null) }
     var showInviteSheet by remember { mutableStateOf(false) }
+    var showTransferSheet by remember { mutableStateOf(false) }
+    var confirmStatus by remember { mutableStateOf<String?>(null) }
+    var managementBusy by remember { mutableStateOf(false) }
+    var managementError by remember { mutableStateOf<String?>(null) }
+    var managementOk by remember { mutableStateOf<String?>(null) }
 
     var savingProfile by remember { mutableStateOf(false) }
     var profileSaveError by remember { mutableStateOf<String?>(null) }
     var profileSaved by remember { mutableStateOf(false) }
     var settingsPatchBusy by remember { mutableStateOf(false) }
+    var settingsPatchError by remember { mutableStateOf<String?>(null) }
 
     var entityTypeOpen by remember { mutableStateOf(false) }
     var industryOpen by remember { mutableStateOf(false) }
     var currencyOpen by remember { mutableStateOf(false) }
+
+    val isOwner = members.any {
+        it.userId == currentUserId && it.membershipType.equals("OWNER", ignoreCase = true)
+    }
+    val transferCandidates = members.filter {
+        it.status.equals("ACTIVE", ignoreCase = true) && it.userId != currentUserId
+    }
 
     fun applyCompanyPayload(data: Map<String, Any?>) {
         version = companyVersionFrom(data) ?: version
@@ -352,12 +382,18 @@ private fun CompanySettingsPage(
             ?: profile["fyCycle"]?.toString()
             ?: "—"
         smallShop = BusinessAudience.isSmallShop(profile[BusinessAudience.PREF_KEY]?.toString())
+        industryTemplateId = profile[com.example.momentra.ui.shell.business.shared.IndustryTemplateCatalog.PROFILE_KEY]
+            ?.toString()
+            ?.takeIf { it.isNotBlank() }
         val settings = companyAnyMap(profile["settings"])
         val modules = companyAnyMap(settings["modules"])
         moduleToggles = ModuleToggleDefs.associate { def ->
             def.key to companyAnyBool(modules[def.key], default = true)
         }
         CompanyModules.saveModules(context, companyId, moduleToggles)
+        IndustryTemplateCatalog.hubHintFromProfile(profile)?.let {
+            IndustryTemplateCatalog.saveHubHint(context, companyId, it)
+        }
         val alertsMap = companyAnyMap(settings["alerts"])
         alertToggles = AlertToggleDefs.associate { (_, key) ->
             key to companyAnyBool(alertsMap[key], default = true)
@@ -387,6 +423,7 @@ private fun CompanySettingsPage(
         val v = version ?: return
         if (settingsPatchBusy) return
         settingsPatchBusy = true
+        settingsPatchError = null
         scope.launch {
             val result = runCatching {
                 ApiClient.apiService.patchCompany(
@@ -400,7 +437,10 @@ private fun CompanySettingsPage(
             }
             settingsPatchBusy = false
             result.onSuccess { applyCompanyPayload(it) }
-                .onFailure { rollback() }
+                .onFailure {
+                    rollback()
+                    settingsPatchError = "Could not update modules"
+                }
         }
     }
 
@@ -418,6 +458,9 @@ private fun CompanySettingsPage(
                 Text("Loading…", color = TextMuted, fontSize = 13.sp)
             }
             loadError?.let {
+                Text(it, color = Color(0xFFF87171), fontSize = 12.sp)
+            }
+            settingsPatchError?.let {
                 Text(it, color = Color(0xFFF87171), fontSize = 12.sp)
             }
             SettingsCard(title = "Business Profile") {
@@ -575,6 +618,19 @@ private fun CompanySettingsPage(
                 }
             }
             SettingsCard(title = "What do you use Momentra for?", note = "Turn on only the business moment types you want to use.") {
+                if (smallShop && !industryTemplateId.isNullOrBlank()) {
+                    Text(
+                        "Template: ${com.example.momentra.ui.shell.business.shared.IndustryTemplateCatalog.labelFor(industryTemplateId)}",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        "Change modules anytime — you are not locked to the template.",
+                        color = TextMuted.copy(alpha = 0.75f),
+                        fontSize = 11.sp,
+                    )
+                }
                 ModuleToggleDefs.filter { !smallShop || !it.smallShopHidden }.forEach { def ->
                     val checked = moduleToggles[def.key] == true
                     SettingsToggleRow(def.label, checked) { on ->
@@ -620,16 +676,163 @@ private fun CompanySettingsPage(
                 )
             }
             SettingsCard(title = "Business Management") {
-                listOf("Transfer Ownership", "Archive Business", "Deactivate Business").forEach { label ->
+                if (!isOwner) {
                     Text(
-                        "$label · Coming soon",
-                        color = TextMuted.copy(alpha = 0.65f),
-                        fontWeight = FontWeight.Normal,
+                        "Owner actions only",
+                        color = TextMuted.copy(alpha = 0.7f),
                         fontSize = 12.sp,
                     )
+                } else {
+                    ManagementActionRow(
+                        label = "Transfer Ownership",
+                        enabled = !managementBusy && transferCandidates.isNotEmpty(),
+                        onClick = { showTransferSheet = true },
+                    )
+                    if (transferCandidates.isEmpty()) {
+                        Text(
+                            "Invite another member before transferring",
+                            color = TextMuted.copy(alpha = 0.7f),
+                            fontSize = 11.sp,
+                        )
+                    }
+                    ManagementActionRow(
+                        label = "Archive Business",
+                        enabled = !managementBusy && version != null,
+                        onClick = { confirmStatus = "ARCHIVED" },
+                    )
+                    ManagementActionRow(
+                        label = "Deactivate Business",
+                        enabled = !managementBusy && version != null,
+                        onClick = { confirmStatus = "INACTIVE" },
+                    )
+                }
+                managementError?.let {
+                    Text(it, color = Color(0xFFF87171), fontSize = 12.sp)
+                }
+                managementOk?.let {
+                    Text(it, color = CoGreen, fontSize = 12.sp)
                 }
             }
         }
+    }
+
+    if (showTransferSheet) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { if (!managementBusy) showTransferSheet = false },
+            title = { Text("Transfer ownership") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Pick who becomes owner. You stay on the company as Admin.",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                    )
+                    transferCandidates.forEach { member ->
+                        Text(
+                            member.displayName?.takeIf { it.isNotBlank() } ?: member.userId,
+                            color = Accent,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = !managementBusy) {
+                                    managementBusy = true
+                                    managementError = null
+                                    scope.launch {
+                                        runCatching {
+                                            ApiClient.apiService.transferCompanyOwnership(
+                                                companyId = companyId,
+                                                idempotencyKey = UUID.randomUUID().toString(),
+                                                body = com.example.momentra.data.api.LeaveMomentBody(
+                                                    transferUserId = member.userId,
+                                                ),
+                                            )
+                                        }.onSuccess {
+                                            managementBusy = false
+                                            showTransferSheet = false
+                                            managementOk = "Ownership transferred"
+                                            // Reload members
+                                            runCatching {
+                                                ApiClient.apiService.listCompanyMembers(companyId).data.members
+                                            }.onSuccess { members = it }
+                                        }.onFailure {
+                                            managementBusy = false
+                                            managementError = it.message ?: "Transfer failed"
+                                        }
+                                    }
+                                }
+                                .padding(vertical = 8.dp),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Text(
+                    "Cancel",
+                    color = TextSecondary,
+                    modifier = Modifier
+                        .clickable(enabled = !managementBusy) { showTransferSheet = false }
+                        .padding(8.dp),
+                )
+            },
+        )
+    }
+
+    confirmStatus?.let { status ->
+        val title = if (status == "ARCHIVED") "Archive business?" else "Deactivate business?"
+        val body = if (status == "ARCHIVED") {
+            "The company will leave your switcher. Data is kept for later."
+        } else {
+            "The company will be deactivated and leave your switcher."
+        }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { if (!managementBusy) confirmStatus = null },
+            title = { Text(title) },
+            text = { Text(body, fontSize = 13.sp) },
+            confirmButton = {
+                Text(
+                    if (managementBusy) "Working…" else "Confirm",
+                    color = Color(0xFFF87171),
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clickable(enabled = !managementBusy && version != null) {
+                            val v = version ?: return@clickable
+                            managementBusy = true
+                            managementError = null
+                            scope.launch {
+                                runCatching {
+                                    ApiClient.apiService.patchCompany(
+                                        companyId = companyId,
+                                        idempotencyKey = UUID.randomUUID().toString(),
+                                        body = mapOf(
+                                            "expectedVersion" to v,
+                                            "status" to status,
+                                        ),
+                                    ).data
+                                }.onSuccess {
+                                    managementBusy = false
+                                    confirmStatus = null
+                                    onCompaniesChanged()
+                                }.onFailure {
+                                    managementBusy = false
+                                    managementError = it.message ?: "Could not update company"
+                                    confirmStatus = null
+                                }
+                            }
+                        }
+                        .padding(8.dp),
+                )
+            },
+            dismissButton = {
+                Text(
+                    "Cancel",
+                    color = TextSecondary,
+                    modifier = Modifier
+                        .clickable(enabled = !managementBusy) { confirmStatus = null }
+                        .padding(8.dp),
+                )
+            },
+        )
     }
 
     CompanyInviteShareSheet(
@@ -637,6 +840,24 @@ private fun CompanySettingsPage(
         visible = showInviteSheet,
         onDismiss = { showInviteSheet = false },
         companyName = displayName.ifBlank { headerName },
+    )
+}
+
+@Composable
+private fun ManagementActionRow(
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Text(
+        label,
+        color = if (enabled) Accent else TextMuted.copy(alpha = 0.5f),
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 13.sp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 6.dp),
     )
 }
 
@@ -779,7 +1000,7 @@ private fun CompanyCreatePage(
     var name by remember { mutableStateOf("") }
     var industry by remember { mutableStateOf("") }
     var industryOpen by remember { mutableStateOf(false) }
-    var size by remember { mutableStateOf("1-10") }
+    var size by remember { mutableStateOf("Solo (1)") }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()

@@ -478,8 +478,10 @@ fun AppShellScreen(
 
     fun openLifeOpsQa(kind: LifeOpsQuickAddKind) {
         val m = targetForFamily(PersonalPulseFamily.LIFE_OPERATIONS)
-            ?: resolvePreferredPersonalMoment(state.moments, state.selectedMomentId)
-            ?: return
+        if (m == null) {
+            personalSetupSystem = PersonalSetupSystem.LIFE_OPERATIONS
+            return
+        }
         openPersonalSheet(m.momentId, m.momentTypeCode)
         lifeOpsQa = kind
     }
@@ -504,8 +506,10 @@ fun AppShellScreen(
 
     fun openMoneyQa(kind: MoneyQuickAddKind) {
         val m = targetForFamily(PersonalPulseFamily.LIFE_OPERATIONS)
-            ?: resolvePreferredPersonalMoment(state.moments, state.selectedMomentId)
-            ?: return
+        if (m == null) {
+            personalSetupSystem = PersonalSetupSystem.LIFE_OPERATIONS
+            return
+        }
         openPersonalSheet(m.momentId, m.momentTypeCode)
         moneyQa = kind
     }
@@ -747,7 +751,6 @@ fun AppShellScreen(
                     businessTabRefreshToken = state.businessTabRefreshToken,
                     capabilities = state.capabilities,
                     forcePersonalSimple = true,
-                    onEnablePersonalSimple = {},
                     onPersonalSetupMissing = {
                         personalSetupChooserOpen = true
                     },
@@ -849,6 +852,10 @@ fun AppShellScreen(
                     onAddRevenue = { businessRevenueSheetOpen = true },
                     onAddInvoice = { businessInvoiceSheetOpen = true },
                     onAddMembers = { businessMembersSheetOpen = true },
+                    onOpenCompanySettings = {
+                        reopenCompanySettings = true
+                        shellViewModel.toggleCompanyMenu(true)
+                    },
                     onOpenQuickAdd = { shellViewModel.selectBottomDestination(BottomDestination.CREATE) },
                     onOpenMoments = { shellViewModel.selectBottomDestination(BottomDestination.MOMENTS) },
                     onViewBusinessReport = { businessGap = BusinessGapPage.Finance },
@@ -1181,7 +1188,7 @@ fun AppShellScreen(
                 code = code,
                 visible = true,
                 onDismiss = { pendingGroupJoinCode = null },
-                onJoin = {
+                onJoin = { onFinished ->
                     shellViewModel.redeemGroupInvite(code) { result ->
                         result.fold(
                             onSuccess = {
@@ -1203,6 +1210,7 @@ fun AppShellScreen(
                                         Toast.LENGTH_SHORT
                                     },
                                 ).show()
+                                onFinished()
                             },
                             onFailure = {
                                 Toast.makeText(
@@ -1210,6 +1218,7 @@ fun AppShellScreen(
                                     it.message ?: "Could not join",
                                     Toast.LENGTH_SHORT,
                                 ).show()
+                                onFinished()
                             },
                         )
                     }
@@ -1232,6 +1241,9 @@ fun AppShellScreen(
                     reopenCompanySettings = true
                     shellViewModel.toggleCompanyMenu(false)
                     businessGap = BusinessGapPage.LocationPicker
+                },
+                onCompaniesChanged = {
+                    shellViewModel.clearSelectedMomentAfterLeave()
                 },
             )
         }
@@ -1792,7 +1804,6 @@ private fun ShellDestinationContent(
     businessTabRefreshToken: Long = 0L,
     capabilities: List<String> = emptyList(),
     forcePersonalSimple: Boolean = false,
-    onEnablePersonalSimple: () -> Unit = {},
     onPersonalSetupMissing: () -> Unit = {},
     personalPresentFamilies: Set<PersonalPulseFamily> = emptySet(),
     viewerReadOnly: Boolean = false,
@@ -1829,6 +1840,7 @@ private fun ShellDestinationContent(
     onPurchaseQuickAdd: (PurchaseQuickAddKind) -> Unit = {},
     onLivingQuickAdd: (LivingQuickAddKind) -> Unit = {},
     onBusinessQuickAdd: (BusinessQuickAddKind) -> Unit = {},
+    onOpenCompanySettings: () -> Unit = {},
     onAddRevenue: () -> Unit = {},
     onAddInvoice: () -> Unit = {},
     onAddMembers: () -> Unit = {},
@@ -1931,13 +1943,14 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 hasActiveMoment = true,
                                 onClose = onCreateBack,
-                                onTile = onWeddingQuickAdd,
+                                onTile = { if (!viewerReadOnly) onWeddingQuickAdd(it) },
                                 onCreateMoment = {
                                     onPreferGroupCreateFlow(true)
                                     onGroupCreatePhase(GroupCreatePhase.CHOOSER)
                                 },
                                 onJoinCode = onJoinGroupCode,
                                 capabilities = capabilities,
+                                viewerReadOnly = viewerReadOnly,
                             )
                         } else if (isExperience) {
                             ExperienceQuickAddHub(
@@ -1960,11 +1973,12 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 hasActiveMoment = true,
                                 onClose = onCreateBack,
-                                onTile = onPurchaseQuickAdd,
+                                onTile = { if (!viewerReadOnly) onPurchaseQuickAdd(it) },
                                 onCreateMoment = {
                                     onPreferGroupCreateFlow(true)
                                     onGroupCreatePhase(GroupCreatePhase.CHOOSER)
                                 },
+                                viewerReadOnly = viewerReadOnly,
                             )
                         } else if (isLiving) {
                             LivingQuickAddHub(
@@ -1972,30 +1986,31 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 hasActiveMoment = true,
                                 onClose = onCreateBack,
-                                onTile = onLivingQuickAdd,
+                                onTile = { if (!viewerReadOnly) onLivingQuickAdd(it) },
                                 onCreateMoment = {
                                     onPreferGroupCreateFlow(true)
                                     onGroupCreatePhase(GroupCreatePhase.CHOOSER)
                                 },
+                                viewerReadOnly = viewerReadOnly,
                             )
                         } else {
                             GroupQuickAddHub(
                                 hasActiveMoment = true,
                                 onClose = onCreateBack,
-                                onExpense = onAddExpense,
-                                onContribution = onAddContribution,
-                                onSettle = onAddSettlement,
+                                onExpense = { if (!viewerReadOnly) onAddExpense() },
+                                onContribution = { if (!viewerReadOnly) onAddContribution() },
+                                onSettle = { if (!viewerReadOnly) onAddSettlement() },
                                 onParticipants = onAddParticipants,
-                                onInvite = onAddInvite,
-                                onBudget = onAddBudget,
-                                onPlanning = onAddPlanning,
-                                onChecklist = onAddChecklist,
-                                onBooking = onAddBooking,
-                                onPoll = onAddPoll,
-                                onUpdate = onAddUpdate,
-                                onMemory = onAddMemory,
-                                onPurchaseItem = onAddPurchaseItem,
-                                onResident = onAddResident,
+                                onInvite = { if (!viewerReadOnly) onAddInvite() },
+                                onBudget = { if (!viewerReadOnly) onAddBudget() },
+                                onPlanning = { if (!viewerReadOnly) onAddPlanning() },
+                                onChecklist = { if (!viewerReadOnly) onAddChecklist() },
+                                onBooking = { if (!viewerReadOnly) onAddBooking() },
+                                onPoll = { if (!viewerReadOnly) onAddPoll() },
+                                onUpdate = { if (!viewerReadOnly) onAddUpdate() },
+                                onMemory = { if (!viewerReadOnly) onAddMemory() },
+                                onPurchaseItem = { if (!viewerReadOnly) onAddPurchaseItem() },
+                                onResident = { if (!viewerReadOnly) onAddResident() },
                                 onCreateMoment = {
                                     onPreferGroupCreateFlow(true)
                                     onGroupCreatePhase(GroupCreatePhase.CHOOSER)
@@ -2004,6 +2019,7 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 momentTypeCode = moments.firstOrNull { it.momentId == selectedMomentId }?.momentTypeCode,
                                 capabilities = capabilities,
+                                viewerReadOnly = viewerReadOnly,
                             )
                         }
                     }
@@ -2019,6 +2035,7 @@ private fun ShellDestinationContent(
                             onInvoice = onAddInvoice,
                             onMembers = onAddMembers,
                             onCreateMoment = onCreateMoment,
+                            onOpenCompanySettings = onOpenCompanySettings,
                             onTile = onBusinessQuickAdd,
                             momentId = selectedMomentId,
                             momentTypeCode = moments.firstOrNull { it.momentId == selectedMomentId }?.momentTypeCode
@@ -2187,9 +2204,7 @@ private fun ShellDestinationContent(
                                 refreshToken = groupTabRefreshToken,
                                 onQuickAction = { action ->
                                     when (action) {
-                                        GroupLifeQuickAction.EXPERIENCE,
-                                        GroupLifeQuickAction.GOAL,
-                                        -> {
+                                        GroupLifeQuickAction.EXPERIENCE -> {
                                             when {
                                                 isWedding -> onWeddingQuickAdd(WeddingQuickAddKind.PLANNING)
                                                 isExperience -> onExperienceQuickAdd(ExperienceQuickAddKind.PLANNING)
@@ -2197,6 +2212,11 @@ private fun ShellDestinationContent(
                                                 isLiving -> onLivingQuickAdd(LivingQuickAddKind.TASK)
                                                 else -> onAddPlanning()
                                             }
+                                        }
+                                        GroupLifeQuickAction.GOAL,
+                                        GroupLifeQuickAction.COMMUNITY,
+                                        -> {
+                                            // Goal / Community moments are Coming Soon — do not open unrelated sheets.
                                         }
                                         GroupLifeQuickAction.PURCHASE -> {
                                             when {
@@ -2218,15 +2238,6 @@ private fun ShellDestinationContent(
                                                 isPurchase -> onPurchaseQuickAdd(PurchaseQuickAddKind.CONTRIBUTION)
                                                 isLiving -> onAddInvite()
                                                 else -> onAddBooking()
-                                            }
-                                        }
-                                        GroupLifeQuickAction.COMMUNITY -> {
-                                            when {
-                                                isWedding -> onWeddingQuickAdd(WeddingQuickAddKind.UPDATE)
-                                                isExperience -> onExperienceQuickAdd(ExperienceQuickAddKind.UPDATE)
-                                                isPurchase -> onPurchaseQuickAdd(PurchaseQuickAddKind.UPDATE)
-                                                isLiving -> onLivingQuickAdd(LivingQuickAddKind.UPDATE)
-                                                else -> onAddUpdate()
                                             }
                                         }
                                     }
@@ -2406,6 +2417,8 @@ private fun ShellDestinationContent(
                             PersonalLifeActiveContent(
                                 refreshToken = personalTabRefreshToken,
                                 onLogRecovery = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY) },
+                                onLogSpend = { onMoneyQuickAdd(MoneyQuickAddKind.MASTER_EXPENSE) },
+                                onOpenAdd = { onOpenQuickAdd() },
                             )
                         }
                         context == AppContext.PERSONAL && destination == BottomDestination.PULSE -> {
@@ -2415,7 +2428,6 @@ private fun ShellDestinationContent(
                                 momentId = selectedMomentId,
                                 momentTypeCode = personalTypeCode,
                                 forceCollapsed = forcePersonalSimple,
-                                onEnableSimpleMode = onEnablePersonalSimple,
                                 onAddExpense = onAddExpense,
                                 onLifeOpsQuickAdd = onLifeOpsQuickAdd,
                                 onFutureQuickAdd = onFutureQuickAdd,
@@ -2492,6 +2504,7 @@ private fun ShellDestinationContent(
                             PersonalQuickAddHub(
                                 hasActiveMoment = selectedMomentId != null,
                                 onClose = onCreateBack,
+                                onSpend = { onMoneyQuickAdd(MoneyQuickAddKind.MASTER_EXPENSE) },
                                 onIncome = { onMoneyQuickAdd(MoneyQuickAddKind.INCOME) },
                                 onRecovery = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY) },
                                 onMood = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.MOOD) },
@@ -2600,7 +2613,7 @@ private fun PersonalUnifiedChrome(
         if (showManage) {
             Icon(
                 imageVector = Icons.Outlined.Settings,
-                contentDescription = "Manage",
+                contentDescription = "Manage Personal",
                 tint = Color.White.copy(alpha = 0.85f),
                 modifier = Modifier
                     .size(22.dp)

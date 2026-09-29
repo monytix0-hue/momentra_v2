@@ -19,6 +19,7 @@ import {
   SHARED_EXPERIENCE_CODES,
   syncExpenseAnalyticalContributions,
 } from './expense-dimensions';
+import { assertLifeOpsMoment } from '../personal/moment-family';
 
 const sharedExperienceCodeSchema = z.enum(SHARED_EXPERIENCE_CODES);
 
@@ -272,6 +273,8 @@ export async function createExpense(
   // Canonical financial home: Life Operations setup moment when present.
   const canonicalMomentId = await resolveCanonicalExpenseMomentId(client, ctx.userId, momentId);
   await assertPersonalMoment(client, ctx, canonicalMomentId);
+  // Everyday spend must land on Everyday — do not post LO observations' money onto Future/etc.
+  await assertLifeOpsMoment(client, ctx, canonicalMomentId);
 
   const accountId = await resolveUserAccount(client, ctx, body.currencyCode, body.financialAccountId ?? null);
   const accountType = await getAccountType(client, accountId);

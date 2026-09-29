@@ -25,10 +25,10 @@ struct PersonalSetupCatalogEntry {
 /// Defaults + allowedKeys must match backend PERSONAL_SETUP_CATALOG (Figma field model).
 enum PersonalSetupCatalog {
     private static let lifeOps = PersonalSetupCatalogEntry(
-        defaultTitle: "My life operations rhythm",
+        defaultTitle: "My everyday rhythm",
         subtitle: "Create a calmer operating system for everyday life. Everything can be refined later.",
         momentTypeCode: "LIFE_RHYTHM",
-        activateLabel: "Activate Life Operations →",
+        activateLabel: "Activate Everyday →",
         footerTagline: "Private by default · Change anytime",
         missionTitle: nil,
         missionBody: nil,

@@ -70,13 +70,16 @@ private val BorderSoft = Color.White.copy(alpha = 0.08f)
 fun PersonalLifeActiveContent(
     refreshToken: Long,
     onLogRecovery: () -> Unit,
+    onLogSpend: () -> Unit,
+    onOpenAdd: () -> Unit,
     repository: PersonalSliceRepository = remember { PersonalSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
     var loading by remember { mutableStateOf(true) }
     var life by remember { mutableStateOf<PersonalLifeDto?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var selectedChip by remember { mutableStateOf("Life Health") }
+    /** null = All families; otherwise LIFE_OPERATIONS | FUTURE_BUILDING | LIFESTYLE | RELATIONSHIPS */
+    var selectedFamilyFilter by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(refreshToken) {
         if (life != null) loading = false else loading = true
@@ -113,8 +116,8 @@ fun PersonalLifeActiveContent(
             .verticalScroll(rememberScrollState()),
     ) {
         LifeChipRow(
-            selected = selectedChip,
-            onSelect = { selectedChip = it },
+            selectedFamilyCode = selectedFamilyFilter,
+            onSelectFamilyCode = { selectedFamilyFilter = it },
         )
         Column(
             modifier = Modifier
@@ -139,11 +142,22 @@ fun PersonalLifeActiveContent(
             error?.let {
                 Text(it, color = LifeRed, fontSize = 12.sp, fontFamily = PlusJakartaSans)
             }
-            LifeThisWeekCard(data, onLogRecovery = onLogRecovery)
-            LifeJourneyCard(data)
+            LifeThisWeekCard(
+                data,
+                familyFilter = selectedFamilyFilter,
+                onLogRecovery = onLogRecovery,
+                onLogSpend = onLogSpend,
+                onOpenAdd = onOpenAdd,
+            )
+            LifeJourneyCard(data, familyFilter = selectedFamilyFilter)
             LifeHealthSummaryCard(data)
             LifeDriftCard(data)
-            LifeLeverageCard(data, onLogRecovery = onLogRecovery)
+            LifeLeverageCard(
+                data,
+                onLogRecovery = onLogRecovery,
+                onLogSpend = onLogSpend,
+                onOpenAdd = onOpenAdd,
+            )
             LifeBalanceSection(data.balance)
             LifeEmotionalTrendCard(data)
             LifeDominantEmotionCard(data)
@@ -156,13 +170,15 @@ fun PersonalLifeActiveContent(
 
 @Composable
 private fun LifeChipRow(
-    selected: String,
-    onSelect: (String) -> Unit,
+    selectedFamilyCode: String?,
+    onSelectFamilyCode: (String?) -> Unit,
 ) {
     val chips = listOf(
-        "Life Health" to LifePurple,
-        "Future Building" to LifeBlue,
-        "Lifestyle" to LifeAmber,
+        LifeFamilyChip("All", null, LifeMuted),
+        LifeFamilyChip("Everyday", "LIFE_OPERATIONS", LifePurple),
+        LifeFamilyChip("Future", "FUTURE_BUILDING", LifeBlue),
+        LifeFamilyChip("Lifestyle", "LIFESTYLE", LifeAmber),
+        LifeFamilyChip("People", "RELATIONSHIPS", LifePink),
     )
     Column(
         modifier = Modifier
@@ -177,20 +193,21 @@ private fun LifeChipRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            chips.forEach { (label, dot) ->
-                val active = selected == label
+            chips.forEach { chip ->
+                val active = selectedFamilyCode == chip.familyCode
+                val accent = chip.dot
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(
-                            if (active) LifePurple.copy(alpha = 0.12f) else LifeCardAlt,
+                            if (active) accent.copy(alpha = 0.12f) else LifeCardAlt,
                         )
                         .border(
                             width = if (active) 1.5.dp else 1.dp,
-                            color = if (active) LifePurple.copy(alpha = 0.5f) else Color(0xFF1E293B).copy(alpha = 0.4f),
+                            color = if (active) accent.copy(alpha = 0.5f) else Color(0xFF1E293B).copy(alpha = 0.4f),
                             shape = RoundedCornerShape(20.dp),
                         )
-                        .clickable { onSelect(label) }
+                        .clickable { onSelectFamilyCode(chip.familyCode) }
                         .padding(horizontal = if (active) 12.dp else 10.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -199,27 +216,16 @@ private fun LifeChipRow(
                         modifier = Modifier
                             .size(6.dp)
                             .clip(CircleShape)
-                            .background(dot),
+                            .background(accent),
                     )
                     Text(
-                        label,
+                        chip.label,
                         color = if (active) Color.White else LifeDim,
                         fontSize = if (active) 12.sp else 11.sp,
                         fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
                         fontFamily = PlusJakartaSans,
                     )
                 }
-            }
-            Spacer(Modifier.weight(1f))
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(LifeCardAlt)
-                    .border(1.dp, Color(0xFF1E293B).copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("⚙", color = Color(0xFF808094), fontSize = 12.sp)
             }
         }
         Box(
@@ -234,16 +240,25 @@ private fun LifeChipRow(
 @Composable
 private fun LifeThisWeekCard(
     data: PersonalLifeDto,
+    familyFilter: String?,
     onLogRecovery: () -> Unit,
+    onLogSpend: () -> Unit,
+    onOpenAdd: () -> Unit,
 ) {
     val emotion = data.dominantEmotion?.headline?.takeIf { it.isNotBlank() }
         ?: data.emotionalTrend?.subtitle?.takeIf { it.isNotBlank() }
-    val journeyCount = data.journey?.items.orEmpty().size
+    val journeyCount = data.journey?.items.orEmpty()
+        .count { matchesLifeFamilyFilter(it.familyCode, familyFilter) }
     val week = data.thisWeek
-    val expenseAmount = week?.expenseTotal?.toDoubleOrNull() ?: 0.0
+    val familyRow = familyFilter?.let { code ->
+        week?.byFamily?.firstOrNull { it.familyCode.equals(code, ignoreCase = true) }
+    }
+    val expenseAmount = (familyRow?.expenseTotal ?: week?.expenseTotal)?.toDoubleOrNull() ?: 0.0
     val currencyCode = week?.currencyCode
         ?: week?.spendByCurrency?.maxByOrNull { it.value.toDoubleOrNull() ?: 0.0 }?.key
-    val extraCurrencies = (week?.spendByCurrency?.size ?: 0) - if (currencyCode != null) 1 else 0
+    val extraCurrencies = if (familyFilter != null) 0 else {
+        (week?.spendByCurrency?.size ?: 0) - if (currencyCode != null) 1 else 0
+    }
     val moneyLine = when {
         expenseAmount > 0 -> {
             val symbol = if (currencyCode == null || currencyCode == "INR") "₹" else "$currencyCode "
@@ -257,14 +272,27 @@ private fun LifeThisWeekCard(
         }
         else -> "Money · Log spend from Add"
     }
-    val checkIns = week?.moodOrRecoveryLogs ?: 0
+    val checkIns = familyRow?.moodOrRecoveryLogs ?: week?.moodOrRecoveryLogs ?: 0
     val energyLine = when {
+        familyFilter != null && checkIns > 0 -> "Energy · $checkIns check-ins this week"
+        familyFilter != null -> "Energy · Log recovery or mood from Add"
         !emotion.isNullOrBlank() -> "Energy · $emotion"
         checkIns > 0 -> "Energy · $checkIns check-ins this week"
         else -> "Energy · Log recovery or mood from Add"
     }
-    val peopleLine = data.areaScores.firstOrNull { it.code.contains("RELATION", ignoreCase = true) }
-        ?.let { "People · ${it.label} ${it.score ?: "—"}" }
+    val peopleLine = if (familyFilter == null || familyFilter.equals("RELATIONSHIPS", ignoreCase = true)) {
+        data.areaScores.firstOrNull { it.code.contains("RELATION", ignoreCase = true) }
+            ?.let { "People · ${it.label} ${it.score ?: "—"}" }
+    } else {
+        null
+    }
+    val highlights = week?.highlights.orEmpty()
+        .filter { matchesLifeFamilyFilter(it.familyCode, familyFilter) }
+    val filterSubtitle = lifeFamilyFilterLabel(familyFilter)?.let { "This week · $it" }
+        ?: "Across Everyday, Future, Lifestyle, and People"
+    val lev = data.leverage
+    val ctaLabel = lev?.ctaLabel?.takeIf { it.isNotBlank() } ?: "Log today's recovery"
+    val ctaClick = resolveLifeCtaHandler(lev?.ctaAction, onLogRecovery, onLogSpend, onOpenAdd)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -282,7 +310,7 @@ private fun LifeThisWeekCard(
             fontFamily = PlusJakartaSans,
         )
         Text(
-            "Across Everyday, Future, Lifestyle, and People",
+            filterSubtitle,
             color = LifeDim,
             fontSize = 11.sp,
             fontFamily = PlusJakartaSans,
@@ -301,14 +329,26 @@ private fun LifeThisWeekCard(
                 fontFamily = PlusJakartaSans,
             )
         }
-        Text(
-            data.leverage?.ctaLabel?.takeIf { it.isNotBlank() } ?: "Log today’s recovery",
-            color = LifeGreen,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = PlusJakartaSans,
-            modifier = Modifier.clickable(onClick = onLogRecovery),
-        )
+        highlights.forEach { h ->
+            if (h.title.isNotBlank()) {
+                Text(
+                    h.title,
+                    color = LifeDim,
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+        }
+        if (ctaClick != null) {
+            Text(
+                ctaLabel,
+                color = LifeGreen,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier.clickable(onClick = ctaClick),
+            )
+        }
     }
 }
 
@@ -538,8 +578,14 @@ private fun LifeDriftCard(data: PersonalLifeDto) {
 }
 
 @Composable
-private fun LifeLeverageCard(data: PersonalLifeDto, onLogRecovery: () -> Unit) {
+private fun LifeLeverageCard(
+    data: PersonalLifeDto,
+    onLogRecovery: () -> Unit,
+    onLogSpend: () -> Unit,
+    onOpenAdd: () -> Unit,
+) {
     val lev = data.leverage ?: return
+    val ctaClick = resolveLifeCtaHandler(lev.ctaAction, onLogRecovery, onLogSpend, onOpenAdd)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -579,21 +625,23 @@ private fun LifeLeverageCard(data: PersonalLifeDto, onLogRecovery: () -> Unit) {
                     fontFamily = PlusJakartaSans,
                 )
             }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(LifeGreen.copy(alpha = 0.15f))
-                    .border(1.dp, LifeGreen.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                    .clickable(onClick = onLogRecovery)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            ) {
-                Text(
-                    lev.ctaLabel,
-                    color = LifeGreen,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = PlusJakartaSans,
-                )
+            if (ctaClick != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(LifeGreen.copy(alpha = 0.15f))
+                        .border(1.dp, LifeGreen.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .clickable(onClick = ctaClick)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Text(
+                        lev.ctaLabel,
+                        color = LifeGreen,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
             }
         }
         Box(
@@ -927,8 +975,9 @@ private fun LifeHappyDriversCard(data: PersonalLifeDto) {
 }
 
 @Composable
-private fun LifeJourneyCard(data: PersonalLifeDto) {
+private fun LifeJourneyCard(data: PersonalLifeDto, familyFilter: String?) {
     val journey = data.journey ?: return
+    val items = journey.items.filter { matchesLifeFamilyFilter(it.familyCode, familyFilter) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -953,8 +1002,18 @@ private fun LifeJourneyCard(data: PersonalLifeDto) {
                 fontFamily = PlusJakartaSans,
             )
         }
-        journey.items.forEach { item ->
-            LifeJourneyItemRow(item)
+        if (items.isEmpty()) {
+            Text(
+                if (familyFilter != null) "No journey notes for this area yet."
+                else "No journey notes yet.",
+                color = LifeDim,
+                fontSize = 12.sp,
+                fontFamily = PlusJakartaSans,
+            )
+        } else {
+            items.forEach { item ->
+                LifeJourneyItemRow(item)
+            }
         }
     }
 }
@@ -1042,6 +1101,37 @@ private fun LifeAiInsightsCard(data: PersonalLifeDto) {
             lineHeight = 17.sp,
         )
     }
+}
+
+private data class LifeFamilyChip(
+    val label: String,
+    val familyCode: String?,
+    val dot: Color,
+)
+
+private fun matchesLifeFamilyFilter(itemFamilyCode: String?, filterCode: String?): Boolean {
+    if (filterCode == null) return true
+    return itemFamilyCode.equals(filterCode, ignoreCase = true)
+}
+
+private fun lifeFamilyFilterLabel(filterCode: String?): String? = when (filterCode?.uppercase()) {
+    "LIFE_OPERATIONS" -> "Everyday"
+    "FUTURE_BUILDING" -> "Future"
+    "LIFESTYLE" -> "Lifestyle"
+    "RELATIONSHIPS" -> "People"
+    else -> null
+}
+
+private fun resolveLifeCtaHandler(
+    ctaAction: String?,
+    onLogRecovery: () -> Unit,
+    onLogSpend: () -> Unit,
+    onOpenAdd: () -> Unit,
+): (() -> Unit)? = when (ctaAction?.uppercase()) {
+    "LOG_RECOVERY" -> onLogRecovery
+    "LOG_SPEND" -> onLogSpend
+    "OPEN_ADD" -> onOpenAdd
+    else -> null
 }
 
 private fun parseHexColor(hex: String): Color {

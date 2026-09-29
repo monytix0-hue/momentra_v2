@@ -6,6 +6,7 @@ struct LivingQuickAddHubView: View {
     let momentTitle: String?
     let hasActiveMoment: Bool
     var capabilityCodes: [String]? = nil
+    var viewerReadOnly: Bool = false
     var onClose: () -> Void
     var onTile: (LivingQuickAddKind) -> Void
     var onNewMoment: () -> Void = {}
@@ -14,6 +15,8 @@ struct LivingQuickAddHubView: View {
     @State private var search = ""
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+
+    private var tilesEnabled: Bool { hasActiveMoment && !viewerReadOnly }
 
     private var tiles: [LivingQuickAddKind] {
         let q = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -135,8 +138,8 @@ struct LivingQuickAddHubView: View {
                             .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
                         }
                         .buttonStyle(.plain)
-                        .disabled(!hasActiveMoment)
-                        .opacity(hasActiveMoment ? 1 : 0.45)
+                        .disabled(!tilesEnabled)
+                        .opacity(tilesEnabled ? 1 : 0.45)
                     }
                 }
             }

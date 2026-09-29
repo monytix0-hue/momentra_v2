@@ -94,11 +94,15 @@ fun PersonalLifestyleMemoryActiveContent(
     val stability = PersonalLifestyleDerived.networkStability(pulse)
     val experienceCount = PersonalLifestyleDerived.experienceCount(pulse)
     val thinData = activities.size < 2 && vitality == "—"
-    val patternConfidence = if (thinData) "Patterns appear after a few logs" else "${(40 + activities.size * 5).coerceAtMost(92)}% pattern confidence"
-    val aiBody = when {
-        thinData -> "Start on Pulse — log experiences or wellbeing to unlock patterns."
-        experienceCount > 0 -> "Your system rewards experiences logged with intention — joy and exploration compound."
-        else -> "Keep logging rituals and discovery moments to reveal lifestyle patterns."
+    val patternConfidence = if (thinData) {
+        "Patterns appear after a few logs"
+    } else {
+        "Pattern strength is not scored yet"
+    }
+    val memoryInterpretation = if (thinData) {
+        "Log more on Pulse to unlock Memory interpretation."
+    } else {
+        "Memory insights are not available yet — summaries below come from your activity timeline."
     }
 
     Column(
@@ -158,7 +162,7 @@ fun PersonalLifestyleMemoryActiveContent(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("MEMORY INTERPRETATION", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
-            Text(aiBody, color = TextMain, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+            Text(memoryInterpretation, color = TextMain, fontSize = 13.sp, fontFamily = PlusJakartaSans)
         }
 
         FamilyMemoryBody(

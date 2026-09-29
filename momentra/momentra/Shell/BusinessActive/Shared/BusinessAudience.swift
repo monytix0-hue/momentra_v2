@@ -33,15 +33,28 @@ enum BusinessAudience {
         UserDefaults.standard.set(normalize(audience), forKey: defaultsKeyPrefix + id)
     }
 
-    static func forCompany(companyId: String?) -> String {
+    static func forCompany(companyId: String?, profileAudience: String? = nil) -> String {
         let id = (companyId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { return growing }
-        return normalize(UserDefaults.standard.string(forKey: defaultsKeyPrefix + id))
+        if let cached = UserDefaults.standard.string(forKey: defaultsKeyPrefix + id),
+           !cached.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return normalize(cached)
+        }
+        if let profileAudience, !profileAudience.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            saveForCompany(companyId: id, audience: profileAudience)
+            return normalize(profileAudience)
+        }
+        return growing
     }
 
     /// Resolve order: moment prefs.audience if present → company local cache → Growing.
     static func isSmallShopMoment(momentId: String?, fallbackCompanyId: String? = nil) async -> Bool {
-        guard let momentId, !momentId.isEmpty else { return false }
+        guard let momentId, !momentId.isEmpty else {
+            if let fallbackCompanyId {
+                return isSmallShop(forCompany(companyId: fallbackCompanyId))
+            }
+            return false
+        }
         do {
             let prefill = try await APIClient.shared.getDomainSetupPrefill(momentId: momentId)
             if let audience = audienceFromPreferences(prefill.preferences) {

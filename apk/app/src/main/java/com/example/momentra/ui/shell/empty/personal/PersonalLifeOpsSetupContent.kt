@@ -152,7 +152,7 @@ fun PersonalLifeOpsSetupContent(
             )
             PersonalSetupHero(
                 emoji = "🚀",
-                title = "Set up Life Operations",
+                title = "Set up Everyday",
                 subtitle = catalog.subtitle,
                 accent = accent,
             )

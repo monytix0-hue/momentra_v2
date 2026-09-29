@@ -80,6 +80,7 @@ struct WeddingQuickAddHubView: View {
     let momentTitle: String?
     let hasActiveMoment: Bool
     var capabilityCodes: [String]? = nil
+    var viewerReadOnly: Bool = false
     var onClose: () -> Void
     var onTile: (WeddingQuickAddKind) -> Void
     var onNewMoment: () -> Void = {}
@@ -253,7 +254,7 @@ struct WeddingQuickAddHubView: View {
     }
 
     private func tileCard(_ tile: WeddingQuickAddKind) -> some View {
-        let enabled = hasActiveMoment && capabilityAllows(tile)
+        let enabled = hasActiveMoment && !viewerReadOnly && capabilityAllows(tile)
         return Button {
             onTile(tile)
         } label: {

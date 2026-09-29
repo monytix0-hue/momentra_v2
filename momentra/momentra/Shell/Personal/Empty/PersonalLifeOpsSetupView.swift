@@ -58,7 +58,7 @@ struct PersonalLifeOpsSetupView: View {
                     )
                     PersonalSetupHeroBlock(
                         emoji: "🚀",
-                        title: "Set up Life Operations",
+                        title: "Set up Everyday",
                         subtitle: catalog.subtitle,
                         accent: accent
                     )

@@ -127,13 +127,7 @@ fun PersonalLifeOpsMemoryActiveContent(
     val patternConfidence = if (thinData) {
         "Patterns appear after a few logs"
     } else {
-        "${min(92, 40 + activities.size * 5)}% pattern confidence"
-    }
-    val aiBody = when {
-        thinData -> "Start on Pulse — log recovery, mood, or spend to unlock patterns."
-        hasRecovery -> "Your system rewards recovery placed immediately after pressure, not the next morning."
-        hasExpense -> "Spend signals are present — pair them with recovery blocks to keep pressure from compounding."
-        else -> "Keep logging pressure and recovery together to reveal how your system stabilizes."
+        "Pattern strength is not scored yet"
     }
     val evolutionCurrent = when (stage) {
         "Thriving" -> "Adaptive"
@@ -422,27 +416,6 @@ fun PersonalLifeOpsMemoryActiveContent(
                     }
                 }
             }
-        }
-
-        // 9 AI Interpretation
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White.copy(alpha = 0.05f))
-                .border(1.dp, BorderSoft, RoundedCornerShape(16.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                "9 AI INTERPRETATION ✦",
-                color = Muted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.2.sp,
-                fontFamily = PlusJakartaSans,
-            )
-            Text(aiBody, color = TextMain, fontSize = 14.sp, fontFamily = PlusJakartaSans)
         }
 
         // Next Growth Edge

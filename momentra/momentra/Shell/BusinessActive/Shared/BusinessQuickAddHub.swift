@@ -11,6 +11,7 @@ struct BusinessQuickAddHub: View {
     var onClose: () -> Void
     var onTile: (BusinessQuickAddKind) -> Void
     var onNewMoment: () -> Void = {}
+    var onOpenCompanySettings: () -> Void = {}
     /// Legacy callbacks kept for AppShell wiring of live finance sheets.
     var onExpense: () -> Void = {}
     var onRevenue: () -> Void = {}
@@ -19,10 +20,14 @@ struct BusinessQuickAddHub: View {
 
     @State private var search = ""
     @State private var smallShop = false
+    @State private var hubHint: String?
 
     private var theme: BusinessActiveTheme { .forTypeCode(momentTypeCode) }
     private var moduleEnabled: Bool {
         CompanyModules.isEnabled(companyId: companyId, key: CompanyModules.moduleKey(for: theme))
+    }
+    private var isRunway: Bool {
+        theme.typeLabel == BusinessActiveTheme.businessRunway.typeLabel
     }
     private let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
 
@@ -36,11 +41,33 @@ struct BusinessQuickAddHub: View {
     }
 
     private var hubSubtitleText: String {
-        BusinessQuickAddKind.hubSubtitle(theme: theme, smallShop: smallShop)
+        if smallShop, isRunway, let hubHint, !hubHint.isEmpty {
+            return hubHint
+        }
+        return BusinessQuickAddKind.hubSubtitle(theme: theme, smallShop: smallShop)
     }
 
     private var filterChips: [String] {
         BusinessQuickAddKind.hubFilterChips(theme: theme, smallShop: smallShop)
+    }
+
+    private var disabledReasonText: String? {
+        let financeKinds: [BusinessQuickAddKind] = [.revenue, .invoice, .expense, .spendEntry]
+        let anyDisabled = financeKinds.contains { kind in
+            tiles.contains(kind) && !(
+                (hasActiveMoment || kind == .memory)
+                    && BusinessActionRegistry.isKindEnabled(
+                        kind,
+                        capabilities: capabilityCodes,
+                        momentTypeCode: momentTypeCode
+                    )
+            )
+        }
+        guard anyDisabled else { return nil }
+        return BusinessActionRegistry.disabledReason(
+            hasActiveMoment: hasActiveMoment,
+            momentTypeCode: momentTypeCode
+        )
     }
 
     var body: some View {
@@ -68,7 +95,7 @@ struct BusinessQuickAddHub: View {
                     .buttonStyle(.plain)
                 }
 
-                if moduleEnabled {
+                if moduleEnabled, !filterChips.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             chip(theme.typeLabel, selected: true)
@@ -83,15 +110,26 @@ struct BusinessQuickAddHub: View {
 
             if !moduleEnabled {
                 Section {
-                    Text("This module is off for your company")
-                        .font(.plusJakarta(size: 15, weight: .medium))
-                        .foregroundStyle(theme.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(24)
-                        .background(theme.card)
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    VStack(spacing: 16) {
+                        Text("This module is off for your company")
+                            .font(.plusJakarta(size: 15, weight: .medium))
+                            .foregroundStyle(theme.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                        Button {
+                            onClose()
+                            onOpenCompanySettings()
+                        } label: {
+                            Text("Open company settings")
+                                .font(.plusJakarta(size: 14, weight: .semibold))
+                                .foregroundStyle(theme.accent)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(24)
+                    .background(theme.card)
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .listRowInsets(EdgeInsets(top: 24, leading: 16, bottom: 16, trailing: 16))
                 .listRowBackground(Color.clear)
@@ -138,6 +176,13 @@ struct BusinessQuickAddHub: View {
                 .background(theme.card)
                 .overlay(RoundedRectangle(cornerRadius: 24).stroke(theme.border))
                 .clipShape(RoundedRectangle(cornerRadius: 24))
+
+                if let disabledReasonText {
+                    Text(disabledReasonText)
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(theme.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(tiles) { kind in
@@ -225,27 +270,35 @@ struct BusinessQuickAddHub: View {
                 .buttonStyle(.plain)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
-                .background(theme.bg)
+                .background(theme.bg.opacity(0.92))
             }
         }
         .background(theme.bg.ignoresSafeArea())
-        .task(id: momentId) {
-            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+        .task(id: "\(momentId ?? "")-\(companyId ?? "")") {
+            if let companyId {
+                smallShop = BusinessAudience.isSmallShop(BusinessAudience.forCompany(companyId: companyId))
+                hubHint = IndustryTemplateCatalog.hubHintForCompany(companyId: companyId)
+            }
+            smallShop = await BusinessAudience.isSmallShopMoment(
+                momentId: momentId,
+                fallbackCompanyId: companyId
+            )
+            hubHint = IndustryTemplateCatalog.hubHintForCompany(companyId: companyId)
         }
-    }
-
-    private func handle(_ kind: BusinessQuickAddKind) {
-        onTile(kind)
     }
 
     private func chip(_ label: String, selected: Bool) -> some View {
         Text(label)
             .font(.plusJakarta(size: 10, weight: .bold))
-            .foregroundStyle(selected ? .white : Color(hex: "#818CF8"))
+            .foregroundStyle(selected ? Color.white : Color(hex: "#818CF8"))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(selected ? Color(hex: "#6366F1") : theme.card)
             .overlay(Capsule().stroke(Color(hex: "#6366F1").opacity(0.3)))
             .clipShape(Capsule())
+    }
+
+    private func handle(_ kind: BusinessQuickAddKind) {
+        onTile(kind)
     }
 }

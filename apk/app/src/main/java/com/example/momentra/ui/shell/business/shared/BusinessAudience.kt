@@ -43,14 +43,36 @@ object BusinessAudience {
             .apply()
     }
 
-    fun forCompany(context: Context, companyId: String?): String {
+    fun rehydrateFromCompanies(context: Context, companies: List<com.example.momentra.domain.CompanySummary>) {
+        companies.forEach { company ->
+            val audience = company.profileJson?.get(PREF_KEY)?.toString()
+            if (!audience.isNullOrBlank()) {
+                saveForCompany(context, company.companyId, audience)
+            }
+        }
+        IndustryTemplateCatalog.rehydrateHubHints(context, companies)
+    }
+
+    /**
+     * Prefer cache; if missing and [profileJson] has audience, use that (avoids Growing flash).
+     */
+    fun forCompany(
+        context: Context,
+        companyId: String?,
+        profileJson: Map<String, Any?>? = null,
+    ): String {
         val id = companyId?.trim().orEmpty()
         if (id.isEmpty()) return GROWING
-        return normalize(
-            context.applicationContext
-                .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getString(KEY_PREFIX + id, null),
-        )
+        val cached = context.applicationContext
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_PREFIX + id, null)
+        if (!cached.isNullOrBlank()) return normalize(cached)
+        val fromProfile = profileJson?.get(PREF_KEY)?.toString()
+        if (!fromProfile.isNullOrBlank()) {
+            saveForCompany(context, id, fromProfile)
+            return normalize(fromProfile)
+        }
+        return GROWING
     }
 
     /**
@@ -63,7 +85,12 @@ object BusinessAudience {
         fallbackCompanyId: String? = null,
         createRepo: MomentCreateRepository = MomentCreateRepository(),
     ): Boolean {
-        if (momentId.isNullOrBlank()) return false
+        if (momentId.isNullOrBlank()) {
+            if (context != null && !fallbackCompanyId.isNullOrBlank()) {
+                return isSmallShop(forCompany(context, fallbackCompanyId))
+            }
+            return false
+        }
         val prefill = createRepo.getDomainSetupPrefill(momentId).getOrNull()
         audienceFromPrefs(prefill?.preferences)?.let { return it == SMALL_SHOP }
         val companyId = prefill?.companyId?.takeIf { it.isNotBlank() } ?: fallbackCompanyId
@@ -71,14 +98,5 @@ object BusinessAudience {
             return isSmallShop(forCompany(context, companyId))
         }
         return false
-    }
-
-    fun rehydrateFromCompanies(context: Context, companies: List<com.example.momentra.domain.CompanySummary>) {
-        companies.forEach { company ->
-            val audience = company.profileJson?.get(PREF_KEY)?.toString()
-            if (!audience.isNullOrBlank()) {
-                saveForCompany(context, company.companyId, audience)
-            }
-        }
     }
 }

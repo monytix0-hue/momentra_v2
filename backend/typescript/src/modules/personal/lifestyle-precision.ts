@@ -4,19 +4,14 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
 import { recomputeOverallWellbeing } from './personal-wellbeing';
+import { assertPersonalFamilyMoment } from './moment-family';
 
 /** Lifestyle precision (PX-2) — PER-LS widgets over lifestyle_activity + V046 profile. */
 
 const LIFESTYLE_CONTEXTS = ['EXPERIENCE', 'WELLBEING', 'DISCOVERY', 'CREATION', 'LIFESTYLE'] as const;
 
 async function assertPersonalMoment(client: PoolClient, ctx: RequestContext, momentId: string): Promise<void> {
-  const row = await client.query(
-    `SELECT 1 FROM personal.personal_moment_context WHERE moment_id = $1 AND user_id = $2`,
-    [momentId, ctx.userId]
-  );
-  if (!row.rowCount) {
-    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Personal moment not found.', 404);
-  }
+  await assertPersonalFamilyMoment(client, ctx, momentId, 'LIFESTYLE', 'Lifestyle');
 }
 
 function clampScore(value: number): number {

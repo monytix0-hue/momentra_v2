@@ -21,6 +21,7 @@ struct LivingActiveTheme {
     let contributionsTitle: String
     let budgetTitle: String
     let financeTitle: String
+    let healthLabel: String
     let hubHeroAssetName: String
     let heroEmoji: String
     let participantRoles: [String]
@@ -65,6 +66,7 @@ struct LivingActiveTheme {
         contributionsTitle: "Member Contributions",
         budgetTitle: "Household Budget",
         financeTitle: "Group Finance",
+        healthLabel: "Household Health",
         hubHeroAssetName: "FlatmatesHubHero",
         heroEmoji: "🏠",
         participantRoles: ["Organizer", "Resident", "Guest"],
@@ -79,10 +81,10 @@ struct LivingActiveTheme {
         ],
         includesContribution: true,
         quickChips: [
-            ("👤", "Invite", .resident),
+            ("🏠", "Invite", .resident),
             ("💳", "Expense", .expense),
+            ("🎁", "Contribute", .contribution),
             ("✅", "Task", .task),
-            ("📷", "Memory", .memory),
         ]
     )
 
@@ -107,6 +109,7 @@ struct LivingActiveTheme {
         contributionsTitle: "Member Contributions",
         budgetTitle: "Community Budget",
         financeTitle: "Community Hub",
+        healthLabel: "Community Health",
         hubHeroAssetName: "ColivingHubHero",
         heroEmoji: "🏘️",
         participantRoles: ["Organizer", "Resident", "Member"],
@@ -146,9 +149,10 @@ struct LivingActiveTheme {
         purpleChip: Color(hex: "#A855F7"),
         typeLabel: "Family Household",
         pulseTitle: "Family Pulse",
-        contributionsTitle: "Member Contributions",
-        budgetTitle: "Household Budget",
-        financeTitle: "Group Finance",
+        contributionsTitle: "Household Members",
+        budgetTitle: "Family Budget",
+        financeTitle: "Family Hub",
+        healthLabel: "Family Health",
         hubHeroAssetName: "FamilyHouseholdHubHero",
         heroEmoji: "👨‍👩‍👧",
         participantRoles: ["Organizer", "Family", "Guest"],
@@ -188,27 +192,28 @@ struct LivingActiveTheme {
         purpleChip: Color(hex: "#A855F7"),
         typeLabel: "Custom Living",
         pulseTitle: "Living Pulse",
-        contributionsTitle: "Member Contributions",
-        budgetTitle: "Property Budget",
+        contributionsTitle: "Household Members",
+        budgetTitle: "Living Budget",
         financeTitle: "Property Hub",
+        healthLabel: "Living Health",
         hubHeroAssetName: "CustomLivingHubHero",
         heroEmoji: "✨",
         participantRoles: ["Organizer", "Resident", "Member"],
-        participantSubtitle: "Invite people into this custom living space",
+        participantSubtitle: "Add someone to this living arrangement",
         heroGradientColors: [Color(hex: "#10B981"), Color(hex: "#0F766E")],
         pulseHeroGradientColors: [Color(hex: "#34D399"), Color(hex: "#047857").opacity(0.9)],
         statGradients: [
             [Color(hex: "#047857"), Color(hex: "#065F46")],
             [Color(hex: "#10B981"), Color(hex: "#059669")],
-            [Color(hex: "#7C3AED"), Color(hex: "#5B21B6")],
-            [Color(hex: "#2DD4BF"), Color(hex: "#0F766E")],
+            [Color(hex: "#34D399"), Color(hex: "#10B981")],
+            [Color(hex: "#6EE7B7"), Color(hex: "#10B981")],
         ],
         includesContribution: false,
         quickChips: [
-            ("👤", "Invite", .resident),
+            ("🏠", "Invite", .resident),
             ("💳", "Expense", .expense),
             ("✅", "Task", .task),
-            ("📷", "Memory", .memory),
+            ("📷", "Photos", .memory),
         ]
     )
 

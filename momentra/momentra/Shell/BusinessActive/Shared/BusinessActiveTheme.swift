@@ -345,6 +345,7 @@ enum BusinessQuickAddKind: String, Identifiable, CaseIterable {
     }
 
     static func hubFilterChips(theme: BusinessActiveTheme, smallShop: Bool) -> [String] {
-        smallShop ? [] : theme.filterChips
+        // Chips are decorative only today — hide when non-interactive.
+        []
     }
 }

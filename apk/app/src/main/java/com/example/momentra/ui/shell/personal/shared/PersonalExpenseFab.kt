@@ -41,7 +41,7 @@ fun PersonalExpenseFab(
             .background(PersonalMasterExpenseTheme.Accent)
             .clickable(onClick = onClick)
             .semantics {
-                contentDescription = "Add expense"
+                contentDescription = "Spend"
                 role = Role.Button
             }
             .testTag("personal_expense_fab"),

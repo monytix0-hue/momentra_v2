@@ -54,12 +54,30 @@ enum BusinessActionRegistry {
         (momentTypeCode ?? "").uppercased().contains("RUNWAY")
     }
 
-    /// Empty / nil capabilities fail closed (mirror Personal).
-    static func isDestinationEnabled(_ capabilities: [String]?, destination target: BusinessActionDestination) -> Bool {
+    /// Empty / nil capabilities fail open with default V019 codes (day-one Money tiles).
+    /// Non-empty lists filter strictly.
+    static func effectiveCapabilities(_ capabilities: [String]?) -> [String] {
         guard let capabilities, !capabilities.isEmpty else {
-            return false
+            return defaultCodes().map(\.rawValue)
         }
-        return capabilities.contains { destination(for: $0) == target }
+        return capabilities
+    }
+
+    static func isDestinationEnabled(_ capabilities: [String]?, destination target: BusinessActionDestination) -> Bool {
+        effectiveCapabilities(capabilities).contains { destination(for: $0) == target }
+    }
+
+    static func disabledReason(
+        hasActiveMoment: Bool,
+        momentTypeCode: String?,
+        destination: BusinessActionDestination? = nil
+    ) -> String? {
+        if !hasActiveMoment { return "Needs an active Money moment" }
+        if let destination, (destination == .revenue || destination == .invoice),
+           !isRunwayMomentType(momentTypeCode) {
+            return "Needs an active Money moment"
+        }
+        return nil
     }
 
     static func destination(for kind: BusinessQuickAddKind) -> BusinessActionDestination? {
@@ -88,14 +106,13 @@ enum BusinessActionRegistry {
     }
 
     /// Builds hub tiles.
-    /// - `nil` capabilityCodes → default V019 codes (catalog / tests)
-    /// - empty array → fail closed (no tiles)
+    /// - `nil` or empty capabilityCodes → default V019 codes (fail open)
     /// - non-empty → destination-level enablement
     static func tiles(
         hasActiveMoment: Bool,
         capabilityCodes: [String]? = nil
     ) -> [BusinessActionTile] {
-        let effectiveCaps = capabilityCodes ?? defaultCodes().map(\.rawValue)
+        let effectiveCaps = effectiveCapabilities(capabilityCodes)
         return catalogTiles().compactMap { tile in
             if !isDestinationEnabled(effectiveCaps, destination: tile.destination) {
                 return nil

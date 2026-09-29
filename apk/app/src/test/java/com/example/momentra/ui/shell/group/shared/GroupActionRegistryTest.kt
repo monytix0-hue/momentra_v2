@@ -32,19 +32,29 @@ class GroupActionRegistryTest {
     }
 
     @Test
-    fun emptyCapabilitiesEnableLiveTilesIncludingSettle() {
-        assertTrue(
+    fun emptyCapabilitiesFailClosedExceptBudget() {
+        // Empty bootstrap must not unlock write tiles — only tiles without a capability code (Budget).
+        assertFalse(
             GroupActionRegistry.isDestinationEnabled(emptyList(), GroupActionRegistry.Destination.EXPENSE),
         )
-        assertTrue(
+        assertFalse(
             GroupActionRegistry.isDestinationEnabled(emptyList(), GroupActionRegistry.Destination.CONTRIBUTION),
         )
-        assertTrue(
+        assertFalse(
             GroupActionRegistry.isDestinationEnabled(emptyList(), GroupActionRegistry.Destination.SETTLEMENT),
         )
-        assertTrue(
+        assertFalse(
             GroupActionRegistry.isDestinationEnabled(emptyList(), GroupActionRegistry.Destination.PLANNING),
         )
+        assertTrue(
+            GroupActionRegistry.isDestinationEnabled(emptyList(), GroupActionRegistry.Destination.BUDGET),
+        )
+    }
+
+    @Test
+    fun tripHubIncludesSettle() {
+        assertTrue(GroupActionRegistry.tripHubTileIds.contains("settle"))
+        assertTrue(GroupActionRegistry.figmaTripHubTiles.any { it.id == "settle" })
     }
 
     @Test

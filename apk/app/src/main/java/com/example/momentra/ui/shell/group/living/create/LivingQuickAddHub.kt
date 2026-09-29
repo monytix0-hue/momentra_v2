@@ -49,8 +49,10 @@ fun LivingQuickAddHub(
     onClose: () -> Unit,
     onTile: (LivingQuickAddKind) -> Unit,
     onCreateMoment: () -> Unit = {},
+    viewerReadOnly: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    val tilesEnabled = hasActiveMoment && !viewerReadOnly
     var search by remember { mutableStateOf("") }
     val window = rememberMomentraWindowSize()
     val tiles = livingHubTiles(theme).filter {
@@ -153,7 +155,7 @@ fun LivingQuickAddHub(
                     modifier = Modifier
                         .fillMaxWidth(widthFraction)
                         .heightIn(min = window.hubTileMinHeight, max = window.hubTileMaxHeight)
-                        .alpha(if (hasActiveMoment) 1f else 0.45f)
+                        .alpha(if (tilesEnabled) 1f else 0.45f)
                         .clip(RoundedCornerShape(16.dp))
                         .background(
                             Brush.verticalGradient(
@@ -161,7 +163,7 @@ fun LivingQuickAddHub(
                             ),
                         )
                         .border(1.dp, theme.border, RoundedCornerShape(16.dp))
-                        .then(if (hasActiveMoment) Modifier.clickable { onTile(kind) } else Modifier)
+                        .then(if (tilesEnabled) Modifier.clickable { onTile(kind) } else Modifier)
                         .padding(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),

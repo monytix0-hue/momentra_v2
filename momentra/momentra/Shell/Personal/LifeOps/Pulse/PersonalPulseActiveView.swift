@@ -12,14 +12,12 @@ struct PersonalPulseActiveView: View {
     var onRelationshipsQuickAdd: (RelationshipsQuickAddKind) -> Void = { _ in }
     var onViewAllActivity: () -> Void = {}
     var forceCollapsed: Bool = false
-    var onEnableSimpleMode: () -> Void = {}
 
     @State private var pulse: APIClient.PersonalPulsePayload?
     @State private var activities: [APIClient.ActivityItemPayload] = []
     @State private var loading = true
     @State private var error: String?
     @State private var seeMoreExpanded = false
-    @State private var simpleCtaDismissed = PersonalHabitPreferences.simpleCtaDismissed
 
     private var family: PersonalPulseFamily { PersonalPulseFamily.forTypeCode(momentTypeCode) }
     private var theme: PersonalPulseFamilyTheme { family.theme }
@@ -27,9 +25,6 @@ struct PersonalPulseActiveView: View {
     private var isFuture: Bool { family == .futureBuilding }
     private var isLifestyle: Bool { family == .lifestyle }
     private var isRelationships: Bool { family == .relationships }
-    private var showTrySimpleCta: Bool {
-        isLifeOps && !forceCollapsed && PersonalHabitPreferences.hasTodaySave && !simpleCtaDismissed
-    }
 
     var body: some View {
         Group {
@@ -59,40 +54,6 @@ struct PersonalPulseActiveView: View {
                         Text(dayFeedbackLine)
                             .font(.plusJakarta(size: 13))
                             .foregroundStyle(Color(hex: "#C9C4D8"))
-                        if showTrySimpleCta {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Button {
-                                    PersonalHabitPreferences.simpleCtaDismissed = true
-                                    simpleCtaDismissed = true
-                                    PersonalHabitPreferences.simpleMode = true
-                                    onEnableSimpleMode()
-                                } label: {
-                                    Text("Try Simple mode — Everyday only")
-                                        .font(.plusJakarta(size: 13, weight: .bold))
-                                        .foregroundStyle(Color(hex: "#A78BFA"))
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .buttonStyle(.plain)
-                                Button {
-                                    PersonalHabitPreferences.simpleCtaDismissed = true
-                                    simpleCtaDismissed = true
-                                } label: {
-                                    Text("Not now")
-                                        .font(.plusJakarta(size: 12))
-                                        .foregroundStyle(Color(hex: "#C9C4D8"))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(hex: "#7C5CFC").opacity(0.12))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color(hex: "#A78BFA").opacity(0.35), lineWidth: 1)
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
                         Button {
                             seeMoreExpanded.toggle()
                         } label: {

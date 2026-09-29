@@ -435,6 +435,7 @@ struct BusinessInvoiceSheet: View {
     var onSaved: () -> Void
 
     @State private var invoiceNumber = ""
+    @State private var customerName = ""
     @State private var currencyCode = "INR"
     @State private var lineDescription = ""
     @State private var quantity = "1"
@@ -510,6 +511,11 @@ struct BusinessInvoiceSheet: View {
                             .padding(12)
                             .background(Color(hex: "#201E28"))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
+                        TextField("Customer name (optional)", text: $customerName)
+                            .foregroundStyle(Color(hex: "#E5E0EE"))
+                            .padding(12)
+                            .background(Color(hex: "#201E28"))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         TextField("Line description", text: $lineDescription)
                             .foregroundStyle(Color(hex: "#E5E0EE"))
                             .padding(12)
@@ -530,7 +536,7 @@ struct BusinessInvoiceSheet: View {
                         .padding(12)
                         .background(Color(hex: "#201E28"))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                        Text("Tax is server-authoritative (omit or 0).")
+                        Text("Tax is calculated when you file—leave blank for now.")
                             .font(.system(size: 11))
                             .foregroundStyle(Color(hex: "#C9C4D8"))
                         if let error {
@@ -610,6 +616,7 @@ struct BusinessInvoiceSheet: View {
                 shopName: shopName,
                 invoiceNumber: inv,
                 invoiceDate: today,
+                customerName: customerName.trimmingCharacters(in: .whitespacesAndNewlines),
                 lineDescription: line,
                 quantity: qty,
                 unitPrice: price,
@@ -627,6 +634,7 @@ func invoiceReceiptMessage(
     shopName: String,
     invoiceNumber: String,
     invoiceDate: String,
+    customerName: String = "",
     lineDescription: String,
     quantity: String,
     unitPrice: String,
@@ -635,10 +643,11 @@ func invoiceReceiptMessage(
 ) -> String {
     let shop = shopName.isEmpty ? "Shop" : shopName
     let totalStr = String(format: "%.2f", total)
+    let customerLine = customerName.isEmpty ? "" : "Customer: \(customerName)\n"
     return """
     \(shop)
     Invoice #\(invoiceNumber) · \(invoiceDate)
-
+    \(customerLine)
     \(lineDescription)
     \(quantity) × \(unitPrice) \(currencyCode)
 

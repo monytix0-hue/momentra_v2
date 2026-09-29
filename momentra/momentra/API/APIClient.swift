@@ -570,6 +570,7 @@ final class APIClient {
                 BusinessAudience.saveForCompany(companyId: item.companyId, audience: audience)
             }
             CompanyModules.rehydrateFromProfile(companyId: item.companyId, profileJson: item.profileJson)
+            IndustryTemplateCatalog.rehydrateHubHint(companyId: item.companyId, profileJson: item.profileJson)
             return CompanySummary(
                 companyId: item.companyId,
                 displayName: item.displayName,
@@ -912,6 +913,22 @@ final class APIClient {
             let moodOrRecoveryLogs: Int?
             let periodStart: String?
             let periodEnd: String?
+            let byFamily: [ByFamily]?
+            let highlights: [Highlight]?
+        }
+        struct ByFamily: Decodable {
+            let familyCode: String
+            let label: String
+            let expenseTotal: String?
+            let incomeTotal: String?
+            let periodLogs: Int?
+            let moodOrRecoveryLogs: Int?
+        }
+        struct Highlight: Decodable {
+            let familyCode: String
+            let title: String
+            let occurredAt: String
+            let activityCode: String
         }
 
         struct LifeAreaScore: Decodable {
@@ -931,6 +948,8 @@ final class APIClient {
             let actionTitle: String
             let actionBody: String
             let ctaLabel: String
+            /// LOG_RECOVERY | LOG_SPEND | OPEN_ADD | NONE
+            let ctaAction: String?
             let impacts: [LifeImpact]?
         }
         struct LifeImpact: Decodable {
@@ -981,9 +1000,12 @@ final class APIClient {
             let whenLabel: String?
             let value: String
             let tone: String?
+            let familyCode: String?
+            let momentId: String?
+            let activityCode: String?
 
             enum CodingKeys: String, CodingKey {
-                case icon, title, value, tone
+                case icon, title, value, tone, familyCode, momentId, activityCode
                 case whenLabel = "when"
             }
         }
@@ -1551,6 +1573,25 @@ final class APIClient {
         struct Body: Encodable { let transferUserId: String? }
         return try await authorizedPost(
             path: "v1/companies/\(companyId)/leave",
+            body: Body(transferUserId: transferUserId),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    struct TransferCompanyOwnershipResult: Decodable {
+        let companyId: String?
+        let ownerUserId: String?
+        let previousOwnerUserId: String?
+    }
+
+    func transferCompanyOwnership(
+        companyId: String,
+        transferUserId: String,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> TransferCompanyOwnershipResult {
+        struct Body: Encodable { let transferUserId: String }
+        return try await authorizedPost(
+            path: "v1/companies/\(companyId)/transfer-ownership",
             body: Body(transferUserId: transferUserId),
             idempotencyKey: idempotencyKey
         )

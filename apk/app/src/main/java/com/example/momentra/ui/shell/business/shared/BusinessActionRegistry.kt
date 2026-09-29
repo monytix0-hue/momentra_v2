@@ -2,7 +2,8 @@ package com.example.momentra.ui.shell.business.shared
 
 /**
  * Mapper from V019 Business capability / action codes to Quick Add destinations.
- * Empty capabilities fail closed until bootstrap fills V019 codes (parity with Personal).
+ * Empty / missing capabilities fail open with default V019 codes so Money tiles work on day one.
+ * Non-empty lists filter strictly.
  */
 object BusinessActionRegistry {
 
@@ -13,6 +14,16 @@ object BusinessActionRegistry {
     const val VENDOR_MANAGE = "VENDOR_MANAGE"
     const val ISSUE_CREATE = "ISSUE_CREATE"
     const val SLA_MANAGE = "SLA_MANAGE"
+
+    val DEFAULT_CODES: List<String> = listOf(
+        EXPENSE_CREATE,
+        REVENUE_RECORD,
+        INVOICE_CREATE,
+        MEMBER_MANAGE,
+        VENDOR_MANAGE,
+        ISSUE_CREATE,
+        SLA_MANAGE,
+    )
 
     enum class Destination {
         SPEND,
@@ -37,16 +48,33 @@ object BusinessActionRegistry {
 
     /** Revenue/Invoice are V019-mapped to BUSINESS_RUNWAY only. */
     fun isRunwayFinanceEnabled(momentTypeCode: String?): Boolean =
-        momentTypeCode?.uppercase() == "BUSINESS_RUNWAY"
+        momentTypeCode?.uppercase()?.contains("RUNWAY") == true
 
-    fun isDestinationEnabled(capabilities: List<String>, destination: Destination): Boolean {
-        if (capabilities.isEmpty()) return false
-        return capabilities.any { destinationFor(it) == destination }
+    /** Empty capabilities → default V019 codes (fail open). Non-empty → real filter. */
+    fun effectiveCapabilities(capabilities: List<String>?): List<String> =
+        if (capabilities.isNullOrEmpty()) DEFAULT_CODES else capabilities
+
+    fun isDestinationEnabled(capabilities: List<String>?, destination: Destination): Boolean {
+        return effectiveCapabilities(capabilities).any { destinationFor(it) == destination }
     }
 
-    fun enabledDestinations(capabilities: List<String>): Set<Destination> {
-        if (capabilities.isEmpty()) return emptySet()
-        return capabilities.mapNotNull { destinationFor(it) }.toSet()
+    fun enabledDestinations(capabilities: List<String>?): Set<Destination> {
+        return effectiveCapabilities(capabilities).mapNotNull { destinationFor(it) }.toSet()
+    }
+
+    fun disabledReason(
+        hasActiveMoment: Boolean,
+        momentTypeCode: String?,
+        destination: Destination? = null,
+    ): String? {
+        if (!hasActiveMoment) return "Needs an active Money moment"
+        if (
+            (destination == Destination.REVENUE || destination == Destination.INVOICE) &&
+            !isRunwayFinanceEnabled(momentTypeCode)
+        ) {
+            return "Needs an active Money moment"
+        }
+        return null
     }
 }
 
@@ -68,7 +96,7 @@ fun BusinessQuickAddKind.registryDestination(): BusinessActionRegistry.Destinati
 
 /** Unmapped kinds (update/memory/chrome) stay available when moment is active. */
 fun BusinessQuickAddKind.isCapabilityEnabled(
-    capabilities: List<String>,
+    capabilities: List<String>?,
     momentTypeCode: String? = null,
 ): Boolean {
     val dest = registryDestination() ?: return true

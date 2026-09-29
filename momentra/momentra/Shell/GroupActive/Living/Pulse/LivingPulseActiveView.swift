@@ -95,9 +95,21 @@ struct LivingPulseActiveView: View {
                     Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
                 }
 
-                Text(displayTitle)
-                    .font(.plusJakarta(size: 20, weight: .heavy))
-                    .foregroundStyle(theme.text)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("\(theme.heroEmoji) \(theme.typeLabel)")
+                        .font(.plusJakarta(size: 12, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.9))
+                    Text(displayTitle)
+                        .font(.plusJakarta(size: 28, weight: .heavy))
+                        .foregroundStyle(Color.white)
+                    Text("Track residents, rent, chores, and household money with live data only.")
+                        .font(.plusJakarta(size: 13))
+                        .foregroundStyle(Color.white.opacity(0.85))
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(theme.pulseHeroGradient)
+                .clipShape(RoundedRectangle(cornerRadius: 24))
 
                 HStack(spacing: 10) {
                     ForEach(theme.quickChips, id: \.label) { chip in
@@ -112,9 +124,10 @@ struct LivingPulseActiveView: View {
                     }
                 }
 
-                LivingTotalCollectedCard(
+                LivingHouseholdSpendCard(
                     theme: theme,
                     contributionTotal: total?.contributionTotal,
+                    expenseTotal: total?.expenseTotal,
                     budgetTotal: total?.budgetTotal,
                     currency: currency,
                     funded: funded
@@ -130,15 +143,15 @@ struct LivingPulseActiveView: View {
                         )
                         LivingStatCard(
                             label: "COLLECTED",
-                            value: funded.map { "\($0)%" } ?? "—",
+                            value: GroupFinanceFormat.compactMoney(total?.contributionTotal, currencyCode: currency),
                             colors: g1,
                             icon: "clock.fill"
                         )
                     }
                     HStack(spacing: 10) {
                         LivingStatCard(
-                            label: "RENT/MO",
-                            value: GroupFinanceFormat.compactMoney(total?.budgetTotal, currencyCode: currency),
+                            label: "RENT / BILLS",
+                            value: GroupFinanceFormat.compactMoney(total?.expenseTotal ?? total?.budgetTotal, currencyCode: currency),
                             colors: g2,
                             icon: "creditcard.fill"
                         )
@@ -155,12 +168,12 @@ struct LivingPulseActiveView: View {
                     contributionSection(positions: positions, currency: currency)
                 }
 
-                LivingSectionCard(theme: theme, title: "Upcoming Bills") {
+                LivingSectionCard(theme: theme, title: "Upcoming Deadlines") {
                     if upcomingBills.isEmpty {
                         LivingEmptyBlock(
                             theme: theme,
-                            message: "No upcoming bills",
-                            detail: "Bills appear from live activity — nothing is invented."
+                            message: "No deadlines yet",
+                            detail: "Planning items with due dates will appear here."
                         )
                     } else {
                         ForEach(upcomingBills) { item in
@@ -398,68 +411,74 @@ struct LivingPulseActiveView: View {
 
 // MARK: - Total Collected
 
-private struct LivingTotalCollectedCard: View {
+private struct LivingHouseholdSpendCard: View {
     let theme: LivingActiveTheme
     let contributionTotal: String?
+    let expenseTotal: String?
     let budgetTotal: String?
     let currency: String
     let funded: Int?
 
-    private var collectedLabel: String {
-        let left = contributionTotal == nil
-            ? "—"
-            : GroupFinanceFormat.formatMoney(contributionTotal, currencyCode: currency)
-        let right = budgetTotal == nil
-            ? "—"
-            : GroupFinanceFormat.formatMoney(budgetTotal, currencyCode: currency)
-        return "\(left) / \(right)"
+    private var sectionTitle: String {
+        theme.includesContribution ? "Total Collected" : "Household Spend"
     }
 
     private var chipLabel: String {
-        funded.map { "\($0)% FUNDED" } ?? "— FUNDED"
+        if theme.includesContribution {
+            return funded.map { "\($0)% funded" } ?? "— funded"
+        }
+        return budgetTotal != nil ? "vs budget" : "live totals"
     }
 
-    private var ringLabel: String {
-        funded.map { "\($0)%" } ?? "—"
+    private var primaryAmount: String {
+        let raw = theme.includesContribution ? contributionTotal : expenseTotal
+        return raw == nil ? "—" : GroupFinanceFormat.formatMoney(raw, currencyCode: currency)
+    }
+
+    private var goalCopy: String {
+        if let budgetTotal {
+            return "of \(GroupFinanceFormat.formatMoney(budgetTotal, currencyCode: currency)) goal"
+        }
+        return "Set a budget to track household progress."
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("TOTAL COLLECTED")
-                        .font(.plusJakarta(size: 11, weight: .semibold))
-                        .foregroundStyle(theme.secondary)
-                    Text(collectedLabel)
-                        .font(.plusJakarta(size: 24, weight: .heavy))
-                        .foregroundStyle(theme.text)
-                }
-                Spacer()
+        LivingSectionCard(
+            theme: theme,
+            title: sectionTitle,
+            trailing: {
                 Text(chipLabel)
-                    .font(.plusJakarta(size: 11, weight: .bold))
-                    .foregroundStyle(Color.white)
+                    .font(.plusJakarta(size: 12, weight: .bold))
+                    .foregroundStyle(theme.accentLight)
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(theme.accent)
+                    .padding(.vertical, 4)
+                    .background(theme.accentSoft)
+                    .overlay(Capsule().stroke(theme.accent.opacity(0.35)))
                     .clipShape(Capsule())
             }
-
-            HStack {
-                Spacer(minLength: 0)
+        ) {
+            HStack(alignment: .center, spacing: 20) {
                 LivingAccentRing(
                     percent: funded ?? 0,
-                    centerLabel: ringLabel,
-                    centerSub: funded == nil ? "" : "FUNDED",
+                    centerLabel: funded.map(String.init) ?? "—",
+                    centerSub: funded != nil ? "/ 100" : "funded",
                     accent: theme.accent
                 )
+                .frame(width: 96, height: 96)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(theme.healthLabel)
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(theme.text)
+                    Text(primaryAmount)
+                        .font(.plusJakarta(size: 22, weight: .heavy))
+                        .foregroundStyle(theme.accentLight)
+                    Text(goalCopy)
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(theme.secondary)
+                }
                 Spacer(minLength: 0)
             }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.card)
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(theme.border))
-        .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 }
 
@@ -472,23 +491,22 @@ private struct LivingAccentRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color(hex: "#2A2538"), lineWidth: 12)
+                .stroke(Color(hex: "#2A2538"), lineWidth: 10)
             Circle()
                 .trim(from: 0, to: CGFloat(min(max(percent, 0), 100)) / 100)
-                .stroke(accent, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                .stroke(accent, style: StrokeStyle(lineWidth: 10, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             VStack(spacing: 2) {
                 Text(centerLabel)
-                    .font(.plusJakarta(size: 28, weight: .heavy))
+                    .font(.plusJakarta(size: 22, weight: .heavy))
                     .foregroundStyle(Color(hex: "#E5E2E1"))
                 if !centerSub.isEmpty {
                     Text(centerSub)
-                        .font(.plusJakarta(size: 12, weight: .semibold))
+                        .font(.plusJakarta(size: 11, weight: .semibold))
                         .foregroundStyle(Color(hex: "#9CA3AF"))
                 }
             }
         }
-        .frame(width: 180, height: 180)
     }
 }
 

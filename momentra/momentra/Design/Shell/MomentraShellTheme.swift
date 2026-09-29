@@ -108,7 +108,12 @@ enum MomentThemes {
         if code.contains("FLATMATES") { return base("GROUP", "FLATMATES", Color(hex: 0xE8744F), Color(hex: 0xFF7A3D)) }
         if code.contains("FAMILY_HOUSEHOLD") { return base("GROUP", "FAMILY_HOUSEHOLD", Color(hex: 0xEC4899), Color(hex: 0xF472B6)) }
         if code.contains("CO_LIVING") { return base("GROUP", "CO_LIVING", Color(hex: 0x3B82F6), Color(hex: 0x60A5FA)) }
-        if code.contains("COMMUNITY_LIVING") { return base("GROUP", "COMMUNITY_LIVING", Color(hex: 0x14B8A6), Color(hex: 0x2DD4BF)) }
+        if code.contains("COMMUNITY_LIVING") || code.contains("CUSTOM_LIVING") {
+            return base("GROUP", "COMMUNITY_LIVING", Color(hex: 0x10B981), Color(hex: 0x34D399))
+        }
+        if code.contains("LIVING") && !code.contains("CO_LIVING") {
+            return base("GROUP", "COMMUNITY_LIVING", Color(hex: 0x10B981), Color(hex: 0x34D399))
+        }
         if code.contains("HOUSE_PARTY") || code.contains("PARTY") { return base("GROUP", "HOUSE_PARTY", Color(hex: 0x3B82F6), Color(hex: 0x60A5FA)) }
         if code.contains("OUTING") || code.contains("OFFICE") { return base("GROUP", "OFFICE_OUTING", Color(hex: 0x14B8A6), Color(hex: 0x2DD4BF)) }
         if code.contains("GIFT") { return base("GROUP", "GIFT_POOL", Color(hex: 0xE8621A), Color(hex: 0xFF8E63)) }

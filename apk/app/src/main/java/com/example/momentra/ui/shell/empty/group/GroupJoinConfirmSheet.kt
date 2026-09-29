@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,17 +44,19 @@ fun GroupJoinConfirmSheet(
     code: String,
     visible: Boolean,
     onDismiss: () -> Unit,
-    onJoin: () -> Unit,
+    onJoin: (onFinished: () -> Unit) -> Unit,
     repository: GroupSliceRepository = remember { GroupSliceRepository() },
 ) {
     if (!visible) return
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var preview by remember(code) { mutableStateOf<GroupInviteDto?>(null) }
     var loading by remember(code) { mutableStateOf(true) }
+    var joining by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(code) {
         loading = true
+        joining = false
         error = null
         repository.previewGroupInvite(code).fold(
             onSuccess = {
@@ -69,7 +72,7 @@ fun GroupJoinConfirmSheet(
     }
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!joining) onDismiss() },
         sheetState = sheetState,
         containerColor = SheetBg,
         dragHandle = null,
@@ -99,7 +102,7 @@ fun GroupJoinConfirmSheet(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = PlusJakartaSans,
-                    modifier = Modifier.clickable(onClick = onDismiss),
+                    modifier = Modifier.clickable(enabled = !joining, onClick = onDismiss),
                 )
             }
             when {
@@ -118,30 +121,54 @@ fun GroupJoinConfirmSheet(
                     ) {
                         Text(invite.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
                         Text(invite.momentTypeCode, color = Color(0xFF9E9AA8), fontSize = 12.sp, fontFamily = PlusJakartaSans)
-                        Text("Status: ${invite.status}", color = Color(0xFF9E9AA8), fontSize = 12.sp, fontFamily = PlusJakartaSans)
+                        Text(
+                            inviteStatusCopy(invite.status),
+                            color = Color(0xFF9E9AA8),
+                            fontSize = 12.sp,
+                            fontFamily = PlusJakartaSans,
+                        )
                     }
                 }
             }
             error?.let {
                 Text(it, color = Red, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
             }
+            val joinEnabled = !loading && !joining && preview != null
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(Brush.horizontalGradient(listOf(Accent, Color(0xFFFFB598))))
-                    .clickable(enabled = !loading && preview != null) { onJoin() }
+                    .clickable(enabled = joinEnabled) {
+                        joining = true
+                        error = null
+                        onJoin { joining = false }
+                    }
                     .padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    if (loading) "Loading…" else "Join moment",
-                    color = Color(0xFF14121B).copy(alpha = if (loading || preview == null) 0.5f else 1f),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontFamily = PlusJakartaSans,
-                )
+                if (joining) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF14121B),
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text(
+                        if (loading) "Loading…" else "Join moment",
+                        color = Color(0xFF14121B).copy(alpha = if (joinEnabled) 1f else 0.5f),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
             }
         }
     }
+}
+
+private fun inviteStatusCopy(status: String): String = when (status.uppercase()) {
+    "PENDING" -> "Ready to join — you’ll enter when the organizer activates the group."
+    "ACTIVE", "OPEN" -> "Ready to join this group moment."
+    else -> "Invite status: $status"
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseAuth
 
 private enum CompanySheetPage {
     case switcher
@@ -7,15 +8,19 @@ private enum CompanySheetPage {
 }
 
 private let companyIndustries = [
+    "Retail / Kirana",
+    "Pet store / Specialty",
+    "Manufacturing / Workshop",
+    "Restaurant / F&B",
+    "Fashion / Apparel",
+    "Services",
+    "Wholesale",
     "Technology & Software",
     "E-commerce",
-    "Retail",
-    "Services",
-    "Manufacturing",
     "Other",
 ]
 
-private let companySizes = ["1-10", "11-50", "51-200", "201-500", "500+"]
+private let companySizes = ["Solo (1)", "Small (2-25)", "Medium (26-100)"]
 
 /// Figma 1687:21554 — switch, settings, and create company sheets.
 struct CompanyFlowSheet: View {
@@ -27,6 +32,7 @@ struct CompanyFlowSheet: View {
     var onSelect: (CompanySummary) -> Void
     var onCreated: (CompanySummary) -> Void
     var onOpenLocations: () -> Void = {}
+    var onCompaniesChanged: () -> Void = {}
 
     @State private var page: CompanySheetPage
     @State private var settingsCompanyId = ""
@@ -40,7 +46,8 @@ struct CompanyFlowSheet: View {
         onClose: @escaping () -> Void,
         onSelect: @escaping (CompanySummary) -> Void,
         onCreated: @escaping (CompanySummary) -> Void,
-        onOpenLocations: @escaping () -> Void = {}
+        onOpenLocations: @escaping () -> Void = {},
+        onCompaniesChanged: @escaping () -> Void = {}
     ) {
         self.companies = companies
         self.selectedCompanyId = selectedCompanyId
@@ -50,6 +57,7 @@ struct CompanyFlowSheet: View {
         self.onSelect = onSelect
         self.onCreated = onCreated
         self.onOpenLocations = onOpenLocations
+        self.onCompaniesChanged = onCompaniesChanged
         let initial: CompanySheetPage = startOnCreate ? .create : (startOnSettings ? .settings : .switcher)
         _page = State(initialValue: initial)
         let selected = companies.first { $0.companyId == selectedCompanyId }
@@ -153,7 +161,11 @@ struct CompanyFlowSheet: View {
             companyId: settingsCompanyId,
             companyName: settingsName,
             onClose: { page = .switcher },
-            onOpenLocations: onOpenLocations
+            onOpenLocations: onOpenLocations,
+            onCompaniesChanged: {
+                onCompaniesChanged()
+                onClose()
+            }
         )
     }
 }
@@ -198,7 +210,7 @@ private struct CompanyCreateForm: View {
 
     @State private var name = ""
     @State private var industry = ""
-    @State private var size = "1-10"
+    @State private var size = "Solo (1)"
     @State private var saving = false
     @State private var error: String?
 
@@ -387,6 +399,7 @@ private struct BusinessSettingsPage: View {
     var companyName: String
     var onClose: () -> Void
     var onOpenLocations: () -> Void = {}
+    var onCompaniesChanged: () -> Void = {}
 
     @State private var loading = true
     @State private var loadError: String?
@@ -401,6 +414,7 @@ private struct BusinessSettingsPage: View {
     @State private var currency = currencyOptions[0]
     @State private var financialYear = "—"
     @State private var smallShop = false
+    @State private var industryTemplateId: String?
 
     @State private var moduleToggles: [String: Bool] = [:]
     @State private var alertToggles: [String: Bool] = [:]
@@ -413,10 +427,34 @@ private struct BusinessSettingsPage: View {
     @State private var inviteError: String?
     @State private var inviteMessage: String?
 
+    @State private var showTransferSheet = false
+    @State private var confirmStatus: String?
+    @State private var managementBusy = false
+    @State private var managementError: String?
+    @State private var managementOk: String?
+
     @State private var savingProfile = false
     @State private var profileSaveError: String?
     @State private var profileSaved = false
     @State private var settingsPatchBusy = false
+    @State private var settingsPatchError: String?
+
+    private var currentUserId: String {
+        guard let uid = Auth.auth().currentUser?.uid else { return "" }
+        return MomentraIdentityCache.load(firebaseUid: uid)?.userId ?? ""
+    }
+
+    private var isOwner: Bool {
+        members.contains {
+            $0.userId == currentUserId && $0.membershipType.uppercased() == "OWNER"
+        }
+    }
+
+    private var transferCandidates: [APIClient.CompanyMemberPayload] {
+        members.filter {
+            $0.status.uppercased() == "ACTIVE" && $0.userId != currentUserId
+        }
+    }
 
     private var headerName: String {
         let name = displayName.isEmpty ? companyName : displayName
@@ -431,6 +469,9 @@ private struct BusinessSettingsPage: View {
             }
             if let loadError {
                 Text(loadError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+            }
+            if let settingsPatchError {
+                Text(settingsPatchError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
             }
             settingsCard("Business Profile") {
                 settingsTextField("Business Name", text: $displayName)
@@ -510,6 +551,14 @@ private struct BusinessSettingsPage: View {
                 }
             }
             settingsCard("What do you use Momentra for?", note: "Turn on only the business moment types you want to use.") {
+                if smallShop, let industryTemplateId, !industryTemplateId.isEmpty {
+                    Text("Template: \(IndustryTemplateCatalog.labelFor(industryTemplateId))")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color(hex: "#CBD5E1"))
+                    Text("Change modules anytime — you are not locked to the template.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color(hex: "#64748B").opacity(0.8))
+                }
                 ForEach(moduleToggleDefs.filter { !smallShop || !$0.smallShopHidden }, id: \.key) { def in
                     Toggle(def.label, isOn: moduleBinding(for: def.key))
                         .font(.system(size: 14))
@@ -540,10 +589,58 @@ private struct BusinessSettingsPage: View {
                     .foregroundStyle(Color(hex: "#64748B").opacity(0.85))
             }
             settingsCard("Business Management") {
-                ForEach(["Transfer Ownership", "Archive Business", "Deactivate Business"], id: \.self) { label in
-                    Text("\(label) · Coming soon")
-                        .font(.system(size: 12, weight: .regular))
+                if !isOwner {
+                    Text("Owner actions only")
+                        .font(.system(size: 12))
                         .foregroundStyle(Color(hex: "#64748B").opacity(0.8))
+                } else {
+                    Button {
+                        showTransferSheet = true
+                    } label: {
+                        Text("Transfer Ownership")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(transferCandidates.isEmpty || managementBusy
+                                             ? Color(hex: "#64748B")
+                                             : Color(hex: "#818CF8"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(transferCandidates.isEmpty || managementBusy)
+                    if transferCandidates.isEmpty {
+                        Text("Invite another member before transferring")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(hex: "#64748B").opacity(0.8))
+                    }
+                    Button {
+                        confirmStatus = "ARCHIVED"
+                    } label: {
+                        Text("Archive Business")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(managementBusy || version == nil
+                                             ? Color(hex: "#64748B")
+                                             : Color(hex: "#818CF8"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(managementBusy || version == nil)
+                    Button {
+                        confirmStatus = "INACTIVE"
+                    } label: {
+                        Text("Deactivate Business")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(managementBusy || version == nil
+                                             ? Color(hex: "#64748B")
+                                             : Color(hex: "#818CF8"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(managementBusy || version == nil)
+                }
+                if let managementError {
+                    Text(managementError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                }
+                if let managementOk {
+                    Text(managementOk).font(.system(size: 12)).foregroundStyle(Color(hex: "#10B981"))
                 }
             }
         }
@@ -551,6 +648,56 @@ private struct BusinessSettingsPage: View {
         .task(id: companyId) { await loadAll() }
         .onAppear {
             if displayName.isEmpty { displayName = companyName }
+        }
+        .confirmationDialog(
+            confirmStatus == "ARCHIVED" ? "Archive business?" : "Deactivate business?",
+            isPresented: Binding(
+                get: { confirmStatus != nil },
+                set: { if !$0 { confirmStatus = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(confirmStatus == "ARCHIVED" ? "Archive" : "Deactivate", role: .destructive) {
+                Task { await applyStatus(confirmStatus ?? "INACTIVE") }
+            }
+            Button("Cancel", role: .cancel) { confirmStatus = nil }
+        } message: {
+            Text(
+                confirmStatus == "ARCHIVED"
+                    ? "The company will leave your switcher. Data is kept for later."
+                    : "The company will be deactivated and leave your switcher."
+            )
+        }
+        .sheet(isPresented: $showTransferSheet) {
+            NavigationStack {
+                List {
+                    Section {
+                        Text("Pick who becomes owner. You stay on the company as Admin.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color(hex: "#94A3B8"))
+                            .listRowBackground(Color.clear)
+                    }
+                    Section {
+                        ForEach(transferCandidates) { member in
+                            Button {
+                                Task { await transferTo(member.userId) }
+                            } label: {
+                                Text(member.displayName?.isEmpty == false ? member.displayName! : member.userId)
+                                    .foregroundStyle(Color(hex: "#818CF8"))
+                            }
+                            .disabled(managementBusy)
+                        }
+                    }
+                }
+                .navigationTitle("Transfer ownership")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { showTransferSheet = false }
+                    }
+                }
+            }
+            .presentationDetents([.medium])
         }
         .sheet(isPresented: $showInviteSheet) {
             NavigationStack {
@@ -586,6 +733,58 @@ private struct BusinessSettingsPage: View {
                 }
             }
             .presentationDetents([.medium])
+        }
+    }
+
+    private func transferTo(_ userId: String) async {
+        guard !companyId.isEmpty else { return }
+        managementBusy = true
+        managementError = nil
+        do {
+            _ = try await APIClient.shared.transferCompanyOwnership(
+                companyId: companyId,
+                transferUserId: userId
+            )
+            await MainActor.run {
+                managementBusy = false
+                showTransferSheet = false
+                managementOk = "Ownership transferred"
+            }
+            await loadAll()
+        } catch {
+            await MainActor.run {
+                managementBusy = false
+                managementError = error.localizedDescription
+            }
+        }
+    }
+
+    private func applyStatus(_ status: String) async {
+        guard !companyId.isEmpty, let version else {
+            confirmStatus = nil
+            return
+        }
+        managementBusy = true
+        managementError = nil
+        do {
+            _ = try await APIClient.shared.patchCompany(
+                companyId: companyId,
+                body: [
+                    "expectedVersion": version,
+                    "status": status,
+                ]
+            )
+            await MainActor.run {
+                managementBusy = false
+                confirmStatus = nil
+                onCompaniesChanged()
+            }
+        } catch {
+            await MainActor.run {
+                managementBusy = false
+                confirmStatus = nil
+                managementError = error.localizedDescription
+            }
         }
     }
 
@@ -654,12 +853,14 @@ private struct BusinessSettingsPage: View {
             ?? (profile["fyCycle"]?.value as? String)
             ?? "—"
         smallShop = BusinessAudience.isSmallShop(profile[BusinessAudience.prefKey]?.value as? String)
+        industryTemplateId = profile[IndustryTemplateCatalog.profileKey]?.value as? String
         let settings = companyNestedMap(profile["settings"])
         let modules = settings["modules"] as? [String: Any] ?? [:]
         moduleToggles = Dictionary(uniqueKeysWithValues: moduleToggleDefs.map { def in
             (def.key, companyBool(modules[def.key], default: true))
         })
         CompanyModules.saveModules(companyId: companyId, modules: moduleToggles)
+        IndustryTemplateCatalog.rehydrateHubHint(companyId: companyId, profileJson: company.profileJson)
         let alertsMap = settings["alerts"] as? [String: Any] ?? [:]
         alertToggles = Dictionary(uniqueKeysWithValues: alertToggleDefs.map { (_, key) in
             (key, companyBool(alertsMap[key], default: true))
@@ -703,6 +904,7 @@ private struct BusinessSettingsPage: View {
     private func patchSettings(_ profilePatch: [String: Any], rollback: @escaping () -> Void) {
         guard let version, !settingsPatchBusy else { return }
         settingsPatchBusy = true
+        settingsPatchError = nil
         Task {
             defer { Task { @MainActor in settingsPatchBusy = false } }
             do {
@@ -712,7 +914,10 @@ private struct BusinessSettingsPage: View {
                 )
                 await MainActor.run { applyCompany(updated) }
             } catch {
-                await MainActor.run { rollback() }
+                await MainActor.run {
+                    rollback()
+                    settingsPatchError = "Could not update modules"
+                }
             }
         }
     }

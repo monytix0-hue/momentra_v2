@@ -291,8 +291,8 @@ final class MomentCreateModel: ObservableObject {
         )
     }
 
-    func redeemGroupInvite(code: String) async -> RedeemGroupInviteResult? {
-        try? await repository.redeemGroupInvite(code: code)
+    func redeemGroupInvite(code: String) async throws -> RedeemGroupInviteResult {
+        try await repository.redeemGroupInvite(code: code)
     }
 
     func previewGroupInvite(code: String) async -> GroupInvite? {

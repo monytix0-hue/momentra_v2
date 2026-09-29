@@ -30,8 +30,15 @@ const OBSERVER_DENIED_ACTIONS = new Set([
   'PARTICIPANT_MANAGE',
   'PURCHASE_ITEM_CREATE',
   'RESIDENT_MANAGE',
+  // Legacy aliases kept for older callers / catalog rows.
   'VENDOR_CREATE',
   'ATTENDANCE_UPDATE',
+  // Codes actually used by collaboration writers (must match service.ts).
+  'GROUP_VENDOR_MANAGE',
+  'ATTENDANCE_RECORD',
+  'RULE_MANAGE',
+  'ASSET_MANAGE',
+  'MAINTENANCE_CREATE',
   'BUDGET_UPDATE',
   'MOMENT_UPDATE',
   'MOMENT_COMPLETE',

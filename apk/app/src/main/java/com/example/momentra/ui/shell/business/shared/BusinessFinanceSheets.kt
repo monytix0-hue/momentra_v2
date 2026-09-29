@@ -212,6 +212,7 @@ fun BusinessInvoiceSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = androidx.compose.ui.platform.LocalContext.current
     var invoiceNumber by remember { mutableStateOf("") }
+    var customerName by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("INR") }
     var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var lineDescription by remember { mutableStateOf("") }
@@ -256,6 +257,12 @@ fun BusinessInvoiceSheet(
                 value = invoiceNumber,
                 onValueChange = { invoiceNumber = it },
                 placeholder = "Invoice #",
+                testTag = MaestroIds.BUSINESS_INVOICE_NUMBER,
+            )
+            FinanceField(
+                value = customerName,
+                onValueChange = { customerName = it },
+                placeholder = "Customer name (optional)",
                 testTag = MaestroIds.BUSINESS_INVOICE_CUSTOMER,
             )
             FinanceField(
@@ -284,7 +291,7 @@ fun BusinessInvoiceSheet(
                 showLabel = false,
             )
             Text(
-                "Tax is server-authoritative (omit or 0).",
+                "Tax is calculated when you file—leave blank for now.",
                 color = TextSecondary,
                 fontSize = 11.sp,
                 fontFamily = PlusJakartaSans,
@@ -370,6 +377,7 @@ fun BusinessInvoiceSheet(
                                     shopName = shopName,
                                     invoiceNumber = invoiceNumber.trim(),
                                     invoiceDate = today,
+                                    customerName = customerName.trim(),
                                     lineDescription = lineDescription.trim(),
                                     quantity = quantity.trim(),
                                     unitPrice = unitPrice.trim(),
@@ -394,6 +402,7 @@ fun invoiceReceiptMessage(
     shopName: String,
     invoiceNumber: String,
     invoiceDate: String,
+    customerName: String = "",
     lineDescription: String,
     quantity: String,
     unitPrice: String,
@@ -401,11 +410,12 @@ fun invoiceReceiptMessage(
     currencyCode: String,
 ): String {
     val shop = shopName.ifBlank { "Shop" }
+    val customerLine = customerName.takeIf { it.isNotBlank() }?.let { "Customer: $it\n" }.orEmpty()
     return """
         $shop — Invoice / बिल
         Inv #: $invoiceNumber
         Date: $invoiceDate
-        $lineDescription × $quantity @ $unitPrice
+        ${customerLine}$lineDescription × $quantity @ $unitPrice
         Total: $currencyCode $total
 
         Dhanyavaad / Thank you

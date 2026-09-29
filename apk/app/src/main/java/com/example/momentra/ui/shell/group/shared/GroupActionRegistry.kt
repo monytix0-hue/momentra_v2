@@ -49,9 +49,9 @@ object GroupActionRegistry {
         val apiGap: Boolean = false,
     )
 
-    /** Figma 575:14655 — Trip Action Center 3×3 grid. */
+    /** Figma 575:14655 — Trip Action Center grid (includes Settle for discovery parity with Pulse). */
     val tripHubTileIds: Set<String> = setOf(
-        "expense", "planning", "checklist", "budget", "booking", "poll", "memory", "update", "contribution", "invite",
+        "expense", "planning", "checklist", "budget", "booking", "poll", "memory", "update", "contribution", "invite", "settle",
     )
 
     val figmaHubTiles: List<HubTileSpec> = listOf(

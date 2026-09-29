@@ -42,17 +42,27 @@ class BusinessActionRegistryTest {
     }
 
     @Test
-    fun emptyCapabilitiesFailClosed() {
-        assertFalse(
+    fun emptyCapabilitiesFailOpenWithDefaults() {
+        assertTrue(
             BusinessActionRegistry.isDestinationEnabled(emptyList(), BusinessActionRegistry.Destination.SPEND),
         )
-        assertFalse(
+        assertTrue(
             BusinessActionRegistry.isDestinationEnabled(emptyList(), BusinessActionRegistry.Destination.REVENUE),
         )
-        assertFalse(
+        assertTrue(
             BusinessActionRegistry.isDestinationEnabled(emptyList(), BusinessActionRegistry.Destination.INVOICE),
         )
-        assertTrue(BusinessActionRegistry.enabledDestinations(emptyList()).isEmpty())
+        assertTrue(
+            BusinessActionRegistry.enabledDestinations(emptyList()).containsAll(
+                listOf(
+                    BusinessActionRegistry.Destination.SPEND,
+                    BusinessActionRegistry.Destination.REVENUE,
+                    BusinessActionRegistry.Destination.INVOICE,
+                ),
+            ),
+        )
+        assertTrue(BusinessQuickAddKind.REVENUE.isCapabilityEnabled(emptyList(), "BUSINESS_RUNWAY"))
+        assertFalse(BusinessQuickAddKind.REVENUE.isCapabilityEnabled(emptyList(), "TEAM_OPERATIONS"))
     }
 
     @Test

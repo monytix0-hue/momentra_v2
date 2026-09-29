@@ -13,6 +13,7 @@ struct PersonalQuickAddHubView: View {
     var presentFamilies: Set<PersonalPulseFamily> = []
     var onSetupMissing: () -> Void = {}
     var onClose: () -> Void
+    var onSpend: () -> Void = {}
     var onIncome: () -> Void
     var onRecovery: () -> Void = {}
     var onMood: () -> Void = {}
@@ -99,14 +100,7 @@ struct PersonalQuickAddHubView: View {
     }
 
     private var actions: [PersonalActionTile] {
-        if unifiedCatalog {
-            return PersonalActionRegistry.unifiedTiles(
-                presentFamilies: presentFamilies,
-                hasActiveMoment: hasActiveMoment,
-                capabilityCodes: capabilityCodes
-            )
-        }
-        return PersonalActionRegistry.tiles(
+        PersonalActionRegistry.tiles(
             for: family,
             hasActiveMoment: hasActiveMoment,
             capabilityCodes: capabilityCodes,
@@ -114,41 +108,55 @@ struct PersonalQuickAddHubView: View {
         )
     }
 
+    private var hubSections: [PersonalHubSection] {
+        if unifiedCatalog {
+            return PersonalActionRegistry.unifiedSections(
+                presentFamilies: presentFamilies,
+                hasActiveMoment: hasActiveMoment,
+                capabilityCodes: capabilityCodes
+            )
+        }
+        return [PersonalHubSection(title: nil, tiles: actions)]
+    }
+
     private var missingFamilies: [PersonalPulseFamily] {
         PersonalPulseFamily.allCases.filter { !presentFamilies.contains($0) }
     }
 
-    private var filteredActions: [PersonalActionTile] {
+    private func filteredSections() -> [PersonalHubSection] {
         let q = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return actions }
-        return actions.filter { $0.label.lowercased().contains(q) }
+        guard !q.isEmpty else { return hubSections }
+        return hubSections.compactMap { section in
+            let tiles = section.tiles.filter { $0.label.lowercased().contains(q) }
+            guard !tiles.isEmpty else { return nil }
+            return PersonalHubSection(title: section.title, tiles: tiles)
+        }
     }
 
     private var gridGap: CGFloat { useWideTiles ? 12 : 10 }
 
-    /// APK `PersonalQuickAddHub.kt` row builder — 3+3+2 for LifeOps; 3+remainder for other wide families.
-    private var actionRows: [[PersonalActionTile]] {
+    private func actionRows(for tiles: [PersonalActionTile]) -> [[PersonalActionTile]] {
         let isSearchBlank = search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if unifiedCatalog {
-            return stride(from: 0, to: filteredActions.count, by: 3).map {
-                Array(filteredActions[$0..<min($0 + 3, filteredActions.count)])
+        if unifiedCatalog && isSearchBlank {
+            return stride(from: 0, to: tiles.count, by: 3).map {
+                Array(tiles[$0..<min($0 + 3, tiles.count)])
             }
         }
-        if isLifeOps && isSearchBlank {
+        if isLifeOps && isSearchBlank && !unifiedCatalog {
             return [
-                Array(filteredActions.prefix(3)),
-                Array(filteredActions.dropFirst(3).prefix(3)),
-                Array(filteredActions.dropFirst(6).prefix(2)),
+                Array(tiles.prefix(3)),
+                Array(tiles.dropFirst(3).prefix(3)),
+                Array(tiles.dropFirst(6).prefix(2)),
             ]
         }
         if useWideTiles && isSearchBlank {
             return [
-                Array(filteredActions.prefix(3)),
-                Array(filteredActions.dropFirst(3)),
+                Array(tiles.prefix(3)),
+                Array(tiles.dropFirst(3)),
             ]
         }
-        return stride(from: 0, to: filteredActions.count, by: 3).map {
-            Array(filteredActions[$0..<min($0 + 3, filteredActions.count)])
+        return stride(from: 0, to: tiles.count, by: 3).map {
+            Array(tiles[$0..<min($0 + 3, tiles.count)])
         }
     }
 
@@ -175,11 +183,8 @@ struct PersonalQuickAddHubView: View {
                     .buttonStyle(.plain)
                 }
 
-                HStack(spacing: 7) {
-                    if unifiedCatalog {
-                        hubChip("Personal", selected: true)
-                        hubChip("Today + life", selected: false)
-                    } else {
+                if !unifiedCatalog {
+                    HStack(spacing: 7) {
                         switch family {
                         case .futureBuilding:
                             hubChip("Future Building", selected: true)
@@ -240,8 +245,17 @@ struct PersonalQuickAddHubView: View {
                 .clipShape(RoundedRectangle(cornerRadius: useWideTiles ? 14 : 12))
                 .shadow(color: Color(hex: "#6C4EF2").opacity(0.14), radius: 10, y: 4)
 
-                ForEach(Array(actionRows.enumerated()), id: \.offset) { _, row in
-                    actionRow(row)
+                ForEach(filteredSections()) { section in
+                    if let title = section.title {
+                        Text(title)
+                            .font(.plusJakarta(size: 12, weight: .bold))
+                            .foregroundStyle(Color(hex: "#C9C4D8"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 4)
+                    }
+                    ForEach(Array(actionRows(for: section.tiles).enumerated()), id: \.offset) { _, row in
+                        actionRow(row)
+                    }
                 }
 
                 if !hasActiveMoment {
@@ -327,7 +341,8 @@ struct PersonalQuickAddHubView: View {
         let isVisuallyActive = action.tappable ? action.enabledWhenMomentActive : true
         Button {
             switch action.label {
-            case "Expense", "Income": onIncome()
+            case "Spend", "Expense": onSpend()
+            case "Income": onIncome()
             case "Recovery": onRecovery()
             case "Mood": onMood()
             case "Attention": onAttention()
@@ -380,7 +395,7 @@ struct PersonalQuickAddHubView: View {
 
     private func qaTileId(for label: String) -> String {
         switch label {
-        case "Expense": return "qa.tile.expense"
+        case "Spend", "Expense": return "qa.tile.expense"
         case "Income": return "qa.tile.income"
         case "Experience": return "qa.tile.experience"
         case "Wellbeing": return "qa.tile.wellbeing"

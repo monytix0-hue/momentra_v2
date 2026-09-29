@@ -102,6 +102,7 @@ fun WeddingQuickAddHub(
     onCreateMoment: () -> Unit = {},
     onJoinCode: (String) -> Unit = {},
     capabilities: List<String> = emptyList(),
+    viewerReadOnly: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var search by remember { mutableStateOf("") }
@@ -248,7 +249,7 @@ fun WeddingQuickAddHub(
                 }
                 WeddingHubTileCard(
                     tile = tile,
-                    enabled = hasActiveMoment && capabilityOk,
+                    enabled = hasActiveMoment && !viewerReadOnly && capabilityOk,
                     columnCount = window.hubColumnCount,
                     tileMinHeight = window.hubTileMinHeight,
                     tileMaxHeight = window.hubTileMaxHeight,

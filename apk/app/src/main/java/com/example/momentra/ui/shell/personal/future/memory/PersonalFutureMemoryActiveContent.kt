@@ -102,7 +102,7 @@ fun PersonalFutureMemoryActiveContent(
     val confidenceLabel = if (thinData) {
         "Patterns appear after a few logs"
     } else {
-        "${min(92, 55 + activities.size * 3)}% confidence"
+        "Confidence is not scored yet"
     }
     val identityBody = if (thinData) {
         "Start on Pulse — log milestones, learning, or progress."
@@ -117,17 +117,7 @@ fun PersonalFutureMemoryActiveContent(
     val patternConfidence = if (thinData) {
         "Patterns appear after a few logs"
     } else {
-        "${min(92, 40 + activities.size * 5)}% pattern confidence"
-    }
-    val aiBody = when {
-        thinData -> "Start on Pulse — log milestones, learning, or progress to unlock patterns."
-        hasLearning && hasProgress ->
-            "Your future compounds when learning is paired with execution, not stored for later."
-        hasMilestone ->
-            "Milestone reviews keep momentum from drifting — protect them before the week fills up."
-        hasExpense ->
-            "Capital signals are present — pair them with learning blocks so spend fuels growth."
-        else -> "Keep logging learning and execution together to reveal how your future compounds."
+        "Pattern strength is not scored yet"
     }
     val evolutionCurrent = when (stage) {
         "Thriving" -> "Adaptive"
@@ -368,27 +358,6 @@ fun PersonalFutureMemoryActiveContent(
                     }
                 }
             }
-        }
-
-        // 9 AI Interpretation
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White.copy(alpha = 0.05f))
-                .border(1.dp, BorderSoft, RoundedCornerShape(16.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                "9 AI INTERPRETATION ✦",
-                color = Muted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.2.sp,
-                fontFamily = PlusJakartaSans,
-            )
-            Text(aiBody, color = TextMain, fontSize = 14.sp, fontFamily = PlusJakartaSans)
         }
 
         // 10 Next Growth Edge

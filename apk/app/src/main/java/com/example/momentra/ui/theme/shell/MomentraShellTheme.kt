@@ -136,6 +136,9 @@ object MomentThemes {
                 base("GROUP", "CO_LIVING", Color(0xFF3B82F6), Color(0xFF60A5FA))
             code.contains("HOUSEHOLD") || code.contains("FAMILY") ->
                 base("GROUP", "FAMILY_HOUSEHOLD", Color(0xFFEC4899), Color(0xFFF472B6))
+            code.contains("COMMUNITY_LIVING") || code.contains("CUSTOM_LIVING") ||
+                (code.contains("LIVING") && !code.contains("CO_LIVING") && !code.contains("COLIVING")) ->
+                base("GROUP", "COMMUNITY_LIVING", Color(0xFF10B981), Color(0xFF34D399))
             code.contains("TRIP") -> base("GROUP", "TRIP", Color(0xFFE8744F), Color(0xFFFF8E63))
             else -> base("GROUP", "CUSTOM", Color(0xFFE8621A), Color(0xFFC9C4D9))
         }

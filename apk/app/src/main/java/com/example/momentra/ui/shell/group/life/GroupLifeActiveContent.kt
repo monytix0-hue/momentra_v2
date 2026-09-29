@@ -37,10 +37,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
 import com.example.momentra.data.api.GroupLifeBalanceBarDto
 import com.example.momentra.data.api.GroupLifeDomainMetricDto
 import com.example.momentra.data.api.GroupLifePayloadDto
@@ -258,6 +260,7 @@ fun GroupLifeActiveContent(
         HonestEmptyCard("AI narrative insights are not available yet.")
 
         SectionLabel("QUICK ACTIONS")
+        val lifeContext = LocalContext.current
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -267,8 +270,14 @@ fun GroupLifeActiveContent(
             QuickPill("Experience", LifeOrange) { onQuickAction(GroupLifeQuickAction.EXPERIENCE) }
             QuickPill("Purchase", LifeYellow) { onQuickAction(GroupLifeQuickAction.PURCHASE) }
             QuickPill("Living", LifeTeal) { onQuickAction(GroupLifeQuickAction.LIVING) }
-            QuickPill("Goal", LifeGreen) { onQuickAction(GroupLifeQuickAction.GOAL) }
-            QuickPill("Community", LifePurple) { onQuickAction(GroupLifeQuickAction.COMMUNITY) }
+            QuickPill("Goal · Soon", LifeGreen) {
+                Toast.makeText(lifeContext, "Goal moments are coming soon.", Toast.LENGTH_SHORT).show()
+                onQuickAction(GroupLifeQuickAction.GOAL)
+            }
+            QuickPill("Community · Soon", LifePurple) {
+                Toast.makeText(lifeContext, "Community moments are coming soon.", Toast.LENGTH_SHORT).show()
+                onQuickAction(GroupLifeQuickAction.COMMUNITY)
+            }
         }
 
         if (planningItems.isNotEmpty()) {

@@ -20,6 +20,13 @@ struct CompanySetupFlowView: View {
     @State private var fyCycle = "Apr-Mar"
     @State private var timezone = "IST (UTC+5:30)"
     @State private var audience = BusinessAudience.smallShop
+    @State private var industryTemplate = IndustryTemplateCatalog.kirana
+    @State private var templateManuallyPicked = false
+    @State private var sellWhat = "Physical items"
+    @State private var billHow = "Counter billing"
+    @State private var customMoney = true
+    @State private var customDaily = true
+    @State private var customTeam = false
     @State private var structure = "Single Location"
     @State private var locations: [(name: String, area: String, primary: Bool, color: Color)] = []
     @State private var members: [(initials: String, name: String, role: String, scope: String, color: Color, you: Bool)] = [
@@ -31,6 +38,8 @@ struct CompanySetupFlowView: View {
     @State private var logoData: Data?
     @State private var logoError: String?
     @State private var nameError: String?
+    @State private var activateError: String?
+    @State private var activateWarning: String?
     @State private var showLocationEditor = false
     @State private var editingLocationIndex: Int?
     @State private var locationNameDraft = ""
@@ -311,10 +320,77 @@ struct CompanySetupFlowView: View {
                         industry = "Retail / Kirana"
                         companySize = "Solo (1)"
                         entityType = "Sole Prop"
+                        industryTemplate = IndustryTemplateCatalog.kirana
+                        templateManuallyPicked = false
                     } else {
                         industry = "Technology & Software"
                         companySize = "Small (2-25)"
                         entityType = "Pvt Ltd"
+                    }
+                }
+                if BusinessAudience.isSmallShop(audience) {
+                    fieldLabel("WHAT DO YOU SELL?")
+                    pillRow(
+                        ["Physical items", "Made-to-order", "Services & repairs"],
+                        selected: sellWhat
+                    ) { answer in
+                        sellWhat = answer
+                        if !templateManuallyPicked {
+                            industryTemplate = IndustryTemplateCatalog.suggest(sells: answer, bills: billHow)
+                            if let ind = industryTemplate.profileDefaults["industry"] as? String {
+                                industry = ind
+                            }
+                        }
+                    }
+                    fieldLabel("HOW DO YOU BILL?")
+                    pillRow(
+                        ["Counter billing", "On-site / digital invoices"],
+                        selected: billHow
+                    ) { answer in
+                        billHow = answer
+                        if !templateManuallyPicked {
+                            industryTemplate = IndustryTemplateCatalog.suggest(sells: sellWhat, bills: answer)
+                            if let ind = industryTemplate.profileDefaults["industry"] as? String {
+                                industry = ind
+                            }
+                        }
+                    }
+                    fieldLabel("STARTER TEMPLATE")
+                    Text("Start with a template — change anytime in Company Settings.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(dim)
+                    ForEach(IndustryTemplateCatalog.all) { tpl in
+                        Button {
+                            industryTemplate = tpl
+                            templateManuallyPicked = true
+                            if let ind = tpl.profileDefaults["industry"] as? String {
+                                industry = ind
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(tpl.label)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                Text(tpl.subtitle)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(muted)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(industryTemplate.id == tpl.id ? Color(hex: "#818CF8").opacity(0.15) : bg)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(industryTemplate.id == tpl.id ? Color(hex: "#818CF8") : border)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if industryTemplate.isCustom {
+                        fieldLabel("WHICH MOMENTS TO START WITH?")
+                        moduleToggle("Money & Cash Flow", isOn: $customMoney)
+                        moduleToggle("Daily Business", isOn: $customDaily)
+                        moduleToggle("Team & Work", isOn: $customTeam)
                     }
                 }
                 fieldLabel("COMPANY NAME")
@@ -333,11 +409,14 @@ struct CompanySetupFlowView: View {
                 Menu {
                     ForEach([
                         "Retail / Kirana",
+                        "Pet store / Specialty",
+                        "Manufacturing / Workshop",
                         "Restaurant / F&B",
                         "Fashion / Apparel",
                         "Services",
                         "Wholesale",
                         "Technology & Software",
+                        "E-commerce",
                         "Other",
                     ], id: \.self) { option in
                         Button(option) { industry = option }
@@ -558,17 +637,20 @@ struct CompanySetupFlowView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .buttonStyle(.plain)
                 }
-                Text("3 free members included · Upgrade for more")
+                Text("Invite teammates after you activate")
                     .font(.system(size: 11)).foregroundStyle(dim).frame(maxWidth: .infinity)
             }
             section("02", "WHAT HAPPENS NEXT") {
-                Text("After activation, three module wizards will guide you:")
+                let next = launchNextSteps
+                Text(next.intro)
                     .font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
-                nextRow("Team & Work", "Set review cycles, monitoring style, team pods", green)
-                nextRow("Money & Cash Flow", "Configure financials, cash tracking, burn alerts", Color(hex: "#F59E0B"))
-                nextRow("Daily Business", "Define budgets, approval workflows, vendors", Color(hex: "#A78BFA"))
-                Text("Each takes about 1 minute to configure.")
-                    .font(.system(size: 12).italic()).foregroundStyle(dim).frame(maxWidth: .infinity)
+                ForEach(Array(next.steps.enumerated()), id: \.offset) { _, row in
+                    nextRow(row.title, row.body, row.color)
+                }
+                if !next.steps.isEmpty {
+                    Text("You can customize each moment later from Create.")
+                        .font(.system(size: 12).italic()).foregroundStyle(dim).frame(maxWidth: .infinity)
+                }
             }
             VStack(spacing: 6) {
                 Text("4 sections configured • \(members.filter { !$0.you }.count) people to invite")
@@ -588,16 +670,58 @@ struct CompanySetupFlowView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Color(hex: "#F87171"))
             }
+            if let activateError, !activateError.isEmpty {
+                Text(activateError)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color(hex: "#F87171"))
+            }
+            if let activateWarning, !activateWarning.isEmpty {
+                Text(activateWarning)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color(hex: "#F59E0B"))
+            }
             primaryButton("Activate \(companyName.isEmpty ? "Company" : companyName) →", color: green) {
                 Task { await activate() }
             }
-            Button("Save as draft", action: onClose)
+            Button("Close", action: onClose)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(dim)
                 .frame(maxWidth: .infinity)
                 .buttonStyle(.plain)
                 .disabled(activating)
         }
+    }
+
+    private var launchNextSteps: (intro: String, steps: [(title: String, body: String, color: Color)]) {
+        if !BusinessAudience.isSmallShop(audience) {
+            return (
+                "After activation, open Create to add Money, Daily Business, or Team moments",
+                []
+            )
+        }
+        let customMods: [String: Bool] = [
+            "money": customMoney,
+            "dailyBusiness": customDaily,
+            "teamOps": customTeam,
+        ]
+        let kinds = IndustryTemplateCatalog.setupKinds(for: industryTemplate, customModules: customMods)
+        if kinds.isEmpty {
+            return ("Turn on at least one moment before activating", [])
+        }
+        let steps: [(title: String, body: String, color: Color)] = kinds.map { kind in
+            switch kind {
+            case .businessRunway:
+                return ("Money & Cash Flow", "Revenue, Khata, invoices, and spend tracking", Color(hex: "#F59E0B"))
+            case .businessOperations:
+                return ("Daily Business", "Day-to-day ops, vendors, and routines", Color(hex: "#A78BFA"))
+            case .teamOperations:
+                return ("Team & Work", "Team rhythm, reviews, and collaboration", green)
+            }
+        }
+        let intro = steps.count == 1
+            ? "After activation, we'll set up:"
+            : "After activation, we'll set up these moments:"
+        return (intro, steps)
     }
 
     private func nextRow(_ title: String, _ body: String, _ color: Color) -> some View {
@@ -714,6 +838,27 @@ struct CompanySetupFlowView: View {
         }
     }
 
+    private func moduleToggle(_ label: String, isOn: Binding<Bool>) -> some View {
+        Button {
+            isOn.wrappedValue.toggle()
+        } label: {
+            HStack {
+                Text(label)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+                Spacer()
+                Text(isOn.wrappedValue ? "On" : "Off")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isOn.wrappedValue ? green : dim)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(card)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+    }
+
     private func primaryButton(_ label: String, color: Color = Color(hex: "#818CF8"), action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
@@ -737,27 +882,66 @@ struct CompanySetupFlowView: View {
             go(to: 2)
             return
         }
+        let smallShop = BusinessAudience.isSmallShop(audience)
+        let customMods: [String: Bool] = [
+            "money": customMoney,
+            "dailyBusiness": customDaily,
+            "teamOps": customTeam,
+        ]
+        if smallShop && industryTemplate.isCustom {
+            let kinds = IndustryTemplateCatalog.setupKinds(for: industryTemplate, customModules: customMods)
+            if kinds.isEmpty {
+                activateError = "Turn on at least one moment (Money, Daily Business, or Team)"
+                return
+            }
+        }
         nameError = nil
+        activateError = nil
+        activateWarning = nil
         activating = true
         defer { activating = false }
         let tz = timezone.contains("IST") ? "Asia/Kolkata" : "UTC"
         do {
+            let template = smallShop ? industryTemplate : nil
+            let modules: [String: Bool]
+            if let template {
+                modules = IndustryTemplateCatalog.modules(for: template, customModules: customMods)
+            } else {
+                modules = [
+                    "money": true,
+                    "dailyBusiness": true,
+                    "teamOps": true,
+                    "vendors": true,
+                ]
+            }
+            var profile: [String: Any] = [
+                "industry": industry,
+                "companySize": companySize,
+                "currency": currency,
+                "financialYear": fyCycle,
+                "structure": structure,
+                "audience": audience,
+                "settings": ["modules": modules],
+            ]
+            if let template {
+                profile[IndustryTemplateCatalog.profileKey] = template.id
+                for (k, v) in template.profileDefaults where profile[k] == nil {
+                    profile[k] = v
+                }
+            }
             let created = try await APIClient.shared.createCompany(
                 displayName: name,
                 legalName: name,
                 timezone: tz,
                 companyType: entityType,
                 taxIdentifier: gstin.isEmpty ? nil : gstin,
-                profileJson: [
-                    "industry": industry,
-                    "companySize": companySize,
-                    "currency": currency,
-                    "financialYear": fyCycle,
-                    "structure": structure,
-                    "audience": audience,
-                ]
+                profileJson: profile
             )
             BusinessAudience.saveForCompany(companyId: created.companyId, audience: audience)
+            CompanyModules.saveModules(companyId: created.companyId, modules: modules)
+            if let hint = IndustryTemplateCatalog.hubHint(from: profile) {
+                IndustryTemplateCatalog.saveHubHint(companyId: created.companyId, hint: hint)
+            }
             for loc in locations {
                 _ = try? await APIClient.shared.createLocation(
                     companyId: created.companyId,
@@ -766,6 +950,7 @@ struct CompanySetupFlowView: View {
                     timezone: tz
                 )
             }
+            var softWarnings: [String] = []
             if let logoData {
                 do {
                     let mediaId = try await APIClient.shared.uploadCompanyLogo(companyId: created.companyId, bytes: logoData)
@@ -777,8 +962,42 @@ struct CompanySetupFlowView: View {
                         ]
                     )
                 } catch {
+                    softWarnings.append("Logo could not be saved")
                     logoError = error.localizedDescription
                 }
+            }
+            if let template {
+                let kinds = IndustryTemplateCatalog.setupKinds(for: template, customModules: customMods)
+                let repo = MomentCreateRepository()
+                var failedTitles: [String] = []
+                for kind in kinds {
+                    let entry = BusinessSetupCatalog.forKind(kind)
+                    var prefs = BusinessSetupCatalog.defaultPreferences(kind: kind, audience: audience)
+                    prefs["audience"] = audience
+                    prefs[IndustryTemplateCatalog.profileKey] = template.id
+                    do {
+                        _ = try await repo.createBusinessSetup(
+                            draftKey: "template-\(created.companyId)-\(kind.rawValue)",
+                            companyId: created.companyId,
+                            familyCode: kind.familyCode,
+                            title: entry.defaultTitle,
+                            description: nil,
+                            momentTypeCode: entry.momentTypeCode,
+                            preferences: prefs,
+                            status: "ACTIVE"
+                        )
+                    } catch {
+                        failedTitles.append(entry.defaultTitle)
+                    }
+                }
+                if !failedTitles.isEmpty {
+                    softWarnings.append(
+                        "Company created; \(failedTitles.joined(separator: ", ")) could not be set up—open Create to add"
+                    )
+                }
+            }
+            if !softWarnings.isEmpty {
+                activateWarning = softWarnings.joined(separator: " · ")
             }
             let summary = CompanySummary(companyId: created.companyId, displayName: created.displayName)
             if let invite = try? await APIClient.shared.mintCompanyInvite(
@@ -798,7 +1017,9 @@ struct CompanySetupFlowView: View {
                 onActivated(summary)
             }
         } catch {
-            onClose()
+            activateError = error.localizedDescription.isEmpty
+                ? "Could not activate company. Check your connection and try again."
+                : error.localizedDescription
         }
     }
 
