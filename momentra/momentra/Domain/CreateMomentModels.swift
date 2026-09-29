@@ -141,6 +141,8 @@ struct JSONEncodableValue: Encodable {
                 try container.encode(bool)
             case let dict as [String: String]:
                 try container.encode(dict)
+            case let dict as [String: Bool]:
+                try container.encode(dict)
             case let dict as [String: Any]:
                 try container.encode(JSONEncodableValue.map(dict))
             case let numbers as [String]:

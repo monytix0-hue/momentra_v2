@@ -34,6 +34,7 @@ export const BUSINESS_SETUP_CATALOG: BusinessSetupCatalogItem[] = [
     activateLabel: 'Activate Team & Work',
     defaultTitle: 'Team & Work',
     defaultPreferences: {
+      audience: 'GROWING',
       teamName: 'Growth & Product',
       size: '11-25 people',
       workMode: 'Hybrid',
@@ -61,6 +62,7 @@ export const BUSINESS_SETUP_CATALOG: BusinessSetupCatalogItem[] = [
     activateLabel: 'Activate Money & Cash Flow',
     defaultTitle: 'Money & Cash Flow',
     defaultPreferences: {
+      audience: 'GROWING',
       businessStage: 'Scaling',
       goalHorizon: '18-months goal',
       multiCurrency: true,
@@ -84,6 +86,7 @@ export const BUSINESS_SETUP_CATALOG: BusinessSetupCatalogItem[] = [
     activateLabel: 'Activate Daily Business',
     defaultTitle: 'Daily Business',
     defaultPreferences: {
+      audience: 'GROWING',
       coreOps: 'Growth & Product',
       scope: 'Company-wide',
       model: 'Centralized',

@@ -50,7 +50,7 @@ struct BusinessCreateMomentView: View {
 
     private var visibleCategories: [Category] {
         if showRetailTagline {
-            categories.filter { !$0.comingSoon }.map { cat in
+            return categories.filter { !$0.comingSoon }.map { cat in
                 switch cat.setupKind {
                 case .teamOperations:
                     return Category(

@@ -529,14 +529,16 @@ fun CompanySetupContent(
                                         kind,
                                         audience,
                                     ).toMutableMap()
-                                    prefs["audience"] = audience
-                                    prefs[IndustryTemplateCatalog.PROFILE_KEY] = template.id
+                                    // Company-profile only — not a moment preference key.
+                                    prefs.remove(IndustryTemplateCatalog.PROFILE_KEY)
+                                    val allowed = BusinessSetupCatalog.allowedKeys(kind)
+                                    val safePrefs = prefs.filterKeys { it in allowed }
                                     val result = momentRepo.createBusinessMoment(
                                         companyId = created.companyId,
                                         familyCode = kind.familyCode,
                                         momentTypeCode = entry.momentTypeCode,
                                         title = entry.defaultTitle,
-                                        preferences = prefs,
+                                        preferences = safePrefs,
                                         status = "ACTIVE",
                                     )
                                     if (result.isFailure) {

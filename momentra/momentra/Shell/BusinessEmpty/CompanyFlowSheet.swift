@@ -292,7 +292,7 @@ private struct CompanyCreateForm: View {
         error = nil
         Task {
             do {
-                var profile: [String: String] = [
+                var profile: [String: Any] = [
                     "companySize": size,
                     BusinessAudience.prefKey: BusinessAudience.smallShop,
                 ]

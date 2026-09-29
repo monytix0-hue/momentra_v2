@@ -102,13 +102,17 @@ export function validateAndMergeBusinessPreferences(
   }
   const allowed = allowedKeysForCatalog(catalog.defaultPreferences);
   const prefs = input ?? {};
+  const cleaned: Record<string, unknown> = {};
   for (const key of Object.keys(prefs)) {
     if (!allowed.has(key)) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `Unknown preference key: ${key}`, 400);
+      // Forward-compat: clients may stamp company-profile keys (e.g. industryTemplate).
+      console.warn(JSON.stringify({ event: 'ignore_unknown_business_pref', familyCode, key }));
+      continue;
     }
     validatePreferenceValue(key, prefs[key]);
+    cleaned[key] = prefs[key];
   }
-  return { ...catalog.defaultPreferences, ...prefs };
+  return { ...catalog.defaultPreferences, ...cleaned };
 }
 
 export const personalSetupBlockSchema = z

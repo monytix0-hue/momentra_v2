@@ -921,7 +921,7 @@ struct CompanySetupFlowView: View {
                 "financialYear": fyCycle,
                 "structure": structure,
                 "audience": audience,
-                "settings": ["modules": modules],
+                "settings": ["modules": modules] as [String: Any],
             ]
             if let template {
                 profile[IndustryTemplateCatalog.profileKey] = template.id
@@ -973,8 +973,9 @@ struct CompanySetupFlowView: View {
                 for kind in kinds {
                     let entry = BusinessSetupCatalog.forKind(kind)
                     var prefs = BusinessSetupCatalog.defaultPreferences(kind: kind, audience: audience)
-                    prefs["audience"] = audience
-                    prefs[IndustryTemplateCatalog.profileKey] = template.id
+                    prefs.removeValue(forKey: IndustryTemplateCatalog.profileKey)
+                    let allowed = Set(BusinessSetupCatalog.forKind(kind).defaultPreferences.keys)
+                    prefs = prefs.filter { allowed.contains($0.key) }
                     do {
                         _ = try await repo.createBusinessSetup(
                             draftKey: "template-\(created.companyId)-\(kind.rawValue)",

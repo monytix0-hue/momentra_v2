@@ -610,7 +610,7 @@ final class APIClient {
         timezone: String = "UTC",
         companyType: String? = nil,
         taxIdentifier: String? = nil,
-        profileJson: [String: String]? = nil
+        profileJson: [String: Any]? = nil
     ) async throws -> CreateCompanyResult {
         struct Body: Encodable {
             let displayName: String
@@ -618,7 +618,7 @@ final class APIClient {
             let timezone: String
             let companyType: String?
             let taxIdentifier: String?
-            let profileJson: [String: String]?
+            let profileJson: [String: JSONEncodableValue]?
         }
         return try await authorizedPost(
             path: "v1/companies",
@@ -628,7 +628,7 @@ final class APIClient {
                 timezone: timezone,
                 companyType: companyType,
                 taxIdentifier: taxIdentifier,
-                profileJson: profileJson
+                profileJson: profileJson.map { JSONEncodableValue.map($0) }
             ),
             idempotencyKey: UUID().uuidString
         )
