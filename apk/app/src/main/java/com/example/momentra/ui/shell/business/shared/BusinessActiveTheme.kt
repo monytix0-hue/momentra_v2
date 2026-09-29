@@ -146,6 +146,7 @@ enum class BusinessQuickAddKind {
     LOG_IMPROVEMENT,
     BUDGET_REVIEW,
     SLA_CHECK,
+    KHATA,
 }
 
 fun BusinessQuickAddKind.isLive(): Boolean = when (this) {
@@ -176,6 +177,7 @@ fun BusinessQuickAddKind.isLive(): Boolean = when (this) {
     BusinessQuickAddKind.LOG_IMPROVEMENT,
     BusinessQuickAddKind.BUDGET_REVIEW,
     BusinessQuickAddKind.SLA_CHECK,
+    BusinessQuickAddKind.KHATA,
     -> true
     else -> false
 }
@@ -194,20 +196,34 @@ fun BusinessQuickAddKind.label(): String = when (this) {
     BusinessQuickAddKind.POLL -> "Poll"
     BusinessQuickAddKind.MEMORY -> "Memory"
     BusinessQuickAddKind.REVENUE -> "Log Revenue"
-    BusinessQuickAddKind.EXPENSE -> "Expense"
+    BusinessQuickAddKind.EXPENSE -> "Log Expense"
     BusinessQuickAddKind.TAX_ENTRY -> "Tax Entry"
     BusinessQuickAddKind.INVESTOR_UPDATE -> "Investor Update"
     BusinessQuickAddKind.BUDGET_ALERT -> "Budget Alert"
     BusinessQuickAddKind.FORECAST_UPDATE -> "Forecast Update"
     BusinessQuickAddKind.INVOICE -> "Invoice Track"
     BusinessQuickAddKind.GENERAL_UPDATE -> "General Update"
-    BusinessQuickAddKind.SPEND_ENTRY -> "Log Spend Entry"
+    BusinessQuickAddKind.SPEND_ENTRY -> "Log Spend"
     BusinessQuickAddKind.UPDATE_VENDOR -> "Update Vendor"
     BusinessQuickAddKind.REQUEST_APPROVAL -> "Request Approval"
     BusinessQuickAddKind.REPORT_ISSUE -> "Report Issue"
     BusinessQuickAddKind.LOG_IMPROVEMENT -> "Log Improvement"
     BusinessQuickAddKind.BUDGET_REVIEW -> "Budget Review"
     BusinessQuickAddKind.SLA_CHECK -> "SLA Check"
+    BusinessQuickAddKind.KHATA -> "Khata"
+}
+
+fun BusinessQuickAddKind.label(smallShop: Boolean): String {
+    if (!smallShop) return label()
+    return when (this) {
+        BusinessQuickAddKind.TEAM_UPDATE -> "Staff update"
+        BusinessQuickAddKind.APPROVAL -> "Ask approval"
+        BusinessQuickAddKind.POLL -> "Quick poll"
+        BusinessQuickAddKind.EXPENSE -> "Shop expense"
+        BusinessQuickAddKind.MEMORY -> "Save note"
+        BusinessQuickAddKind.KHATA -> "Khata"
+        else -> label()
+    }
 }
 
 fun BusinessQuickAddKind.subtitle(): String = when (this) {
@@ -238,6 +254,7 @@ fun BusinessQuickAddKind.subtitle(): String = when (this) {
     BusinessQuickAddKind.LOG_IMPROVEMENT -> "Log optimization"
     BusinessQuickAddKind.BUDGET_REVIEW -> "Check budgets"
     BusinessQuickAddKind.SLA_CHECK -> "Monitor SLAs"
+    BusinessQuickAddKind.KHATA -> "Udhaar & collections"
 }
 
 fun BusinessQuickAddKind.emoji(): String = when (this) {
@@ -262,6 +279,7 @@ fun BusinessQuickAddKind.emoji(): String = when (this) {
     BusinessQuickAddKind.UPDATE_VENDOR -> "🏷"
     BusinessQuickAddKind.LOG_IMPROVEMENT -> "✨"
     BusinessQuickAddKind.SLA_CHECK -> "⏱"
+    BusinessQuickAddKind.KHATA -> "📒"
 }
 
 fun BusinessQuickAddKind.maestroTileId(): String? = when (this) {
@@ -289,7 +307,7 @@ fun BusinessQuickAddKind.stripeColor(): Color = when (this) {
     BusinessQuickAddKind.RETROSPECTIVE,
     -> Color(0xFFF59E0B)
     BusinessQuickAddKind.RECOGNITION, BusinessQuickAddKind.TAX_ENTRY, BusinessQuickAddKind.LOG_IMPROVEMENT,
-    BusinessQuickAddKind.POLL, BusinessQuickAddKind.EXPENSE,
+    BusinessQuickAddKind.POLL, BusinessQuickAddKind.EXPENSE, BusinessQuickAddKind.KHATA,
     -> Color(0xFF10B981)
     BusinessQuickAddKind.MILESTONE, BusinessQuickAddKind.INVOICE, BusinessQuickAddKind.SLA_CHECK -> Color(0xFF14B8A6)
 }
@@ -312,42 +330,83 @@ fun BusinessQuickAddKind.teamOpsHubIconRes(): Int? = when (this) {
     else -> null
 }
 
-fun businessHubTiles(theme: BusinessActiveTheme): List<BusinessQuickAddKind> = when (theme.typeLabel) {
-    "Money & Cash Flow" -> listOf(
-        BusinessQuickAddKind.REVENUE,
-        BusinessQuickAddKind.EXPENSE,
-        BusinessQuickAddKind.TAX_ENTRY,
-        BusinessQuickAddKind.INVESTOR_UPDATE,
-        BusinessQuickAddKind.BUDGET_ALERT,
-        BusinessQuickAddKind.FORECAST_UPDATE,
-        BusinessQuickAddKind.INVOICE,
-        BusinessQuickAddKind.GENERAL_UPDATE,
-        BusinessQuickAddKind.MEMORY,
-    )
-    "Daily Business" -> listOf(
-        BusinessQuickAddKind.SPEND_ENTRY,
-        BusinessQuickAddKind.UPDATE_VENDOR,
-        BusinessQuickAddKind.REQUEST_APPROVAL,
-        BusinessQuickAddKind.REPORT_ISSUE,
-        BusinessQuickAddKind.LOG_IMPROVEMENT,
-        BusinessQuickAddKind.BUDGET_REVIEW,
-        BusinessQuickAddKind.SLA_CHECK,
-        BusinessQuickAddKind.GENERAL_UPDATE,
-        BusinessQuickAddKind.MEMORY,
-    )
-    else -> listOf(
-        BusinessQuickAddKind.TEAM_UPDATE,
-        BusinessQuickAddKind.DECISION,
-        BusinessQuickAddKind.BLOCKER,
-        BusinessQuickAddKind.MEETING,
-        BusinessQuickAddKind.RECOGNITION,
-        BusinessQuickAddKind.APPROVAL,
-        BusinessQuickAddKind.MILESTONE,
-        BusinessQuickAddKind.RETROSPECTIVE,
-        BusinessQuickAddKind.RISK_FLAG,
-        BusinessQuickAddKind.ACTIVITY_LOG,
-        BusinessQuickAddKind.POLL,
-        BusinessQuickAddKind.MEMORY,
-        BusinessQuickAddKind.EXPENSE,
-    )
+fun businessHubTiles(theme: BusinessActiveTheme, smallShop: Boolean = false): List<BusinessQuickAddKind> {
+    if (smallShop) {
+        return when (theme.typeLabel) {
+            "Money & Cash Flow" -> listOf(
+                BusinessQuickAddKind.KHATA,
+                BusinessQuickAddKind.REVENUE,
+                BusinessQuickAddKind.EXPENSE,
+                BusinessQuickAddKind.INVOICE,
+                BusinessQuickAddKind.MEMORY,
+            )
+            "Daily Business" -> listOf(
+                BusinessQuickAddKind.KHATA,
+                BusinessQuickAddKind.SPEND_ENTRY,
+                BusinessQuickAddKind.UPDATE_VENDOR,
+                BusinessQuickAddKind.REPORT_ISSUE,
+                BusinessQuickAddKind.MEMORY,
+            )
+            else -> listOf(
+                BusinessQuickAddKind.KHATA,
+                BusinessQuickAddKind.TEAM_UPDATE,
+                BusinessQuickAddKind.EXPENSE,
+                BusinessQuickAddKind.APPROVAL,
+                BusinessQuickAddKind.MEMORY,
+            )
+        }
+    }
+    return when (theme.typeLabel) {
+        "Money & Cash Flow" -> listOf(
+            BusinessQuickAddKind.REVENUE,
+            BusinessQuickAddKind.EXPENSE,
+            BusinessQuickAddKind.TAX_ENTRY,
+            BusinessQuickAddKind.INVESTOR_UPDATE,
+            BusinessQuickAddKind.BUDGET_ALERT,
+            BusinessQuickAddKind.FORECAST_UPDATE,
+            BusinessQuickAddKind.INVOICE,
+            BusinessQuickAddKind.GENERAL_UPDATE,
+            BusinessQuickAddKind.MEMORY,
+        )
+        "Daily Business" -> listOf(
+            BusinessQuickAddKind.SPEND_ENTRY,
+            BusinessQuickAddKind.UPDATE_VENDOR,
+            BusinessQuickAddKind.REQUEST_APPROVAL,
+            BusinessQuickAddKind.REPORT_ISSUE,
+            BusinessQuickAddKind.LOG_IMPROVEMENT,
+            BusinessQuickAddKind.BUDGET_REVIEW,
+            BusinessQuickAddKind.SLA_CHECK,
+            BusinessQuickAddKind.GENERAL_UPDATE,
+            BusinessQuickAddKind.MEMORY,
+        )
+        else -> listOf(
+            BusinessQuickAddKind.TEAM_UPDATE,
+            BusinessQuickAddKind.DECISION,
+            BusinessQuickAddKind.BLOCKER,
+            BusinessQuickAddKind.MEETING,
+            BusinessQuickAddKind.RECOGNITION,
+            BusinessQuickAddKind.APPROVAL,
+            BusinessQuickAddKind.MILESTONE,
+            BusinessQuickAddKind.RETROSPECTIVE,
+            BusinessQuickAddKind.RISK_FLAG,
+            BusinessQuickAddKind.ACTIVITY_LOG,
+            BusinessQuickAddKind.POLL,
+            BusinessQuickAddKind.MEMORY,
+            BusinessQuickAddKind.EXPENSE,
+        )
+    }
+}
+
+fun businessHubSubtitle(theme: BusinessActiveTheme, smallShop: Boolean): String {
+    if (!smallShop) return theme.hubSubtitle
+    return when (theme.typeLabel) {
+        "Money & Cash Flow" -> "Sales, spends, bills, and tax"
+        "Daily Business" -> "Suppliers, spends, and problems"
+        else -> "Staff updates and shop expenses"
+    }
+}
+
+fun businessHubFilterChips(theme: BusinessActiveTheme, smallShop: Boolean): List<String> {
+    if (smallShop) return emptyList()
+    return theme.filterChips
 }

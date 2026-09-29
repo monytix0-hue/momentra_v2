@@ -153,7 +153,7 @@ fun PersonalFutureMomentsActiveContent(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            "Future Journey",
+                            "Your Future story",
                             color = TextMain,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -225,9 +225,9 @@ fun PersonalFutureMomentsActiveContent(
                 }
             }
 
-            Text("Journey Timeline", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+            Text("Recent activity", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
             if (activities.isEmpty()) {
-                FutureEmptyCard("No journey entries yet. Capture a milestone, learning, or progress to start the timeline.")
+                FutureEmptyCard("Nothing here yet. Log a milestone, learning, or progress on Pulse.")
             } else {
                 activities.take(8).forEach { item ->
                     FutureMomentsJourneyItem(item)
@@ -329,7 +329,7 @@ fun PersonalFutureMomentsActiveContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text("Capture a new moment", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+                Text("Log today", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
                 Text(
                     "Add a milestone, learning, progress, or capital log",
                     color = Color.White.copy(alpha = 0.85f),
@@ -345,7 +345,7 @@ fun PersonalFutureMomentsActiveContent(
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("+ Open Quick Add", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+                    Text("Open Add", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
                 }
             }
         }

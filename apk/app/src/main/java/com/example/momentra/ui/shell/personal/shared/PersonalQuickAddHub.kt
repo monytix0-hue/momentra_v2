@@ -60,8 +60,7 @@ private val HubRelTeal = Color(0xFF14B8A6)
 
 /**
  * Figma `1006:7553` personal-quick-add-grid.
- * Relationships family: Figma `1006:8274` Action Center / Relationships.
- * Bottom-nav + opens this hub. Tile set follows active moment family.
+ * Unified Personal: Everyday tiles first, then present Future / Lifestyle / People tiles.
  */
 @Composable
 fun PersonalQuickAddHub(
@@ -83,46 +82,81 @@ fun PersonalQuickAddHub(
      * [PersonalActionRegistry] is the single mapper when caps are present.
      */
     capabilities: List<String> = emptyList(),
+    /** When true on Life Ops (legacy), keep only Income (Spend), Mood, Recovery. */
+    simpleMode: Boolean = false,
+    /**
+     * Unified Personal catalog: Everyday first + tiles for [presentFamilies] only.
+     * Ignores [simpleMode] filter. [onSetupMissing] opens setup overlay for missing areas.
+     */
+    unifiedCatalog: Boolean = false,
+    presentFamilies: Set<PersonalPulseFamily> = emptySet(),
+    onSetupMissing: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val family = personalPulseFamilyFor(momentTypeCode)
-    val isRelationships = family == PersonalPulseFamily.RELATIONSHIPS
-    val isLifestyle = family == PersonalPulseFamily.LIFESTYLE
-    val isLifeOps = family == PersonalPulseFamily.LIFE_OPERATIONS
+    val isRelationships = !unifiedCatalog && family == PersonalPulseFamily.RELATIONSHIPS
+    val isLifestyle = !unifiedCatalog && family == PersonalPulseFamily.LIFESTYLE
+    val isLifeOps = unifiedCatalog || family == PersonalPulseFamily.LIFE_OPERATIONS
     val momentTheme = MomentThemes.resolve(AppContext.PERSONAL, momentTypeCode)
     var search by remember { mutableStateOf("") }
-    val actions = hubActionsFor(
-        family = family,
-        hasActiveMoment = hasActiveMoment,
-        capabilities = capabilities,
-        onIncome = onIncome,
-        onRecovery = onRecovery,
-        onMood = onMood,
-        onAttention = onAttention,
-        onAdjust = onAdjust,
-        onTransfer = onTransfer,
-        onSavings = onSavings,
-        onFutureQuickAdd = onFutureQuickAdd,
-        onLifestyleQuickAdd = onLifestyleQuickAdd,
-        onRelationshipsQuickAdd = onRelationshipsQuickAdd,
-    ).filter {
+    val simpleLabels = setOf("Income", "Mood", "Recovery")
+    val actions = if (unifiedCatalog) {
+        unifiedHubActions(
+            hasActiveMoment = hasActiveMoment,
+            presentFamilies = presentFamilies,
+            capabilities = capabilities,
+            onIncome = onIncome,
+            onRecovery = onRecovery,
+            onMood = onMood,
+            onAttention = onAttention,
+            onAdjust = onAdjust,
+            onTransfer = onTransfer,
+            onSavings = onSavings,
+            onFutureQuickAdd = onFutureQuickAdd,
+            onLifestyleQuickAdd = onLifestyleQuickAdd,
+            onRelationshipsQuickAdd = onRelationshipsQuickAdd,
+        )
+    } else {
+        hubActionsFor(
+            family = family,
+            hasActiveMoment = hasActiveMoment,
+            capabilities = capabilities,
+            onIncome = onIncome,
+            onRecovery = onRecovery,
+            onMood = onMood,
+            onAttention = onAttention,
+            onAdjust = onAdjust,
+            onTransfer = onTransfer,
+            onSavings = onSavings,
+            onFutureQuickAdd = onFutureQuickAdd,
+            onLifestyleQuickAdd = onLifestyleQuickAdd,
+            onRelationshipsQuickAdd = onRelationshipsQuickAdd,
+        ).let { list ->
+            if (simpleMode && isLifeOps) list.filter { it.label in simpleLabels } else list
+        }
+    }.filter {
         val q = search.trim()
         q.isEmpty() || it.label.contains(q, ignoreCase = true)
     }
-    val heroTitle = when (family) {
-        PersonalPulseFamily.RELATIONSHIPS -> "Nurture your bonds"
-        PersonalPulseFamily.LIFESTYLE -> "Curate your lifestyle"
-        else -> "Design your focus"
+    val heroTitle = if (unifiedCatalog) {
+        "Add to Personal"
+    } else when (family) {
+        PersonalPulseFamily.RELATIONSHIPS -> "Add to People"
+        PersonalPulseFamily.LIFESTYLE -> "Add to Lifestyle"
+        PersonalPulseFamily.FUTURE_BUILDING -> "Add to Future"
+        else -> "Add to Everyday"
     }
-    val blurb = when (family) {
+    val blurb = if (unifiedCatalog) {
+        "Spend, mood, recovery first — plus Future, Lifestyle, and People when those areas are set up."
+    } else when (family) {
         PersonalPulseFamily.FUTURE_BUILDING ->
-            "Quickly record milestones, opportunities, pivots, and progress."
+            "Milestones, learning, and progress."
         PersonalPulseFamily.LIFESTYLE ->
-            "Track experiences, wellbeing, discoveries, expressions and adjustments."
+            "Experiences, wellbeing, and discoveries."
         PersonalPulseFamily.RELATIONSHIPS ->
-            "Track connections, support, shared experiences, investments and adjustments."
+            "Connections, support, and shared moments."
         else ->
-            "Quickly record expenses, recovery states, mood, attention targets, and reflections."
+            "Spend, mood, recovery — and more when you need it."
     }
     val heroBrush = when (family) {
         PersonalPulseFamily.RELATIONSHIPS -> Brush.linearGradient(
@@ -136,21 +170,26 @@ fun PersonalQuickAddHub(
         )
     }
     val heroRes = if (isRelationships) R.drawable.qa_hero_relationships else R.drawable.qa_hero
-    val searchPlaceholder = when (family) {
+    val searchPlaceholder = if (unifiedCatalog) {
+        "Search personal actions…"
+    } else when (family) {
         PersonalPulseFamily.FUTURE_BUILDING -> "Search future actions…"
         PersonalPulseFamily.LIFESTYLE -> "Search lifestyle actions..."
         PersonalPulseFamily.RELATIONSHIPS -> "Search relationships..."
         else -> "Search personal actions..."
     }
-    val chipAccent = when (family) {
-        PersonalPulseFamily.RELATIONSHIPS -> HubRelPink
-        PersonalPulseFamily.LIFESTYLE -> HubPurple
+    val chipAccent = when {
+        unifiedCatalog -> momentTheme.primary
+        family == PersonalPulseFamily.RELATIONSHIPS -> HubRelPink
+        family == PersonalPulseFamily.LIFESTYLE -> HubPurple
         else -> momentTheme.primary
     }
-    val useWideTiles = isRelationships || isLifestyle || isLifeOps
+    val useWideTiles = unifiedCatalog || isRelationships || isLifestyle || isLifeOps
     val cardHeight = if (useWideTiles) 104.dp else 88.dp
     val cardRadius = if (useWideTiles) 16.dp else 14.dp
     val gridGap = if (useWideTiles) 12.dp else 10.dp
+    val missingFamilies = PersonalPulseFamily.entries.filter { it !in presentFamilies }
+    val showSetupFooter = unifiedCatalog && missingFamilies.isNotEmpty()
 
     Column(
         modifier = modifier
@@ -198,7 +237,10 @@ fun PersonalQuickAddHub(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            when (family) {
+            if (unifiedCatalog) {
+                HubChip("Personal", selected = true, accent = chipAccent)
+                HubChip("Today + life", selected = false, accent = chipAccent)
+            } else when (family) {
                 PersonalPulseFamily.FUTURE_BUILDING -> {
                     HubChip("Future Building", selected = true, accent = chipAccent)
                     HubChip("Growth Mindset", selected = false, accent = chipAccent)
@@ -300,6 +342,7 @@ fun PersonalQuickAddHub(
 
         // Figma `1122:7929` — 3 + 3 + 2 wide rows; Lifestyle/Relationships: 3 + 2
         val actionRows: List<List<HubAction>> = when {
+            unifiedCatalog && search.isBlank() -> actions.chunked(3)
             isLifeOps && search.isBlank() -> listOf(
                 actions.take(3),
                 actions.drop(3).take(3),
@@ -356,6 +399,30 @@ fun PersonalQuickAddHub(
             )
         }
 
+        if (showSetupFooter) {
+            val labels = missingFamilies.joinToString(" · ") {
+                when (it) {
+                    PersonalPulseFamily.LIFE_OPERATIONS -> "Everyday"
+                    PersonalPulseFamily.FUTURE_BUILDING -> "Future"
+                    PersonalPulseFamily.LIFESTYLE -> "Lifestyle"
+                    PersonalPulseFamily.RELATIONSHIPS -> "People"
+                }
+            }
+            Text(
+                text = "Set up $labels",
+                color = chipAccent,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(HubSurface)
+                    .clickable(onClick = onSetupMissing)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            )
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
     }
 }
@@ -391,6 +458,131 @@ private data class HubAction(
     val enabled: Boolean,
     val onClick: () -> Unit,
 )
+
+/** Everyday first, then tiles for each present family (unified Personal Add). */
+private fun unifiedHubActions(
+    hasActiveMoment: Boolean,
+    presentFamilies: Set<PersonalPulseFamily>,
+    capabilities: List<String>,
+    onIncome: () -> Unit,
+    onRecovery: () -> Unit,
+    onMood: () -> Unit,
+    onAttention: () -> Unit,
+    onAdjust: () -> Unit,
+    onTransfer: () -> Unit,
+    onSavings: () -> Unit,
+    onFutureQuickAdd: (FutureQuickAddKind) -> Unit,
+    onLifestyleQuickAdd: (LifestyleQuickAddKind) -> Unit,
+    onRelationshipsQuickAdd: (RelationshipsQuickAddKind) -> Unit,
+): List<HubAction> {
+    val lifeOpsPresent = PersonalPulseFamily.LIFE_OPERATIONS in presentFamilies
+    val futurePresent = PersonalPulseFamily.FUTURE_BUILDING in presentFamilies
+    val lifestylePresent = PersonalPulseFamily.LIFESTYLE in presentFamilies
+    val relationshipsPresent = PersonalPulseFamily.RELATIONSHIPS in presentFamilies
+    val moneyOk = lifeOpsPresent && (
+        capabilities.isEmpty() ||
+            PersonalActionRegistry.isDestinationEnabled(capabilities, PersonalActionRegistry.Destination.EXPENSE) ||
+            PersonalActionRegistry.isDestinationEnabled(capabilities, PersonalActionRegistry.Destination.MOVEMENT)
+        )
+    val lifeOpsOk = lifeOpsPresent && (
+        capabilities.isEmpty() ||
+            PersonalActionRegistry.isDestinationEnabled(capabilities, PersonalActionRegistry.Destination.LIFE_OPS)
+        )
+    // Family presence unlocks tiles; Life Ops caps alone must not hide Future/Lifestyle/People.
+    val out = mutableListOf<HubAction>()
+    if (lifeOpsPresent) {
+        out += HubAction(
+            "Income", R.drawable.ic_qa_trending,
+            Brush.horizontalGradient(listOf(Color(0xFF10B981), Color(0xFF047857))),
+            moneyOk || lifeOpsPresent, onIncome,
+        )
+        out += HubAction(
+            "Recovery", R.drawable.ic_qa_activity,
+            Brush.horizontalGradient(listOf(Color(0xFF3B82F6), Color(0xFF1D4ED8))),
+            lifeOpsOk || lifeOpsPresent, onRecovery,
+        )
+        out += HubAction(
+            "Mood", R.drawable.ic_qa_smile,
+            Brush.horizontalGradient(listOf(Color(0xFF06B6D4), Color(0xFF0891B2))),
+            lifeOpsOk || lifeOpsPresent, onMood,
+        )
+        out += HubAction(
+            "Attention", R.drawable.ic_qa_target,
+            Brush.horizontalGradient(listOf(Color(0xFFA78BFA), Color(0xFF7C3AED))),
+            lifeOpsOk || lifeOpsPresent, onAttention,
+        )
+        out += HubAction(
+            "Transfer", R.drawable.ic_qa_refresh,
+            Brush.horizontalGradient(listOf(Color(0xFF1E40AF), Color(0xFF0B2A8A))),
+            moneyOk || lifeOpsPresent, onTransfer,
+        )
+        out += HubAction(
+            "Savings", R.drawable.ic_qa_trending,
+            Brush.horizontalGradient(listOf(Color(0xFF10B981), Color(0xFF047857))),
+            moneyOk || lifeOpsPresent, onSavings,
+        )
+        out += HubAction(
+            "Adjust", R.drawable.ic_qa_sliders,
+            Brush.horizontalGradient(listOf(Color(0xFFD946EF), Color(0xFF86198F))),
+            lifeOpsOk || lifeOpsPresent, onAdjust,
+        )
+    }
+    if (futurePresent) {
+        out += HubAction("Milestone", R.drawable.ic_qa_target, Brush.horizontalGradient(listOf(Color(0xFF8B5CF6), Color(0xFF6C4EF2))), true) {
+            onFutureQuickAdd(FutureQuickAddKind.MILESTONE)
+        }
+        out += HubAction("Opportunity", R.drawable.ic_qa_activity, Brush.horizontalGradient(listOf(Color(0xFF3B82F6), Color(0xFF1D4ED8))), true) {
+            onFutureQuickAdd(FutureQuickAddKind.OPPORTUNITY)
+        }
+        out += HubAction("Progress", R.drawable.ic_qa_trending, Brush.horizontalGradient(listOf(Color(0xFF10B981), Color(0xFF047857))), true) {
+            onFutureQuickAdd(FutureQuickAddKind.PROGRESS)
+        }
+        out += HubAction("Learning", R.drawable.ic_qa_book, Brush.horizontalGradient(listOf(Color(0xFF6366F1), Color(0xFF4338CA))), true) {
+            onFutureQuickAdd(FutureQuickAddKind.LEARNING)
+        }
+    }
+    if (lifestylePresent) {
+        out += HubAction("Experience", R.drawable.ic_qa_wallet, Brush.horizontalGradient(listOf(Color(0xFFEC4899), Color(0xFFBE185D))), true) {
+            onLifestyleQuickAdd(LifestyleQuickAddKind.EXPERIENCE)
+        }
+        out += HubAction("Wellbeing", R.drawable.ic_qa_activity, Brush.horizontalGradient(listOf(Color(0xFFA78BFA), Color(0xFF7C3AED))), true) {
+            onLifestyleQuickAdd(LifestyleQuickAddKind.WELLBEING)
+        }
+        out += HubAction("Discovery", R.drawable.ic_qa_smile, Brush.horizontalGradient(listOf(Color(0xFFF472B6), Color(0xFFC026D3))), true) {
+            onLifestyleQuickAdd(LifestyleQuickAddKind.DISCOVERY)
+        }
+    }
+    if (relationshipsPresent) {
+        out += HubAction("Connection", R.drawable.ic_qa_users, Brush.horizontalGradient(listOf(Color(0xFFE12A9E), Color(0xFFBE1882))), true) {
+            onRelationshipsQuickAdd(RelationshipsQuickAddKind.CONNECTION)
+        }
+        out += HubAction("Support", R.drawable.ic_qa_heart, Brush.horizontalGradient(listOf(Color(0xFFC8238C), Color(0xFFA51473))), true) {
+            onRelationshipsQuickAdd(RelationshipsQuickAddKind.SUPPORT)
+        }
+        out += HubAction("Shared Exp", R.drawable.ic_qa_camera, Brush.horizontalGradient(listOf(Color(0xFFEB3CAA), Color(0xFFC82891))), true) {
+            onRelationshipsQuickAdd(RelationshipsQuickAddKind.SHARED)
+        }
+    }
+    if (out.isEmpty() && hasActiveMoment) {
+        // Fallback: show Everyday core against whatever is selected.
+        out += HubAction(
+            "Income", R.drawable.ic_qa_trending,
+            Brush.horizontalGradient(listOf(Color(0xFF10B981), Color(0xFF047857))),
+            true, onIncome,
+        )
+        out += HubAction(
+            "Mood", R.drawable.ic_qa_smile,
+            Brush.horizontalGradient(listOf(Color(0xFF06B6D4), Color(0xFF0891B2))),
+            true, onMood,
+        )
+        out += HubAction(
+            "Recovery", R.drawable.ic_qa_activity,
+            Brush.horizontalGradient(listOf(Color(0xFF3B82F6), Color(0xFF1D4ED8))),
+            true, onRecovery,
+        )
+    }
+    return out
+}
 
 private fun hubActionsFor(
     family: PersonalPulseFamily,
@@ -490,7 +682,6 @@ private fun hubActionsFor(
             HubAction("Transfer", R.drawable.ic_qa_refresh, Brush.horizontalGradient(listOf(Color(0xFF1E40AF), Color(0xFF0B2A8A))), moneyQuickAddEnabled, onTransfer),
             HubAction("Savings", R.drawable.ic_qa_trending, Brush.horizontalGradient(listOf(Color(0xFF10B981), Color(0xFF047857))), moneyQuickAddEnabled, onSavings),
             HubAction("Adjust", R.drawable.ic_qa_sliders, Brush.horizontalGradient(listOf(Color(0xFFD946EF), Color(0xFF86198F))), lifeOpsEnabled, onAdjust),
-            HubAction("Reflect", R.drawable.ic_qa_book, Brush.horizontalGradient(listOf(Color(0xFF6366F1), Color(0xFF4338CA))), false) {},
         )
     }
 }

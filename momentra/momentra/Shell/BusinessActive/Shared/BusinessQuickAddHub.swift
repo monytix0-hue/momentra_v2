@@ -5,7 +5,9 @@ struct BusinessQuickAddHub: View {
     let hasActiveMoment: Bool
     let hasCompany: Bool
     var capabilityCodes: [String]? = nil
+    var momentId: String? = nil
     var momentTypeCode: String? = nil
+    var companyId: String? = nil
     var onClose: () -> Void
     var onTile: (BusinessQuickAddKind) -> Void
     var onNewMoment: () -> Void = {}
@@ -16,17 +18,29 @@ struct BusinessQuickAddHub: View {
     var onMembers: () -> Void = {}
 
     @State private var search = ""
+    @State private var smallShop = false
 
     private var theme: BusinessActiveTheme { .forTypeCode(momentTypeCode) }
+    private var moduleEnabled: Bool {
+        CompanyModules.isEnabled(companyId: companyId, key: CompanyModules.moduleKey(for: theme))
+    }
     private let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
 
     private var tiles: [BusinessQuickAddKind] {
         let q = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let all = BusinessQuickAddKind.hubTiles(theme: theme)
+        let all = BusinessQuickAddKind.hubTiles(theme: theme, smallShop: smallShop)
         guard !q.isEmpty else { return all }
         return all.filter {
-            $0.label.lowercased().contains(q) || $0.subtitle.lowercased().contains(q)
+            $0.label(smallShop: smallShop).lowercased().contains(q) || $0.subtitle.lowercased().contains(q)
         }
+    }
+
+    private var hubSubtitleText: String {
+        BusinessQuickAddKind.hubSubtitle(theme: theme, smallShop: smallShop)
+    }
+
+    private var filterChips: [String] {
+        BusinessQuickAddKind.hubFilterChips(theme: theme, smallShop: smallShop)
     }
 
     var body: some View {
@@ -37,7 +51,7 @@ struct BusinessQuickAddHub: View {
                         Text("Quick Add")
                             .font(.plusJakarta(size: 24, weight: .heavy))
                             .foregroundStyle(.white)
-                        Text(theme.hubSubtitle)
+                        Text(hubSubtitleText)
                             .font(.plusJakarta(size: 13, weight: .medium))
                             .foregroundStyle(theme.secondary)
                     }
@@ -54,10 +68,12 @@ struct BusinessQuickAddHub: View {
                     .buttonStyle(.plain)
                 }
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        chip(theme.typeLabel, selected: true)
-                        ForEach(theme.filterChips, id: \.self) { chip($0, selected: false) }
+                if moduleEnabled {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            chip(theme.typeLabel, selected: true)
+                            ForEach(filterChips, id: \.self) { chip($0, selected: false) }
+                        }
                     }
                 }
             }
@@ -65,6 +81,22 @@ struct BusinessQuickAddHub: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
 
+            if !moduleEnabled {
+                Section {
+                    Text("This module is off for your company")
+                        .font(.plusJakarta(size: 15, weight: .medium))
+                        .foregroundStyle(theme.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(24)
+                        .background(theme.card)
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .listRowInsets(EdgeInsets(top: 24, leading: 16, bottom: 16, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            } else {
             Section {
                 HStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -128,7 +160,7 @@ struct BusinessQuickAddHub: View {
                                         .font(.system(size: 22))
                                         .frame(width: 40, height: 40)
                                 }
-                                Text(kind.label)
+                                Text(kind.label(smallShop: smallShop))
                                     .font(.plusJakarta(size: 11, weight: .semibold))
                                     .foregroundStyle(kind.stripeColor)
                                     .multilineTextAlignment(.center)
@@ -177,23 +209,29 @@ struct BusinessQuickAddHub: View {
             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 16, trailing: 16))
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
+            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .safeAreaInset(edge: .bottom) {
-            Button(action: onNewMoment) {
-                Text("Create another Business Moment")
-                    .font(.plusJakarta(size: 13, weight: .semibold))
-                    .foregroundStyle(theme.accent)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
+            if moduleEnabled {
+                Button(action: onNewMoment) {
+                    Text("Create another Business Moment")
+                        .font(.plusJakarta(size: 13, weight: .semibold))
+                        .foregroundStyle(theme.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .background(theme.bg)
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
-            .background(theme.bg)
         }
         .background(theme.bg.ignoresSafeArea())
+        .task(id: momentId) {
+            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+        }
     }
 
     private func handle(_ kind: BusinessQuickAddKind) {

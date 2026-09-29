@@ -88,14 +88,66 @@ enum PersonalActionRegistry {
         }
     }
 
-    /// Builds hub tiles for a family — always returns the full catalog; greys tiles when capability/moment inactive.
-    static func tiles(
-        for family: PersonalPulseFamily,
+    /// Unified Personal catalog — Everyday first, then present family tiles (presence unlocks).
+    static func unifiedTiles(
+        presentFamilies: Set<PersonalPulseFamily>,
         hasActiveMoment: Bool,
         capabilityCodes: [String]? = nil
     ) -> [PersonalActionTile] {
+        var out: [PersonalActionTile] = []
+        let order: [PersonalPulseFamily] = [.lifeOperations, .futureBuilding, .lifestyle, .relationships]
+        for family in order where presentFamilies.contains(family) {
+            let caps = capabilityCodes ?? defaultCodes(for: family).map(\.rawValue)
+            let familyTiles = catalogTiles(for: family).map { tile in
+                // Presence unlocks; empty Life Ops caps alone must not hide Future tiles.
+                let enabled = hasActiveMoment && tile.tappable && (
+                    family != .lifeOperations
+                        || isTileEnabled(tile, hasActiveMoment: true, capabilityCodes: caps.isEmpty ? defaultCodes(for: .lifeOperations).map(\.rawValue) : caps)
+                )
+                return PersonalActionTile(
+                    code: tile.code,
+                    label: tile.label,
+                    icon: tile.icon,
+                    colors: tile.colors,
+                    enabledWhenMomentActive: family == .lifeOperations ? enabled : (hasActiveMoment && tile.tappable),
+                    tappable: tile.tappable
+                )
+            }
+            // Deduplicate Adjust across families — keep first (Everyday).
+            for tile in familyTiles {
+                if tile.label == "Adjust", out.contains(where: { $0.label == "Adjust" }) { continue }
+                out.append(tile)
+            }
+        }
+        if out.isEmpty && hasActiveMoment {
+            out = catalogTiles(for: .lifeOperations).prefix(3).map {
+                PersonalActionTile(
+                    code: $0.code,
+                    label: $0.label,
+                    icon: $0.icon,
+                    colors: $0.colors,
+                    enabledWhenMomentActive: true,
+                    tappable: $0.tappable
+                )
+            }
+        }
+        return out
+    }
+
+    /// Builds hub tiles for a family — always returns the full catalog; greys tiles when capability/moment inactive.
+    /// When `simpleMode` is true on Life Ops, keeps Expense / Mood / Recovery only.
+    static func tiles(
+        for family: PersonalPulseFamily,
+        hasActiveMoment: Bool,
+        capabilityCodes: [String]? = nil,
+        simpleMode: Bool = false
+    ) -> [PersonalActionTile] {
         let effectiveCaps = capabilityCodes ?? defaultCodes(for: family).map(\.rawValue)
-        let catalog = catalogTiles(for: family)
+        var catalog = catalogTiles(for: family)
+        if simpleMode && family == .lifeOperations {
+            let keep = Set(["Expense", "Mood", "Recovery"])
+            catalog = catalog.filter { keep.contains($0.label) }
+        }
         return catalog.map { tile in
             let enabled = isTileEnabled(
                 tile,
@@ -165,7 +217,6 @@ enum PersonalActionRegistry {
                 tile(.movementRecord, "Transfer", "QaRefresh", "#1E40AF", "#0B2A8A"),
                 tile(.movementRecord, "Savings", "QaTrending", "#10B981", "#047857"),
                 tile(.lifeObservationRecord, "Adjust", "QaSliders", "#D946EF", "#86198F"),
-                tile(.lifeObservationRecord, "Reflect", "QaBook", "#6366F1", "#4338CA", tappable: false),
             ]
         }
     }

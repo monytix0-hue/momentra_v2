@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.BusinessLifePayloadDto
 import com.example.momentra.data.api.WeeklyReportDto
 import com.example.momentra.data.repository.BusinessSliceRepository
+import com.example.momentra.ui.shell.business.shared.BusinessAudience
 import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
 import com.example.momentra.ui.shell.business.life.components.CompanyLifeActivitySection
 import com.example.momentra.ui.shell.business.life.components.CompanyLifeColors
@@ -68,6 +69,11 @@ fun CompanyLifeActiveContent(
     var showReport by remember { mutableStateOf(false) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
     var shareBusy by remember { mutableStateOf(false) }
+    var smallShop by remember { mutableStateOf(false) }
+
+    LaunchedEffect(momentId) {
+        smallShop = BusinessAudience.isSmallShopMoment(momentId, context = context)
+    }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -178,7 +184,7 @@ fun CompanyLifeActiveContent(
         }
 
         if (focusFilter == null) {
-            CompanyLifeFilterChips(selected = filter, onSelect = { filter = it })
+            CompanyLifeFilterChips(selected = filter, onSelect = { filter = it }, smallShop = smallShop)
         }
 
         CompanyLifeHealthHeader(
@@ -188,6 +194,7 @@ fun CompanyLifeActiveContent(
             activeModules = activeModulesLabel,
             totalMoments = momentsLabel,
             avgRunway = runwayLabel,
+            smallShop = smallShop,
         )
 
         CompanyLifeModuleCards(

@@ -1,4 +1,7 @@
+import FirebaseAuth
+import PhotosUI
 import SwiftUI
+import UIKit
 
 /// Figma 695:4455 — Company Setup wizard (692:38403 / 38453 / 38549 / 38635).
 struct CompanySetupFlowView: View {
@@ -8,25 +11,32 @@ struct CompanySetupFlowView: View {
     @State private var step = 1
     @State private var stepForward = true
     @State private var welcomeAppeared = false
-    @State private var companyName = "Pureborn Ops"
-    @State private var industry = "Technology & Software"
-    @State private var companySize = "Small (2-25)"
-    @State private var entityType = "Pvt Ltd"
+    @State private var companyName = ""
+    @State private var industry = "Retail / Kirana"
+    @State private var companySize = "Solo (1)"
+    @State private var entityType = "Sole Prop"
     @State private var gstin = ""
     @State private var currency = "₹ INR — Indian Rupee"
     @State private var fyCycle = "Apr-Mar"
     @State private var timezone = "IST (UTC+5:30)"
-    @State private var structure = "Multi-Location"
-    @State private var locations: [(name: String, area: String, primary: Bool, color: Color)] = [
-        ("HQ — Mumbai", "Andheri East", true, Color(hex: "#10B981")),
-        ("Branch — Bangalore", "Koramangala", false, Color(hex: "#F59E0B")),
-        ("Branch — Delhi", "Connaught Place", false, Color(hex: "#EF4444")),
-    ]
+    @State private var audience = BusinessAudience.smallShop
+    @State private var structure = "Single Location"
+    @State private var locations: [(name: String, area: String, primary: Bool, color: Color)] = []
     @State private var members: [(initials: String, name: String, role: String, scope: String, color: Color, you: Bool)] = [
-        ("SM", "Sahil M.", "Owner", "All Locations", Color(hex: "#818CF8"), true),
-        ("AR", "Ananya R.", "Admin", "Bangalore Branch", Color(hex: "#F59E0B"), false),
+        CompanySetupFlowView.ownerMember()
     ]
     @State private var inviteText = ""
+    @State private var logoItem: PhotosPickerItem?
+    @State private var logoImage: UIImage?
+    @State private var logoData: Data?
+    @State private var logoError: String?
+    @State private var nameError: String?
+    @State private var showLocationEditor = false
+    @State private var editingLocationIndex: Int?
+    @State private var locationNameDraft = ""
+    @State private var locationAreaDraft = ""
+    @State private var editingMemberIndex: Int?
+    @State private var memberNameDraft = ""
     @State private var showAddPeople = false
     @State private var activating = false
     @State private var showJoinCode = false
@@ -99,6 +109,36 @@ struct CompanySetupFlowView: View {
                 members.append((String(trimmed.prefix(2)).uppercased(), trimmed, "Member", "All Locations", accent, false))
             }
         }
+        .sheet(isPresented: $showLocationEditor) {
+            locationEditorSheet
+        }
+        .sheet(isPresented: Binding(
+            get: { editingMemberIndex != nil },
+            set: { if !$0 { editingMemberIndex = nil } }
+        )) {
+            memberEditorSheet
+        }
+        .onChange(of: logoItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    logoData = data
+                    logoImage = image
+                    logoError = nil
+                } else {
+                    logoError = "Could not open that photo"
+                }
+            }
+        }
+    }
+
+    private static func ownerMember() -> (initials: String, name: String, role: String, scope: String, color: Color, you: Bool) {
+        let user = Auth.auth().currentUser
+        let emailName = user?.email?.split(separator: "@").first.map(String.init)
+        let raw = user?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = (raw?.isEmpty == false ? raw : nil) ?? emailName ?? "You"
+        return (String(name.prefix(2)).uppercased(), name, "Owner", "All Locations", Color(hex: "#818CF8"), true)
     }
 
     private func finishActivation() {
@@ -258,19 +298,91 @@ struct CompanySetupFlowView: View {
         VStack(alignment: .leading, spacing: 12) {
             stepStrip(active: 2)
             section("01", "COMPANY PROFILE") {
+                fieldLabel("WHO IS THIS FOR?")
+                pillRow(
+                    ["Small shop / Retail", "Growing business"],
+                    selected: audience == BusinessAudience.smallShop ? "Small shop / Retail" : "Growing business"
+                ) { label in
+                    audience = label.contains("Small") ? BusinessAudience.smallShop : BusinessAudience.growing
+                    if audience == BusinessAudience.smallShop {
+                        if structure == "Multi-Location" || structure == "Multi-Unit" {
+                            structure = "Single Location"
+                        }
+                        industry = "Retail / Kirana"
+                        companySize = "Solo (1)"
+                        entityType = "Sole Prop"
+                    } else {
+                        industry = "Technology & Software"
+                        companySize = "Small (2-25)"
+                        entityType = "Pvt Ltd"
+                    }
+                }
                 fieldLabel("COMPANY NAME")
-                textField($companyName)
+                textField($companyName, placeholder: "Your shop or company name")
+                    .onChange(of: companyName) { _, next in
+                        if nameError != nil, !next.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            nameError = nil
+                        }
+                    }
+                if let nameError, !nameError.isEmpty {
+                    Text(nameError)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color(hex: "#F87171"))
+                }
                 fieldLabel("INDUSTRY")
-                dropdown(industry)
+                Menu {
+                    ForEach([
+                        "Retail / Kirana",
+                        "Restaurant / F&B",
+                        "Fashion / Apparel",
+                        "Services",
+                        "Wholesale",
+                        "Technology & Software",
+                        "Other",
+                    ], id: \.self) { option in
+                        Button(option) { industry = option }
+                    }
+                } label: {
+                    HStack {
+                        Text(industry).foregroundStyle(.white)
+                        Spacer()
+                        Text("▼").foregroundStyle(dim)
+                    }
+                    .padding(12)
+                    .frame(height: 44)
+                    .background(bg)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(border))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
                 fieldLabel("COMPANY SIZE")
                 pillRow(["Solo (1)", "Small (2-25)", "Medium (26-100)"], selected: companySize) { companySize = $0 }
                 fieldLabel("COMPANY LOGO")
-                Text("Upload corporate logo")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(muted)
+                PhotosPicker(selection: $logoItem, matching: .images) {
+                    ZStack {
+                        if let logoImage {
+                            Image(uiImage: logoImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 64)
+                                .clipped()
+                        } else {
+                            Text(BusinessAudience.isSmallShop(audience) ? "Upload shop logo" : "Upload corporate logo")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(muted)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 64)
+                        }
+                    }
                     .frame(maxWidth: .infinity)
                     .frame(height: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(border, style: StrokeStyle(lineWidth: 1, dash: [6])))
+                }
+                .buttonStyle(.plain)
+                if let logoError {
+                    Text(logoError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                }
             }
             section("02", "LEGAL & FINANCIAL") {
                 fieldLabel("ENTITY TYPE")
@@ -301,11 +413,16 @@ struct CompanySetupFlowView: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.white)
                 structureRow("Single Location", "One office or store")
-                structureRow("Multi-Location", "Multiple branches or offices")
-                structureRow("Multi-Unit", "Different business units or brands")
+                if !BusinessAudience.isSmallShop(audience) {
+                    structureRow("Multi-Location", "Multiple branches or offices")
+                    structureRow("Multi-Unit", "Different business units or brands")
+                }
             }
             section("02", "YOUR LOCATIONS") {
-                ForEach(Array(locations.enumerated()), id: \.offset) { _, loc in
+                if locations.isEmpty {
+                    Text("No locations yet").font(.system(size: 13)).foregroundStyle(muted)
+                }
+                ForEach(Array(locations.enumerated()), id: \.offset) { index, loc in
                     HStack(spacing: 0) {
                         Rectangle().fill(loc.color).frame(width: 4, height: 52)
                         VStack(alignment: .leading, spacing: 2) {
@@ -324,14 +441,32 @@ struct CompanySetupFlowView: View {
                                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(green.opacity(0.2)))
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
-                        Text("✎").foregroundStyle(dim).padding(.trailing, 12)
+                        Button {
+                            editingLocationIndex = index
+                            locationNameDraft = loc.name
+                            locationAreaDraft = loc.area
+                            showLocationEditor = true
+                        } label: {
+                            Text("✎").foregroundStyle(dim).padding(.trailing, 12)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Edit location")
                     }
                     .background(bg)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
-                Text("+ Add another location")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(accent)
+                Button {
+                    editingLocationIndex = nil
+                    locationNameDraft = ""
+                    locationAreaDraft = ""
+                    showLocationEditor = true
+                } label: {
+                    Text("+ Add another location")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(accent)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Locations inherit company defaults")
                         .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
@@ -354,9 +489,9 @@ struct CompanySetupFlowView: View {
         VStack(alignment: .leading, spacing: 12) {
             stepStrip(active: 4)
             section("01", "INVITE YOUR TEAM") {
-                Text("Add team members to get started")
+                Text("Add people to invite after activation — share the invite link when you’re ready")
                     .font(.system(size: 14, weight: .medium)).foregroundStyle(.white)
-                ForEach(Array(members.enumerated()), id: \.offset) { _, m in
+                ForEach(Array(members.enumerated()), id: \.offset) { index, m in
                     HStack(spacing: 12) {
                         Text(m.initials)
                             .font(.system(size: 12, weight: .bold))
@@ -377,8 +512,29 @@ struct CompanySetupFlowView: View {
                             Text(m.scope).font(.system(size: 11)).foregroundStyle(muted)
                         }
                         Spacer()
-                        Text(m.you ? "You" : "✎").font(.system(size: 12)).foregroundStyle(dim)
+                        if m.you {
+                            Text("You").font(.system(size: 12)).foregroundStyle(dim)
+                        } else {
+                            Button {
+                                editingMemberIndex = index
+                                memberNameDraft = m.name
+                            } label: {
+                                Text("✎").font(.system(size: 12)).foregroundStyle(dim)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Edit member")
+                            Button {
+                                members.remove(at: index)
+                            } label: {
+                                Text("✕").font(.system(size: 12)).foregroundStyle(dim)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Remove member")
+                        }
                     }
+                }
+                if let logoError {
+                    Text(logoError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
                 }
                 HStack(spacing: 8) {
                     TextField("Enter email or name", text: $inviteText)
@@ -387,7 +543,13 @@ struct CompanySetupFlowView: View {
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(border))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     Button("Add") {
-                        showAddPeople = true
+                        let typed = inviteText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if typed.isEmpty {
+                            showAddPeople = true
+                        } else {
+                            members.append((String(typed.prefix(2)).uppercased(), typed, "Member", "All Locations", accent, false))
+                            inviteText = ""
+                        }
                     }
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(bg)
@@ -409,7 +571,7 @@ struct CompanySetupFlowView: View {
                     .font(.system(size: 12).italic()).foregroundStyle(dim).frame(maxWidth: .infinity)
             }
             VStack(spacing: 6) {
-                Text("4 sections configured • \(members.count) team members added")
+                Text("4 sections configured • \(members.filter { !$0.you }.count) people to invite")
                     .font(.system(size: 13)).foregroundStyle(dim)
                 HStack(spacing: 6) {
                     Text("✓").foregroundStyle(green)
@@ -421,6 +583,11 @@ struct CompanySetupFlowView: View {
                 .clipShape(Capsule())
             }
             .frame(maxWidth: .infinity)
+            if let nameError, !nameError.isEmpty {
+                Text(nameError)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color(hex: "#F87171"))
+            }
             primaryButton("Activate \(companyName.isEmpty ? "Company" : companyName) →", color: green) {
                 Task { await activate() }
             }
@@ -564,10 +731,16 @@ struct CompanySetupFlowView: View {
     @MainActor
     private func activate() async {
         guard !activating else { return }
+        let name = companyName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            nameError = "Enter a company name to activate"
+            go(to: 2)
+            return
+        }
+        nameError = nil
         activating = true
         defer { activating = false }
         let tz = timezone.contains("IST") ? "Asia/Kolkata" : "UTC"
-        let name = companyName.isEmpty ? "My Company" : companyName
         do {
             let created = try await APIClient.shared.createCompany(
                 displayName: name,
@@ -581,8 +754,10 @@ struct CompanySetupFlowView: View {
                     "currency": currency,
                     "financialYear": fyCycle,
                     "structure": structure,
+                    "audience": audience,
                 ]
             )
+            BusinessAudience.saveForCompany(companyId: created.companyId, audience: audience)
             for loc in locations {
                 _ = try? await APIClient.shared.createLocation(
                     companyId: created.companyId,
@@ -590,6 +765,20 @@ struct CompanySetupFlowView: View {
                     addressText: loc.area,
                     timezone: tz
                 )
+            }
+            if let logoData {
+                do {
+                    let mediaId = try await APIClient.shared.uploadCompanyLogo(companyId: created.companyId, bytes: logoData)
+                    _ = try await APIClient.shared.patchCompany(
+                        companyId: created.companyId,
+                        body: [
+                            "expectedVersion": created.version,
+                            "profileJson": ["logoMediaId": mediaId],
+                        ]
+                    )
+                } catch {
+                    logoError = error.localizedDescription
+                }
             }
             let summary = CompanySummary(companyId: created.companyId, displayName: created.displayName)
             if let invite = try? await APIClient.shared.mintCompanyInvite(
@@ -611,6 +800,101 @@ struct CompanySetupFlowView: View {
         } catch {
             onClose()
         }
+    }
+
+    private var locationEditorSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                fieldLabel("NAME")
+                textField($locationNameDraft, placeholder: "Location name")
+                fieldLabel("ADDRESS")
+                textField($locationAreaDraft, placeholder: "Address")
+                primaryButton("Save") { saveLocationDraft() }
+                    .disabled(locationNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                if editingLocationIndex != nil {
+                    Button("Remove location", role: .destructive) {
+                        removeEditingLocation()
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                Spacer()
+            }
+            .padding(20)
+            .background(bg.ignoresSafeArea())
+            .navigationTitle(editingLocationIndex == nil ? "Add location" : "Edit location")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showLocationEditor = false }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private var memberEditorSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                fieldLabel("NAME")
+                textField($memberNameDraft, placeholder: "Name or email")
+                primaryButton("Save") { saveMemberDraft() }
+                    .disabled(memberNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Spacer()
+            }
+            .padding(20)
+            .background(bg.ignoresSafeArea())
+            .navigationTitle("Edit member")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { editingMemberIndex = nil }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func saveLocationDraft() {
+        let name = locationNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        let area = locationAreaDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let index = editingLocationIndex, locations.indices.contains(index) {
+            let current = locations[index]
+            locations[index] = (name, area, current.primary, current.color)
+        } else {
+            let primary = locations.isEmpty
+            locations.append((name, area, primary, primary ? green : Color(hex: "#F59E0B")))
+        }
+        showLocationEditor = false
+    }
+
+    private func removeEditingLocation() {
+        guard let index = editingLocationIndex, locations.indices.contains(index) else {
+            showLocationEditor = false
+            return
+        }
+        let wasPrimary = locations[index].primary
+        locations.remove(at: index)
+        if wasPrimary, !locations.isEmpty, !locations.contains(where: \.primary) {
+            let first = locations[0]
+            locations[0] = (first.name, first.area, true, green)
+        }
+        showLocationEditor = false
+    }
+
+    private func saveMemberDraft() {
+        let name = memberNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let index = editingMemberIndex, members.indices.contains(index), !name.isEmpty else {
+            editingMemberIndex = nil
+            return
+        }
+        let current = members[index]
+        guard !current.you else {
+            editingMemberIndex = nil
+            return
+        }
+        members[index] = (String(name.prefix(2)).uppercased(), name, current.role, current.scope, current.color, false)
+        editingMemberIndex = nil
     }
 }
 
@@ -639,7 +923,8 @@ struct CompanySettingsView: View {
                             .clipShape(Circle())
                         VStack(alignment: .leading, spacing: 4) {
                             Text(companyName).font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
-                            Text("Technology • Mumbai, India").font(.system(size: 13)).foregroundStyle(Color(hex: "#94A3B8"))
+                            Text("Open company settings after setup to edit your profile.")
+                                .font(.system(size: 13)).foregroundStyle(Color(hex: "#94A3B8"))
                         }
                     }
                 }

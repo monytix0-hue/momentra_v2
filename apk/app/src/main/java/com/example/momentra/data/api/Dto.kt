@@ -57,7 +57,31 @@ data class PersonalLifeDto(
     @SerializedName("happyDrivers") val happyDrivers: LifeHappyDriversDto? = null,
     val journey: LifeJourneyDto? = null,
     @SerializedName("aiInsights") val aiInsights: LifeAiInsightsDto? = null,
+    @SerializedName("thisWeek") val thisWeek: PersonalLifeThisWeekDto? = null,
     @SerializedName("projectionVersion") val projectionVersion: Long = 0,
+    @SerializedName("updatedAt") val updatedAt: String = "",
+)
+
+data class PersonalLifeThisWeekDto(
+    @SerializedName("expenseTotal") val expenseTotal: String = "0",
+    @SerializedName("incomeTotal") val incomeTotal: String = "0",
+    @SerializedName("currencyCode") val currencyCode: String? = null,
+    @SerializedName("spendByCurrency") val spendByCurrency: Map<String, String> = emptyMap(),
+    @SerializedName("periodLogs") val periodLogs: Int = 0,
+    @SerializedName("moodOrRecoveryLogs") val moodOrRecoveryLogs: Int = 0,
+    @SerializedName("periodStart") val periodStart: String = "",
+    @SerializedName("periodEnd") val periodEnd: String = "",
+)
+
+data class PersonalActivitySummaryDto(
+    @SerializedName("momentId") val momentId: String = "",
+    @SerializedName("totalLogs") val totalLogs: Int = 0,
+    @SerializedName("periodLogs") val periodLogs: Int = 0,
+    @SerializedName("expenseTotal") val expenseTotal: String = "0",
+    @SerializedName("incomeTotal") val incomeTotal: String = "0",
+    @SerializedName("periodStart") val periodStart: String = "",
+    @SerializedName("periodEnd") val periodEnd: String = "",
+    @SerializedName("projectionVersion") val projectionVersion: Int = 0,
     @SerializedName("updatedAt") val updatedAt: String = "",
 )
 
@@ -442,6 +466,7 @@ data class CompanyItemDto(
     @SerializedName("companyId") val companyId: String,
     @SerializedName("displayName") val displayName: String,
     val status: String? = null,
+    @SerializedName("profileJson") val profileJson: Map<String, Any>? = null,
 )
 
 data class CreateCompanyBody(
@@ -467,7 +492,9 @@ data class LocationItemDto(
     @SerializedName("locationId") val locationId: String,
     val name: String,
     @SerializedName("addressText") val addressText: String? = null,
+    val timezone: String? = null,
     val status: String,
+    val version: Int? = null,
 )
 
 data class CreateLocationBody(
@@ -2199,6 +2226,8 @@ data class CreateBusinessExpenseBody(
     @SerializedName("paidBy") val paidBy: String? = null,
     @SerializedName("effectiveAt") val effectiveAt: String? = null,
     @SerializedName("receiptUploadId") val receiptUploadId: String? = null,
+    @SerializedName("paymentMethodCode") val paymentMethodCode: String? = null,
+    @SerializedName("taxNote") val taxNote: String? = null,
 )
 
 data class CreateBusinessExpenseResultDto(
@@ -2238,6 +2267,8 @@ data class CreateBusinessRevenueBody(
     @SerializedName("currencyCode") val currencyCode: String,
     val description: String? = null,
     @SerializedName("categoryCode") val categoryCode: String? = null,
+    @SerializedName("partyId") val partyId: String? = null,
+    @SerializedName("paymentMethodCode") val paymentMethodCode: String? = null,
 )
 
 data class CreateBusinessRevenueResultDto(
@@ -2282,6 +2313,76 @@ data class DecideApprovalResultDto(
 data class CreateBusinessVendorBody(
     val name: String,
     @SerializedName("vendorType") val vendorType: String? = null,
+)
+
+data class CreateKhataPartyBody(
+    val name: String,
+    @SerializedName("partyKind") val partyKind: String,
+    val phone: String? = null,
+)
+
+data class CreateKhataPartyResultDto(
+    @SerializedName("partyId") val partyId: String,
+    @SerializedName("companyId") val companyId: String? = null,
+    val name: String? = null,
+    @SerializedName("partyKind") val partyKind: String? = null,
+    val phone: String? = null,
+)
+
+data class CreateKhataEntryBody(
+    @SerializedName("partyId") val partyId: String,
+    @SerializedName("entryType") val entryType: String,
+    val amount: String,
+    @SerializedName("currencyCode") val currencyCode: String? = null,
+    val note: String? = null,
+    @SerializedName("paymentMethodCode") val paymentMethodCode: String? = null,
+    @SerializedName("effectiveAt") val effectiveAt: String? = null,
+)
+
+data class CreateKhataEntryResultDto(
+    @SerializedName("entryId") val entryId: String,
+    @SerializedName("partyId") val partyId: String,
+    @SerializedName("companyId") val companyId: String? = null,
+    @SerializedName("entryType") val entryType: String? = null,
+    val amount: String? = null,
+    @SerializedName("currencyCode") val currencyCode: String? = null,
+    @SerializedName("balanceDue") val balanceDue: String? = null,
+)
+
+data class KhataPartyItemDto(
+    @SerializedName("partyId") val partyId: String,
+    val name: String,
+    val phone: String? = null,
+    @SerializedName("partyKind") val partyKind: String? = null,
+    @SerializedName("balanceDue") val balanceDue: String = "0",
+    @SerializedName("currencyCode") val currencyCode: String? = "INR",
+    @SerializedName("lastActivityAt") val lastActivityAt: String? = null,
+    val overdue: Boolean = false,
+)
+
+data class KhataPartyListDto(
+    @SerializedName("companyId") val companyId: String? = null,
+    @SerializedName("partyKind") val partyKind: String? = null,
+    val items: List<KhataPartyItemDto> = emptyList(),
+)
+
+data class KhataEntryItemDto(
+    @SerializedName("entryId") val entryId: String,
+    @SerializedName("entryType") val entryType: String,
+    val amount: String,
+    @SerializedName("currencyCode") val currencyCode: String? = null,
+    @SerializedName("paymentMethodCode") val paymentMethodCode: String? = null,
+    val note: String? = null,
+    @SerializedName("effectiveAt") val effectiveAt: String? = null,
+)
+
+data class KhataPartyEntriesDto(
+    @SerializedName("companyId") val companyId: String? = null,
+    @SerializedName("partyId") val partyId: String,
+    @SerializedName("partyName") val partyName: String? = null,
+    @SerializedName("balanceDue") val balanceDue: String? = null,
+    @SerializedName("currencyCode") val currencyCode: String? = null,
+    val items: List<KhataEntryItemDto> = emptyList(),
 )
 
 data class CreateBusinessVendorResultDto(

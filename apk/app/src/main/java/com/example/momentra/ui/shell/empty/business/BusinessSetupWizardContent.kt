@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,6 +36,7 @@ import com.example.momentra.ui.setup.SetupTitleField
 import com.example.momentra.ui.setup.SetupTokens
 import com.example.momentra.ui.setup.SetupWizardHeader
 import com.example.momentra.ui.setup.SetupWizardScaffold
+import com.example.momentra.ui.shell.business.shared.BusinessAudience
 import com.example.momentra.ui.shell.empty.personal.mergePersonalSetupPreferences
 import com.example.momentra.ui.shell.maestro.MaestroIds
 
@@ -52,14 +54,22 @@ fun BusinessSetupWizardContent(
     editingMomentId: String? = null,
     initialTitle: String? = null,
 ) {
+    val context = LocalContext.current
     val catalog = remember(kind) { BusinessSetupCatalog.forKind(kind) }
-    val selections = remember(kind) {
+    val companyAudience = remember(companyId) { BusinessAudience.forCompany(context, companyId) }
+    val selections = remember(kind, companyAudience) {
         mutableStateMapOf<String, Any>().apply {
-            catalog.defaultPreferences.forEach { (k, v) -> put(k, v) }
+            BusinessSetupCatalog.defaultPreferences(kind, companyAudience).forEach { (k, v) -> put(k, v) }
         }
     }
     var momentTitle by remember(kind) { mutableStateOf(initialTitle?.takeIf { it.isNotBlank() } ?: catalog.defaultTitle) }
     var editingMomentStatus by remember(kind) { mutableStateOf<String?>(null) }
+    val footerTagline = remember(kind, companyAudience, selections[BusinessAudience.PREF_KEY]) {
+        BusinessSetupCatalog.footerTagline(
+            kind,
+            selections[BusinessAudience.PREF_KEY]?.toString() ?: companyAudience,
+        )
+    }
 
     DisposableEffect(kind) {
         MomentraAnalytics.get().onScreenEnter(kind.analyticsScreen)
@@ -73,7 +83,7 @@ fun BusinessSetupWizardContent(
             selections.clear()
             selections.putAll(
                 mergePersonalSetupPreferences(
-                    catalog.defaultPreferences,
+                    BusinessSetupCatalog.defaultPreferences(kind, companyAudience),
                     prefill.preferences.orEmpty(),
                 ),
             )
@@ -120,7 +130,7 @@ fun BusinessSetupWizardContent(
         backgroundColor = SetupTokens.BizBg,
         footer = {
             SetupStickyFooter(
-                tagline = catalog.footerTagline,
+                tagline = footerTagline,
                 ctaLabel = catalog.activateLabel,
                 submitting = submitting,
                 accentBrush = ctaBrush,

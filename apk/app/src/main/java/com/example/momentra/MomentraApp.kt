@@ -8,8 +8,10 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.example.momentra.analytics.BackendTelemetry
 import com.example.momentra.analytics.MomentraAnalytics
 import com.example.momentra.data.device.MomentraFirebaseMessagingService
+import com.example.momentra.data.local.AppPreferences
 import com.example.momentra.observability.SentryBootstrap
 import com.example.momentra.ui.shell.maestro.QaCorrelationReceiver
+import com.example.momentra.ui.shell.personal.shared.PersonalEveningNudgeScheduler
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseNetworkException
 
@@ -23,6 +25,10 @@ class MomentraApp : Application() {
         QaCorrelationReceiver.register(this)
         BackendTelemetry.init(this)
         MomentraAnalytics.init(this)
+        // Re-arm evening nudge after process death / OEM alarm drops.
+        if (AppPreferences(this).isPersonalEveningNudgeEnabled()) {
+            PersonalEveningNudgeScheduler.sync(this, true)
+        }
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 MomentraAnalytics.get().onAppForeground()

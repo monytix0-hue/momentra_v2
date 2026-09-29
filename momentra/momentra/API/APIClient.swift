@@ -163,6 +163,7 @@ private struct CompanyListPayload: Decodable {
 struct CompanyItemPayload: Decodable {
     let companyId: String
     let displayName: String
+    let profileJson: [String: AnyDecodable]?
 }
 
 private struct CursorPagePayload<T: Decodable>: Decodable {
@@ -563,8 +564,17 @@ final class APIClient {
 
     func listCompanies() async throws -> [CompanySummary] {
         let payload: CompanyListPayload = try await authorizedGet(path: "v1/companies")
-        return payload.items.map {
-            CompanySummary(companyId: $0.companyId, displayName: $0.displayName)
+        return payload.items.map { item in
+            let audience = (item.profileJson?["audience"]?.value as? String)
+            if let audience {
+                BusinessAudience.saveForCompany(companyId: item.companyId, audience: audience)
+            }
+            CompanyModules.rehydrateFromProfile(companyId: item.companyId, profileJson: item.profileJson)
+            return CompanySummary(
+                companyId: item.companyId,
+                displayName: item.displayName,
+                audience: audience
+            )
         }
     }
 
@@ -572,6 +582,18 @@ final class APIClient {
         let companyId: String
         let displayName: String
         let version: Int
+    }
+
+    struct CompanyDetailPayload: Decodable {
+        let companyId: String
+        let displayName: String
+        let legalName: String?
+        let version: Int
+        let profileJson: [String: AnyDecodable]?
+        let taxIdentifier: String?
+        let timezone: String?
+        let companyType: String?
+        let status: String?
     }
 
     struct CreateLocationResult: Decodable {
@@ -611,6 +633,32 @@ final class APIClient {
         )
     }
 
+    /// Uploads a company logo and returns the completed media id.
+    func uploadCompanyLogo(companyId: String, bytes: Data, contentType: String = "image/jpeg") async throws -> String {
+        struct IntentBody: Encodable {
+            let contentType: String
+            let byteSize: Int
+            let scopeType: String
+            let scopeId: String
+        }
+        struct CompleteBody: Encodable { let storageKey: String }
+        let intent: MediaUploadIntentResult = try await authorizedPost(
+            path: "v1/media/uploads",
+            body: IntentBody(contentType: contentType, byteSize: bytes.count, scopeType: "COMPANY", scopeId: companyId),
+            idempotencyKey: UUID().uuidString
+        )
+        guard let storageKey = intent.storageKey else {
+            throw URLError(.badServerResponse)
+        }
+        try await putBytesToSignedUrl(signedUrl: intent.signedUrl, bytes: bytes, contentType: contentType)
+        let completed: MediaUploadCompleteResult = try await authorizedPost(
+            path: "v1/media/uploads/\(intent.uploadId)/complete",
+            body: CompleteBody(storageKey: storageKey),
+            idempotencyKey: UUID().uuidString
+        )
+        return completed.mediaId
+    }
+
     @discardableResult
     func createLocation(
         companyId: String,
@@ -637,6 +685,23 @@ final class APIClient {
         let addressText: String?
         let timezone: String?
         let status: String?
+        let version: Int?
+
+        init(
+            locationId: String,
+            name: String,
+            addressText: String?,
+            timezone: String?,
+            status: String?,
+            version: Int? = nil
+        ) {
+            self.locationId = locationId
+            self.name = name
+            self.addressText = addressText
+            self.timezone = timezone
+            self.status = status
+            self.version = version
+        }
     }
 
     struct CompanyLocationListPayload: Decodable {
@@ -646,6 +711,30 @@ final class APIClient {
     func listCompanyLocations(companyId: String) async throws -> [CompanyLocationItemPayload] {
         let payload: CompanyLocationListPayload = try await authorizedGet(path: "v1/companies/\(companyId)/locations")
         return payload.items
+    }
+
+    @discardableResult
+    func updateCompanyLocation(
+        companyId: String,
+        locationId: String,
+        name: String? = nil,
+        addressText: String? = nil,
+        timezone: String? = nil,
+        status: String? = nil,
+        expectedVersion: Int,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> PersonalProjectionPayload {
+        var body: [String: Any] = ["expectedVersion": expectedVersion]
+        if let name { body["name"] = name }
+        if let addressText { body["addressText"] = addressText }
+        if let timezone { body["timezone"] = timezone }
+        if let status { body["status"] = status }
+        return try await patchLocation(
+            companyId: companyId,
+            locationId: locationId,
+            body: body,
+            idempotencyKey: idempotencyKey
+        )
     }
 
     func groupMomentPreviewCount() async throws -> Int {
@@ -810,8 +899,20 @@ final class APIClient {
         let happyDrivers: LifeHappyDrivers?
         let journey: LifeJourney?
         let aiInsights: LifeAiInsights?
+        let thisWeek: ThisWeek?
         let projectionVersion: Int?
         let updatedAt: String?
+
+        struct ThisWeek: Decodable {
+            let expenseTotal: String?
+            let incomeTotal: String?
+            let currencyCode: String?
+            let spendByCurrency: [String: String]?
+            let periodLogs: Int?
+            let moodOrRecoveryLogs: Int?
+            let periodStart: String?
+            let periodEnd: String?
+        }
 
         struct LifeAreaScore: Decodable {
             let code: String
@@ -3091,7 +3192,7 @@ final class APIClient {
         let payload: GroupFinancePayload?
     }
 
-    struct GroupParticipantPayload: Decodable, Identifiable {
+    struct GroupParticipantPayload: Codable, Identifiable {
         var id: String { participantId }
         let participantId: String
         let userId: String?
@@ -3212,9 +3313,17 @@ final class APIClient {
     }
 
     func listGroupParticipants(momentId: String) async throws -> [GroupParticipantPayload] {
-        let page: GroupParticipantsPayload =
-            try await authorizedGet(path: "v1/group/moments/\(momentId)/participants")
-        return page.participants
+        do {
+            let page: GroupParticipantsPayload =
+                try await authorizedGet(path: "v1/group/moments/\(momentId)/participants")
+            OfflineOutbox.shared.saveRoster(momentId: momentId, participants: page.participants)
+            return page.participants
+        } catch let error as APIErrorKind {
+            if case .network = error, let cached = OfflineOutbox.shared.roster(momentId: momentId) {
+                return cached
+            }
+            throw error
+        }
     }
 
     struct ActivityPagePayload {
@@ -4864,12 +4973,22 @@ final class APIClient {
     }
 
     func listBusinessActivity(momentId: String, limit: Int = 20) async throws -> [ActivityItemPayload] {
+        try await listBusinessActivityPage(momentId: momentId, limit: limit).items
+    }
+
+    func listBusinessActivityPage(
+        momentId: String,
+        cursor: String? = nil,
+        limit: Int = 20
+    ) async throws -> ActivityPagePayload {
+        var query: [String: String] = ["limit": String(limit)]
+        if let cursor, !cursor.isEmpty { query["cursor"] = cursor }
         let page: CursorPagePayload<ActivityItemPayload> =
             try await authorizedGet(
                 path: "v1/business/moments/\(momentId)/activity",
-                query: ["limit": String(limit)]
+                query: query
             )
-        return page.items
+        return ActivityPagePayload(items: page.items, nextCursor: page.nextCursor)
     }
 
     struct BusinessTimelineItem: Decodable, Identifiable {
@@ -4947,6 +5066,8 @@ final class APIClient {
         paidBy: String? = nil,
         effectiveAt: String? = nil,
         receiptUploadId: String? = nil,
+        paymentMethodCode: String? = nil,
+        taxNote: String? = nil,
         idempotencyKey: String = UUID().uuidString
     ) async throws -> CreateBusinessExpenseResult {
         struct Body: Encodable {
@@ -4959,6 +5080,8 @@ final class APIClient {
             let paidBy: String?
             let effectiveAt: String?
             let receiptUploadId: String?
+            let paymentMethodCode: String?
+            let taxNote: String?
         }
         return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/business-expenses",
@@ -4971,7 +5094,9 @@ final class APIClient {
                 vendorId: vendorId,
                 paidBy: paidBy,
                 effectiveAt: effectiveAt,
-                receiptUploadId: receiptUploadId
+                receiptUploadId: receiptUploadId,
+                paymentMethodCode: paymentMethodCode,
+                taxNote: taxNote
             ),
             idempotencyKey: idempotencyKey,
             momentId: momentId,
@@ -4998,6 +5123,8 @@ final class APIClient {
         currencyCode: String,
         description: String? = nil,
         categoryCode: String? = nil,
+        partyId: String? = nil,
+        paymentMethodCode: String? = nil,
         idempotencyKey: String = UUID().uuidString
     ) async throws -> CreateBusinessRevenueResult {
         struct Body: Encodable {
@@ -5005,6 +5132,8 @@ final class APIClient {
             let currencyCode: String
             let description: String?
             let categoryCode: String?
+            let partyId: String?
+            let paymentMethodCode: String?
         }
         return try await authorizedPostOrQueue(
             path: "v1/moments/\(momentId)/revenues",
@@ -5012,7 +5141,9 @@ final class APIClient {
                 amount: amount,
                 currencyCode: currencyCode,
                 description: description,
-                categoryCode: categoryCode
+                categoryCode: categoryCode,
+                partyId: partyId,
+                paymentMethodCode: paymentMethodCode
             ),
             idempotencyKey: idempotencyKey,
             momentId: momentId,
@@ -5413,6 +5544,121 @@ final class APIClient {
         return try await authorizedGet(path: "v1/companies/\(companyId)/vendors")
     }
 
+    struct KhataPartyItem: Decodable, Identifiable {
+        let partyId: String
+        let name: String
+        let phone: String?
+        let partyKind: String?
+        let balanceDue: String
+        let currencyCode: String?
+        let lastActivityAt: String?
+        let overdue: Bool?
+        var id: String { partyId }
+    }
+
+    struct KhataPartyListResult: Decodable {
+        let companyId: String?
+        let partyKind: String?
+        let items: [KhataPartyItem]
+    }
+
+    struct CreateKhataPartyResult: Decodable {
+        let partyId: String
+        let companyId: String?
+        let name: String?
+        let partyKind: String?
+        let phone: String?
+    }
+
+    struct CreateKhataEntryResult: Decodable {
+        let entryId: String
+        let partyId: String
+        let companyId: String?
+        let entryType: String?
+        let amount: String?
+        let currencyCode: String?
+        let balanceDue: String?
+    }
+
+    func listKhataParties(companyId: String, partyKind: String = "CUSTOMER") async throws -> KhataPartyListResult {
+        try await authorizedGet(path: "v1/companies/\(companyId)/khata/parties?partyKind=\(partyKind)")
+    }
+
+    struct KhataEntryItem: Decodable, Identifiable {
+        let entryId: String
+        let entryType: String
+        let amount: String
+        let currencyCode: String?
+        let paymentMethodCode: String?
+        let note: String?
+        let effectiveAt: String?
+        var id: String { entryId }
+    }
+
+    struct KhataPartyEntriesResult: Decodable {
+        let companyId: String?
+        let partyId: String
+        let partyName: String?
+        let balanceDue: String?
+        let currencyCode: String?
+        let items: [KhataEntryItem]
+    }
+
+    func listKhataPartyEntries(companyId: String, partyId: String) async throws -> KhataPartyEntriesResult {
+        try await authorizedGet(path: "v1/companies/\(companyId)/khata/parties/\(partyId)/entries")
+    }
+
+    func createKhataParty(
+        companyId: String,
+        name: String,
+        partyKind: String,
+        phone: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CreateKhataPartyResult {
+        struct Body: Encodable {
+            let name: String
+            let partyKind: String
+            let phone: String?
+        }
+        return try await authorizedPost(
+            path: "v1/companies/\(companyId)/khata/parties",
+            body: Body(name: name, partyKind: partyKind, phone: phone),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func createKhataEntry(
+        momentId: String,
+        partyId: String,
+        entryType: String,
+        amount: String,
+        currencyCode: String? = "INR",
+        note: String? = nil,
+        paymentMethodCode: String? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> CreateKhataEntryResult {
+        struct Body: Encodable {
+            let partyId: String
+            let entryType: String
+            let amount: String
+            let currencyCode: String?
+            let note: String?
+            let paymentMethodCode: String?
+        }
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/khata/entries",
+            body: Body(
+                partyId: partyId,
+                entryType: entryType,
+                amount: amount,
+                currencyCode: currencyCode,
+                note: note,
+                paymentMethodCode: paymentMethodCode
+            ),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
     func createCompanyVendor(
         companyId: String,
         name: String,
@@ -5686,7 +5932,7 @@ final class APIClient {
         )
     }
 
-    func getCompany(companyId: String) async throws -> PersonalProjectionPayload {
+    func getCompany(companyId: String) async throws -> CompanyDetailPayload {
         try await authorizedGet(path: "v1/companies/\(companyId)")
     }
 
@@ -5694,7 +5940,7 @@ final class APIClient {
         companyId: String,
         body: [String: Any],
         idempotencyKey: String = UUID().uuidString
-    ) async throws -> PersonalProjectionPayload {
+    ) async throws -> CompanyDetailPayload {
         struct Body: Encodable {
             let values: [String: JSONEncodableValue]
             init(_ dict: [String: Any]) { values = JSONEncodableValue.map(dict) }
@@ -5794,8 +6040,11 @@ final class APIClient {
         try await authorizedGet(path: "v1/personal/moments/\(momentId)/adjustment-insight")
     }
 
-    func getPersonalActivitySummary(momentId: String) async throws -> PersonalProjectionPayload {
-        try await authorizedGet(path: "v1/personal/moments/\(momentId)/activity-summary")
+    func getPersonalActivitySummary(momentId: String, period: String = "WEEK") async throws -> PersonalProjectionPayload {
+        try await authorizedGet(
+            path: "v1/personal/moments/\(momentId)/activity-summary",
+            query: ["period": period]
+        )
     }
 
     func getPersonalMoneyJourney(momentId: String) async throws -> PersonalProjectionPayload {

@@ -421,45 +421,49 @@ private struct BusinessLocationFlow: View {
     @State private var locations: [APIClient.CompanyLocationItemPayload] = []
     @State private var selected: APIClient.CompanyLocationItemPayload?
     @State private var adding = false
+    @State private var editing: APIClient.CompanyLocationItemPayload?
+    @State private var pendingRemove: APIClient.CompanyLocationItemPayload?
+    @State private var error: String?
+    @State private var refreshToken = 0
 
     var body: some View {
-        let current = selected ?? locations.first { $0.name == locationName }
         Group {
-            if page == .inheritance {
-                GapPage(title: "Inheritance", subtitle: "Locations inherit company defaults.", onBack: { onPage(.locationConfig) }) {
-                    Text("Currency, budget, and reporting stay with the company. This page does not change those rules.").foregroundStyle(gapMuted)
-                }
-            } else if page == .locationDashboard || page == .locationConfig {
-                GapPage(title: page == .locationDashboard ? "Location" : "Location Config", subtitle: current?.name, onBack: { onPage(page == .locationDashboard ? .locationPicker : .locationDashboard) }) {
-                    Text(current?.name ?? "—").foregroundStyle(gapText)
-                    Text(current?.addressText ?? "—").foregroundStyle(gapMuted)
-                    Text(current?.status ?? "—").foregroundStyle(gapMuted)
-                    Button(page == .locationDashboard ? "Configuration" : "Inheritance") {
-                        onPage(page == .locationDashboard ? .locationConfig : .inheritance)
-                    }.foregroundStyle(gapAccent)
-                }
-            } else {
-                GapPage(title: "Locations", onBack: onBackToSettings) {
-                    if locations.isEmpty { Text("No locations yet.").foregroundStyle(gapMuted) }
-                    ForEach(locations) { location in
-                        Button {
-                            selected = location
-                            locationName = location.name
-                            onPage(.locationDashboard)
-                        } label: {
-                            VStack(alignment: .leading) {
-                                Text(location.name).foregroundStyle(gapText)
-                                Text(location.addressText ?? "—").foregroundStyle(gapMuted)
+            GapPage(title: "Locations", onBack: onBackToSettings) {
+                if let error { Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171")) }
+                if locations.isEmpty { Text("No locations yet.").foregroundStyle(gapMuted) }
+                ForEach(locations) { location in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(location.name).foregroundStyle(gapText)
+                        Text(location.addressText ?? "—").foregroundStyle(gapMuted)
+                        Text(location.status ?? "—").foregroundStyle(gapMuted)
+                        HStack(spacing: 16) {
+                            Button("Edit") {
+                                selected = location
+                                locationName = location.name
+                                editing = location
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(16).background(gapCard, in: RoundedRectangle(cornerRadius: 16))
-                        }.buttonStyle(.plain)
+                            .foregroundStyle(gapAccent)
+                            Button("Remove") {
+                                pendingRemove = location
+                            }
+                            .foregroundStyle(Color(hex: "#F87171"))
+                        }
                     }
-                    Button("Add Location") { adding = true }.foregroundStyle(gapBg).padding(12).background(gapAccent, in: RoundedRectangle(cornerRadius: 12))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16).background(gapCard, in: RoundedRectangle(cornerRadius: 16))
                 }
+                Button("Add Location") { adding = true }
+                    .foregroundStyle(gapBg)
+                    .padding(12)
+                    .background(gapAccent, in: RoundedRectangle(cornerRadius: 12))
             }
         }
-        .task(id: companyId) {
+        .onAppear {
+            if page != .locationPicker {
+                onPage(.locationPicker)
+            }
+        }
+        .task(id: "\(companyId ?? "")-\(refreshToken)") {
             guard let companyId, !companyId.isEmpty else { return }
             locations = (try? await APIClient.shared.listCompanyLocations(companyId: companyId)) ?? []
         }
@@ -469,7 +473,54 @@ private struct BusinessLocationFlow: View {
                 selected = created
                 locationName = created.name
                 adding = false
+                refreshToken += 1
             }
+        }
+        .sheet(item: $editing) { location in
+            EditLocationSheet(companyId: companyId ?? "", location: location) { updated in
+                selected = updated
+                locationName = updated.name
+                editing = nil
+                refreshToken += 1
+            }
+        }
+        .confirmationDialog(
+            "Remove \(pendingRemove?.name ?? "location")?",
+            isPresented: Binding(
+                get: { pendingRemove != nil },
+                set: { if !$0 { pendingRemove = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) {
+                if let location = pendingRemove {
+                    pendingRemove = nil
+                    Task { await remove(location) }
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingRemove = nil
+            }
+        } message: {
+            Text("It will no longer appear in your locations.")
+        }
+    }
+
+    private func remove(_ location: APIClient.CompanyLocationItemPayload) async {
+        guard let companyId, let version = location.version else {
+            error = "Missing location version — refresh and try again."
+            return
+        }
+        do {
+            _ = try await APIClient.shared.updateCompanyLocation(
+                companyId: companyId,
+                locationId: location.locationId,
+                status: "INACTIVE",
+                expectedVersion: version
+            )
+            refreshToken += 1
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 }
@@ -488,15 +539,98 @@ private struct AddLocationSheet: View {
             TextField("Address", text: $address).foregroundStyle(gapText)
             Button("Save") {
                 Task {
-                    let created = try? await APIClient.shared.createLocation(companyId: companyId, name: name, addressText: address.nilIfBlank, timezone: TimeZone.current.identifier)
+                    let created = try? await APIClient.shared.createLocation(
+                        companyId: companyId,
+                        name: name,
+                        addressText: address.nilIfBlank,
+                        timezone: TimeZone.current.identifier
+                    )
                     if let created {
-                        onCreated(APIClient.CompanyLocationItemPayload(locationId: created.locationId, name: created.name, addressText: address.nilIfBlank, timezone: TimeZone.current.identifier, status: "ACTIVE"))
+                        onCreated(
+                            APIClient.CompanyLocationItemPayload(
+                                locationId: created.locationId,
+                                name: created.name,
+                                addressText: address.nilIfBlank,
+                                timezone: TimeZone.current.identifier,
+                                status: "ACTIVE",
+                                version: 1
+                            )
+                        )
                     }
                 }
             }.foregroundStyle(gapBg).padding(12).background(gapAccent, in: RoundedRectangle(cornerRadius: 12))
             Button("Cancel") { dismiss() }.foregroundStyle(gapMuted)
         }
         .padding(20).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).background(gapBg)
+    }
+}
+
+private struct EditLocationSheet: View {
+    let companyId: String
+    let location: APIClient.CompanyLocationItemPayload
+    var onSaved: (APIClient.CompanyLocationItemPayload) -> Void
+    @State private var name = ""
+    @State private var address = ""
+    @State private var error: String?
+    @State private var busy = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Edit Location").font(.title3.bold()).foregroundStyle(gapText)
+            TextField("Name", text: $name).foregroundStyle(gapText)
+            TextField("Address", text: $address).foregroundStyle(gapText)
+            if let error {
+                Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
+            }
+            Button("Save") {
+                Task { await save() }
+            }
+            .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || busy)
+            .foregroundStyle(gapBg)
+            .padding(12)
+            .background(gapAccent, in: RoundedRectangle(cornerRadius: 12))
+            Button("Cancel") { dismiss() }.foregroundStyle(gapMuted)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(gapBg)
+        .onAppear {
+            name = location.name
+            address = location.addressText ?? ""
+        }
+    }
+
+    private func save() async {
+        guard let version = location.version else {
+            error = "Missing location version — refresh and try again."
+            return
+        }
+        busy = true
+        defer { busy = false }
+        do {
+            _ = try await APIClient.shared.updateCompanyLocation(
+                companyId: companyId,
+                locationId: location.locationId,
+                name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                addressText: address.nilIfBlank,
+                timezone: location.timezone ?? TimeZone.current.identifier,
+                expectedVersion: version
+            )
+            onSaved(
+                APIClient.CompanyLocationItemPayload(
+                    locationId: location.locationId,
+                    name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                    addressText: address.nilIfBlank,
+                    timezone: location.timezone,
+                    status: location.status,
+                    version: version + 1
+                )
+            )
+            dismiss()
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }
 

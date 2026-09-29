@@ -9,18 +9,27 @@ struct PersonalPulseActiveView: View {
     var onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Void = { _ in }
     var onFutureQuickAdd: (FutureQuickAddKind) -> Void = { _ in }
     var onLifestyleQuickAdd: (LifestyleQuickAddKind) -> Void = { _ in }
+    var onRelationshipsQuickAdd: (RelationshipsQuickAddKind) -> Void = { _ in }
     var onViewAllActivity: () -> Void = {}
+    var forceCollapsed: Bool = false
+    var onEnableSimpleMode: () -> Void = {}
 
     @State private var pulse: APIClient.PersonalPulsePayload?
     @State private var activities: [APIClient.ActivityItemPayload] = []
     @State private var loading = true
     @State private var error: String?
+    @State private var seeMoreExpanded = false
+    @State private var simpleCtaDismissed = PersonalHabitPreferences.simpleCtaDismissed
 
     private var family: PersonalPulseFamily { PersonalPulseFamily.forTypeCode(momentTypeCode) }
     private var theme: PersonalPulseFamilyTheme { family.theme }
     private var isLifeOps: Bool { family == .lifeOperations }
     private var isFuture: Bool { family == .futureBuilding }
     private var isLifestyle: Bool { family == .lifestyle }
+    private var isRelationships: Bool { family == .relationships }
+    private var showTrySimpleCta: Bool {
+        isLifeOps && !forceCollapsed && PersonalHabitPreferences.hasTodaySave && !simpleCtaDismissed
+    }
 
     var body: some View {
         Group {
@@ -37,22 +46,83 @@ struct PersonalPulseActiveView: View {
                                 .font(.caption)
                                 .foregroundStyle(Color(hex: "#F87171"))
                         }
+                        Text(PersonalLifeOpsDerived.timeOfDayGreeting())
+                            .font(.plusJakarta(size: 14, weight: .semibold))
+                            .foregroundStyle(Color(hex: "#C9C4D8"))
                         if let momentTitle, !momentTitle.isEmpty {
                             Text(momentTitle)
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Color(hex: "#C9C4D8"))
                         }
                         heroCard
-                        tileGrid
-                        momentumCard
-                        if isLifeOps || isFuture || isLifestyle {
-                            helpingHurtingCard
+                        familyTodayActionStrip
+                        Text(dayFeedbackLine)
+                            .font(.plusJakarta(size: 13))
+                            .foregroundStyle(Color(hex: "#C9C4D8"))
+                        if showTrySimpleCta {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Button {
+                                    PersonalHabitPreferences.simpleCtaDismissed = true
+                                    simpleCtaDismissed = true
+                                    PersonalHabitPreferences.simpleMode = true
+                                    onEnableSimpleMode()
+                                } label: {
+                                    Text("Try Simple mode — Everyday only")
+                                        .font(.plusJakarta(size: 13, weight: .bold))
+                                        .foregroundStyle(Color(hex: "#A78BFA"))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .buttonStyle(.plain)
+                                Button {
+                                    PersonalHabitPreferences.simpleCtaDismissed = true
+                                    simpleCtaDismissed = true
+                                } label: {
+                                    Text("Not now")
+                                        .font(.plusJakarta(size: 12))
+                                        .foregroundStyle(Color(hex: "#C9C4D8"))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(hex: "#7C5CFC").opacity(0.12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color(hex: "#A78BFA").opacity(0.35), lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        activityCard
-                        moneyCard
-                        nudgeCard
-                        insightsCard
-                        quickActionsRow
+                        Button {
+                            seeMoreExpanded.toggle()
+                        } label: {
+                            Text(seeMoreExpanded ? "Show less" : "See more of your day")
+                                .font(.plusJakarta(size: 13, weight: .bold))
+                                .foregroundStyle(Color(hex: "#A78BFA"))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
+                                .background(Color.white.opacity(0.05))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                        if seeMoreExpanded {
+                            heroAxisChips
+                            tileGrid
+                            momentumCard
+                            if isLifeOps || isFuture || isLifestyle || isRelationships {
+                                helpingHurtingCard
+                            }
+                            activityCard
+                            moneyCard
+                            nudgeCard
+                            insightsCard
+                            quickActionsRow
+                        }
                     }
                 
 
@@ -63,6 +133,18 @@ struct PersonalPulseActiveView: View {
         }
         .background(Color(hex: "#14121B"))
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
+        .onChange(of: forceCollapsed) { _, forced in
+            if forced { seeMoreExpanded = false }
+        }
+    }
+
+    private var dayFeedbackLine: String {
+        PersonalLifeOpsDerived.dayFeedbackLine(
+            moodState: pulse?.moodState,
+            spendPairs: spendPairs,
+            todayLogCount: PersonalLifeOpsDerived.todayActivityCount(from: activities.map(\.occurredAt)),
+            family: family
+        )
     }
 
     private var wellbeing: String { PersonalLifeOpsDerived.displayScore(pulse?.wellbeingScore) }
@@ -115,12 +197,6 @@ struct PersonalPulseActiveView: View {
     private var lifestyleAxisValues: [String] { [joy, fulfillment, vitality, exploration] }
 
     private var heroCard: some View {
-        let values: [String] = {
-            if isLifeOps { return lifeOpsAxisValues }
-            if isFuture { return futureAxisValues }
-            if isLifestyle { return lifestyleAxisValues }
-            return [recovery, rhythm, attention, mood]
-        }()
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -159,23 +235,7 @@ struct PersonalPulseActiveView: View {
                     .foregroundStyle(.white.opacity(0.8))
                 }
             }
-            HStack(spacing: 8) {
-                ForEach(Array(theme.heroMetrics.enumerated()), id: \.offset) { index, label in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(label)
-                            .font(.plusJakarta(size: 9, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.75))
-                        Text(values.indices.contains(index) ? values[index] : "—")
-                            .font(.plusJakarta(size: 14, weight: .heavy))
-                            .foregroundStyle(.white)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .background(Color.white.opacity(0.08))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-            }
+            // Axis chips live behind "See more" for all families.
         }
         .padding(14)
         .background(
@@ -184,6 +244,116 @@ struct PersonalPulseActiveView: View {
         .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.1), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .shadow(color: theme.accent.opacity(0.25), radius: 16, y: 6)
+    }
+
+    private var heroAxisChips: some View {
+        let values: [String] = {
+            if isLifeOps { return lifeOpsAxisValues }
+            if isFuture { return futureAxisValues }
+            if isLifestyle { return lifestyleAxisValues }
+            return [recovery, rhythm, attention, mood]
+        }()
+        return heroAxisChips(values: values)
+    }
+
+    private func heroAxisChips(values: [String]) -> some View {
+        HStack(spacing: 8) {
+            ForEach(Array(theme.heroMetrics.enumerated()), id: \.offset) { index, label in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(.plusJakarta(size: 9, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.75))
+                    Text(values.indices.contains(index) ? values[index] : "—")
+                        .font(.plusJakarta(size: 14, weight: .heavy))
+                        .foregroundStyle(.white)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(Color.white.opacity(0.08))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+    }
+
+    private var familyTodayActionStrip: some View {
+        let actions: [(String, Color, String, () -> Void)] = {
+            switch family {
+            case .lifeOperations:
+                return [
+                    ("Spend", Color(hex: "#10B981"), "wallet.pass", { onAddExpense() }),
+                    ("Mood", Color(hex: "#A78BFA"), "face.smiling", { onLifeOpsQuickAdd(.mood) }),
+                    ("Recovery", Color(hex: "#4CD6FF"), "waveform.path.ecg", { onLifeOpsQuickAdd(.recovery) }),
+                ]
+            case .futureBuilding:
+                return [
+                    ("Milestone", Color(hex: "#10B981"), "flag.fill", { onFutureQuickAdd(.milestone) }),
+                    ("Progress", Color(hex: "#A78BFA"), "chart.line.uptrend.xyaxis", { onFutureQuickAdd(.progress) }),
+                    ("Learning", Color(hex: "#4CD6FF"), "book.fill", { onFutureQuickAdd(.learning) }),
+                ]
+            case .lifestyle:
+                return [
+                    ("Experience", Color(hex: "#10B981"), "sparkles", { onLifestyleQuickAdd(.experience) }),
+                    ("Wellbeing", Color(hex: "#A78BFA"), "heart.fill", { onLifestyleQuickAdd(.wellbeing) }),
+                    ("Discovery", Color(hex: "#4CD6FF"), "safari.fill", { onLifestyleQuickAdd(.discovery) }),
+                ]
+            case .relationships:
+                return [
+                    ("Connection", Color(hex: "#10B981"), "person.2.fill", { onRelationshipsQuickAdd(.connection) }),
+                    ("Shared", Color(hex: "#A78BFA"), "hands.clap.fill", { onRelationshipsQuickAdd(.shared) }),
+                    ("Support", Color(hex: "#4CD6FF"), "heart.circle.fill", { onRelationshipsQuickAdd(.support) }),
+                ]
+            }
+        }()
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Today")
+                .font(.plusJakarta(size: 12, weight: .bold))
+                .foregroundStyle(Color(hex: "#C9C4D8"))
+            HStack(spacing: 8) {
+                ForEach(Array(actions.enumerated()), id: \.offset) { _, item in
+                    todayActionButton(
+                        label: item.0,
+                        tint: item.1,
+                        symbol: item.2,
+                        enabled: momentId != nil
+                    ) { item.3() }
+                }
+            }
+        }
+    }
+
+    private var todayActionStrip: some View {
+        familyTodayActionStrip
+    }
+
+    private func todayActionButton(
+        label: String,
+        tint: Color,
+        symbol: String,
+        enabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(tint)
+                Text(label)
+                    .font(.plusJakarta(size: 13, weight: .bold))
+                    .foregroundStyle(Color(hex: "#E5E0EE"))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 14)
+            .background(tint.opacity(0.12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(tint.opacity(0.35), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
     }
 
     private var tileGrid: some View {
@@ -638,8 +808,14 @@ struct PersonalPulseActiveView: View {
             Color(hex: "#10B981"),
             Color(hex: "#C9C4D8"),
         ]
+        let actions: [String] = {
+            if isLifeOps && forceCollapsed {
+                return theme.quickActions.filter { $0 == "Recovery" || $0 == "Mood" }
+            }
+            return theme.quickActions
+        }()
         return HStack {
-            ForEach(Array(theme.quickActions.enumerated()), id: \.offset) { index, label in
+            ForEach(Array(actions.enumerated()), id: \.offset) { index, label in
                 let tint = colors.indices.contains(index) ? colors[index] : Color(hex: "#C9C4D8")
                 Button {
                     switch label {

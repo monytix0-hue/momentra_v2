@@ -7,6 +7,8 @@ struct RunwayMomentsActiveView: View {
     let momentId: String?
     var onLogExpense: () -> Void = {}
     var onOpenQuickAdd: () -> Void = {}
+    var onOpenMoments: () -> Void = {}
+    var onViewAllActivity: () -> Void = {}
 
     @State private var activities: [APIClient.ActivityItemPayload] = []
     @State private var timeline: APIClient.BusinessTimelinePayload?
@@ -14,6 +16,7 @@ struct RunwayMomentsActiveView: View {
     @State private var filter = "All"
     @State private var loading = true
     @State private var error: String?
+    @State private var smallShop = false
 
     private let theme = BusinessActiveTheme.businessRunway
     private let filters = ["All", "Revenue", "Expenses"]
@@ -113,12 +116,15 @@ struct RunwayMomentsActiveView: View {
                             entries: "\(hasTimeline ? timelineItems.count : activities.count)",
                             revenue: revenue,
                             activity: "\(activities.count)",
-                            theme: theme
+                            theme: theme,
+                            smallShop: smallShop
                         )
-                        RunwayFilterChipRow(chips: filters, selected: filter, onSelect: { filter = $0 }, theme: theme)
+                        if !smallShop {
+                            RunwayFilterChipRow(chips: filters, selected: filter, onSelect: { filter = $0 }, theme: theme)
+                        }
                         timelineBlock
                         if !showEmpty {
-                            Button("See Full History →") { onOpenQuickAdd() }
+                            Button("See Full History →") { onViewAllActivity() }
                                 .font(.plusJakarta(size: 13, weight: .semibold))
                                 .foregroundStyle(RunwayColors.linkAmber)
                         }
@@ -138,6 +144,10 @@ struct RunwayMomentsActiveView: View {
             }
         }
         .background(theme.bg)
+        .task(id: momentId) {
+            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+            if smallShop { filter = "All" }
+        }
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
@@ -160,14 +170,14 @@ struct RunwayMomentsActiveView: View {
         } else if hasTimeline {
             ForEach(filteredTimeline) { item in
                 timelineRow(title: item.title.isEmpty ? item.eventType : item.title,
-                            meta: [item.category, String(item.occurredAt.prefix(10))].filter { !$0.isEmpty }.joined(separator: " • "),
+                            meta: [item.category, String(item.occurredAt.prefix(10))].filter { !$0.isEmpty }.joined(separator: " â€¢ "),
                             accent: accent(for: item.eventType))
             }
         } else {
             ForEach(Array(filteredActivities.enumerated()), id: \.offset) { _, act in
                 timelineRow(
                     title: act.title.isEmpty ? act.activityCode : act.title,
-                    meta: "\(act.activityCode) • \(String(act.occurredAt.prefix(10)))",
+                    meta: "\(act.activityCode) â€¢ \(String(act.occurredAt.prefix(10)))",
                     accent: RunwayColors.amber
                 )
             }
@@ -250,7 +260,7 @@ struct RunwayMomentsActiveView: View {
                 enabled: momentId?.isEmpty == false,
                 action: onLogExpense
             )
-            Button("See Full History →") { onOpenQuickAdd() }
+            Button("See Full History →") { onViewAllActivity() }
                 .font(.plusJakarta(size: 13, weight: .semibold))
                 .foregroundStyle(RunwayColors.linkAmber)
         }
@@ -292,6 +302,6 @@ struct RunwayMomentsActiveView: View {
 
     private func maskedMoney(_ value: String) -> String {
         guard !value.isEmpty else { return "—" }
-        return UserDefaults.standard.bool(forKey: "momentra_hide_balances") ? "••••" : value
+        return UserDefaults.standard.bool(forKey: "momentra_hide_balances") ? "â€¢â€¢â€¢â€¢" : value
     }
 }

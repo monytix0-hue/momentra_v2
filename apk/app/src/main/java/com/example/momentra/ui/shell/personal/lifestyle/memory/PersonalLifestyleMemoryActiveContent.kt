@@ -94,9 +94,9 @@ fun PersonalLifestyleMemoryActiveContent(
     val stability = PersonalLifestyleDerived.networkStability(pulse)
     val experienceCount = PersonalLifestyleDerived.experienceCount(pulse)
     val thinData = activities.size < 2 && vitality == "—"
-    val patternConfidence = if (thinData) "Building…" else "${(40 + activities.size * 5).coerceAtMost(92)}% pattern confidence"
+    val patternConfidence = if (thinData) "Patterns appear after a few logs" else "${(40 + activities.size * 5).coerceAtMost(92)}% pattern confidence"
     val aiBody = when {
-        thinData -> "Building… Log experiences and wellbeing to unlock vitality memory."
+        thinData -> "Start on Pulse — log experiences or wellbeing to unlock patterns."
         experienceCount > 0 -> "Your system rewards experiences logged with intention — joy and exploration compound."
         else -> "Keep logging rituals and discovery moments to reveal lifestyle patterns."
     }

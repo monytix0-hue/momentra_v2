@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum PersonalPulseFamily: Equatable {
+enum PersonalPulseFamily: String, Equatable, CaseIterable {
     case lifeOperations
     case futureBuilding
     case lifestyle
@@ -45,32 +45,31 @@ extension PersonalPulseFamily {
         switch self {
         case .lifeOperations:
             return PersonalPulseFamilyTheme(
-                heroTitle: "WELLBEING SCORE",
-                heroSubtitleFilled: "Your rhythm is building",
-                heroSubtitleEmpty: "Awaiting first signals",
+                heroTitle: "YOUR DAY",
+                heroSubtitleFilled: "Your day is taking shape",
+                heroSubtitleEmpty: "Nothing logged yet",
                 heroMetrics: ["Pressure", "Recovery", "Discipline", "Attention"],
                 tileLabels: ["Pressure", "Recovery", "Discipline", "Attention"],
                 nudgeTitle: "Protect Recovery",
-                nudgeBody: "Add a recovery block before your next busy stretch.",
+                nudgeBody: "You've been busy — rest for a bit before the next stretch.",
                 nudgeCta: "Log Recovery Now",
-                moneyTitle: "MONEY SNAPSHOT",
-                quickActions: ["Recovery", "Attention", "Mood", "Money", "Adjust"],
+                moneyTitle: "This month's money",
+                quickActions: ["Recovery", "Attention", "Mood", "Adjust"],
                 heroStart: Color(hex: "#7C5CFC"),
                 heroEnd: Color(hex: "#A78BFA"),
                 accent: Color(hex: "#7C5CFC")
             )
         case .futureBuilding:
-            // SCREEN_STALE fix (G8): align with MomentThemes / matrix emerald `#10B981` / `#34D399`.
             return PersonalPulseFamilyTheme(
-                heroTitle: "FUTURE SCORE",
+                heroTitle: "YOUR FUTURE",
                 heroSubtitleFilled: "Your trajectory is strong",
-                heroSubtitleEmpty: "Awaiting first signals",
+                heroSubtitleEmpty: "Nothing logged yet",
                 heroMetrics: ["Vision", "Growth", "Momentum", "Discipline"],
                 tileLabels: ["Vision", "Growth", "Momentum", "Discipline"],
                 nudgeTitle: "Accelerate Growth",
                 nudgeBody: "Log a milestone to keep momentum compounding.",
                 nudgeCta: "Log Milestone",
-                moneyTitle: "INVESTMENT SNAPSHOT",
+                moneyTitle: "This month's investments",
                 quickActions: ["Milestone", "Opportunity", "Pivot", "Progress", "Learning"],
                 heroStart: Color(hex: "#10B981"),
                 heroEnd: Color(hex: "#34D399"),
@@ -78,36 +77,54 @@ extension PersonalPulseFamily {
             )
         case .lifestyle:
             return PersonalPulseFamilyTheme(
-                heroTitle: "VITALITY INDEX",
-                heroSubtitleFilled: "Network stability · Flourishing",
-                heroSubtitleEmpty: "Awaiting first signals",
+                heroTitle: "YOUR LIFESTYLE",
+                heroSubtitleFilled: "Your lifestyle is taking shape",
+                heroSubtitleEmpty: "Nothing logged yet",
                 heroMetrics: ["Joy", "Fulfillment", "Vitality", "Exploration"],
                 tileLabels: ["Joy", "Fulfillment", "Vitality", "Exploration"],
                 nudgeTitle: "Protect a ritual",
                 nudgeBody: "Log one experience to protect your lifestyle rhythm.",
                 nudgeCta: "Log Experience",
-                moneyTitle: "LIFESTYLE SPEND",
+                moneyTitle: "This month's lifestyle spend",
                 quickActions: ["Experience", "Wellbeing", "Discovery", "Create", "Adjust"],
                 heroStart: Color(hex: "#0EA5A4"),
-                heroEnd: Color(hex: "#7C5CFC"),
+                heroEnd: Color(hex: "#A78BFA"),
                 accent: Color(hex: "#7C5CFC")
             )
         case .relationships:
             return PersonalPulseFamilyTheme(
-                heroTitle: "BOND INDEX",
-                heroSubtitleFilled: "Stable and deepening",
-                heroSubtitleEmpty: "Awaiting first signals",
+                heroTitle: "YOUR PEOPLE",
+                heroSubtitleFilled: "Your bonds are deepening",
+                heroSubtitleEmpty: "Nothing logged yet",
                 heroMetrics: ["Trust", "Care", "Support", "Presence"],
                 tileLabels: ["Trust", "Care", "Support", "Presence"],
                 nudgeTitle: "Protect Connection",
                 nudgeBody: "Log a connection before the next busy stretch.",
                 nudgeCta: "Log Connection",
-                moneyTitle: "SHARED SPEND",
+                moneyTitle: "This month's shared spend",
                 quickActions: ["Connection", "Shared", "Investment", "Support", "Adjust"],
                 heroStart: Color(hex: "#E91E63"),
                 heroEnd: Color(hex: "#A78BFA"),
                 accent: Color(hex: "#E12A9E")
             )
+        }
+    }
+
+    var loggingLabel: String {
+        switch self {
+        case .lifeOperations: return "Life"
+        case .futureBuilding: return "Future"
+        case .lifestyle: return "Lifestyle"
+        case .relationships: return "Relationships"
+        }
+    }
+
+    var switcherLabel: String {
+        switch self {
+        case .lifeOperations: return "Everyday"
+        case .futureBuilding: return "Future"
+        case .lifestyle: return "Lifestyle"
+        case .relationships: return "People"
         }
     }
 }

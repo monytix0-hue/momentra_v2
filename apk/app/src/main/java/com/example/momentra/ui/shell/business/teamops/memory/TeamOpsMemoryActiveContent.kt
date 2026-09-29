@@ -1,5 +1,6 @@
 package com.example.momentra.ui.shell.business.teamops.memory
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,15 +18,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.BusinessMemoryPayloadDto
 import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
+import com.example.momentra.ui.shell.business.shared.BusinessAudience
 import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
+import kotlinx.coroutines.launch
 import com.example.momentra.ui.shell.business.shared.loadBusinessMemoryTab
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsColors
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsDiamondDivider
@@ -55,6 +60,23 @@ fun TeamOpsMemoryActiveContent(
     var payload by remember { mutableStateOf<BusinessMemoryPayloadDto?>(null) }
     var scope by remember { mutableStateOf("All") }
     var error by remember { mutableStateOf<String?>(null) }
+    var smallShop by remember { mutableStateOf(false) }
+    var shareBusy by remember { mutableStateOf(false) }
+    var shareMessage by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(momentId) {
+        smallShop = BusinessAudience.isSmallShopMoment(momentId, context = context)
+    }
+
+    val scopeChips = remember(smallShop) {
+        if (smallShop) listOf("All", "Team") else Scopes
+    }
+
+    LaunchedEffect(scopeChips, scope) {
+        if (scope !in scopeChips) scope = "All"
+    }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -126,7 +148,7 @@ fun TeamOpsMemoryActiveContent(
         }
 
         TeamOpsFilterChipRow(
-            chips = Scopes,
+            chips = scopeChips,
             selected = scope,
             onSelect = { scope = it },
             theme = theme,
@@ -147,23 +169,25 @@ fun TeamOpsMemoryActiveContent(
             theme = theme,
         )
 
-        TeamOpsDiamondDivider(theme = theme)
+        if (!smallShop) {
+            TeamOpsDiamondDivider(theme = theme)
 
-        TeamOpsEmptyAiCard(
-            title = "Pattern Network",
-            emptyCopy = "No patterns yet",
-            theme = theme,
-        )
+            TeamOpsEmptyAiCard(
+                title = "Pattern Network",
+                emptyCopy = "Tips will appear here",
+                theme = theme,
+            )
 
-        TeamOpsDiamondDivider(theme = theme)
+            TeamOpsDiamondDivider(theme = theme)
 
-        TeamOpsEmptyAiCard(
-            title = "Business Playbook",
-            emptyCopy = "No playbook yet",
-            theme = theme,
-        )
+            TeamOpsEmptyAiCard(
+                title = "Business Playbook",
+                emptyCopy = "No playbook yet",
+                theme = theme,
+            )
 
-        TeamOpsDiamondDivider(theme = theme)
+            TeamOpsDiamondDivider(theme = theme)
+        }
 
         TeamOpsMemoryListSection(
             title = "Success Memory",
@@ -181,23 +205,25 @@ fun TeamOpsMemoryActiveContent(
             accentBorder = TeamOpsColors.Red,
         )
 
-        TeamOpsEmptyAiCard(
-            title = "Team Wisdom",
-            emptyCopy = "No wisdom yet",
-            theme = theme,
-        )
+        if (!smallShop) {
+            TeamOpsEmptyAiCard(
+                title = "Team Wisdom",
+                emptyCopy = "No wisdom yet",
+                theme = theme,
+            )
 
-        TeamOpsEmptyAiCard(
-            title = "Knowledge Journey",
-            emptyCopy = if (filtered.isEmpty()) {
-                "Journey milestones appear as memories are recorded."
-            } else {
-                filtered.take(5).joinToString(" → ") {
-                    it["title"]?.toString()?.ifBlank { "Memory" } ?: "Memory"
-                }
-            },
-            theme = theme,
-        )
+            TeamOpsEmptyAiCard(
+                title = "Knowledge Journey",
+                emptyCopy = if (filtered.isEmpty()) {
+                    "Journey milestones appear as memories are recorded."
+                } else {
+                    filtered.take(5).joinToString(" → ") {
+                        it["title"]?.toString()?.ifBlank { "Memory" } ?: "Memory"
+                    }
+                },
+                theme = theme,
+            )
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -210,9 +236,33 @@ fun TeamOpsMemoryActiveContent(
                 modifier = Modifier.weight(1f),
             )
             TeamOpsOutlineButton(
-                label = "Share with Team",
-                enabled = true,
-                onClick = onOpenQuickAdd,
+                label = if (shareBusy) "Sharing…" else "Share with Team",
+                enabled = !momentId.isNullOrBlank() && !shareBusy,
+                onClick = {
+                    val id = momentId ?: return@TeamOpsOutlineButton
+                    shareBusy = true
+                    shareMessage = null
+                    coroutineScope.launch {
+                        repository.createShareLink(id).fold(
+                            onSuccess = { link ->
+                                shareBusy = false
+                                val url = link.shareUrl.orEmpty()
+                                if (url.isNotBlank()) {
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, url)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, "Share with team"))
+                                }
+                                shareMessage = link.note ?: "Share link created"
+                            },
+                            onFailure = {
+                                shareBusy = false
+                                shareMessage = it.message ?: "Share unavailable"
+                            },
+                        )
+                    }
+                },
                 theme = theme,
                 modifier = Modifier.weight(1f),
             )

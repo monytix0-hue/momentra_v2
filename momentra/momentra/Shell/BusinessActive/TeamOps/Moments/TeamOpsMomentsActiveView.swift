@@ -7,6 +7,7 @@ struct TeamOpsMomentsActiveView: View {
     let momentId: String?
     var onLogWin: () -> Void = {}
     var onOpenQuickAdd: () -> Void = {}
+    var onViewAllActivity: () -> Void = {}
 
     @State private var activities: [APIClient.ActivityItemPayload] = []
     @State private var timeline: APIClient.BusinessTimelinePayload?
@@ -14,6 +15,7 @@ struct TeamOpsMomentsActiveView: View {
     @State private var filter = "All"
     @State private var loading = true
     @State private var error: String?
+    @State private var smallShop = false
 
     private let theme = BusinessActiveTheme.teamOperations
     private let filters = ["All", "Milestones", "Decisions", "Deliveries"]
@@ -121,10 +123,12 @@ struct TeamOpsMomentsActiveView: View {
                             issues: issues,
                             theme: theme
                         )
-                        TeamOpsFilterChipRow(chips: filters, selected: filter, onSelect: { filter = $0 }, theme: theme)
+                        if !smallShop {
+                            TeamOpsFilterChipRow(chips: filters, selected: filter, onSelect: { filter = $0 }, theme: theme)
+                        }
                         timelineBlock
                         if !showEmpty {
-                            Button("See Full History →") { onOpenQuickAdd() }
+                            Button("See Full History →") { onViewAllActivity() }
                                 .font(.plusJakarta(size: 13, weight: .semibold))
                                 .foregroundStyle(TeamOpsColors.linkBlue)
                         }
@@ -144,6 +148,10 @@ struct TeamOpsMomentsActiveView: View {
             }
         }
         .background(theme.bg)
+        .task(id: momentId) {
+            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+            if smallShop { filter = "All" }
+        }
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
@@ -257,7 +265,7 @@ struct TeamOpsMomentsActiveView: View {
                 enabled: momentId?.isEmpty == false,
                 action: onLogWin
             )
-            Button("See Full History →") { onOpenQuickAdd() }
+            Button("See Full History →") { onViewAllActivity() }
                 .font(.plusJakarta(size: 13, weight: .semibold))
                 .foregroundStyle(TeamOpsColors.linkBlue)
         }

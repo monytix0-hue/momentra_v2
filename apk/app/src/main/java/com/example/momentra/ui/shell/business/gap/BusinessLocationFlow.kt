@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -56,7 +58,11 @@ fun BusinessLocationFlow(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var adding by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<LocationItemDto?>(null) }
+    var pendingRemove by remember { mutableStateOf<LocationItemDto?>(null) }
     var refresh by remember { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
+
     LaunchedEffect(companyId, refresh) {
         loading = true
         runCatching { ApiClient.apiService.listLocations(companyId).data.items }
@@ -67,67 +73,76 @@ fun BusinessLocationFlow(
             .onFailure { error = it.message }
         loading = false
     }
-    val current = selected ?: locations.firstOrNull()
-    when (page) {
-        BusinessGapPage.LocationDashboard -> LocationDetail(
-            title = "Location",
-            location = current,
-            onBack = { onPage(BusinessGapPage.LocationPicker) },
-            primary = "Configuration" to { onPage(BusinessGapPage.LocationConfig) },
-        )
-        BusinessGapPage.LocationConfig -> LocationDetail(
-            title = "Location Config",
-            location = current,
-            onBack = { onPage(BusinessGapPage.LocationDashboard) },
-            primary = "Inheritance" to { onPage(BusinessGapPage.Inheritance) },
-        )
-        BusinessGapPage.Inheritance -> GapScreen(
-            title = "Inheritance",
-            subtitle = "Locations inherit company defaults.",
-            onBack = { onPage(BusinessGapPage.LocationConfig) },
+
+    // Dashboard / Config / Inheritance are no longer the primary path — keep list as home.
+    if (page != BusinessGapPage.LocationPicker) {
+        LaunchedEffect(page) { onPage(BusinessGapPage.LocationPicker) }
+    }
+
+    GapScreen(title = "Locations", onBack = onBackToSettings) {
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                "Currency, budget, and reporting stay with the company. This page does not change those rules.",
-                color = GapMuted,
-                fontSize = 14.sp,
-                fontFamily = PlusJakartaSans,
-                modifier = Modifier.padding(16.dp),
-            )
-        }
-        else -> GapScreen(title = "Locations", onBack = onBackToSettings) {
-            Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                error?.let { Text(it, color = GapMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans) }
-                if (loading) CircularProgressIndicator(color = GapAccent)
-                if (!loading && locations.isEmpty()) {
-                    Text("No locations yet.", color = GapMuted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
-                }
-                locations.forEach { location ->
-                    GapCard(modifier = Modifier.clickable {
-                        onSelect(location)
-                        onPage(BusinessGapPage.LocationDashboard)
-                    }) {
-                        Text(location.name, color = GapText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
-                        Text(location.addressText?.takeIf { it.isNotBlank() } ?: "—", color = GapMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
-                        Text(location.status, color = GapMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
+            error?.let { Text(it, color = GapMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans) }
+            if (loading) CircularProgressIndicator(color = GapAccent)
+            if (!loading && locations.isEmpty()) {
+                Text("No locations yet.", color = GapMuted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+            }
+            locations.forEach { location ->
+                GapCard {
+                    Text(
+                        location.name,
+                        color = GapText,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                    Text(
+                        location.addressText?.takeIf { it.isNotBlank() } ?: "—",
+                        color = GapMuted,
+                        fontSize = 12.sp,
+                        fontFamily = PlusJakartaSans,
+                    )
+                    Text(location.status, color = GapMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) {
+                        Text(
+                            "Edit",
+                            color = GapAccent,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = PlusJakartaSans,
+                            modifier = Modifier.clickable {
+                                onSelect(location)
+                                editing = location
+                            },
+                        )
+                        Text(
+                            "Remove",
+                            color = ColorRemove,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = PlusJakartaSans,
+                            modifier = Modifier.clickable { pendingRemove = location },
+                        )
                     }
                 }
-                Text(
-                    "Add Location",
-                    color = GapBg,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSans,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(GapAccent)
-                        .clickable { adding = true }
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                )
             }
+            Text(
+                "Add Location",
+                color = GapBg,
+                fontWeight = FontWeight.Bold,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(GapAccent)
+                    .clickable { adding = true }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            )
         }
     }
+
     if (adding) {
         AddLocationSheet(
             companyId = companyId,
@@ -139,30 +154,70 @@ fun BusinessLocationFlow(
             },
         )
     }
-}
-
-@Composable
-private fun LocationDetail(
-    title: String,
-    location: LocationItemDto?,
-    onBack: () -> Unit,
-    primary: Pair<String, () -> Unit>,
-) {
-    GapScreen(title = title, subtitle = location?.name, onBack = onBack) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(location?.name ?: "—", color = GapText, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
-            Text(location?.addressText?.takeIf { it.isNotBlank() } ?: "—", color = GapMuted, fontFamily = PlusJakartaSans)
-            Text(location?.status ?: "—", color = GapMuted, fontFamily = PlusJakartaSans)
-            Text(
-                primary.first,
-                color = GapAccent,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = PlusJakartaSans,
-                modifier = Modifier.clickable(onClick = primary.second).padding(top = 8.dp),
-            )
-        }
+    editing?.let { loc ->
+        EditLocationSheet(
+            companyId = companyId,
+            location = loc,
+            onDismiss = { editing = null },
+            onSaved = { updated ->
+                onSelect(updated)
+                editing = null
+                refresh += 1
+            },
+        )
+    }
+    pendingRemove?.let { location ->
+        AlertDialog(
+            onDismissRequest = { pendingRemove = null },
+            title = { Text("Remove ${location.name}?") },
+            text = {
+                Text("It will no longer appear in your locations.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val version = location.version
+                        pendingRemove = null
+                        if (version == null) {
+                            error = "Missing location version — refresh and try again."
+                            return@TextButton
+                        }
+                        scope.launch {
+                            runCatching {
+                                ApiClient.apiService.patchLocation(
+                                    companyId = companyId,
+                                    locationId = location.locationId,
+                                    idempotencyKey = UUID.randomUUID().toString(),
+                                    body = mapOf<String, Any>(
+                                        "expectedVersion" to version,
+                                        "status" to "INACTIVE",
+                                    ),
+                                )
+                            }.fold(
+                                onSuccess = {
+                                    if (selected?.locationId == location.locationId) {
+                                        onSelect(location.copy(status = "INACTIVE"))
+                                    }
+                                    refresh += 1
+                                },
+                                onFailure = { error = it.message },
+                            )
+                        }
+                    },
+                ) {
+                    Text("Remove", color = ColorRemove)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRemove = null }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 }
+
+private val ColorRemove = androidx.compose.ui.graphics.Color(0xFFF87171)
 
 @Composable
 private fun AddLocationSheet(
@@ -213,7 +268,82 @@ private fun AddLocationSheet(
                                         locationId = it.locationId,
                                         name = it.name,
                                         addressText = address.trim().ifBlank { null },
+                                        timezone = ZoneId.systemDefault().id,
                                         status = "ACTIVE",
+                                        version = 1,
+                                    ),
+                                )
+                            },
+                            onFailure = {
+                                error = it.message
+                                busy = false
+                            },
+                        )
+                    }
+                }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+        Text("Cancel", color = GapMuted, modifier = Modifier.clickable(onClick = onDismiss))
+    }
+}
+
+@Composable
+private fun EditLocationSheet(
+    companyId: String,
+    location: LocationItemDto,
+    onDismiss: () -> Unit,
+    onSaved: (LocationItemDto) -> Unit,
+) {
+    var name by remember { mutableStateOf(location.name) }
+    var address by remember { mutableStateOf(location.addressText.orEmpty()) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(GapBg)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("Edit Location", color = GapText, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+        GapField("Name", name) { name = it }
+        GapField("Address", address) { address = it }
+        error?.let { Text(it, color = ColorRemove, fontSize = 12.sp) }
+        Text(
+            "Save",
+            color = if (name.isNotBlank() && !busy) GapBg else GapMuted,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (name.isNotBlank() && !busy) GapAccent else GapCard)
+                .clickable(enabled = name.isNotBlank() && !busy) {
+                    val version = location.version
+                    if (version == null) {
+                        error = "Missing location version — refresh and try again."
+                        return@clickable
+                    }
+                    busy = true
+                    scope.launch {
+                        runCatching {
+                            ApiClient.apiService.patchLocation(
+                                companyId = companyId,
+                                locationId = location.locationId,
+                                idempotencyKey = UUID.randomUUID().toString(),
+                                body = buildMap<String, Any> {
+                                    put("expectedVersion", version)
+                                    put("name", name.trim())
+                                    address.trim().takeIf { it.isNotEmpty() }?.let { put("addressText", it) }
+                                    put("timezone", location.timezone ?: ZoneId.systemDefault().id)
+                                },
+                            )
+                        }.fold(
+                            onSuccess = {
+                                onSaved(
+                                    location.copy(
+                                        name = name.trim(),
+                                        addressText = address.trim().ifBlank { null },
+                                        version = version + 1,
                                     ),
                                 )
                             },

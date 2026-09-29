@@ -286,20 +286,26 @@ struct OpsAttentionCard: View {
 
 struct OpsIntelligenceSection: View {
     let theme: BusinessActiveTheme
+    var smallShop: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("What Momentra Noticed")
                 .font(.plusJakarta(size: 14, weight: .semibold))
                 .foregroundStyle(theme.text)
-            Text("No insights yet")
-                .font(.plusJakarta(size: 13))
-                .foregroundStyle(theme.secondary)
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(theme.card)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Coming soon")
+                    .font(.plusJakarta(size: 13, weight: .semibold))
+                    .foregroundStyle(theme.text)
+                Text(smallShop ? "Tips for your shop will appear here" : "Tips will appear here")
+                    .font(.plusJakarta(size: 13))
+                    .foregroundStyle(theme.secondary)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(theme.card)
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
     }
 }
@@ -429,7 +435,7 @@ struct OpsMemoryHeroSection: View {
         HStack(spacing: 16) {
             OpsHeroHealthRing(score: ringLabel, showLive: showLive, ringSize: 130, theme: theme)
             VStack(alignment: .leading, spacing: 8) {
-                Text("OPERATIONS MEMORY")
+                Text("Daily Business")
                     .font(.plusJakarta(size: 10, weight: .bold))
                     .foregroundStyle(theme.muted)
                 Text(ringLabel == "—" ? "Awaiting signal" : "Optimizing")

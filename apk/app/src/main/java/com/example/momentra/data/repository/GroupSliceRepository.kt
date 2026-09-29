@@ -19,6 +19,7 @@ import com.example.momentra.data.api.CreateMemoryBody
 import com.example.momentra.data.api.IdResultDto
 import com.example.momentra.data.api.MemoryAttachmentDto
 import com.example.momentra.data.local.OfflineOutbox
+import com.example.momentra.data.local.isOfflineFailure
 import com.example.momentra.data.local.orQueueOffline
 import com.example.momentra.data.local.orQueuePhoto
 import com.example.momentra.data.api.CreatePlanningItemBody
@@ -135,9 +136,20 @@ class GroupSliceRepository(
         ActivityPage(items = env.data.items, nextCursor = env.nextCursor ?: env.data.nextCursor)
     }.recoverCatching { e -> throw mapError(e) }
 
-    suspend fun getParticipants(momentId: String): Result<GroupParticipantsDto> = runCatching {
-        api.getGroupParticipants(momentId).data
-    }.recoverCatching { e -> throw mapError(e) }
+    suspend fun getParticipants(momentId: String): Result<GroupParticipantsDto> {
+        val result = runCatching {
+            api.getGroupParticipants(momentId).data
+        }.recoverCatching { e -> throw mapError(e) }
+        result.getOrNull()?.let { roster ->
+            OfflineOutbox.saveRoster(momentId, roster)
+            return result
+        }
+        val error = result.exceptionOrNull()
+        if (error != null && error.isOfflineFailure()) {
+            OfflineOutbox.roster(momentId)?.let { return Result.success(it) }
+        }
+        return result
+    }
 
     suspend fun updateParticipantRole(
         momentId: String,

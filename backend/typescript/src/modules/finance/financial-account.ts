@@ -4,7 +4,7 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { z } from 'zod';
 import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from './travel-currencies';
 
-export const PAYMENT_METHOD_CODES = ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'WALLET', 'OTHER'] as const;
+export const PAYMENT_METHOD_CODES = ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'WALLET', 'UDHAAR', 'OTHER'] as const;
 export type PaymentMethodCode = (typeof PAYMENT_METHOD_CODES)[number];
 
 export const paymentMethodCodeSchema = z.enum(PAYMENT_METHOD_CODES);

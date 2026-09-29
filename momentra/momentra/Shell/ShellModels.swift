@@ -34,15 +34,18 @@ enum BottomDestination: String, CaseIterable, Identifiable {
     }
 
     /// Label under bottom-nav tab icons — matches APK `BottomDestination.label` extension.
-    var shellNavLabel: String {
+    /// Personal CREATE uses "Add"; other contexts keep "quickadds".
+    func shellNavLabel(for context: AppContextKind = .personal) -> String {
         switch self {
         case .pulse: return "Pulse"
         case .moments: return "Moments"
-        case .create: return "quickadds"
+        case .create: return context == .personal ? "Add" : "quickadds"
         case .life: return "Life"
         case .memory: return "Memory"
         }
     }
+
+    var shellNavLabel: String { shellNavLabel(for: .personal) }
 
     /// Figma-exported asset names (template-rendered in tab bar, except Create).
     var tabAssetName: String {
@@ -95,6 +98,8 @@ struct ShellIdentity: Equatable {
 struct CompanySummary: Equatable, Identifiable {
     let companyId: String
     let displayName: String
+    /// From company profileJson.audience when present.
+    var audience: String? = nil
     var id: String { companyId }
 }
 

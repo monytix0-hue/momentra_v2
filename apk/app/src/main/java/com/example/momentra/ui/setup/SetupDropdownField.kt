@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,27 +78,40 @@ fun SetupDropdownField(
                 )
                 Text("▼", color = SetupTokens.TextSecondary, fontSize = 12.sp)
             }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier
-                    .background(SetupTokens.BizCard)
-                    .testTag("$testTag.menu"),
-            ) {
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        text = {
+            if (expanded) {
+                Dialog(onDismissRequest = { expanded = false }) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(SetupTokens.BizCard)
+                            .verticalScroll(rememberScrollState())
+                            .testTag("$testTag.menu"),
+                    ) {
+                        Text(
+                            label,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        )
+                        options.forEach { option ->
                             Text(
                                 option,
                                 color = if (option == value) accent else Color.White,
                                 fontWeight = if (option == value) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 15.sp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        onValueChange(option)
+                                        expanded = false
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                             )
-                        },
-                        onClick = {
-                            onValueChange(option)
-                            expanded = false
-                        },
-                    )
+                        }
+                    }
                 }
             }
         }

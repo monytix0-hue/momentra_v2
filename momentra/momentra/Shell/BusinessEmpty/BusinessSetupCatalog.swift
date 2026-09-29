@@ -68,6 +68,7 @@ enum BusinessSetupCatalog {
         ],
         fields: [],
         defaultPreferences: [
+            "audience": BusinessAudience.growing,
             "teamName": "Growth & Product",
             "size": "11-25 people",
             "workMode": "Hybrid",
@@ -104,7 +105,7 @@ enum BusinessSetupCatalog {
                     PersonalSetupFieldSpec(key: "extraCurrencies", label: "Extra currencies", multiSelect: true, options: currencyCodes),
                     PersonalSetupFieldSpec(key: "revenueStage", label: "Revenue stage", multiSelect: false, options: ["Pre-revenue", "Growing", "Stable", "Declining"]),
                     PersonalSetupFieldSpec(key: "revenueModel", label: "Revenue model", multiSelect: false, options: ["Recurring", "Project-based", "Mixed", "Marketplace"]),
-                    PersonalSetupFieldSpec(key: "warningThreshold", label: "Runway warning threshold", multiSelect: false, options: ["3 months", "6 months", "9 months", "12 months"]),
+                    PersonalSetupFieldSpec(key: "warningThreshold", label: "Cash warning threshold", multiSelect: false, options: ["3 months", "6 months", "9 months", "12 months"]),
                 ]
             ),
             BusinessSetupSectionSpec(
@@ -121,6 +122,7 @@ enum BusinessSetupCatalog {
         ],
         fields: [],
         defaultPreferences: [
+            "audience": BusinessAudience.growing,
             "businessStage": "Scaling",
             "goalHorizon": "18-months goal",
             "currency": "INR",
@@ -175,6 +177,7 @@ enum BusinessSetupCatalog {
         ],
         fields: [],
         defaultPreferences: [
+            "audience": BusinessAudience.growing,
             "coreOps": "Growth & Product",
             "scope": "Company-wide",
             "model": "Centralized",
@@ -196,5 +199,43 @@ enum BusinessSetupCatalog {
         case .businessRunway: return runway
         case .businessOperations: return ops
         }
+    }
+
+    static func footerTagline(kind: BusinessSetupKind, audience: String) -> String {
+        guard BusinessAudience.isSmallShop(audience) else {
+            return forKind(kind).footerTagline
+        }
+        switch kind {
+        case .teamOperations: return "Your staff, clear and simple"
+        case .businessRunway: return "Know your cash"
+        case .businessOperations: return "Run your shop day to day"
+        }
+    }
+
+    static func defaultPreferences(kind: BusinessSetupKind, audience: String) -> [String: Any] {
+        var base = forKind(kind).defaultPreferences
+        let normalized = BusinessAudience.normalize(audience)
+        base[BusinessAudience.prefKey] = normalized
+        guard BusinessAudience.isSmallShop(normalized) else { return base }
+        switch kind {
+        case .teamOperations:
+            base["teamName"] = "My shop"
+            base["size"] = "1-10 people"
+            base["workMode"] = "In-office"
+            base["approvalThreshold"] = ""
+        case .businessRunway:
+            base["businessStage"] = "Early"
+            base["goalHorizon"] = "6-months goal"
+            base["multiCurrency"] = false
+            base["availableCash"] = ""
+            base["monthlySpending"] = ""
+            base["monthlyRevenue"] = ""
+            base["fundingSource"] = ""
+        case .businessOperations:
+            base["coreOps"] = "Delivery"
+            base["monthlyBudget"] = ""
+            base["approvalAlarm"] = ""
+        }
+        return base
     }
 }

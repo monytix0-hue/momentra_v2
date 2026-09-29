@@ -18,6 +18,7 @@ struct BusinessLifeActiveView: View {
     @State private var showReport = false
     @State private var actionMessage: String?
     @State private var shareBusy = false
+    @State private var smallShop = false
 
     private var teamLocked: Bool {
         (momentTypeCode ?? "").uppercased().contains("TEAM_OPERATIONS")
@@ -125,7 +126,7 @@ struct BusinessLifeActiveView: View {
                             }
 
                             if !teamLocked && !cashFlowLocked && !dailyLocked {
-                                CompanyLifeFilterChips(selected: $filter)
+                                CompanyLifeFilterChips(selected: $filter, smallShop: smallShop)
                             }
 
                             CompanyLifeHealthHeader(
@@ -140,7 +141,8 @@ struct BusinessLifeActiveView: View {
                                         return "\(m) MONTHS"
                                     }
                                     return "—"
-                                }()
+                                }(),
+                                smallShop: smallShop
                             )
 
                             CompanyLifeModuleCards(
@@ -198,6 +200,9 @@ struct BusinessLifeActiveView: View {
                     }
                 }
             }
+        }
+        .task(id: momentId) {
+            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
         }
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }

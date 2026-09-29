@@ -7,6 +7,7 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGovernanceAllowed } from '../governance/resolver';
 import { insertAudit, insertDomainEventAndOutbox, recordCommandSideEffects } from '../../platform/events/outbox';
 import { parseMoney } from './service';
+import { paymentMethodCodeSchema } from './financial-account';
 import { config } from '../../platform/config';
 import {
   assertActiveCompanyMember,
@@ -73,6 +74,9 @@ export const createBusinessExpenseSchema = z
       .optional(),
     /** Optional completed media upload to attach as receipt after create. */
     receiptUploadId: z.string().uuid().optional(),
+    paymentMethodCode: paymentMethodCodeSchema.optional(),
+    /** Short GST / tax note; folded into description on write. */
+    taxNote: z.string().max(200).optional(),
   })
   .strict();
 
@@ -84,6 +88,8 @@ export const createBusinessRevenueSchema = z
     currencyCode: travelCurrencyCodeSchema,
     description: z.string().max(500).optional(),
     categoryCode: z.string().max(100).optional(),
+    partyId: z.string().uuid().optional(),
+    paymentMethodCode: paymentMethodCodeSchema.optional(),
   })
   .strict();
 
@@ -341,14 +347,23 @@ export async function createBusinessExpense(
     : new Date().toISOString();
   const paidByLabel = body.paidBy?.trim() || null;
   const categoryCode = await ensureExpenseCategory(client, body.categoryCode);
+  const taxNote = body.taxNote?.trim() || null;
+  const baseDescription = body.description?.trim() || null;
+  const description =
+    taxNote && baseDescription
+      ? `${baseDescription} · GST: ${taxNote}`.slice(0, 500)
+      : taxNote
+        ? `GST: ${taxNote}`.slice(0, 500)
+        : baseDescription;
+  const paymentMethodCode = body.paymentMethodCode ?? null;
 
   const expenseInsert = await client.query<{ expense_id: string; version: string }>(
     needsApproval
       ? `WITH e AS (
            INSERT INTO finance.expense (
              moment_id, domain_code, created_by_user_id, merchant_name, description, category_code,
-             amount, currency_code, effective_at, status, posted_at, version
-           ) VALUES ($1, 'BUSINESS', $2, $3, $4, $5, $6, $7, $12::timestamptz, $8, $9, 1)
+             amount, currency_code, effective_at, status, posted_at, payment_method_code, version
+           ) VALUES ($1, 'BUSINESS', $2, $3, $4, $5, $6, $7, $12::timestamptz, $8, $9, $14, 1)
            RETURNING expense_id, version
          ),
          ctx AS (
@@ -361,8 +376,8 @@ export async function createBusinessExpense(
       : `WITH e AS (
            INSERT INTO finance.expense (
              moment_id, domain_code, created_by_user_id, merchant_name, description, category_code,
-             amount, currency_code, effective_at, status, posted_at, version
-           ) VALUES ($1, 'BUSINESS', $2, $3, $4, $5, $6, $7, $12::timestamptz, $8, $9, 1)
+             amount, currency_code, effective_at, status, posted_at, payment_method_code, version
+           ) VALUES ($1, 'BUSINESS', $2, $3, $4, $5, $6, $7, $12::timestamptz, $8, $9, $14, 1)
            RETURNING expense_id, version
          ),
          ctx AS (
@@ -392,7 +407,7 @@ export async function createBusinessExpense(
       momentId,
       ctx.userId,
       body.merchantName ?? null,
-      body.description ?? null,
+      description,
       categoryCode,
       amount.toFixed(4),
       body.currencyCode,
@@ -402,6 +417,7 @@ export async function createBusinessExpense(
       body.vendorId ?? null,
       effectiveAt,
       paidByLabel,
+      paymentMethodCode,
     ]
   );
   const expenseId = expenseInsert.rows[0]!.expense_id;
@@ -754,11 +770,25 @@ export async function createBusinessRevenue(
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
   assertNotCompanyObserver(scope.membershipType);
 
+  if (body.partyId) {
+    const party = await client.query<{ ok: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM business.vendor
+         WHERE vendor_id = $1 AND company_id = $2 AND status = 'ACTIVE'
+       ) AS ok`,
+      [body.partyId, scope.companyId]
+    );
+    if (!party.rows[0]?.ok) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, 'Party not found for this company.', 400);
+    }
+  }
+
   const inserted = await client.query<{ revenue_id: string }>(
     `WITH r AS (
        INSERT INTO finance.revenue (
-         company_id, moment_id, description, category_code, amount, currency_code, effective_at, status, version
-       ) VALUES ($1, $2, $3, $4, $5, $6, now(), 'POSTED', 1)
+         company_id, moment_id, description, category_code, amount, currency_code,
+         effective_at, status, party_vendor_id, payment_method_code, version
+       ) VALUES ($1, $2, $3, $4, $5, $6, now(), 'POSTED', $7::uuid, $8, 1)
        RETURNING revenue_id
      ),
      snap AS (
@@ -779,6 +809,8 @@ export async function createBusinessRevenue(
       body.categoryCode ?? null,
       amount.toFixed(4),
       body.currencyCode,
+      body.partyId ?? null,
+      body.paymentMethodCode ?? null,
     ]
   );
   const revenueId = inserted.rows[0]!.revenue_id;

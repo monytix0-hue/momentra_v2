@@ -65,6 +65,7 @@ fun TeamOpsPulseActiveContent(
     refreshToken: Long,
     onLogDelivery: () -> Unit = {},
     onOpenQuickAdd: () -> Unit = {},
+    onViewAllActivity: () -> Unit = {},
     onAddExpense: () -> Unit = {},
     repository: BusinessSliceRepository = remember { BusinessSliceRepository() },
     modifier: Modifier = Modifier,
@@ -80,7 +81,16 @@ fun TeamOpsPulseActiveContent(
     var pendingApprovals by remember { mutableStateOf<List<BusinessApprovalItemDto>>(emptyList()) }
     var decidingApprovalId by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var smallShop by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    LaunchedEffect(momentId) {
+        smallShop = com.example.momentra.ui.shell.business.shared.BusinessAudience.isSmallShopMoment(
+            momentId,
+            context = context,
+        )
+    }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -245,10 +255,12 @@ fun TeamOpsPulseActiveContent(
             TeamOpsRecentDeliverySection(
                 theme = theme,
                 activities = deliveryActs,
-                onViewAll = onOpenQuickAdd,
+                onViewAll = onViewAllActivity,
             )
 
-            TeamOpsIntelligenceSection(theme = theme)
+            if (!smallShop) {
+                TeamOpsIntelligenceSection(theme = theme, smallShop = false)
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -262,9 +274,9 @@ fun TeamOpsPulseActiveContent(
                     modifier = Modifier.weight(1f),
                 )
                 TeamOpsOutlineButton(
-                    label = "See this week",
+                    label = "View all activity",
                     enabled = true,
-                    onClick = onOpenQuickAdd,
+                    onClick = onViewAllActivity,
                     theme = theme,
                     modifier = Modifier.weight(1f),
                 )
@@ -345,7 +357,7 @@ private fun TeamOpsHealthHeroCard(
             TeamOpsTintedMetricTile(
                 value = capacity,
                 label = "capacity",
-                detail = if (capacity != "—") "Team utilisation" else "API pending",
+                detail = if (capacity != "—") "Team utilisation" else "Not available yet",
                 tint = TeamOpsColors.Emerald,
                 theme = theme,
                 valueColor = TeamOpsColors.Emerald,

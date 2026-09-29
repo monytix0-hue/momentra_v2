@@ -53,22 +53,22 @@ object TourWhereToLook {
     @Suppress("UNUSED_PARAMETER")
     fun forFuture(kind: FutureQuickAddKind): WhereToLookHint = WhereToLookHint(
         title = "Future action saved",
-        body = "Milestones and progress show on Pulse and build your Moments timeline.",
-        goTo = BottomDestination.PULSE,
+        body = "Find it on Life — This week and your journey across Personal.",
+        goTo = BottomDestination.LIFE,
     )
 
     @Suppress("UNUSED_PARAMETER")
     fun forLifestyle(kind: LifestyleQuickAddKind): WhereToLookHint = WhereToLookHint(
         title = "Lifestyle logged",
-        body = "Look on Pulse for the latest, and Moments for the story of your experiences.",
-        goTo = BottomDestination.PULSE,
+        body = "Find it on Life — This week and your journey across Personal.",
+        goTo = BottomDestination.LIFE,
     )
 
     @Suppress("UNUSED_PARAMETER")
     fun forRelationships(kind: RelationshipsQuickAddKind): WhereToLookHint = WhereToLookHint(
         title = "Connection saved",
-        body = "Relationship activity shows on Pulse. Open Moments for the shared timeline.",
-        goTo = BottomDestination.PULSE,
+        body = "Find it on Life — This week and your journey across Personal.",
+        goTo = BottomDestination.LIFE,
     )
 
     fun forGroupGeneric(label: String = "Saved"): WhereToLookHint = WhereToLookHint(

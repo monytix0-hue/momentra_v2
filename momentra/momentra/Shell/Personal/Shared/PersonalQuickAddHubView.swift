@@ -8,6 +8,10 @@ struct PersonalQuickAddHubView: View {
     var momentTypeCode: String? = nil
     /// Optional V019 capability filter; nil uses family defaults from `PersonalActionRegistry`.
     var capabilityCodes: [String]? = nil
+    var simpleMode: Bool = false
+    var unifiedCatalog: Bool = false
+    var presentFamilies: Set<PersonalPulseFamily> = []
+    var onSetupMissing: () -> Void = {}
     var onClose: () -> Void
     var onIncome: () -> Void
     var onRecovery: () -> Void = {}
@@ -26,34 +30,39 @@ struct PersonalQuickAddHubView: View {
         PersonalPulseFamily.forTypeCode(momentTypeCode)
     }
 
-    private var isRelationships: Bool { family == .relationships }
-    private var isLifestyle: Bool { family == .lifestyle }
-    private var isLifeOps: Bool { family == .lifeOperations }
-    private var useWideTiles: Bool { isRelationships || isLifestyle || isLifeOps }
+    private var isRelationships: Bool { !unifiedCatalog && family == .relationships }
+    private var isLifestyle: Bool { !unifiedCatalog && family == .lifestyle }
+    private var isLifeOps: Bool { unifiedCatalog || family == .lifeOperations }
+    private var useWideTiles: Bool { unifiedCatalog || isRelationships || isLifestyle || isLifeOps }
 
     private var heroTitle: String {
+        if unifiedCatalog { return "Add to Personal" }
         switch family {
-        case .futureBuilding: return "Build your future"
-        case .relationships: return "Nurture your bonds"
-        case .lifestyle: return "Curate your lifestyle"
-        default: return "Design your focus"
+        case .futureBuilding: return "Add to Future"
+        case .relationships: return "Add to People"
+        case .lifestyle: return "Add to Lifestyle"
+        default: return "Add to Everyday"
         }
     }
 
     private var blurb: String {
+        if unifiedCatalog {
+            return "Spend, mood, recovery first — plus Future, Lifestyle, and People when those areas are set up."
+        }
         switch family {
         case .futureBuilding:
-            return "Track milestones, opportunities, pivots, goals and investments."
+            return "Milestones, learning, and progress."
         case .lifestyle:
-            return "Track experiences, wellbeing, discoveries, expressions and adjustments."
+            return "Experiences, wellbeing, and discoveries."
         case .relationships:
-            return "Track connections, support, shared experiences, investments and adjustments."
+            return "Connections, support, and shared moments."
         case .lifeOperations:
-            return "Quickly record expenses, recovery states, mood, attention targets, and reflections."
+            return "Spend, mood, recovery — and more when you need it."
         }
     }
 
     private var searchPlaceholder: String {
+        if unifiedCatalog { return "Search personal actions…" }
         switch family {
         case .futureBuilding: return "Search future actions…"
         case .lifestyle: return "Search lifestyle actions..."
@@ -90,11 +99,23 @@ struct PersonalQuickAddHubView: View {
     }
 
     private var actions: [PersonalActionTile] {
-        PersonalActionRegistry.tiles(
+        if unifiedCatalog {
+            return PersonalActionRegistry.unifiedTiles(
+                presentFamilies: presentFamilies,
+                hasActiveMoment: hasActiveMoment,
+                capabilityCodes: capabilityCodes
+            )
+        }
+        return PersonalActionRegistry.tiles(
             for: family,
             hasActiveMoment: hasActiveMoment,
-            capabilityCodes: capabilityCodes
+            capabilityCodes: capabilityCodes,
+            simpleMode: simpleMode
         )
+    }
+
+    private var missingFamilies: [PersonalPulseFamily] {
+        PersonalPulseFamily.allCases.filter { !presentFamilies.contains($0) }
     }
 
     private var filteredActions: [PersonalActionTile] {
@@ -108,6 +129,11 @@ struct PersonalQuickAddHubView: View {
     /// APK `PersonalQuickAddHub.kt` row builder — 3+3+2 for LifeOps; 3+remainder for other wide families.
     private var actionRows: [[PersonalActionTile]] {
         let isSearchBlank = search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if unifiedCatalog {
+            return stride(from: 0, to: filteredActions.count, by: 3).map {
+                Array(filteredActions[$0..<min($0 + 3, filteredActions.count)])
+            }
+        }
         if isLifeOps && isSearchBlank {
             return [
                 Array(filteredActions.prefix(3)),
@@ -150,19 +176,24 @@ struct PersonalQuickAddHubView: View {
                 }
 
                 HStack(spacing: 7) {
-                    switch family {
-                    case .futureBuilding:
-                        hubChip("Future Building", selected: true)
-                        hubChip("Growth Mindset", selected: false)
-                    case .lifeOperations:
-                        hubChip("Personal Space", selected: true)
-                        hubChip("Introspective", selected: false)
-                    case .lifestyle:
-                        hubChip("Lifestyle", selected: true)
-                        hubChip("Wellness", selected: false)
-                    case .relationships:
-                        hubChip("Relationships", selected: true, selectedBorder: Color(hex: "#14B8A6"))
-                        hubChip("Connections", selected: false, filledUnselected: true)
+                    if unifiedCatalog {
+                        hubChip("Personal", selected: true)
+                        hubChip("Today + life", selected: false)
+                    } else {
+                        switch family {
+                        case .futureBuilding:
+                            hubChip("Future Building", selected: true)
+                            hubChip("Growth Mindset", selected: false)
+                        case .lifeOperations:
+                            hubChip("Personal Space", selected: true)
+                            hubChip("Introspective", selected: false)
+                        case .lifestyle:
+                            hubChip("Lifestyle", selected: true)
+                            hubChip("Wellness", selected: false)
+                        case .relationships:
+                            hubChip("Relationships", selected: true, selectedBorder: Color(hex: "#14B8A6"))
+                            hubChip("Connections", selected: false, filledUnselected: true)
+                        }
                     }
                 }
 
@@ -217,6 +248,28 @@ struct PersonalQuickAddHubView: View {
                     Text("Create a Personal Moment from the top-bar + to unlock Quick Add actions.")
                         .font(.plusJakarta(size: 11))
                         .foregroundStyle(Color(hex: "#C9C4D8"))
+                }
+
+                if unifiedCatalog && !missingFamilies.isEmpty {
+                    let labels = missingFamilies.map { family -> String in
+                        switch family {
+                        case .lifeOperations: return "Everyday"
+                        case .futureBuilding: return "Future"
+                        case .lifestyle: return "Lifestyle"
+                        case .relationships: return "People"
+                        }
+                    }.joined(separator: " · ")
+                    Button(action: onSetupMissing) {
+                        Text("Set up \(labels)")
+                            .font(.plusJakarta(size: 13, weight: .semibold))
+                            .foregroundStyle(chipAccent)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .background(Color(hex: "#201E28"))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 Spacer(minLength: 12)

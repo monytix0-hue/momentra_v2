@@ -14,6 +14,8 @@ struct BusinessExpenseSheet: View {
     @State private var descriptionText = ""
     @State private var categoryLabel = "Software"
     @State private var paidBy = "You"
+    @State private var paymentLabel = "Cash"
+    @State private var taxNote = ""
     @State private var isoDate = SetupDateTimeUtils.localDateString(from: Date())
     @State private var receiptItem: PhotosPickerItem?
     @State private var receiptBytes: Data?
@@ -22,10 +24,30 @@ struct BusinessExpenseSheet: View {
     @State private var submitting = false
     @State private var error: String?
     @State private var pendingApprovalId: String?
+    @State private var smallShop = false
 
     private let accent = TeamOpsSheetAccent.indigo
-    private let categoryLabels = ["Software", "Travel", "Office", "Equipment", "Services", "Other"]
+    private let growingCategoryLabels = ["Software", "Travel", "Office", "Equipment", "Services", "Other"]
+    private let shopCategoryLabels = [
+        "Inventory / Stock",
+        "Rent",
+        "Utilities",
+        "Salaries / Wages",
+        "Transport",
+        "Packaging",
+        "Misc / Other",
+    ]
     private let paidByOptions = ["You"]
+    private let paymentGrowingLabels = ["Cash", "UPI", "Card"]
+    private let paymentShopLabels = ["Cash", "UPI", "Card", "Udhaar (credit)"]
+
+    private var categoryLabels: [String] {
+        smallShop ? shopCategoryLabels : growingCategoryLabels
+    }
+
+    private var paymentLabels: [String] {
+        smallShop ? paymentShopLabels : paymentGrowingLabels
+    }
 
     private func categoryCode(_ label: String) -> String {
         let upper = label.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
@@ -36,6 +58,16 @@ struct BusinessExpenseSheet: View {
             options: .regularExpression
         )
         return cleaned.trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+    }
+
+    private func paymentMethodCode(_ label: String) -> String {
+        switch label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "cash": return "CASH"
+        case "upi": return "UPI"
+        case "card": return "CARD"
+        case "udhaar (credit)", "udhaar": return "UDHAAR"
+        default: return "OTHER"
+        }
     }
 
     var body: some View {
@@ -78,6 +110,14 @@ struct BusinessExpenseSheet: View {
 
                     TeamOpsFieldLabel(text: "Category")
                     TeamOpsChipRow(options: categoryLabels, selected: $categoryLabel, accent: accent)
+
+                    TeamOpsFieldLabel(text: "Payment")
+                    TeamOpsChipRow(options: paymentLabels, selected: $paymentLabel, accent: accent)
+
+                    if smallShop {
+                        TeamOpsFieldLabel(text: "GST note (optional)")
+                        TeamOpsTextField(value: $taxNote, placeholder: "Invoice no. / GST details", minHeight: 44)
+                    }
 
                     HStack(spacing: 14) {
                         VStack(alignment: .leading, spacing: 8) {
@@ -141,6 +181,10 @@ struct BusinessExpenseSheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .task {
+            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+            categoryLabel = categoryLabels.first ?? "Other"
+            paymentLabel = paymentLabels.first ?? "Cash"
+            taxNote = ""
             let ctx = await MomentCurrencyContextLoader.loadBusiness(momentId: momentId)
             preferredCurrencyCodes = ctx.preferred
             currencyCode = ctx.primary
@@ -226,7 +270,9 @@ struct BusinessExpenseSheet: View {
                 description: descriptionText.isEmpty ? nil : descriptionText,
                 categoryCode: categoryCode(categoryLabel),
                 paidBy: paidBy.isEmpty ? nil : paidBy,
-                effectiveAt: "\(isoDate)T12:00:00.000Z"
+                effectiveAt: "\(isoDate)T12:00:00.000Z",
+                paymentMethodCode: paymentMethodCode(paymentLabel),
+                taxNote: taxNote.isEmpty ? nil : taxNote
             )
             if let bytes = receiptBytes, !bytes.isEmpty {
                 _ = try? await APIClient.shared.uploadAndAttachExpenseMedia(
@@ -278,6 +324,8 @@ struct BusinessRevenueSheet: View {
     @State private var currencyCode = "INR"
     @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var descriptionText = ""
+    @State private var payment = "Cash"
+    @State private var smallShop = false
     @State private var submitting = false
     @State private var error: String?
 
@@ -301,6 +349,17 @@ struct BusinessRevenueSheet: View {
                     .padding(12)
                     .background(Color(hex: "#201E28"))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+                if smallShop {
+                    Text("Payment")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#C9C4D8"))
+                    Picker("Payment", selection: $payment) {
+                        Text("Cash").tag("Cash")
+                        Text("UPI").tag("UPI")
+                        Text("Card").tag("Card")
+                    }
+                    .pickerStyle(.segmented)
+                }
                 TextField("Description (optional)", text: $descriptionText)
                     .foregroundStyle(Color(hex: "#E5E0EE"))
                     .padding(12)
@@ -338,6 +397,9 @@ struct BusinessRevenueSheet: View {
                         .foregroundStyle(accent)
                 }
             }
+            .task {
+                smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+            }
         }
         .presentationDetents([.medium, .large])
     }
@@ -345,12 +407,16 @@ struct BusinessRevenueSheet: View {
     private func save() async {
         submitting = true
         error = nil
+        let method: String? = smallShop
+            ? (payment == "UPI" ? "UPI" : payment == "Card" ? "CARD" : "CASH")
+            : nil
         do {
             _ = try await APIClient.shared.createBusinessRevenue(
                 momentId: momentId,
                 amount: amount.trimmingCharacters(in: .whitespacesAndNewlines),
                 currencyCode: currencyCode.uppercased(),
-                description: descriptionText.isEmpty ? nil : descriptionText
+                description: descriptionText.isEmpty ? nil : descriptionText,
+                paymentMethodCode: method
             )
             isPresented = false
             onSaved()
@@ -364,6 +430,7 @@ struct BusinessRevenueSheet: View {
 /// Track a simple single-line invoice.
 struct BusinessInvoiceSheet: View {
     let momentId: String
+    var shopName: String = ""
     @Binding var isPresented: Bool
     var onSaved: () -> Void
 
@@ -374,6 +441,7 @@ struct BusinessInvoiceSheet: View {
     @State private var unitPrice = ""
     @State private var submitting = false
     @State private var error: String?
+    @State private var shareReceipt: String?
 
     private let accent = Color(hex: "#3B82F6")
 
@@ -392,64 +460,115 @@ struct BusinessInvoiceSheet: View {
                     Text("Track invoice")
                         .font(.system(size: 18, weight: .heavy))
                         .foregroundStyle(Color(hex: "#E5E0EE"))
-                    TextField("Invoice #", text: $invoiceNumber)
-                        .foregroundStyle(Color(hex: "#E5E0EE"))
-                        .padding(12)
-                        .background(Color(hex: "#201E28"))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    TextField("Line description", text: $lineDescription)
-                        .foregroundStyle(Color(hex: "#E5E0EE"))
-                        .padding(12)
-                        .background(Color(hex: "#201E28"))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    HStack {
-                        TextField("Qty", text: $quantity)
-                            .keyboardType(.decimalPad)
-                            .foregroundStyle(Color(hex: "#E5E0EE"))
-                        TextField(currencyCode, text: $currencyCode)
-                            .textInputAutocapitalization(.characters)
-                            .frame(width: 56)
+                    if let receipt = shareReceipt {
+                        Text("Invoice saved. Share the receipt?")
+                            .font(.system(size: 13))
                             .foregroundStyle(Color(hex: "#C9C4D8"))
-                        TextField("Unit price", text: $unitPrice)
-                            .keyboardType(.decimalPad)
+                        Text(receipt)
+                            .font(.system(size: 12, design: .monospaced))
                             .foregroundStyle(Color(hex: "#E5E0EE"))
-                    }
-                    .padding(12)
-                    .background(Color(hex: "#201E28"))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    Text("Tax is server-authoritative (omit or 0).")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color(hex: "#C9C4D8"))
-                    if let error {
-                        Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
-                    }
-                    Button {
-                        Task { await save() }
-                    } label: {
-                        if submitting {
-                            ProgressView().tint(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                        } else {
-                            Text("Save Invoice")
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(hex: "#201E28"))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        Button {
+                            InviteOutboundShare.sendWhatsApp(phone: nil, message: receipt)
+                        } label: {
+                            Text("Share on WhatsApp")
                                 .font(.system(size: 15, weight: .heavy))
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
                         }
+                        .background(Color(hex: "#22C55E"))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        Button {
+                            InviteOutboundShare.presentSystemShare(items: [receipt])
+                        } label: {
+                            Text("Share…")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(accent)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            shareReceipt = nil
+                            isPresented = false
+                            onSaved()
+                        } label: {
+                            Text("Done")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color(hex: "#C9C4D8"))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        TextField("Invoice #", text: $invoiceNumber)
+                            .foregroundStyle(Color(hex: "#E5E0EE"))
+                            .padding(12)
+                            .background(Color(hex: "#201E28"))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        TextField("Line description", text: $lineDescription)
+                            .foregroundStyle(Color(hex: "#E5E0EE"))
+                            .padding(12)
+                            .background(Color(hex: "#201E28"))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        HStack {
+                            TextField("Qty", text: $quantity)
+                                .keyboardType(.decimalPad)
+                                .foregroundStyle(Color(hex: "#E5E0EE"))
+                            TextField(currencyCode, text: $currencyCode)
+                                .textInputAutocapitalization(.characters)
+                                .frame(width: 56)
+                                .foregroundStyle(Color(hex: "#C9C4D8"))
+                            TextField("Unit price", text: $unitPrice)
+                                .keyboardType(.decimalPad)
+                                .foregroundStyle(Color(hex: "#E5E0EE"))
+                        }
+                        .padding(12)
+                        .background(Color(hex: "#201E28"))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        Text("Tax is server-authoritative (omit or 0).")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(hex: "#C9C4D8"))
+                        if let error {
+                            Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
+                        }
+                        Button {
+                            Task { await save() }
+                        } label: {
+                            if submitting {
+                                ProgressView().tint(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                            } else {
+                                Text("Save Invoice")
+                                    .font(.system(size: 15, weight: .heavy))
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                            }
+                        }
+                        .background(accent)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .disabled(!canSubmit || submitting)
+                        .opacity(!canSubmit ? 0.55 : 1)
                     }
-                    .background(accent)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .disabled(!canSubmit || submitting)
-                    .opacity(!canSubmit ? 0.55 : 1)
                 }
                 .padding(16)
             }
             .background(Color(hex: "#14121B"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { isPresented = false }
-                        .foregroundStyle(accent)
+                    Button(shareReceipt == nil ? "Close" : "Done") {
+                        if shareReceipt != nil {
+                            onSaved()
+                        }
+                        isPresented = false
+                    }
+                    .foregroundStyle(accent)
                 }
             }
         }
@@ -467,28 +586,67 @@ struct BusinessInvoiceSheet: View {
     private func save() async {
         submitting = true
         error = nil
+        let qty = quantity.trimmingCharacters(in: .whitespacesAndNewlines)
+        let price = unitPrice.trimmingCharacters(in: .whitespacesAndNewlines)
+        let inv = invoiceNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        let line = lineDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
             _ = try await APIClient.shared.createBusinessInvoice(
                 momentId: momentId,
-                invoiceNumber: invoiceNumber.trimmingCharacters(in: .whitespacesAndNewlines),
+                invoiceNumber: inv,
                 invoiceDate: today,
                 currencyCode: currencyCode.uppercased(),
                 lines: [
                     APIClient.BusinessInvoiceLineInput(
-                        description: lineDescription,
-                        quantity: quantity.trimmingCharacters(in: .whitespacesAndNewlines),
-                        unitPrice: unitPrice.trimmingCharacters(in: .whitespacesAndNewlines),
+                        description: line,
+                        quantity: qty,
+                        unitPrice: price,
                         taxAmount: nil
                     ),
                 ]
             )
-            isPresented = false
-            onSaved()
+            let total = (Double(qty) ?? 0) * (Double(price) ?? 0)
+            shareReceipt = invoiceReceiptMessage(
+                shopName: shopName,
+                invoiceNumber: inv,
+                invoiceDate: today,
+                lineDescription: line,
+                quantity: qty,
+                unitPrice: price,
+                total: total,
+                currencyCode: currencyCode.uppercased()
+            )
         } catch {
             self.error = error.localizedDescription
         }
         submitting = false
     }
+}
+
+func invoiceReceiptMessage(
+    shopName: String,
+    invoiceNumber: String,
+    invoiceDate: String,
+    lineDescription: String,
+    quantity: String,
+    unitPrice: String,
+    total: Double,
+    currencyCode: String
+) -> String {
+    let shop = shopName.isEmpty ? "Shop" : shopName
+    let totalStr = String(format: "%.2f", total)
+    return """
+    \(shop)
+    Invoice #\(invoiceNumber) · \(invoiceDate)
+
+    \(lineDescription)
+    \(quantity) × \(unitPrice) \(currencyCode)
+
+    Total: \(totalStr) \(currencyCode)
+
+    \(shop) · Bill / रसीद
+    Thank you! Dhanyavaad!
+    """
 }
 
 /// Company members list + invite mint.

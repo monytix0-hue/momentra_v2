@@ -165,6 +165,34 @@ class AppPreferences(context: Context) {
         prefs.edit().putBoolean(KEY_TOUR_POST_QA_HINT, seen).apply()
     }
 
+    fun isPersonalSimpleMode(): Boolean =
+        prefs.getBoolean(KEY_PERSONAL_SIMPLE_MODE, false)
+
+    fun setPersonalSimpleMode(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_PERSONAL_SIMPLE_MODE, enabled).apply()
+    }
+
+    fun isPersonalEveningNudgeEnabled(): Boolean =
+        prefs.getBoolean(KEY_PERSONAL_EVENING_NUDGE, false)
+
+    fun setPersonalEveningNudgeEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_PERSONAL_EVENING_NUDGE, enabled).apply()
+    }
+
+    fun hasPersonalTodaySave(): Boolean =
+        prefs.getBoolean(KEY_PERSONAL_TODAY_SAVE, false)
+
+    fun markPersonalTodaySave() {
+        prefs.edit().putBoolean(KEY_PERSONAL_TODAY_SAVE, true).apply()
+    }
+
+    fun isPersonalSimpleCtaDismissed(): Boolean =
+        prefs.getBoolean(KEY_PERSONAL_SIMPLE_CTA_DISMISSED, false)
+
+    fun setPersonalSimpleCtaDismissed(dismissed: Boolean) {
+        prefs.edit().putBoolean(KEY_PERSONAL_SIMPLE_CTA_DISMISSED, dismissed).apply()
+    }
+
     fun resetShellTours() {
         prefs.edit()
             .putBoolean(KEY_TOUR_PERSONAL_V1, false)
@@ -186,6 +214,10 @@ class AppPreferences(context: Context) {
         private const val KEY_TOUR_GROUP_MINI_V1 = "tour_group_mini_v1_done"
         private const val KEY_TOUR_BUSINESS_MINI_V1 = "tour_business_mini_v1_done"
         private const val KEY_TOUR_POST_QA_HINT = "tour_post_qa_hint_seen"
+        private const val KEY_PERSONAL_SIMPLE_MODE = "personal_simple_mode"
+        private const val KEY_PERSONAL_EVENING_NUDGE = "personal_evening_nudge_enabled"
+        private const val KEY_PERSONAL_TODAY_SAVE = "personal_today_save_seen"
+        private const val KEY_PERSONAL_SIMPLE_CTA_DISMISSED = "personal_simple_cta_dismissed"
 
         private fun selectedPersonalMomentKey(userId: String): String =
             "selected_personal_moment_$userId"

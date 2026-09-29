@@ -158,9 +158,9 @@ fun PersonalRelationshipsMomentsActiveContent(
                 }
             }
 
-            Text("Bond Journey", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+            Text("Recent activity", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
             if (activities.isEmpty()) {
-                BondEmptyCard("No bond entries yet. Log a connection or support moment to start.")
+                BondEmptyCard("Nothing here yet. Log a connection or support moment on Pulse.")
             } else {
                 activities.take(8).forEach { BondJourneyItem(it) }
             }

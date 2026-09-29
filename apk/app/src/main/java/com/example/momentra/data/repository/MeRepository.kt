@@ -36,11 +36,13 @@ interface MeGateway {
 class MeRepository(
     private val api: ApiService = ApiClient.apiService,
     private val bootstrapCache: BootstrapCache? = null,
+    private val appContext: Context? = null,
 ) : MeGateway {
 
     constructor(context: Context) : this(
         api = ApiClient.apiService,
         bootstrapCache = BootstrapCache(context),
+        appContext = context.applicationContext,
     )
 
     override suspend fun getMe(): Result<ShellIdentity> = getBootstrap().map { it.identity }
@@ -48,11 +50,11 @@ class MeRepository(
     override suspend fun getBootstrap(): Result<ShellBootstrap> = runCatching {
         val dto = api.getMe().data
         bootstrapCache?.save(dto.userId, dto)
-        dto.toShellBootstrap()
+        dto.toShellBootstrap().also { rehydrateAudience(it.companies) }
     }.recoverCatching { e -> throw mapThrowable(e) }
 
     override fun cachedBootstrap(userId: String): ShellBootstrap? =
-        bootstrapCache?.load(userId)?.toShellBootstrap()
+        bootstrapCache?.load(userId)?.toShellBootstrap()?.also { rehydrateAudience(it.companies) }
 
     override fun isBootstrapCacheFresh(userId: String, maxAgeMs: Long): Boolean =
         bootstrapCache?.isFresh(userId, maxAgeMs) == true
@@ -62,7 +64,7 @@ class MeRepository(
     }
 
     override suspend fun listCompanies(): Result<List<CompanySummary>> = runCatching {
-        api.listCompanies().data.items.map { it.toSummary() }
+        api.listCompanies().data.items.map { it.toSummary() }.also { rehydrateAudience(it) }
     }.recoverCatching { e -> throw mapThrowable(e) }
 
     override suspend fun listGroupMomentCount(): Result<Int> = runCatching {
@@ -137,7 +139,14 @@ class MeRepository(
     private fun CompanyItemDto.toSummary() = CompanySummary(
         companyId = companyId,
         displayName = displayName,
+        profileJson = profileJson,
     )
+
+    private fun rehydrateAudience(companies: List<CompanySummary>) {
+        val ctx = appContext ?: return
+        com.example.momentra.ui.shell.business.shared.BusinessAudience.rehydrateFromCompanies(ctx, companies)
+        com.example.momentra.ui.shell.business.shared.CompanyModules.rehydrateFromCompanies(ctx, companies)
+    }
 
     private fun mapThrowable(e: Throwable): Throwable = when (e) {
         is ApiResultException -> e

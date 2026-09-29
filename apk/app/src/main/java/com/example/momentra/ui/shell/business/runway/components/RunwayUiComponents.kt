@@ -320,7 +320,11 @@ fun RunwayDiamondDivider(theme: BusinessActiveTheme, modifier: Modifier = Modifi
 
 /** Honest empty — no Financial Intelligence AI feed. */
 @Composable
-fun RunwayIntelligenceSection(theme: BusinessActiveTheme, modifier: Modifier = Modifier) {
+fun RunwayIntelligenceSection(
+    theme: BusinessActiveTheme,
+    smallShop: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
@@ -348,39 +352,28 @@ fun RunwayIntelligenceSection(theme: BusinessActiveTheme, modifier: Modifier = M
                 fontFamily = PlusJakartaSans,
             )
         }
-        listOf("Burn Efficiency", "Scenario Insight").forEach { title ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(theme.card)
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(RunwayColors.Amber.copy(alpha = 0.08f)),
-                )
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        title,
-                        color = theme.text,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = PlusJakartaSans,
-                    )
-                    Text(
-                        "Insights unavailable until financial intelligence API projects signals.",
-                        color = theme.secondary,
-                        fontSize = 12.sp,
-                        fontFamily = PlusJakartaSans,
-                    )
-                }
-            }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(theme.card)
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                "Coming soon",
+                color = theme.text,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+            )
+            Text(
+                if (smallShop) "Tips for your shop will appear here" else "Tips will appear here",
+                color = theme.secondary,
+                fontSize = 13.sp,
+                fontFamily = PlusJakartaSans,
+            )
         }
     }
 }
@@ -391,6 +384,7 @@ fun RunwayTimelineHeroCard(
     revenue: String,
     savings: String,
     theme: BusinessActiveTheme,
+    smallShop: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -403,7 +397,7 @@ fun RunwayTimelineHeroCard(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            "FINANCIAL TIMELINE • RUNWAY",
+            if (smallShop) "MONEY TIMELINE" else "FINANCIAL TIMELINE • RUNWAY",
             color = RunwayColors.Amber,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,

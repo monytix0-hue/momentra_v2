@@ -13,6 +13,7 @@ struct OpsMemoryActiveView: View {
     @State private var error: String?
     @State private var shareBusy = false
     @State private var shareMessage: String?
+    @State private var smallShop = false
 
     private let theme = BusinessActiveTheme.businessOperations
     private let scopes = ["All", "Budget", "Vendors", "Approvals", "Issues"]
@@ -92,23 +93,27 @@ struct OpsMemoryActiveView: View {
 
                         OpsBiggestLearningCard(quote: biggestLearning, theme: theme)
 
-                        OpsDiamondDivider(theme: theme)
+                        if !smallShop {
+                            OpsDiamondDivider(theme: theme)
 
-                        patternNetworkSection
+                            patternNetworkSection
 
-                        OpsDiamondDivider(theme: theme)
+                            OpsDiamondDivider(theme: theme)
 
-                        playbookSection
+                            playbookSection
 
-                        OpsDiamondDivider(theme: theme)
+                            OpsDiamondDivider(theme: theme)
+                        }
 
                         memoryListSection(title: "Success Memory", emptyCopy: "No success memories yet.", items: successItems, border: OpsColors.green)
 
                         memoryListSection(title: "Risk Memory", emptyCopy: "No risk memories yet.", items: riskItems, border: OpsColors.red)
 
-                        wisdomSection
+                        if !smallShop {
+                            wisdomSection
 
-                        journeySection
+                            journeySection
+                        }
 
                         HStack(spacing: 10) {
                             OpsGradientPrimaryButton(label: "Record a Learning", enabled: momentId != nil, action: onRecordLearning)
@@ -127,6 +132,9 @@ struct OpsMemoryActiveView: View {
             }
         }
         .background(theme.bg)
+        .task(id: momentId) {
+            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+        }
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
@@ -136,7 +144,10 @@ struct OpsMemoryActiveView: View {
                 .font(.plusJakarta(size: 14, weight: .semibold))
                 .foregroundStyle(theme.text)
             VStack(alignment: .leading, spacing: 12) {
-                Text("Cross-memory patterns stay empty until live learnings exist.")
+                Text("Coming soon")
+                    .font(.plusJakarta(size: 13, weight: .semibold))
+                    .foregroundStyle(theme.text)
+                Text(smallShop ? "Tips for your shop will appear here" : "Tips will appear here")
                     .font(.plusJakarta(size: 12))
                     .foregroundStyle(theme.secondary)
                 HStack(spacing: 8) {

@@ -1,5 +1,9 @@
 package com.example.momentra.ui.shell.empty.business
 
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -7,6 +11,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +34,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -42,7 +49,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -59,7 +69,9 @@ import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.CreateCompanyBody
 import com.example.momentra.data.api.CreateLocationBody
 import com.example.momentra.data.api.MintCompanyInviteBody
+import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.domain.CompanySummary
+import com.google.firebase.auth.FirebaseAuth
 import com.example.momentra.ui.shell.empty.group.InviteSendChooserDialog
 import com.example.momentra.ui.shell.empty.group.PendingInviteSend
 import com.example.momentra.ui.shell.empty.group.inviteMessage
@@ -77,6 +89,16 @@ private val CoMuted = Color(0xFF94A3B8)
 private val CoDim = Color(0xFF64748B)
 private val CoGreen = Color(0xFF10B981)
 private val CoAmber = Color(0xFFF59E0B)
+
+private val CoIndustryOptions = listOf(
+    "Retail / Kirana",
+    "Restaurant / F&B",
+    "Fashion / Apparel",
+    "Services",
+    "Wholesale",
+    "Technology & Software",
+    "Other",
+)
 
 private val CoCurrencyOptions = listOf(
     "₹ INR — Indian Rupee",
@@ -110,6 +132,21 @@ private data class CoLocation(
     val accent: Color,
 )
 
+private fun signedInOwnerName(): String {
+    val user = FirebaseAuth.getInstance().currentUser
+    return user?.displayName?.trim().takeUnless { it.isNullOrEmpty() }
+        ?: user?.email?.substringBefore("@")?.trim().takeUnless { it.isNullOrEmpty() }
+        ?: "You"
+}
+
+private fun memberFromName(name: String) = CoMember(
+    initials = name.take(2).uppercase(),
+    name = name,
+    role = "Member",
+    scope = "All Locations",
+    color = CoAccent,
+)
+
 private data class CoMember(
     val initials: String,
     val name: String,
@@ -129,30 +166,42 @@ fun CompanySetupContent(
     modifier: Modifier = Modifier,
 ) {
     var step by remember { mutableIntStateOf(1) }
-    var companyName by remember { mutableStateOf("Pureborn Ops") }
-    var industry by remember { mutableStateOf("Technology & Software") }
-    var companySize by remember { mutableStateOf("Small (2-25)") }
-    var entityType by remember { mutableStateOf("Pvt Ltd") }
+    var companyName by remember { mutableStateOf("") }
+    var industry by remember { mutableStateOf("Retail / Kirana") }
+    var companySize by remember { mutableStateOf("Solo (1)") }
+    var entityType by remember { mutableStateOf("Sole Prop") }
     var gstin by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("₹ INR — Indian Rupee") }
     var fyCycle by remember { mutableStateOf("Apr-Mar") }
     var timezone by remember { mutableStateOf("IST (UTC+5:30)") }
-    var structure by remember { mutableStateOf("Multi-Location") }
-    val locations = remember {
-        mutableStateListOf(
-            CoLocation("HQ — Mumbai", "Andheri East", true, CoGreen),
-            CoLocation("Branch — Bangalore", "Koramangala", false, CoAmber),
-            CoLocation("Branch — Delhi", "Connaught Place", false, Color(0xFFEF4444)),
-        )
-    }
+    var audience by remember { mutableStateOf(com.example.momentra.ui.shell.business.shared.BusinessAudience.SMALL_SHOP) }
+    var structure by remember { mutableStateOf("Single Location") }
+    val locations = remember { mutableStateListOf<CoLocation>() }
     val members = remember {
+        val signedIn = signedInOwnerName()
         mutableStateListOf(
-            CoMember("SM", "Sahil M.", "Owner", "All Locations", CoAccent, you = true),
-            CoMember("AR", "Ananya R.", "Admin", "Bangalore Branch", CoAmber),
+            CoMember(
+                initials = signedIn.take(2).uppercase(),
+                name = signedIn,
+                role = "Owner",
+                scope = "All Locations",
+                color = CoAccent,
+                you = true,
+            ),
         )
     }
     var inviteText by remember { mutableStateOf("") }
+    var logoBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var logoPreview by remember { mutableStateOf<ImageBitmap?>(null) }
+    var logoError by remember { mutableStateOf<String?>(null) }
+    var locationEditor by remember { mutableStateOf<Int?>(null) }
+    var locationEditorOpen by remember { mutableStateOf(false) }
+    var locationNameDraft by remember { mutableStateOf("") }
+    var locationAreaDraft by remember { mutableStateOf("") }
+    var memberEditor by remember { mutableStateOf<Int?>(null) }
+    var memberNameDraft by remember { mutableStateOf("") }
     var activating by remember { mutableStateOf(false) }
+    var nameError by remember { mutableStateOf<String?>(null) }
     var showJoinCode by remember { mutableStateOf(false) }
     var pendingActivation by remember { mutableStateOf<CompanySummary?>(null) }
     var pendingInviteSend by remember { mutableStateOf<PendingInviteSend?>(null) }
@@ -201,8 +250,13 @@ fun CompanySetupContent(
             )
             2 -> CoCompanyForm(
                 companyName = companyName,
-                onCompanyName = { companyName = it },
+                onCompanyName = {
+                    companyName = it
+                    if (nameError != null && it.isNotBlank()) nameError = null
+                },
+                nameError = nameError,
                 industry = industry,
+                onIndustry = { industry = it },
                 companySize = companySize,
                 onCompanySize = { companySize = it },
                 entityType = entityType,
@@ -215,14 +269,51 @@ fun CompanySetupContent(
                 onFyCycle = { fyCycle = it },
                 timezone = timezone,
                 onTimezone = { timezone = it },
+                audience = audience,
+                onAudience = { next ->
+                    audience = next
+                    if (com.example.momentra.ui.shell.business.shared.BusinessAudience.isSmallShop(next)) {
+                        if (structure == "Multi-Location" || structure == "Multi-Unit") {
+                            structure = "Single Location"
+                        }
+                        industry = "Retail / Kirana"
+                        companySize = "Solo (1)"
+                        entityType = "Sole Prop"
+                    } else {
+                        industry = "Technology & Software"
+                        companySize = "Small (2-25)"
+                        entityType = "Pvt Ltd"
+                    }
+                },
+                logoPreview = logoPreview,
+                logoError = logoError,
+                onLogoPicked = { bytes, preview ->
+                    logoBytes = bytes
+                    logoPreview = preview
+                    logoError = if (bytes != null && preview == null) "Could not open that photo" else null
+                },
                 onContinue = { step = 3 },
                 onBack = { step = 1 },
             )
             3 -> CoLocationsForm(
                 structure = structure,
                 onStructure = { structure = it },
+                audience = audience,
                 locations = locations,
                 currency = currency,
+                onAddLocation = {
+                    locationEditor = null
+                    locationNameDraft = ""
+                    locationAreaDraft = ""
+                    locationEditorOpen = true
+                },
+                onEditLocation = { index ->
+                    val loc = locations.getOrNull(index) ?: return@CoLocationsForm
+                    locationEditor = index
+                    locationNameDraft = loc.name
+                    locationAreaDraft = loc.area
+                    locationEditorOpen = true
+                },
                 onContinue = { step = 4 },
                 onBack = { step = 2 },
             )
@@ -231,10 +322,37 @@ fun CompanySetupContent(
                 members = members,
                 inviteText = inviteText,
                 onInviteText = { inviteText = it },
-                onAddInvite = { showAddPeople = true },
+                onAddInvite = {
+                    val typed = inviteText.trim()
+                    if (typed.isNotEmpty()) {
+                        members.add(memberFromName(typed))
+                        inviteText = ""
+                    } else {
+                        showAddPeople = true
+                    }
+                },
+                onEditMember = { index ->
+                    val member = members.getOrNull(index) ?: return@CoLaunchForm
+                    if (member.you) return@CoLaunchForm
+                    memberEditor = index
+                    memberNameDraft = member.name
+                },
+                onDeleteMember = { index ->
+                    val member = members.getOrNull(index) ?: return@CoLaunchForm
+                    if (!member.you) members.removeAt(index)
+                },
+                logoError = logoError,
+                nameError = nameError,
                 activating = activating,
                 onActivate = {
                     if (activating) return@CoLaunchForm
+                    val trimmedName = companyName.trim()
+                    if (trimmedName.isEmpty()) {
+                        nameError = "Enter a company name to activate"
+                        step = 2
+                        return@CoLaunchForm
+                    }
+                    nameError = null
                     activating = true
                     scope.launch {
                         try {
@@ -242,8 +360,8 @@ fun CompanySetupContent(
                             val created = ApiClient.apiService.createCompany(
                                 idempotencyKey = UUID.randomUUID().toString(),
                                 body = CreateCompanyBody(
-                                    displayName = companyName.ifBlank { "My Company" },
-                                    legalName = companyName.ifBlank { "My Company" },
+                                    displayName = trimmedName,
+                                    legalName = trimmedName,
                                     timezone = tz,
                                     companyType = entityType,
                                     taxIdentifier = gstin.ifBlank { null },
@@ -253,9 +371,15 @@ fun CompanySetupContent(
                                         "currency" to currency,
                                         "financialYear" to fyCycle,
                                         "structure" to structure,
+                                        "audience" to audience,
                                     ),
                                 ),
                             ).data
+                            com.example.momentra.ui.shell.business.shared.BusinessAudience.saveForCompany(
+                                context,
+                                created.companyId,
+                                audience,
+                            )
                             for (loc in locations) {
                                 runCatching {
                                     ApiClient.apiService.createLocation(
@@ -268,6 +392,32 @@ fun CompanySetupContent(
                                         ),
                                     )
                                 }
+                            }
+                            val bytes = logoBytes
+                            if (bytes != null) {
+                                val uploaded = BusinessSliceRepository().uploadCompanyLogo(
+                                    companyId = created.companyId,
+                                    bytes = bytes,
+                                )
+                                uploaded.fold(
+                                    onSuccess = { mediaId ->
+                                        runCatching {
+                                            ApiClient.apiService.patchCompany(
+                                                companyId = created.companyId,
+                                                idempotencyKey = UUID.randomUUID().toString(),
+                                                body = mapOf(
+                                                    "expectedVersion" to created.version,
+                                                    "profileJson" to mapOf("logoMediaId" to mediaId),
+                                                ),
+                                            )
+                                        }.onFailure {
+                                            logoError = it.message ?: "Could not save logo"
+                                        }
+                                    },
+                                    onFailure = {
+                                        logoError = it.message ?: "Could not upload logo"
+                                    },
+                                )
                             }
                             val summary = CompanySummary(
                                 companyId = created.companyId,
@@ -331,6 +481,67 @@ fun CompanySetupContent(
                     ),
                 )
                 showAddPeople = false
+            },
+        )
+    }
+
+    if (locationEditorOpen) {
+        CoLocationEditorDialog(
+            title = if (locationEditor == null) "Add location" else "Edit location",
+            name = locationNameDraft,
+            onName = { locationNameDraft = it },
+            area = locationAreaDraft,
+            onArea = { locationAreaDraft = it },
+            canRemove = locationEditor != null,
+            onRemove = {
+                val index = locationEditor
+                if (index != null && index in locations.indices) {
+                    val wasPrimary = locations[index].primary
+                    locations.removeAt(index)
+                    if (wasPrimary && locations.isNotEmpty() && locations.none { it.primary }) {
+                        locations[0] = locations[0].copy(primary = true, accent = CoGreen)
+                    }
+                }
+                locationEditorOpen = false
+            },
+            onDismiss = { locationEditorOpen = false },
+            onSave = {
+                val name = locationNameDraft.trim()
+                if (name.isEmpty()) return@CoLocationEditorDialog
+                val area = locationAreaDraft.trim()
+                val index = locationEditor
+                if (index != null && index in locations.indices) {
+                    val current = locations[index]
+                    locations[index] = current.copy(name = name, area = area)
+                } else {
+                    locations.add(
+                        CoLocation(
+                            name = name,
+                            area = area,
+                            primary = locations.isEmpty(),
+                            accent = if (locations.isEmpty()) CoGreen else CoAmber,
+                        ),
+                    )
+                }
+                locationEditorOpen = false
+            },
+        )
+    }
+    memberEditor?.let { index ->
+        CoMemberEditorDialog(
+            name = memberNameDraft,
+            onName = { memberNameDraft = it },
+            onDismiss = { memberEditor = null },
+            onSave = {
+                val name = memberNameDraft.trim()
+                val current = members.getOrNull(index)
+                if (name.isNotEmpty() && current != null && !current.you) {
+                    members[index] = current.copy(
+                        name = name,
+                        initials = name.take(2).uppercase(),
+                    )
+                }
+                memberEditor = null
             },
         )
     }
@@ -698,7 +909,9 @@ private fun CoPrimaryButton(label: String, onClick: () -> Unit, color: Color = C
 private fun CoCompanyForm(
     companyName: String,
     onCompanyName: (String) -> Unit,
+    nameError: String? = null,
     industry: String,
+    onIndustry: (String) -> Unit,
     companySize: String,
     onCompanySize: (String) -> Unit,
     entityType: String,
@@ -711,33 +924,53 @@ private fun CoCompanyForm(
     onFyCycle: (String) -> Unit,
     timezone: String,
     onTimezone: (String) -> Unit,
+    audience: String,
+    onAudience: (String) -> Unit,
+    logoPreview: ImageBitmap?,
+    logoError: String?,
+    onLogoPicked: (ByteArray?, ImageBitmap?) -> Unit,
     onContinue: () -> Unit,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val bytes = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        }.getOrNull()
+        val preview = bytes?.let { raw ->
+            BitmapFactory.decodeByteArray(raw, 0, raw.size)?.asImageBitmap()
+        }
+        onLogoPicked(bytes, preview)
+    }
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
     CoStepStrip(active = 2)
     CoSectionCard("01", "COMPANY PROFILE") {
-        CoFieldLabel("COMPANY NAME")
-        CoTextField(companyName, onCompanyName)
-        CoFieldLabel("INDUSTRY")
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(44.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(CoBg)
-                .border(1.dp, CoBorder, RoundedCornerShape(10.dp))
-                .padding(horizontal = 12.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(industry, color = Color.White, fontSize = 14.sp)
-                Text("▼", color = CoDim, fontSize = 14.sp)
+        CoFieldLabel("WHO IS THIS FOR?")
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            CoPill(
+                "Small shop / Retail",
+                audience == com.example.momentra.ui.shell.business.shared.BusinessAudience.SMALL_SHOP,
+            ) {
+                onAudience(com.example.momentra.ui.shell.business.shared.BusinessAudience.SMALL_SHOP)
+            }
+            CoPill(
+                "Growing business",
+                audience == com.example.momentra.ui.shell.business.shared.BusinessAudience.GROWING,
+            ) {
+                onAudience(com.example.momentra.ui.shell.business.shared.BusinessAudience.GROWING)
             }
         }
+        CoFieldLabel("COMPANY NAME")
+        CoTextField(companyName, onCompanyName, placeholder = "Your shop or company name")
+        if (!nameError.isNullOrBlank()) {
+            Text(nameError, color = Color(0xFFF87171), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        }
+        CoFieldLabel("INDUSTRY")
+        CoDropdownField(value = industry, options = CoIndustryOptions, onSelect = onIndustry)
         CoFieldLabel("COMPANY SIZE")
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("Solo (1)", "Small (2-25)", "Medium (26-100)").forEach {
@@ -750,10 +983,30 @@ private fun CoCompanyForm(
                 .fillMaxWidth()
                 .height(64.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .border(1.dp, CoBorder, RoundedCornerShape(10.dp)),
+                .border(1.dp, CoBorder, RoundedCornerShape(10.dp))
+                .clickable {
+                    logoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
             contentAlignment = Alignment.Center,
         ) {
-            Text("Upload corporate logo", color = CoMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            if (logoPreview != null) {
+                Image(
+                    bitmap = logoPreview,
+                    contentDescription = "Company logo",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                val logoHint = if (com.example.momentra.ui.shell.business.shared.BusinessAudience.isSmallShop(audience)) {
+                    "Upload shop logo"
+                } else {
+                    "Upload corporate logo"
+                }
+                Text(logoHint, color = CoMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+        if (!logoError.isNullOrBlank()) {
+            Text(logoError, color = Color(0xFFF87171), fontSize = 12.sp)
         }
     }
     CoSectionCard("02", "LEGAL & FINANCIAL") {
@@ -821,11 +1074,22 @@ private fun CoCompanyForm(
 private fun CoLocationsForm(
     structure: String,
     onStructure: (String) -> Unit,
+    audience: String,
     locations: List<CoLocation>,
     currency: String,
+    onAddLocation: () -> Unit,
+    onEditLocation: (Int) -> Unit,
     onContinue: () -> Unit,
     onBack: () -> Unit,
 ) {
+    val smallShop = com.example.momentra.ui.shell.business.shared.BusinessAudience.isSmallShop(audience)
+    val structureOptions = buildList {
+        add(Triple("Single Location", "One office or store", "▢"))
+        if (!smallShop) {
+            add(Triple("Multi-Location", "Multiple branches or offices", "▦"))
+            add(Triple("Multi-Unit", "Different business units or brands", "☰"))
+        }
+    }
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -833,11 +1097,7 @@ private fun CoLocationsForm(
     CoStepStrip(active = 3)
     CoSectionCard("01", "BUSINESS STRUCTURE") {
         Text("How is your business organized?", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        listOf(
-            Triple("Single Location", "One office or store", "▢"),
-            Triple("Multi-Location", "Multiple branches or offices", "▦"),
-            Triple("Multi-Unit", "Different business units or brands", "☰"),
-        ).forEach { (title, body, glyph) ->
+        structureOptions.forEach { (title, body, glyph) ->
             val selected = structure == title
             Row(
                 modifier = Modifier
@@ -867,7 +1127,10 @@ private fun CoLocationsForm(
         }
     }
     CoSectionCard("02", "YOUR LOCATIONS") {
-        locations.forEach { loc ->
+        if (locations.isEmpty()) {
+            Text("No locations yet", color = CoMuted, fontSize = 13.sp)
+        }
+        locations.forEachIndexed { index, loc ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -896,7 +1159,15 @@ private fun CoLocationsForm(
                     }
                     Spacer(Modifier.width(8.dp))
                 }
-                Text("✎", color = CoDim, fontSize = 13.sp, modifier = Modifier.padding(end = 12.dp))
+                Text(
+                    "✎",
+                    color = CoDim,
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .clickable { onEditLocation(index) }
+                        .padding(end = 12.dp)
+                        .semantics { role = Role.Button; contentDescription = "Edit location" },
+                )
             }
         }
         Text(
@@ -904,7 +1175,10 @@ private fun CoLocationsForm(
             color = CoAccent,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onAddLocation)
+                .padding(vertical = 4.dp),
         )
         Column(
             modifier = Modifier
@@ -944,6 +1218,10 @@ private fun CoLaunchForm(
     inviteText: String,
     onInviteText: (String) -> Unit,
     onAddInvite: () -> Unit,
+    onEditMember: (Int) -> Unit,
+    onDeleteMember: (Int) -> Unit,
+    logoError: String?,
+    nameError: String? = null,
     activating: Boolean,
     onActivate: () -> Unit,
     onBack: () -> Unit,
@@ -955,8 +1233,13 @@ private fun CoLaunchForm(
     ) {
     CoStepStrip(active = 4)
     CoSectionCard("01", "INVITE YOUR TEAM") {
-        Text("Add team members to get started", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        members.forEach { m ->
+        Text(
+            "Add people to invite after activation — share the invite link when you’re ready",
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        members.forEachIndexed { index, m ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -986,8 +1269,32 @@ private fun CoLaunchForm(
                     }
                     Text(m.scope, color = CoMuted, fontSize = 11.sp)
                 }
-                Text(if (m.you) "You" else "✎", color = CoDim, fontSize = 12.sp)
+                if (m.you) {
+                    Text("You", color = CoDim, fontSize = 12.sp)
+                } else {
+                    Text(
+                        "✎",
+                        color = CoDim,
+                        fontSize = 12.sp,
+                        modifier = Modifier.clickable { onEditMember(index) }.semantics {
+                            role = Role.Button
+                            contentDescription = "Edit member"
+                        },
+                    )
+                    Text(
+                        "✕",
+                        color = CoDim,
+                        fontSize = 12.sp,
+                        modifier = Modifier.clickable { onDeleteMember(index) }.semantics {
+                            role = Role.Button
+                            contentDescription = "Remove member"
+                        },
+                    )
+                }
             }
+        }
+        if (!logoError.isNullOrBlank()) {
+            Text(logoError, color = Color(0xFFF87171), fontSize = 12.sp)
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1076,7 +1383,11 @@ private fun CoLaunchForm(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text("4 sections configured • ${members.size} team members added", color = CoDim, fontSize = 13.sp)
+        Text(
+            "4 sections configured • ${members.count { !it.you }} people to invite",
+            color = CoDim,
+            fontSize = 13.sp,
+        )
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(999.dp))
@@ -1089,6 +1400,9 @@ private fun CoLaunchForm(
             Text("✓", color = CoGreen, fontSize = 12.sp)
             Text("Ready to activate", color = CoGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
+    }
+    if (!nameError.isNullOrBlank()) {
+        Text(nameError, color = Color(0xFFF87171), fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
     CoPrimaryButton(
         label = if (companyName.isBlank()) "Activate Company →" else "Activate $companyName →",
@@ -1115,5 +1429,76 @@ private fun CoLaunchForm(
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth().clickable(enabled = !activating, onClick = onDraft).padding(8.dp),
     )
+    }
+}
+
+@Composable
+private fun CoLocationEditorDialog(
+    title: String,
+    name: String,
+    onName: (String) -> Unit,
+    area: String,
+    onArea: (String) -> Unit,
+    canRemove: Boolean,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(CoCard)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            CoFieldLabel("NAME")
+            CoTextField(name, onName, placeholder = "Location name")
+            CoFieldLabel("ADDRESS")
+            CoTextField(area, onArea, placeholder = "Address")
+            CoPrimaryButton("Save", onClick = onSave, enabled = name.isNotBlank())
+            if (canRemove) {
+                Text(
+                    "Remove location",
+                    color = Color(0xFFF87171),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onRemove).padding(8.dp),
+                )
+            }
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                Text("Cancel", color = CoDim)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoMemberEditorDialog(
+    name: String,
+    onName: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(CoCard)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Edit member", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            CoFieldLabel("NAME")
+            CoTextField(name, onName, placeholder = "Name or email")
+            CoPrimaryButton("Save", onClick = onSave, enabled = name.isNotBlank())
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                Text("Cancel", color = CoDim)
+            }
+        }
     }
 }

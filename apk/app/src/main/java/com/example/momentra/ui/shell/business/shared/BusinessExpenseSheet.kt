@@ -71,8 +71,27 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 /** Figma `1620:12158` — Add Expense bottom sheet (Team Ops / business). */
-private val CategoryLabels = listOf("Software", "Travel", "Office", "Equipment", "Services", "Other")
+private val GrowingCategoryLabels = listOf("Software", "Travel", "Office", "Equipment", "Services", "Other")
+private val ShopCategoryLabels = listOf(
+    "Inventory / Stock",
+    "Rent",
+    "Utilities",
+    "Salaries / Wages",
+    "Transport",
+    "Packaging",
+    "Misc / Other",
+)
 private val PaidByOptions = listOf("You")
+private val PaymentGrowingLabels = listOf("Cash", "UPI", "Card")
+private val PaymentShopLabels = listOf("Cash", "UPI", "Card", "Udhaar (credit)")
+
+private fun paymentMethodCode(label: String): String = when (label.trim().lowercase()) {
+    "cash" -> "CASH"
+    "upi" -> "UPI"
+    "card" -> "CARD"
+    "udhaar (credit)", "udhaar" -> "UDHAAR"
+    else -> "OTHER"
+}
 
 private fun categoryCode(label: String): String =
     label.trim().uppercase().replace(Regex("[^A-Z0-9]+"), "_").trim('_')
@@ -93,15 +112,21 @@ fun BusinessExpenseSheet(
     var currency by remember { mutableStateOf("INR") }
     var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var description by remember { mutableStateOf("") }
-    var categoryLabel by remember { mutableStateOf("Software") }
+    var categoryLabel by remember { mutableStateOf(GrowingCategoryLabels.first()) }
     var paidBy by remember { mutableStateOf("You") }
+    var paymentLabel by remember { mutableStateOf(PaymentGrowingLabels.first()) }
+    var taxNote by remember { mutableStateOf("") }
     var isoDate by remember { mutableStateOf(LocalDate.now().toString()) }
     var receiptUri by remember { mutableStateOf<Uri?>(null) }
     var receiptName by remember { mutableStateOf<String?>(null) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var smallShop by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    val categoryLabels = if (smallShop) ShopCategoryLabels else GrowingCategoryLabels
+    val paymentLabels = if (smallShop) PaymentShopLabels else PaymentGrowingLabels
 
     val pickReceipt = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
@@ -112,6 +137,14 @@ fun BusinessExpenseSheet(
 
     LaunchedEffect(momentId, visible) {
         if (!visible) return@LaunchedEffect
+        smallShop = com.example.momentra.ui.shell.business.shared.BusinessAudience.isSmallShopMoment(
+            momentId,
+            context = context,
+        )
+        val labels = if (smallShop) ShopCategoryLabels else GrowingCategoryLabels
+        categoryLabel = labels.first()
+        paymentLabel = (if (smallShop) PaymentShopLabels else PaymentGrowingLabels).first()
+        taxNote = ""
         val ctx = loadBusinessCurrencyContext(momentId)
         currency = ctx.primary
         preferredCurrencyCodes = ctx.preferred
@@ -238,7 +271,7 @@ fun BusinessExpenseSheet(
                     TeamOpsTextField(
                         value = description,
                         onValueChange = { description = it },
-                        placeholder = "Software subscription renewal",
+                        placeholder = if (smallShop) "Stock refill / daily spend" else "Software subscription renewal",
                         accent = accent,
                         modifier = Modifier.testTag(MaestroIds.BUSINESS_EXPENSE_NOTE),
                     )
@@ -247,12 +280,34 @@ fun BusinessExpenseSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     TeamOpsFieldLabel("Category")
                     TeamOpsChipRow(
-                        options = CategoryLabels,
+                        options = categoryLabels,
                         selected = categoryLabel,
                         accent = accent,
                         modifier = Modifier.testTag(MaestroIds.BUSINESS_EXPENSE_CATEGORY),
                         onSelect = { categoryLabel = it },
                     )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TeamOpsFieldLabel("Payment")
+                    TeamOpsChipRow(
+                        options = paymentLabels,
+                        selected = paymentLabel,
+                        accent = accent,
+                        onSelect = { paymentLabel = it },
+                    )
+                }
+
+                if (smallShop) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TeamOpsFieldLabel("GST note (optional)")
+                        TeamOpsTextField(
+                            value = taxNote,
+                            onValueChange = { taxNote = it },
+                            placeholder = "Invoice no. / GST details",
+                            accent = accent,
+                        )
+                    }
                 }
 
                 Row(
@@ -339,6 +394,8 @@ fun BusinessExpenseSheet(
                                 categoryCode = categoryCode(categoryLabel),
                                 paidBy = paidBy.takeIf { it.isNotBlank() },
                                 effectiveAt = "${isoDate}T12:00:00.000Z",
+                                paymentMethodCode = paymentMethodCode(paymentLabel),
+                                taxNote = taxNote.takeIf { it.isNotBlank() },
                             ),
                         ).fold(
                             onSuccess = { created ->

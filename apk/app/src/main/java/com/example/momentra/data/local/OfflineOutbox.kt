@@ -3,6 +3,7 @@ package com.example.momentra.data.local
 import android.content.Context
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.ApiResultException
+import com.example.momentra.data.api.GroupParticipantsDto
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -29,6 +30,7 @@ object OfflineOutbox {
 
     private val gson = Gson()
     private val listType = object : TypeToken<MutableList<OfflineCommand>>() {}.type
+    private val rosterType = object : TypeToken<MutableMap<String, GroupParticipantsDto>>() {}.type
     private val createdIdKeys = listOf("memoryId", "expenseId", "momentId")
     private var filesDir: File? = null
     private var userId: String? = null
@@ -47,6 +49,22 @@ object OfflineOutbox {
     fun bindUser(userId: String) {
         if (userId.isBlank()) return
         this.userId = userId
+    }
+
+    /** Last successful member list for a moment, used when the network read fails. */
+    @Synchronized
+    fun saveRoster(momentId: String, roster: GroupParticipantsDto) {
+        val uid = userId ?: return
+        if (momentId.isBlank()) return
+        val map = loadRoster(uid)
+        map[momentId] = roster
+        rosterFile(uid)?.writeText(gson.toJson(map))
+    }
+
+    @Synchronized
+    fun roster(momentId: String): GroupParticipantsDto? {
+        val uid = userId ?: return null
+        return loadRoster(uid)[momentId]
     }
 
     @Synchronized
@@ -287,6 +305,19 @@ object OfflineOutbox {
         return File(dir, "offline-outbox-$userId.json")
     }
 
+    private fun rosterFile(userId: String): File? {
+        val dir = filesDir ?: return null
+        return File(dir, "group-roster-$userId.json")
+    }
+
+    private fun loadRoster(userId: String): MutableMap<String, GroupParticipantsDto> {
+        val raw = rosterFile(userId)?.takeIf { it.exists() }?.readText().orEmpty()
+        if (raw.isBlank()) return mutableMapOf()
+        return runCatching {
+            gson.fromJson<MutableMap<String, GroupParticipantsDto>>(raw, rosterType)
+        }.getOrNull() ?: mutableMapOf()
+    }
+
     private fun mediaFile(name: String): File? {
         val dir = filesDir ?: return null
         return File(File(dir, "offline-media"), name)
@@ -317,7 +348,7 @@ sealed class OfflineReplay {
     data class Rejected(val message: String?) : OfflineReplay()
 }
 
-private fun Throwable.isOfflineFailure(): Boolean =
+internal fun Throwable.isOfflineFailure(): Boolean =
     this is ApiResultException.Network || this is IOException || cause is IOException
 
 internal fun <T> Result<T>.orQueueOffline(

@@ -208,6 +208,7 @@ struct RunwayDiamondDivider: View {
 
 struct RunwayIntelligenceSection: View {
     let theme: BusinessActiveTheme
+    var smallShop: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -226,26 +227,19 @@ struct RunwayIntelligenceSection: View {
                     .font(.plusJakarta(size: 11))
                     .foregroundStyle(theme.muted)
             }
-            ForEach(["Burn Efficiency", "Scenario Insight"], id: \.self) { title in
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(RunwayColors.amber.opacity(0.08))
-                        .frame(width: 28, height: 28)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.plusJakarta(size: 13, weight: .bold))
-                            .foregroundStyle(theme.text)
-                        Text("Insights unavailable until financial intelligence API projects signals.")
-                            .font(.plusJakarta(size: 12))
-                            .foregroundStyle(theme.secondary)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(16)
-                .background(theme.card)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08)))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Coming soon")
+                    .font(.plusJakarta(size: 13, weight: .semibold))
+                    .foregroundStyle(theme.text)
+                Text(smallShop ? "Tips for your shop will appear here" : "Tips will appear here")
+                    .font(.plusJakarta(size: 13))
+                    .foregroundStyle(theme.secondary)
             }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(theme.card)
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08)))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
     }
 }
@@ -255,10 +249,11 @@ struct RunwayTimelineHeroCard: View {
     let revenue: String
     let activity: String
     let theme: BusinessActiveTheme
+    var smallShop: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("FINANCIAL TIMELINE • RUNWAY")
+            Text(smallShop ? "MONEY TIMELINE" : "FINANCIAL TIMELINE • RUNWAY")
                 .font(.plusJakarta(size: 10, weight: .bold))
                 .foregroundStyle(RunwayColors.amber)
             Text("Financial Timeline")

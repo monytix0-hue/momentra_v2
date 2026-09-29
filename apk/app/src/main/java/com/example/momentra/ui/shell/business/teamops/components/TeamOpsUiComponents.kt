@@ -396,7 +396,11 @@ fun TeamOpsWorkloadSection(
 
 /** Shown only when an insights payload exists. There is no insights API yet. */
 @Composable
-fun TeamOpsIntelligenceSection(theme: BusinessActiveTheme, modifier: Modifier = Modifier) {
+fun TeamOpsIntelligenceSection(
+    theme: BusinessActiveTheme,
+    smallShop: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             "What Momentra Noticed",
@@ -405,18 +409,29 @@ fun TeamOpsIntelligenceSection(theme: BusinessActiveTheme, modifier: Modifier = 
             fontWeight = FontWeight.SemiBold,
             fontFamily = PlusJakartaSans,
         )
-        Text(
-            "No insights yet",
-            color = theme.secondary,
-            fontSize = 13.sp,
-            fontFamily = PlusJakartaSans,
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
                 .background(theme.card)
                 .border(1.dp, theme.border, RoundedCornerShape(16.dp))
                 .padding(16.dp),
-        )
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                "Coming soon",
+                color = theme.text,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+            )
+            Text(
+                if (smallShop) "Tips for your shop will appear here" else "Tips will appear here",
+                color = theme.secondary,
+                fontSize = 13.sp,
+                fontFamily = PlusJakartaSans,
+            )
+        }
     }
 }
 

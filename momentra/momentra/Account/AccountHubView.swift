@@ -145,6 +145,16 @@ struct AccountHubView: View {
                             .onChange(of: hideBalances) { _, v in
                                 UserDefaults.standard.set(v, forKey: "momentra_hide_balances")
                             }
+                        Toggle("Evening check-in", isOn: Binding(
+                            get: { PersonalHabitPreferences.eveningNudgeEnabled },
+                            set: {
+                                PersonalHabitPreferences.eveningNudgeEnabled = $0
+                                PersonalEveningNudgeScheduler.sync(enabled: $0)
+                            }
+                        ))
+                        Text("Local reminder at 8:00 PM")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         Button("Back") { section = "home" }
                     }
                 case "developer":

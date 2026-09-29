@@ -4,6 +4,7 @@ import SwiftUI
 struct BusinessCreateMomentView: View {
     var onBack: () -> Void
     var onSelectSetup: (BusinessSetupKind) -> Void
+    var companyId: String? = nil
 
     enum Tab: String, CaseIterable {
         case createMoment = "Create a Moment"
@@ -13,6 +14,10 @@ struct BusinessCreateMomentView: View {
     @State private var tab: Tab = .createMoment
     @State private var search = ""
     @State private var filter = "All"
+
+    private var showRetailTagline: Bool {
+        BusinessAudience.isSmallShop(BusinessAudience.forCompany(companyId: companyId))
+    }
 
     private struct Category: Identifiable {
         let id = UUID()
@@ -36,21 +41,60 @@ struct BusinessCreateMomentView: View {
 
     private let categories: [Category] = [
         Category(title: "Team & Work", body: "Manage hiring, attendance, performance & team growth", icon: "biz_create_users", card: "biz_create_card_team", comingSoon: false, setupKind: .teamOperations, testTag: "business.setup.team_operations"),
-        Category(title: "Money & Cash Flow", body: "Monitor cash flow, spending and runway health.", icon: "biz_create_trending", card: "biz_create_card_runway", comingSoon: false, setupKind: .businessRunway, testTag: "business.setup.business_runway"),
+        Category(title: "Money & Cash Flow", body: "Monitor cash and spending.", icon: "biz_create_trending", card: "biz_create_card_runway", comingSoon: false, setupKind: .businessRunway, testTag: "business.setup.business_runway"),
         Category(title: "Daily Business", body: "Organize departments, processes and workflows.", icon: "biz_create_credit_card", card: "biz_create_card_ops", comingSoon: false, setupKind: .businessOperations, testTag: "business.setup.business_operations"),
         Category(title: "Project Operations", body: "Organize tasks, milestones, sprints & deliverables", icon: "biz_create_layers", card: "biz_create_card_project", comingSoon: true, setupKind: nil, testTag: nil),
         Category(title: "Event Operations", body: "Organize events from planning through execution.", icon: "biz_create_wallet", card: "biz_create_card_event", comingSoon: true, setupKind: nil, testTag: nil),
         Category(title: "Vendor Operations", body: "Manage suppliers, contracts, procurement & partnerships", icon: "biz_create_briefcase", card: "biz_create_card_vendor", comingSoon: true, setupKind: nil, testTag: nil),
     ]
 
-    private let memories: [MemoryItem] = [
-        MemoryItem(title: "Q2 Revenue Milestone", body: "Crossed ₹50L monthly recurring revenue for the first time", tag: "Revenue", date: "Jul 14, 2026", dotAsset: "biz_memory_dot_green"),
-        MemoryItem(title: "New CTO Onboarded", body: "Ravi Mehta joined as CTO, bringing 12 years enterprise experience", tag: "Team", date: "Jun 28, 2026", dotAsset: "biz_memory_dot_blue"),
-        MemoryItem(title: "Series A Strategy Pivot", body: "Shifted focus from B2C to B2B SaaS after market analysis", tag: "Strategy", date: "Jun 15, 2026", dotAsset: "biz_memory_dot_purple"),
-        MemoryItem(title: "Product V2 Launch", body: "Released redesigned dashboard with AI-powered insights", tag: "Projects", date: "May 30, 2026", dotAsset: "biz_memory_dot_orange"),
-        MemoryItem(title: "Cost Optimization Win", body: "Reduced cloud infrastructure costs by 34% through migration", tag: "Expenses", date: "May 18, 2026", dotAsset: "biz_memory_dot_green"),
-        MemoryItem(title: "First Enterprise Client", body: "Signed 3-year contract with TechCorp India worth ₹2.4Cr", tag: "Revenue", date: "May 2, 2026", dotAsset: "biz_memory_dot_blue"),
-    ]
+    private var visibleCategories: [Category] {
+        if showRetailTagline {
+            categories.filter { !$0.comingSoon }.map { cat in
+                switch cat.setupKind {
+                case .teamOperations:
+                    return Category(
+                        title: cat.title,
+                        body: "Staff updates, attendance, and shop team notes",
+                        icon: cat.icon,
+                        card: cat.card,
+                        comingSoon: false,
+                        setupKind: cat.setupKind,
+                        testTag: cat.testTag
+                    )
+                case .businessRunway:
+                    return Category(
+                        title: cat.title,
+                        body: "Track cash, sales, and shop spends",
+                        icon: cat.icon,
+                        card: cat.card,
+                        comingSoon: false,
+                        setupKind: cat.setupKind,
+                        testTag: cat.testTag
+                    )
+                case .businessOperations:
+                    return Category(
+                        title: cat.title,
+                        body: "Suppliers, day-to-day spends, and shop issues",
+                        icon: cat.icon,
+                        card: cat.card,
+                        comingSoon: false,
+                        setupKind: cat.setupKind,
+                        testTag: cat.testTag
+                    )
+                default:
+                    return cat
+                }
+            }
+        }
+        return categories.filter { cat in
+            guard let kind = cat.setupKind else { return true }
+            guard let key = CompanyModules.moduleKey(for: kind) else { return true }
+            return CompanyModules.isEnabled(companyId: companyId, key: key)
+        }
+    }
+
+    private let memories: [MemoryItem] = []
 
     private let filters = ["All", "Revenue", "Team", "Strategy", "Projects", "Expenses"]
 
@@ -65,8 +109,10 @@ struct BusinessCreateMomentView: View {
         ScrollView {
             VStack(spacing: 24) {
                 header
-                tabSwitcher
-                if tab == .createMoment {
+                if !showRetailTagline {
+                    tabSwitcher
+                }
+                if tab == .createMoment || showRetailTagline {
                     momentContent
                 } else {
                     memoryContent
@@ -102,6 +148,11 @@ struct BusinessCreateMomentView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close")
+            }
+            if showRetailTagline {
+                Text("Built for shops and small teams in India.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color(hex: "#94A3B8"))
             }
         }
         .padding(.horizontal, 20)
@@ -181,7 +232,7 @@ struct BusinessCreateMomentView: View {
                 Text("Choose the part of the business you want to manage.")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(Color(hex: "#94A3B8"))
-                ForEach(categories) { category in
+                ForEach(visibleCategories) { category in
                     Button {
                         if let kind = category.setupKind, !category.comingSoon {
                             onSelectSetup(kind)
@@ -195,17 +246,19 @@ struct BusinessCreateMomentView: View {
             }
             .padding(.horizontal, 20)
 
-            HStack(spacing: 6) {
-                Text("Not sure where to start?")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color(hex: "#94A3B8"))
-                Text("Let AI suggest →")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(BusinessEmptyTokens.accent)
-                    .underline()
+            if !showRetailTagline {
+                HStack(spacing: 6) {
+                    Text("Not sure where to start?")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color(hex: "#94A3B8"))
+                    Text("Let AI suggest →")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(BusinessEmptyTokens.accent)
+                        .underline()
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
         }
     }
 
@@ -249,22 +302,17 @@ struct BusinessCreateMomentView: View {
                 .tracking(0.8)
                 .foregroundStyle(Color(hex: "#64748B"))
 
-            ForEach(filteredMemories) { memoryCard($0) }
-
-            VStack(spacing: 8) {
-                Image("biz_memory_line_footer")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity)
-                Text("Showing \(filteredMemories.count) of 24 memories")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color(hex: "#64748B"))
-                Text("View All Memories →")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(BusinessEmptyTokens.accent)
+            if filteredMemories.isEmpty {
+                Text("No memories yet")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color(hex: "#94A3B8"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(BusinessSheetTheme.card, in: RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(BusinessSheetTheme.border, lineWidth: 1))
+            } else {
+                ForEach(filteredMemories) { memoryCard($0) }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 4)
         }
         .padding(.horizontal, 20)
     }

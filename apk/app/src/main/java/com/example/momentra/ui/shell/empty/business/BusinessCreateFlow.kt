@@ -30,6 +30,7 @@ fun BusinessCreateFlow(
         BusinessCreateMomentContent(
             onBack = onCreateBack,
             onSelectSetup = { kind -> openSetup = kind },
+            companyId = companyId,
             modifier = Modifier.fillMaxSize(),
         )
 

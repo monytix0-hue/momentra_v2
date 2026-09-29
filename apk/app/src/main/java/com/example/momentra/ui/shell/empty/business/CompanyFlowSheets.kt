@@ -29,11 +29,13 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,8 +50,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.ApiClient
+import com.example.momentra.data.api.CompanyMemberDto
 import com.example.momentra.data.api.CreateCompanyBody
 import com.example.momentra.domain.CompanySummary
+import com.example.momentra.ui.shell.business.shared.BusinessAudience
+import com.example.momentra.ui.shell.business.shared.CompanyModules
 import java.util.UUID
 import kotlinx.coroutines.launch
 
@@ -71,6 +76,36 @@ private val IndustryOptions = listOf(
 )
 
 private val SizeOptions = listOf("1-10", "11-50", "51-200", "201-500", "500+")
+
+private val EntityTypeOptions = listOf("Pvt Ltd", "LLP", "Partnership", "Sole Prop")
+
+private val CurrencyOptions = listOf(
+    "₹ INR — Indian Rupee",
+    "$ USD — US Dollar",
+    "€ EUR — Euro",
+    "£ GBP — British Pound",
+    "د.إ AED — UAE Dirham",
+    "S$ SGD — Singapore Dollar",
+)
+
+private data class ModuleToggleDef(val label: String, val key: String, val smallShopHidden: Boolean = false)
+
+private val ModuleToggleDefs = listOf(
+    ModuleToggleDef("Team & Work", "teamOps"),
+    ModuleToggleDef("Daily Business", "dailyBusiness"),
+    ModuleToggleDef("Money & Cash Flow", "money"),
+    ModuleToggleDef("Projects & Tasks", "projects", smallShopHidden = true),
+    ModuleToggleDef("Events & Plans", "events", smallShopHidden = true),
+    ModuleToggleDef("Suppliers & Vendors", "vendors"),
+)
+
+private val AlertToggleDefs = listOf(
+    "Purchase & Expense Alerts" to "purchaseExpense",
+    "Approval Requests" to "approvals",
+    "Issue / Risk Alerts" to "issues",
+    "Payment Reminders" to "paymentReminders",
+    "Important Business Updates" to "importantUpdates",
+)
 
 private enum class CompanySheetPage { Switch, Settings, Create }
 
@@ -125,6 +160,7 @@ fun CompanyFlowSheet(
                 onAdd = { page = CompanySheetPage.Create },
             )
             CompanySheetPage.Settings -> CompanySettingsPage(
+                companyId = settingsCompany?.companyId.orEmpty(),
                 companyName = settingsCompany?.displayName.orEmpty(),
                 onClose = {
                     if (startOnCreate) onDismiss() else page = CompanySheetPage.Switch
@@ -255,64 +291,251 @@ private fun CompanySwitchPage(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CompanySettingsPage(
+    companyId: String,
     companyName: String,
     onClose: () -> Unit,
     onOpenLocations: () -> Unit,
 ) {
-    val name = companyName.ifBlank { "Company" }
-    var momentUses by remember {
-        mutableStateOf(
-            listOf(
-                "Team & Work" to true,
-                "Daily Business" to true,
-                "Money & Cash Flow" to true,
-                "Projects & Tasks" to false,
-                "Events & Plans" to false,
-                "Suppliers & Vendors" to true,
-            ),
-        )
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val headerName = companyName.ifBlank { "Company" }
+
+    var loading by remember(companyId) { mutableStateOf(true) }
+    var loadError by remember(companyId) { mutableStateOf<String?>(null) }
+    var version by remember(companyId) { mutableStateOf<Int?>(null) }
+
+    var displayName by remember(companyId) { mutableStateOf(companyName) }
+    var legalName by remember(companyId) { mutableStateOf("") }
+    var taxIdentifier by remember(companyId) { mutableStateOf("") }
+    var companyType by remember(companyId) { mutableStateOf(EntityTypeOptions.first()) }
+    var industry by remember(companyId) { mutableStateOf("") }
+    var companySize by remember(companyId) { mutableStateOf(SizeOptions.first()) }
+    var currency by remember(companyId) { mutableStateOf(CurrencyOptions.first()) }
+    var financialYear by remember(companyId) { mutableStateOf("—") }
+    var smallShop by remember(companyId) { mutableStateOf(false) }
+
+    var moduleToggles by remember(companyId) {
+        mutableStateOf(ModuleToggleDefs.associate { it.key to true })
     }
-    var alerts by remember {
-        mutableStateOf(
-            listOf(
-                "Purchase & Expense Alerts" to true,
-                "Approval Requests" to true,
-                "Issue / Risk Alerts" to true,
-                "Payment Reminders" to true,
-                "Important Business Updates" to true,
-            ),
-        )
+    var alertToggles by remember(companyId) {
+        mutableStateOf(AlertToggleDefs.associate { it.second to true })
     }
-    var memoryOn by remember { mutableStateOf(true) }
+    var memoryOn by remember(companyId) { mutableStateOf(true) }
+
+    var members by remember(companyId) { mutableStateOf<List<CompanyMemberDto>>(emptyList()) }
+    var defaultLocationName by remember(companyId) { mutableStateOf<String?>(null) }
+    var showInviteSheet by remember { mutableStateOf(false) }
+
+    var savingProfile by remember { mutableStateOf(false) }
+    var profileSaveError by remember { mutableStateOf<String?>(null) }
+    var profileSaved by remember { mutableStateOf(false) }
+    var settingsPatchBusy by remember { mutableStateOf(false) }
+
+    var entityTypeOpen by remember { mutableStateOf(false) }
+    var industryOpen by remember { mutableStateOf(false) }
+    var currencyOpen by remember { mutableStateOf(false) }
+
+    fun applyCompanyPayload(data: Map<String, Any?>) {
+        version = companyVersionFrom(data) ?: version
+        displayName = data["displayName"]?.toString().orEmpty().ifBlank { displayName }
+        legalName = data["legalName"]?.toString().orEmpty()
+        taxIdentifier = data["taxIdentifier"]?.toString().orEmpty()
+        data["companyType"]?.toString()?.takeIf { it.isNotBlank() }?.let { companyType = it }
+        val profile = companyAnyMap(data["profileJson"])
+        industry = profile["industry"]?.toString().orEmpty()
+        profile["companySize"]?.toString()?.takeIf { it.isNotBlank() }?.let { companySize = it }
+        profile["currency"]?.toString()?.takeIf { it.isNotBlank() }?.let { currency = it }
+        financialYear = profile["financialYear"]?.toString()
+            ?: profile["fyCycle"]?.toString()
+            ?: "—"
+        smallShop = BusinessAudience.isSmallShop(profile[BusinessAudience.PREF_KEY]?.toString())
+        val settings = companyAnyMap(profile["settings"])
+        val modules = companyAnyMap(settings["modules"])
+        moduleToggles = ModuleToggleDefs.associate { def ->
+            def.key to companyAnyBool(modules[def.key], default = true)
+        }
+        CompanyModules.saveModules(context, companyId, moduleToggles)
+        val alertsMap = companyAnyMap(settings["alerts"])
+        alertToggles = AlertToggleDefs.associate { (_, key) ->
+            key to companyAnyBool(alertsMap[key], default = true)
+        }
+        memoryOn = companyAnyBool(settings["businessMemoryEnabled"], default = true)
+    }
+
+    LaunchedEffect(companyId) {
+        if (companyId.isBlank()) {
+            loading = false
+            loadError = "No company selected"
+            return@LaunchedEffect
+        }
+        loading = true
+        loadError = null
+        val companyResult = runCatching { ApiClient.apiService.getCompany(companyId).data }
+        val membersResult = runCatching { ApiClient.apiService.listCompanyMembers(companyId).data.members }
+        val locationsResult = runCatching { ApiClient.apiService.listLocations(companyId).data.items }
+        companyResult.onSuccess { applyCompanyPayload(it) }
+            .onFailure { loadError = it.message ?: "Could not load company" }
+        members = membersResult.getOrElse { emptyList() }
+        defaultLocationName = locationsResult.getOrNull()?.firstOrNull()?.name
+        loading = false
+    }
+
+    fun patchSettings(profilePatch: Map<String, Any>, rollback: () -> Unit) {
+        val v = version ?: return
+        if (settingsPatchBusy) return
+        settingsPatchBusy = true
+        scope.launch {
+            val result = runCatching {
+                ApiClient.apiService.patchCompany(
+                    companyId = companyId,
+                    idempotencyKey = UUID.randomUUID().toString(),
+                    body = mapOf(
+                        "expectedVersion" to v,
+                        "profileJson" to profilePatch,
+                    ),
+                ).data
+            }
+            settingsPatchBusy = false
+            result.onSuccess { applyCompanyPayload(it) }
+                .onFailure { rollback() }
+        }
+    }
 
     Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-        SheetHeader(title = "Company Settings", subtitle = name, onClose = onClose)
+        SheetHeader(
+            title = "Company Settings",
+            subtitle = displayName.ifBlank { headerName },
+            onClose = onClose,
+        )
         Column(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            SettingsCard(title = "Business Identity") {
-                SettingsValueRow("Business", name)
+            if (loading) {
+                Text("Loading…", color = TextMuted, fontSize = 13.sp)
+            }
+            loadError?.let {
+                Text(it, color = Color(0xFFF87171), fontSize = 12.sp)
             }
             SettingsCard(title = "Business Profile") {
-                SettingsValueRow("Business Name", name)
+                SettingsEditableField("Business Name", displayName) { displayName = it }
             }
             SettingsCard(title = "Business Details", note = "Optional formal business information.") {
-                SettingsValueRow("Legal Business Name", "—")
-                SettingsValueRow("Business Registration Type", "—")
-                SettingsValueRow("GSTIN / Tax ID", "—")
-                SettingsValueRow("Registration Number", "Optional")
+                SettingsEditableField("Legal Business Name", legalName) { legalName = it }
+                SettingsDropdownRow(
+                    label = "Business Registration Type",
+                    value = companyType,
+                    expanded = entityTypeOpen,
+                    onExpanded = { entityTypeOpen = it },
+                    options = EntityTypeOptions,
+                    onSelect = { companyType = it },
+                )
+                SettingsEditableField("GSTIN / Tax ID", taxIdentifier) { taxIdentifier = it }
+                SettingsDropdownRow(
+                    label = "Industry",
+                    value = industry.ifBlank { "Select industry…" },
+                    expanded = industryOpen,
+                    onExpanded = { industryOpen = it },
+                    options = IndustryOptions,
+                    onSelect = { industry = it },
+                )
+                Text("COMPANY SIZE", color = TextMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SizeOptions.forEach { option ->
+                        val selected = option == companySize
+                        Text(
+                            text = option,
+                            color = if (selected) TextPrimary else TextSecondary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(100.dp))
+                                .background(if (selected) Accent.copy(alpha = 0.25f) else Color.Transparent)
+                                .border(1.dp, if (selected) Accent else CardStroke, RoundedCornerShape(100.dp))
+                                .clickable { companySize = option }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+                SettingsDropdownRow(
+                    label = "Currency",
+                    value = currency,
+                    expanded = currencyOpen,
+                    onExpanded = { currencyOpen = it },
+                    options = CurrencyOptions,
+                    onSelect = { currency = it },
+                )
+                profileSaveError?.let {
+                    Text(it, color = Color(0xFFF87171), fontSize = 12.sp)
+                }
+                if (profileSaved) {
+                    Text("Saved", color = CoGreen, fontSize = 12.sp)
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Accent.copy(alpha = if (savingProfile || companyId.isBlank()) 0.35f else 0.9f))
+                        .clickable(enabled = !savingProfile && companyId.isNotBlank() && version != null) {
+                            val v = version ?: return@clickable
+                            savingProfile = true
+                            profileSaveError = null
+                            profileSaved = false
+                            scope.launch {
+                                val profileJson = buildMap<String, Any> {
+                                    if (industry.isNotBlank()) put("industry", industry)
+                                    put("companySize", companySize)
+                                    put("currency", currency)
+                                }
+                                val body = buildMap<String, Any> {
+                                    put("expectedVersion", v)
+                                    put("displayName", displayName.trim())
+                                    put("legalName", legalName.trim().ifBlank { displayName.trim() })
+                                    put("taxIdentifier", taxIdentifier.trim())
+                                    put("companyType", companyType)
+                                    put("profileJson", profileJson)
+                                }
+                                runCatching {
+                                    ApiClient.apiService.patchCompany(
+                                        companyId = companyId,
+                                        idempotencyKey = UUID.randomUUID().toString(),
+                                        body = body,
+                                    ).data
+                                }.onSuccess {
+                                    applyCompanyPayload(it)
+                                    profileSaved = true
+                                }.onFailure {
+                                    profileSaveError = it.message ?: "Could not save"
+                                }
+                                savingProfile = false
+                            }
+                        }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (savingProfile) "Saving…" else "Save profile",
+                        color = TextPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                    )
+                }
             }
             SettingsCard(title = "Business Accounts") {
-                Text("No accounts yet", color = TextMuted, fontSize = 13.sp)
+                Text("Accounts · Coming soon", color = TextMuted.copy(alpha = 0.7f), fontSize = 12.sp)
             }
             SettingsCard(title = "Money Settings") {
-                SettingsValueRow("Currency", "—")
-                SettingsValueRow("Financial Year", "—")
-                SettingsValueRow("Default Expense Account", "—")
-                SettingsValueRow("Default Location", "—")
+                SettingsValueRow("Currency", currency.ifBlank { "—" })
+                SettingsValueRow("Financial Year", financialYear)
+                SettingsValueRow("Default Expense Account", "—", mutedValue = true)
+                SettingsValueRow(
+                    "Default Location",
+                    defaultLocationName ?: "—",
+                    mutedValue = defaultLocationName == null,
+                )
             }
             SettingsCard(title = "Locations") {
                 Text(
@@ -324,38 +547,118 @@ private fun CompanySettingsPage(
                 )
             }
             SettingsCard(title = "Team & Roles") {
-                Text("No team members yet", color = TextMuted, fontSize = 13.sp)
+                if (members.isEmpty()) {
+                    Text("No team members yet", color = TextMuted, fontSize = 13.sp)
+                } else {
+                    members.forEach { member ->
+                        SettingsValueRow(
+                            member.displayName?.takeIf { it.isNotBlank() } ?: member.userId,
+                            member.membershipType,
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Accent.copy(alpha = 0.9f))
+                        .clickable(enabled = companyId.isNotBlank()) { showInviteSheet = true }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Invite",
+                        color = TextPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                    )
+                }
             }
             SettingsCard(title = "What do you use Momentra for?", note = "Turn on only the business moment types you want to use.") {
-                momentUses.forEachIndexed { index, row ->
-                    SettingsToggleRow(row.first, row.second) { on ->
-                        momentUses = momentUses.mapIndexed { i, item -> if (i == index) item.first to on else item }
+                ModuleToggleDefs.filter { !smallShop || !it.smallShopHidden }.forEach { def ->
+                    val checked = moduleToggles[def.key] == true
+                    SettingsToggleRow(def.label, checked) { on ->
+                        val previous = moduleToggles
+                        moduleToggles = previous + (def.key to on)
+                        patchSettings(mapOf("settings" to mapOf("modules" to mapOf(def.key to on)))) {
+                            moduleToggles = previous
+                        }
                     }
                 }
             }
             SettingsCard(title = "Notifications & Approvals") {
-                alerts.forEachIndexed { index, row ->
-                    SettingsToggleRow(row.first, row.second) { on ->
-                        alerts = alerts.mapIndexed { i, item -> if (i == index) item.first to on else item }
+                AlertToggleDefs.forEach { (label, key) ->
+                    val checked = alertToggles[key] == true
+                    SettingsToggleRow(label, checked) { on ->
+                        val previous = alertToggles
+                        alertToggles = previous + (key to on)
+                        patchSettings(mapOf("settings" to mapOf("alerts" to mapOf(key to on)))) {
+                            alertToggles = previous
+                        }
                     }
                 }
             }
             SettingsCard(title = "Business Memory & Data") {
-                SettingsToggleRow("Business Memory", memoryOn) { memoryOn = it }
-                SettingsValueRow("Archived Moments", "—")
-                SettingsValueRow("Export Business Data", "—")
-                SettingsValueRow("Data Retention", "—")
+                SettingsToggleRow("Business Memory", memoryOn) { on ->
+                    val previous = memoryOn
+                    memoryOn = on
+                    patchSettings(mapOf("settings" to mapOf("businessMemoryEnabled" to on))) {
+                        memoryOn = previous
+                    }
+                }
+                Text(
+                    "Archive, export, and retention options coming later",
+                    color = TextMuted.copy(alpha = 0.65f),
+                    fontSize = 12.sp,
+                )
             }
             SettingsCard(title = "Plan & Usage") {
-                Text("Plan details aren't available yet", color = TextMuted, fontSize = 13.sp)
+                Text(
+                    "Plan details · Coming soon",
+                    color = TextMuted.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                )
             }
-            SettingsCard(title = "Business Management", note = "These actions affect your business setup and access.") {
+            SettingsCard(title = "Business Management") {
                 listOf("Transfer Ownership", "Archive Business", "Deactivate Business").forEach { label ->
-                    Text(label, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(
+                        "$label · Coming soon",
+                        color = TextMuted.copy(alpha = 0.65f),
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 12.sp,
+                    )
                 }
             }
         }
     }
+
+    CompanyInviteShareSheet(
+        companyId = companyId,
+        visible = showInviteSheet,
+        onDismiss = { showInviteSheet = false },
+        companyName = displayName.ifBlank { headerName },
+    )
+}
+
+private val CoGreen = Color(0xFF10B981)
+
+@Suppress("UNCHECKED_CAST")
+private fun companyAnyMap(value: Any?): Map<String, Any?> = when (value) {
+    is Map<*, *> -> value.entries.associate { (k, v) -> k.toString() to v }
+    else -> emptyMap()
+}
+
+private fun companyAnyBool(value: Any?, default: Boolean): Boolean = when (value) {
+    is Boolean -> value
+    is Number -> value.toInt() != 0
+    is String -> value.equals("true", ignoreCase = true)
+    else -> default
+}
+
+private fun companyVersionFrom(data: Map<String, Any?>): Int? = when (val v = data["version"]) {
+    is Number -> v.toInt()
+    is String -> v.toIntOrNull()
+    else -> null
 }
 
 @Composable
@@ -381,10 +684,80 @@ private fun SettingsCard(
 }
 
 @Composable
-private fun SettingsValueRow(label: String, value: String) {
+private fun SettingsValueRow(label: String, value: String, mutedValue: Boolean = false) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, color = TextSecondary, fontSize = 13.sp)
-        Text(value, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(
+            value,
+            color = if (mutedValue) TextMuted else TextPrimary,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+private fun SettingsEditableField(label: String, value: String, onChange: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, color = TextSecondary, fontSize = 13.sp)
+        BasicTextField(
+            value = value,
+            onValueChange = onChange,
+            textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp),
+            cursorBrush = SolidColor(Accent),
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(FieldBg)
+                .border(1.dp, CardStroke, RoundedCornerShape(10.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        )
+    }
+}
+
+@Composable
+private fun SettingsDropdownRow(
+    label: String,
+    value: String,
+    expanded: Boolean,
+    onExpanded: (Boolean) -> Unit,
+    options: List<String>,
+    onSelect: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, color = TextSecondary, fontSize = 13.sp)
+        Box {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(FieldBg)
+                    .border(1.dp, CardStroke, RoundedCornerShape(10.dp))
+                    .clickable { onExpanded(true) }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = value,
+                    color = if (value.startsWith("Select")) TextMuted else TextPrimary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = null, tint = TextMuted)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { onExpanded(false) }) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option) },
+                        onClick = {
+                            onSelect(option)
+                            onExpanded(false)
+                        },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -402,6 +775,7 @@ private fun CompanyCreatePage(
     onCancel: () -> Unit,
     onCreated: (CompanySummary) -> Unit,
 ) {
+    val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     var industry by remember { mutableStateOf("") }
     var industryOpen by remember { mutableStateOf(false) }
@@ -534,10 +908,16 @@ private fun CompanyCreatePage(
                                     profileJson = buildMap {
                                         if (industry.isNotBlank()) put("industry", industry)
                                         put("companySize", size)
+                                        put(BusinessAudience.PREF_KEY, BusinessAudience.SMALL_SHOP)
                                     },
                                 ),
                             ).data
                         }.onSuccess { created ->
+                            BusinessAudience.saveForCompany(
+                                context,
+                                created.companyId,
+                                BusinessAudience.SMALL_SHOP,
+                            )
                             onCreated(CompanySummary(created.companyId, created.displayName))
                         }.onFailure {
                             saving = false

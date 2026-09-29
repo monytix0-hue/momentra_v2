@@ -43,6 +43,12 @@ import com.example.momentra.data.api.CreateBusinessUpdateBody
 import com.example.momentra.data.api.CreateBusinessUpdateResultDto
 import com.example.momentra.data.api.CreateBusinessVendorBody
 import com.example.momentra.data.api.CreateBusinessVendorResultDto
+import com.example.momentra.data.api.CreateKhataEntryBody
+import com.example.momentra.data.api.CreateKhataEntryResultDto
+import com.example.momentra.data.api.CreateKhataPartyBody
+import com.example.momentra.data.api.CreateKhataPartyResultDto
+import com.example.momentra.data.api.KhataPartyEntriesDto
+import com.example.momentra.data.api.KhataPartyListDto
 import com.example.momentra.data.api.CreateSlaCheckBody
 import com.example.momentra.data.api.CreateSlaCheckResultDto
 import com.example.momentra.data.api.CreateSlaDefinitionBody
@@ -233,6 +239,40 @@ class BusinessSliceRepository(
         intent.uploadId
     }.recoverCatching { e -> throw mapError(e) }
 
+    /** Upload a company logo and return the completed media id. */
+    suspend fun uploadCompanyLogo(
+        companyId: String,
+        bytes: ByteArray,
+        contentType: String = "image/jpeg",
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<String> = runCatching {
+        val intent = api.createMediaUploadIntent(
+            idempotencyKey = idempotencyKey,
+            body = MediaUploadIntentBody(
+                contentType = contentType,
+                byteSize = bytes.size,
+                scopeType = "COMPANY",
+                scopeId = companyId,
+            ),
+        ).data
+        val storageKey = intent.storageKey ?: error("Upload intent missing storageKey")
+        val client = okhttp3.OkHttpClient()
+        val putReq = okhttp3.Request.Builder()
+            .url(intent.signedUrl)
+            .put(bytes.toRequestBody(contentType.toMediaType()))
+            .header("Content-Type", contentType)
+            .build()
+        val putOk = withContext(Dispatchers.IO) {
+            client.newCall(putReq).execute().use { it.isSuccessful }
+        }
+        if (!putOk) error("Failed to upload media bytes to storage")
+        api.completeMediaUpload(
+            uploadId = intent.uploadId,
+            idempotencyKey = UUID.randomUUID().toString(),
+            body = MediaUploadCompleteBody(storageKey = storageKey),
+        ).data.mediaId
+    }.recoverCatching { e -> throw mapError(e) }
+
     suspend fun createRevenue(
         momentId: String,
         body: CreateBusinessRevenueBody,
@@ -280,6 +320,36 @@ class BusinessSliceRepository(
         idempotencyKey: String = UUID.randomUUID().toString(),
     ): Result<CreateBusinessVendorResultDto> = runCatching {
         api.createBusinessVendor(companyId = companyId, idempotencyKey = idempotencyKey, body = body).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun createKhataParty(
+        companyId: String,
+        body: CreateKhataPartyBody,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<CreateKhataPartyResultDto> = runCatching {
+        api.createKhataParty(companyId = companyId, idempotencyKey = idempotencyKey, body = body).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listKhataParties(
+        companyId: String,
+        partyKind: String = "CUSTOMER",
+    ): Result<KhataPartyListDto> = runCatching {
+        api.listKhataParties(companyId = companyId, partyKind = partyKind).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listKhataPartyEntries(
+        companyId: String,
+        partyId: String,
+    ): Result<KhataPartyEntriesDto> = runCatching {
+        api.listKhataPartyEntries(companyId = companyId, partyId = partyId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun createKhataEntry(
+        momentId: String,
+        body: CreateKhataEntryBody,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<CreateKhataEntryResultDto> = runCatching {
+        api.createKhataEntry(momentId = momentId, idempotencyKey = idempotencyKey, body = body).data
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun updateVendor(

@@ -19,7 +19,7 @@ struct PersonalMasterExpenseSheet: View {
     @State private var accounts: [APIClient.FinancialAccount] = []
     @State private var whenCode = "Today"
     @State private var showWhenPicker = false
-    @State private var showDetails = true
+    @State private var showDetails = false
     @State private var selectedFeelings: Set<String> = []
     @State private var meaningfulness = "Medium"
     @State private var memorability = "High"
@@ -115,7 +115,7 @@ struct PersonalMasterExpenseSheet: View {
                 .background(PersonalMasterExpenseTheme.accent.opacity(0.08))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(PersonalMasterExpenseTheme.accent))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
-                Text("Master Expense")
+                Text("Add expense")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.white)
             }
@@ -137,7 +137,10 @@ struct PersonalMasterExpenseSheet: View {
 
     private var subtitleBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("One expense. Impact across your life.")
+            Text("Logging to \(pulseFamily.loggingLabel)")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(PersonalMasterExpenseTheme.accent)
+            Text("Amount and category are enough. Add how it felt if you want.")
                 .font(.system(size: 14))
                 .foregroundStyle(PersonalMasterExpenseTheme.muted)
             LinearGradient(
@@ -311,7 +314,7 @@ struct PersonalMasterExpenseSheet: View {
                             tint: PersonalMasterExpenseTheme.accent,
                             size: 16
                         )
-                        Text("More details")
+                        Text("More about this")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(PersonalMasterExpenseTheme.textMain)
                     }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -40,6 +41,8 @@ import com.example.momentra.data.api.BusinessInvoiceLineDto
 import com.example.momentra.data.api.CreateBusinessInvoiceBody
 import com.example.momentra.data.api.CreateBusinessRevenueBody
 import com.example.momentra.data.repository.BusinessSliceRepository
+import com.example.momentra.ui.shell.business.shared.BusinessAudience
+import com.example.momentra.ui.shell.empty.group.sendInviteWhatsApp
 import com.example.momentra.ui.shell.shared.TravelCurrencyPickerRow
 import com.example.momentra.ui.shell.shared.loadBusinessCurrencyContext
 import com.example.momentra.ui.shell.maestro.MaestroIds
@@ -71,12 +74,17 @@ fun BusinessRevenueSheet(
     var currency by remember { mutableStateOf("INR") }
     var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var description by remember { mutableStateOf("") }
+    var paymentLabel by remember { mutableStateOf("Cash") }
+    var smallShop by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val paymentOptions = listOf("Cash", "UPI", "Card")
 
     LaunchedEffect(momentId, visible) {
         if (!visible) return@LaunchedEffect
+        smallShop = BusinessAudience.isSmallShopMoment(momentId, context = context)
         val ctx = loadBusinessCurrencyContext(momentId)
         currency = ctx.primary
         preferredCurrencyCodes = ctx.preferred
@@ -121,6 +129,27 @@ fun BusinessRevenueSheet(
                 symbolFontSize = 14.sp,
                 showLabel = false,
             )
+            if (smallShop) {
+                Text("Payment", color = TextSecondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    paymentOptions.forEach { opt ->
+                        val selected = opt == paymentLabel
+                        Text(
+                            opt,
+                            color = if (selected) Teal else TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            fontFamily = PlusJakartaSans,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(100.dp))
+                                .background(if (selected) Teal.copy(alpha = 0.15f) else Card)
+                                .border(1.dp, if (selected) Teal else Border, RoundedCornerShape(100.dp))
+                                .clickable { paymentLabel = opt }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                    }
+                }
+            }
             FinanceField(
                 value = description,
                 onValueChange = { description = it },
@@ -137,6 +166,11 @@ fun BusinessRevenueSheet(
                 onClick = {
                     submitting = true
                     error = null
+                    val payCode = when (paymentLabel.lowercase()) {
+                        "upi" -> "UPI"
+                        "card" -> "CARD"
+                        else -> "CASH"
+                    }
                     scope.launch {
                         repository.createRevenue(
                             momentId = momentId,
@@ -144,6 +178,7 @@ fun BusinessRevenueSheet(
                                 amount = amount.trim(),
                                 currencyCode = currency.uppercase(),
                                 description = description.takeIf { it.isNotBlank() },
+                                paymentMethodCode = if (smallShop) payCode else null,
                             ),
                         ).fold(
                             onSuccess = {
@@ -170,10 +205,12 @@ fun BusinessInvoiceSheet(
     visible: Boolean,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
+    shopName: String = "",
     repository: BusinessSliceRepository = remember { BusinessSliceRepository() },
 ) {
     if (!visible) return
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = androidx.compose.ui.platform.LocalContext.current
     var invoiceNumber by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("INR") }
     var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
@@ -182,6 +219,7 @@ fun BusinessInvoiceSheet(
     var unitPrice by remember { mutableStateOf("") }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var shareReceipt by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val today = LocalDate.now().toString()
 
@@ -254,8 +292,50 @@ fun BusinessInvoiceSheet(
             error?.let {
                 Text(it, color = Red, fontSize = 12.sp, fontFamily = PlusJakartaSans)
             }
+            shareReceipt?.let { receipt ->
+                Text(
+                    "Invoice saved. Share the receipt?",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+                SubmitButton(
+                    label = "Share on WhatsApp",
+                    accent = Teal,
+                    enabled = true,
+                    testTag = MaestroIds.BUSINESS_INVOICE_SUBMIT + "_share",
+                    onClick = {
+                        sendInviteWhatsApp(context, null, receipt)
+                    },
+                )
+                SubmitButton(
+                    label = "Share…",
+                    accent = Blue,
+                    enabled = true,
+                    testTag = MaestroIds.BUSINESS_INVOICE_SUBMIT + "_system",
+                    onClick = {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, receipt)
+                        }
+                        context.startActivity(android.content.Intent.createChooser(intent, "Share invoice"))
+                    },
+                )
+                SubmitButton(
+                    label = "Done",
+                    accent = Blue,
+                    enabled = true,
+                    testTag = MaestroIds.BUSINESS_INVOICE_SUBMIT + "_done",
+                    onClick = {
+                        shareReceipt = null
+                        onSaved()
+                        onDismiss()
+                    },
+                )
+            }
             val canSubmit = invoiceNumber.isNotBlank() && lineDescription.isNotBlank() &&
                 quantity.isNotBlank() && unitPrice.isNotBlank() && currency.length == 3
+            if (shareReceipt == null) {
             SubmitButton(
                 label = if (submitting) "Saving…" else "Save invoice",
                 accent = Blue,
@@ -265,6 +345,9 @@ fun BusinessInvoiceSheet(
                     submitting = true
                     error = null
                     scope.launch {
+                        val qty = quantity.trim().toBigDecimalOrNull() ?: java.math.BigDecimal.ONE
+                        val price = unitPrice.trim().toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
+                        val total = qty.multiply(price)
                         repository.createInvoice(
                             momentId = momentId,
                             body = CreateBusinessInvoiceBody(
@@ -283,8 +366,16 @@ fun BusinessInvoiceSheet(
                         ).fold(
                             onSuccess = {
                                 submitting = false
-                                onSaved()
-                                onDismiss()
+                                shareReceipt = invoiceReceiptMessage(
+                                    shopName = shopName,
+                                    invoiceNumber = invoiceNumber.trim(),
+                                    invoiceDate = today,
+                                    lineDescription = lineDescription.trim(),
+                                    quantity = quantity.trim(),
+                                    unitPrice = unitPrice.trim(),
+                                    total = total.stripTrailingZeros().toPlainString(),
+                                    currencyCode = currency.uppercase(),
+                                )
                             },
                             onFailure = {
                                 submitting = false
@@ -294,8 +385,31 @@ fun BusinessInvoiceSheet(
                     }
                 },
             )
+            }
         }
     }
+}
+
+fun invoiceReceiptMessage(
+    shopName: String,
+    invoiceNumber: String,
+    invoiceDate: String,
+    lineDescription: String,
+    quantity: String,
+    unitPrice: String,
+    total: String,
+    currencyCode: String,
+): String {
+    val shop = shopName.ifBlank { "Shop" }
+    return """
+        $shop — Invoice / बिल
+        Inv #: $invoiceNumber
+        Date: $invoiceDate
+        $lineDescription × $quantity @ $unitPrice
+        Total: $currencyCode $total
+
+        Dhanyavaad / Thank you
+    """.trimIndent()
 }
 
 @Composable

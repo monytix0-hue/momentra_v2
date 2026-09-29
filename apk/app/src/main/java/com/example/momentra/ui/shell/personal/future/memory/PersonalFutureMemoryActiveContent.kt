@@ -100,12 +100,12 @@ fun PersonalFutureMemoryActiveContent(
     val stage = PersonalLifeOpsDerived.stageBand(pulse?.wellbeingScore)
     val thinData = activities.size < 2 && PersonalLifeOpsDerived.scoreNumber(pulse?.wellbeingScore) == null
     val confidenceLabel = if (thinData) {
-        "Building…"
+        "Patterns appear after a few logs"
     } else {
         "${min(92, 55 + activities.size * 3)}% confidence"
     }
     val identityBody = if (thinData) {
-        "Log milestones, learning, and progress to reveal your builder identity."
+        "Start on Pulse — log milestones, learning, or progress."
     } else {
         "You respond best when learning and execution work together."
     }
@@ -115,12 +115,12 @@ fun PersonalFutureMemoryActiveContent(
     val hasProgress = activities.any { it.activityCode.contains("PROGRESS", ignoreCase = true) }
     val hasExpense = activities.any { it.activityCode.contains("EXPENSE", ignoreCase = true) }
     val patternConfidence = if (thinData) {
-        "Building…"
+        "Patterns appear after a few logs"
     } else {
         "${min(92, 40 + activities.size * 5)}% pattern confidence"
     }
     val aiBody = when {
-        thinData -> "Building… Log milestones, learning, and progress to unlock an interpretation."
+        thinData -> "Start on Pulse — log milestones, learning, or progress to unlock patterns."
         hasLearning && hasProgress ->
             "Your future compounds when learning is paired with execution, not stored for later."
         hasMilestone ->
@@ -164,7 +164,7 @@ fun PersonalFutureMemoryActiveContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "1 IDENTITY SNAPSHOT",
+                "YOUR PATTERNS",
                 color = Muted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,

@@ -167,6 +167,7 @@ enum BusinessQuickAddKind: String, Identifiable, CaseIterable {
     case logImprovement
     case budgetReview
     case slaCheck
+    case khata
 
     var id: String { rawValue }
 
@@ -196,13 +197,27 @@ enum BusinessQuickAddKind: String, Identifiable, CaseIterable {
         case .forecastUpdate: return "Forecast Update"
         case .invoice: return "Invoice Track"
         case .generalUpdate: return "General Update"
-        case .spendEntry: return "Log Spend Entry"
+        case .spendEntry: return "Log Spend"
         case .updateVendor: return "Update Vendor"
         case .requestApproval: return "Request Approval"
         case .reportIssue: return "Report Issue"
         case .logImprovement: return "Log Improvement"
         case .budgetReview: return "Budget Review"
         case .slaCheck: return "SLA Check"
+        case .khata: return "Khata"
+        }
+    }
+
+    func label(smallShop: Bool) -> String {
+        guard smallShop else { return label }
+        switch self {
+        case .teamUpdate: return "Staff update"
+        case .approval: return "Ask approval"
+        case .poll: return "Quick poll"
+        case .expense: return "Shop expense"
+        case .memory: return "Save note"
+        case .khata: return "Khata"
+        default: return label
         }
     }
 
@@ -235,6 +250,7 @@ enum BusinessQuickAddKind: String, Identifiable, CaseIterable {
         case .logImprovement: return "Log optimization"
         case .budgetReview: return "Check budgets"
         case .slaCheck: return "Monitor SLAs"
+        case .khata: return "Udhaar & collections"
         }
     }
 
@@ -261,6 +277,7 @@ enum BusinessQuickAddKind: String, Identifiable, CaseIterable {
         case .updateVendor: return "🏷"
         case .logImprovement: return "✨"
         case .slaCheck: return "⏱"
+        case .khata: return "📒"
         }
     }
 
@@ -273,7 +290,7 @@ enum BusinessQuickAddKind: String, Identifiable, CaseIterable {
         case .blocker, .riskFlag, .budgetAlert, .reportIssue: return Color(hex: "#EF4444")
         case .meeting, .revenue, .expense, .forecastUpdate, .requestApproval, .retrospective:
             return Color(hex: "#F59E0B")
-        case .recognition, .taxEntry, .logImprovement, .poll: return Color(hex: "#10B981")
+        case .recognition, .taxEntry, .logImprovement, .poll, .khata: return Color(hex: "#10B981")
         case .milestone, .invoice, .slaCheck: return Color(hex: "#14B8A6")
         }
     }
@@ -297,7 +314,17 @@ enum BusinessQuickAddKind: String, Identifiable, CaseIterable {
         }
     }
 
-    static func hubTiles(theme: BusinessActiveTheme) -> [BusinessQuickAddKind] {
+    static func hubTiles(theme: BusinessActiveTheme, smallShop: Bool = false) -> [BusinessQuickAddKind] {
+        if smallShop {
+            switch theme.typeLabel {
+            case "Money & Cash Flow":
+                return [.khata, .revenue, .expense, .invoice, .memory]
+            case "Daily Business":
+                return [.khata, .spendEntry, .updateVendor, .reportIssue, .memory]
+            default:
+                return [.khata, .teamUpdate, .expense, .approval, .memory]
+            }
+        }
         switch theme.typeLabel {
         case "Money & Cash Flow":
             return [.revenue, .expense, .taxEntry, .investorUpdate, .budgetAlert, .forecastUpdate, .invoice, .generalUpdate, .memory]
@@ -306,5 +333,18 @@ enum BusinessQuickAddKind: String, Identifiable, CaseIterable {
         default:
             return [.teamUpdate, .decision, .blocker, .meeting, .recognition, .approval, .milestone, .retrospective, .riskFlag, .activityLog, .poll, .memory, .expense]
         }
+    }
+
+    static func hubSubtitle(theme: BusinessActiveTheme, smallShop: Bool) -> String {
+        guard smallShop else { return theme.hubSubtitle }
+        switch theme.typeLabel {
+        case "Money & Cash Flow": return "Sales, spends, bills, and tax"
+        case "Daily Business": return "Suppliers, spends, and problems"
+        default: return "Staff updates and shop expenses"
+        }
+    }
+
+    static func hubFilterChips(theme: BusinessActiveTheme, smallShop: Bool) -> [String] {
+        smallShop ? [] : theme.filterChips
     }
 }

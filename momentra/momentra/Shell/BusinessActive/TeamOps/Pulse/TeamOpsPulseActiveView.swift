@@ -7,6 +7,8 @@ struct TeamOpsPulseActiveView: View {
     let momentId: String?
     var onLogDelivery: () -> Void = {}
     var onOpenQuickAdd: () -> Void = {}
+    var onViewAllActivity: () -> Void = {}
+    var onAddExpense: () -> Void = {}
 
     @State private var pulse: APIClient.BusinessPulsePayload?
     @State private var life: APIClient.BusinessLifePayload?
@@ -16,6 +18,7 @@ struct TeamOpsPulseActiveView: View {
     @State private var spendRows: [(id: String, title: String, amount: String, category: String)] = []
     @State private var loading = true
     @State private var error: String?
+    @State private var smallShop = false
 
     private let theme = BusinessActiveTheme.teamOperations
 
@@ -89,7 +92,9 @@ struct TeamOpsPulseActiveView: View {
                         needsAttentionSection
                         teamSpendingSection
                         recentDeliverySection
-                        TeamOpsIntelligenceSection(theme: theme)
+                        if !smallShop {
+                            TeamOpsIntelligenceSection(theme: theme, smallShop: false)
+                        }
                     }
 
                     }
@@ -101,6 +106,9 @@ struct TeamOpsPulseActiveView: View {
             }
         }
         .background(theme.bg)
+        .task(id: momentId) {
+            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+        }
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
@@ -124,7 +132,7 @@ struct TeamOpsPulseActiveView: View {
             }
             HStack(spacing: 8) {
                 TeamOpsTintedMetricTile(value: members, label: "members", detail: "Team capacity", tint: TeamOpsColors.lavender, theme: theme)
-                TeamOpsTintedMetricTile(value: capacity, label: "capacity", detail: capacityData == nil ? "API pending" : "Team utilization", tint: TeamOpsColors.emerald, theme: theme, valueColor: TeamOpsColors.emerald)
+                TeamOpsTintedMetricTile(value: capacity, label: "capacity", detail: capacityData == nil ? "Not available yet" : "Team utilization", tint: TeamOpsColors.emerald, theme: theme, valueColor: TeamOpsColors.emerald)
                 TeamOpsTintedMetricTile(value: openItems, label: "open items", detail: "Needs attention", tint: TeamOpsColors.amber, theme: theme, valueColor: TeamOpsColors.amber)
             }
         }
@@ -218,6 +226,10 @@ struct TeamOpsPulseActiveView: View {
                     .background(theme.card)
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.border))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
+                Button("Add expense →") { onAddExpense() }
+                    .font(.plusJakarta(size: 12, weight: .bold))
+                    .foregroundStyle(TeamOpsColors.linkBlue)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             } else {
                 ForEach(spendRows, id: \.id) { row in
                     HStack {
@@ -241,6 +253,10 @@ struct TeamOpsPulseActiveView: View {
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.border))
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
+                Button("Add expense →") { onAddExpense() }
+                    .font(.plusJakarta(size: 12, weight: .bold))
+                    .foregroundStyle(TeamOpsColors.linkBlue)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
     }
@@ -289,7 +305,7 @@ struct TeamOpsPulseActiveView: View {
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.border))
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
-                Button("View all activity →") { onOpenQuickAdd() }
+                Button("View all activity →") { onViewAllActivity() }
                     .font(.plusJakarta(size: 12, weight: .bold))
                     .foregroundStyle(TeamOpsColors.linkBlue)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -305,10 +321,10 @@ struct TeamOpsPulseActiveView: View {
                 action: onLogDelivery
             )
             TeamOpsOutlineButton(
-                label: "See this week",
+                label: "View all activity",
                 enabled: true,
                 theme: theme,
-                action: onOpenQuickAdd
+                action: onViewAllActivity
             )
         }
     }

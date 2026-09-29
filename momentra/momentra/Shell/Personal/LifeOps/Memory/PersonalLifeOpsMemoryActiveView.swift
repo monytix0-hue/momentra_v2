@@ -121,14 +121,14 @@ struct PersonalLifeOpsMemoryActiveView: View {
     }
 
     private var patternConfidenceLabel: String {
-        if thinData { return "Building…" }
+        if thinData { return "Patterns appear after a few logs" }
         let n = min(92, 40 + activities.count * 5)
         return "\(n)% pattern confidence"
     }
 
     private var aiBody: String {
         if thinData {
-            return "Building… Log recovery after pressure and a few moods to unlock an interpretation."
+            return "Start on Pulse — log recovery, mood, or spend to unlock patterns."
         }
         if hasRecovery {
             return "Your system rewards recovery placed immediately after pressure, not the next morning."
@@ -143,7 +143,7 @@ struct PersonalLifeOpsMemoryActiveView: View {
 
     private var identitySnapshot: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("1 IDENTITY SNAPSHOT")
+            Text("YOUR PATTERNS")
                 .font(.system(size: 12, weight: .bold))
                 .tracking(1.2)
                 .foregroundStyle(.white)

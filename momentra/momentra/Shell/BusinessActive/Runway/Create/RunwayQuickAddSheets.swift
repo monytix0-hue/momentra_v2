@@ -97,7 +97,7 @@ private struct RunwayRevenueForm: View {
             RunwaySheetHeader(
                 emoji: "📈",
                 title: "Log Revenue",
-                explanation: "Directly added to corporate runway",
+                explanation: "Added to cash flow",
                 accent: accent,
                 onClose: onDismiss
             )
@@ -133,7 +133,7 @@ private struct RunwayRevenueForm: View {
                 label: submitting ? "Saving…" : "Log Revenue",
                 enabled: !momentId.isNullOrBlank && !amountDisplay.isEmpty && !submitting,
                 loading: submitting,
-                footerHint: "Directly added to corporate runway",
+                footerHint: "Added to cash flow",
                 accent: accent
             ) {
                 Task { await submit() }
@@ -226,7 +226,7 @@ private struct RunwayExpenseForm: View {
                 label: submitting ? "Saving…" : "Log Expense",
                 enabled: !momentId.isNullOrBlank && !amountDisplay.isEmpty && !submitting,
                 loading: submitting,
-                footerHint: "Updates burn and runway",
+                footerHint: "Updates spending",
                 accent: accent
             ) {
                 Task { await submit() }

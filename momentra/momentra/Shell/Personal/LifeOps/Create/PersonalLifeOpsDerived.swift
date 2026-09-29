@@ -81,6 +81,67 @@ enum PersonalLifeOpsDerived {
         return streak
     }
 
+    static func timeOfDayGreeting(date: Date = Date()) -> String {
+        let hour = Calendar.current.component(.hour, from: date)
+        switch hour {
+        case 5...11: return "Good morning"
+        case 12...16: return "Good afternoon"
+        default: return "Good evening"
+        }
+    }
+
+    static func todayActivityCount(from occurredAtDates: [String]) -> Int {
+        let today = dayKey(fromISODate: Date())
+        return occurredAtDates.reduce(0) { count, iso in
+            count + (dayKey(from: iso) == today ? 1 : 0)
+        }
+    }
+
+    private static func dayKey(fromISODate date: Date) -> String {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: date)
+    }
+
+    static func dayFeedbackLine(
+        moodState: String?,
+        spendPairs: [(String, String)],
+        todayLogCount: Int,
+        family: PersonalPulseFamily = .lifeOperations
+    ) -> String {
+        let mood = moodState?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let hasMood = !mood.isEmpty
+        let hasSpend = !spendPairs.isEmpty
+        let hasLogs = todayLogCount > 0
+        if !hasMood && !hasSpend && !hasLogs {
+            switch family {
+            case .lifeOperations: return "Start with a spend, a mood, or rest."
+            case .futureBuilding: return "Start with a milestone, progress, or learning."
+            case .lifestyle: return "Start with an experience, wellbeing, or discovery."
+            case .relationships: return "Start with a connection, shared moment, or support."
+            }
+        }
+        if family != .lifeOperations {
+            if hasLogs {
+                return todayLogCount == 1 ? "Today · 1 log" : "Today · \(todayLogCount) logs"
+            }
+            return "Today · keep going"
+        }
+        var parts = ["Today"]
+        if hasSpend {
+            parts.append(spendPairs.map { "\($0.0) \($0.1)" }.joined(separator: " · "))
+        } else {
+            parts.append("no spend yet")
+        }
+        if hasMood { parts.append("mood \(mood)") }
+        if hasLogs {
+            parts.append(todayLogCount == 1 ? "1 log" : "\(todayLogCount) logs")
+        }
+        return parts.joined(separator: " · ")
+    }
+
     static func dayKey(from iso: String) -> String? {
         guard let date = parseISO(iso) else { return nil }
         let f = DateFormatter()

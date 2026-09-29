@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,30 +56,43 @@ fun BusinessQuickAddHub(
     onMembers: () -> Unit = {},
     onCreateMoment: () -> Unit = {},
     onTile: (BusinessQuickAddKind) -> Unit = {},
+    momentId: String? = null,
     momentTypeCode: String? = null,
+    companyId: String? = null,
     capabilities: List<String> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val theme = BusinessActiveTheme.forTypeCode(momentTypeCode)
+    val moduleKey = remember(theme) { CompanyModules.moduleKeyForTheme(theme) }
+    val moduleEnabled = remember(companyId, moduleKey) {
+        CompanyModules.isEnabled(context, companyId, moduleKey)
+    }
     val isRunway = theme.typeLabel == BusinessActiveTheme.BusinessRunway.typeLabel
     val isOps = theme.typeLabel == BusinessActiveTheme.BusinessOperations.typeLabel
     val isTeamOps = !isRunway && !isOps
     val useLegacyExpenseShortcuts = isTeamOps
     var search by remember { mutableStateOf("") }
-    val tiles = remember(theme, search) {
-        val all = businessHubTiles(theme)
+    var smallShop by remember { mutableStateOf(false) }
+    LaunchedEffect(momentId) {
+        smallShop = BusinessAudience.isSmallShopMoment(momentId, context = context)
+    }
+    val tiles = remember(theme, search, smallShop) {
+        val all = businessHubTiles(theme, smallShop)
         val q = search.trim().lowercase()
         if (q.isEmpty()) all else all.filter {
-            it.label().lowercase().contains(q) || it.subtitle().lowercase().contains(q)
+            it.label(smallShop).lowercase().contains(q) || it.subtitle().lowercase().contains(q)
         }
     }
-    val tileRows = remember(tiles, isTeamOps, search) {
+    val tileRows = remember(tiles, isTeamOps, search, smallShop) {
         if (isTeamOps && search.isBlank() && tiles.size >= 13) {
             tiles.take(9).chunked(3) + listOf(tiles.drop(9))
         } else {
             tiles.chunked(3)
         }
     }
+    val hubSubtitle = remember(theme, smallShop) { businessHubSubtitle(theme, smallShop) }
+    val filterChips = remember(theme, smallShop) { businessHubFilterChips(theme, smallShop) }
 
     Column(
         modifier = modifier
@@ -101,7 +115,7 @@ fun BusinessQuickAddHub(
                     fontFamily = PlusJakartaSans,
                 )
                 Text(
-                    theme.hubSubtitle,
+                    hubSubtitle,
                     color = theme.secondary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
@@ -124,12 +138,29 @@ fun BusinessQuickAddHub(
             }
         }
 
+        if (!moduleEnabled) {
+            Text(
+                "This module is off for your company",
+                color = theme.secondary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = PlusJakartaSans,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 48.dp, bottom = 48.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(theme.card)
+                    .border(1.dp, theme.border, RoundedCornerShape(16.dp))
+                    .padding(24.dp),
+            )
+        } else {
         Row(
             Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             HubChip(theme.typeLabel, selected = true, theme = theme)
-            theme.filterChips.forEach { HubChip(it, selected = false, theme = theme) }
+            filterChips.forEach { HubChip(it, selected = false, theme = theme) }
         }
 
         Row(
@@ -209,6 +240,7 @@ fun BusinessQuickAddHub(
                     ActionTile(
                         kind = kind,
                         theme = theme,
+                        smallShop = smallShop,
                         enabled = (hasActiveMoment || kind == BusinessQuickAddKind.MEMORY) && capOk,
                         modifier = Modifier.weight(1f),
                         onClick = {
@@ -265,6 +297,7 @@ fun BusinessQuickAddHub(
                 .padding(vertical = 10.dp)
                 .testTag(MaestroIds.QA_TILE_EXPENSE),
         )
+        }
     }
 }
 
@@ -288,6 +321,7 @@ private fun HubChip(label: String, selected: Boolean, theme: BusinessActiveTheme
 private fun ActionTile(
     kind: BusinessQuickAddKind,
     theme: BusinessActiveTheme,
+    smallShop: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -343,7 +377,7 @@ private fun ActionTile(
                 Text(kind.emoji(), fontSize = 22.sp)
             }
             Text(
-                kind.label(),
+                kind.label(smallShop),
                 color = stripe,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,

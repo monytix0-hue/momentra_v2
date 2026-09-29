@@ -139,6 +139,8 @@ fun PersonalLifeActiveContent(
             error?.let {
                 Text(it, color = LifeRed, fontSize = 12.sp, fontFamily = PlusJakartaSans)
             }
+            LifeThisWeekCard(data, onLogRecovery = onLogRecovery)
+            LifeJourneyCard(data)
             LifeHealthSummaryCard(data)
             LifeDriftCard(data)
             LifeLeverageCard(data, onLogRecovery = onLogRecovery)
@@ -146,7 +148,6 @@ fun PersonalLifeActiveContent(
             LifeEmotionalTrendCard(data)
             LifeDominantEmotionCard(data)
             LifeHappyDriversCard(data)
-            LifeJourneyCard(data)
             LifeAiInsightsCard(data)
             Spacer(Modifier.height(24.dp))
         }
@@ -231,6 +232,87 @@ private fun LifeChipRow(
 }
 
 @Composable
+private fun LifeThisWeekCard(
+    data: PersonalLifeDto,
+    onLogRecovery: () -> Unit,
+) {
+    val emotion = data.dominantEmotion?.headline?.takeIf { it.isNotBlank() }
+        ?: data.emotionalTrend?.subtitle?.takeIf { it.isNotBlank() }
+    val journeyCount = data.journey?.items.orEmpty().size
+    val week = data.thisWeek
+    val expenseAmount = week?.expenseTotal?.toDoubleOrNull() ?: 0.0
+    val currencyCode = week?.currencyCode
+        ?: week?.spendByCurrency?.maxByOrNull { it.value.toDoubleOrNull() ?: 0.0 }?.key
+    val extraCurrencies = (week?.spendByCurrency?.size ?: 0) - if (currencyCode != null) 1 else 0
+    val moneyLine = when {
+        expenseAmount > 0 -> {
+            val symbol = if (currencyCode == null || currencyCode == "INR") "₹" else "$currencyCode "
+            val formatted = if (expenseAmount == expenseAmount.toLong().toDouble()) {
+                expenseAmount.toLong().toString()
+            } else {
+                String.format("%.2f", expenseAmount)
+            }
+            val suffix = if (extraCurrencies > 0) " (+$extraCurrencies currencies)" else ""
+            "Money · $symbol$formatted this week$suffix"
+        }
+        else -> "Money · Log spend from Add"
+    }
+    val checkIns = week?.moodOrRecoveryLogs ?: 0
+    val energyLine = when {
+        !emotion.isNullOrBlank() -> "Energy · $emotion"
+        checkIns > 0 -> "Energy · $checkIns check-ins this week"
+        else -> "Energy · Log recovery or mood from Add"
+    }
+    val peopleLine = data.areaScores.firstOrNull { it.code.contains("RELATION", ignoreCase = true) }
+        ?.let { "People · ${it.label} ${it.score ?: "—"}" }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(LifeCard)
+            .border(1.dp, BorderSoft, RoundedCornerShape(16.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            "This week",
+            color = LifePurple,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = PlusJakartaSans,
+        )
+        Text(
+            "Across Everyday, Future, Lifestyle, and People",
+            color = LifeDim,
+            fontSize = 11.sp,
+            fontFamily = PlusJakartaSans,
+        )
+        Text(moneyLine, color = LifeMuted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+        Text(energyLine, color = LifeMuted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+        peopleLine?.let {
+            Text(it, color = LifeMuted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+        }
+        if (journeyCount > 0) {
+            Text(
+                if (journeyCount == 1) "1 journey note this week"
+                else "$journeyCount journey notes",
+                color = LifeDim,
+                fontSize = 12.sp,
+                fontFamily = PlusJakartaSans,
+            )
+        }
+        Text(
+            data.leverage?.ctaLabel?.takeIf { it.isNotBlank() } ?: "Log today’s recovery",
+            color = LifeGreen,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = PlusJakartaSans,
+            modifier = Modifier.clickable(onClick = onLogRecovery),
+        )
+    }
+}
+
+@Composable
 private fun LifeHealthSummaryCard(data: PersonalLifeDto) {
     Box(
         modifier = Modifier
@@ -260,7 +342,7 @@ private fun LifeHealthSummaryCard(data: PersonalLifeDto) {
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        "PERSONAL LIFE HEALTH",
+                        "Life health",
                         color = LifeDim,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,

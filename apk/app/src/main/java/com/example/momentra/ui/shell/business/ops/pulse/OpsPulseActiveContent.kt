@@ -58,6 +58,8 @@ fun OpsPulseActiveContent(
     refreshToken: Long,
     onLogSpend: () -> Unit = {},
     onOpenQuickAdd: () -> Unit = {},
+    onOpenMoments: () -> Unit = {},
+    onViewAllActivity: () -> Unit = {},
     repository: BusinessSliceRepository = remember { BusinessSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
@@ -67,6 +69,15 @@ fun OpsPulseActiveContent(
     var activities by remember { mutableStateOf<List<ActivityItemDto>>(emptyList()) }
     var issueAttention by remember { mutableStateOf<List<OpsAttentionDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var smallShop by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    LaunchedEffect(momentId) {
+        smallShop = com.example.momentra.ui.shell.business.shared.BusinessAudience.isSmallShopMoment(
+            momentId,
+            context = context,
+        )
+    }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -186,11 +197,13 @@ fun OpsPulseActiveContent(
 
             OpsActivityTimelineSection(
                 activities = activities,
-                onViewAll = onOpenQuickAdd,
+                onViewAll = onViewAllActivity,
                 theme = theme,
             )
 
-            OpsIntelligenceSection(theme = theme)
+            if (!smallShop) {
+                OpsIntelligenceSection(theme = theme, smallShop = false)
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -204,9 +217,9 @@ fun OpsPulseActiveContent(
                     modifier = Modifier.weight(1f),
                 )
                 OpsOutlineButton(
-                    label = "View Report",
+                    label = "View all activity",
                     enabled = true,
-                    onClick = onOpenQuickAdd,
+                    onClick = onViewAllActivity,
                     theme = theme,
                 )
             }

@@ -7,6 +7,8 @@ struct RunwayPulseActiveView: View {
     let momentId: String?
     var onLogExpense: () -> Void = {}
     var onOpenQuickAdd: () -> Void = {}
+    var onOpenMoments: () -> Void = {}
+    var onViewAllActivity: () -> Void = {}
 
     @State private var pulse: APIClient.BusinessPulsePayload?
     @State private var finance: APIClient.BusinessFinancePayload?
@@ -14,8 +16,13 @@ struct RunwayPulseActiveView: View {
     @State private var activities: [APIClient.ActivityItemPayload] = []
     @State private var loading = true
     @State private var error: String?
+    @State private var smallShop = false
 
     private let theme = BusinessActiveTheme.businessRunway
+
+    private var runwayMonthsLabel: String {
+        smallShop ? "Cash left (months)" : "months runway"
+    }
 
     private var healthScore: String {
         let raw = pulse?.payload?.financialHealthScore?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -98,7 +105,9 @@ struct RunwayPulseActiveView: View {
                         burnSection
                         needsAttentionSection
                         recentActivitySection
-                        RunwayIntelligenceSection(theme: theme)
+                        if !smallShop {
+                            RunwayIntelligenceSection(theme: theme, smallShop: false)
+                        }
                     }
 
                     }
@@ -110,6 +119,9 @@ struct RunwayPulseActiveView: View {
             }
         }
         .background(theme.bg)
+        .task(id: momentId) {
+            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+        }
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
@@ -132,7 +144,7 @@ struct RunwayPulseActiveView: View {
                 Spacer(minLength: 0)
             }
             HStack(spacing: 8) {
-                RunwayTintedMetricTile(value: runwayMonths, label: "months runway", detail: "From pulse", tint: RunwayColors.amber, theme: theme)
+                RunwayTintedMetricTile(value: runwayMonths, label: runwayMonthsLabel, detail: "From pulse", tint: RunwayColors.amber, theme: theme)
                 RunwayTintedMetricTile(value: cash, label: "cash balance", detail: "Live or prefs", tint: RunwayColors.amber, theme: theme)
                 RunwayTintedMetricTile(value: burn, label: "monthly burn", detail: "Spend total", tint: RunwayColors.amber, theme: theme)
             }
@@ -311,7 +323,7 @@ struct RunwayPulseActiveView: View {
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.border))
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
-                Button("View all activity →") { onOpenQuickAdd() }
+                Button("View all activity →") { onViewAllActivity() }
                     .font(.plusJakarta(size: 12, weight: .bold))
                     .foregroundStyle(RunwayColors.linkAmber)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -327,10 +339,10 @@ struct RunwayPulseActiveView: View {
                 action: onLogExpense
             )
             RunwayOutlineButton(
-                label: "View This Week's Report",
+                label: "View all activity",
                 enabled: true,
                 theme: theme,
-                action: onOpenQuickAdd
+                action: onViewAllActivity
             )
         }
     }

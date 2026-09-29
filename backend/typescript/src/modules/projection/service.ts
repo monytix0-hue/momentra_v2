@@ -280,6 +280,17 @@ export async function listPersonalMoments(
 export type LifeSectionQuality = 'REAL_DATA' | 'EMPTY_SUPPORTED' | 'API_GAP' | 'DEFERRED';
 
 /** Personal Life Health dashboard — Figma `1047:7689` / body `1047:7707`. User-scoped, cross-moment. */
+export interface PersonalLifeThisWeekDto {
+  expenseTotal: string;
+  incomeTotal: string;
+  currencyCode: string | null;
+  spendByCurrency: Record<string, string>;
+  periodLogs: number;
+  moodOrRecoveryLogs: number;
+  periodStart: string;
+  periodEnd: string;
+}
+
 export interface PersonalLifeDto {
   userId: string;
   activeAreaCount: number;
@@ -323,6 +334,8 @@ export interface PersonalLifeDto {
     items: { icon: string; title: string; when: string; value: string; tone: 'up' | 'down' | 'neutral' }[];
   };
   aiInsights: { title: string; lead: string; body: string };
+  /** Rolling 7-day spend + check-in counts across the user's Personal moments. */
+  thisWeek: PersonalLifeThisWeekDto;
   projectionVersion: number;
   updatedAt: string;
 }
@@ -341,8 +354,103 @@ const LIFE_HONEST_EMPTY_SECTION_QUALITY: Record<string, LifeSectionQuality> = {
   happyDrivers: 'EMPTY_SUPPORTED',
   journey: 'EMPTY_SUPPORTED',
   aiInsights: 'EMPTY_SUPPORTED',
+  thisWeek: 'EMPTY_SUPPORTED',
   activeAreaCount: 'REAL_DATA',
 };
+
+function emptyThisWeek(): PersonalLifeThisWeekDto {
+  const periodEnd = new Date();
+  const periodStart = new Date(periodEnd.getTime() - 7 * 86400000);
+  return {
+    expenseTotal: '0',
+    incomeTotal: '0',
+    currencyCode: null,
+    spendByCurrency: {},
+    periodLogs: 0,
+    moodOrRecoveryLogs: 0,
+    periodStart: periodStart.toISOString(),
+    periodEnd: periodEnd.toISOString(),
+  };
+}
+
+/** Aggregate last-7d Personal spend + activity for Life "This week" card. */
+async function buildPersonalLifeThisWeek(
+  client: PoolClient,
+  userId: string
+): Promise<PersonalLifeThisWeekDto> {
+  const days = 7;
+  const periodEnd = new Date();
+  const periodStart = new Date(periodEnd.getTime() - days * 86400000);
+
+  const spendRows = await client
+    .query<{ currency_code: string; spend_amount: string }>(
+      `SELECT e.currency_code, COALESCE(SUM(e.amount), 0)::text AS spend_amount
+       FROM finance.expense e
+       WHERE e.created_by_user_id = $1
+         AND e.status IN ('POSTED', 'DRAFT')
+         AND e.effective_at >= now() - ($2 || ' days')::interval
+         AND EXISTS (
+           SELECT 1 FROM personal.personal_moment_context pmc
+           WHERE pmc.moment_id = e.moment_id AND pmc.user_id = $1
+         )
+       GROUP BY e.currency_code
+       ORDER BY SUM(e.amount) DESC`,
+      [userId, String(days)]
+    )
+    .catch(() => ({ rows: [] as Array<{ currency_code: string; spend_amount: string }> }));
+
+  const spendByCurrency = Object.fromEntries(
+    spendRows.rows.map((r) => [r.currency_code, r.spend_amount])
+  );
+  const expenseTotal = spendRows.rows
+    .reduce((sum, r) => sum + (parseFloat(r.spend_amount) || 0), 0)
+    .toFixed(2);
+  const currencyCode = spendRows.rows[0]?.currency_code ?? null;
+
+  const incomeRow = await client
+    .query<{ income_total: string | null }>(
+      `SELECT COALESCE(SUM(fm.amount), 0)::text AS income_total
+       FROM finance.financial_movement fm
+       WHERE fm.source_type = 'PERSONAL_INCOME'
+         AND fm.status = 'POSTED'
+         AND fm.effective_at >= now() - ($2 || ' days')::interval
+         AND EXISTS (
+           SELECT 1 FROM personal.personal_moment_context pmc
+           WHERE pmc.moment_id = fm.source_id AND pmc.user_id = $1
+         )`,
+      [userId, String(days)]
+    )
+    .catch(() => ({ rows: [] as Array<{ income_total: string | null }> }));
+
+  const actRow = await client
+    .query<{ period_logs: string; mood_recovery_logs: string }>(
+      `SELECT
+         COUNT(*)::text AS period_logs,
+         COUNT(*) FILTER (
+           WHERE UPPER(activity_code) LIKE '%MOOD%'
+              OR UPPER(activity_code) LIKE '%RECOVERY%'
+              OR UPPER(activity_code) LIKE '%WELLBEING%'
+         )::text AS mood_recovery_logs
+       FROM projection.recent_activity
+       WHERE user_id = $1
+         AND domain_code = 'PERSONAL'
+         AND occurred_at >= now() - ($2 || ' days')::interval
+         AND COALESCE(activity_payload->>'status', 'POSTED') <> 'VOIDED'`,
+      [userId, String(days)]
+    )
+    .catch(() => ({ rows: [] as Array<{ period_logs: string; mood_recovery_logs: string }> }));
+
+  return {
+    expenseTotal: spendRows.rows.length ? expenseTotal : '0',
+    incomeTotal: incomeRow.rows[0]?.income_total ?? '0',
+    currencyCode,
+    spendByCurrency,
+    periodLogs: parseInt(actRow.rows[0]?.period_logs ?? '0', 10),
+    moodOrRecoveryLogs: parseInt(actRow.rows[0]?.mood_recovery_logs ?? '0', 10),
+    periodStart: periodStart.toISOString(),
+    periodEnd: periodEnd.toISOString(),
+  };
+}
 
 /** Honest Life shell — no invented Figma scores. Overall score null until Life pattern scoring exists. */
 function honestEmptyLife(userId: string, activeAreaCount: number): PersonalLifeDto {
@@ -379,6 +487,7 @@ function honestEmptyLife(userId: string, activeAreaCount: number): PersonalLifeD
     },
     happyDrivers: { title: 'What Makes You Happy', subtitle: 'Highest Return Drivers', items: [] },
     journey: { title: 'Life Journey', subtitle: 'Key shifts', items: [] },
+    thisWeek: emptyThisWeek(),
     aiInsights: {
       title: 'Insights',
       lead: 'No insights yet',
@@ -515,12 +624,18 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
   }));
 
   const hasAreaScores = areaScores.some((a) => a.score != null);
+  const thisWeek = await buildPersonalLifeThisWeek(client, userId);
+  const hasThisWeekData =
+    (parseFloat(thisWeek.expenseTotal) || 0) > 0 ||
+    (parseFloat(thisWeek.incomeTotal) || 0) > 0 ||
+    thisWeek.periodLogs > 0;
   const sectionQuality: Record<string, LifeSectionQuality> = {
     ...LIFE_HONEST_EMPTY_SECTION_QUALITY,
     activeAreaCount: 'REAL_DATA',
     score: 'EMPTY_SUPPORTED',
     areaScores: areaScores.length ? (hasAreaScores ? 'REAL_DATA' : 'EMPTY_SUPPORTED') : 'EMPTY_SUPPORTED',
     journey: journeyItems.length ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
+    thisWeek: hasThisWeekData ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
   };
 
   const insight = await client
@@ -542,6 +657,7 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
       ...base,
       areaScores,
       journey: { title: 'Life Journey', subtitle: journeyItems.length ? 'Recent activity' : 'Key shifts', items: journeyItems },
+      thisWeek,
       sectionQuality,
       insight: row.title,
       aiInsights: { title: 'Insights', lead: row.title, body: row.body ?? row.title },
@@ -553,6 +669,7 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
     ...base,
     areaScores,
     journey: { title: 'Life Journey', subtitle: journeyItems.length ? 'Recent activity' : 'Key shifts', items: journeyItems },
+    thisWeek,
     sectionQuality,
   };
 }

@@ -43,6 +43,8 @@ fun ShellBottomNavigation(
     selected: BottomDestination,
     onSelect: (BottomDestination) -> Unit,
     accent: Color,
+    /** When PERSONAL, CREATE tab shows "Add" instead of "Quickadds". */
+    createLabel: String = BottomDestination.CREATE.label,
     modifier: Modifier = Modifier,
 ) {
     NavigationBar(
@@ -127,7 +129,7 @@ fun ShellBottomNavigation(
             },
             label = {
                 Text(
-                    text = BottomDestination.CREATE.label,
+                    text = createLabel,
                     fontSize = 10.sp,
                     fontWeight = if (selected == BottomDestination.CREATE) FontWeight.Bold else FontWeight.Medium
                 )

@@ -41,6 +41,23 @@ final class OfflineOutbox {
         lock.unlock()
     }
 
+    /// Last successful member list for a moment, used when the network read fails.
+    func saveRoster(momentId: String, participants: [APIClient.GroupParticipantPayload]) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let userId, !momentId.isEmpty else { return }
+        var map = loadRoster(userId)
+        map[momentId] = participants
+        saveRoster(userId, map)
+    }
+
+    func roster(momentId: String) -> [APIClient.GroupParticipantPayload]? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let userId else { return nil }
+        return loadRoster(userId)[momentId]
+    }
+
     func enqueue(
         path: String,
         momentId: String,
@@ -364,6 +381,24 @@ final class OfflineOutbox {
         }
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("offline-outbox-\(userId).json")
+    }
+
+    private func rosterFile(_ userId: String) -> URL? {
+        guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("group-roster-\(userId).json")
+    }
+
+    private func loadRoster(_ userId: String) -> [String: [APIClient.GroupParticipantPayload]] {
+        guard let url = rosterFile(userId), let data = try? Data(contentsOf: url) else { return [:] }
+        return (try? JSONDecoder().decode([String: [APIClient.GroupParticipantPayload]].self, from: data)) ?? [:]
+    }
+
+    private func saveRoster(_ userId: String, _ map: [String: [APIClient.GroupParticipantPayload]]) {
+        guard let url = rosterFile(userId), let data = try? JSONEncoder().encode(map) else { return }
+        try? data.write(to: url, options: .atomic)
     }
 
     private func mediaURL(_ name: String) -> URL? {

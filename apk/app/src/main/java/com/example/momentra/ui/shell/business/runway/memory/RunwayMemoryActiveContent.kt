@@ -39,7 +39,8 @@ import com.example.momentra.ui.shell.business.runway.components.RunwayOutlineBut
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
 
-private val Scopes = listOf("All", "Revenue", "Expenses", "Tax", "Investors")
+private val GrowingScopes = listOf("All", "Revenue", "Expenses", "Tax", "Investors")
+private val ShopScopes = listOf("All", "Revenue", "Expenses", "Tax")
 
 /** Figma `698:9970` — multi-section stack; live memory; honest AI shells. */
 @Composable
@@ -61,6 +62,19 @@ fun RunwayMemoryActiveContent(
     var error by remember { mutableStateOf<String?>(null) }
     var shareBusy by remember { mutableStateOf(false) }
     var shareMessage by remember { mutableStateOf<String?>(null) }
+    var smallShop by remember { mutableStateOf(false) }
+
+    LaunchedEffect(momentId) {
+        smallShop = com.example.momentra.ui.shell.business.shared.BusinessAudience.isSmallShopMoment(
+            momentId,
+            context = context,
+        )
+    }
+
+    val scopes = if (smallShop) ShopScopes else GrowingScopes
+    LaunchedEffect(scopes, scopeFilter) {
+        if (scopeFilter !in scopes) scopeFilter = "All"
+    }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -132,7 +146,7 @@ fun RunwayMemoryActiveContent(
         }
 
         RunwayFilterChipRow(
-            chips = Scopes,
+            chips = scopes,
             selected = scopeFilter,
             onSelect = { scopeFilter = it },
             theme = theme,
@@ -154,23 +168,25 @@ fun RunwayMemoryActiveContent(
             theme = theme,
         )
 
-        RunwayDiamondDivider(theme = theme)
+        if (!smallShop) {
+            RunwayDiamondDivider(theme = theme)
 
-        RunwayEmptyAiCard(
-            title = "Pattern Network",
-            emptyCopy = "Pattern network unavailable — memory.pattern API not mounted.",
-            theme = theme,
-        )
+            RunwayEmptyAiCard(
+                title = "Pattern Network",
+                emptyCopy = "Tips will appear here",
+                theme = theme,
+            )
 
-        RunwayDiamondDivider(theme = theme)
+            RunwayDiamondDivider(theme = theme)
 
-        RunwayEmptyAiCard(
-            title = "Financial Playbook",
-            emptyCopy = "Playbook rules deferred until AI rule projection exists.",
-            theme = theme,
-        )
+            RunwayEmptyAiCard(
+                title = "Financial Playbook",
+                emptyCopy = "Playbook rules deferred until AI rule projection exists.",
+                theme = theme,
+            )
 
-        RunwayDiamondDivider(theme = theme)
+            RunwayDiamondDivider(theme = theme)
+        }
 
         RunwayMemoryListSection(
             title = "Success Memory",
@@ -188,23 +204,25 @@ fun RunwayMemoryActiveContent(
             accentBorder = RunwayColors.Red,
         )
 
-        RunwayEmptyAiCard(
-            title = "momentra intelligence",
-            emptyCopy = "No wisdom yet",
-            theme = theme,
-        )
+        if (!smallShop) {
+            RunwayEmptyAiCard(
+                title = "momentra intelligence",
+                emptyCopy = "No wisdom yet",
+                theme = theme,
+            )
 
-        RunwayEmptyAiCard(
-            title = "Knowledge Journey",
-            emptyCopy = if (filtered.isEmpty()) {
-                "Journey milestones appear as memories are recorded."
-            } else {
-                filtered.take(5).joinToString(" → ") {
-                    it["title"]?.toString()?.ifBlank { "Memory" } ?: "Memory"
-                }
-            },
-            theme = theme,
-        )
+            RunwayEmptyAiCard(
+                title = "Knowledge Journey",
+                emptyCopy = if (filtered.isEmpty()) {
+                    "Journey milestones appear as memories are recorded."
+                } else {
+                    filtered.take(5).joinToString(" → ") {
+                        it["title"]?.toString()?.ifBlank { "Memory" } ?: "Memory"
+                    }
+                },
+                theme = theme,
+            )
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),

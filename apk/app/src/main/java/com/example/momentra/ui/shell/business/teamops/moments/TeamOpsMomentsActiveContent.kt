@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,6 +33,7 @@ import com.example.momentra.data.api.BusinessTimelineItemDto
 import com.example.momentra.data.api.CapacityDto
 import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
+import com.example.momentra.ui.shell.business.shared.BusinessAudience
 import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsActivityRow
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsBackgroundGlow
@@ -55,6 +57,7 @@ fun TeamOpsMomentsActiveContent(
     refreshToken: Long = 0L,
     onLogWin: () -> Unit = {},
     onOpenQuickAdd: () -> Unit = {},
+    onViewAllActivity: () -> Unit = {},
     repository: BusinessSliceRepository = remember { BusinessSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
@@ -65,6 +68,13 @@ fun TeamOpsMomentsActiveContent(
     var capacityData by remember { mutableStateOf<CapacityDto?>(null) }
     var filter by remember { mutableStateOf("All") }
     var error by remember { mutableStateOf<String?>(null) }
+    var smallShop by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    LaunchedEffect(momentId) {
+        smallShop = BusinessAudience.isSmallShopMoment(momentId, context = context)
+        if (smallShop) filter = "All"
+    }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -198,12 +208,14 @@ fun TeamOpsMomentsActiveContent(
                 theme = theme,
             )
 
-            TeamOpsFilterChipRow(
-                chips = BaseFilters,
-                selected = filter,
-                onSelect = { filter = it },
-                theme = theme,
-            )
+            if (!smallShop) {
+                TeamOpsFilterChipRow(
+                    chips = BaseFilters,
+                    selected = filter,
+                    onSelect = { filter = it },
+                    theme = theme,
+                )
+            }
 
             if (showEmpty) {
                 Column(
@@ -242,7 +254,7 @@ fun TeamOpsMomentsActiveContent(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = PlusJakartaSans,
-                    modifier = Modifier.clickable(onClick = onOpenQuickAdd),
+                    modifier = Modifier.clickable(onClick = onViewAllActivity),
                 )
             }
 
@@ -326,7 +338,7 @@ fun TeamOpsMomentsActiveContent(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = PlusJakartaSans,
-                    modifier = Modifier.clickable(onClick = onOpenQuickAdd),
+                    modifier = Modifier.clickable(onClick = onViewAllActivity),
                 )
             }
         }

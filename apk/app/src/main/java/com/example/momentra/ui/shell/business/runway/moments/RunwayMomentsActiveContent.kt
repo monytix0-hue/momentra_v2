@@ -37,6 +37,7 @@ import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
+import com.example.momentra.ui.shell.business.shared.BusinessAudience
 import com.example.momentra.ui.shell.business.runway.components.RunwayActivityRow
 import com.example.momentra.ui.shell.business.runway.components.RunwayBackgroundGlow
 import com.example.momentra.ui.shell.business.runway.components.RunwayColors
@@ -59,6 +60,8 @@ fun RunwayMomentsActiveContent(
     refreshToken: Long = 0L,
     onLogExpense: () -> Unit = {},
     onOpenQuickAdd: () -> Unit = {},
+    onOpenMoments: () -> Unit = {},
+    onViewAllActivity: () -> Unit = {},
     repository: BusinessSliceRepository = remember { BusinessSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
@@ -71,7 +74,14 @@ fun RunwayMomentsActiveContent(
     var momDeltas by remember { mutableStateOf<MomDeltasDto?>(null) }
     var filter by remember { mutableStateOf("All") }
     var error by remember { mutableStateOf<String?>(null) }
+    var smallShop by remember { mutableStateOf(false) }
     val hide = SecurityPreferences(LocalContext.current).hideBalances()
+    val context = LocalContext.current
+
+    LaunchedEffect(momentId) {
+        smallShop = BusinessAudience.isSmallShopMoment(momentId, context = context)
+        if (smallShop) filter = "All"
+    }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -217,14 +227,17 @@ fun RunwayMomentsActiveContent(
                 revenue = revenue,
                 savings = activityChip,
                 theme = theme,
+                smallShop = smallShop,
             )
 
-            RunwayFilterChipRow(
-                chips = BaseFilters,
-                selected = filter,
-                onSelect = { filter = it },
-                theme = theme,
-            )
+            if (!smallShop) {
+                RunwayFilterChipRow(
+                    chips = BaseFilters,
+                    selected = filter,
+                    onSelect = { filter = it },
+                    theme = theme,
+                )
+            }
 
             if (showEmpty) {
                 Column(
@@ -263,7 +276,7 @@ fun RunwayMomentsActiveContent(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = PlusJakartaSans,
-                    modifier = Modifier.clickable(onClick = onOpenQuickAdd),
+                    modifier = Modifier.clickable(onClick = onViewAllActivity),
                 )
             }
 

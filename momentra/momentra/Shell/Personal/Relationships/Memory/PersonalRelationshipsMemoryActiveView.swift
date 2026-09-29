@@ -53,7 +53,7 @@ struct PersonalRelationshipsMemoryActiveView: View {
 
     private var identitySnapshot: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("1 IDENTITY SNAPSHOT")
+            Text("YOUR PATTERNS")
                 .font(.system(size: 12, weight: .bold))
                 .tracking(1.2)
                 .foregroundStyle(Color(hex: "#C9C4D8"))

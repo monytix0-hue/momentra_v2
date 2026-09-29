@@ -36,10 +36,12 @@ import com.example.momentra.data.api.NotificationCategoriesDto
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.device.DeviceRegistrar
 import com.example.momentra.ui.shell.maestro.MaestroIds
+import com.example.momentra.data.local.AppPreferences
 import com.example.momentra.data.repository.AccountRepository
 import com.example.momentra.data.security.AppLockStore
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.domain.ShellIdentity
+import com.example.momentra.ui.shell.personal.shared.PersonalEveningNudgeScheduler
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -356,6 +358,31 @@ fun AccountHubSheet(
                         onCheckedChange = {
                             hideBalances = it
                             securityPrefs.setHideBalances(it)
+                        },
+                    )
+                }
+                val appPrefs = remember { AppPreferences(context) }
+                var eveningNudge by remember { mutableStateOf(appPrefs.isPersonalEveningNudgeEnabled()) }
+                Text(text = "Personal", fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text("Evening check-in")
+                        Text(
+                            "Local reminder at 8:00 PM",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                        )
+                    }
+                    Switch(
+                        checked = eveningNudge,
+                        onCheckedChange = {
+                            eveningNudge = it
+                            appPrefs.setPersonalEveningNudgeEnabled(it)
+                            PersonalEveningNudgeScheduler.sync(context, it)
                         },
                     )
                 }

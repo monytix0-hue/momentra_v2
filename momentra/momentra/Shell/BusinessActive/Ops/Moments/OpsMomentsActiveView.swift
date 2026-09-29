@@ -1,25 +1,28 @@
 import SwiftUI
 
-/// Figma `692:44116` Business Operations Moments — live timeline + Figma layout.
+/// Figma `692:44116` Business Operations Moments â€” live timeline + Figma layout.
 struct OpsMomentsActiveView: View {
     let refreshToken: UInt64
     let momentId: String?
     let momentTitle: String?
     var onLogSpend: () -> Void = {}
     var onOpenQuickAdd: () -> Void = {}
+    var onOpenMoments: () -> Void = {}
+    var onViewAllActivity: () -> Void = {}
 
     @State private var activities: [APIClient.ActivityItemPayload] = []
     @State private var timeline: APIClient.BusinessTimelinePayload?
     @State private var filter = "All"
     @State private var loading = true
     @State private var error: String?
+    @State private var smallShop = false
 
     private let theme = BusinessActiveTheme.businessOperations
     private let baseFilters = ["Budget", "Vendors", "Issues", "Updates"]
 
     private var filterChips: [String] {
         let scope = momentTitle?.isEmpty == false
-            ? (momentTitle!.count > 14 ? String(momentTitle!.prefix(12)) + "…" : momentTitle!)
+            ? (momentTitle!.count > 14 ? String(momentTitle!.prefix(12)) + "â€¦" : momentTitle!)
             : "All ops"
         return [scope] + baseFilters
     }
@@ -104,14 +107,16 @@ struct OpsMomentsActiveView: View {
 
                         OpsTimelineHeroCard(entries: entryCount, vendors: vendorCount, issues: issueCount, theme: theme)
 
-                        OpsFilterChipRow(
-                            chips: filterChips,
-                            selected: filter == "All" ? (filterChips.first ?? "All") : filter,
-                            onSelect: { chip in
-                                filter = chip == filterChips.first ? "All" : chip
-                            },
-                            theme: theme
-                        )
+                        if !smallShop {
+                            OpsFilterChipRow(
+                                chips: filterChips,
+                                selected: filter == "All" ? (filterChips.first ?? "All") : filter,
+                                onSelect: { chip in
+                                    filter = chip == filterChips.first ? "All" : chip
+                                },
+                                theme: theme
+                            )
+                        }
 
                         let showEmpty = timelineItems.isEmpty ? filteredActivities.isEmpty : filteredTimeline.isEmpty
                         if showEmpty {
@@ -127,7 +132,7 @@ struct OpsMomentsActiveView: View {
                         }
 
                         if !showEmpty {
-                            Button(action: onOpenQuickAdd) {
+                            Button(action: onViewAllActivity) {
                                 Text("See full history →")
                                     .font(.plusJakarta(size: 13, weight: .semibold))
                                     .foregroundStyle(OpsColors.linkBlue)
@@ -157,6 +162,10 @@ struct OpsMomentsActiveView: View {
             }
         }
         .background(theme.bg)
+        .task(id: momentId) {
+            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+            if smallShop { filter = "All" }
+        }
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 

@@ -22,6 +22,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
 import com.example.momentra.data.local.AppPreferences
@@ -117,6 +120,7 @@ import com.example.momentra.ui.shell.business.shared.BusinessPulseActiveContent
 import com.example.momentra.ui.shell.business.shared.BusinessQuickAddHub
 import com.example.momentra.ui.shell.business.shared.BusinessQuickAddKind
 import com.example.momentra.ui.shell.business.shared.BusinessRevenueSheet
+import com.example.momentra.ui.shell.business.shared.BusinessKhataHomeSheet
 import com.example.momentra.ui.shell.business.ops.create.OpsGapQuickAddSheet
 import com.example.momentra.ui.shell.business.ops.memory.OpsMemoryActiveContent
 import com.example.momentra.ui.shell.business.ops.moments.OpsMomentsActiveContent
@@ -130,6 +134,10 @@ import com.example.momentra.ui.shell.business.teamops.create.TeamOpsGapQuickAddS
 import com.example.momentra.ui.shell.business.teamops.memory.TeamOpsMemoryActiveContent
 import com.example.momentra.ui.shell.business.teamops.moments.TeamOpsMomentsActiveContent
 import com.example.momentra.ui.shell.business.teamops.pulse.TeamOpsPulseActiveContent
+import com.example.momentra.ui.shell.business.shared.BusinessRecentActivityFlow
+import com.example.momentra.ui.shell.business.ops.components.OpsColors
+import com.example.momentra.ui.shell.business.runway.components.RunwayColors
+import com.example.momentra.ui.shell.business.teamops.components.TeamOpsColors
 import com.example.momentra.ui.shell.business.teamops.create.TeamOpsQuickAddSheets
 import com.example.momentra.ui.shell.group.shared.GroupBudgetSheet
 import com.example.momentra.ui.shell.group.shared.GroupCollabKind
@@ -206,12 +214,19 @@ import com.example.momentra.ui.shell.personal.relationships.moments.PersonalRela
 import com.example.momentra.ui.shell.personal.relationships.pulse.PersonalRelationshipsPulseActiveContent
 import com.example.momentra.ui.shell.personal.shared.LifestyleQuickAddKind
 import com.example.momentra.ui.shell.personal.shared.PersonalExpenseFab
+import com.example.momentra.ui.shell.personal.shared.PersonalEveningNudgeScheduler
 import com.example.momentra.ui.shell.personal.shared.PersonalMasterExpenseSheet
 import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
 import com.example.momentra.ui.shell.personal.shared.PersonalQuickAddHub
 import com.example.momentra.ui.shell.personal.shared.PersonalRecentActivityFlow
 import com.example.momentra.ui.shell.personal.shared.RelationshipsQuickAddKind
+import com.example.momentra.ui.shell.personal.shared.missingPersonalSetupSystems
 import com.example.momentra.ui.shell.personal.shared.personalPulseFamilyFor
+import com.example.momentra.ui.shell.personal.shared.presentPersonalFamilies
+import com.example.momentra.ui.shell.personal.shared.resolveFamilyTargetMoment
+import com.example.momentra.ui.shell.personal.shared.resolvePreferredPersonalMoment
+import com.example.momentra.ui.shell.empty.personal.PersonalSetupSystem
+import com.example.momentra.ui.shell.empty.personal.PersonalSetupWizardContent
 import com.example.momentra.ui.splash.MomentraWordmark
 import com.example.momentra.ui.theme.MomentraBrandColors
 import com.example.momentra.ui.theme.ShellTokens
@@ -329,6 +344,11 @@ fun AppShellScreen(
     }
 
     var moneyQa by remember { mutableStateOf<MoneyQuickAddKind?>(null) }
+    /** Required target for Personal quick-add sheets (never fall back blindly). */
+    var personalQaMomentId by remember { mutableStateOf<String?>(null) }
+    var personalQaTypeCode by remember { mutableStateOf<String?>(null) }
+    var personalSetupSystem by remember { mutableStateOf<PersonalSetupSystem?>(null) }
+    var personalSetupChooserOpen by remember { mutableStateOf(false) }
     var groupExpenseSheetOpen by remember { mutableStateOf(false) }
     var groupContributionSheetOpen by remember { mutableStateOf(false) }
     var groupSettlementSheetOpen by remember { mutableStateOf(false) }
@@ -349,6 +369,7 @@ fun AppShellScreen(
     var businessExpenseSheetOpen by remember { mutableStateOf(false) }
     var businessRevenueSheetOpen by remember { mutableStateOf(false) }
     var businessInvoiceSheetOpen by remember { mutableStateOf(false) }
+    var businessKhataSheetOpen by remember { mutableStateOf(false) }
     var businessMembersSheetOpen by remember { mutableStateOf(false) }
     var lifeOpsQa by remember { mutableStateOf<LifeOpsQuickAddKind?>(null) }
     LaunchedEffect(lifeOpsQa) {
@@ -362,6 +383,8 @@ fun AppShellScreen(
     var relationshipsActivityOpen by remember { mutableStateOf(false) }
     var recentActivityOpen by remember { mutableStateOf(false) }
     var groupRecentActivityOpen by remember { mutableStateOf(false) }
+    var teamRecentActivityOpen by remember { mutableStateOf(false) }
+    var businessRecentActivityOpen by remember { mutableStateOf(false) }
     var newMomentOpen by remember { mutableStateOf(false) }
     var businessGap by remember { mutableStateOf<BusinessGapPage?>(null) }
     var businessLocation by remember { mutableStateOf<com.example.momentra.data.api.LocationItemDto?>(null) }
@@ -373,6 +396,12 @@ fun AppShellScreen(
     var editSetupOpen by remember { mutableStateOf(false) }
     var topChromeExpanded by remember { mutableStateOf(true) }
     var showJoinQrScanner by remember { mutableStateOf(false) }
+    var habitRewardMessage by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(habitRewardMessage) {
+        if (habitRewardMessage == null) return@LaunchedEffect
+        delay(2500)
+        habitRewardMessage = null
+    }
     val shellAccent = com.example.momentra.ui.theme.shell.ContextThemes.of(state.selectedContext).contextAccent
     val momentAccent = com.example.momentra.ui.theme.shell.MomentThemes.resolve(
         state.selectedContext,
@@ -409,6 +438,18 @@ fun AppShellScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        val activity = context as? android.app.Activity ?: return@LaunchedEffect
+        if (activity.intent?.getBooleanExtra(
+                PersonalEveningNudgeScheduler.EXTRA_OPEN_PERSONAL_PULSE,
+                false,
+            ) == true
+        ) {
+            activity.intent?.removeExtra(PersonalEveningNudgeScheduler.EXTRA_OPEN_PERSONAL_PULSE)
+            shellViewModel.selectContext(AppContext.PERSONAL)
+            shellViewModel.selectBottomDestination(BottomDestination.PULSE)
+        }
+    }
     LaunchedEffect(identity.userId) {
         shellViewModel.restorePreferredPersonalMomentId(
             prefs.getSelectedPersonalMomentId(identity.userId),
@@ -419,6 +460,64 @@ fun AppShellScreen(
         if (state.selectedContext == AppContext.PERSONAL) {
             prefs.setSelectedPersonalMomentId(identity.userId, state.selectedMomentId)
         }
+    }
+    fun openPersonalSheet(momentId: String?, typeCode: String? = null) {
+        if (momentId.isNullOrBlank()) return
+        personalQaMomentId = momentId
+        personalQaTypeCode = typeCode
+            ?: state.moments.firstOrNull { it.momentId == momentId }?.momentTypeCode
+    }
+
+    fun clearPersonalSheetTarget() {
+        personalQaMomentId = null
+        personalQaTypeCode = null
+    }
+
+    fun targetForFamily(family: PersonalPulseFamily): MomentSummary? =
+        resolveFamilyTargetMoment(state.moments, family, state.selectedMomentId)
+
+    fun openLifeOpsQa(kind: LifeOpsQuickAddKind) {
+        val m = targetForFamily(PersonalPulseFamily.LIFE_OPERATIONS)
+            ?: resolvePreferredPersonalMoment(state.moments, state.selectedMomentId)
+            ?: return
+        openPersonalSheet(m.momentId, m.momentTypeCode)
+        lifeOpsQa = kind
+    }
+
+    fun openFutureQa(kind: FutureQuickAddKind) {
+        val m = targetForFamily(PersonalPulseFamily.FUTURE_BUILDING) ?: return
+        openPersonalSheet(m.momentId, m.momentTypeCode)
+        futureQa = kind
+    }
+
+    fun openLifestyleQa(kind: LifestyleQuickAddKind) {
+        val m = targetForFamily(PersonalPulseFamily.LIFESTYLE) ?: return
+        openPersonalSheet(m.momentId, m.momentTypeCode)
+        lifestyleQa = kind
+    }
+
+    fun openRelationshipsQa(kind: RelationshipsQuickAddKind) {
+        val m = targetForFamily(PersonalPulseFamily.RELATIONSHIPS) ?: return
+        openPersonalSheet(m.momentId, m.momentTypeCode)
+        relationshipsQa = kind
+    }
+
+    fun openMoneyQa(kind: MoneyQuickAddKind) {
+        val m = targetForFamily(PersonalPulseFamily.LIFE_OPERATIONS)
+            ?: resolvePreferredPersonalMoment(state.moments, state.selectedMomentId)
+            ?: return
+        openPersonalSheet(m.momentId, m.momentTypeCode)
+        moneyQa = kind
+    }
+
+    LaunchedEffect(
+        identity.userId,
+        state.selectedContext,
+        state.moments.map { it.momentId to it.momentTypeCode },
+        state.selectedMomentId,
+    ) {
+        if (state.selectedContext != AppContext.PERSONAL) return@LaunchedEffect
+        shellViewModel.applyPreferredPersonalLock()
     }
     LaunchedEffect(identity.userId, state.selectedContext, state.contextContent, state.selectedMomentId) {
         if (state.identity?.userId == null) return@LaunchedEffect
@@ -537,41 +636,56 @@ fun AppShellScreen(
                 )
             }
             if (!newMomentOpen && state.showMomentSwitcher && !groupDirectoryVisible) {
-                MomentSwitcher(
-                    selectedTitle = state.selectedMomentTitle,
-                    selectedMomentId = state.selectedMomentId,
-                    activeMoments = state.moments
-                        .filter { it.isActiveStatus() || it.momentId == state.selectedMomentId }
-                        .map { it.momentId to it.title },
-                    isEmpty = state.contextContent is ShellContentState.Empty &&
-                        state.moments.none { it.isActiveStatus() || it.isCompletedStatus() },
-                    isLoading = state.contextContent is ShellContentState.Loading,
-                    accent = momentAccent,
-                    selectedIsCompleted = state.moments
-                        .firstOrNull { it.momentId == state.selectedMomentId }
-                        ?.isCompletedStatus() == true,
-                    onSelectMoment = shellViewModel::selectMoment,
-                    onSettings = {
-                        if (state.selectedMomentId != null) showManageMoment = true
-                    },
-                    onInvite = if (state.selectedContext == AppContext.GROUP) {
-                        { groupInviteSheetOpen = true }
-                    } else {
-                        null
-                    },
-                    useDirectorySelector = state.selectedContext == AppContext.GROUP ||
-                        state.selectedContext == AppContext.BUSINESS,
-                    startExpanded = state.selectedContext == AppContext.PERSONAL &&
-                        state.moments.count { it.isActiveStatus() } > 1,
-                    onOpenDirectory = {
-                        if (state.selectedContext == AppContext.BUSINESS) {
-                            businessGap = BusinessGapPage.Moments
+                if (state.selectedContext == AppContext.PERSONAL) {
+                    val needsEveryday = state.moments.none {
+                        it.isActiveStatus() &&
+                            personalPulseFamilyFor(it.momentTypeCode) == PersonalPulseFamily.LIFE_OPERATIONS
+                    } && state.moments.any { it.isActiveStatus() }
+                    PersonalUnifiedChrome(
+                        accent = momentAccent,
+                        showManage = state.selectedMomentId != null,
+                        showSetUpEveryday = needsEveryday,
+                        onManage = { showManageMoment = true },
+                        onSetUpEveryday = {
+                            personalSetupSystem = PersonalSetupSystem.LIFE_OPERATIONS
+                        },
+                    )
+                } else {
+                    MomentSwitcher(
+                        selectedTitle = state.selectedMomentTitle,
+                        selectedMomentId = state.selectedMomentId,
+                        activeMoments = state.moments
+                            .filter { it.isActiveStatus() || it.momentId == state.selectedMomentId }
+                            .map { it.momentId to it.title },
+                        isEmpty = state.contextContent is ShellContentState.Empty &&
+                            state.moments.none { it.isActiveStatus() || it.isCompletedStatus() },
+                        isLoading = state.contextContent is ShellContentState.Loading,
+                        accent = momentAccent,
+                        selectedIsCompleted = state.moments
+                            .firstOrNull { it.momentId == state.selectedMomentId }
+                            ?.isCompletedStatus() == true,
+                        onSelectMoment = shellViewModel::selectMoment,
+                        onSettings = {
+                            if (state.selectedMomentId != null) showManageMoment = true
+                        },
+                        onInvite = if (state.selectedContext == AppContext.GROUP) {
+                            { groupInviteSheetOpen = true }
                         } else {
-                            groupDirectoryPreferCompleted = false
-                            groupMomentDirectoryOpen = true
-                        }
-                    },
-                )
+                            null
+                        },
+                        useDirectorySelector = state.selectedContext == AppContext.GROUP ||
+                            state.selectedContext == AppContext.BUSINESS,
+                        startExpanded = false,
+                        onOpenDirectory = {
+                            if (state.selectedContext == AppContext.BUSINESS) {
+                                businessGap = BusinessGapPage.Moments
+                            } else {
+                                groupDirectoryPreferCompleted = false
+                                groupMomentDirectoryOpen = true
+                            }
+                        },
+                    )
+                }
             }
             Row(
                 modifier = Modifier
@@ -632,6 +746,12 @@ fun AppShellScreen(
                     groupTabRefreshToken = state.groupTabRefreshToken,
                     businessTabRefreshToken = state.businessTabRefreshToken,
                     capabilities = state.capabilities,
+                    forcePersonalSimple = true,
+                    onEnablePersonalSimple = {},
+                    onPersonalSetupMissing = {
+                        personalSetupChooserOpen = true
+                    },
+                    personalPresentFamilies = presentPersonalFamilies(state.moments),
                     viewerReadOnly = groupViewerReadOnly,
                     onRetry = { shellViewModel.selectContext(state.selectedContext) },
                     onSessionExpired = onSessionExpired,
@@ -667,7 +787,7 @@ fun AppShellScreen(
                         when (state.selectedContext) {
                             AppContext.GROUP -> if (!groupViewerReadOnly) groupExpenseSheetOpen = true
                             AppContext.BUSINESS -> businessExpenseSheetOpen = true
-                            else -> moneyQa = MoneyQuickAddKind.MASTER_EXPENSE
+                            else -> openMoneyQa(MoneyQuickAddKind.MASTER_EXPENSE)
                         }
                     },
                     onAddContribution = { if (!groupViewerReadOnly) groupContributionSheetOpen = true },
@@ -716,13 +836,11 @@ fun AppShellScreen(
                         val isRunway = code.contains("RUNWAY")
                         val isOps = code.contains("OPERATIONS") && !code.contains("TEAM")
                         when {
-                            isRunway -> businessGapQa = kind
-                            isOps -> businessGapQa = when (kind) {
-                                BusinessQuickAddKind.EXPENSE -> BusinessQuickAddKind.SPEND_ENTRY
-                                else -> kind
-                            }
+                            kind == BusinessQuickAddKind.KHATA -> businessKhataSheetOpen = true
                             kind == BusinessQuickAddKind.EXPENSE ||
                                 kind == BusinessQuickAddKind.SPEND_ENTRY -> businessExpenseSheetOpen = true
+                            isRunway -> businessGapQa = kind
+                            isOps -> businessGapQa = kind
                             kind == BusinessQuickAddKind.REVENUE ||
                                 kind == BusinessQuickAddKind.INVOICE -> Unit
                             else -> businessGapQa = kind
@@ -732,17 +850,20 @@ fun AppShellScreen(
                     onAddInvoice = { businessInvoiceSheetOpen = true },
                     onAddMembers = { businessMembersSheetOpen = true },
                     onOpenQuickAdd = { shellViewModel.selectBottomDestination(BottomDestination.CREATE) },
+                    onOpenMoments = { shellViewModel.selectBottomDestination(BottomDestination.MOMENTS) },
                     onViewBusinessReport = { businessGap = BusinessGapPage.Finance },
                     onOpenBusinessFinance = { businessGap = BusinessGapPage.Finance },
                     onOpenVendor = { businessGap = BusinessGapPage.Vendor },
-                    onLifeOpsQuickAdd = { lifeOpsQa = it },
-                    onMoneyQuickAdd = { moneyQa = it },
-                    onFutureQuickAdd = { futureQa = it },
-                    onLifestyleQuickAdd = { lifestyleQa = it },
-                    onRelationshipsQuickAdd = { relationshipsQa = it },
+                    onLifeOpsQuickAdd = { openLifeOpsQa(it) },
+                    onMoneyQuickAdd = { openMoneyQa(it) },
+                    onFutureQuickAdd = { openFutureQa(it) },
+                    onLifestyleQuickAdd = { openLifestyleQa(it) },
+                    onRelationshipsQuickAdd = { openRelationshipsQa(it) },
                     onOpenRelationshipsActivity = { relationshipsActivityOpen = true },
                     onViewAllActivity = { recentActivityOpen = true },
                     onViewAllGroupActivity = { groupRecentActivityOpen = true },
+                    onViewAllTeamActivity = { teamRecentActivityOpen = true },
+                    onViewAllBusinessActivity = { businessRecentActivityOpen = true },
                     onOpenCompletedMoments = {
                         groupDirectoryPreferCompleted = true
                         groupMomentDirectoryOpen = true
@@ -762,7 +883,7 @@ fun AppShellScreen(
                 )
             ) {
                 PersonalExpenseFab(
-                    onClick = { moneyQa = MoneyQuickAddKind.MASTER_EXPENSE },
+                    onClick = { openMoneyQa(MoneyQuickAddKind.MASTER_EXPENSE) },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(end = 16.dp, bottom = ShellTokens.BottomBarHeight + 16.dp),
@@ -843,19 +964,28 @@ fun AppShellScreen(
                 }
             }
         }
-        if (state.selectedMomentId != null && state.selectedContext == AppContext.PERSONAL) {
+        if (personalQaMomentId != null && state.selectedContext == AppContext.PERSONAL) {
             moneyQa?.let { kind ->
+                val sheetMomentId = personalQaMomentId!!
                 when (kind) {
                     MoneyQuickAddKind.MASTER_EXPENSE -> {
-                        val pulseFamily = personalPulseFamilyFor(state.selectedMomentTypeCode)
+                        val pulseFamily = personalPulseFamilyFor(
+                            personalQaTypeCode ?: state.selectedMomentTypeCode,
+                        )
                         PersonalMasterExpenseSheet(
-                            momentId = state.selectedMomentId!!,
+                            momentId = sheetMomentId,
                             visible = true,
                             pulseFamily = pulseFamily,
-                            onDismiss = { moneyQa = null },
+                            onDismiss = {
+                                moneyQa = null
+                                clearPersonalSheetTarget()
+                            },
                             onSaved = {
                                 moneyQa = null
+                                clearPersonalSheetTarget()
                                 shellViewModel.refreshVisiblePersonalTab()
+                                habitRewardMessage = "Saved · counts toward your day"
+                                PersonalEveningNudgeScheduler.onTodaySave(context)
                                 tourController.showWhereToLook(TourWhereToLook.forMoney(kind))
                             },
                         )
@@ -863,12 +993,19 @@ fun AppShellScreen(
                     MoneyQuickAddKind.INCOME, MoneyQuickAddKind.TRANSFER, MoneyQuickAddKind.SAVINGS -> {
                         PersonalMoneyQuickAddSheet(
                             kind = kind,
-                            momentId = state.selectedMomentId!!,
+                            momentId = sheetMomentId,
                             visible = true,
-                            onDismiss = { moneyQa = null },
+                            onDismiss = {
+                                moneyQa = null
+                                clearPersonalSheetTarget()
+                            },
                             onSaved = {
                                 moneyQa = null
+                                clearPersonalSheetTarget()
                                 shellViewModel.refreshVisiblePersonalTab()
+                                if (kind == MoneyQuickAddKind.INCOME) {
+                                    habitRewardMessage = "Saved · counts toward your day"
+                                }
                                 tourController.showWhereToLook(TourWhereToLook.forMoney(kind))
                             },
                         )
@@ -1111,7 +1248,17 @@ fun AppShellScreen(
             )
         }
         if (state.selectedMomentId != null && state.selectedContext == AppContext.BUSINESS) {
+            LaunchedEffect(businessGapQa) {
+                val kind = businessGapQa ?: return@LaunchedEffect
+                if (kind == BusinessQuickAddKind.EXPENSE || kind == BusinessQuickAddKind.SPEND_ENTRY) {
+                    businessGapQa = null
+                    businessExpenseSheetOpen = true
+                }
+            }
             businessGapQa?.let { kind ->
+                if (kind == BusinessQuickAddKind.EXPENSE || kind == BusinessQuickAddKind.SPEND_ENTRY) {
+                    return@let
+                }
                 val typeCode = state.selectedMomentTypeCode
                     ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.momentTypeCode
                 val code = typeCode.orEmpty().uppercase()
@@ -1192,7 +1339,24 @@ fun AppShellScreen(
                 visible = businessInvoiceSheetOpen,
                 onDismiss = { businessInvoiceSheetOpen = false },
                 onSaved = { shellViewModel.refreshVisibleBusinessTab() },
+                shopName = state.selectedCompany?.displayName
+                    ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.title
+                    ?: "",
             )
+            val khataCompanyId = state.selectedCompany?.companyId
+                ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.companyId
+                ?: ""
+            if (khataCompanyId.isNotBlank()) {
+                BusinessKhataHomeSheet(
+                    momentId = state.selectedMomentId!!,
+                    companyId = khataCompanyId,
+                    shopName = state.selectedCompany?.displayName
+                        ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.title
+                        ?: "",
+                    visible = businessKhataSheetOpen,
+                    onDismiss = { businessKhataSheetOpen = false },
+                )
+            }
         }
         if (state.selectedCompany != null && state.selectedContext == AppContext.BUSINESS) {
             BusinessMembersSheet(
@@ -1202,10 +1366,13 @@ fun AppShellScreen(
             )
         }
         lifeOpsQa?.let { kind ->
-            val momentId = state.selectedMomentId
+            val momentId = personalQaMomentId
             if (momentId != null) {
                 ModalBottomSheet(
-                    onDismissRequest = { lifeOpsQa = null },
+                    onDismissRequest = {
+                        lifeOpsQa = null
+                        clearPersonalSheetTarget()
+                    },
                     sheetState = lifeOpsSheetState,
                     containerColor = Color(0xFF14121B),
                     dragHandle = null,
@@ -1213,10 +1380,18 @@ fun AppShellScreen(
                     PersonalLifeOpsQuickAddSheet(
                         kind = kind,
                         momentId = momentId,
-                        onClose = { lifeOpsQa = null },
+                        onClose = {
+                            lifeOpsQa = null
+                            clearPersonalSheetTarget()
+                        },
                         onSaved = {
                             lifeOpsQa = null
+                            clearPersonalSheetTarget()
                             shellViewModel.refreshVisiblePersonalTab()
+                            if (kind == LifeOpsQuickAddKind.MOOD || kind == LifeOpsQuickAddKind.RECOVERY) {
+                                habitRewardMessage = "Logged · your day is updating"
+                                PersonalEveningNudgeScheduler.onTodaySave(context)
+                            }
                             tourController.showWhereToLook(TourWhereToLook.forLifeOps(kind))
                         },
                     )
@@ -1224,10 +1399,13 @@ fun AppShellScreen(
             }
         }
         futureQa?.let { kind ->
-            val momentId = state.selectedMomentId
+            val momentId = personalQaMomentId
             if (momentId != null) {
                 ModalBottomSheet(
-                    onDismissRequest = { futureQa = null },
+                    onDismissRequest = {
+                        futureQa = null
+                        clearPersonalSheetTarget()
+                    },
                     sheetState = futureSheetState,
                     containerColor = Color(0xFF14121B),
                     dragHandle = null,
@@ -1235,9 +1413,13 @@ fun AppShellScreen(
                     PersonalFutureQuickAddSheet(
                         kind = kind,
                         momentId = momentId,
-                        onClose = { futureQa = null },
+                        onClose = {
+                            futureQa = null
+                            clearPersonalSheetTarget()
+                        },
                         onSaved = {
                             futureQa = null
+                            clearPersonalSheetTarget()
                             shellViewModel.refreshVisiblePersonalTab()
                             tourController.showWhereToLook(TourWhereToLook.forFuture(kind))
                         },
@@ -1246,10 +1428,13 @@ fun AppShellScreen(
             }
         }
         lifestyleQa?.let { kind ->
-            val momentId = state.selectedMomentId
+            val momentId = personalQaMomentId
             if (momentId != null) {
                 ModalBottomSheet(
-                    onDismissRequest = { lifestyleQa = null },
+                    onDismissRequest = {
+                        lifestyleQa = null
+                        clearPersonalSheetTarget()
+                    },
                     sheetState = lifestyleSheetState,
                     containerColor = Color(0xFF14121B),
                     dragHandle = null,
@@ -1257,9 +1442,13 @@ fun AppShellScreen(
                     PersonalLifestyleQuickAddSheet(
                         kind = kind,
                         momentId = momentId,
-                        onClose = { lifestyleQa = null },
+                        onClose = {
+                            lifestyleQa = null
+                            clearPersonalSheetTarget()
+                        },
                         onSaved = {
                             lifestyleQa = null
+                            clearPersonalSheetTarget()
                             shellViewModel.refreshVisiblePersonalTab()
                             tourController.showWhereToLook(TourWhereToLook.forLifestyle(kind))
                         },
@@ -1268,10 +1457,13 @@ fun AppShellScreen(
             }
         }
         relationshipsQa?.let { kind ->
-            val momentId = state.selectedMomentId
+            val momentId = personalQaMomentId
             if (momentId != null) {
                 ModalBottomSheet(
-                    onDismissRequest = { relationshipsQa = null },
+                    onDismissRequest = {
+                        relationshipsQa = null
+                        clearPersonalSheetTarget()
+                    },
                     sheetState = relationshipsSheetState,
                     containerColor = Color(0xFF14121B),
                     dragHandle = null,
@@ -1279,9 +1471,13 @@ fun AppShellScreen(
                     PersonalRelationshipsQuickAddSheet(
                         kind = kind,
                         momentId = momentId,
-                        onClose = { relationshipsQa = null },
+                        onClose = {
+                            relationshipsQa = null
+                            clearPersonalSheetTarget()
+                        },
                         onSaved = {
                             relationshipsQa = null
+                            clearPersonalSheetTarget()
                             shellViewModel.refreshVisiblePersonalTab()
                             tourController.showWhereToLook(TourWhereToLook.forRelationships(kind))
                         },
@@ -1300,6 +1496,27 @@ fun AppShellScreen(
             visible = recentActivityOpen,
             onDismiss = { recentActivityOpen = false },
             onChanged = { shellViewModel.refreshVisiblePersonalTab() },
+        )
+        BusinessRecentActivityFlow(
+            momentId = state.selectedMomentId,
+            visible = teamRecentActivityOpen,
+            onDismiss = { teamRecentActivityOpen = false },
+            accent = TeamOpsColors.IndigoLight,
+            subtitle = "Team updates, polls, memories, and other events.",
+        )
+        BusinessRecentActivityFlow(
+            momentId = state.selectedMomentId,
+            visible = businessRecentActivityOpen,
+            onDismiss = { businessRecentActivityOpen = false },
+            accent = when {
+                (state.selectedMomentTypeCode ?: "").uppercase().contains("RUNWAY") -> RunwayColors.Amber
+                else -> OpsColors.IndigoLight
+            },
+            subtitle = when {
+                (state.selectedMomentTypeCode ?: "").uppercase().contains("RUNWAY") ->
+                    "Spend, revenue, and financial events."
+                else -> "Deliveries, vendors, issues, and ops events."
+            },
         )
         GroupRecentActivityFlow(
             momentId = state.selectedMomentId,
@@ -1351,6 +1568,67 @@ fun AppShellScreen(
                 }
             }
         }
+        if (personalSetupChooserOpen && state.selectedContext == AppContext.PERSONAL) {
+            val missing = missingPersonalSetupSystems(state.moments)
+            MomentraFullscreenDialog(onDismissRequest = { personalSetupChooserOpen = false }) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFF14121B))
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        "Set up another life area",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                    )
+                    Text(
+                        "Add Future, Lifestyle, or People without leaving Personal.",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 14.sp,
+                    )
+                    missing.forEach { system ->
+                        Text(
+                            text = system.setupTitle,
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF201E28))
+                                .clickable {
+                                    personalSetupChooserOpen = false
+                                    personalSetupSystem = system
+                                }
+                                .padding(16.dp),
+                        )
+                    }
+                    Text(
+                        "Cancel",
+                        color = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier
+                            .clickable { personalSetupChooserOpen = false }
+                            .padding(8.dp),
+                    )
+                }
+            }
+        }
+        personalSetupSystem?.let { system ->
+            MomentraFullscreenDialog(onDismissRequest = { personalSetupSystem = null }) {
+                PersonalSetupWizardContent(
+                    system = system,
+                    onBack = { personalSetupSystem = null },
+                    onCreated = { id, title, typeCode, status ->
+                        personalSetupSystem = null
+                        shellViewModel.onMomentCreated(id, title, typeCode, status)
+                        tourController.onSignal(TourSignal.MOMENT_CREATED)
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
         if (storyMomentId != null) {
             val momentId = storyMomentId
             if (momentId != null) {
@@ -1400,6 +1678,7 @@ fun AppShellScreen(
                 shellViewModel.selectBottomDestination(it)
             },
             accent = momentAccent,
+            createLabel = if (state.selectedContext == AppContext.PERSONAL) "Add" else BottomDestination.CREATE.label,
         )
     }
 
@@ -1433,7 +1712,9 @@ fun AppShellScreen(
     }
     if (state.profileOpen) {
         ModalBottomSheet(
-            onDismissRequest = { shellViewModel.openProfile(false) },
+            onDismissRequest = {
+                shellViewModel.openProfile(false)
+            },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
             com.example.momentra.ui.account.AccountHubSheet(
@@ -1442,7 +1723,9 @@ fun AppShellScreen(
                     shellViewModel.openProfile(false)
                     onSignOut()
                 },
-                onClose = { shellViewModel.openProfile(false) },
+                onClose = {
+                    shellViewModel.openProfile(false)
+                },
                 onAccountDeleted = {
                     shellViewModel.openProfile(false)
                     onSignOut()
@@ -1451,6 +1734,26 @@ fun AppShellScreen(
                     shellViewModel.openProfile(false)
                     tourController.startPersonal(force = true)
                 },
+            )
+        }
+    }
+    habitRewardMessage?.let { message ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 88.dp),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Text(
+                text = message,
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = com.example.momentra.ui.theme.PlusJakartaSans,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF2D1F5E))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
             )
         }
     }
@@ -1488,6 +1791,10 @@ private fun ShellDestinationContent(
     groupTabRefreshToken: Long = 0L,
     businessTabRefreshToken: Long = 0L,
     capabilities: List<String> = emptyList(),
+    forcePersonalSimple: Boolean = false,
+    onEnablePersonalSimple: () -> Unit = {},
+    onPersonalSetupMissing: () -> Unit = {},
+    personalPresentFamilies: Set<PersonalPulseFamily> = emptySet(),
     viewerReadOnly: Boolean = false,
     onRetry: () -> Unit,
     onSessionExpired: () -> Unit,
@@ -1526,6 +1833,7 @@ private fun ShellDestinationContent(
     onAddInvoice: () -> Unit = {},
     onAddMembers: () -> Unit = {},
     onOpenQuickAdd: () -> Unit = {},
+    onOpenMoments: () -> Unit = {},
     onViewBusinessReport: () -> Unit = {},
     onOpenBusinessFinance: () -> Unit = {},
     onOpenVendor: () -> Unit = {},
@@ -1537,6 +1845,8 @@ private fun ShellDestinationContent(
     onOpenRelationshipsActivity: () -> Unit = {},
     onViewAllActivity: () -> Unit = {},
     onViewAllGroupActivity: () -> Unit = {},
+    onViewAllTeamActivity: () -> Unit = {},
+    onViewAllBusinessActivity: () -> Unit = {},
     onOpenCompletedMoments: (() -> Unit)? = null,
 ) {
     when (content) {
@@ -1710,8 +2020,11 @@ private fun ShellDestinationContent(
                             onMembers = onAddMembers,
                             onCreateMoment = onCreateMoment,
                             onTile = onBusinessQuickAdd,
+                            momentId = selectedMomentId,
                             momentTypeCode = moments.firstOrNull { it.momentId == selectedMomentId }?.momentTypeCode
                                 ?: selectedMomentTypeCode,
+                            companyId = companyId
+                                ?: moments.firstOrNull { it.momentId == selectedMomentId }?.companyId,
                             capabilities = capabilities,
                         )
                     } else {
@@ -1970,8 +2283,10 @@ private fun ShellDestinationContent(
                                     momentId = selectedMomentId,
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = businessTabRefreshToken,
-                                    onLogExpense = { onBusinessQuickAdd(BusinessQuickAddKind.EXPENSE) },
+                                    onLogExpense = onAddExpense,
                                     onOpenQuickAdd = onOpenQuickAdd,
+                                    onOpenMoments = onOpenMoments,
+                                    onViewAllActivity = onViewAllBusinessActivity,
                                 )
                                 code.contains("TEAM_OPERATIONS") -> TeamOpsPulseActiveContent(
                                     momentId = selectedMomentId,
@@ -1979,14 +2294,17 @@ private fun ShellDestinationContent(
                                     refreshToken = businessTabRefreshToken,
                                     onLogDelivery = { onBusinessQuickAdd(BusinessQuickAddKind.TEAM_UPDATE) },
                                     onOpenQuickAdd = onOpenQuickAdd,
+                                    onViewAllActivity = onViewAllTeamActivity,
                                     onAddExpense = onAddExpense,
                                 )
                                 code.contains("OPERATIONS") && !code.contains("TEAM") -> OpsPulseActiveContent(
                                     momentId = selectedMomentId,
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = businessTabRefreshToken,
-                                    onLogSpend = { onBusinessQuickAdd(BusinessQuickAddKind.SPEND_ENTRY) },
+                                    onLogSpend = onAddExpense,
                                     onOpenQuickAdd = onOpenQuickAdd,
+                                    onOpenMoments = onOpenMoments,
+                                    onViewAllActivity = onViewAllBusinessActivity,
                                 )
                                 else -> BusinessPulseActiveContent(
                                     momentId = selectedMomentId,
@@ -2007,8 +2325,10 @@ private fun ShellDestinationContent(
                                     momentId = selectedMomentId,
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = businessTabRefreshToken,
-                                    onLogExpense = { onBusinessQuickAdd(BusinessQuickAddKind.EXPENSE) },
+                                    onLogExpense = onAddExpense,
                                     onOpenQuickAdd = onOpenQuickAdd,
+                                    onOpenMoments = onOpenMoments,
+                                    onViewAllActivity = onViewAllBusinessActivity,
                                 )
                                 code.contains("TEAM_OPERATIONS") -> TeamOpsMomentsActiveContent(
                                     momentId = selectedMomentId,
@@ -2016,13 +2336,16 @@ private fun ShellDestinationContent(
                                     refreshToken = businessTabRefreshToken,
                                     onLogWin = { onBusinessQuickAdd(BusinessQuickAddKind.TEAM_UPDATE) },
                                     onOpenQuickAdd = onOpenQuickAdd,
+                                    onViewAllActivity = onViewAllTeamActivity,
                                 )
                                 code.contains("OPERATIONS") && !code.contains("TEAM") -> OpsMomentsActiveContent(
                                     momentId = selectedMomentId,
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = businessTabRefreshToken,
-                                    onLogSpend = { onBusinessQuickAdd(BusinessQuickAddKind.SPEND_ENTRY) },
+                                    onLogSpend = onAddExpense,
                                     onOpenQuickAdd = onOpenQuickAdd,
+                                    onOpenMoments = onOpenMoments,
+                                    onViewAllActivity = onViewAllBusinessActivity,
                                 )
                                 else -> BusinessMomentsActiveContent(
                                     momentId = selectedMomentId,
@@ -2062,7 +2385,7 @@ private fun ShellDestinationContent(
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = businessTabRefreshToken,
                                     onRecordLearning = { onBusinessQuickAdd(BusinessQuickAddKind.MEMORY) },
-                                    onOpenQuickAdd = onOpenQuickAdd,
+                                    onOpenQuickAdd = { onBusinessQuickAdd(BusinessQuickAddKind.TEAM_UPDATE) },
                                 )
                                 code.contains("OPERATIONS") && !code.contains("TEAM") -> OpsMemoryActiveContent(
                                     momentId = selectedMomentId,
@@ -2085,37 +2408,20 @@ private fun ShellDestinationContent(
                                 onLogRecovery = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY) },
                             )
                         }
-                        context == AppContext.PERSONAL && destination == BottomDestination.PULSE && isRelationships -> {
-                            PersonalRelationshipsPulseActiveContent(
-                                refreshToken = personalTabRefreshToken,
-                                momentTitle = selectedMomentTitle,
-                                momentId = selectedMomentId,
-                                onAddExpense = onAddExpense,
-                                onRelationshipsQuickAdd = onRelationshipsQuickAdd,
-                                onOpenRecentActivity = onOpenRelationshipsActivity,
-                            )
-                        }
-                        context == AppContext.PERSONAL && destination == BottomDestination.PULSE && isLifestyle -> {
-                            PersonalLifestylePulseActiveContent(
-                                refreshToken = personalTabRefreshToken,
-                                momentTitle = selectedMomentTitle,
-                                momentId = selectedMomentId,
-                                onAddExpense = onAddExpense,
-                                onLifestyleQuickAdd = onLifestyleQuickAdd,
-                                onViewAllActivity = onViewAllActivity,
-                            )
-                        }
                         context == AppContext.PERSONAL && destination == BottomDestination.PULSE -> {
                             PersonalLifeOpsPulseActiveContent(
                                 refreshToken = personalTabRefreshToken,
                                 momentTitle = selectedMomentTitle,
                                 momentId = selectedMomentId,
                                 momentTypeCode = personalTypeCode,
+                                forceCollapsed = forcePersonalSimple,
+                                onEnableSimpleMode = onEnablePersonalSimple,
                                 onAddExpense = onAddExpense,
                                 onLifeOpsQuickAdd = onLifeOpsQuickAdd,
                                 onFutureQuickAdd = onFutureQuickAdd,
                                 onLifestyleQuickAdd = onLifestyleQuickAdd,
-                                onViewAllActivity = onViewAllActivity,
+                                onRelationshipsQuickAdd = onRelationshipsQuickAdd,
+                                onViewAllActivity = if (isRelationships) onOpenRelationshipsActivity else onViewAllActivity,
                             )
                         }
                         context == AppContext.PERSONAL && destination == BottomDestination.MOMENTS && isFutureBuilding -> {
@@ -2198,6 +2504,10 @@ private fun ShellDestinationContent(
                                 onRelationshipsQuickAdd = onRelationshipsQuickAdd,
                                 momentTypeCode = personalTypeCode,
                                 capabilities = capabilities,
+                                simpleMode = false,
+                                unifiedCatalog = true,
+                                presentFamilies = personalPresentFamilies,
+                                onSetupMissing = onPersonalSetupMissing,
                             )
                         }
                         else -> {
@@ -2249,6 +2559,53 @@ private fun EmptyPanel(
         if (actionLabel != null && onAction != null) {
             Spacer(Modifier.height(16.dp))
             Button(onClick = onAction) { Text(actionLabel) }
+        }
+    }
+}
+
+/** Slim Personal chrome — Manage preferred + optional Set up Everyday (no family chips). */
+@Composable
+private fun PersonalUnifiedChrome(
+    accent: Color,
+    showManage: Boolean,
+    showSetUpEveryday: Boolean,
+    onManage: () -> Unit,
+    onSetUpEveryday: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(ShellTokens.TopBarBackground)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "Personal",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+            )
+            if (showSetUpEveryday) {
+                Text(
+                    "Set up Everyday",
+                    color = accent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable(onClick = onSetUpEveryday),
+                )
+            }
+        }
+        if (showManage) {
+            Icon(
+                imageVector = Icons.Outlined.Settings,
+                contentDescription = "Manage",
+                tint = Color.White.copy(alpha = 0.85f),
+                modifier = Modifier
+                    .size(22.dp)
+                    .clickable(onClick = onManage),
+            )
         }
     }
 }

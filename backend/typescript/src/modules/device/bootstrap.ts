@@ -23,6 +23,7 @@ export interface BootstrapMomentSummary {
 export interface BootstrapCompanySummary {
   companyId: string;
   displayName: string;
+  profileJson?: Record<string, unknown>;
 }
 
 export interface MeBootstrap {

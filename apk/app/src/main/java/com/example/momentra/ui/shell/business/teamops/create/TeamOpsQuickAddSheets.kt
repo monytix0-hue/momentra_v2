@@ -1,5 +1,6 @@
 package com.example.momentra.ui.shell.business.teamops.create
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,17 +11,24 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.data.api.CreateBusinessApprovalRequestBody
 import com.example.momentra.data.api.CreateBusinessIssueBody
 import com.example.momentra.data.api.CreateBusinessMemoryBody
@@ -906,12 +914,14 @@ private fun PollForm(
     val accent = TeamOpsIndigoAccent
     val kind = BusinessQuickAddKind.POLL
     var question by remember { mutableStateOf("") }
-    var optionA by remember { mutableStateOf("") }
-    var optionB by remember { mutableStateOf("") }
-    var optionC by remember { mutableStateOf("") }
+    val options = remember { mutableStateListOf("", "") }
+    var multi by remember { mutableStateOf(false) }
+    var includeDeadline by remember { mutableStateOf(false) }
+    var deadlineDate by remember { mutableStateOf("") }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val filledOptions = options.count { it.isNotBlank() }
 
     TeamOpsSheetHeader(
         iconRes = kind.teamOpsHubIconRes(),
@@ -924,36 +934,78 @@ private fun PollForm(
     FieldBlock("Question") {
         TeamOpsTextField(question, { question = it }, "What should we decide?", accent)
     }
-    FieldBlock("Option A") {
-        TeamOpsTextField(optionA, { optionA = it }, "First option", accent)
+    FieldBlock("Options") {
+        options.forEachIndexed { index, value ->
+            TeamOpsTextField(
+                value,
+                { options[index] = it },
+                "Option ${index + 1}",
+                accent,
+            )
+        }
+        Text(
+            "+ Add Option",
+            color = accent.accent,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
+            modifier = Modifier
+                .clickable { if (options.size < 6) options.add("") }
+                .padding(vertical = 4.dp),
+        )
     }
-    FieldBlock("Option B") {
-        TeamOpsTextField(optionB, { optionB = it }, "Second option", accent)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Allow multiple choice", color = Color.White, fontSize = 14.sp, fontFamily = PlusJakartaSans)
+        Switch(checked = multi, onCheckedChange = { multi = it })
     }
-    FieldBlock("Option C") {
-        TeamOpsTextField(optionC, { optionC = it }, "Optional", accent)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Set deadline", color = Color.White, fontSize = 14.sp, fontFamily = PlusJakartaSans)
+        Switch(checked = includeDeadline, onCheckedChange = { includeDeadline = it })
+    }
+    if (includeDeadline) {
+        FieldBlock("Poll deadline") {
+            TeamOpsDateField(
+                deadlineDate.ifBlank { SetupDateTimeUtils.localDateToIso(LocalDate.now()) },
+                { deadlineDate = it },
+            )
+        }
     }
     TeamOpsErrorText(error)
     TeamOpsPrimaryCta(
         label = if (submitting) "Saving…" else "Create Poll",
         enabled = !momentId.isNullOrBlank() &&
             question.isNotBlank() &&
-            optionA.isNotBlank() &&
-            optionB.isNotBlank() &&
+            filledOptions >= 2 &&
             !submitting,
         loading = submitting,
         footerHint = "Poll will go live",
         accent = accent,
         onClick = {
             val id = momentId ?: return@TeamOpsPrimaryCta
-            val options = listOf(optionA, optionB, optionC).map { it.trim() }.filter { it.isNotBlank() }
+            val opts = options.map { it.trim() }.filter { it.isNotBlank() }
+            val closesAt = if (includeDeadline) {
+                val day = deadlineDate.ifBlank { SetupDateTimeUtils.localDateToIso(LocalDate.now()) }
+                "${day}T23:59:00.000Z"
+            } else {
+                null
+            }
             submitting = true
             error = null
             scope.launch {
                 groupRepo.createPoll(
                     momentId = id,
                     question = question.trim(),
-                    options = options,
+                    options = opts,
+                    closesAt = closesAt,
+                    pollType = if (multi) "MULTI_CHOICE" else "SINGLE_CHOICE",
                     idempotencyKey = UUID.randomUUID().toString(),
                 ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
@@ -975,6 +1027,7 @@ private fun MemoryForm(
     val kind = BusinessQuickAddKind.MEMORY
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
+    var memoryType by remember { mutableStateOf("Note") }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -993,6 +1046,9 @@ private fun MemoryForm(
     FieldBlock("Body") {
         TeamOpsTextField(body, { body = it }, "What should we remember?", accent, singleLine = false, minHeight = 96)
     }
+    FieldBlock("Type") {
+        TeamOpsChipRow(listOf("Note", "Milestone", "Decision"), memoryType, accent) { memoryType = it }
+    }
     TeamOpsErrorText(error)
     TeamOpsPrimaryCta(
         label = if (submitting) "Saving…" else "Save to Memory",
@@ -1010,6 +1066,7 @@ private fun MemoryForm(
                     body = CreateBusinessMemoryBody(
                         title = title.trim(),
                         body = body.trim(),
+                        memoryType = memoryType.uppercase(),
                     ),
                     idempotencyKey = UUID.randomUUID().toString(),
                 ).fold(

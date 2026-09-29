@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,6 +32,7 @@ import com.example.momentra.data.api.BusinessTimelineDto
 import com.example.momentra.data.api.BusinessTimelineItemDto
 import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
+import com.example.momentra.ui.shell.business.shared.BusinessAudience
 import com.example.momentra.ui.shell.business.ops.components.OpsActivityTimelineRow
 import com.example.momentra.ui.shell.business.ops.components.OpsBackgroundGlow
 import com.example.momentra.ui.shell.business.ops.components.OpsColors
@@ -53,6 +55,8 @@ fun OpsMomentsActiveContent(
     refreshToken: Long = 0L,
     onLogSpend: () -> Unit = {},
     onOpenQuickAdd: () -> Unit = {},
+    onOpenMoments: () -> Unit = {},
+    onViewAllActivity: () -> Unit = {},
     repository: BusinessSliceRepository = remember { BusinessSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
@@ -62,12 +66,19 @@ fun OpsMomentsActiveContent(
     var timeline by remember { mutableStateOf<BusinessTimelineDto?>(null) }
     var filter by remember { mutableStateOf("All") }
     var error by remember { mutableStateOf<String?>(null) }
+    var smallShop by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     val filterChips = remember(momentTitle) {
         val scopeLabel = momentTitle?.takeIf { it.isNotBlank() }?.let {
             if (it.length > 14) it.take(12) + "…" else it
         } ?: "All ops"
         listOf(scopeLabel) + BaseFilters
+    }
+
+    LaunchedEffect(momentId) {
+        smallShop = BusinessAudience.isSmallShopMoment(momentId, context = context)
+        if (smallShop) filter = "All"
     }
 
     LaunchedEffect(refreshToken, momentId) {
@@ -198,14 +209,16 @@ fun OpsMomentsActiveContent(
                 theme = theme,
             )
 
-            OpsFilterChipRow(
-                chips = filterChips,
-                selected = if (filter == "All") filterChips.first() else filter,
-                onSelect = { chip ->
-                    filter = if (chip == filterChips.first()) "All" else chip
-                },
-                theme = theme,
-            )
+            if (!smallShop) {
+                OpsFilterChipRow(
+                    chips = filterChips,
+                    selected = if (filter == "All") filterChips.first() else filter,
+                    onSelect = { chip ->
+                        filter = if (chip == filterChips.first()) "All" else chip
+                    },
+                    theme = theme,
+                )
+            }
 
             if (showEmpty) {
                 Column(
@@ -248,7 +261,7 @@ fun OpsMomentsActiveContent(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = PlusJakartaSans,
-                    modifier = Modifier.clickable(onClick = onOpenQuickAdd),
+                    modifier = Modifier.clickable(onClick = onViewAllActivity),
                 )
             }
 

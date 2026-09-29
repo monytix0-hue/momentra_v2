@@ -1,5 +1,6 @@
 package com.example.momentra.ui.shell.personal.lifeops.create
 
+import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -85,6 +86,60 @@ object PersonalLifeOpsDerived {
         return streak
     }
 
+    fun timeOfDayGreeting(hour: Int = java.time.LocalTime.now(ZoneId.systemDefault()).hour): String = when (hour) {
+        in 5..11 -> "Good morning"
+        in 12..16 -> "Good afternoon"
+        else -> "Good evening"
+    }
+
+    /**
+     * One-line day feedback for Life Ops Today fold.
+     * @param moodState raw mood or blank
+     * @param spendPairs currency → amount display strings for today/month snapshot
+     * @param todayLogCount activities that occurred today
+     */
+    fun dayFeedbackLine(
+        moodState: String?,
+        spendPairs: List<Pair<String, String>>,
+        todayLogCount: Int,
+        family: PersonalPulseFamily = PersonalPulseFamily.LIFE_OPERATIONS,
+    ): String {
+        val mood = moodState?.trim().orEmpty()
+        val hasMood = mood.isNotEmpty()
+        val hasSpend = spendPairs.isNotEmpty()
+        val hasLogs = todayLogCount > 0
+        if (!hasMood && !hasSpend && !hasLogs) {
+            return when (family) {
+                PersonalPulseFamily.LIFE_OPERATIONS -> "Start with a spend, a mood, or rest."
+                PersonalPulseFamily.FUTURE_BUILDING -> "Start with a milestone, progress, or learning."
+                PersonalPulseFamily.LIFESTYLE -> "Start with an experience, wellbeing, or discovery."
+                PersonalPulseFamily.RELATIONSHIPS -> "Start with a connection, shared moment, or support."
+            }
+        }
+        if (family != PersonalPulseFamily.LIFE_OPERATIONS) {
+            return if (hasLogs) {
+                if (todayLogCount == 1) "Today · 1 log" else "Today · $todayLogCount logs"
+            } else {
+                "Today · keep going"
+            }
+        }
+        val parts = mutableListOf("Today")
+        if (hasSpend) {
+            parts += spendPairs.joinToString(" · ") { (code, amount) -> "$code $amount" }
+        } else {
+            parts += "no spend yet"
+        }
+        if (hasMood) parts += "mood $mood"
+        if (hasLogs) parts += if (todayLogCount == 1) "1 log" else "$todayLogCount logs"
+        return parts.joinToString(" · ")
+    }
+
+    fun todayActivityCount(occurredAts: List<String>): Int {
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now(zone)
+        return occurredAts.count { parseInstant(it)?.atZone(zone)?.toLocalDate() == today }
+    }
+
     fun relativeTime(iso: String): String {
         val instant = parseInstant(iso) ?: return iso
         val seconds = ChronoUnit.SECONDS.between(instant, Instant.now())
@@ -131,9 +186,9 @@ object PersonalLifeOpsDerived {
     ): Triple<String, String, String> {
         if (activityCount <= 0 && scoreNumber(wellbeing) == null && scoreNumber(recovery) == null) {
             return Triple(
-                "Building Operator",
-                "Low confidence",
-                "Log recovery, mood, and spend to reveal your operating identity.",
+                "Getting started",
+                "Patterns appear after a few logs",
+                "Start on Pulse — log recovery, mood, or spend.",
             )
         }
         return when (stageBand(wellbeing)) {

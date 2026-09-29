@@ -156,9 +156,9 @@ fun PersonalLifestyleMomentsActiveContent(
                 }
             }
 
-            Text("Experience Journey", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+            Text("Recent activity", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
             if (activities.isEmpty()) {
-                LifestyleEmptyCard("No journey entries yet. Log an experience or wellbeing check to start.")
+                LifestyleEmptyCard("Nothing here yet. Log an experience or wellbeing check on Pulse.")
             } else {
                 activities.take(8).forEach { LifestyleJourneyItem(it) }
             }

@@ -29,6 +29,7 @@ import com.example.momentra.ui.shell.policy.ShellVisibilityPolicy
 import com.example.momentra.ui.shell.perf.ShellPerf
 import com.example.momentra.ui.shell.personal.shared.PersonalTabDataCache
 import com.example.momentra.ui.shell.personal.shared.loadPersonalPulseTab
+import com.example.momentra.ui.shell.personal.shared.resolvePreferredPersonalMoment
 import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
 import com.example.momentra.ui.shell.business.shared.prefetchBusinessTabs
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
@@ -114,8 +115,16 @@ class AppShellViewModel(
     private var businessPrefetchJob: Job? = null
     private var sseCollectJob: Job? = null
     private var preferredPersonalMomentId: String? = null
+    /** Honors Personal deep-link selection until user leaves Personal. */
+    private var personalDeepLinkHold: Boolean = false
     private var bootstrap: ShellBootstrap? = null
     private var bindStartedAtMs: Long = 0L
+
+    fun isPersonalDeepLinkHold(): Boolean = personalDeepLinkHold
+
+    fun clearPersonalDeepLinkHold() {
+        personalDeepLinkHold = false
+    }
 
     fun bindIdentity(identity: ShellIdentity) {
         bindStartedAtMs = System.currentTimeMillis()
@@ -163,6 +172,7 @@ class AppShellViewModel(
         groupPrefetchJob?.cancel()
         businessPrefetchJob?.cancel()
         preferredPersonalMomentId = null
+        personalDeepLinkHold = false
         PersonalTabDataCache.clear()
         GroupTabDataCache.clear()
         BusinessTabDataCache.clear()
@@ -249,13 +259,19 @@ class AppShellViewModel(
         val previous = _state.value.selectedContext
         if (previous == context) {
             when (context) {
-                AppContext.PERSONAL -> refreshVisiblePersonalTab()
+                AppContext.PERSONAL -> {
+                    if (!personalDeepLinkHold) applyPreferredPersonalLock()
+                    refreshVisiblePersonalTab()
+                }
                 AppContext.GROUP -> refreshVisibleGroupTab()
                 AppContext.BUSINESS -> refreshVisibleBusinessTab()
                 else -> Unit
             }
             ShellPerf.end(mark, mapOf("sameContext" to true, "context" to context.name))
             return
+        }
+        if (previous == AppContext.PERSONAL) {
+            personalDeepLinkHold = false
         }
         val preservedTab = _state.value.tabByContext[context] ?: BottomDestination.PULSE
         val rememberedMoment = _state.value.selectedMomentByContext[context]
@@ -280,6 +296,17 @@ class AppShellViewModel(
         persistContext(context)
         ensureContextContent()
         ShellPerf.end(mark, mapOf("from" to previous.name, "to" to context.name))
+    }
+
+    /** Apply Unified Personal preferred-moment lock when not holding a deep link. */
+    fun applyPreferredPersonalLock() {
+        val st = _state.value
+        if (st.selectedContext != AppContext.PERSONAL) return
+        if (personalDeepLinkHold) return
+        val preferred = resolvePreferredPersonalMoment(st.moments, st.selectedMomentId) ?: return
+        if (preferred.momentId == st.selectedMomentId) return
+        preferredPersonalMomentId = preferred.momentId
+        selectMoment(preferred.momentId)
     }
 
     fun reloadCurrentContext() {
@@ -349,17 +376,35 @@ class AppShellViewModel(
             AppContext.BUSINESS -> boot.businessMoments
             AppContext.CIRCLE -> emptyList()
         }
-        val preferredMomentId = preserveMomentId
-            ?: current.selectedMomentId
-            ?: current.selectedMomentByContext[current.selectedContext]
-            ?: if (current.selectedContext == AppContext.PERSONAL) preferredPersonalMomentId else null
+        val preferredMomentId = when {
+            preserveMomentId != null -> preserveMomentId
+            current.selectedContext == AppContext.PERSONAL && !personalDeepLinkHold -> {
+                resolvePreferredPersonalMoment(
+                    rawMoments,
+                    current.selectedMomentId
+                        ?: current.selectedMomentByContext[AppContext.PERSONAL]
+                        ?: preferredPersonalMomentId,
+                )?.momentId
+                    ?: current.selectedMomentId
+                    ?: current.selectedMomentByContext[AppContext.PERSONAL]
+                    ?: preferredPersonalMomentId
+            }
+            else -> current.selectedMomentId
+                ?: current.selectedMomentByContext[current.selectedContext]
+                ?: if (current.selectedContext == AppContext.PERSONAL) preferredPersonalMomentId else null
+        }
         // Keep an optimistic join/create OR completed selection visible until inventory catches up.
         val preservedFromCurrent = preferredMomentId
             ?.takeIf { id -> rawMoments.none { it.momentId == id } }
             ?.let { id -> current.moments.firstOrNull { it.momentId == id } }
         val momentsForHeal = when {
             !preserveMomentId.isNullOrBlank() &&
-                rawMoments.none { it.momentId == preserveMomentId } -> {
+                rawMoments.none { it.momentId == preserveMomentId } &&
+                momentTypeFitsContext(
+                    current.selectedContext,
+                    current.moments.firstOrNull { it.momentId == preserveMomentId }?.momentTypeCode
+                        ?: current.selectedMomentTypeCode,
+                ) -> {
                 val existing = current.moments.firstOrNull { it.momentId == preserveMomentId }
                 rawMoments + MomentSummary(
                     momentId = preserveMomentId,
@@ -372,7 +417,8 @@ class AppShellViewModel(
                 )
             }
             preservedFromCurrent != null &&
-                (preservedFromCurrent.isCompletedStatus() || current.selectedContext == AppContext.GROUP) -> {
+                (preservedFromCurrent.isCompletedStatus() || current.selectedContext == AppContext.GROUP) &&
+                momentTypeFitsContext(current.selectedContext, preservedFromCurrent.momentTypeCode) -> {
                 rawMoments + preservedFromCurrent
             }
             else -> rawMoments
@@ -679,7 +725,13 @@ class AppShellViewModel(
      * so COMPLETED group moments still open after bootstrap-only miss.
      */
     fun openMomentFromDeepLink(momentId: String): Boolean {
+        fun markPersonalHoldIfNeeded(ctx: AppContext) {
+            if (ctx == AppContext.PERSONAL) personalDeepLinkHold = true
+        }
         if (_state.value.moments.any { it.momentId == momentId }) {
+            if (_state.value.selectedContext == AppContext.PERSONAL) {
+                personalDeepLinkHold = true
+            }
             selectMoment(momentId)
             return true
         }
@@ -692,6 +744,7 @@ class AppShellViewModel(
             )
             for ((ctx, list) in candidates) {
                 if (list.none { it.momentId == momentId }) continue
+                markPersonalHoldIfNeeded(ctx)
                 _state.update {
                     it.copy(selectedMomentByContext = it.selectedMomentByContext + (ctx to momentId))
                 }
@@ -1041,6 +1094,32 @@ class AppShellViewModel(
             return
         }
         applyBootstrapInventory(boot, networkRefresh = false)
+    }
+
+    /** A missing moment stays in this context only when its type belongs here. Blank types stay for optimistic creates. */
+    private fun momentTypeFitsContext(context: AppContext, momentTypeCode: String?): Boolean {
+        val code = momentTypeCode?.trim()?.uppercase().orEmpty()
+        if (code.isEmpty()) return context != AppContext.CIRCLE
+        val personal = code == "LIFE_RHYTHM" ||
+            code == "LIFE_OPERATIONS" ||
+            code == "LIFESTYLE" ||
+            code == "FUTURE_GOAL" ||
+            code == "FUTURE_BUILDING" ||
+            code == "RELATIONSHIP_CONNECTION" ||
+            code == "RELATIONSHIPS" ||
+            code.startsWith("LIFE_") ||
+            code.startsWith("FUTURE_") ||
+            code.startsWith("LIFESTYLE") ||
+            code.startsWith("RELATIONSHIP")
+        val business = code == "TEAM_OPERATIONS" ||
+            code == "BUSINESS_RUNWAY" ||
+            code == "BUSINESS_OPERATIONS"
+        return when (context) {
+            AppContext.PERSONAL -> personal
+            AppContext.GROUP -> !personal && !business
+            AppContext.BUSINESS -> business
+            AppContext.CIRCLE -> false
+        }
     }
 
     private fun applyError(generation: Long, e: Throwable) {

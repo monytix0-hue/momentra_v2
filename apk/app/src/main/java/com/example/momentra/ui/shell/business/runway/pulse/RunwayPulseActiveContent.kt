@@ -39,6 +39,7 @@ import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
+import com.example.momentra.ui.shell.business.shared.BusinessAudience
 import com.example.momentra.ui.shell.business.runway.components.RunwayActivityRow
 import com.example.momentra.ui.shell.business.runway.components.RunwayAttentionCard
 import com.example.momentra.ui.shell.business.runway.components.RunwayBackgroundGlow
@@ -79,6 +80,8 @@ fun RunwayPulseActiveContent(
     refreshToken: Long,
     onLogExpense: () -> Unit = {},
     onOpenQuickAdd: () -> Unit = {},
+    onOpenMoments: () -> Unit = {},
+    onViewAllActivity: () -> Unit = {},
     repository: BusinessSliceRepository = remember { BusinessSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
@@ -89,7 +92,13 @@ fun RunwayPulseActiveContent(
     var life by remember { mutableStateOf<BusinessLifePayloadDto?>(null) }
     var activities by remember { mutableStateOf<List<ActivityItemDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var smallShop by remember { mutableStateOf(false) }
     val hide = SecurityPreferences(LocalContext.current).hideBalances()
+    val context = LocalContext.current
+
+    LaunchedEffect(momentId) {
+        smallShop = BusinessAudience.isSmallShopMoment(momentId, context = context)
+    }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -194,6 +203,7 @@ fun RunwayPulseActiveContent(
                 runway = runway,
                 cash = cashDisplay,
                 burn = burnDisplay,
+                smallShop = smallShop,
             )
 
             RunwayBurnSection(theme = theme, rows = categoryBurn)
@@ -207,10 +217,12 @@ fun RunwayPulseActiveContent(
             RunwayRecentActivitySection(
                 theme = theme,
                 activities = recentActs,
-                onViewAll = onOpenQuickAdd,
+                onViewAll = onViewAllActivity,
             )
 
-            RunwayIntelligenceSection(theme = theme)
+            if (!smallShop) {
+                RunwayIntelligenceSection(theme = theme, smallShop = false)
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -224,9 +236,9 @@ fun RunwayPulseActiveContent(
                     modifier = Modifier.weight(1f),
                 )
                 RunwayOutlineButton(
-                    label = "View This Week's Report",
+                    label = "View all activity",
                     enabled = true,
-                    onClick = onOpenQuickAdd,
+                    onClick = onViewAllActivity,
                     theme = theme,
                     modifier = Modifier.weight(1f),
                 )
@@ -245,6 +257,7 @@ private fun RunwayHealthHeroCard(
     runway: String,
     cash: String,
     burn: String,
+    smallShop: Boolean = false,
 ) {
     Column(
         modifier = Modifier
@@ -298,7 +311,7 @@ private fun RunwayHealthHeroCard(
         ) {
             RunwayTintedMetricTile(
                 value = runway,
-                label = "months runway",
+                label = if (smallShop) "Cash left (months)" else "months runway",
                 detail = "From pulse",
                 tint = RunwayColors.Amber,
                 theme = theme,

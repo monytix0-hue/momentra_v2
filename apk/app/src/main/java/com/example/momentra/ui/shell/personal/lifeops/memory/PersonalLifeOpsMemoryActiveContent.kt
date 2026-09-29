@@ -125,12 +125,12 @@ fun PersonalLifeOpsMemoryActiveContent(
     val moodBars = moodBars(pulse, activities)
     val moodTotal = moodBars.sumOf { it.count }
     val patternConfidence = if (thinData) {
-        "Building…"
+        "Patterns appear after a few logs"
     } else {
         "${min(92, 40 + activities.size * 5)}% pattern confidence"
     }
     val aiBody = when {
-        thinData -> "Building… Log recovery after pressure and a few moods to unlock an interpretation."
+        thinData -> "Start on Pulse — log recovery, mood, or spend to unlock patterns."
         hasRecovery -> "Your system rewards recovery placed immediately after pressure, not the next morning."
         hasExpense -> "Spend signals are present — pair them with recovery blocks to keep pressure from compounding."
         else -> "Keep logging pressure and recovery together to reveal how your system stabilizes."
@@ -169,7 +169,7 @@ fun PersonalLifeOpsMemoryActiveContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "1 IDENTITY SNAPSHOT",
+                "YOUR PATTERNS",
                 color = Color.White,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,

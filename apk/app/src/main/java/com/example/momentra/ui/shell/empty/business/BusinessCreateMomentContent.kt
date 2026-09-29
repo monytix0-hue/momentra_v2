@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -49,6 +50,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
+import com.example.momentra.ui.shell.business.shared.BusinessAudience
+import com.example.momentra.ui.shell.business.shared.CompanyModules
 import com.example.momentra.ui.shell.maestro.MaestroIds
 
 private val Bg = Color(0xFF0C0F15)
@@ -83,32 +86,66 @@ private data class BizMemory(
 fun BusinessCreateMomentContent(
     onBack: () -> Unit,
     onSelectSetup: (BusinessSetupKind) -> Unit,
+    companyId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var tab by remember { mutableStateOf(BizCreateTab.Moment) }
     var search by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("All") }
+    val context = LocalContext.current
+    val showRetailTagline = remember(companyId) {
+        BusinessAudience.isSmallShop(BusinessAudience.forCompany(context, companyId))
+    }
 
-    val categories = remember {
-        listOf(
-            BizCategory("Team & Work", "Manage hiring, attendance, performance & team growth", R.drawable.ic_biz_create_users, R.drawable.ic_biz_create_card_team, false, BusinessSetupKind.TEAM_OPERATIONS, MaestroIds.BUSINESS_SETUP_TEAM),
-            BizCategory("Money & Cash Flow", "Monitor cash flow, spending and runway health.", R.drawable.ic_biz_create_trending, R.drawable.ic_biz_create_card_runway, false, BusinessSetupKind.BUSINESS_RUNWAY, MaestroIds.BUSINESS_SETUP_RUNWAY),
-            BizCategory("Daily Business", "Organize departments, processes and workflows.", R.drawable.ic_biz_create_credit_card, R.drawable.ic_biz_create_card_ops, false, BusinessSetupKind.BUSINESS_OPERATIONS, MaestroIds.BUSINESS_SETUP_OPS),
-            BizCategory("Project Operations", "Organize tasks, milestones, sprints & deliverables", R.drawable.ic_biz_create_layers, R.drawable.ic_biz_create_card_project, true),
-            BizCategory("Event Operations", "Organize events from planning through execution.", R.drawable.ic_biz_create_wallet, R.drawable.ic_biz_create_card_event, true),
-            BizCategory("Vendor Operations", "Manage suppliers, contracts, procurement & partnerships", R.drawable.ic_biz_create_briefcase, R.drawable.ic_biz_create_card_vendor, true),
+    val categories = remember(showRetailTagline, companyId) {
+        val live = listOf(
+            BizCategory(
+                "Team & Work",
+                if (showRetailTagline) "Staff updates, attendance, and shop team notes"
+                else "Manage hiring, attendance, performance & team growth",
+                R.drawable.ic_biz_create_users,
+                R.drawable.ic_biz_create_card_team,
+                false,
+                BusinessSetupKind.TEAM_OPERATIONS,
+                MaestroIds.BUSINESS_SETUP_TEAM,
+            ),
+            BizCategory(
+                "Money & Cash Flow",
+                if (showRetailTagline) "Track cash, sales, and shop spends"
+                else "Monitor cash and spending.",
+                R.drawable.ic_biz_create_trending,
+                R.drawable.ic_biz_create_card_runway,
+                false,
+                BusinessSetupKind.BUSINESS_RUNWAY,
+                MaestroIds.BUSINESS_SETUP_RUNWAY,
+            ),
+            BizCategory(
+                "Daily Business",
+                if (showRetailTagline) "Suppliers, day-to-day spends, and shop issues"
+                else "Organize departments, processes and workflows.",
+                R.drawable.ic_biz_create_credit_card,
+                R.drawable.ic_biz_create_card_ops,
+                false,
+                BusinessSetupKind.BUSINESS_OPERATIONS,
+                MaestroIds.BUSINESS_SETUP_OPS,
+            ),
         )
+        val all = if (showRetailTagline) {
+            live
+        } else {
+            live + listOf(
+                BizCategory("Project Operations", "Organize tasks, milestones, sprints & deliverables", R.drawable.ic_biz_create_layers, R.drawable.ic_biz_create_card_project, true),
+                BizCategory("Event Operations", "Organize events from planning through execution.", R.drawable.ic_biz_create_wallet, R.drawable.ic_biz_create_card_event, true),
+                BizCategory("Vendor Operations", "Manage suppliers, contracts, procurement & partnerships", R.drawable.ic_biz_create_briefcase, R.drawable.ic_biz_create_card_vendor, true),
+            )
+        }
+        all.filter { cat ->
+            val kind = cat.setupKind ?: return@filter true
+            val key = CompanyModules.moduleKeyForSetupKind(kind) ?: return@filter true
+            CompanyModules.isEnabled(context, companyId, key)
+        }
     }
-    val memories = remember {
-        listOf(
-            BizMemory("Q2 Revenue Milestone", "Crossed ₹50L monthly recurring revenue for the first time", "Revenue", "Jul 14, 2026", Color(0xFF34D399)),
-            BizMemory("New CTO Onboarded", "Ravi Mehta joined as CTO, bringing 12 years enterprise experience", "Team", "Jun 28, 2026", Color(0xFF60A5FA)),
-            BizMemory("Series A Strategy Pivot", "Shifted focus from B2C to B2B SaaS after market analysis", "Strategy", "Jun 15, 2026", Color(0xFFA78BFA)),
-            BizMemory("Product V2 Launch", "Released redesigned dashboard with AI-powered insights", "Projects", "May 30, 2026", Color(0xFFFB923C)),
-            BizMemory("Cost Optimization Win", "Reduced cloud infrastructure costs by 34% through migration", "Expenses", "May 18, 2026", Color(0xFF2DD4BF)),
-            BizMemory("First Enterprise Client", "Signed 3-year contract with TechCorp India worth ₹2.4Cr", "Revenue", "May 2, 2026", Color(0xFF60A5FA)),
-        )
-    }
+    val memories = remember { emptyList<BizMemory>() }
     val filters = listOf("All", "Revenue", "Team", "Strategy", "Projects", "Expenses")
     val filtered = memories.filter {
         (filter == "All" || it.tag == filter) &&
@@ -167,12 +204,26 @@ fun BusinessCreateMomentContent(
                     )
                 }
             }
+            if (showRetailTagline) {
+                Text(
+                    text = "Built for shops and small teams in India.",
+                    color = Muted,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
         }
 
-        TabSwitcher(tab = tab, onSelect = { tab = it })
+        if (!showRetailTagline) {
+            TabSwitcher(tab = tab, onSelect = { tab = it })
+        }
 
-        if (tab == BizCreateTab.Moment) {
-            MomentBody(categories = categories, onSelect = onSelectSetup)
+        if (tab == BizCreateTab.Moment || showRetailTagline) {
+            MomentBody(
+                categories = categories,
+                onSelect = onSelectSetup,
+                hideAiSuggest = showRetailTagline,
+            )
         } else {
             MemoryBody(
                 search = search,
@@ -225,7 +276,11 @@ private fun TabSwitcher(tab: BizCreateTab, onSelect: (BizCreateTab) -> Unit) {
 }
 
 @Composable
-private fun MomentBody(categories: List<BizCategory>, onSelect: (BusinessSetupKind) -> Unit) {
+private fun MomentBody(
+    categories: List<BizCategory>,
+    onSelect: (BusinessSetupKind) -> Unit,
+    hideAiSuggest: Boolean = false,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Column(
             modifier = Modifier
@@ -275,20 +330,22 @@ private fun MomentBody(categories: List<BizCategory>, onSelect: (BusinessSetupKi
             categories.forEach { CategoryCard(it, onSelect = onSelect) }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Text("Not sure where to start? ", color = Muted, fontSize = 14.sp)
-            Text(
-                "Let AI suggest →",
-                color = Accent,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-                style = TextStyle(textDecoration = TextDecoration.Underline),
-            )
+        if (!hideAiSuggest) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text("Not sure where to start? ", color = Muted, fontSize = 14.sp)
+                Text(
+                    "Let AI suggest →",
+                    color = Accent,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    style = TextStyle(textDecoration = TextDecoration.Underline),
+                )
+            }
         }
     }
 }
@@ -446,23 +503,20 @@ private fun MemoryBody(
 
         Text("RECENT MEMORIES", color = Dim, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, letterSpacing = 0.8.sp)
 
-        memories.forEach { MemoryCard(it) }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Spacer(
+        if (memories.isEmpty()) {
+            Text(
+                "No memories yet",
+                color = Muted,
+                fontSize = 14.sp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(1.dp)
-                    .background(Border),
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Card)
+                    .border(1.dp, Border, RoundedCornerShape(16.dp))
+                    .padding(16.dp),
             )
-            Text("Showing ${memories.size} of 24 memories", color = Dim, fontSize = 13.sp)
-            Text("View All Memories →", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        } else {
+            memories.forEach { MemoryCard(it) }
         }
     }
 }

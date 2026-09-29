@@ -148,6 +148,13 @@ fun PersonalLifeOpsMomentsActiveContent(
                     fontFamily = PlusJakartaSans,
                 )
             }
+            Text(
+                "Your Everyday story",
+                color = TextMain,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = PlusJakartaSans,
+            )
 
             // Hero
             Column(
@@ -214,9 +221,9 @@ fun PersonalLifeOpsMomentsActiveContent(
             }
 
             // Journey Timeline
-            Text("Journey Timeline", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+            Text("Recent activity", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
             if (activities.isEmpty()) {
-                EmptyCard("No journey entries yet. Capture a recovery, mood, or expense to start the timeline.")
+                EmptyCard("Nothing here yet. Log a recovery, mood, or expense on Pulse to start your story.")
             } else {
                 activities.take(8).forEach { item ->
                     MomentsActivityJourneyItem(item)
@@ -307,9 +314,9 @@ fun PersonalLifeOpsMomentsActiveContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text("Capture a new moment", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+                Text("Log today", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
                 Text(
-                    "Add a log, expense, mood check-in or update",
+                    "Spend, mood, or recovery",
                     color = Color.White.copy(alpha = 0.85f),
                     fontSize = 13.sp,
                     fontFamily = PlusJakartaSans,
@@ -323,7 +330,7 @@ fun PersonalLifeOpsMomentsActiveContent(
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("+ Open Quick Add", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+                    Text("Open Add", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
                 }
             }
         }

@@ -29,6 +29,7 @@ struct CompanyFlowSheet: View {
     var onOpenLocations: () -> Void = {}
 
     @State private var page: CompanySheetPage
+    @State private var settingsCompanyId = ""
     @State private var settingsName = ""
 
     init(
@@ -52,6 +53,7 @@ struct CompanyFlowSheet: View {
         let initial: CompanySheetPage = startOnCreate ? .create : (startOnSettings ? .settings : .switcher)
         _page = State(initialValue: initial)
         let selected = companies.first { $0.companyId == selectedCompanyId }
+        _settingsCompanyId = State(initialValue: selected?.companyId ?? "")
         _settingsName = State(initialValue: selected?.displayName ?? "")
     }
 
@@ -107,6 +109,7 @@ struct CompanyFlowSheet: View {
                     }
                     .buttonStyle(.plain)
                     Button {
+                        settingsCompanyId = company.companyId
                         settingsName = company.displayName
                         page = .settings
                     } label: {
@@ -146,9 +149,48 @@ struct CompanyFlowSheet: View {
     }
 
     private var settingsPage: some View {
-        BusinessSettingsPage(companyName: settingsName, onClose: { page = .switcher }, onOpenLocations: onOpenLocations)
+        BusinessSettingsPage(
+            companyId: settingsCompanyId,
+            companyName: settingsName,
+            onClose: { page = .switcher },
+            onOpenLocations: onOpenLocations
+        )
     }
 }
+
+private let entityTypeOptions = ["Pvt Ltd", "LLP", "Partnership", "Sole Prop"]
+
+private let currencyOptions = [
+    "₹ INR — Indian Rupee",
+    "$ USD — US Dollar",
+    "€ EUR — Euro",
+    "£ GBP — British Pound",
+    "د.إ AED — UAE Dirham",
+    "S$ SGD — Singapore Dollar",
+]
+
+private struct ModuleToggleDef {
+    let label: String
+    let key: String
+    var smallShopHidden: Bool = false
+}
+
+private let moduleToggleDefs: [ModuleToggleDef] = [
+    ModuleToggleDef(label: "Team & Work", key: "teamOps"),
+    ModuleToggleDef(label: "Daily Business", key: "dailyBusiness"),
+    ModuleToggleDef(label: "Money & Cash Flow", key: "money"),
+    ModuleToggleDef(label: "Projects & Tasks", key: "projects", smallShopHidden: true),
+    ModuleToggleDef(label: "Events & Plans", key: "events", smallShopHidden: true),
+    ModuleToggleDef(label: "Suppliers & Vendors", key: "vendors"),
+]
+
+private let alertToggleDefs: [(String, String)] = [
+    ("Purchase & Expense Alerts", "purchaseExpense"),
+    ("Approval Requests", "approvals"),
+    ("Issue / Risk Alerts", "issues"),
+    ("Payment Reminders", "paymentReminders"),
+    ("Important Business Updates", "importantUpdates"),
+]
 
 private struct CompanyCreateForm: View {
     var onCancel: () -> Void
@@ -238,7 +280,10 @@ private struct CompanyCreateForm: View {
         error = nil
         Task {
             do {
-                var profile: [String: String] = ["companySize": size]
+                var profile: [String: String] = [
+                    "companySize": size,
+                    BusinessAudience.prefKey: BusinessAudience.smallShop,
+                ]
                 if !industry.isEmpty { profile["industry"] = industry }
                 let created = try await APIClient.shared.createCompany(
                     displayName: trimmed,
@@ -246,6 +291,7 @@ private struct CompanyCreateForm: View {
                     timezone: TimeZone.current.identifier,
                     profileJson: profile
                 )
+                BusinessAudience.saveForCompany(companyId: created.companyId, audience: BusinessAudience.smallShop)
                 await MainActor.run {
                     onCreated(CompanySummary(companyId: created.companyId, displayName: created.displayName))
                 }
@@ -337,116 +383,371 @@ func companyInitials(_ name: String) -> String {
 }
 
 private struct BusinessSettingsPage: View {
+    var companyId: String
     var companyName: String
     var onClose: () -> Void
     var onOpenLocations: () -> Void = {}
 
-    @State private var momentUses: [(String, Bool)] = [
-        ("Team & Work", true),
-        ("Daily Business", true),
-        ("Money & Cash Flow", true),
-        ("Projects & Tasks", false),
-        ("Events & Plans", false),
-        ("Suppliers & Vendors", true),
-    ]
-    @State private var alerts: [(String, Bool)] = [
-        ("Purchase & Expense Alerts", true),
-        ("Approval Requests", true),
-        ("Issue / Risk Alerts", true),
-        ("Payment Reminders", true),
-        ("Important Business Updates", true),
-    ]
+    @State private var loading = true
+    @State private var loadError: String?
+    @State private var version: Int?
+
+    @State private var displayName = ""
+    @State private var legalName = ""
+    @State private var taxIdentifier = ""
+    @State private var companyType = entityTypeOptions[0]
+    @State private var industry = ""
+    @State private var companySize = companySizes[0]
+    @State private var currency = currencyOptions[0]
+    @State private var financialYear = "—"
+    @State private var smallShop = false
+
+    @State private var moduleToggles: [String: Bool] = [:]
+    @State private var alertToggles: [String: Bool] = [:]
     @State private var memoryOn = true
 
-    private var name: String { companyName.isEmpty ? "Company" : companyName }
+    @State private var members: [APIClient.CompanyMemberPayload] = []
+    @State private var defaultLocationName: String?
+    @State private var showInviteSheet = false
+    @State private var inviteBusy = false
+    @State private var inviteError: String?
+    @State private var inviteMessage: String?
+
+    @State private var savingProfile = false
+    @State private var profileSaveError: String?
+    @State private var profileSaved = false
+    @State private var settingsPatchBusy = false
+
+    private var headerName: String {
+        let name = displayName.isEmpty ? companyName : displayName
+        return name.isEmpty ? "Company" : name
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            sheetHeader("Company Settings", subtitle: name, close: onClose)
-            settingsCard("Business Identity") {
-                valueRow("Business", name)
+            sheetHeader("Company Settings", subtitle: headerName, close: onClose)
+            if loading {
+                Text("Loading…").font(.system(size: 13)).foregroundStyle(Color(hex: "#64748B"))
+            }
+            if let loadError {
+                Text(loadError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
             }
             settingsCard("Business Profile") {
-                valueRow("Business Name", name)
+                settingsTextField("Business Name", text: $displayName)
             }
             settingsCard("Business Details", note: "Optional formal business information.") {
-                valueRow("Legal Business Name", "—")
-                valueRow("Business Registration Type", "—")
-                valueRow("GSTIN / Tax ID", "—")
-                valueRow("Registration Number", "Optional")
+                settingsTextField("Legal Business Name", text: $legalName)
+                settingsMenuField("Business Registration Type", selection: $companyType, options: entityTypeOptions)
+                settingsTextField("GSTIN / Tax ID", text: $taxIdentifier)
+                settingsMenuField("Industry", selection: $industry, options: companyIndustries, placeholder: "Select industry…")
+                fieldLabel("COMPANY SIZE")
+                FlexibleChipRow(options: companySizes, selected: companySize) { companySize = $0 }
+                settingsMenuField("Currency", selection: $currency, options: currencyOptions)
+                if let profileSaveError {
+                    Text(profileSaveError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                }
+                if profileSaved {
+                    Text("Saved").font(.system(size: 12)).foregroundStyle(Color(hex: "#10B981"))
+                }
+                Button(action: saveProfile) {
+                    Text(savingProfile ? "Saving…" : "Save profile")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#F1F5F9"))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color(hex: "#818CF8").opacity(savingProfile || companyId.isEmpty || version == nil ? 0.35 : 0.9))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .disabled(savingProfile || companyId.isEmpty || version == nil)
             }
             settingsCard("Business Accounts") {
-                Text("No accounts yet").font(.system(size: 13)).foregroundStyle(Color(hex: "#64748B"))
+                Text("Accounts · Coming soon")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(hex: "#64748B").opacity(0.85))
             }
             settingsCard("Money Settings") {
-                valueRow("Currency", "—")
-                valueRow("Financial Year", "—")
-                valueRow("Default Expense Account", "—")
-                valueRow("Default Location", "—")
+                valueRow("Currency", currency.isEmpty ? "—" : currency)
+                valueRow("Financial Year", financialYear)
+                valueRow("Default Expense Account", "—", muted: true)
+                valueRow("Default Location", defaultLocationName ?? "—", muted: defaultLocationName == nil)
             }
             settingsCard("Locations") {
                 Button(action: onOpenLocations) {
                     Text("Manage locations")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(hex: "#F1F5F9"))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#818CF8"))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)
             }
             settingsCard("Team & Roles") {
-                Text("No team members yet").font(.system(size: 13)).foregroundStyle(Color(hex: "#64748B"))
+                if members.isEmpty {
+                    Text("No team members yet").font(.system(size: 13)).foregroundStyle(Color(hex: "#64748B"))
+                } else {
+                    ForEach(members) { member in
+                        valueRow(
+                            member.displayName?.isEmpty == false ? member.displayName! : member.userId,
+                            member.membershipType
+                        )
+                    }
+                }
+                Button {
+                    Task { await mintInvite() }
+                } label: {
+                    Text(inviteBusy ? "Preparing…" : "Invite")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#F1F5F9"))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color(hex: "#818CF8").opacity(companyId.isEmpty || inviteBusy ? 0.35 : 0.9))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .disabled(companyId.isEmpty || inviteBusy)
+                if let inviteError {
+                    Text(inviteError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                }
             }
             settingsCard("What do you use Momentra for?", note: "Turn on only the business moment types you want to use.") {
-                ForEach(momentUses.indices, id: \.self) { index in
-                    Toggle(momentUses[index].0, isOn: Binding(
-                        get: { momentUses[index].1 },
-                        set: { value in
-                            var next = momentUses
-                            next[index].1 = value
-                            momentUses = next
-                        }
-                    ))
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color(hex: "#F1F5F9"))
-                    .tint(Color(hex: "#818CF8"))
+                ForEach(moduleToggleDefs.filter { !smallShop || !$0.smallShopHidden }, id: \.key) { def in
+                    Toggle(def.label, isOn: moduleBinding(for: def.key))
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color(hex: "#F1F5F9"))
+                        .tint(Color(hex: "#818CF8"))
                 }
             }
             settingsCard("Notifications & Approvals") {
-                ForEach(alerts.indices, id: \.self) { index in
-                    Toggle(alerts[index].0, isOn: Binding(
-                        get: { alerts[index].1 },
-                        set: { value in
-                            var next = alerts
-                            next[index].1 = value
-                            alerts = next
-                        }
-                    ))
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color(hex: "#F1F5F9"))
-                    .tint(Color(hex: "#818CF8"))
+                ForEach(alertToggleDefs, id: \.1) { label, key in
+                    Toggle(label, isOn: alertBinding(for: key))
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color(hex: "#F1F5F9"))
+                        .tint(Color(hex: "#818CF8"))
                 }
             }
             settingsCard("Business Memory & Data") {
-                Toggle("Business Memory", isOn: $memoryOn)
+                Toggle("Business Memory", isOn: memoryBinding)
                     .font(.system(size: 14))
                     .foregroundStyle(Color(hex: "#F1F5F9"))
                     .tint(Color(hex: "#818CF8"))
-                valueRow("Archived Moments", "—")
-                valueRow("Export Business Data", "—")
-                valueRow("Data Retention", "—")
+                Text("Archive, export, and retention options coming later")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(hex: "#64748B").opacity(0.8))
             }
             settingsCard("Plan & Usage") {
-                Text("Plan details aren't available yet")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color(hex: "#64748B"))
+                Text("Plan details · Coming soon")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(hex: "#64748B").opacity(0.85))
             }
-            settingsCard("Business Management", note: "These actions affect your business setup and access.") {
-                Text("Transfer Ownership").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color(hex: "#F1F5F9"))
-                Text("Archive Business").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color(hex: "#F1F5F9"))
-                Text("Deactivate Business").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color(hex: "#F1F5F9"))
+            settingsCard("Business Management") {
+                ForEach(["Transfer Ownership", "Archive Business", "Deactivate Business"], id: \.self) { label in
+                    Text("\(label) · Coming soon")
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(Color(hex: "#64748B").opacity(0.8))
+                }
             }
         }
         .padding(.horizontal, 16)
+        .task(id: companyId) { await loadAll() }
+        .onAppear {
+            if displayName.isEmpty { displayName = companyName }
+        }
+        .sheet(isPresented: $showInviteSheet) {
+            NavigationStack {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Invite teammates")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(Color(hex: "#F1F5F9"))
+                    if let inviteMessage {
+                        Text(inviteMessage)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color(hex: "#94A3B8"))
+                            .textSelection(.enabled)
+                        ShareLink(item: inviteMessage) {
+                            Text("Share invite")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color(hex: "#F1F5F9"))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color(hex: "#818CF8"))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                    } else {
+                        ProgressView()
+                    }
+                    Spacer()
+                }
+                .padding(20)
+                .background(Color(hex: "#0F172A").ignoresSafeArea())
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { showInviteSheet = false }
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+        }
+    }
+
+    private func mintInvite() async {
+        guard !companyId.isEmpty else { return }
+        inviteBusy = true
+        inviteError = nil
+        do {
+            let invite = try await APIClient.shared.mintCompanyInvite(
+                companyId: companyId,
+                membershipType: "MEMBER",
+                idempotencyKey: UUID().uuidString
+            )
+            let path = invite.invitePath.isEmpty
+                ? CompanyJoinLink.displayPath(code: invite.inviteCode)
+                : invite.invitePath
+            let title = displayName.isEmpty ? headerName : displayName
+            inviteMessage = InviteOutboundShare.inviteMessage(title: title, url: path)
+            showInviteSheet = true
+        } catch {
+            inviteError = error.localizedDescription
+        }
+        inviteBusy = false
+    }
+
+    private func loadAll() async {
+        guard !companyId.isEmpty else {
+            loading = false
+            loadError = "No company selected"
+            return
+        }
+        loading = true
+        loadError = nil
+        do {
+            async let companyTask = APIClient.shared.getCompany(companyId: companyId)
+            async let membersTask = APIClient.shared.listCompanyMembers(companyId: companyId)
+            async let locationsTask = APIClient.shared.listCompanyLocations(companyId: companyId)
+            let company = try await companyTask
+            let memberList = (try? await membersTask) ?? []
+            let locations = (try? await locationsTask) ?? []
+            await MainActor.run {
+                applyCompany(company)
+                members = memberList
+                defaultLocationName = locations.first?.name
+                loading = false
+            }
+        } catch {
+            await MainActor.run {
+                loadError = "Could not load company"
+                loading = false
+            }
+        }
+    }
+
+    private func applyCompany(_ company: APIClient.CompanyDetailPayload) {
+        version = company.version
+        displayName = company.displayName
+        legalName = company.legalName ?? ""
+        taxIdentifier = company.taxIdentifier ?? ""
+        if let type = company.companyType, !type.isEmpty { companyType = type }
+        let profile = company.profileJson ?? [:]
+        industry = profile["industry"]?.value as? String ?? ""
+        if let size = profile["companySize"]?.value as? String, !size.isEmpty { companySize = size }
+        if let cur = profile["currency"]?.value as? String, !cur.isEmpty { currency = cur }
+        financialYear = (profile["financialYear"]?.value as? String)
+            ?? (profile["fyCycle"]?.value as? String)
+            ?? "—"
+        smallShop = BusinessAudience.isSmallShop(profile[BusinessAudience.prefKey]?.value as? String)
+        let settings = companyNestedMap(profile["settings"])
+        let modules = settings["modules"] as? [String: Any] ?? [:]
+        moduleToggles = Dictionary(uniqueKeysWithValues: moduleToggleDefs.map { def in
+            (def.key, companyBool(modules[def.key], default: true))
+        })
+        CompanyModules.saveModules(companyId: companyId, modules: moduleToggles)
+        let alertsMap = settings["alerts"] as? [String: Any] ?? [:]
+        alertToggles = Dictionary(uniqueKeysWithValues: alertToggleDefs.map { (_, key) in
+            (key, companyBool(alertsMap[key], default: true))
+        })
+        memoryOn = companyBool(settings["businessMemoryEnabled"], default: true)
+    }
+
+    private func saveProfile() {
+        guard let version, !companyId.isEmpty, !savingProfile else { return }
+        savingProfile = true
+        profileSaveError = nil
+        profileSaved = false
+        Task {
+            do {
+                var profileJson: [String: Any] = ["companySize": companySize, "currency": currency]
+                if !industry.isEmpty { profileJson["industry"] = industry }
+                let body: [String: Any] = [
+                    "expectedVersion": version,
+                    "displayName": displayName.trimmingCharacters(in: .whitespaces),
+                    "legalName": legalName.trimmingCharacters(in: .whitespaces).isEmpty
+                        ? displayName.trimmingCharacters(in: .whitespaces) : legalName.trimmingCharacters(in: .whitespaces),
+                    "taxIdentifier": taxIdentifier.trimmingCharacters(in: .whitespaces),
+                    "companyType": companyType,
+                    "profileJson": profileJson,
+                ]
+                let updated = try await APIClient.shared.patchCompany(companyId: companyId, body: body)
+                await MainActor.run {
+                    applyCompany(updated)
+                    profileSaved = true
+                    savingProfile = false
+                }
+            } catch {
+                await MainActor.run {
+                    profileSaveError = "Could not save"
+                    savingProfile = false
+                }
+            }
+        }
+    }
+
+    private func patchSettings(_ profilePatch: [String: Any], rollback: @escaping () -> Void) {
+        guard let version, !settingsPatchBusy else { return }
+        settingsPatchBusy = true
+        Task {
+            defer { Task { @MainActor in settingsPatchBusy = false } }
+            do {
+                let updated = try await APIClient.shared.patchCompany(
+                    companyId: companyId,
+                    body: ["expectedVersion": version, "profileJson": profilePatch]
+                )
+                await MainActor.run { applyCompany(updated) }
+            } catch {
+                await MainActor.run { rollback() }
+            }
+        }
+    }
+
+    private func moduleBinding(for key: String) -> Binding<Bool> {
+        Binding(
+            get: { moduleToggles[key] ?? true },
+            set: { newValue in
+                let previous = moduleToggles
+                moduleToggles[key] = newValue
+                patchSettings(["settings": ["modules": [key: newValue]]]) { moduleToggles = previous }
+            }
+        )
+    }
+
+    private func alertBinding(for key: String) -> Binding<Bool> {
+        Binding(
+            get: { alertToggles[key] ?? true },
+            set: { newValue in
+                let previous = alertToggles
+                alertToggles[key] = newValue
+                patchSettings(["settings": ["alerts": [key: newValue]]]) { alertToggles = previous }
+            }
+        )
+    }
+
+    private var memoryBinding: Binding<Bool> {
+        Binding(
+            get: { memoryOn },
+            set: { newValue in
+                let previous = memoryOn
+                memoryOn = newValue
+                patchSettings(["settings": ["businessMemoryEnabled": newValue]]) { memoryOn = previous }
+            }
+        )
     }
 
     private func settingsCard<Content: View>(_ title: String, note: String? = nil, @ViewBuilder content: () -> Content) -> some View {
@@ -463,11 +764,60 @@ private struct BusinessSettingsPage: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    private func valueRow(_ label: String, _ value: String) -> some View {
+    private func valueRow(_ label: String, _ value: String, muted: Bool = false) -> some View {
         HStack {
             Text(label).font(.system(size: 13)).foregroundStyle(Color(hex: "#CBD5E1"))
             Spacer()
-            Text(value).font(.system(size: 13, weight: .medium)).foregroundStyle(Color(hex: "#F1F5F9"))
+            Text(value)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(muted ? Color(hex: "#64748B") : Color(hex: "#F1F5F9"))
         }
     }
+
+    private func settingsTextField(_ label: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.system(size: 13)).foregroundStyle(Color(hex: "#CBD5E1"))
+            TextField("", text: text)
+                .padding(10)
+                .background(Color(hex: "#0C0F15"))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.10)))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .foregroundStyle(Color(hex: "#F1F5F9"))
+        }
+    }
+
+    private func settingsMenuField(_ label: String, selection: Binding<String>, options: [String], placeholder: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.system(size: 13)).foregroundStyle(Color(hex: "#CBD5E1"))
+            Menu {
+                ForEach(options, id: \.self) { option in
+                    Button(option) { selection.wrappedValue = option }
+                }
+            } label: {
+                HStack {
+                    Text(selection.wrappedValue.isEmpty ? (placeholder ?? "Select") : selection.wrappedValue)
+                        .foregroundStyle(selection.wrappedValue.isEmpty ? Color(hex: "#64748B") : Color(hex: "#F1F5F9"))
+                    Spacer()
+                    Image(systemName: "chevron.down").foregroundStyle(Color(hex: "#64748B"))
+                }
+                .padding(10)
+                .background(Color(hex: "#0C0F15"))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.10)))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+        }
+    }
+}
+
+private func companyNestedMap(_ value: AnyDecodable?) -> [String: Any] {
+    guard let dict = value?.value as? [String: Any] else { return [:] }
+    return dict
+}
+
+private func companyBool(_ value: Any?, default defaultValue: Bool) -> Bool {
+    guard let raw = value else { return defaultValue }
+    if let b = raw as? Bool { return b }
+    if let n = raw as? Int { return n != 0 }
+    if let s = raw as? String { return s.lowercased() == "true" }
+    return defaultValue
 }

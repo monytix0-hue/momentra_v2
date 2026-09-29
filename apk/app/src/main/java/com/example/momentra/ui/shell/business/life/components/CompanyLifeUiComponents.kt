@@ -64,6 +64,14 @@ enum class CompanyLifeFilter(val label: String, val familyKey: String?) {
     OPS("Daily Business", "OPERATIONS"),
 }
 
+fun CompanyLifeFilter.displayLabel(smallShop: Boolean): String = when {
+    !smallShop -> label
+    this == CompanyLifeFilter.RUNWAY -> "MONEY"
+    this == CompanyLifeFilter.TEAM -> "Staff"
+    this == CompanyLifeFilter.OPS -> "Daily"
+    else -> label
+}
+
 fun companyLifeFamilyColor(family: String?): Color = when (family?.uppercase()) {
     "TEAM_OPS", "TEAM_OPERATIONS" -> CompanyLifeColors.Team
     "RUNWAY", "BUSINESS_RUNWAY" -> CompanyLifeColors.Runway
@@ -74,6 +82,7 @@ fun companyLifeFamilyColor(family: String?): Color = when (family?.uppercase()) 
 fun CompanyLifeFilterChips(
     selected: CompanyLifeFilter,
     onSelect: (CompanyLifeFilter) -> Unit,
+    smallShop: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -108,7 +117,7 @@ fun CompanyLifeFilterChips(
                         .background(accent),
                 )
                 Text(
-                    filter.label,
+                    filter.displayLabel(smallShop),
                     color = accent,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -184,6 +193,7 @@ fun CompanyLifeHealthHeader(
     activeModules: String,
     totalMoments: String,
     avgRunway: String,
+    smallShop: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -211,7 +221,11 @@ fun CompanyLifeHealthHeader(
                 fontFamily = PlusJakartaSans,
             )
             Text(
-                "Health across team operations, financial runway, and business operations.",
+                if (smallShop) {
+                    "Health across team, cash, and daily shop work."
+                } else {
+                    "Health across team operations, financial runway, and business operations."
+                },
                 color = CompanyLifeColors.Secondary,
                 fontSize = 13.sp,
                 fontFamily = PlusJakartaSans,
@@ -253,7 +267,7 @@ fun CompanyLifeHealthHeader(
         ) {
             CompanyLifeStatCell(label = "Active Modules", value = activeModules)
             CompanyLifeStatCell(label = "Total Moments", value = totalMoments)
-            CompanyLifeStatCell(label = "Avg Runway", value = avgRunway)
+            CompanyLifeStatCell(label = if (smallShop) "Cash left" else "Avg Runway", value = avgRunway)
         }
     }
 }

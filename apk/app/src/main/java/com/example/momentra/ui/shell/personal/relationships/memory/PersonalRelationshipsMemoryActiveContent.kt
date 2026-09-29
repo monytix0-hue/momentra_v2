@@ -93,9 +93,9 @@ fun PersonalRelationshipsMemoryActiveContent(
     val axes = PersonalRelationshipsDerived.bondAxes(pulse)
     val subtitle = PersonalRelationshipsDerived.bondSubtitle(pulse)
     val thinData = activities.size < 2 && bond == "—"
-    val patternConfidence = if (thinData) "Building…" else "${(40 + activities.size * 5).coerceAtMost(92)}% pattern confidence"
+    val patternConfidence = if (thinData) "Patterns appear after a few logs" else "${(40 + activities.size * 5).coerceAtMost(92)}% pattern confidence"
     val aiBody = when {
-        thinData -> "Building… Log connections and support to unlock bond memory."
+        thinData -> "Start on Pulse — log connections or support to unlock patterns."
         axes.trust != "—" -> "Trust signals from logged connection are shaping your bond memory."
         else -> "Keep logging care and presence to reveal relationship patterns."
     }

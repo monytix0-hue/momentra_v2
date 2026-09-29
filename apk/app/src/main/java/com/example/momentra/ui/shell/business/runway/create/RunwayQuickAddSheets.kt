@@ -175,7 +175,7 @@ private fun RunwayRevenueForm(
         iconRes = R.drawable.ic_biz_create_trending,
         emojiFallback = BusinessQuickAddKind.REVENUE.emoji(),
         title = "Log Revenue",
-        explanation = "Directly added to corporate runway",
+        explanation = "Added to cash flow",
         accent = accent,
         onClose = onDismiss,
     )
@@ -206,7 +206,7 @@ private fun RunwayRevenueForm(
         label = if (submitting) "Saving…" else "Log Revenue",
         enabled = !momentId.isNullOrBlank() && amountDisplay.isNotBlank() && !submitting,
         loading = submitting,
-        footerHint = "Directly added to corporate runway",
+        footerHint = "Added to cash flow",
         accent = accent,
         onClick = {
             val id = momentId ?: return@RunwayPrimaryCta
@@ -281,7 +281,7 @@ private fun RunwayExpenseForm(
         label = if (submitting) "Saving…" else "Log Expense",
         enabled = !momentId.isNullOrBlank() && amountDisplay.isNotBlank() && !submitting,
         loading = submitting,
-        footerHint = "Updates burn and runway",
+        footerHint = "Updates spending",
         accent = accent,
         onClick = {
             val id = momentId ?: return@RunwayPrimaryCta

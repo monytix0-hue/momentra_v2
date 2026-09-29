@@ -28,6 +28,16 @@ enum CompanyLifeFilter: String, CaseIterable, Identifiable {
         case .ops: return "Daily Business"
         }
     }
+
+    func displayLabel(smallShop: Bool) -> String {
+        guard smallShop else { return label }
+        switch self {
+        case .runway: return "MONEY"
+        case .team: return "Staff"
+        case .ops: return "Daily"
+        default: return label
+        }
+    }
     var familyKey: String? {
         switch self {
         case .all: return nil
@@ -55,6 +65,7 @@ func companyLifeFamilyColor(_ family: String?) -> Color {
 
 struct CompanyLifeFilterChips: View {
     @Binding var selected: CompanyLifeFilter
+    var smallShop: Bool = false
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -65,7 +76,7 @@ struct CompanyLifeFilterChips: View {
                     } label: {
                         HStack(spacing: 6) {
                             Circle().fill(filter.accent).frame(width: 6, height: 6)
-                            Text(filter.label)
+                            Text(filter.displayLabel(smallShop: smallShop))
                                 .font(.plusJakarta(size: 11, weight: .semibold))
                                 .foregroundStyle(filter.accent)
                         }
@@ -125,6 +136,13 @@ struct CompanyLifeHealthHeader: View {
     let activeModules: String
     let totalMoments: String
     let avgRunway: String
+    var smallShop: Bool = false
+
+    private var healthBlurb: String {
+        smallShop
+            ? "Health across team, cash, and daily shop work."
+            : "Health across team operations, financial runway, and business operations."
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -135,7 +153,7 @@ struct CompanyLifeHealthHeader: View {
                 Text("Your business, unified")
                     .font(.plusJakarta(size: 22, weight: .bold))
                     .foregroundStyle(CompanyLifeColors.text)
-                Text("Health across team operations, financial runway, and business operations.")
+                Text(healthBlurb)
                     .font(.plusJakarta(size: 13))
                     .foregroundStyle(CompanyLifeColors.secondary)
             }
@@ -156,7 +174,7 @@ struct CompanyLifeHealthHeader: View {
                 Spacer()
                 statCell("Total Moments", totalMoments)
                 Spacer()
-                statCell("Avg Runway", avgRunway)
+                statCell(smallShop ? "Cash left" : "Avg Runway", avgRunway)
             }
         }
         .padding(20)

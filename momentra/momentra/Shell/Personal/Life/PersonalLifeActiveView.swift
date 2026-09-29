@@ -46,6 +46,8 @@ struct PersonalLifeActiveView: View {
                         if let error {
                             Text(error).font(.plusJakarta(size: 12)).foregroundStyle(red)
                         }
+                        thisWeekCard
+                        journeyCard
                         healthSummary
                         driftCard
                         leverageCard
@@ -53,7 +55,6 @@ struct PersonalLifeActiveView: View {
                         emotionalTrendCard
                         dominantEmotionCard
                         happyDriversCard
-                        journeyCard
                         aiInsightsCard
                     }
                 }
@@ -129,11 +130,79 @@ struct PersonalLifeActiveView: View {
 
     // MARK: - Sections
 
+    private var thisWeekCard: some View {
+        let emotion = life?.dominantEmotion?.headline.isEmpty == false
+            ? life?.dominantEmotion?.headline
+            : life?.emotionalTrend?.subtitle
+        let journeyCount = life?.journey?.items?.count ?? 0
+        let week = life?.thisWeek
+        let expenseAmount = Double(week?.expenseTotal ?? "0") ?? 0
+        let currencyCode = week?.currencyCode
+            ?? week?.spendByCurrency?.max(by: { (Double($0.value) ?? 0) < (Double($1.value) ?? 0) })?.key
+        let extraCurrencies = max(0, (week?.spendByCurrency?.count ?? 0) - (currencyCode != nil ? 1 : 0))
+        let moneyLine: String = {
+            if expenseAmount > 0 {
+                let symbol = (currencyCode == nil || currencyCode == "INR") ? "₹" : "\(currencyCode!) "
+                let formatted: String = {
+                    if expenseAmount == floor(expenseAmount) {
+                        return String(Int(expenseAmount))
+                    }
+                    return String(format: "%.2f", expenseAmount)
+                }()
+                let suffix = extraCurrencies > 0 ? " (+\(extraCurrencies) currencies)" : ""
+                return "Money · \(symbol)\(formatted) this week\(suffix)"
+            }
+            return "Money · Log spend from Add"
+        }()
+        let checkIns = week?.moodOrRecoveryLogs ?? 0
+        let energyLine: String = {
+            if let emotion, !emotion.isEmpty { return "Energy · \(emotion)" }
+            if checkIns > 0 { return "Energy · \(checkIns) check-ins this week" }
+            return "Energy · Log recovery or mood from Add"
+        }()
+        let people = life?.areaScores?.first(where: { $0.code.uppercased().contains("RELATION") })
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("This week")
+                .font(.plusJakarta(size: 12, weight: .bold))
+                .foregroundStyle(purple)
+            Text("Across Everyday, Future, Lifestyle, and People")
+                .font(.plusJakarta(size: 11))
+                .foregroundStyle(dim)
+            Text(moneyLine)
+                .font(.plusJakarta(size: 13))
+                .foregroundStyle(muted)
+            Text(energyLine)
+                .font(.plusJakarta(size: 13))
+                .foregroundStyle(muted)
+            if let people {
+                Text("People · \(people.label) \(people.score.map(String.init) ?? "—")")
+                    .font(.plusJakarta(size: 13))
+                    .foregroundStyle(muted)
+            }
+            if journeyCount > 0 {
+                Text(journeyCount == 1 ? "1 journey note this week" : "\(journeyCount) journey notes")
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(dim)
+            }
+            Button(action: onLogRecovery) {
+                Text(life?.leverage?.ctaLabel.isEmpty == false ? (life?.leverage?.ctaLabel ?? "Log today’s recovery") : "Log today’s recovery")
+                    .font(.plusJakarta(size: 13, weight: .bold))
+                    .foregroundStyle(green)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(card)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
     private var healthSummary: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("PERSONAL LIFE HEALTH")
+                    Text("Life health")
                         .font(.plusJakarta(size: 11, weight: .semibold))
                         .foregroundStyle(dim)
                     HStack(alignment: .bottom, spacing: 2) {

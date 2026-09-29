@@ -65,6 +65,14 @@ fun OpsMemoryActiveContent(
     var error by remember { mutableStateOf<String?>(null) }
     var shareBusy by remember { mutableStateOf(false) }
     var shareMessage by remember { mutableStateOf<String?>(null) }
+    var smallShop by remember { mutableStateOf(false) }
+
+    LaunchedEffect(momentId) {
+        smallShop = com.example.momentra.ui.shell.business.shared.BusinessAudience.isSmallShopMoment(
+            momentId,
+            context = context,
+        )
+    }
 
     LaunchedEffect(refreshToken, momentId) {
         if (momentId.isNullOrBlank()) {
@@ -153,15 +161,17 @@ fun OpsMemoryActiveContent(
 
         OpsBiggestLearningCard(quote = biggestLearning, theme = theme)
 
-        OpsDiamondDivider(theme = theme)
+        if (!smallShop) {
+            OpsDiamondDivider(theme = theme)
 
-        OpsPatternNetworkSection(theme = theme)
+            OpsPatternNetworkSection(theme = theme, smallShop = false)
 
-        OpsDiamondDivider(theme = theme)
+            OpsDiamondDivider(theme = theme)
 
-        OpsPlaybookSection(theme = theme)
+            OpsPlaybookSection(theme = theme)
 
-        OpsDiamondDivider(theme = theme)
+            OpsDiamondDivider(theme = theme)
+        }
 
         OpsMemoryListSection(
             title = "Success Memory",
@@ -179,9 +189,11 @@ fun OpsMemoryActiveContent(
             accentBorder = OpsColors.Red,
         )
 
-        OpsWisdomQuoteSection(theme = theme)
+        if (!smallShop) {
+            OpsWisdomQuoteSection(theme = theme)
 
-        OpsKnowledgeJourneySection(items = filtered, theme = theme)
+            OpsKnowledgeJourneySection(items = filtered, theme = theme)
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),

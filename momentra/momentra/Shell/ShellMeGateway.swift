@@ -74,14 +74,18 @@ struct ShellMeGateway: ShellMeGatewaying {
         if let raw = try? JSONEncoder().encode(BootstrapCacheEnvelope(from: me)) {
             BootstrapCacheStore.save(userId: me.userId, data: raw)
         }
-        return me.toShellBootstrap()
+        let bootstrap = me.toShellBootstrap()
+        BootstrapCacheEnvelope.rehydrateAudience(from: bootstrap.companies)
+        return bootstrap
     }
 
     func cachedBootstrap(userId: String) -> ShellBootstrap? {
         guard let data = BootstrapCacheStore.loadData(userId: userId),
               let envelope = try? decoder.decode(BootstrapCacheEnvelope.self, from: data)
         else { return nil }
-        return envelope.toShellBootstrap()
+        let bootstrap = envelope.toShellBootstrap()
+        BootstrapCacheEnvelope.rehydrateAudience(from: bootstrap.companies)
+        return bootstrap
     }
 
     func isBootstrapCacheFresh(userId: String, maxAgeMs: TimeInterval = 30_000) -> Bool {
@@ -164,6 +168,13 @@ private struct BootstrapCacheEnvelope: Codable {
     struct CachedCompany: Codable {
         let companyId: String
         let displayName: String
+        let audience: String?
+
+        init(companyId: String, displayName: String, audience: String? = nil) {
+            self.companyId = companyId
+            self.displayName = displayName
+            self.audience = audience
+        }
     }
 
     init(from me: MeBootstrap) {
@@ -193,14 +204,29 @@ private struct BootstrapCacheEnvelope: Codable {
         business = (me.activeMoments?.business ?? []).map {
             CachedMoment(momentId: $0.momentId, title: $0.title, status: $0.status, momentTypeCode: $0.momentTypeCode, companyId: $0.companyId)
         }
-        companies = (me.companies ?? []).map {
-            CachedCompany(companyId: $0.companyId, displayName: $0.displayName)
+        companies = (me.companies ?? []).map { item in
+            let audience = (item.profileJson?[BusinessAudience.prefKey]?.value as? String)
+            CompanyModules.rehydrateFromProfile(companyId: item.companyId, profileJson: item.profileJson)
+            return CachedCompany(
+                companyId: item.companyId,
+                displayName: item.displayName,
+                audience: audience
+            )
         }
         selectedCompanyId = me.selectedCompany?.companyId ?? me.companies?.first?.companyId
     }
 
+    static func rehydrateAudience(from companies: [CompanySummary]) {
+        for company in companies {
+            guard let audience = company.audience, !audience.isEmpty else { continue }
+            BusinessAudience.saveForCompany(companyId: company.companyId, audience: audience)
+        }
+    }
+
     func toShellBootstrap() -> ShellBootstrap {
-        let companyModels = companies.map { CompanySummary(companyId: $0.companyId, displayName: $0.displayName) }
+        let companyModels = companies.map {
+            CompanySummary(companyId: $0.companyId, displayName: $0.displayName, audience: $0.audience)
+        }
         return ShellBootstrap(
             identity: ShellIdentity(userId: userId, displayName: displayName, email: email, firebaseUid: firebaseUid),
             supportedContexts: supportedContexts.compactMap { AppContextKind(rawValue: $0) },

@@ -31,6 +31,9 @@ struct PersonalLifeOpsMomentsActiveView: View {
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(Color(hex: "#C9C4D8"))
                             }
+                            Text("Your Everyday story")
+                                .font(.plusJakarta(size: 18, weight: .bold))
+                                .foregroundStyle(Color(hex: "#E5E0EE"))
                             heroCard
                             journeyTimeline
                             moneyJourney
@@ -194,11 +197,11 @@ struct PersonalLifeOpsMomentsActiveView: View {
 
     private var journeyTimeline: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Journey Timeline")
+            Text("Recent activity")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Color(hex: "#E5E0EE"))
             if activities.isEmpty {
-                Text("No journey entries yet. Capture a recovery, mood, or expense to start the timeline.")
+                Text("Nothing here yet. Log a recovery, mood, or expense on Pulse to start your story.")
                     .font(.system(size: 13))
                     .foregroundStyle(Color(hex: "#C9C4D8"))
                     .padding(16)
@@ -427,14 +430,14 @@ struct PersonalLifeOpsMomentsActiveView: View {
 
     private var captureCta: some View {
         VStack(spacing: 10) {
-            Text("Capture a new moment")
+            Text("Log today")
                 .font(.system(size: 16, weight: .heavy))
                 .foregroundStyle(.white)
-            Text("Add a log, expense, mood check-in or update")
+            Text("Spend, mood, or recovery")
                 .font(.system(size: 13))
                 .foregroundStyle(.white.opacity(0.85))
             Button(action: onOpenQuickAdd) {
-                Text("+ Open Quick Add")
+                Text("Open Add")
                     .font(.system(size: 14, weight: .heavy))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)

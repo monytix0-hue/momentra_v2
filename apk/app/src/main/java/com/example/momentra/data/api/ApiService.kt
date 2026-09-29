@@ -937,6 +937,32 @@ interface ApiService {
         @Body body: CreateBusinessVendorBody,
     ): SuccessEnvelope<CreateBusinessVendorResultDto>
 
+    @POST("v1/companies/{companyId}/khata/parties")
+    suspend fun createKhataParty(
+        @Path("companyId") companyId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: CreateKhataPartyBody,
+    ): SuccessEnvelope<CreateKhataPartyResultDto>
+
+    @GET("v1/companies/{companyId}/khata/parties")
+    suspend fun listKhataParties(
+        @Path("companyId") companyId: String,
+        @Query("partyKind") partyKind: String = "CUSTOMER",
+    ): SuccessEnvelope<KhataPartyListDto>
+
+    @GET("v1/companies/{companyId}/khata/parties/{partyId}/entries")
+    suspend fun listKhataPartyEntries(
+        @Path("companyId") companyId: String,
+        @Path("partyId") partyId: String,
+    ): SuccessEnvelope<KhataPartyEntriesDto>
+
+    @POST("v1/moments/{momentId}/khata/entries")
+    suspend fun createKhataEntry(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: CreateKhataEntryBody,
+    ): SuccessEnvelope<CreateKhataEntryResultDto>
+
     @PATCH("v1/companies/{companyId}/vendors/{vendorId}")
     suspend fun updateBusinessVendor(
         @Path("companyId") companyId: String,
@@ -1222,7 +1248,10 @@ interface ApiService {
     suspend fun getPersonalAdjustmentInsight(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
 
     @GET("v1/personal/moments/{momentId}/activity-summary")
-    suspend fun getPersonalActivitySummary(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>
+    suspend fun getPersonalActivitySummary(
+        @Path("momentId") momentId: String,
+        @Query("period") period: String = "WEEK",
+    ): SuccessEnvelope<PersonalActivitySummaryDto>
 
     @GET("v1/personal/moments/{momentId}/money-journey")
     suspend fun getPersonalMoneyJourney(@Path("momentId") momentId: String): SuccessEnvelope<Map<String, @JvmSuppressWildcards Any?>>

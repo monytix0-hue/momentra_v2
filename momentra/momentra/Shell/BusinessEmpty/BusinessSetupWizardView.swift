@@ -58,7 +58,11 @@ struct BusinessSetupWizardView: View {
             }
         } footer: {
             SetupStickyFooter(
-                tagline: catalog.footerTagline,
+                tagline: BusinessSetupCatalog.footerTagline(
+                    kind: kind,
+                    audience: (selections[BusinessAudience.prefKey] as? String)
+                        ?? BusinessAudience.forCompany(companyId: companyId)
+                ),
                 ctaLabel: catalog.activateLabel,
                 onCta: { submit(status: "ACTIVE") },
                 submitting: createModel.state.submitting,
@@ -71,14 +75,15 @@ struct BusinessSetupWizardView: View {
         .accessibilityIdentifier(kind.maestroTag)
         .trackScreen(kind.analyticsScreen)
         .onAppear {
-            selections = catalog.defaultPreferences
+            let audience = BusinessAudience.forCompany(companyId: companyId)
+            selections = BusinessSetupCatalog.defaultPreferences(kind: kind, audience: audience)
             momentTitle = (initialTitle?.isEmpty == false) ? initialTitle! : catalog.defaultTitle
             guard let editingMomentId else { return }
             Task {
                 if let prefill = await createModel.getDomainSetupPrefill(momentId: editingMomentId) {
                     editingMomentStatus = prefill.status
                     selections = PersonalSetupEditPrefill.mergeDefaults(
-                        catalog.defaultPreferences,
+                        BusinessSetupCatalog.defaultPreferences(kind: kind, audience: audience),
                         saved: prefill.preferences
                     )
                     if initialTitle == nil || initialTitle?.isEmpty == true {

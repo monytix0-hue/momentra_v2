@@ -89,13 +89,13 @@ struct PersonalFutureMemoryActiveView: View {
     }
 
     private var patternConfidenceLabel: String {
-        if thinData { return "Building…" }
+        if thinData { return "Patterns appear after a few logs" }
         return "\(min(92, 40 + activities.count * 5))% pattern confidence"
     }
 
     private var aiBody: String {
         if thinData {
-            return "Building… Log milestones, learning, and progress to unlock an interpretation."
+            return "Start on Pulse — log milestones, learning, or progress to unlock patterns."
         }
         if hasLearning && hasProgress {
             return "Your future compounds when learning is paired with execution, not stored for later."
@@ -113,7 +113,7 @@ struct PersonalFutureMemoryActiveView: View {
 
     private var identitySnapshot: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("1 IDENTITY SNAPSHOT")
+            Text("YOUR PATTERNS")
                 .font(.system(size: 12, weight: .bold))
                 .tracking(1.2)
                 .foregroundStyle(Color(hex: "#C9C4D8"))

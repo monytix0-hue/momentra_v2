@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum PersonalSetupSystem: String, CaseIterable, Identifiable {
+enum PersonalSetupSystem: String, CaseIterable, Identifiable, Hashable {
     case lifeOperations = "LIFE_OPERATIONS"
     case futureBuilding = "FUTURE_BUILDING"
     case lifestyle = "LIFESTYLE"

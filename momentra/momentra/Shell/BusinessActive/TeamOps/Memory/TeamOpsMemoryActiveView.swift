@@ -12,9 +12,17 @@ struct TeamOpsMemoryActiveView: View {
     @State private var scope = "All"
     @State private var loading = true
     @State private var error: String?
+    @State private var smallShop = false
+
+    @State private var shareBusy = false
+    @State private var shareMessage: String?
 
     private let theme = BusinessActiveTheme.teamOperations
-    private let scopes = ["All", "Team", "Cash Flow", "Daily Business"]
+    private let allScopes = ["All", "Team", "Cash Flow", "Daily Business"]
+
+    private var scopes: [String] {
+        smallShop ? ["All", "Team"] : allScopes
+    }
 
     private var items: [APIClient.BusinessMemoryPayload.MemoryInner.BusinessMemoryItem] {
         memory?.payload?.items ?? []
@@ -61,6 +69,9 @@ struct TeamOpsMemoryActiveView: View {
                             Text(error).font(.caption).foregroundStyle(TeamOpsColors.red)
                         }
                         TeamOpsFilterChipRow(chips: scopes, selected: scope, onSelect: { scope = $0 }, theme: theme)
+                            .onChange(of: smallShop) { _, _ in
+                                if !scopes.contains(scope) { scope = "All" }
+                            }
                         TeamOpsMemoryHeroSection(
                             ringLabel: items.isEmpty ? "—" : "Live",
                             learnings: memoryCount > 0 ? "\(memoryCount)" : "—",
@@ -74,33 +85,37 @@ struct TeamOpsMemoryActiveView: View {
                             emptyCopy: biggestLearning ?? "No learning yet",
                             theme: theme
                         )
-                        TeamOpsDiamondDivider(theme: theme)
-                        TeamOpsEmptyAiCard(
-                            title: "Pattern Network",
-                            emptyCopy: "No patterns yet",
-                            theme: theme
-                        )
-                        TeamOpsDiamondDivider(theme: theme)
-                        TeamOpsEmptyAiCard(
-                            title: "Business Playbook",
-                            emptyCopy: "No playbook yet",
-                            theme: theme
-                        )
-                        TeamOpsDiamondDivider(theme: theme)
+                        if !smallShop {
+                            TeamOpsDiamondDivider(theme: theme)
+                            TeamOpsEmptyAiCard(
+                                title: "Pattern Network",
+                                emptyCopy: "Tips will appear here",
+                                theme: theme
+                            )
+                            TeamOpsDiamondDivider(theme: theme)
+                            TeamOpsEmptyAiCard(
+                                title: "Business Playbook",
+                                emptyCopy: "No playbook yet",
+                                theme: theme
+                            )
+                            TeamOpsDiamondDivider(theme: theme)
+                        }
                         memoryList(title: "Success Memory", empty: "No success memories yet.", items: successItems, accent: TeamOpsColors.emerald)
                         memoryList(title: "Risk Memory", empty: "No risk memories yet.", items: riskItems, accent: TeamOpsColors.red)
-                        TeamOpsEmptyAiCard(
-                            title: "Team Wisdom",
-                            emptyCopy: "No wisdom yet",
-                            theme: theme
-                        )
-                        TeamOpsEmptyAiCard(
-                            title: "Knowledge Journey",
-                            emptyCopy: filtered.isEmpty
-                                ? "Journey milestones appear as memories are recorded."
-                                : filtered.prefix(5).compactMap(\.title).joined(separator: " → "),
-                            theme: theme
-                        )
+                        if !smallShop {
+                            TeamOpsEmptyAiCard(
+                                title: "Team Wisdom",
+                                emptyCopy: "No wisdom yet",
+                                theme: theme
+                            )
+                            TeamOpsEmptyAiCard(
+                                title: "Knowledge Journey",
+                                emptyCopy: filtered.isEmpty
+                                    ? "Journey milestones appear as memories are recorded."
+                                    : filtered.prefix(5).compactMap(\.title).joined(separator: " → "),
+                                theme: theme
+                            )
+                        }
                         HStack(spacing: 10) {
                             TeamOpsGradientPrimaryButton(
                                 label: "Record a Learning",
@@ -108,10 +123,10 @@ struct TeamOpsMemoryActiveView: View {
                                 action: onRecordLearning
                             )
                             TeamOpsOutlineButton(
-                                label: "Share with Team",
-                                enabled: true,
+                                label: shareBusy ? "Sharing…" : "Share with Team",
+                                enabled: momentId?.isEmpty == false && !shareBusy,
                                 theme: theme,
-                                action: onOpenQuickAdd
+                                action: shareWithTeam
                             )
                         }
                     }
@@ -122,6 +137,9 @@ struct TeamOpsMemoryActiveView: View {
             }
         }
         .background(theme.bg)
+        .task(id: momentId) {
+            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+        }
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
@@ -189,6 +207,34 @@ struct TeamOpsMemoryActiveView: View {
             self.error = error.localizedDescription
         }
         loading = false
+    }
+
+    private func shareWithTeam() {
+        guard let momentId, !momentId.isEmpty else { return }
+        shareBusy = true
+        shareMessage = nil
+        Task {
+            defer { shareBusy = false }
+            do {
+                let link = try await APIClient.shared.createBusinessShareLink(momentId: momentId)
+                if let url = link.shareUrl, !url.isEmpty {
+                    #if canImport(UIKit)
+                    await MainActor.run {
+                        let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+                        UIApplication.shared.connectedScenes
+                            .compactMap { $0 as? UIWindowScene }
+                            .flatMap(\.windows)
+                            .first { $0.isKeyWindow }?
+                            .rootViewController?
+                            .present(activity, animated: true)
+                    }
+                    #endif
+                }
+                shareMessage = link.note ?? "Share link created"
+            } catch {
+                shareMessage = error.localizedDescription
+            }
+        }
     }
 }
 

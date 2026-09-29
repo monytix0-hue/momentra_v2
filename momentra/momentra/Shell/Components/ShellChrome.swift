@@ -593,6 +593,7 @@ private let shellTabOrder: [BottomDestination] = [.pulse, .moments, .create, .li
 struct NativeShellTabView<Content: View>: View {
     @Binding var selection: BottomDestination
     let accent: Color
+    var context: AppContextKind = .personal
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -621,10 +622,11 @@ struct NativeShellTabView<Content: View>: View {
 
     @ViewBuilder
     private func tabLabel(for destination: BottomDestination) -> some View {
+        let label = destination.shellNavLabel(for: context)
         if destination == .create {
-            Label(destination.shellNavLabel, systemImage: destination.systemImage)
+            Label(label, systemImage: destination.systemImage)
         } else {
-            Label(destination.shellNavLabel, image: destination.tabAssetName)
+            Label(label, image: destination.tabAssetName)
         }
     }
 

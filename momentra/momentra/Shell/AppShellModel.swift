@@ -35,6 +35,8 @@ final class AppShellModel: ObservableObject {
     private var generation: UInt64 = 0
     private var loadTask: Task<Void, Never>?
     private var bootstrap: ShellBootstrap?
+    private var preferredPersonalMomentId: String?
+    private var personalDeepLinkHold = false
     private var bindStartedAt: Date?
     private var bootstrapRefreshTask: Task<Void, Never>?
     private var groupPrefetchTask: Task<Void, Never>?
@@ -43,6 +45,24 @@ final class AppShellModel: ObservableObject {
     private let pathMonitor = NWPathMonitor()
     private var pathMonitorStarted = false
     private let gateway: ShellMeGatewaying
+
+    var isPersonalDeepLinkHold: Bool { personalDeepLinkHold }
+
+    func clearPersonalDeepLinkHold() {
+        personalDeepLinkHold = false
+    }
+
+    func applyPreferredPersonalLock() {
+        guard selectedContext == .personal else { return }
+        guard !personalDeepLinkHold else { return }
+        guard let preferred = PersonalUnified.resolvePreferred(
+            moments: moments,
+            currentSelectedId: selectedMomentId
+        ) else { return }
+        guard preferred.momentId != selectedMomentId else { return }
+        preferredPersonalMomentId = preferred.momentId
+        selectMoment(id: preferred.momentId)
+    }
 
     init(gateway: ShellMeGatewaying? = nil) {
         self.gateway = gateway ?? ShellMeGateway()
@@ -184,7 +204,9 @@ final class AppShellModel: ObservableObject {
         if bootstrap != nil && !supportedContexts.contains(context) { return }
         if selectedContext == context {
             switch context {
-            case .personal: refreshVisiblePersonalTab()
+            case .personal:
+                if !personalDeepLinkHold { applyPreferredPersonalLock() }
+                refreshVisiblePersonalTab()
             case .group: refreshVisibleGroupTab()
             case .business: refreshVisibleBusinessTab()
             case .circle: break
@@ -193,6 +215,9 @@ final class AppShellModel: ObservableObject {
             return
         }
         let previous = selectedContext
+        if previous == .personal {
+            personalDeepLinkHold = false
+        }
         tabByContext[previous] = bottomDestination
         selectedMomentByContext[previous] = selectedMomentId
         selectedContext = context
@@ -267,6 +292,32 @@ final class AppShellModel: ObservableObject {
         }
     }
 
+    /// A missing moment stays in this context only when its type belongs here. Blank types stay for optimistic creates.
+    private func momentTypeFits(_ context: AppContextKind, _ momentTypeCode: String?) -> Bool {
+        let code = (momentTypeCode ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if code.isEmpty { return context != .circle }
+        let personal = code == "LIFE_RHYTHM"
+            || code == "LIFE_OPERATIONS"
+            || code == "LIFESTYLE"
+            || code == "FUTURE_GOAL"
+            || code == "FUTURE_BUILDING"
+            || code == "RELATIONSHIP_CONNECTION"
+            || code == "RELATIONSHIPS"
+            || code.hasPrefix("LIFE_")
+            || code.hasPrefix("FUTURE_")
+            || code.hasPrefix("LIFESTYLE")
+            || code.hasPrefix("RELATIONSHIP")
+        let business = code == "TEAM_OPERATIONS"
+            || code == "BUSINESS_RUNWAY"
+            || code == "BUSINESS_OPERATIONS"
+        switch context {
+        case .personal: return personal
+        case .group: return !personal && !business
+        case .business: return business
+        case .circle: return false
+        }
+    }
+
     private func applyBootstrapInventory(
         _ boot: ShellBootstrap,
         networkRefresh: Bool,
@@ -284,12 +335,31 @@ final class AppShellModel: ObservableObject {
         case .business: rawMoments = boot.businessMoments
         case .circle: rawMoments = []
         }
-        let preferredMomentId = preserveMomentId
-            ?? selectedMomentId
-            ?? selectedMomentByContext[selectedContext].flatMap { $0 }
+        let preferredMomentId: String?
+        if let preserveMomentId {
+            preferredMomentId = preserveMomentId
+        } else if selectedContext == .personal && !personalDeepLinkHold {
+            preferredMomentId = PersonalUnified.resolvePreferred(
+                moments: rawMoments,
+                currentSelectedId: selectedMomentId
+                    ?? selectedMomentByContext[.personal].flatMap { $0 }
+                    ?? preferredPersonalMomentId
+            )?.momentId
+                ?? selectedMomentId
+                ?? selectedMomentByContext[.personal].flatMap { $0 }
+                ?? preferredPersonalMomentId
+        } else {
+            preferredMomentId = selectedMomentId
+                ?? selectedMomentByContext[selectedContext].flatMap { $0 }
+                ?? (selectedContext == .personal ? preferredPersonalMomentId : nil)
+        }
         if let preserve = preserveMomentId,
            !preserve.isEmpty,
-           !rawMoments.contains(where: { $0.momentId == preserve }) {
+           !rawMoments.contains(where: { $0.momentId == preserve }),
+           momentTypeFits(
+               selectedContext,
+               moments.first(where: { $0.momentId == preserve })?.momentTypeCode ?? selectedMomentTypeCode
+           ) {
             let existing = moments.first(where: { $0.momentId == preserve })
             rawMoments.append(
                 MomentSummary(
@@ -304,7 +374,8 @@ final class AppShellModel: ObservableObject {
         } else if let preferred = preferredMomentId,
                   !rawMoments.contains(where: { $0.momentId == preferred }),
                   let preserved = moments.first(where: { $0.momentId == preferred }),
-                  preserved.isCompletedStatus || selectedContext == .group {
+                  preserved.isCompletedStatus || selectedContext == .group,
+                  momentTypeFits(selectedContext, preserved.momentTypeCode) {
             rawMoments.append(preserved)
         }
         let healed = ShellStateInvariants.heal(
@@ -519,6 +590,9 @@ final class AppShellModel: ObservableObject {
     @discardableResult
     func openMomentFromDeepLink(momentId: String) -> Bool {
         if moments.contains(where: { $0.momentId == momentId }) {
+            if selectedContext == .personal {
+                personalDeepLinkHold = true
+            }
             selectMoment(id: momentId)
             return true
         }
@@ -530,6 +604,9 @@ final class AppShellModel: ObservableObject {
             ]
             for (ctx, list) in candidates {
                 guard list.contains(where: { $0.momentId == momentId }) else { continue }
+                if ctx == .personal {
+                    personalDeepLinkHold = true
+                }
                 selectedMomentByContext[ctx] = momentId
                 if selectedContext != ctx {
                     selectContext(ctx)

@@ -29,6 +29,7 @@ struct AppShellView: View {
     @State private var purchaseGapQa: PurchaseQuickAddKind? = nil
     @State private var livingGapQa: LivingQuickAddKind? = nil
     @State private var businessExpenseSheetPresented = false
+    @State private var businessKhataSheetPresented = false
     @State private var businessRevenueSheetPresented = false
     @State private var businessInvoiceSheetPresented = false
     @State private var businessMembersSheetPresented = false
@@ -38,9 +39,16 @@ struct AppShellView: View {
     @State private var futureQa: FutureQuickAddKind? = nil
     @State private var lifestyleQa: LifestyleQuickAddKind? = nil
     @State private var relationshipsQa: RelationshipsQuickAddKind? = nil
+    @State private var personalQaMomentId: String? = nil
+    @State private var personalSetupSystem: PersonalSetupSystem? = nil
+    @State private var personalSetupChooserOpen = false
     @State private var relationshipsActivityOpen = false
     @State private var recentActivityOpen = false
     @State private var groupRecentActivityOpen = false
+    @State private var teamRecentActivityOpen = false
+    @State private var businessRecentActivityOpen = false
+    @State private var businessRecentActivityAccent = Color(hex: "#818CF8")
+    @State private var businessRecentActivitySubtitle = "Updates, spend, memories, and other events."
     @State private var newMomentOpen = false
     @State private var groupCreatePhase: GroupCreatePhase = .chooser
     @State private var showManageMoment = false
@@ -52,13 +60,28 @@ struct AppShellView: View {
     @State private var pendingCompanyJoin: PendingCompanyJoin?
     @State private var companyMenuOpen = false
     @State private var joinFeedbackMessage: String?
+    @State private var habitRewardMessage: String?
     @State private var inboxOpen = false
     @StateObject private var inboxBadge = NotificationInboxBadge.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         shellPage
+            .overlay(alignment: .bottom) {
+                if let habitRewardMessage {
+                    Text(habitRewardMessage)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color(hex: "#2D1F5E"))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.bottom, 88)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
             .onAppear {
+                model.applyPreferredPersonalLock()
                 model.bindIdentity(identity)
                 if let pending = JoinInviteStore.shared.consume() {
                     pendingGroupJoin = PendingGroupJoin(id: pending)
@@ -68,6 +91,12 @@ struct AppShellView: View {
                 }
                 handlePendingPushDeepLink()
                 Task { await inboxBadge.refresh() }
+            }
+            .onChange(of: model.moments.map(\.momentId)) { _, _ in
+                model.applyPreferredPersonalLock()
+            }
+            .onChange(of: model.selectedContext) { _, _ in
+                model.applyPreferredPersonalLock()
             }
             .onReceive(JoinInviteStore.shared.$pendingCode) { code in
                 guard let code, !code.isEmpty else { return }
@@ -122,6 +151,7 @@ struct AppShellView: View {
         NativeShellTabView(
             selection: bottomTabSelection,
             accent: momentAccent,
+            context: model.selectedContext,
             content: { tabNavigationRoot }
         )
         .background(Color(hex: "#14121B").ignoresSafeArea())
@@ -162,6 +192,41 @@ struct AppShellView: View {
                 .preferredColorScheme(.dark)
             }
         }
+        .fullScreenCover(item: $personalSetupSystem) { system in
+            PersonalSetupWizardView(
+                system: system,
+                onBack: { personalSetupSystem = nil },
+                onCreated: { momentId, title, momentTypeCode, status in
+                    personalSetupSystem = nil
+                    model.onMomentCreated(
+                        momentId: momentId,
+                        title: title,
+                        momentTypeCode: momentTypeCode,
+                        status: status
+                    )
+                }
+            )
+            .preferredColorScheme(.dark)
+        }
+        .sheet(isPresented: $personalSetupChooserOpen) {
+            NavigationStack {
+                List {
+                    ForEach(PersonalUnified.missingSetupSystems(model.moments)) { system in
+                        Button(system.setupTitle) {
+                            personalSetupChooserOpen = false
+                            personalSetupSystem = system
+                        }
+                    }
+                }
+                .navigationTitle("Set up another life area")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { personalSetupChooserOpen = false }
+                    }
+                }
+            }
+            .preferredColorScheme(.dark)
+        }
         .fullScreenCover(isPresented: Binding(
             get: { storyMomentId != nil },
             set: { if !$0 { storyMomentId = nil } }
@@ -199,26 +264,39 @@ struct AppShellView: View {
             }
         }
         .sheet(item: $moneyQa) { kind in
-            if let momentId = model.selectedMomentId {
+            if let momentId = personalQaMomentId ?? model.selectedMomentId {
                 switch kind {
                 case .masterExpense:
                     PersonalMasterExpenseSheet(
                         momentId: momentId,
                         pulseFamily: PersonalPulseFamily.forTypeCode(model.selectedMomentTypeCode),
-                        onClose: { moneyQa = nil },
+                        onClose: {
+                            moneyQa = nil
+                            personalQaMomentId = nil
+                        },
                         onSaved: {
                             moneyQa = nil
+                            personalQaMomentId = nil
                             model.refreshVisiblePersonalTab()
+                            showHabitReward("Saved · counts toward your day")
+                            PersonalEveningNudgeScheduler.onTodaySave()
                         }
                     )
                 case .income, .transfer, .savings:
                     PersonalMoneyQuickAddSheet(
                         kind: kind,
                         momentId: momentId,
-                        onClose: { moneyQa = nil },
+                        onClose: {
+                            moneyQa = nil
+                            personalQaMomentId = nil
+                        },
                         onSaved: {
                             moneyQa = nil
+                            personalQaMomentId = nil
                             model.refreshVisiblePersonalTab()
+                            if kind == .income {
+                                showHabitReward("Saved · counts toward your day")
+                            }
                         }
                     )
                 }
@@ -484,6 +562,19 @@ struct AppShellView: View {
                 )
             }
         }
+        .sheet(isPresented: $businessKhataSheetPresented) {
+            if let momentId = model.selectedMomentId {
+                let companyId = model.selectedCompany?.companyId
+                    ?? model.moments.first(where: { $0.momentId == momentId })?.companyId
+                    ?? ""
+                BusinessKhataHomeView(
+                    momentId: momentId,
+                    companyId: companyId,
+                    shopName: model.selectedCompany?.displayName ?? model.selectedMomentTitle ?? "",
+                    isPresented: $businessKhataSheetPresented
+                )
+            }
+        }
         .sheet(isPresented: $businessRevenueSheetPresented) {
             if let momentId = model.selectedMomentId {
                 BusinessRevenueSheet(
@@ -497,6 +588,9 @@ struct AppShellView: View {
             if let momentId = model.selectedMomentId {
                 BusinessInvoiceSheet(
                     momentId: momentId,
+                    shopName: model.selectedCompany?.displayName
+                        ?? model.selectedMomentTitle
+                        ?? "",
                     isPresented: $businessInvoiceSheetPresented,
                     onSaved: { model.refreshVisibleBusinessTab() }
                 )
@@ -515,25 +609,21 @@ struct AppShellView: View {
                 hasActiveMoment: model.selectedMomentId != nil,
                 hasCompany: model.selectedCompany != nil,
                 capabilityCodes: model.capabilities,
+                momentId: model.selectedMomentId,
                 momentTypeCode: model.selectedMomentTypeCode,
+                companyId: model.selectedCompany?.companyId,
                 onClose: { businessQuickAddPresented = false },
                 onTile: { kind in
                     businessQuickAddPresented = false
-                    let code = (model.selectedMomentTypeCode ?? "").uppercased()
-                    let isOps = code.contains("OPERATIONS") && !code.contains("TEAM")
                     switch kind {
+                    case .khata:
+                        businessKhataSheetPresented = true
                     case .expense, .spendEntry:
-                        if isOps {
-                            businessGapQa = .spendEntry
-                        } else if code.contains("RUNWAY") {
-                            businessGapQa = .expense
-                        } else {
-                            businessExpenseSheetPresented = true
-                        }
+                        businessExpenseSheetPresented = true
                     case .revenue:
-                        if code.contains("RUNWAY") { businessRevenueSheetPresented = true }
+                        businessRevenueSheetPresented = true
                     case .invoice:
-                        if code.contains("RUNWAY") { businessInvoiceSheetPresented = true }
+                        businessInvoiceSheetPresented = true
                     default:
                         businessGapQa = kind
                     }
@@ -548,13 +638,11 @@ struct AppShellView: View {
                 },
                 onRevenue: {
                     businessQuickAddPresented = false
-                    let code = (model.selectedMomentTypeCode ?? "").uppercased()
-                    if code.contains("RUNWAY") { businessRevenueSheetPresented = true }
+                    businessRevenueSheetPresented = true
                 },
                 onInvoice: {
                     businessQuickAddPresented = false
-                    let code = (model.selectedMomentTypeCode ?? "").uppercased()
-                    if code.contains("RUNWAY") { businessInvoiceSheetPresented = true }
+                    businessInvoiceSheetPresented = true
                 },
                 onMembers: {
                     businessQuickAddPresented = false
@@ -567,7 +655,13 @@ struct AppShellView: View {
         .sheet(item: $businessGapQa) { kind in
             let code = (model.selectedMomentTypeCode ?? "").uppercased()
             Group {
-                if code.contains("RUNWAY") {
+                if kind == .expense || kind == .spendEntry {
+                    Color.clear
+                        .onAppear {
+                            businessGapQa = nil
+                            businessExpenseSheetPresented = true
+                        }
+                } else if code.contains("RUNWAY") {
                     RunwayQuickAddSheet(
                         kind: kind,
                         momentId: model.selectedMomentId,
@@ -600,11 +694,11 @@ struct AppShellView: View {
                         onExpense: { businessExpenseSheetPresented = true },
                         onRevenue: {
                             let code = (model.selectedMomentTypeCode ?? "").uppercased()
-                            if code.contains("RUNWAY") { businessRevenueSheetPresented = true }
+                            businessRevenueSheetPresented = true
                         },
                         onInvoice: {
                             let code = (model.selectedMomentTypeCode ?? "").uppercased()
-                            if code.contains("RUNWAY") { businessInvoiceSheetPresented = true }
+                            businessInvoiceSheetPresented = true
                         }
                     )
                 }
@@ -613,52 +707,72 @@ struct AppShellView: View {
             .presentationDragIndicator(.visible)
         }
         .sheet(item: $lifeOpsQa) { kind in
-            if let momentId = model.selectedMomentId {
+            if let momentId = personalQaMomentId ?? model.selectedMomentId {
                 PersonalLifeOpsQuickAddSheet(
                     kind: kind,
                     momentId: momentId,
-                    onClose: { lifeOpsQa = nil },
+                    onClose: {
+                        lifeOpsQa = nil
+                        personalQaMomentId = nil
+                    },
                     onSaved: {
                         lifeOpsQa = nil
+                        personalQaMomentId = nil
                         model.refreshVisiblePersonalTab()
+                        if kind == .mood || kind == .recovery {
+                            showHabitReward("Logged · your day is updating")
+                            PersonalEveningNudgeScheduler.onTodaySave()
+                        }
                     }
                 )
             }
         }
         .sheet(item: $futureQa) { kind in
-            if let momentId = model.selectedMomentId {
+            if let momentId = personalQaMomentId ?? model.selectedMomentId {
                 PersonalFutureQuickAddSheet(
                     kind: kind,
                     momentId: momentId,
-                    onClose: { futureQa = nil },
+                    onClose: {
+                        futureQa = nil
+                        personalQaMomentId = nil
+                    },
                     onSaved: {
                         futureQa = nil
+                        personalQaMomentId = nil
                         model.refreshVisiblePersonalTab()
                     }
                 )
             }
         }
         .sheet(item: $lifestyleQa) { kind in
-            if let momentId = model.selectedMomentId {
+            if let momentId = personalQaMomentId ?? model.selectedMomentId {
                 PersonalLifestyleQuickAddSheet(
                     kind: kind,
                     momentId: momentId,
-                    onClose: { lifestyleQa = nil },
+                    onClose: {
+                        lifestyleQa = nil
+                        personalQaMomentId = nil
+                    },
                     onSaved: {
                         lifestyleQa = nil
+                        personalQaMomentId = nil
                         model.refreshVisiblePersonalTab()
                     }
                 )
             }
         }
         .sheet(item: $relationshipsQa) { kind in
-            if let momentId = model.selectedMomentId {
+            if let momentId = personalQaMomentId ?? model.selectedMomentId {
                 PersonalRelationshipsQuickAddSheet(
                     kind: kind,
                     momentId: momentId,
-                    onClose: { relationshipsQa = nil },
+                    onClose: {
+                        relationshipsQa = nil
+                        personalQaMomentId = nil
+                    },
                     onSaved: {
                         relationshipsQa = nil
+                        personalQaMomentId = nil
                         model.refreshVisiblePersonalTab()
                     }
                 )
@@ -677,6 +791,26 @@ struct AppShellView: View {
                 isPresented: $recentActivityOpen,
                 onChanged: { model.refreshVisiblePersonalTab() }
             )
+        }
+        .sheet(isPresented: $teamRecentActivityOpen) {
+            if let momentId = model.selectedMomentId {
+                BusinessRecentActivityFlow(
+                    momentId: momentId,
+                    isPresented: $teamRecentActivityOpen,
+                    accent: Color(hex: "#818CF8"),
+                    subtitle: "Team updates, polls, memories, and other events."
+                )
+            }
+        }
+        .sheet(isPresented: $businessRecentActivityOpen) {
+            if let momentId = model.selectedMomentId {
+                BusinessRecentActivityFlow(
+                    momentId: momentId,
+                    isPresented: $businessRecentActivityOpen,
+                    accent: businessRecentActivityAccent,
+                    subtitle: businessRecentActivitySubtitle
+                )
+            }
         }
         .sheet(isPresented: $groupRecentActivityOpen) {
             if let momentId = model.selectedMomentId {
@@ -744,6 +878,16 @@ struct AppShellView: View {
     }
 
     /// Peek pending push link; only consume after successful open (retry when inventory arrives).
+    private func showHabitReward(_ message: String) {
+        habitRewardMessage = message
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            if habitRewardMessage == message {
+                habitRewardMessage = nil
+            }
+        }
+    }
+
     private func handlePendingPushDeepLink() {
         guard let pending = PushDeepLinkStore.shared.peek() else { return }
         if PushDeepLinkStore.isInboxLink(pending.link) {
@@ -860,9 +1004,78 @@ struct AppShellView: View {
     }
 
     private var activeMomentPairs: [(String, String)] {
-        model.moments
+        let base = model.moments
             .filter { $0.isActiveStatus || $0.momentId == model.selectedMomentId }
-            .map { ($0.momentId, $0.title) }
+        if model.selectedContext == .personal {
+            // Unified Personal — no family chip list (chrome is PersonalUnifiedChromeView).
+            return []
+        }
+        return base.map { ($0.momentId, $0.title) }
+    }
+
+    private func openMoneyQa(_ kind: MoneyQuickAddKind) {
+        let m = PersonalUnified.resolveFamilyTarget(
+            moments: model.moments,
+            family: .lifeOperations,
+            currentSelectedId: model.selectedMomentId
+        ) ?? PersonalUnified.resolvePreferred(
+            moments: model.moments,
+            currentSelectedId: model.selectedMomentId
+        )
+        guard let m else { return }
+        personalQaMomentId = m.momentId
+        moneyQa = kind
+    }
+
+    private func openLifeOpsQa(_ kind: LifeOpsQuickAddKind) {
+        let m = PersonalUnified.resolveFamilyTarget(
+            moments: model.moments,
+            family: .lifeOperations,
+            currentSelectedId: model.selectedMomentId
+        ) ?? PersonalUnified.resolvePreferred(
+            moments: model.moments,
+            currentSelectedId: model.selectedMomentId
+        )
+        guard let m else { return }
+        personalQaMomentId = m.momentId
+        lifeOpsQa = kind
+    }
+
+    private func openFutureQa(_ kind: FutureQuickAddKind) {
+        guard let m = PersonalUnified.resolveFamilyTarget(
+            moments: model.moments,
+            family: .futureBuilding,
+            currentSelectedId: model.selectedMomentId
+        ) else { return }
+        personalQaMomentId = m.momentId
+        futureQa = kind
+    }
+
+    private func openLifestyleQa(_ kind: LifestyleQuickAddKind) {
+        guard let m = PersonalUnified.resolveFamilyTarget(
+            moments: model.moments,
+            family: .lifestyle,
+            currentSelectedId: model.selectedMomentId
+        ) else { return }
+        personalQaMomentId = m.momentId
+        lifestyleQa = kind
+    }
+
+    private func openRelationshipsQa(_ kind: RelationshipsQuickAddKind) {
+        guard let m = PersonalUnified.resolveFamilyTarget(
+            moments: model.moments,
+            family: .relationships,
+            currentSelectedId: model.selectedMomentId
+        ) else { return }
+        personalQaMomentId = m.momentId
+        relationshipsQa = kind
+    }
+
+    private var personalSwitcherTitle: String? {
+        if model.selectedContext == .personal {
+            return PersonalPulseFamily.forTypeCode(model.selectedMomentTypeCode).switcherLabel
+        }
+        return model.selectedMomentTitle
     }
 
     private var selectedMomentIsCompleted: Bool {
@@ -1030,33 +1243,45 @@ struct AppShellView: View {
                 )
             }
             if shouldShowMomentSwitcher && !newMomentOpen && !groupMomentDirectoryOpen {
-                MomentSwitcherView(
-                    selectedTitle: model.selectedMomentTitle,
-                    selectedMomentId: model.selectedMomentId,
-                    activeMoments: activeMomentPairs,
-                    isEmpty: momentSwitcherIsEmpty,
-                    isLoading: momentSwitcherIsLoading,
-                    accent: momentAccent,
-                    onSelectMoment: model.selectMoment,
-                    onSettings: {
-                        guard model.selectedMomentId != nil else { return }
-                        showManageMoment = true
-                    },
-                    onInvite: model.selectedContext == .group ? { groupInviteSheetPresented = true } : nil,
-                    useDirectorySelector: model.selectedContext == .group || model.selectedContext == .business,
-                    onOpenDirectory: {
-                        if model.selectedContext == .business {
-                            businessGap = .moments
-                        } else {
-                            groupDirectoryPreferCompleted = false
-                            withAnimation(.easeInOut(duration: 0.28)) {
-                                groupMomentDirectoryOpen = true
+                if model.selectedContext == .personal {
+                    PersonalUnifiedChromeView(
+                        accent: momentAccent,
+                        showManage: model.selectedMomentId != nil,
+                        showSetUpEveryday: PersonalUnified.activeMoments(model.moments).allSatisfy {
+                            PersonalPulseFamily.forTypeCode($0.momentTypeCode) != .lifeOperations
+                        } && !PersonalUnified.activeMoments(model.moments).isEmpty,
+                        onManage: { showManageMoment = true },
+                        onSetUpEveryday: { personalSetupSystem = .lifeOperations }
+                    )
+                } else {
+                    MomentSwitcherView(
+                        selectedTitle: model.selectedMomentTitle,
+                        selectedMomentId: model.selectedMomentId,
+                        activeMoments: activeMomentPairs,
+                        isEmpty: momentSwitcherIsEmpty,
+                        isLoading: momentSwitcherIsLoading,
+                        accent: momentAccent,
+                        onSelectMoment: model.selectMoment,
+                        onSettings: {
+                            guard model.selectedMomentId != nil else { return }
+                            showManageMoment = true
+                        },
+                        onInvite: model.selectedContext == .group ? { groupInviteSheetPresented = true } : nil,
+                        useDirectorySelector: model.selectedContext == .group || model.selectedContext == .business,
+                        onOpenDirectory: {
+                            if model.selectedContext == .business {
+                                businessGap = .moments
+                            } else {
+                                groupDirectoryPreferCompleted = false
+                                withAnimation(.easeInOut(duration: 0.28)) {
+                                    groupMomentDirectoryOpen = true
+                                }
                             }
-                        }
-                    },
-                    selectedIsCompleted: selectedMomentIsCompleted,
-                    startExpanded: model.selectedContext == .personal && activeMomentPairs.count > 1
-                )
+                        },
+                        selectedIsCompleted: selectedMomentIsCompleted,
+                        startExpanded: false
+                    )
+                }
             }
         }
         .background(GlobalTheme.topBarBackground)
@@ -1069,7 +1294,9 @@ struct AppShellView: View {
                 if showPersonalExpenseFab {
                     HStack {
                         Spacer()
-                        PersonalExpenseFab { moneyQa = .masterExpense }
+                        PersonalExpenseFab {
+                            openMoneyQa(.masterExpense)
+                        }
                     }
                     .padding(.trailing, 16)
                     .padding(.bottom, 8)
@@ -1528,35 +1755,26 @@ struct AppShellView: View {
                             onJoinCode: redeemJoinCode
                         )
                     }
-                } else if model.selectedContext == .personal, model.bottomDestination == .pulse, isRelationships {
-                    PersonalRelationshipsPulseActiveView(
-                        refreshToken: model.personalTabRefreshToken,
-                        momentTitle: model.selectedMomentTitle,
-                        momentId: model.selectedMomentId,
-                        onAddExpense: { moneyQa = .masterExpense },
-                        onRelationshipsQuickAdd: { relationshipsQa = $0 },
-                        onOpenRecentActivity: { relationshipsActivityOpen = true }
-                    )
-                } else if model.selectedContext == .personal, model.bottomDestination == .pulse, isLifestyle {
-                    PersonalLifestylePulseActiveView(
-                        refreshToken: model.personalTabRefreshToken,
-                        momentTitle: model.selectedMomentTitle,
-                        momentId: model.selectedMomentId,
-                        onAddExpense: { moneyQa = .masterExpense },
-                        onLifestyleQuickAdd: { lifestyleQa = $0 },
-                        onViewAllActivity: { recentActivityOpen = true }
-                    )
                 } else if model.selectedContext == .personal, model.bottomDestination == .pulse {
                     PersonalPulseActiveView(
                         refreshToken: model.personalTabRefreshToken,
                         momentTitle: model.selectedMomentTitle,
                         momentId: model.selectedMomentId,
                         momentTypeCode: personalTypeCode,
-                        onAddExpense: { moneyQa = .masterExpense },
-                        onLifeOpsQuickAdd: { lifeOpsQa = $0 },
-                        onFutureQuickAdd: { futureQa = $0 },
-                        onLifestyleQuickAdd: { lifestyleQa = $0 },
-                        onViewAllActivity: { recentActivityOpen = true }
+                        onAddExpense: { openMoneyQa(.masterExpense) },
+                        onLifeOpsQuickAdd: { openLifeOpsQa($0) },
+                        onFutureQuickAdd: { openFutureQa($0) },
+                        onLifestyleQuickAdd: { openLifestyleQa($0) },
+                        onRelationshipsQuickAdd: { openRelationshipsQa($0) },
+                        onViewAllActivity: {
+                            if isRelationships {
+                                relationshipsActivityOpen = true
+                            } else {
+                                recentActivityOpen = true
+                            }
+                        },
+                        forceCollapsed: true,
+                        onEnableSimpleMode: {}
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .moments, isFutureBuilding {
                     PersonalFutureMomentsActiveView(
@@ -1590,47 +1808,51 @@ struct AppShellView: View {
                     PersonalFutureMemoryActiveView(
                         refreshToken: model.personalTabRefreshToken,
                         momentId: model.selectedMomentId,
-                        onProtectMilestone: { futureQa = .milestone }
+                        onProtectMilestone: { openFutureQa(.milestone) }
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .memory, isLifestyle {
                     PersonalLifestyleMemoryActiveView(
                         refreshToken: model.personalTabRefreshToken,
                         momentId: model.selectedMomentId,
-                        onProtectRitual: { lifestyleQa = .experience }
+                        onProtectRitual: { openLifestyleQa(.experience) }
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .memory, isRelationships {
                     PersonalRelationshipsMemoryActiveView(
                         refreshToken: model.personalTabRefreshToken,
                         momentId: model.selectedMomentId,
-                        onProtectConnection: { relationshipsQa = .connection }
+                        onProtectConnection: { openRelationshipsQa(.connection) }
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .memory, isLifeOps {
                     PersonalLifeOpsMemoryActiveView(
                         refreshToken: model.personalTabRefreshToken,
                         momentId: model.selectedMomentId,
-                        onProtectRecovery: { lifeOpsQa = .recovery }
+                        onProtectRecovery: { openLifeOpsQa(.recovery) }
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .life {
                     PersonalLifeActiveView(
                         refreshToken: model.personalTabRefreshToken,
-                        onLogRecovery: { lifeOpsQa = .recovery }
+                        onLogRecovery: { openLifeOpsQa(.recovery) }
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .create {
                     PersonalQuickAddHubView(
                         hasActiveMoment: model.selectedMomentId != nil,
                         momentTypeCode: personalTypeCode,
                         capabilityCodes: model.capabilities,
+                        simpleMode: false,
+                        unifiedCatalog: true,
+                        presentFamilies: PersonalUnified.presentFamilies(model.moments),
+                        onSetupMissing: { personalSetupChooserOpen = true },
                         onClose: { model.exitCreateDestination() },
-                        onIncome: { moneyQa = .income },
-                        onRecovery: { lifeOpsQa = .recovery },
-                        onMood: { lifeOpsQa = .mood },
-                        onAttention: { lifeOpsQa = .attention },
-                        onAdjust: { lifeOpsQa = .adjust },
-                        onTransfer: { moneyQa = .transfer },
-                        onSavings: { moneyQa = .savings },
-                        onFutureQuickAdd: { futureQa = $0 },
-                        onLifestyleQuickAdd: { lifestyleQa = $0 },
-                        onRelationshipsQuickAdd: { relationshipsQa = $0 }
+                        onIncome: { openMoneyQa(.income) },
+                        onRecovery: { openLifeOpsQa(.recovery) },
+                        onMood: { openLifeOpsQa(.mood) },
+                        onAttention: { openLifeOpsQa(.attention) },
+                        onAdjust: { openLifeOpsQa(.adjust) },
+                        onTransfer: { openMoneyQa(.transfer) },
+                        onSavings: { openMoneyQa(.savings) },
+                        onFutureQuickAdd: { openFutureQa($0) },
+                        onLifestyleQuickAdd: { openLifestyleQa($0) },
+                        onRelationshipsQuickAdd: { openRelationshipsQa($0) }
                     )
                 } else if model.selectedContext == .business, model.bottomDestination == .pulse {
                     let code = (model.selectedMomentTypeCode ?? "").uppercased()
@@ -1639,16 +1861,28 @@ struct AppShellView: View {
                             refreshToken: model.businessTabRefreshToken,
                             momentTitle: model.selectedMomentTitle,
                             momentId: model.selectedMomentId,
-                            onLogExpense: { businessGapQa = .expense },
-                            onOpenQuickAdd: { businessQuickAddPresented = true }
+                            onLogExpense: { businessExpenseSheetPresented = true },
+                            onOpenQuickAdd: { businessQuickAddPresented = true },
+                            onOpenMoments: { model.selectBottomDestination(.moments) },
+                            onViewAllActivity: {
+                                businessRecentActivityAccent = Color(hex: "#F59E0B")
+                                businessRecentActivitySubtitle = "Spend, revenue, and financial events."
+                                businessRecentActivityOpen = true
+                            }
                         )
                     } else if code.contains("OPERATIONS") && !code.contains("TEAM") {
                         OpsPulseActiveView(
                             refreshToken: model.businessTabRefreshToken,
                             momentTitle: model.selectedMomentTitle,
                             momentId: model.selectedMomentId,
-                            onLogSpend: { businessGapQa = .spendEntry },
-                            onOpenQuickAdd: { businessQuickAddPresented = true }
+                            onLogSpend: { businessExpenseSheetPresented = true },
+                            onOpenQuickAdd: { businessQuickAddPresented = true },
+                            onOpenMoments: { model.selectBottomDestination(.moments) },
+                            onViewAllActivity: {
+                                businessRecentActivityAccent = Color(hex: "#818CF8")
+                                businessRecentActivitySubtitle = "Deliveries, vendors, issues, and ops events."
+                                businessRecentActivityOpen = true
+                            }
                         )
                     } else if code.contains("TEAM_OPERATIONS") {
                         TeamOpsPulseActiveView(
@@ -1656,7 +1890,9 @@ struct AppShellView: View {
                             momentTitle: model.selectedMomentTitle,
                             momentId: model.selectedMomentId,
                             onLogDelivery: { businessGapQa = .teamUpdate },
-                            onOpenQuickAdd: { businessQuickAddPresented = true }
+                            onOpenQuickAdd: { businessQuickAddPresented = true },
+                            onViewAllActivity: { teamRecentActivityOpen = true },
+                            onAddExpense: { businessExpenseSheetPresented = true }
                         )
                     } else {
                         BusinessPulseActiveView(
@@ -1675,16 +1911,28 @@ struct AppShellView: View {
                             refreshToken: model.businessTabRefreshToken,
                             momentTitle: model.selectedMomentTitle,
                             momentId: model.selectedMomentId,
-                            onLogExpense: { businessGapQa = .expense },
-                            onOpenQuickAdd: { businessQuickAddPresented = true }
+                            onLogExpense: { businessExpenseSheetPresented = true },
+                            onOpenQuickAdd: { businessQuickAddPresented = true },
+                            onOpenMoments: { model.selectBottomDestination(.moments) },
+                            onViewAllActivity: {
+                                businessRecentActivityAccent = Color(hex: "#F59E0B")
+                                businessRecentActivitySubtitle = "Spend, revenue, and financial events."
+                                businessRecentActivityOpen = true
+                            }
                         )
                     } else if code.contains("OPERATIONS") && !code.contains("TEAM") {
                         OpsMomentsActiveView(
                             refreshToken: model.businessTabRefreshToken,
                             momentId: model.selectedMomentId,
                             momentTitle: model.selectedMomentTitle,
-                            onLogSpend: { businessGapQa = .spendEntry },
-                            onOpenQuickAdd: { businessQuickAddPresented = true }
+                            onLogSpend: { businessExpenseSheetPresented = true },
+                            onOpenQuickAdd: { businessQuickAddPresented = true },
+                            onOpenMoments: { model.selectBottomDestination(.moments) },
+                            onViewAllActivity: {
+                                businessRecentActivityAccent = Color(hex: "#818CF8")
+                                businessRecentActivitySubtitle = "Deliveries, vendors, issues, and ops events."
+                                businessRecentActivityOpen = true
+                            }
                         )
                     } else if code.contains("TEAM_OPERATIONS") {
                         TeamOpsMomentsActiveView(
@@ -1692,7 +1940,8 @@ struct AppShellView: View {
                             momentTitle: model.selectedMomentTitle,
                             momentId: model.selectedMomentId,
                             onLogWin: { businessGapQa = .teamUpdate },
-                            onOpenQuickAdd: { businessQuickAddPresented = true }
+                            onOpenQuickAdd: { businessQuickAddPresented = true },
+                            onViewAllActivity: { teamRecentActivityOpen = true }
                         )
                     } else {
                         BusinessMomentsActiveView(
@@ -1736,7 +1985,7 @@ struct AppShellView: View {
                             momentId: model.selectedMomentId,
                             momentTitle: model.selectedMomentTitle,
                             onRecordLearning: { businessGapQa = .memory },
-                            onOpenQuickAdd: { model.selectBottomDestination(.create) }
+                            onOpenQuickAdd: { businessGapQa = .teamUpdate }
                         )
                     } else {
                         BusinessMemoryActiveView(
@@ -1753,36 +2002,31 @@ struct AppShellView: View {
                             hasActiveMoment: true,
                             hasCompany: true,
                             capabilityCodes: model.capabilities,
+                            momentId: model.selectedMomentId,
                             momentTypeCode: model.selectedMomentTypeCode,
+                            companyId: model.selectedCompany?.companyId,
                             onClose: { model.exitCreateDestination() },
                             onTile: { kind in
-                                let code = (model.selectedMomentTypeCode ?? "").uppercased()
-                                if code.contains("RUNWAY")
-                                    || (code.contains("OPERATIONS") && !code.contains("TEAM"))
-                                {
+                                switch kind {
+                                case .khata:
+                                    businessKhataSheetPresented = true
+                                case .expense, .spendEntry:
+                                    businessExpenseSheetPresented = true
+                                case .revenue:
+                                    businessRevenueSheetPresented = true
+                                case .invoice:
+                                    businessInvoiceSheetPresented = true
+                                default:
                                     businessGapQa = kind
-                                } else {
-                                    switch kind {
-                                    case .expense, .spendEntry:
-                                        businessExpenseSheetPresented = true
-                                    case .revenue:
-                                        if code.contains("RUNWAY") { businessRevenueSheetPresented = true }
-                                    case .invoice:
-                                        if code.contains("RUNWAY") { businessInvoiceSheetPresented = true }
-                                    default:
-                                        businessGapQa = kind
-                                    }
                                 }
                             },
                             onNewMoment: { newMomentOpen = true },
                             onExpense: { businessExpenseSheetPresented = true },
                             onRevenue: {
-                                let code = (model.selectedMomentTypeCode ?? "").uppercased()
-                                if code.contains("RUNWAY") { businessRevenueSheetPresented = true }
+                                businessRevenueSheetPresented = true
                             },
                             onInvoice: {
-                                let code = (model.selectedMomentTypeCode ?? "").uppercased()
-                                if code.contains("RUNWAY") { businessInvoiceSheetPresented = true }
+                                businessInvoiceSheetPresented = true
                             },
                             onMembers: { businessMembersSheetPresented = true }
                         )

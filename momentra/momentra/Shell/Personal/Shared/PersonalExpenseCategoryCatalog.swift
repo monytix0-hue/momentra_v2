@@ -36,7 +36,7 @@ enum PersonalExpenseCategoryCatalog {
         ]),
         Category(id: "CAFE", code: "CAFE", label: "Cafe", emoji: "☕", subcategories: [
             Subcategory(id: "CAFE", code: "CAFE", label: "Cafe"),
-            Subcategory(id: "COFFEE", code: "COFFEE", label: "Coffee"),
+            Subcategory(id: "CAFE_COFFEE", code: "CAFE_COFFEE", label: "Coffee"),
         ]),
         Category(id: "HEALTH", code: "HEALTH", label: "Health", emoji: "💊", subcategories: [
             Subcategory(id: "HEALTH", code: "HEALTH", label: "Health"),

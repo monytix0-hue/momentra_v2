@@ -14,9 +14,15 @@ struct RunwayMemoryActiveView: View {
     @State private var error: String?
     @State private var shareBusy = false
     @State private var shareMessage: String?
+    @State private var smallShop = false
 
     private let theme = BusinessActiveTheme.businessRunway
-    private let scopes = ["All", "Revenue", "Expenses", "Tax", "Investors"]
+    private let growingScopes = ["All", "Revenue", "Expenses", "Tax", "Investors"]
+    private let shopScopes = ["All", "Revenue", "Expenses", "Tax"]
+
+    private var scopes: [String] {
+        smallShop ? shopScopes : growingScopes
+    }
 
     private var items: [APIClient.BusinessMemoryPayload.MemoryInner.BusinessMemoryItem] {
         memory?.payload?.items ?? []
@@ -79,33 +85,37 @@ struct RunwayMemoryActiveView: View {
                                 ?? "Biggest learning appears when memory AI projects a signal — record learnings to seed it.",
                             theme: theme
                         )
-                        RunwayDiamondDivider(theme: theme)
-                        RunwayEmptyAiCard(
-                            title: "Pattern Network",
-                            emptyCopy: "Pattern network unavailable — memory.pattern API not mounted.",
-                            theme: theme
-                        )
-                        RunwayDiamondDivider(theme: theme)
-                        RunwayEmptyAiCard(
-                            title: "Financial Playbook",
-                            emptyCopy: "Playbook rules deferred until AI rule projection exists.",
-                            theme: theme
-                        )
-                        RunwayDiamondDivider(theme: theme)
+                        if !smallShop {
+                            RunwayDiamondDivider(theme: theme)
+                            RunwayEmptyAiCard(
+                                title: "Pattern Network",
+                                emptyCopy: "Tips will appear here",
+                                theme: theme
+                            )
+                            RunwayDiamondDivider(theme: theme)
+                            RunwayEmptyAiCard(
+                                title: "Financial Playbook",
+                                emptyCopy: "Playbook rules deferred until AI rule projection exists.",
+                                theme: theme
+                            )
+                            RunwayDiamondDivider(theme: theme)
+                        }
                         memoryList(title: "Success Memory", empty: "No success memories yet.", items: successItems, accent: RunwayColors.emerald)
                         memoryList(title: "Risk Memory", empty: "No risk memories yet.", items: riskItems, accent: RunwayColors.red)
-                        RunwayEmptyAiCard(
-                            title: "Financial Wisdom",
-                            emptyCopy: "No wisdom yet",
-                            theme: theme
-                        )
-                        RunwayEmptyAiCard(
-                            title: "Knowledge Journey",
-                            emptyCopy: filtered.isEmpty
-                                ? "Journey milestones appear as memories are recorded."
-                                : filtered.prefix(5).compactMap(\.title).joined(separator: " → "),
-                            theme: theme
-                        )
+                        if !smallShop {
+                            RunwayEmptyAiCard(
+                                title: "Financial Wisdom",
+                                emptyCopy: "No wisdom yet",
+                                theme: theme
+                            )
+                            RunwayEmptyAiCard(
+                                title: "Knowledge Journey",
+                                emptyCopy: filtered.isEmpty
+                                    ? "Journey milestones appear as memories are recorded."
+                                    : filtered.prefix(5).compactMap(\.title).joined(separator: " → "),
+                                theme: theme
+                            )
+                        }
                     }
 
                     }
@@ -129,6 +139,10 @@ struct RunwayMemoryActiveView: View {
             }
         }
         .background(theme.bg)
+        .task(id: momentId) {
+            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+            if !scopes.contains(scope) { scope = "All" }
+        }
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 

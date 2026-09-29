@@ -35,7 +35,7 @@ object PersonalExpenseCategoryCatalog {
         )),
         Category("CAFE", "Cafe", "☕", listOf(
             Subcategory("CAFE", "Cafe"),
-            Subcategory("COFFEE", "Coffee"),
+            Subcategory("CAFE_COFFEE", "Coffee"),
         )),
         Category("HEALTH", "Health", "💊", listOf(
             Subcategory("HEALTH", "Health"),

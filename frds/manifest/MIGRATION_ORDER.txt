@@ -86,3 +86,7 @@ V085__notification_cadence.sql
 V086__derived_notification_signals.sql
 V087__notification_decision_audit.sql
 V088__moment_story.sql
+V089__finance_rls_caller_scope.sql
+V090__personal_master_expense_subcategories.sql
+V091__business_khata.sql
+V092__revenue_party_payment.sql

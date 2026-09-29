@@ -14,7 +14,8 @@ struct BusinessCreateFlowView: View {
             onBack: onBack,
             onSelectSetup: { kind in
                 openSetup = kind
-            }
+            },
+            companyId: companyId
         )
         .sheet(item: $openSetup) { kind in
             if let companyId {

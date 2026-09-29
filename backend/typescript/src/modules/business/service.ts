@@ -21,6 +21,9 @@ export const updateCompanySchema = z
     displayName: z.string().min(1).max(300).optional(),
     legalName: z.string().min(1).max(500).optional(),
     timezone: z.string().optional(),
+    companyType: z.string().max(100).optional(),
+    taxIdentifier: z.string().max(100).optional(),
+    profileJson: z.record(z.string(), z.unknown()).optional(),
     expectedVersion: z.number().int().positive(),
   })
   .strict();
@@ -94,14 +97,54 @@ export async function createCompany(
   };
 }
 
+function parseProfileJson(raw: unknown): Record<string, unknown> {
+  if (raw == null) return {};
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
 export async function getCompany(
   client: PoolClient,
   ctx: RequestContext,
   companyId: string
-): Promise<{ companyId: string; displayName: string; legalName: string; version: number } | null> {
+): Promise<{
+  companyId: string;
+  displayName: string;
+  legalName: string;
+  version: number;
+  profileJson: Record<string, unknown>;
+  taxIdentifier: string | null;
+  timezone: string;
+  companyType: string | null;
+  status: string;
+} | null> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'COMPANY_READ', resourceType: 'COMPANY', companyId });
-  const row = await client.query<{ company_id: string; display_name: string; legal_name: string; version: string }>(
-    `SELECT company_id, display_name, legal_name, version FROM business.company WHERE company_id = $1`,
+  const row = await client.query<{
+    company_id: string;
+    display_name: string;
+    legal_name: string;
+    version: string;
+    profile_json: unknown;
+    tax_identifier: string | null;
+    timezone: string | null;
+    company_type: string | null;
+    status: string;
+  }>(
+    `SELECT company_id, display_name, legal_name, version, profile_json,
+            tax_identifier, timezone, company_type, status
+     FROM business.company WHERE company_id = $1`,
     [companyId]
   );
   if (!row.rows[0]) return null;
@@ -111,15 +154,22 @@ export async function getCompany(
     displayName: r.display_name,
     legalName: r.legal_name,
     version: parseInt(r.version, 10),
+    profileJson: parseProfileJson(r.profile_json),
+    taxIdentifier: r.tax_identifier,
+    timezone: r.timezone ?? 'UTC',
+    companyType: r.company_type,
+    status: r.status,
   };
 }
 
 export async function listCompanies(
   client: PoolClient,
   ctx: RequestContext
-): Promise<{ items: Array<{ companyId: string; displayName: string }> }> {
-  const rows = await client.query<{ company_id: string; display_name: string }>(
-    `SELECT c.company_id, c.display_name
+): Promise<{
+  items: Array<{ companyId: string; displayName: string; profileJson: Record<string, unknown> }>;
+}> {
+  const rows = await client.query<{ company_id: string; display_name: string; profile_json: unknown }>(
+    `SELECT c.company_id, c.display_name, c.profile_json
      FROM business.company c
      JOIN business.company_membership cm ON cm.company_id = c.company_id
      WHERE cm.user_id = $1 AND cm.status = 'ACTIVE'
@@ -127,7 +177,11 @@ export async function listCompanies(
     [ctx.userId]
   );
   return {
-    items: rows.rows.map((r) => ({ companyId: r.company_id, displayName: r.display_name })),
+    items: rows.rows.map((r) => ({
+      companyId: r.company_id,
+      displayName: r.display_name,
+      profileJson: parseProfileJson(r.profile_json),
+    })),
   };
 }
 
@@ -138,16 +192,68 @@ export async function updateCompany(
   body: z.infer<typeof updateCompanySchema>
 ): Promise<{ companyId: string; displayName: string; version: number }> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'COMPANY_UPDATE', resourceType: 'COMPANY', companyId });
+  // Deep-merge settings inside profileJson so toggle patches don't wipe sibling keys.
+  let profilePayload: string | null =
+    body.profileJson == null ? null : JSON.stringify(body.profileJson);
+  if (body.profileJson != null && body.profileJson.settings != null) {
+    const existing = await client.query<{ profile_json: unknown }>(
+      `SELECT profile_json FROM business.company WHERE company_id = $1`,
+      [companyId]
+    );
+    const current = parseProfileJson(existing.rows[0]?.profile_json);
+    const currentSettings =
+      current.settings && typeof current.settings === 'object' && !Array.isArray(current.settings)
+        ? (current.settings as Record<string, unknown>)
+        : {};
+    const incomingSettings =
+      typeof body.profileJson.settings === 'object' &&
+      body.profileJson.settings != null &&
+      !Array.isArray(body.profileJson.settings)
+        ? (body.profileJson.settings as Record<string, unknown>)
+        : {};
+    const mergedModules = {
+      ...((currentSettings.modules as Record<string, unknown> | undefined) ?? {}),
+      ...((incomingSettings.modules as Record<string, unknown> | undefined) ?? {}),
+    };
+    const mergedAlerts = {
+      ...((currentSettings.alerts as Record<string, unknown> | undefined) ?? {}),
+      ...((incomingSettings.alerts as Record<string, unknown> | undefined) ?? {}),
+    };
+    profilePayload = JSON.stringify({
+      ...body.profileJson,
+      settings: {
+        ...currentSettings,
+        ...incomingSettings,
+        modules: mergedModules,
+        alerts: mergedAlerts,
+      },
+    });
+  }
   const updated = await client.query<{ company_id: string; display_name: string; version: string }>(
     `UPDATE business.company SET
        display_name = COALESCE($3, display_name),
        legal_name = COALESCE($4, legal_name),
        timezone = COALESCE($5, timezone),
+       company_type = COALESCE($7, company_type),
+       tax_identifier = COALESCE($8, tax_identifier),
+       profile_json = CASE
+         WHEN $6::jsonb IS NULL THEN profile_json
+         ELSE COALESCE(profile_json, '{}'::jsonb) || $6::jsonb
+       END,
        version = version + 1,
        updated_at = now()
      WHERE company_id = $1 AND version = $2
      RETURNING company_id, display_name, version`,
-    [companyId, body.expectedVersion, body.displayName ?? null, body.legalName ?? null, body.timezone ?? null]
+    [
+      companyId,
+      body.expectedVersion,
+      body.displayName ?? null,
+      body.legalName ?? null,
+      body.timezone ?? null,
+      profilePayload,
+      body.companyType ?? null,
+      body.taxIdentifier ?? null,
+    ]
   );
   if (!updated.rows[0]) {
     throw new AppError(ErrorCode.VERSION_CONFLICT, 'Company version conflict.', 409);
@@ -215,10 +321,26 @@ export async function listLocations(
   client: PoolClient,
   ctx: RequestContext,
   companyId: string
-): Promise<{ items: Array<{ locationId: string; name: string; status: string }> }> {
+): Promise<{
+  items: Array<{
+    locationId: string;
+    name: string;
+    addressText: string | null;
+    timezone: string | null;
+    status: string;
+    version: number;
+  }>;
+}> {
   await assertGovernanceAllowed(client, ctx, { actionCode: 'LOCATION_READ', resourceType: 'LOCATION', companyId });
-  const rows = await client.query<{ company_location_id: string; name: string; status: string }>(
-    `SELECT company_location_id, name, status
+  const rows = await client.query<{
+    company_location_id: string;
+    name: string;
+    address_text: string | null;
+    timezone: string | null;
+    status: string;
+    version: string;
+  }>(
+    `SELECT company_location_id, name, address_text, timezone, status, version
      FROM business.company_location
      WHERE company_id = $1 AND status = 'ACTIVE'
      ORDER BY name`,
@@ -228,7 +350,10 @@ export async function listLocations(
     items: rows.rows.map((r) => ({
       locationId: r.company_location_id,
       name: r.name,
+      addressText: r.address_text,
+      timezone: r.timezone,
       status: r.status,
+      version: parseInt(r.version, 10),
     })),
   };
 }

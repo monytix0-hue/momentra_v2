@@ -72,8 +72,6 @@ fun PersonalMasterExpenseSheet(
     repository: PersonalSliceRepository = remember { PersonalSliceRepository() },
 ) {
     if (!visible) return
-    @Suppress("UNUSED_PARAMETER")
-    val unusedFamily = pulseFamily
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var purpose by remember { mutableStateOf("") }
@@ -86,7 +84,7 @@ fun PersonalMasterExpenseSheet(
     }
     var paidFrom by remember { mutableStateOf("Primary") }
     var whenCode by remember { mutableStateOf("Today") }
-    var showDetails by remember { mutableStateOf(true) }
+    var showDetails by remember { mutableStateOf(false) }
     var selectedFeelings by remember { mutableStateOf(setOf<String>()) }
     var meaningfulness by remember { mutableStateOf("Medium") }
     var memorability by remember { mutableStateOf("High") }
@@ -153,7 +151,14 @@ fun PersonalMasterExpenseSheet(
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "One expense. Impact across your life.",
+                    "Logging to ${pulseFamily.loggingLabel()}",
+                    color = T.Accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = PlusJakartaSans,
+                )
+                Text(
+                    "Amount and category are enough. Add how it felt if you want.",
                     color = T.Muted,
                     fontSize = 14.sp,
                     fontFamily = PlusJakartaSans,
@@ -674,7 +679,7 @@ private fun MeHeader(onDismiss: () -> Unit, onClearAll: () -> Unit) {
                         )
                     }
                     Text(
-                        "Master Expense",
+                        "Add expense",
                         color = T.Text,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
@@ -859,7 +864,7 @@ private fun MoreDetailsSection(
                     size = 16.dp,
                 )
                 Text(
-                    "More details",
+                    "More about this",
                     color = T.TextMain,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,

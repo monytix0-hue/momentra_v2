@@ -55,6 +55,7 @@ import com.example.momentra.ui.shell.personal.future.create.FutureQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.LifeOpsQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalLifeOpsDerived
 import com.example.momentra.ui.shell.personal.shared.LifestyleQuickAddKind
+import com.example.momentra.ui.shell.personal.shared.RelationshipsQuickAddKind
 import com.example.momentra.ui.shell.personal.shared.PersonalActivityTimelineDerived
 import com.example.momentra.ui.shell.personal.shared.loadPersonalPulseTab
 import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
@@ -83,10 +84,13 @@ fun PersonalLifeOpsPulseActiveContent(
     momentTitle: String?,
     momentId: String?,
     momentTypeCode: String? = null,
+    forceCollapsed: Boolean = false,
+    onEnableSimpleMode: () -> Unit = {},
     onAddExpense: () -> Unit,
     onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Unit = {},
     onFutureQuickAdd: (FutureQuickAddKind) -> Unit = {},
     onLifestyleQuickAdd: (LifestyleQuickAddKind) -> Unit = {},
+    onRelationshipsQuickAdd: (RelationshipsQuickAddKind) -> Unit = {},
     onViewAllActivity: () -> Unit = {},
     repository: PersonalSliceRepository = remember { PersonalSliceRepository() },
     modifier: Modifier = Modifier,
@@ -96,10 +100,24 @@ fun PersonalLifeOpsPulseActiveContent(
     val isLifeOps = family == PersonalPulseFamily.LIFE_OPERATIONS
     val isFuture = family == PersonalPulseFamily.FUTURE_BUILDING
     val isLifestyle = family == PersonalPulseFamily.LIFESTYLE
+    val isRelationships = family == PersonalPulseFamily.RELATIONSHIPS
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val habitPrefs = remember { com.example.momentra.data.local.AppPreferences(context) }
+    var simpleCtaDismissed by remember {
+        mutableStateOf(habitPrefs.isPersonalSimpleCtaDismissed())
+    }
     var loading by remember { mutableStateOf(true) }
     var pulse by remember { mutableStateOf<PersonalPulseDto?>(null) }
     var activities by remember { mutableStateOf<List<ActivityItemDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var seeMoreExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(forceCollapsed) {
+        if (forceCollapsed) seeMoreExpanded = false
+    }
+    val showTrySimpleCta = isLifeOps &&
+        !forceCollapsed &&
+        habitPrefs.hasPersonalTodaySave() &&
+        !simpleCtaDismissed
 
     LaunchedEffect(refreshToken, momentId) {
         error = null
@@ -156,6 +174,14 @@ fun PersonalLifeOpsPulseActiveContent(
     val vitality = rhythm
     val exploration = attention
     val streak = PersonalLifeOpsDerived.streakDays(activities.map { it.occurredAt })
+    val todayLogCount = PersonalLifeOpsDerived.todayActivityCount(activities.map { it.occurredAt })
+    val dayFeedback = PersonalLifeOpsDerived.dayFeedbackLine(
+        moodState = pulse?.moodState,
+        spendPairs = spend,
+        todayLogCount = todayLogCount,
+        family = family,
+    )
+    val greeting = PersonalLifeOpsDerived.timeOfDayGreeting()
     val todayLabel = DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault())
         .format(java.time.LocalDate.now())
 
@@ -171,12 +197,20 @@ fun PersonalLifeOpsPulseActiveContent(
             Text(it, color = PulseRed, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         }
 
+        Text(
+            greeting,
+            color = PulseMuted,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
+        )
+
         // Family hero
         val heroValues = when (family) {
             PersonalPulseFamily.LIFE_OPERATIONS -> listOf(pressure, recovery, rhythm, attention)
             PersonalPulseFamily.FUTURE_BUILDING -> listOf(vision, growth, momentum, discipline)
             PersonalPulseFamily.LIFESTYLE -> listOf(joy, fulfillment, vitality, exploration)
-            else -> listOf(recovery, rhythm, attention, mood)
+            PersonalPulseFamily.RELATIONSHIPS -> listOf(recovery, rhythm, attention, mood)
         }
         val tileValues = when (family) {
             PersonalPulseFamily.LIFE_OPERATIONS -> listOf(pressure, recovery, rhythm, attention)
@@ -344,13 +378,84 @@ fun PersonalLifeOpsPulseActiveContent(
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                theme.heroMetrics.forEachIndexed { index, label ->
-                    HeroMetricChip(label, heroValues.getOrElse(index) { "—" }, Modifier.weight(1f))
-                }
-            }
+            // Axis chips live behind "See more" so Today stays above the fold for all families.
         }
 
+        FamilyTodayActionStrip(
+            family = family,
+            enabled = momentId != null,
+            onAddExpense = onAddExpense,
+            onLifeOpsQuickAdd = onLifeOpsQuickAdd,
+            onFutureQuickAdd = onFutureQuickAdd,
+            onLifestyleQuickAdd = onLifestyleQuickAdd,
+            onRelationshipsQuickAdd = onRelationshipsQuickAdd,
+        )
+        Text(
+            dayFeedback,
+            color = PulseMuted,
+            fontSize = 13.sp,
+            fontFamily = PlusJakartaSans,
+        )
+        if (showTrySimpleCta) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(PulsePurple.copy(alpha = 0.12f))
+                    .border(1.dp, PulsePurpleSoft.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    "Try Simple mode — Everyday only",
+                    color = PulsePurpleSoft,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            habitPrefs.setPersonalSimpleCtaDismissed(true)
+                            simpleCtaDismissed = true
+                            onEnableSimpleMode()
+                        },
+                )
+                Text(
+                    "Not now",
+                    color = PulseMuted,
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier.clickable {
+                        habitPrefs.setPersonalSimpleCtaDismissed(true)
+                        simpleCtaDismissed = true
+                    },
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White.copy(alpha = 0.05f))
+                .border(1.dp, BorderSoft, RoundedCornerShape(12.dp))
+                .clickable { seeMoreExpanded = !seeMoreExpanded }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            Text(
+                if (seeMoreExpanded) "Show less" else "See more of your day",
+                color = PulsePurpleSoft,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = PlusJakartaSans,
+            )
+        }
+
+        if (seeMoreExpanded) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            theme.heroMetrics.forEachIndexed { index, label ->
+                HeroMetricChip(label, heroValues.getOrElse(index) { "—" }, Modifier.weight(1f))
+            }
+        }
         Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             theme.tileLabels.take(2).forEachIndexed { index, label ->
                 MetricTile(
@@ -690,7 +795,12 @@ fun PersonalLifeOpsPulseActiveContent(
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             val actionColors = listOf(PulseCyan, PulseOrange, PulsePurpleSoft, PulseGreen, PulseMuted)
-            theme.quickActions.forEachIndexed { index, label ->
+            val visibleQuickActions = if (isLifeOps && forceCollapsed) {
+                theme.quickActions.filter { it == "Recovery" || it == "Mood" }
+            } else {
+                theme.quickActions
+            }
+            visibleQuickActions.forEachIndexed { index, label ->
                 val icon = quickActionIcon(label)
                 val tint = actionColors.getOrElse(index) { PulseMuted }
                 val onClick: (() -> Unit)? = when (label) {
@@ -698,10 +808,10 @@ fun PersonalLifeOpsPulseActiveContent(
                     "Recovery" -> ({ onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY) })
                     "Mood" -> ({ onLifeOpsQuickAdd(LifeOpsQuickAddKind.MOOD) })
                     "Attention" -> ({ onLifeOpsQuickAdd(LifeOpsQuickAddKind.ATTENTION) })
-                    "Adjust" -> if (isLifestyle) {
-                        ({ onLifestyleQuickAdd(LifestyleQuickAddKind.ADJUST) })
-                    } else {
-                        ({ onLifeOpsQuickAdd(LifeOpsQuickAddKind.ADJUST) })
+                    "Adjust" -> when {
+                        isLifestyle -> ({ onLifestyleQuickAdd(LifestyleQuickAddKind.ADJUST) })
+                        isRelationships -> ({ onRelationshipsQuickAdd(RelationshipsQuickAddKind.ADJUST) })
+                        else -> ({ onLifeOpsQuickAdd(LifeOpsQuickAddKind.ADJUST) })
                     }
                     "Milestone" -> ({ onFutureQuickAdd(FutureQuickAddKind.MILESTONE) })
                     "Opportunity" -> ({ onFutureQuickAdd(FutureQuickAddKind.OPPORTUNITY) })
@@ -712,6 +822,10 @@ fun PersonalLifeOpsPulseActiveContent(
                     "Wellbeing" -> ({ onLifestyleQuickAdd(LifestyleQuickAddKind.WELLBEING) })
                     "Discovery" -> ({ onLifestyleQuickAdd(LifestyleQuickAddKind.DISCOVERY) })
                     "Create", "Expression" -> ({ onLifestyleQuickAdd(LifestyleQuickAddKind.EXPRESSION) })
+                    "Connection" -> ({ onRelationshipsQuickAdd(RelationshipsQuickAddKind.CONNECTION) })
+                    "Shared" -> ({ onRelationshipsQuickAdd(RelationshipsQuickAddKind.SHARED) })
+                    "Investment" -> ({ onRelationshipsQuickAdd(RelationshipsQuickAddKind.INVESTMENT) })
+                    "Support" -> ({ onRelationshipsQuickAdd(RelationshipsQuickAddKind.SUPPORT) })
                     else -> null
                 }
                 QuickActionDot(
@@ -723,6 +837,7 @@ fun PersonalLifeOpsPulseActiveContent(
                 )
             }
         }
+        } // end seeMoreExpanded
 
         Spacer(Modifier.height(12.dp))
     }
@@ -975,6 +1090,103 @@ private fun ActivityRowFigma(item: ActivityItemDto, showDivider: Boolean) {
                     .background(Color.White.copy(alpha = 0.05f)),
             )
         }
+    }
+}
+
+@Composable
+private fun FamilyTodayActionStrip(
+    family: PersonalPulseFamily,
+    enabled: Boolean,
+    onAddExpense: () -> Unit,
+    onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Unit,
+    onFutureQuickAdd: (FutureQuickAddKind) -> Unit,
+    onLifestyleQuickAdd: (LifestyleQuickAddKind) -> Unit,
+    onRelationshipsQuickAdd: (RelationshipsQuickAddKind) -> Unit,
+) {
+    data class Action(val label: String, val tint: Color, val iconRes: Int, val onClick: () -> Unit)
+    val actions = when (family) {
+        PersonalPulseFamily.LIFE_OPERATIONS -> listOf(
+            Action("Spend", PulseGreen, R.drawable.ic_money_wallet, onAddExpense),
+            Action("Mood", PulsePurpleSoft, R.drawable.ic_pulse_smile) { onLifeOpsQuickAdd(LifeOpsQuickAddKind.MOOD) },
+            Action("Recovery", PulseCyan, R.drawable.ic_pulse_activity) { onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY) },
+        )
+        PersonalPulseFamily.FUTURE_BUILDING -> listOf(
+            Action("Milestone", PulseGreen, R.drawable.ic_pulse_target) { onFutureQuickAdd(FutureQuickAddKind.MILESTONE) },
+            Action("Progress", PulsePurpleSoft, R.drawable.ic_pulse_trending) { onFutureQuickAdd(FutureQuickAddKind.PROGRESS) },
+            Action("Learning", PulseCyan, R.drawable.ic_pulse_activity) { onFutureQuickAdd(FutureQuickAddKind.LEARNING) },
+        )
+        PersonalPulseFamily.LIFESTYLE -> listOf(
+            Action("Experience", PulseGreen, R.drawable.ic_pulse_zap) { onLifestyleQuickAdd(LifestyleQuickAddKind.EXPERIENCE) },
+            Action("Wellbeing", PulsePurpleSoft, R.drawable.ic_pulse_smile) { onLifestyleQuickAdd(LifestyleQuickAddKind.WELLBEING) },
+            Action("Discovery", PulseCyan, R.drawable.ic_pulse_activity) { onLifestyleQuickAdd(LifestyleQuickAddKind.DISCOVERY) },
+        )
+        PersonalPulseFamily.RELATIONSHIPS -> listOf(
+            Action("Connection", PulseGreen, R.drawable.ic_pulse_smile) { onRelationshipsQuickAdd(RelationshipsQuickAddKind.CONNECTION) },
+            Action("Shared", PulsePurpleSoft, R.drawable.ic_pulse_activity) { onRelationshipsQuickAdd(RelationshipsQuickAddKind.SHARED) },
+            Action("Support", PulseCyan, R.drawable.ic_pulse_zap) { onRelationshipsQuickAdd(RelationshipsQuickAddKind.SUPPORT) },
+        )
+    }
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            "Today",
+            color = PulseMuted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = PlusJakartaSans,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            actions.forEach { action ->
+                TodayActionButton(
+                    label = action.label,
+                    tint = action.tint,
+                    iconRes = action.iconRes,
+                    enabled = enabled,
+                    onClick = action.onClick,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodayActionButton(
+    label: String,
+    tint: Color,
+    iconRes: Int,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(tint.copy(alpha = 0.12f))
+            .border(1.dp, tint.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            colorFilter = ColorFilter.tint(tint),
+        )
+        Text(
+            label,
+            color = PulseText,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = PlusJakartaSans,
+        )
     }
 }
 

@@ -1,17 +1,20 @@
 import SwiftUI
 
-/// Figma `692:43993` Business Operations Pulse — live bind; honest empties.
+/// Figma `692:43993` Business Operations Pulse â€” live bind; honest empties.
 struct OpsPulseActiveView: View {
     let refreshToken: UInt64
     let momentTitle: String?
     let momentId: String?
     var onLogSpend: () -> Void = {}
     var onOpenQuickAdd: () -> Void = {}
+    var onOpenMoments: () -> Void = {}
+    var onViewAllActivity: () -> Void = {}
 
     @State private var pulse: APIClient.BusinessPulsePayload?
     @State private var activities: [APIClient.ActivityItemPayload] = []
     @State private var loading = true
     @State private var error: String?
+    @State private var smallShop = false
 
     private let theme = BusinessActiveTheme.businessOperations
 
@@ -26,24 +29,24 @@ struct OpsPulseActiveView: View {
     }
 
     private var healthScore: String {
-        guard isReal("slaCompliance"), let n = ops?.slaCompliancePct else { return "—" }
+        guard isReal("slaCompliance"), let n = ops?.slaCompliancePct else { return "â€”" }
         return "\(n)"
     }
 
     private var showLive: Bool { isReal("slaCompliance") && ops?.slaCompliancePct != nil }
 
     private var monthlySpend: String {
-        guard isReal("monthlySpend"), let raw = ops?.monthlySpend, !raw.isEmpty else { return "—" }
+        guard isReal("monthlySpend"), let raw = ops?.monthlySpend, !raw.isEmpty else { return "â€”" }
         return formatMoney(raw)
     }
 
     private var vendorCount: String {
-        guard isReal("activeVendors"), let n = ops?.activeVendorCount else { return "—" }
+        guard isReal("activeVendors"), let n = ops?.activeVendorCount else { return "â€”" }
         return "\(n)"
     }
 
     private var slaPct: String {
-        guard isReal("slaCompliance"), let n = ops?.slaCompliancePct else { return "—" }
+        guard isReal("slaCompliance"), let n = ops?.slaCompliancePct else { return "â€”" }
         return "\(n)%"
     }
 
@@ -102,7 +105,9 @@ struct OpsPulseActiveView: View {
                         OpsCategoryBarSection(categories: categories, theme: theme)
                         needsAttentionSection
                         recentActivitySection
-                        OpsIntelligenceSection(theme: theme)
+                        if !smallShop {
+                            OpsIntelligenceSection(theme: theme, smallShop: false)
+                        }
                     }
 
                     }
@@ -114,6 +119,9 @@ struct OpsPulseActiveView: View {
             }
         }
         .background(theme.bg)
+        .task(id: momentId) {
+            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+        }
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
     }
 
@@ -239,7 +247,7 @@ struct OpsPulseActiveView: View {
                         }
                     }
                 }
-                Button(action: onOpenQuickAdd) {
+                Button(action: onViewAllActivity) {
                     Text("View all activity →")
                         .font(.plusJakarta(size: 12, weight: .bold))
                         .foregroundStyle(OpsColors.linkBlue)
@@ -257,15 +265,15 @@ struct OpsPulseActiveView: View {
     private var ctaRow: some View {
         HStack(spacing: 12) {
             OpsGradientPrimaryButton(label: "+ Log Spend", enabled: momentId != nil, action: onLogSpend)
-            OpsOutlineButton(label: "View Report", enabled: true, action: onOpenQuickAdd, theme: theme)
+            OpsOutlineButton(label: "View all activity", enabled: true, action: onViewAllActivity, theme: theme)
         }
     }
 
     private func formatMoney(_ raw: String) -> String {
         guard let n = Double(raw) else { return raw }
-        if n >= 100_000 { return String(format: "₹%.1fL", n / 100_000) }
-        if n >= 1000 { return String(format: "₹%.1fK", n / 1000) }
-        return String(format: "₹%.0f", n)
+        if n >= 100_000 { return String(format: "â‚¹%.1fL", n / 100_000) }
+        if n >= 1000 { return String(format: "â‚¹%.1fK", n / 1000) }
+        return String(format: "â‚¹%.0f", n)
     }
 
     private func load() async {

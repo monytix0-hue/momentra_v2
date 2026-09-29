@@ -39,6 +39,7 @@ object BusinessSetupCatalog {
         activateLabel = "Activate Team & Work",
         footerTagline = "YOUR TEAM RUNS ON CLARITY",
         defaultPreferences = mapOf(
+            "audience" to com.example.momentra.ui.shell.business.shared.BusinessAudience.GROWING,
             "teamName" to "Growth & Product",
             "size" to "11-25 people",
             "workMode" to "Hybrid",
@@ -99,6 +100,7 @@ object BusinessSetupCatalog {
         activateLabel = "Activate Money & Cash Flow",
         footerTagline = "RUNWAY CLARITY KEEPS YOU MOVING",
         defaultPreferences = mapOf(
+            "audience" to com.example.momentra.ui.shell.business.shared.BusinessAudience.GROWING,
             "businessStage" to "Scaling",
             "goalHorizon" to "18-months goal",
             "currency" to "INR",
@@ -137,7 +139,7 @@ object BusinessSetupCatalog {
                     BusinessSetupFieldSpec("revenueStage", "Revenue stage", BusinessFieldKind.CHIPS, listOf("Pre-revenue", "Growing", "Stable", "Declining")),
                     BusinessSetupFieldSpec("monthlyRevenue", "Monthly revenue", BusinessFieldKind.TEXT),
                     BusinessSetupFieldSpec("revenueModel", "Revenue model", BusinessFieldKind.CHIPS, listOf("Recurring", "Project-based", "Mixed", "Marketplace")),
-                    BusinessSetupFieldSpec("warningThreshold", "Runway warning threshold", BusinessFieldKind.CHIPS, listOf("3 months", "6 months", "9 months", "12 months")),
+                    BusinessSetupFieldSpec("warningThreshold", "Cash warning threshold", BusinessFieldKind.CHIPS, listOf("3 months", "6 months", "9 months", "12 months")),
                 ),
             ),
         ),
@@ -150,6 +152,7 @@ object BusinessSetupCatalog {
         activateLabel = "Activate Daily Business",
         footerTagline = "OPERATIONS WITH INTENTIONAL GUARDRAILS",
         defaultPreferences = mapOf(
+            "audience" to com.example.momentra.ui.shell.business.shared.BusinessAudience.GROWING,
             "coreOps" to "Growth & Product",
             "scope" to "Company-wide",
             "model" to "Centralized",
@@ -204,6 +207,52 @@ object BusinessSetupCatalog {
         BusinessSetupKind.TEAM_OPERATIONS -> teamOps
         BusinessSetupKind.BUSINESS_RUNWAY -> runway
         BusinessSetupKind.BUSINESS_OPERATIONS -> ops
+    }
+
+    fun footerTagline(kind: BusinessSetupKind, audience: String): String {
+        if (!com.example.momentra.ui.shell.business.shared.BusinessAudience.isSmallShop(audience)) {
+            return forKind(kind).footerTagline
+        }
+        return when (kind) {
+            BusinessSetupKind.TEAM_OPERATIONS -> "YOUR STAFF, CLEAR AND SIMPLE"
+            BusinessSetupKind.BUSINESS_RUNWAY -> "KNOW YOUR CASH"
+            BusinessSetupKind.BUSINESS_OPERATIONS -> "RUN YOUR SHOP DAY TO DAY"
+        }
+    }
+
+    /** Defaults for a company audience. Retail clears demo money and sample team names. */
+    fun defaultPreferences(kind: BusinessSetupKind, audience: String): Map<String, Any> {
+        val base = forKind(kind).defaultPreferences.toMutableMap()
+        val normalized = com.example.momentra.ui.shell.business.shared.BusinessAudience.normalize(audience)
+        base[com.example.momentra.ui.shell.business.shared.BusinessAudience.PREF_KEY] = normalized
+        if (!com.example.momentra.ui.shell.business.shared.BusinessAudience.isSmallShop(normalized)) {
+            return base
+        }
+        when (kind) {
+            BusinessSetupKind.TEAM_OPERATIONS -> {
+                base["teamName"] = "My shop"
+                base["size"] = "1-10 people"
+                base["workMode"] = "In-office"
+                base["approvalThreshold"] = ""
+            }
+            BusinessSetupKind.BUSINESS_RUNWAY -> {
+                base["businessStage"] = "Early"
+                base["goalHorizon"] = "6-months goal"
+                base["multiCurrency"] = false
+                base["availableCash"] = ""
+                base["monthlySpending"] = ""
+                base["monthlyRevenue"] = ""
+                base["revenueStage"] = "Growing"
+                base["fundingSource"] = ""
+            }
+            BusinessSetupKind.BUSINESS_OPERATIONS -> {
+                base["coreOps"] = "Delivery"
+                base["scope"] = "Company-wide"
+                base["monthlyBudget"] = ""
+                base["approvalAlarm"] = ""
+            }
+        }
+        return base
     }
 
     fun allowedKeys(kind: BusinessSetupKind): Set<String> = forKind(kind).defaultPreferences.keys

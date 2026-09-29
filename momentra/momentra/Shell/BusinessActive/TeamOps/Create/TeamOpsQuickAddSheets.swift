@@ -797,9 +797,10 @@ private struct TeamOpsPollForm: View {
     var onSaved: () -> Void
 
     @State private var question = ""
-    @State private var optionA = ""
-    @State private var optionB = ""
-    @State private var optionC = ""
+    @State private var options = ["", ""]
+    @State private var multi = false
+    @State private var includeDeadline = false
+    @State private var deadlineDate = ""
     @State private var submitting = false
     @State private var error: String?
 
@@ -817,14 +818,28 @@ private struct TeamOpsPollForm: View {
             TeamOpsFieldBlock(label: "Question") {
                 TeamOpsTextField(value: $question, placeholder: "What should we decide?")
             }
-            TeamOpsFieldBlock(label: "Option A") {
-                TeamOpsTextField(value: $optionA, placeholder: "First option")
+            TeamOpsFieldBlock(label: "Options") {
+                ForEach(options.indices, id: \.self) { index in
+                    TeamOpsTextField(value: $options[index], placeholder: "Option \(index + 1)")
+                }
+                Button {
+                    if options.count < 6 { options.append("") }
+                } label: {
+                    Text("+ Add Option")
+                        .font(.plusJakarta(size: 13, weight: .semibold))
+                        .foregroundStyle(accent.accent)
+                }
+                .buttonStyle(.plain)
             }
-            TeamOpsFieldBlock(label: "Option B") {
-                TeamOpsTextField(value: $optionB, placeholder: "Second option")
-            }
-            TeamOpsFieldBlock(label: "Option C") {
-                TeamOpsTextField(value: $optionC, placeholder: "Optional")
+            Toggle("Allow multiple choice", isOn: $multi).tint(accent.accent)
+            Toggle("Set deadline", isOn: $includeDeadline).tint(accent.accent)
+            if includeDeadline {
+                TeamOpsFieldBlock(label: "Poll deadline") {
+                    TeamOpsDateField(isoDate: Binding(
+                        get: { deadlineDate.isEmpty ? SetupDateTimeUtils.localDateString(from: Date()) : deadlineDate },
+                        set: { deadlineDate = $0 }
+                    ))
+                }
             }
             if let error {
                 Text(error).font(.plusJakarta(size: 12)).foregroundStyle(TeamOpsSheetTokens.error)
@@ -833,8 +848,7 @@ private struct TeamOpsPollForm: View {
                 label: submitting ? "Saving…" : "Create Poll",
                 enabled: teamOpsHasMoment(momentId)
                     && !question.trimmingCharacters(in: .whitespaces).isEmpty
-                    && !optionA.trimmingCharacters(in: .whitespaces).isEmpty
-                    && !optionB.trimmingCharacters(in: .whitespaces).isEmpty
+                    && options.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count >= 2
                     && !submitting,
                 loading: submitting,
                 footerHint: "Poll will go live",
@@ -847,14 +861,18 @@ private struct TeamOpsPollForm: View {
         guard let momentId else { return }
         submitting = true
         error = nil
-        let options = [optionA, optionB, optionC]
+        let filled = options
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+        let day = deadlineDate.isEmpty ? SetupDateTimeUtils.localDateString(from: Date()) : deadlineDate
+        let closesAt = includeDeadline ? "\(day)T23:59:00.000Z" : nil
         do {
             _ = try await APIClient.shared.createPoll(
                 momentId: momentId,
                 question: question.trimmingCharacters(in: .whitespacesAndNewlines),
-                options: options
+                options: filled,
+                closesAt: closesAt,
+                pollType: multi ? "MULTI_CHOICE" : "SINGLE_CHOICE"
             )
             onSaved(); onClose()
         } catch {
@@ -873,6 +891,7 @@ private struct TeamOpsMemoryForm: View {
 
     @State private var title = ""
     @State private var bodyText = ""
+    @State private var memoryType = "Note"
     @State private var submitting = false
     @State private var error: String?
 
@@ -892,6 +911,9 @@ private struct TeamOpsMemoryForm: View {
             }
             TeamOpsFieldBlock(label: "Body") {
                 TeamOpsTextField(value: $bodyText, placeholder: "What should we remember?", minHeight: 96, singleLine: false)
+            }
+            TeamOpsFieldBlock(label: "Type") {
+                TeamOpsChipRow(options: ["Note", "Milestone", "Decision"], selected: $memoryType, accent: accent)
             }
             if let error {
                 Text(error).font(.plusJakarta(size: 12)).foregroundStyle(TeamOpsSheetTokens.error)
@@ -917,7 +939,8 @@ private struct TeamOpsMemoryForm: View {
             _ = try await APIClient.shared.createBusinessMemory(
                 momentId: momentId,
                 title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                body: bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
+                body: bodyText.trimmingCharacters(in: .whitespacesAndNewlines),
+                memoryType: memoryType.uppercased()
             )
             onSaved(); onClose()
         } catch {

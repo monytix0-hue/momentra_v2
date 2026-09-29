@@ -86,18 +86,26 @@ extension MeBootstrap {
                     companyId: $0.companyId
                 )
             },
-            companies: (companies ?? []).map {
-                CompanySummary(companyId: $0.companyId, displayName: $0.displayName)
-            },
-            selectedCompany: selectedCompany.map {
-                CompanySummary(companyId: $0.companyId, displayName: $0.displayName)
-            } ?? (companies ?? []).first.map {
-                CompanySummary(companyId: $0.companyId, displayName: $0.displayName)
-            },
+            companies: (companies ?? []).map { Self.companySummary(from: $0) },
+            selectedCompany: selectedCompany.map { Self.companySummary(from: $0) }
+                ?? (companies ?? []).first.map { Self.companySummary(from: $0) },
             capabilities: capabilities ?? [],
             roles: roles ?? [],
             preferencesTimezone: preferences?.timezone ?? timezone ?? "UTC",
             preferencesLocale: preferences?.locale ?? locale
+        )
+    }
+
+    private static func companySummary(from item: CompanyItemPayload) -> CompanySummary {
+        let audience = (item.profileJson?[BusinessAudience.prefKey]?.value as? String)
+        if let audience {
+            BusinessAudience.saveForCompany(companyId: item.companyId, audience: audience)
+        }
+        CompanyModules.rehydrateFromProfile(companyId: item.companyId, profileJson: item.profileJson)
+        return CompanySummary(
+            companyId: item.companyId,
+            displayName: item.displayName,
+            audience: audience
         )
     }
 }

@@ -23,6 +23,7 @@ import * as businessClosureWriters from '../../modules/business/business-closure
 import * as businessClosureReads from '../../modules/business/business-closure-reads';
 import * as businessReads from '../../modules/business/business-reads';
 import * as businessMemoryCommands from '../../modules/business/business-memory-commands';
+import * as businessKhata from '../../modules/business/khata';
 import * as projectionService from '../../modules/projection/service';
 import * as deviceService from '../../modules/device/service';
 import * as accountService from '../../modules/account/service';
@@ -1328,6 +1329,89 @@ v1Router.get('/companies/:companyId/vendors', async (req, res, next) => {
       businessReads.listCompanyVendors(client, ctx, param(req.params.companyId))
     );
     res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/companies/:companyId/khata/parties', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(businessKhata.createKhataPartySchema, req.body);
+    const result = await runCommand({
+      operationCode: 'KHATA_PARTY_CREATE',
+      idempotencyKey: req.idempotencyKey!,
+      body,
+      ctx,
+      resourceType: 'VENDOR',
+      execute: async (client, b) => {
+        const r = await businessKhata.createKhataParty(
+          client,
+          ctx,
+          param(req.params.companyId),
+          b as z.infer<typeof businessKhata.createKhataPartySchema>
+        );
+        return { result: r, resourceId: r.partyId };
+      },
+    });
+    res.status(201).json(commandEnvelope(result, ctx.correlationId));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/companies/:companyId/khata/parties', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const kindRaw = String(req.query.partyKind ?? 'CUSTOMER').toUpperCase();
+    const partyKind = kindRaw === 'SUPPLIER' ? 'SUPPLIER' : 'CUSTOMER';
+    const data = await withDb((client) =>
+      businessKhata.listKhataParties(client, ctx, param(req.params.companyId), partyKind)
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/companies/:companyId/khata/parties/:partyId/entries', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      businessKhata.listKhataPartyEntries(
+        client,
+        ctx,
+        param(req.params.companyId),
+        param(req.params.partyId)
+      )
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/moments/:momentId/khata/entries', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(businessKhata.createKhataEntrySchema, req.body);
+    const result = await runCommand({
+      operationCode: 'KHATA_ENTRY_CREATE',
+      idempotencyKey: req.idempotencyKey!,
+      body,
+      ctx,
+      resourceType: 'VENDOR',
+      execute: async (client, b) => {
+        const r = await businessKhata.createKhataEntry(
+          client,
+          ctx,
+          param(req.params.momentId),
+          b as z.infer<typeof businessKhata.createKhataEntrySchema>
+        );
+        return { result: r, resourceId: r.entryId };
+      },
+    });
+    res.status(201).json(commandEnvelope(result, ctx.correlationId));
   } catch (e) {
     next(e);
   }

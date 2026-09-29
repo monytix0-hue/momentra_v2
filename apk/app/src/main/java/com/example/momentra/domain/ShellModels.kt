@@ -38,6 +38,7 @@ data class ShellIdentity(
 data class CompanySummary(
     val companyId: String,
     val displayName: String,
+    val profileJson: Map<String, Any?>? = null,
 )
 
 sealed class ShellContentState {
