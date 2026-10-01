@@ -1,277 +1,30 @@
 package com.example.momentra.ui.shell.business.teamops.memory
 
-import android.content.Intent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.momentra.data.api.BusinessMemoryPayloadDto
 import com.example.momentra.data.repository.BusinessSliceRepository
-import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
-import com.example.momentra.ui.shell.business.shared.BusinessAudience
-import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
-import kotlinx.coroutines.launch
-import com.example.momentra.ui.shell.business.shared.loadBusinessMemoryTab
-import com.example.momentra.ui.shell.business.teamops.components.TeamOpsColors
-import com.example.momentra.ui.shell.business.teamops.components.TeamOpsDiamondDivider
-import com.example.momentra.ui.shell.business.teamops.components.TeamOpsEmptyAiCard
-import com.example.momentra.ui.shell.business.teamops.components.TeamOpsFilterChipRow
-import com.example.momentra.ui.shell.business.teamops.components.TeamOpsGradientPrimaryButton
-import com.example.momentra.ui.shell.business.teamops.components.TeamOpsMemoryHeroSection
-import com.example.momentra.ui.shell.business.teamops.components.TeamOpsMemoryListSection
-import com.example.momentra.ui.shell.business.teamops.components.TeamOpsOutlineButton
-import com.example.momentra.ui.theme.PlusJakartaSans
+import com.example.momentra.ui.shell.business.shared.BusinessMemoryScreen
 
-private val Scopes = listOf("All", "Team", "Cash Flow", "Daily Business")
-
-/** Figma `692:35410` — multi-section stack; live memory lists; AI shells honest empty. */
+/** Team opens the company Memory surface with the Team lens. */
 @Composable
 fun TeamOpsMemoryActiveContent(
     momentId: String?,
     momentTitle: String?,
     refreshToken: Long,
+    companyId: String? = null,
     onRecordLearning: () -> Unit = {},
     onOpenQuickAdd: () -> Unit = {},
     repository: BusinessSliceRepository = remember { BusinessSliceRepository() },
     modifier: Modifier = Modifier,
 ) {
-    val theme = BusinessActiveTheme.TeamOperations
-    var loading by remember { mutableStateOf(true) }
-    var payload by remember { mutableStateOf<BusinessMemoryPayloadDto?>(null) }
-    var scope by remember { mutableStateOf("All") }
-    var error by remember { mutableStateOf<String?>(null) }
-    var smallShop by remember { mutableStateOf(false) }
-    var shareBusy by remember { mutableStateOf(false) }
-    var shareMessage by remember { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-
-    LaunchedEffect(momentId) {
-        smallShop = BusinessAudience.isSmallShopMoment(momentId, context = context)
-    }
-
-    val scopeChips = remember(smallShop) {
-        if (smallShop) listOf("All", "Team") else Scopes
-    }
-
-    LaunchedEffect(scopeChips, scope) {
-        if (scope !in scopeChips) scope = "All"
-    }
-
-    LaunchedEffect(refreshToken, momentId) {
-        if (momentId.isNullOrBlank()) {
-            loading = false
-            payload = null
-            error = "Select a Business Moment."
-            return@LaunchedEffect
-        }
-        loading = payload == null
-        error = null
-        BusinessTabDataCache.peekMemory(momentId)?.memory?.let { cached ->
-            payload = cached
-            loading = false
-        }
-        loadBusinessMemoryTab(repository, momentId).fold(
-            onSuccess = { data -> payload = data.memory; loading = false },
-            onFailure = { e -> error = e.message; loading = false },
-        )
-    }
-
-    if (loading && payload == null) {
-        Box(modifier.fillMaxSize().background(theme.bg), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = theme.accent)
-        }
-        return
-    }
-
-    val items = payload?.items.orEmpty()
-    val filtered = remember(items, scope) {
-        if (scope == "All") items
-        else {
-            val q = scope.lowercase()
-            items.filter { item ->
-                val title = item["title"]?.toString().orEmpty().lowercase()
-                val body = item["body"]?.toString().orEmpty().lowercase()
-                val hay = "$title $body"
-                when {
-                    q == "team" -> hay.contains("team") || hay.contains("owner") || hay.contains("delivery")
-                    q == "cash flow" || q == "runway" -> hay.contains("runway") || hay.contains("budget") || hay.contains("cash")
-                    q == "ops" || q == "daily business" -> hay.contains("ops") || hay.contains("vendor") || hay.contains("sla") ||
-                        hay.contains("operation")
-                    else -> true
-                }
-            }
-        }
-    }
-    val memoryCount = payload?.memoryCount ?: items.size
-    val successItems = filtered.filter { !isRiskItem(it) }
-    val riskItems = filtered.filter { isRiskItem(it) }
-    val biggestLearning = filtered.firstOrNull()?.let { item ->
-        item["body"]?.toString()?.takeIf { it.isNotBlank() }
-            ?: item["title"]?.toString()?.takeIf { it.isNotBlank() }
-    }
-    // Patterns / accuracy AI APIs missing — honest empties
-    val patterns = "—"
-    val accuracy = "—"
-    val ringLabel = if (items.isEmpty()) "—" else "Live"
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(theme.bg)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        error?.let {
-            Text(it, color = TeamOpsColors.Red, fontSize = 12.sp, fontFamily = PlusJakartaSans)
-        }
-
-        TeamOpsFilterChipRow(
-            chips = scopeChips,
-            selected = scope,
-            onSelect = { scope = it },
-            theme = theme,
-        )
-
-        TeamOpsMemoryHeroSection(
-            ringLabel = ringLabel,
-            learnings = if (memoryCount > 0) "$memoryCount" else "—",
-            patterns = patterns,
-            accuracy = accuracy,
-            showLive = items.isNotEmpty(),
-            theme = theme,
-        )
-
-        TeamOpsEmptyAiCard(
-            title = "Biggest Learning",
-            emptyCopy = biggestLearning ?: "No learning yet",
-            theme = theme,
-        )
-
-        if (!smallShop) {
-            TeamOpsDiamondDivider(theme = theme)
-
-            TeamOpsEmptyAiCard(
-                title = "Pattern Network",
-                emptyCopy = "Tips will appear here",
-                theme = theme,
-            )
-
-            TeamOpsDiamondDivider(theme = theme)
-
-            TeamOpsEmptyAiCard(
-                title = "Business Playbook",
-                emptyCopy = "No playbook yet",
-                theme = theme,
-            )
-
-            TeamOpsDiamondDivider(theme = theme)
-        }
-
-        TeamOpsMemoryListSection(
-            title = "Success Memory",
-            emptyCopy = "No success memories yet.",
-            items = successItems,
-            theme = theme,
-            accentBorder = TeamOpsColors.Emerald,
-        )
-
-        TeamOpsMemoryListSection(
-            title = "Risk Memory",
-            emptyCopy = "No risk memories yet.",
-            items = riskItems,
-            theme = theme,
-            accentBorder = TeamOpsColors.Red,
-        )
-
-        if (!smallShop) {
-            TeamOpsEmptyAiCard(
-                title = "Team Wisdom",
-                emptyCopy = "No wisdom yet",
-                theme = theme,
-            )
-
-            TeamOpsEmptyAiCard(
-                title = "Knowledge Journey",
-                emptyCopy = if (filtered.isEmpty()) {
-                    "Journey milestones appear as memories are recorded."
-                } else {
-                    filtered.take(5).joinToString(" → ") {
-                        it["title"]?.toString()?.ifBlank { "Memory" } ?: "Memory"
-                    }
-                },
-                theme = theme,
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            TeamOpsGradientPrimaryButton(
-                label = "Record a Learning",
-                enabled = !momentId.isNullOrBlank(),
-                onClick = onRecordLearning,
-                modifier = Modifier.weight(1f),
-            )
-            TeamOpsOutlineButton(
-                label = if (shareBusy) "Sharing…" else "Share with Team",
-                enabled = !momentId.isNullOrBlank() && !shareBusy,
-                onClick = {
-                    val id = momentId ?: return@TeamOpsOutlineButton
-                    shareBusy = true
-                    shareMessage = null
-                    coroutineScope.launch {
-                        repository.createShareLink(id).fold(
-                            onSuccess = { link ->
-                                shareBusy = false
-                                val url = link.shareUrl.orEmpty()
-                                if (url.isNotBlank()) {
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(Intent.EXTRA_TEXT, url)
-                                    }
-                                    context.startActivity(Intent.createChooser(intent, "Share with team"))
-                                }
-                                shareMessage = link.note ?: "Share link created"
-                            },
-                            onFailure = {
-                                shareBusy = false
-                                shareMessage = it.message ?: "Share unavailable"
-                            },
-                        )
-                    }
-                },
-                theme = theme,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-private fun isRiskItem(item: Map<String, Any?>): Boolean {
-    val hay = "${item["title"]} ${item["body"]}".lowercase()
-    return hay.contains("risk") || hay.contains("issue") || hay.contains("incident") ||
-        hay.contains("fail") || hay.contains("block")
+    BusinessMemoryScreen(
+        momentId = momentId,
+        refreshToken = refreshToken,
+        momentTypeCode = "TEAM_OPERATIONS",
+        companyId = companyId,
+        onRecordLearning = onRecordLearning,
+        repository = repository,
+        modifier = modifier,
+    )
 }

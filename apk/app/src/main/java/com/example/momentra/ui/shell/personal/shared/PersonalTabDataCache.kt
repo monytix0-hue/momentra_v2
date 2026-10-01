@@ -22,6 +22,15 @@ object PersonalTabDataCache {
         store[cacheKey(momentId)] = Entry(pulse, activities)
     }
 
+    /** Drop cached pulse so the next Personal tab paint refetches after capture/edit. */
+    fun invalidate(momentId: String? = null) {
+        if (momentId != null) {
+            store.remove(cacheKey(momentId))
+        } else {
+            store.clear()
+        }
+    }
+
     fun clear() {
         store.clear()
     }

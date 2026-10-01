@@ -13,6 +13,16 @@ export const BUSINESS_SETUP_FAMILY_CODES = [
 
 export type BusinessSetupFamilyCode = (typeof BUSINESS_SETUP_FAMILY_CODES)[number];
 
+/** Demo / seed / QA amount examples only. Never merge into defaultPreferences or activate/create. */
+export const BUSINESS_SETUP_DEMO_AMOUNTS: Record<string, string> = {
+  approvalThreshold: '₹50,000',
+  availableCash: '₹ 1,80,00,000',
+  monthlySpending: '₹ 12,50,000',
+  monthlyRevenue: '₹ 8,08,000',
+  monthlyBudget: '₹35,00,000',
+  approvalAlarm: '₹5,00,000',
+};
+
 export interface BusinessSetupCatalogItem {
   familyCode: BusinessSetupFamilyCode;
   title: string;
@@ -48,7 +58,7 @@ export const BUSINESS_SETUP_CATALOG: BusinessSetupCatalogItem[] = [
       reviewCycle: 'Weekly',
       monitoring: 'Balanced',
       spendingApproval: 'Required',
-      approvalThreshold: '₹50,000',
+      approvalThreshold: '',
       multiCurrency: false,
       extraCurrencies: [],
     },
@@ -66,10 +76,10 @@ export const BUSINESS_SETUP_CATALOG: BusinessSetupCatalogItem[] = [
       businessStage: 'Scaling',
       goalHorizon: '18-months goal',
       multiCurrency: true,
-      availableCash: '₹ 1,80,00,000',
-      monthlySpending: '₹ 12,50,000',
+      availableCash: '',
+      monthlySpending: '',
       revenueStage: 'Growing',
-      monthlyRevenue: '₹ 8,08,000',
+      monthlyRevenue: '',
       revenueModel: 'Recurring',
       warningThreshold: '6 months',
       fundingSource: 'Bootstrapped + revenue',
@@ -91,11 +101,11 @@ export const BUSINESS_SETUP_CATALOG: BusinessSetupCatalogItem[] = [
       scope: 'Company-wide',
       model: 'Centralized',
       cadence: 'Monthly',
-      monthlyBudget: '₹35,00,000',
+      monthlyBudget: '',
       allocationMethod: 'Category-based',
       monitoringStyle: 'Proactive',
       approvalModel: 'Threshold-based',
-      approvalAlarm: '₹5,00,000',
+      approvalAlarm: '',
       currency: 'INR',
       multiCurrency: false,
       extraCurrencies: [],

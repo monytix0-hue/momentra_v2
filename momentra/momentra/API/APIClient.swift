@@ -191,6 +191,9 @@ private struct BusinessMomentItemPayload: Decodable {
     let momentId: String
     let title: String
     let status: String
+    let momentTypeCode: String?
+    let businessFamily: String?
+    let companyId: String?
 }
 
 private struct ProjectionEnvelopePayload: Decodable {
@@ -779,7 +782,14 @@ final class APIClient {
         let page: CursorPagePayload<BusinessMomentItemPayload> =
             try await authorizedGet(path: "v1/business/moments", query: ["limit": String(limit)])
         return page.items.map {
-            MomentSummary(momentId: $0.momentId, title: $0.title, status: $0.status)
+            let family = ($0.momentTypeCode?.isEmpty == false) ? $0.momentTypeCode : $0.businessFamily
+            return MomentSummary(
+                momentId: $0.momentId,
+                title: $0.title,
+                status: $0.status,
+                momentTypeCode: family,
+                companyId: $0.companyId
+            )
         }
     }
 
@@ -1044,12 +1054,22 @@ final class APIClient {
             let wellbeingRating: Double?
             let source: String?
             let planningItemId: String?
+            let revenueId: String?
+            let invoiceId: String?
+            let invoiceNumber: String?
+            let totalAmount: String?
+            let issueId: String?
+            let severity: String?
+            let updateId: String?
+            let approvalRequestId: String?
 
             enum CodingKeys: String, CodingKey {
                 case expenseId, incomeId, activityId, contributionId, amount, currencyCode
                 case lifestyleContext, description, merchantName, categoryCode, subcategoryCode
                 case financialAccountId, paymentMethodCode, participantId, status
                 case wellbeingRating, source, planningItemId
+                case revenueId, invoiceId, invoiceNumber, totalAmount, issueId, severity
+                case updateId, approvalRequestId
             }
 
             init(from decoder: Decoder) throws {
@@ -1072,6 +1092,14 @@ final class APIClient {
                 wellbeingRating = try c.decodeIfPresent(Double.self, forKey: .wellbeingRating)
                 source = try c.decodeIfPresent(String.self, forKey: .source)
                 planningItemId = try c.decodeIfPresent(String.self, forKey: .planningItemId)
+                revenueId = try c.decodeIfPresent(String.self, forKey: .revenueId)
+                invoiceId = try c.decodeIfPresent(String.self, forKey: .invoiceId)
+                invoiceNumber = try c.decodeIfPresent(String.self, forKey: .invoiceNumber)
+                totalAmount = Self.decodeFlexibleString(c, forKey: .totalAmount)
+                issueId = try c.decodeIfPresent(String.self, forKey: .issueId)
+                severity = try c.decodeIfPresent(String.self, forKey: .severity)
+                updateId = try c.decodeIfPresent(String.self, forKey: .updateId)
+                approvalRequestId = try c.decodeIfPresent(String.self, forKey: .approvalRequestId)
             }
 
             /// Memberwise init for tests and local construction.
@@ -1093,7 +1121,15 @@ final class APIClient {
                 status: String? = nil,
                 wellbeingRating: Double? = nil,
                 source: String? = nil,
-                planningItemId: String? = nil
+                planningItemId: String? = nil,
+                revenueId: String? = nil,
+                invoiceId: String? = nil,
+                invoiceNumber: String? = nil,
+                totalAmount: String? = nil,
+                issueId: String? = nil,
+                severity: String? = nil,
+                updateId: String? = nil,
+                approvalRequestId: String? = nil
             ) {
                 self.expenseId = expenseId
                 self.incomeId = incomeId
@@ -1113,6 +1149,14 @@ final class APIClient {
                 self.wellbeingRating = wellbeingRating
                 self.source = source
                 self.planningItemId = planningItemId
+                self.revenueId = revenueId
+                self.invoiceId = invoiceId
+                self.invoiceNumber = invoiceNumber
+                self.totalAmount = totalAmount
+                self.issueId = issueId
+                self.severity = severity
+                self.updateId = updateId
+                self.approvalRequestId = approvalRequestId
             }
 
             private static func decodeFlexibleString(
@@ -2947,17 +2991,82 @@ final class APIClient {
         )
     }
 
-    /// Personal Memory projection — honest empty when `items` is empty (S2 G4).
+    /// Personal Memory projection — M4 reflection surface (S2 G4 honesty via sectionQuality).
     struct PersonalMemoryPayload: Decodable {
         let userId: String
-        let items: [PersonalMemoryItem]
+        let items: [PersonalMemoryItem]?
+        let memoryCount: Int?
+        let periodLabel: String?
+        let periodStart: String?
+        let periodEnd: String?
+        let heroSentence: String?
+        let counts: Counts?
+        let highlights: [Highlight]?
+        let highlightsSource: String?
+        let primaryPattern: PrimaryPattern?
+        let patternWhy: [PatternWhyItem]?
+        let returnBehaviours: [ReturnBehaviour]?
+        let evolution: Evolution?
+        let evolutionDetail: EvolutionDetail?
+        let sectionQuality: [String: String]?
+        let dataQuality: String?
+        let projectionVersion: Int?
+        let updatedAt: String?
+        let reliveMedia: [ReliveMediaItem]?
 
+        struct Counts: Decodable {
+            let memories: Int?
+            let activities: Int?
+            let highlights: Int?
+        }
+        struct ReliveMediaItem: Decodable, Identifiable {
+            var id: String { "\(memoryId)-\(downloadUrl)" }
+            let memoryId: String
+            let title: String?
+            let downloadUrl: String
+        }
+        struct Highlight: Decodable, Identifiable {
+            var id: String { "\(memoryId ?? activityCode ?? title)-\(occurredAt)" }
+            let title: String
+            let occurredAt: String
+            let familyCode: String?
+            let activityCode: String?
+            let memoryId: String?
+        }
+        struct PrimaryPattern: Decodable {
+            let title: String
+            let body: String
+            let confidence: Double?
+        }
+        struct PatternWhyItem: Decodable, Identifiable {
+            var id: String { "\(kind)-\(label)-\(occurredAt ?? "")" }
+            let kind: String
+            let label: String
+            let occurredAt: String?
+        }
+        struct ReturnBehaviour: Decodable, Identifiable {
+            var id: String { label }
+            let label: String
+            let strengthLabel: String?
+        }
+        struct Evolution: Decodable {
+            let thenLabel: String
+            let nowLabel: String
+            let summary: String
+        }
+        struct EvolutionDetail: Decodable {
+            let thenSummary: String
+            let nowSummary: String
+            let notes: [String]?
+        }
         struct PersonalMemoryItem: Decodable, Identifiable {
             var id: String { memoryId ?? title ?? occurredAt ?? "memory-item" }
             let memoryId: String?
             let title: String?
             let body: String?
+            let summary: String?
             let occurredAt: String?
+            let momentId: String?
         }
     }
 
@@ -4787,6 +4896,10 @@ final class APIClient {
                 var id: String { memoryId ?? title ?? "memory" }
                 let memoryId: String?
                 let title: String?
+                let body: String?
+                let occurredAt: String?
+                let memoryType: String?
+                let businessFamily: String?
             }
         }
     }
@@ -4977,7 +5090,33 @@ final class APIClient {
         try await authorizedGet(path: "v1/business/moments/\(momentId)/progress-snapshot")
     }
 
-    func getBusinessRoster(momentId: String) async throws -> BusinessProjectionPayload {
+    struct BusinessRosterBody: Decodable {
+        let members: [Member]
+        struct Member: Decodable {
+            let userId: String?
+            let displayName: String?
+        }
+    }
+
+    struct BusinessIssueListBody: Decodable {
+        let items: [Item]
+        struct Item: Decodable {
+            let issueId: String
+            let title: String
+            let status: String?
+        }
+    }
+
+    struct BusinessApprovalListBody: Decodable {
+        let items: [Item]
+        struct Item: Decodable {
+            let approvalRequestId: String
+            let title: String?
+            let status: String?
+        }
+    }
+
+    func getBusinessRoster(momentId: String) async throws -> BusinessRosterBody {
         try await authorizedGet(path: "v1/business/moments/\(momentId)/roster")
     }
 
@@ -4993,7 +5132,7 @@ final class APIClient {
         try await authorizedGet(path: "v1/business/moments/\(momentId)/invoices")
     }
 
-    func listBusinessIssues(momentId: String) async throws -> BusinessProjectionPayload {
+    func listBusinessIssues(momentId: String) async throws -> BusinessIssueListBody {
         try await authorizedGet(path: "v1/business/moments/\(momentId)/issues")
     }
 
@@ -5005,7 +5144,7 @@ final class APIClient {
         try await authorizedGet(path: "v1/business/moments/\(momentId)/updates")
     }
 
-    func listBusinessApprovals(momentId: String) async throws -> BusinessProjectionPayload {
+    func listBusinessApprovals(momentId: String) async throws -> BusinessApprovalListBody {
         try await authorizedGet(path: "v1/business/moments/\(momentId)/approvals")
     }
 

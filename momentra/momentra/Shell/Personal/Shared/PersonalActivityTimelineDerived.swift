@@ -222,7 +222,8 @@ enum PersonalActivityTimelineDerived {
         return nil
     }
 
-    private static func isEssayTitle(_ title: String) -> Bool {
+    /// Short headline for Pulse / timeline — never the Feelings/Paid-from essay.
+    static func isEssayTitle(_ title: String) -> Bool {
         let lower = title.lowercased()
         return lower.contains("feelings:") ||
             lower.contains("paid from:") ||

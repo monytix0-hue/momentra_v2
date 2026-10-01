@@ -30,10 +30,12 @@ struct PersonalPulseFamilyTheme {
     let heroSubtitleEmpty: String
     let heroMetrics: [String]
     let tileLabels: [String]
+    let todayActionLabels: [String]
     let nudgeTitle: String
     let nudgeBody: String
     let nudgeCta: String
     let moneyTitle: String
+    let moneyCompactTitle: String
     let quickActions: [String]
     let heroStart: Color
     let heroEnd: Color
@@ -50,10 +52,12 @@ extension PersonalPulseFamily {
                 heroSubtitleEmpty: "Nothing logged yet",
                 heroMetrics: ["Pressure", "Recovery", "Discipline", "Attention"],
                 tileLabels: ["Pressure", "Recovery", "Discipline", "Attention"],
-                nudgeTitle: "Protect Recovery",
+                todayActionLabels: ["Spend", "Mood", "Recovery"],
+                nudgeTitle: "A small win today",
                 nudgeBody: "You've been busy — rest for a bit before the next stretch.",
-                nudgeCta: "Log Recovery Now",
+                nudgeCta: "Log Recovery",
                 moneyTitle: "This month's money",
+                moneyCompactTitle: "This month",
                 quickActions: ["Recovery", "Attention", "Mood", "Adjust"],
                 heroStart: Color(hex: "#7C5CFC"),
                 heroEnd: Color(hex: "#A78BFA"),
@@ -66,10 +70,12 @@ extension PersonalPulseFamily {
                 heroSubtitleEmpty: "Nothing logged yet",
                 heroMetrics: ["Vision", "Growth", "Momentum", "Discipline"],
                 tileLabels: ["Vision", "Growth", "Momentum", "Discipline"],
-                nudgeTitle: "Accelerate Growth",
+                todayActionLabels: ["Milestone", "Progress", "Learning"],
+                nudgeTitle: "Keep building",
                 nudgeBody: "Log a milestone to keep momentum compounding.",
                 nudgeCta: "Log Milestone",
                 moneyTitle: "This month's investments",
+                moneyCompactTitle: "This month",
                 quickActions: ["Milestone", "Opportunity", "Pivot", "Progress", "Learning"],
                 heroStart: Color(hex: "#10B981"),
                 heroEnd: Color(hex: "#34D399"),
@@ -82,10 +88,12 @@ extension PersonalPulseFamily {
                 heroSubtitleEmpty: "Nothing logged yet",
                 heroMetrics: ["Joy", "Fulfillment", "Vitality", "Exploration"],
                 tileLabels: ["Joy", "Fulfillment", "Vitality", "Exploration"],
+                todayActionLabels: ["Experience", "Wellbeing", "Discovery"],
                 nudgeTitle: "Protect a ritual",
                 nudgeBody: "Log one experience to protect your lifestyle rhythm.",
                 nudgeCta: "Log Experience",
                 moneyTitle: "This month's lifestyle spend",
+                moneyCompactTitle: "This month",
                 quickActions: ["Experience", "Wellbeing", "Discovery", "Create", "Adjust"],
                 heroStart: Color(hex: "#0EA5A4"),
                 heroEnd: Color(hex: "#A78BFA"),
@@ -98,10 +106,12 @@ extension PersonalPulseFamily {
                 heroSubtitleEmpty: "Nothing logged yet",
                 heroMetrics: ["Trust", "Care", "Support", "Presence"],
                 tileLabels: ["Trust", "Care", "Support", "Presence"],
-                nudgeTitle: "Protect Connection",
+                todayActionLabels: ["Connect", "Shared", "Support"],
+                nudgeTitle: "Stay close",
                 nudgeBody: "Log a connection before the next busy stretch.",
                 nudgeCta: "Log Connection",
                 moneyTitle: "This month's shared spend",
+                moneyCompactTitle: "This month",
                 quickActions: ["Connection", "Shared", "Investment", "Support", "Adjust"],
                 heroStart: Color(hex: "#E91E63"),
                 heroEnd: Color(hex: "#A78BFA"),

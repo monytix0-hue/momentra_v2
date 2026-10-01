@@ -31,6 +31,7 @@ import com.example.momentra.ui.shell.personal.shared.PersonalTabDataCache
 import com.example.momentra.ui.shell.personal.shared.loadPersonalPulseTab
 import com.example.momentra.ui.shell.personal.shared.resolvePreferredPersonalMoment
 import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
+import com.example.momentra.ui.shell.business.shared.invalidateBusinessPulseLoad
 import com.example.momentra.ui.shell.business.shared.prefetchBusinessTabs
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.prefetchGroupTabs
@@ -946,6 +947,7 @@ class AppShellViewModel(
     }
 
     fun refreshVisiblePersonalTab() {
+        PersonalTabDataCache.invalidate(_state.value.selectedMomentId)
         _state.update { it.copy(personalTabRefreshToken = it.personalTabRefreshToken + 1) }
         ShellPerf.instant("scoped_refresh_personal", mapOf("token" to _state.value.personalTabRefreshToken))
     }
@@ -978,27 +980,29 @@ class AppShellViewModel(
 
     fun refreshVisibleBusinessTab(forcePrefetch: Boolean = false) {
         val momentId = _state.value.selectedMomentId
-        val warm = !momentId.isNullOrBlank() && BusinessTabDataCache.peekPulse(momentId) != null
-        if (forcePrefetch || !warm) {
-            prefetchBusinessTabsFor(momentId)
+        val typeCode = _state.value.selectedMomentTypeCode
+        if (!momentId.isNullOrBlank()) {
+            invalidateBusinessPulseLoad(momentId)
         }
         _state.update { it.copy(businessTabRefreshToken = it.businessTabRefreshToken + 1) }
+        prefetchBusinessTabsFor(momentId, typeCode)
         ShellPerf.instant(
             "scoped_refresh_business",
             mapOf(
                 "token" to _state.value.businessTabRefreshToken,
-                "warm" to warm,
-                "prefetch" to (forcePrefetch || !warm),
+                "invalidated" to !momentId.isNullOrBlank(),
+                "prefetch" to true,
+                "force" to forcePrefetch,
             ),
         )
     }
 
     /** Warm bundled pulse cache so Business tabs paint without spinners. */
-    private fun prefetchBusinessTabsFor(momentId: String?) {
+    private fun prefetchBusinessTabsFor(momentId: String?, momentTypeCode: String? = _state.value.selectedMomentTypeCode) {
         if (momentId.isNullOrBlank()) return
         businessPrefetchJob?.cancel()
         businessPrefetchJob = viewModelScope.launch {
-            prefetchBusinessTabs(businessRepository, momentId)
+            prefetchBusinessTabs(businessRepository, momentId, momentTypeCode)
         }
     }
 

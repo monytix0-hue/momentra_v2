@@ -931,17 +931,124 @@ export async function getPersonalLife(client: PoolClient, userId: string): Promi
   };
 }
 
+/** Per-section honesty for Memory (M4). */
+export type MemorySectionQuality = 'REAL_DATA' | 'EMPTY_SUPPORTED' | 'API_GAP' | 'DEFERRED';
+
+export type MemoryHighlightsSource = 'MEMORY' | 'ACTIVITY' | 'MIXED';
+
+export interface PersonalMemoryHighlightDto {
+  title: string;
+  occurredAt: string;
+  familyCode?: PersonalFamilyCode;
+  activityCode?: string;
+  memoryId?: string;
+}
+
+export interface PersonalMemoryPatternWhyItemDto {
+  kind: 'ACTIVITY' | 'OCCURRENCE' | 'DRIVER';
+  label: string;
+  occurredAt?: string;
+}
+
+export interface PersonalMemoryDto {
+  userId: string;
+  /** Compatibility: raw memory rows. */
+  items: Array<{
+    memoryId: string;
+    title: string | null;
+    occurredAt: string | null;
+    momentId: string | null;
+    summary?: string | null;
+  }>;
+  memoryCount: number;
+  periodLabel: string;
+  periodStart: string;
+  periodEnd: string;
+  /** Server-authored only when backed by enough real data; otherwise null. */
+  heroSentence: string | null;
+  counts: {
+    memories: number;
+    activities: number;
+    highlights: number;
+  };
+  highlights: PersonalMemoryHighlightDto[];
+  highlightsSource: MemoryHighlightsSource;
+  primaryPattern: {
+    title: string;
+    body: string;
+    confidence: number | null;
+  } | null;
+  patternWhy: PersonalMemoryPatternWhyItemDto[] | null;
+  returnBehaviours: Array<{ label: string; strengthLabel?: string }>;
+  evolution: {
+    thenLabel: string;
+    nowLabel: string;
+    summary: string;
+  } | null;
+  evolutionDetail: {
+    thenSummary: string;
+    nowSummary: string;
+    notes: string[];
+  } | null;
+  /** Signed media for Relive / hero mosaic — omit when empty. */
+  reliveMedia: Array<{
+    memoryId: string;
+    title: string | null;
+    downloadUrl: string;
+  }>;
+  sectionQuality: Record<string, MemorySectionQuality>;
+  dataQuality: 'REAL';
+  projectionVersion: number;
+  updatedAt: string;
+}
+
+const MEMORY_HONEST_EMPTY_SECTION_QUALITY: Record<string, MemorySectionQuality> = {
+  hero: 'EMPTY_SUPPORTED',
+  highlights: 'EMPTY_SUPPORTED',
+  pattern: 'EMPTY_SUPPORTED',
+  patternWhy: 'EMPTY_SUPPORTED',
+  returnBehaviours: 'EMPTY_SUPPORTED',
+  evolution: 'EMPTY_SUPPORTED',
+  evolutionDetail: 'EMPTY_SUPPORTED',
+  relive: 'EMPTY_SUPPORTED',
+};
+
+function formatMonthLabel(d: Date): string {
+  return d.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
+function startOfUtcMonth(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1, 0, 0, 0, 0));
+}
+
+function endOfUtcMonth(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+}
+
+/** M4 Memory projection — reflection over time; omit weak sections (no client rescue). */
 export async function getPersonalMemory(
   client: PoolClient,
   userId: string
-): Promise<{
-  userId: string;
-  items: Array<{ memoryId: string; title: string | null; occurredAt: string | null; momentId: string | null }>;
-  memoryCount: number;
-}> {
-  const rows = await client
-    .query<{ memory_id: string; title: string | null; occurred_at: Date | null; moment_id: string | null }>(
-      `SELECT m.memory_id, m.title, m.occurred_at, m.moment_id
+): Promise<PersonalMemoryDto> {
+  const now = new Date();
+  const periodStart = startOfUtcMonth(now);
+  const periodEnd = endOfUtcMonth(now);
+  const prevMonthAnchor = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15));
+  const prevStart = startOfUtcMonth(prevMonthAnchor);
+  const prevEnd = endOfUtcMonth(prevMonthAnchor);
+  const periodLabel = formatMonthLabel(now);
+  const prevLabel = formatMonthLabel(prevMonthAnchor);
+
+  const memoryRows = await client
+    .query<{
+      memory_id: string;
+      title: string | null;
+      summary: string | null;
+      occurred_at: Date | null;
+      moment_id: string | null;
+      created_at: Date;
+    }>(
+      `SELECT m.memory_id, m.title, m.summary, m.occurred_at, m.moment_id, m.created_at
        FROM memory.memory m
        WHERE m.status = 'ACTIVE'
          AND (
@@ -955,15 +1062,328 @@ export async function getPersonalMemory(
        LIMIT 100`,
       [userId]
     )
-    .catch(() => ({ rows: [] as Array<{ memory_id: string; title: string | null; occurred_at: Date | null; moment_id: string | null }> }));
+    .catch(() => ({
+      rows: [] as Array<{
+        memory_id: string;
+        title: string | null;
+        summary: string | null;
+        occurred_at: Date | null;
+        moment_id: string | null;
+        created_at: Date;
+      }>,
+    }));
 
-  const items = rows.rows.map((r) => ({
+  const items = memoryRows.rows.map((r) => ({
     memoryId: r.memory_id,
     title: r.title,
     occurredAt: r.occurred_at?.toISOString() ?? null,
     momentId: r.moment_id,
+    summary: r.summary,
   }));
-  return { userId, items, memoryCount: items.length };
+  const memoryCount = items.length;
+
+  const inPeriod = (iso: string | null, start: Date, end: Date): boolean => {
+    if (!iso) return false;
+    const t = Date.parse(iso);
+    if (!Number.isFinite(t)) return false;
+    return t >= start.getTime() && t <= end.getTime();
+  };
+
+  const periodMemories = items.filter((m) =>
+    inPeriod(m.occurredAt ?? null, periodStart, periodEnd)
+  );
+
+  const activityRows = await client
+    .query<{
+      title: string;
+      occurred_at: Date;
+      activity_code: string;
+      moment_type_code: string | null;
+    }>(
+      `SELECT ra.title, ra.occurred_at, ra.activity_code, mt.code AS moment_type_code
+       FROM projection.recent_activity ra
+       LEFT JOIN core.moment m ON m.moment_id = ra.scope_id::uuid AND m.domain_code = 'PERSONAL'
+       LEFT JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+       WHERE ra.user_id = $1
+         AND ra.domain_code = 'PERSONAL'
+         AND COALESCE(ra.activity_payload->>'status', 'POSTED') <> 'VOIDED'
+         AND ra.occurred_at >= $2
+         AND ra.occurred_at <= $3
+       ORDER BY ra.occurred_at DESC
+       LIMIT 40`,
+      [userId, periodStart.toISOString(), periodEnd.toISOString()]
+    )
+    .catch(() => ({
+      rows: [] as Array<{
+        title: string;
+        occurred_at: Date;
+        activity_code: string;
+        moment_type_code: string | null;
+      }>,
+    }));
+
+  const prevActivityCount = await client
+    .query<{ c: string }>(
+      `SELECT COUNT(*)::text AS c
+       FROM projection.recent_activity ra
+       WHERE ra.user_id = $1
+         AND ra.domain_code = 'PERSONAL'
+         AND COALESCE(ra.activity_payload->>'status', 'POSTED') <> 'VOIDED'
+         AND ra.occurred_at >= $2
+         AND ra.occurred_at <= $3`,
+      [userId, prevStart.toISOString(), prevEnd.toISOString()]
+    )
+    .catch(() => ({ rows: [{ c: '0' }] }));
+
+  const prevMemoryCount = items.filter((m) =>
+    inPeriod(m.occurredAt ?? null, prevStart, prevEnd)
+  ).length;
+  const prevActs = parseInt(prevActivityCount.rows[0]?.c ?? '0', 10) || 0;
+  const periodActs = activityRows.rows.length;
+
+  // Highlights: prefer memory rows, fill from activities; cap 5.
+  const memoryHighlights: PersonalMemoryHighlightDto[] = (periodMemories.length ? periodMemories : items)
+    .filter((m) => (m.title ?? '').trim().length > 0)
+    .slice(0, 5)
+    .map((m) => ({
+      title: (m.title ?? '').trim(),
+      occurredAt: m.occurredAt ?? periodEnd.toISOString(),
+      memoryId: m.memoryId,
+    }));
+
+  const activityHighlights: PersonalMemoryHighlightDto[] = activityRows.rows
+    .filter((r) => (r.title ?? '').trim().length > 0)
+    .map((r) => ({
+      title: r.title.trim(),
+      occurredAt: r.occurred_at.toISOString(),
+      familyCode: personalFamilyFromMomentTypeCode(r.moment_type_code),
+      activityCode: r.activity_code,
+    }));
+
+  let highlights: PersonalMemoryHighlightDto[] = [];
+  let highlightsSource: MemoryHighlightsSource = 'ACTIVITY';
+  if (memoryHighlights.length > 0 || activityHighlights.length > 0) {
+    const seen = new Set<string>();
+    for (const h of [...memoryHighlights, ...activityHighlights]) {
+      const key = h.title.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      highlights.push(h);
+      if (highlights.length >= 5) break;
+    }
+    const hasMem = highlights.some((h) => !!h.memoryId);
+    const hasAct = highlights.some((h) => !!h.activityCode);
+    highlightsSource = hasMem && hasAct ? 'MIXED' : hasMem ? 'MEMORY' : 'ACTIVITY';
+  }
+
+  // Primary pattern from memory.pattern (USER scope).
+  const patternRows = await client
+    .query<{
+      pattern_id: string;
+      title: string;
+      description: string | null;
+      confidence: string | null;
+      first_detected_at: Date;
+      last_detected_at: Date;
+    }>(
+      `SELECT pattern_id, title, description, confidence::text, first_detected_at, last_detected_at
+       FROM memory.pattern
+       WHERE scope_type = 'USER'
+         AND scope_id = $1
+         AND status IN ('ACTIVE', 'CONFIRMED')
+       ORDER BY COALESCE(confidence, 0) DESC, last_detected_at DESC
+       LIMIT 1`,
+      [userId]
+    )
+    .catch(() => ({
+      rows: [] as Array<{
+        pattern_id: string;
+        title: string;
+        description: string | null;
+        confidence: string | null;
+        first_detected_at: Date;
+        last_detected_at: Date;
+      }>,
+    }));
+
+  const patternRow = patternRows.rows[0] ?? null;
+  const confNum =
+    patternRow?.confidence != null && patternRow.confidence !== ''
+      ? Number(patternRow.confidence)
+      : null;
+  const confidenceOk = confNum == null || (Number.isFinite(confNum) && confNum >= 0.35);
+  const primaryPattern =
+    patternRow && confidenceOk
+      ? {
+          title: patternRow.title,
+          body: (patternRow.description ?? '').trim() || patternRow.title,
+          confidence: confNum != null && Number.isFinite(confNum) ? confNum : null,
+        }
+      : null;
+
+  let patternWhy: PersonalMemoryPatternWhyItemDto[] | null = null;
+  if (primaryPattern && patternRow) {
+    const occ = await client
+      .query<{ occurred_at: Date; significance: string | null }>(
+        `SELECT occurred_at, significance::text
+         FROM memory.pattern_occurrence
+         WHERE pattern_id = $1
+         ORDER BY occurred_at DESC
+         LIMIT 5`,
+        [patternRow.pattern_id]
+      )
+      .catch(() => ({ rows: [] as Array<{ occurred_at: Date; significance: string | null }> }));
+
+    const evidence: PersonalMemoryPatternWhyItemDto[] = occ.rows.map((o) => ({
+      kind: 'OCCURRENCE' as const,
+      label: `Seen again · ${formatMonthLabel(o.occurred_at)}`,
+      occurredAt: o.occurred_at.toISOString(),
+    }));
+
+    // Supporting recent activities as concrete drivers (titles only).
+    for (const a of activityRows.rows.slice(0, 3)) {
+      evidence.push({
+        kind: 'ACTIVITY',
+        label: a.title.trim(),
+        occurredAt: a.occurred_at.toISOString(),
+      });
+    }
+    patternWhy = evidence.length ? evidence.slice(0, 6) : null;
+  }
+
+  // Return behaviours from memory.learning only — no client-style heuristics.
+  const learningRows = await client
+    .query<{ title: string; learning_text: string; learning_type: string }>(
+      `SELECT title, learning_text, learning_type
+       FROM memory.learning
+       WHERE scope_type = 'USER'
+         AND scope_id = $1
+         AND status = 'ACTIVE'
+       ORDER BY updated_at DESC
+       LIMIT 4`,
+      [userId]
+    )
+    .catch(() => ({ rows: [] as Array<{ title: string; learning_text: string; learning_type: string }> }));
+
+  const returnBehaviours = learningRows.rows
+    .map((r) => ({
+      label: (r.title || r.learning_text).trim(),
+      strengthLabel: undefined as string | undefined,
+    }))
+    .filter((r) => r.label.length > 0)
+    .slice(0, 4);
+
+  // Evolution requires a true earlier-period comparative basis.
+  const hasThenBasis = prevActs > 0 || prevMemoryCount > 0;
+  const hasNowBasis = periodActs > 0 || periodMemories.length > 0 || memoryCount > 0;
+  let evolution: PersonalMemoryDto['evolution'] = null;
+  let evolutionDetail: PersonalMemoryDto['evolutionDetail'] = null;
+  if (hasThenBasis && hasNowBasis) {
+    const thenParts: string[] = [];
+    if (prevMemoryCount > 0) thenParts.push(`${prevMemoryCount} memor${prevMemoryCount === 1 ? 'y' : 'ies'}`);
+    if (prevActs > 0) thenParts.push(`${prevActs} activit${prevActs === 1 ? 'y' : 'ies'}`);
+    const nowParts: string[] = [];
+    const nowMem = periodMemories.length;
+    if (nowMem > 0) nowParts.push(`${nowMem} memor${nowMem === 1 ? 'y' : 'ies'}`);
+    if (periodActs > 0) nowParts.push(`${periodActs} activit${periodActs === 1 ? 'y' : 'ies'}`);
+    evolution = {
+      thenLabel: prevLabel,
+      nowLabel: periodLabel,
+      summary: `From ${thenParts.join(', ') || 'a quieter month'} to ${nowParts.join(', ') || 'this month'}.`,
+    };
+    evolutionDetail = {
+      thenSummary: `${prevLabel}: ${thenParts.join(', ') || 'no logged memories or activities'}.`,
+      nowSummary: `${periodLabel}: ${nowParts.join(', ') || 'still gathering'}.`,
+      notes: primaryPattern
+        ? [`Pattern in focus: ${primaryPattern.title}`]
+        : [],
+    };
+  }
+
+  // Hero sentence only when backed.
+  const highlightCount = highlights.length;
+  const heroBacked =
+    memoryCount >= 2 ||
+    (memoryCount >= 1 && highlightCount >= 2) ||
+    (primaryPattern != null && (memoryCount >= 1 || periodActs >= 3));
+  let heroSentence: string | null = null;
+  if (heroBacked) {
+    if (primaryPattern && memoryCount >= 1) {
+      heroSentence = `${periodLabel} · ${memoryCount} memor${memoryCount === 1 ? 'y' : 'ies'}, with a pattern worth noticing.`;
+    } else if (memoryCount >= 2) {
+      heroSentence = `${periodLabel} · ${memoryCount} memories to revisit.`;
+    } else if (periodActs >= 3) {
+      heroSentence = `${periodLabel} · ${periodActs} things logged — a month taking shape.`;
+    }
+  }
+
+  // Relive media — only when real MEMORY attachments exist.
+  const memoryIds = items.map((m) => m.memoryId).filter(Boolean);
+  const mediaByMemory = await listMediaForMemories(client, memoryIds, 2).catch(
+    () => new Map() as Awaited<ReturnType<typeof listMediaForMemories>>
+  );
+  const reliveMedia: PersonalMemoryDto['reliveMedia'] = [];
+  for (const item of items) {
+    const media = mediaByMemory.get(item.memoryId) ?? [];
+    for (const m of media) {
+      if (!m.downloadUrl) continue;
+      reliveMedia.push({
+        memoryId: item.memoryId,
+        title: item.title,
+        downloadUrl: m.downloadUrl,
+      });
+      if (reliveMedia.length >= 12) break;
+    }
+    if (reliveMedia.length >= 12) break;
+  }
+
+  const sectionQuality: Record<string, MemorySectionQuality> = {
+    ...MEMORY_HONEST_EMPTY_SECTION_QUALITY,
+    hero: periodActs > 0 || memoryCount > 0 ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
+    highlights: highlights.length > 0 ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
+    pattern: primaryPattern ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
+    patternWhy: patternWhy && patternWhy.length ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
+    returnBehaviours: returnBehaviours.length ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
+    evolution: evolution ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
+    evolutionDetail: evolutionDetail ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
+    relive: reliveMedia.length > 0 ? 'REAL_DATA' : 'EMPTY_SUPPORTED',
+  };
+
+  // Clear fields when EMPTY_SUPPORTED so clients never "rescue".
+  if (sectionQuality.patternWhy === 'EMPTY_SUPPORTED') {
+    patternWhy = null;
+  }
+  if (sectionQuality.evolution === 'EMPTY_SUPPORTED') {
+    evolution = null;
+    evolutionDetail = null;
+  }
+
+  return {
+    userId,
+    items,
+    memoryCount,
+    periodLabel,
+    periodStart: periodStart.toISOString(),
+    periodEnd: periodEnd.toISOString(),
+    heroSentence,
+    counts: {
+      memories: memoryCount,
+      activities: periodActs,
+      highlights: highlightCount,
+    },
+    highlights,
+    highlightsSource: highlights.length ? highlightsSource : 'ACTIVITY',
+    primaryPattern,
+    patternWhy: sectionQuality.patternWhy === 'REAL_DATA' ? patternWhy : null,
+    returnBehaviours: sectionQuality.returnBehaviours === 'REAL_DATA' ? returnBehaviours : [],
+    evolution,
+    evolutionDetail: sectionQuality.evolutionDetail === 'REAL_DATA' ? evolutionDetail : null,
+    reliveMedia: sectionQuality.relive === 'REAL_DATA' ? reliveMedia : [],
+    sectionQuality,
+    dataQuality: 'REAL',
+    projectionVersion: 1,
+    updatedAt: now.toISOString(),
+  };
 }
 
 export async function getPersonalAttention(
@@ -1818,18 +2238,13 @@ export async function getBusinessMomentProjection(
     const moduleScores = await computeLifeModuleScores(
       client,
       ctx,
-      momentId,
       scope.companyId,
-      pulse,
-      teamPayload,
-      runwayPayload,
-      opsPayload
+      pulse
     );
 
     const signals = await assembleTypedSignals(
       client,
       ctx,
-      momentId,
       scope.companyId,
       signalRows.rows
     );
@@ -1928,38 +2343,65 @@ export async function getBusinessMomentProjection(
     );
     const count = memory.rows[0]?.memory_count ?? 0;
     const payload = memory.rows[0]?.recent_memory_payload ?? {};
-    let items = (payload.items as Array<Record<string, unknown>> | undefined) ?? [];
-    if (items.length === 0) {
-      const live = await client.query<{ memory_id: string; title: string; summary: string | null }>(
-        `SELECT m.memory_id, m.title, m.summary
+    const { mergeBusinessMemoryFamilies } = await import('../business/business-projection');
+    const merged = mergeBusinessMemoryFamilies(payload);
+    let items: Array<Record<string, unknown>> = merged.items;
+    let riskCount = merged.riskCount;
+    let successCount = merged.successCount;
+    if (!merged.hasFamilies) {
+      const live = await client.query<{
+        memory_id: string;
+        title: string;
+        summary: string | null;
+        memory_type: string;
+        occurred_at: Date | null;
+        business_family: string;
+      }>(
+        `SELECT m.memory_id, m.title, m.summary, m.memory_type, m.occurred_at, bmc.business_family
          FROM memory.memory m
-         WHERE m.moment_id = $1 AND m.status = 'ACTIVE'
-         ORDER BY COALESCE(m.occurred_at, m.created_at) DESC
+         JOIN business.business_moment_context bmc
+           ON bmc.moment_id = m.moment_id AND bmc.company_id = $1 AND bmc.status = 'ACTIVE'
+         WHERE m.status = 'ACTIVE'
+         ORDER BY
+           CASE bmc.business_family
+             WHEN 'BUSINESS_RUNWAY' THEN 0
+             WHEN 'BUSINESS_OPERATIONS' THEN 1
+             WHEN 'TEAM_OPERATIONS' THEN 2
+             ELSE 3
+           END,
+           COALESCE(m.occurred_at, m.created_at) DESC,
+           m.memory_id DESC
          LIMIT 50`,
-        [momentId]
+        [scope.companyId]
       );
       items = live.rows.map((r) => ({
         memoryId: r.memory_id,
         title: r.title,
         body: r.summary,
+        memoryType: r.memory_type,
+        occurredAt: r.occurred_at?.toISOString() ?? null,
+        businessFamily: r.business_family,
       }));
+      riskCount = 0;
+      successCount = 0;
     }
+    const itemCount = items.length;
     return {
       momentId,
       facet,
       title,
       companyId: scope.companyId,
       businessFamily: scope.businessFamily,
-      status: count > 0 || items.length > 0 ? 'OK' : 'EMPTY',
+      status: itemCount > 0 ? 'OK' : 'EMPTY',
       payload: {
-        dataQuality: count > 0 || items.length > 0 ? 'OK' : 'EMPTY',
-        memoryCount: count || items.length,
+        dataQuality: itemCount > 0 ? 'OK' : 'EMPTY',
+        memoryCount: merged.hasFamilies ? itemCount : count || itemCount,
         items,
         recentMemoryPayload: payload,
         patternCount: payload.patternCount ?? 0,
-        learningCount: payload.learningCount ?? count,
-        riskCount: payload.riskCount ?? 0,
-        successCount: payload.successCount ?? 0,
+        learningCount: merged.hasFamilies ? itemCount : (payload.learningCount ?? count),
+        riskCount,
+        successCount,
       },
     };
   }
@@ -2007,20 +2449,29 @@ async function getBusinessPulseOrFinance(
             ) AS totals,
             (SELECT snapshot_payload FROM projection.business_finance_snapshot
              WHERE company_id = bmc.company_id LIMIT 1) AS snapshot_payload,
-            (SELECT COALESCE(jsonb_agg(a), '[]'::jsonb)
+            (SELECT COALESCE(jsonb_agg(act.a ORDER BY act.occurred_at DESC, act.recent_activity_id DESC), '[]'::jsonb)
              FROM (
                SELECT jsonb_build_object(
-                 'activityCode', activity_code,
-                 'title', title,
-                 'occurredAt', to_char(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-                 'activityPayload', COALESCE(activity_payload, '{}'::jsonb)
-               ) AS a
-               FROM projection.recent_activity
-               WHERE user_id = $2
-                 AND scope_type = 'MOMENT'
-                 AND scope_id = $1::uuid
-                 AND domain_code = 'BUSINESS'
-               ORDER BY occurred_at DESC, recent_activity_id DESC
+                 'activityCode', ra.activity_code,
+                 'title', ra.title,
+                 'occurredAt', to_char(ra.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+                 'activityPayload', COALESCE(ra.activity_payload, '{}'::jsonb),
+                 'actorDisplayName', NULLIF(btrim(up.display_name), '')
+               ) AS a,
+               ra.occurred_at,
+               ra.recent_activity_id
+               FROM projection.recent_activity ra
+               LEFT JOIN core.user_profile up ON up.user_id = ra.user_id
+               WHERE ra.scope_type = 'MOMENT'
+                 AND ra.scope_id = bmc.moment_id
+                 AND ra.domain_code = 'BUSINESS'
+                 AND EXISTS (
+                   SELECT 1 FROM business.business_moment_context gate
+                   WHERE gate.moment_id = ra.scope_id
+                     AND gate.company_id = bmc.company_id
+                     AND gate.status = 'ACTIVE'
+                 )
+               ORDER BY ra.occurred_at DESC, ra.recent_activity_id DESC
                LIMIT 5
              ) act
             ) AS activity
@@ -2092,10 +2543,16 @@ export async function getBusinessMomentActivity(
   cursor: string | undefined,
   limit: number
 ): Promise<
-  CursorPage<{ activityCode: string; title: string; occurredAt: string; activityPayload: Record<string, unknown> }>
+  CursorPage<{
+    activityCode: string;
+    title: string;
+    occurredAt: string;
+    activityPayload: Record<string, unknown>;
+    actorDisplayName: string | null;
+  }>
 > {
   const { assertCompanyMomentAccess } = await import('../business/membership');
-  await assertCompanyMomentAccess(client, ctx, momentId);
+  const scope = await assertCompanyMomentAccess(client, ctx, momentId);
 
   const safeLimit = Math.min(Math.max(limit, 1), 50);
   let cursorOccurredAt: string | null = null;
@@ -2114,20 +2571,28 @@ export async function getBusinessMomentActivity(
     occurred_at: Date;
     recent_activity_id: string;
     activity_payload: Record<string, unknown> | null;
+    actor_display_name: string | null;
   }>(
-    `SELECT activity_code, title, occurred_at, recent_activity_id, activity_payload
-     FROM projection.recent_activity
-     WHERE user_id = $1
-       AND scope_type = 'MOMENT'
-       AND scope_id = $2::uuid
-       AND domain_code = 'BUSINESS'
+    `SELECT ra.activity_code, ra.title, ra.occurred_at, ra.recent_activity_id, ra.activity_payload,
+            NULLIF(btrim(up.display_name), '') AS actor_display_name
+     FROM projection.recent_activity ra
+     LEFT JOIN core.user_profile up ON up.user_id = ra.user_id
+     WHERE ra.scope_type = 'MOMENT'
+       AND ra.scope_id = $1::uuid
+       AND ra.domain_code = 'BUSINESS'
+       AND EXISTS (
+         SELECT 1 FROM business.business_moment_context gate
+         WHERE gate.moment_id = ra.scope_id
+           AND gate.company_id = $2::uuid
+           AND gate.status = 'ACTIVE'
+       )
        AND (
          $3::timestamptz IS NULL
-         OR (occurred_at, recent_activity_id) < ($3::timestamptz, $4::uuid)
+         OR (ra.occurred_at, ra.recent_activity_id) < ($3::timestamptz, $4::uuid)
        )
-     ORDER BY occurred_at DESC, recent_activity_id DESC
+     ORDER BY ra.occurred_at DESC, ra.recent_activity_id DESC
      LIMIT $5`,
-    [ctx.userId, momentId, cursorOccurredAt, cursorId, safeLimit + 1]
+    [momentId, scope.companyId, cursorOccurredAt, cursorId, safeLimit + 1]
   );
   const hasMore = rows.rows.length > safeLimit;
   const slice = rows.rows.slice(0, safeLimit);
@@ -2136,6 +2601,7 @@ export async function getBusinessMomentActivity(
     title: r.title,
     occurredAt: r.occurred_at.toISOString(),
     activityPayload: r.activity_payload ?? {},
+    actorDisplayName: r.actor_display_name,
   }));
   const last = slice[slice.length - 1];
   const nextCursor =

@@ -195,13 +195,55 @@ export async function attachMemoryMedia(
   };
 }
 
+async function assertMomentReader(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string
+): Promise<void> {
+  const moment = await client.query<{ domain_code: string }>(
+    `SELECT domain_code FROM core.moment WHERE moment_id = $1`,
+    [momentId]
+  );
+  const domain = moment.rows[0]?.domain_code;
+  if (domain === 'GROUP') {
+    await assertGroupMember(client, ctx, momentId);
+    return;
+  }
+  if (domain === 'PERSONAL') {
+    const owned = await client.query(
+      `SELECT 1 FROM personal.personal_moment_context
+       WHERE moment_id = $1 AND user_id = $2`,
+      [momentId, ctx.userId]
+    );
+    if (!owned.rowCount) {
+      throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Memory not found.', 404);
+    }
+    return;
+  }
+  if (domain === 'BUSINESS') {
+    const member = await client.query(
+      `SELECT 1
+       FROM business.business_moment_context bmc
+       JOIN business.company_membership cm
+         ON cm.company_id = bmc.company_id AND cm.user_id = $2 AND cm.status = 'ACTIVE'
+       WHERE bmc.moment_id = $1 AND bmc.status = 'ACTIVE'`,
+      [momentId, ctx.userId]
+    );
+    if (!member.rowCount) {
+      throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Not an active company member for this business moment.', 403);
+    }
+    return;
+  }
+  throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Memory not found.', 404);
+}
+
 async function assertMemoryAccess(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
   memoryId: string
 ): Promise<void> {
-  await assertGroupMember(client, ctx, momentId);
+  await assertMomentReader(client, ctx, momentId);
   const row = await client.query(
     `SELECT 1 FROM memory.memory
      WHERE memory_id = $1 AND moment_id = $2 AND status = 'ACTIVE'`,

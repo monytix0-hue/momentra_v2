@@ -14,6 +14,7 @@ import com.example.momentra.data.auth.PhoneSendResult
 import com.example.momentra.data.device.DeviceRegistrar
 import com.example.momentra.data.local.AppPreferences
 import com.example.momentra.data.repository.MeRepository
+import com.example.momentra.data.security.AppLockSession
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.domain.AuthPhase
 import com.example.momentra.domain.ShellIdentity
@@ -335,15 +336,21 @@ class AuthViewModel @JvmOverloads constructor(
     }
 
     fun signOut() {
-        val firebaseUid = authRepository.currentUser?.uid
-        val momentraUserId = _state.value.identity?.userId
-        prefs.clearCachedIdentity(firebaseUid)
-        prefs.clearUserScopedShell(momentraUserId)
-        meRepository.clearBootstrapCache(momentraUserId)
-        SecurityPreferences(getApplication()).clearUserScoped(momentraUserId)
-        ApiClient.clearAuthToken()
-        authRepository.signOut()
-        _state.value = AuthUiState(phase = AuthPhase.SignedOut)
+        viewModelScope.launch {
+            runCatching {
+                ApiClient.apiService.revokeDevice(DeviceRegistrar.deviceId(getApplication()))
+            }
+            val firebaseUid = authRepository.currentUser?.uid
+            val momentraUserId = _state.value.identity?.userId
+            prefs.clearCachedIdentity(firebaseUid)
+            prefs.clearUserScopedShell(momentraUserId)
+            meRepository.clearBootstrapCache(momentraUserId)
+            SecurityPreferences(getApplication()).clearUserScoped(momentraUserId)
+            AppLockSession.markLocked()
+            ApiClient.clearAuthToken()
+            authRepository.signOut()
+            _state.value = AuthUiState(phase = AuthPhase.SignedOut)
+        }
     }
 
     fun onSessionExpired() {

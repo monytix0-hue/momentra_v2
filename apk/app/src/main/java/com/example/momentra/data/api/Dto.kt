@@ -214,6 +214,7 @@ data class BusinessMomentItemDto(
     @SerializedName("momentId") val momentId: String,
     val title: String,
     val status: String,
+    @SerializedName("momentTypeCode") val momentTypeCode: String? = null,
     @SerializedName("businessFamily") val businessFamily: String? = null,
     @SerializedName("companyId") val companyId: String? = null,
 )
@@ -908,7 +909,84 @@ data class CreateFutureItemResultDto(
 
 data class PersonalMemoryDto(
     @SerializedName("userId") val userId: String,
-    val items: List<Map<String, Any?>> = emptyList(),
+    val items: List<PersonalMemoryItemDto> = emptyList(),
+    @SerializedName("memoryCount") val memoryCount: Int = 0,
+    @SerializedName("periodLabel") val periodLabel: String = "",
+    @SerializedName("periodStart") val periodStart: String = "",
+    @SerializedName("periodEnd") val periodEnd: String = "",
+    @SerializedName("heroSentence") val heroSentence: String? = null,
+    val counts: PersonalMemoryCountsDto? = null,
+    val highlights: List<PersonalMemoryHighlightDto> = emptyList(),
+    /** MEMORY | ACTIVITY | MIXED */
+    @SerializedName("highlightsSource") val highlightsSource: String = "ACTIVITY",
+    @SerializedName("primaryPattern") val primaryPattern: PersonalMemoryPatternDto? = null,
+    @SerializedName("patternWhy") val patternWhy: List<PersonalMemoryPatternWhyDto>? = null,
+    @SerializedName("returnBehaviours") val returnBehaviours: List<PersonalMemoryReturnBehaviourDto> = emptyList(),
+    val evolution: PersonalMemoryEvolutionDto? = null,
+    @SerializedName("evolutionDetail") val evolutionDetail: PersonalMemoryEvolutionDetailDto? = null,
+    @SerializedName("reliveMedia") val reliveMedia: List<PersonalMemoryReliveMediaDto> = emptyList(),
+    @SerializedName("sectionQuality") val sectionQuality: Map<String, String> = emptyMap(),
+    @SerializedName("dataQuality") val dataQuality: String = "REAL",
+    @SerializedName("projectionVersion") val projectionVersion: Long = 0,
+    @SerializedName("updatedAt") val updatedAt: String = "",
+)
+
+data class PersonalMemoryReliveMediaDto(
+    @SerializedName("memoryId") val memoryId: String = "",
+    val title: String? = null,
+    @SerializedName("downloadUrl") val downloadUrl: String = "",
+)
+
+data class PersonalMemoryItemDto(
+    @SerializedName("memoryId") val memoryId: String? = null,
+    val title: String? = null,
+    val body: String? = null,
+    val summary: String? = null,
+    @SerializedName("occurredAt") val occurredAt: String? = null,
+    @SerializedName("momentId") val momentId: String? = null,
+)
+
+data class PersonalMemoryCountsDto(
+    val memories: Int = 0,
+    val activities: Int = 0,
+    val highlights: Int = 0,
+)
+
+data class PersonalMemoryHighlightDto(
+    val title: String = "",
+    @SerializedName("occurredAt") val occurredAt: String = "",
+    @SerializedName("familyCode") val familyCode: String? = null,
+    @SerializedName("activityCode") val activityCode: String? = null,
+    @SerializedName("memoryId") val memoryId: String? = null,
+)
+
+data class PersonalMemoryPatternDto(
+    val title: String = "",
+    val body: String = "",
+    val confidence: Double? = null,
+)
+
+data class PersonalMemoryPatternWhyDto(
+    val kind: String = "",
+    val label: String = "",
+    @SerializedName("occurredAt") val occurredAt: String? = null,
+)
+
+data class PersonalMemoryReturnBehaviourDto(
+    val label: String = "",
+    @SerializedName("strengthLabel") val strengthLabel: String? = null,
+)
+
+data class PersonalMemoryEvolutionDto(
+    @SerializedName("thenLabel") val thenLabel: String = "",
+    @SerializedName("nowLabel") val nowLabel: String = "",
+    val summary: String = "",
+)
+
+data class PersonalMemoryEvolutionDetailDto(
+    @SerializedName("thenSummary") val thenSummary: String = "",
+    @SerializedName("nowSummary") val nowSummary: String = "",
+    val notes: List<String> = emptyList(),
 )
 
 data class PersonalAttentionItemDto(
@@ -1326,6 +1404,14 @@ data class ActivityPayloadDto(
     @SerializedName("wellbeingRating") val wellbeingRating: Double? = null,
     @SerializedName("source") val source: String? = null,
     @SerializedName("planningItemId") val planningItemId: String? = null,
+    @SerializedName("revenueId") val revenueId: String? = null,
+    @SerializedName("invoiceId") val invoiceId: String? = null,
+    @SerializedName("invoiceNumber") val invoiceNumber: String? = null,
+    @SerializedName("totalAmount") val totalAmount: String? = null,
+    @SerializedName("issueId") val issueId: String? = null,
+    val severity: String? = null,
+    @SerializedName("updateId") val updateId: String? = null,
+    @SerializedName("approvalRequestId") val approvalRequestId: String? = null,
 )
 
 /** Group facet envelope — GET /v1/group/moments/:id/{pulse|life|memory|finance}. */

@@ -128,6 +128,27 @@ export async function revokeDevice(
   if (!updated.rowCount) {
     throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Device not found.', 404);
   }
+
+  const deviceRow = await client.query<{ user_device_id: string }>(
+    `SELECT user_device_id FROM platform.user_device
+     WHERE user_id = $1 AND device_id = $2`,
+    [ctx.userId, deviceId]
+  );
+  const userDeviceId = deviceRow.rows[0]?.user_device_id ?? deviceId;
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'DeviceRevoked',
+    domainCode: 'PLATFORM',
+    aggregateType: 'DEVICE',
+    aggregateId: userDeviceId,
+    scopeType: 'USER',
+    scopeId: ctx.userId,
+    payload: { deviceId, status: 'REVOKED' },
+  });
+  await insertAudit(client, ctx, 'DEVICE_REVOKE', 'DEVICE', userDeviceId, domainEventId, {
+    deviceId,
+    status: 'REVOKED',
+  });
+
   return { deviceId, userId: ctx.userId, status: 'REVOKED' };
 }
 

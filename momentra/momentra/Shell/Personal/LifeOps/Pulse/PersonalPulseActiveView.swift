@@ -17,7 +17,7 @@ struct PersonalPulseActiveView: View {
     @State private var activities: [APIClient.ActivityItemPayload] = []
     @State private var loading = true
     @State private var error: String?
-    @State private var seeMoreExpanded = false
+    @State private var showShapedDetail = false
 
     private var family: PersonalPulseFamily { PersonalPulseFamily.forTypeCode(momentTypeCode) }
     private var theme: PersonalPulseFamilyTheme { family.theme }
@@ -35,7 +35,7 @@ struct PersonalPulseActiveView: View {
 
                     NativeListSection {
 
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 12) {
                         if let error {
                             Text(error)
                                 .font(.caption)
@@ -51,61 +51,41 @@ struct PersonalPulseActiveView: View {
                         }
                         heroCard
                         familyTodayActionStrip
-                        Text(dayFeedbackLine)
-                            .font(.plusJakarta(size: 13))
-                            .foregroundStyle(Color(hex: "#C9C4D8"))
-                        Button {
-                            seeMoreExpanded.toggle()
-                        } label: {
-                            Text(seeMoreExpanded ? "Show less" : "See more of your day")
-                                .font(.plusJakarta(size: 13, weight: .bold))
-                                .foregroundStyle(Color(hex: "#A78BFA"))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 12)
-                                .background(Color.white.opacity(0.05))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                        .buttonStyle(.plain)
-                        if seeMoreExpanded {
-                            heroAxisChips
-                            tileGrid
-                            momentumCard
-                            if isLifeOps || isFuture || isLifestyle || isRelationships {
+                        shapedTodayCard
+                        nudgeCard
+                        recentStrip
+                        moneyCard
+                    }
+
+                    }
+
+                }
+                .sheet(isPresented: $showShapedDetail) {
+                    NavigationStack {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 12) {
+                                heroAxisChips
+                                tileGrid
+                                momentumCard
                                 helpingHurtingCard
                             }
-                            activityCard
-                            moneyCard
-                            nudgeCard
-                            insightsCard
-                            quickActionsRow
+                            .padding(16)
+                        }
+                        .background(Color(hex: "#14121B"))
+                        .navigationTitle("What shaped today")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") { showShapedDetail = false }
+                            }
                         }
                     }
-                
-
-                    }
-
+                    .presentationDetents([.medium, .large])
                 }
             }
         }
         .background(Color(hex: "#14121B"))
         .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
-        .onChange(of: forceCollapsed) { _, forced in
-            if forced { seeMoreExpanded = false }
-        }
-    }
-
-    private var dayFeedbackLine: String {
-        PersonalLifeOpsDerived.dayFeedbackLine(
-            moodState: pulse?.moodState,
-            spendPairs: spendPairs,
-            todayLogCount: PersonalLifeOpsDerived.todayActivityCount(from: activities.map(\.occurredAt)),
-            family: family
-        )
     }
 
     private var wellbeing: String { PersonalLifeOpsDerived.displayScore(pulse?.wellbeingScore) }
@@ -158,7 +138,16 @@ struct PersonalPulseActiveView: View {
     private var lifestyleAxisValues: [String] { [joy, fulfillment, vitality, exploration] }
 
     private var heroCard: some View {
-        return VStack(alignment: .leading, spacing: 12) {
+        let status = PersonalPulseCopy.statusBand(wellbeingScore: pulse?.wellbeingScore)
+        let sentence = PersonalPulseCopy.heroSentence(
+            family: family,
+            recoveryScore: pulse?.recoveryScore,
+            wellbeingScore: pulse?.wellbeingScore,
+            moodState: pulse?.moodState,
+            spendPairs: spendPairs,
+            todayLogCount: PersonalLifeOpsDerived.todayActivityCount(from: activities.map(\.occurredAt))
+        )
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(theme.heroTitle)
@@ -167,36 +156,30 @@ struct PersonalPulseActiveView: View {
                     Text(wellbeing)
                         .font(.plusJakarta(size: 40, weight: .heavy))
                         .foregroundStyle(.white)
+                    Text(status)
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 6) {
-                    Text(wellbeing == "—" ? theme.heroSubtitleEmpty : theme.heroSubtitleFilled)
-                        .font(.plusJakarta(size: 11, weight: .heavy))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.1))
-                        .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1))
-                        .clipShape(Capsule())
                     if streak > 0 {
-                        Text("\(streak) Day Streak")
-                            .font(.plusJakarta(size: 10, weight: .heavy))
+                        Text("🔥 \(streak) day rhythm")
+                            .font(.plusJakarta(size: 11, weight: .heavy))
                             .foregroundStyle(Color(hex: "#10B981"))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
                             .background(Color(hex: "#10B981").opacity(0.15))
                             .clipShape(Capsule())
                     }
-                    HStack(spacing: 6) {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(Self.todayLabel)
-                            .font(.plusJakarta(size: 12, weight: .semibold))
-                    }
-                    .foregroundStyle(.white.opacity(0.8))
+                    Text(Self.todayLabel)
+                        .font(.plusJakarta(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.75))
                 }
             }
-            // Axis chips live behind "See more" for all families.
+            Text(sentence)
+                .font(.plusJakarta(size: 13))
+                .foregroundStyle(.white.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(14)
         .background(
@@ -260,7 +243,7 @@ struct PersonalPulseActiveView: View {
                 ]
             case .relationships:
                 return [
-                    ("Connection", Color(hex: "#10B981"), "person.2.fill", { onRelationshipsQuickAdd(.connection) }),
+                    ("Connect", Color(hex: "#10B981"), "person.2.fill", { onRelationshipsQuickAdd(.connection) }),
                     ("Shared", Color(hex: "#A78BFA"), "hands.clap.fill", { onRelationshipsQuickAdd(.shared) }),
                     ("Support", Color(hex: "#4CD6FF"), "heart.circle.fill", { onRelationshipsQuickAdd(.support) }),
                 ]
@@ -281,6 +264,94 @@ struct PersonalPulseActiveView: View {
                 }
             }
         }
+    }
+
+    private var shapedTodayCard: some View {
+        let drivers = PersonalLifeOpsDerived.helpingHurting(
+            from: activities.map {
+                (code: $0.activityCode, label: PersonalActivityTimelineDerived.driverLabel($0))
+            }
+        )
+        let signals = PersonalPulseCopy.shapedTodaySignals(
+            family: family,
+            recoveryScore: pulse?.recoveryScore,
+            wellbeingScore: pulse?.wellbeingScore,
+            rhythmScore: pulse?.rhythmScore,
+            attentionCount: pulse?.attentionCount,
+            moodState: pulse?.moodState,
+            spendPairs: spendPairs,
+            helpingLabels: drivers.helping.map(\.label),
+            hurtingLabels: drivers.hurting.map(\.label)
+        )
+        return Button { showShapedDetail = true } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("What shaped today")
+                        .font(.plusJakarta(size: 13, weight: .bold))
+                        .foregroundStyle(Color(hex: "#E5E0EE"))
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#C9C4D8"))
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(signals.enumerated()), id: \.offset) { _, signal in
+                        HStack(spacing: 8) {
+                            Text(signal.direction == .up ? "↑" : (signal.direction == .down ? "↓" : "·"))
+                                .font(.plusJakarta(size: 13, weight: .bold))
+                                .foregroundStyle(
+                                    signal.direction == .up
+                                        ? Color(hex: "#10B981")
+                                        : (signal.direction == .down ? Color(hex: "#F87171") : Color(hex: "#C9C4D8"))
+                                )
+                            Text(signal.label)
+                                .font(.plusJakarta(size: 13, weight: .semibold))
+                                .foregroundStyle(Color(hex: "#E5E0EE"))
+                        }
+                    }
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white.opacity(0.05))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08), lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var recentStrip: some View {
+        let cards = Array(MomentClustering.cards(from: activities, family: family).prefix(3))
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Recent")
+                    .font(.plusJakarta(size: 13, weight: .bold))
+                    .foregroundStyle(Color(hex: "#E5E0EE"))
+                Spacer()
+                Button(action: onViewAllActivity) {
+                    Text("See all")
+                        .font(.plusJakarta(size: 12, weight: .bold))
+                        .foregroundStyle(theme.accent)
+                }
+                .buttonStyle(.plain)
+            }
+            if cards.isEmpty {
+                Text("No moments yet today.")
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: "#C9C4D8"))
+            } else {
+                ForEach(cards) { card in
+                    MomentCard(model: card, accent: theme.accent) {
+                        onViewAllActivity()
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.05))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     private var todayActionStrip: some View {
@@ -661,33 +732,15 @@ struct PersonalPulseActiveView: View {
     }
 
     private var moneyCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(theme.moneyTitle)
-                .font(.system(size: 11, weight: .bold))
+        VStack(alignment: .leading, spacing: 6) {
+            Text(theme.moneyCompactTitle)
+                .font(.plusJakarta(size: 12, weight: .bold))
                 .foregroundStyle(Color(hex: "#C9C4D8"))
             Text(
-                spendPairs.isEmpty
-                    ? "—"
-                    : spendPairs.map { "\($0.0) \(formatMoney($0.1))" }.joined(separator: " · ")
+                PersonalPulseCopy.moneySpentLine(spendPairs: spendPairs, format: { BalanceMask.mask(formatMoney($0)) })
             )
-            .font(.system(size: 22, weight: .heavy))
+            .font(.plusJakarta(size: 18, weight: .heavy))
             .foregroundStyle(Color(hex: "#E5E0EE"))
-            if spendPairs.isEmpty {
-                Text("No spend recorded for this moment yet.")
-                    .font(.caption)
-                    .foregroundStyle(Color(hex: "#C9C4D8"))
-            } else {
-                ForEach(spendPairs, id: \.0) { currency, amount in
-                    HStack {
-                        Text(currency).foregroundStyle(Color(hex: "#E5E0EE"))
-                        Spacer()
-                        Text(formatMoney(amount))
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color(hex: "#E5E0EE"))
-                    }
-                    .font(.system(size: 13))
-                }
-            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -698,31 +751,30 @@ struct PersonalPulseActiveView: View {
 
     private var nudgeCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "shield.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                Text(theme.nudgeTitle)
-                    .font(.plusJakarta(size: 16, weight: .heavy))
-            }
-            .foregroundStyle(.white)
+            Text(theme.nudgeTitle)
+                .font(.plusJakarta(size: 15, weight: .heavy))
+                .foregroundStyle(.white)
             Text(theme.nudgeBody)
                 .font(.plusJakarta(size: 13))
                 .foregroundStyle(.white.opacity(0.9))
             Button {
-                if isLifeOps { onLifeOpsQuickAdd(.recovery) }
-                else if isFuture { onFutureQuickAdd(.milestone) }
-                else if isLifestyle { onLifestyleQuickAdd(.experience) }
+                switch family {
+                case .lifeOperations: onLifeOpsQuickAdd(.recovery)
+                case .futureBuilding: onFutureQuickAdd(.milestone)
+                case .lifestyle: onLifestyleQuickAdd(.experience)
+                case .relationships: onRelationshipsQuickAdd(.connection)
+                }
             } label: {
                 Text(theme.nudgeCta)
                     .font(.plusJakarta(size: 14, weight: .heavy))
-                    .foregroundStyle(Color(hex: "#7C5CFC"))
+                    .foregroundStyle(Color(hex: "#1A1726"))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 14))
             }
             .buttonStyle(.plain)
-            .disabled((!isLifeOps && !isFuture && !isLifestyle) || momentId == nil)
+            .disabled(momentId == nil)
         }
         .padding(14)
         .background(LinearGradient(colors: [theme.heroStart, theme.heroEnd], startPoint: .top, endPoint: .bottom))

@@ -36,6 +36,16 @@ enum PersonalTabDataCache {
         lifePayload = payload
     }
 
+    /// Drop cached pulse/life so the next Personal tab paint refetches after capture/edit.
+    static func invalidate(momentId: String? = nil) {
+        if let momentId {
+            pulseStore.removeValue(forKey: cacheKey(momentId: momentId))
+        } else {
+            pulseStore.removeAll()
+        }
+        lifePayload = nil
+    }
+
     static func clear() {
         pulseStore.removeAll()
         lifePayload = nil

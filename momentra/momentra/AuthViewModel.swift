@@ -428,9 +428,18 @@ final class AuthViewModel: ObservableObject {
     }
 
     func signOut() {
+        let deviceId = PushNotifications.currentDeviceId
+        Task {
+            _ = try? await APIClient.shared.revokeDevice(deviceId: deviceId)
+            await MainActor.run { self.finishLocalSignOut() }
+        }
+    }
+
+    private func finishLocalSignOut() {
         MomentraIdentityCache.clear(firebaseUid: Auth.auth().currentUser?.uid)
         BootstrapCacheStore.clear(userId: identity?.userId)
         UserDefaults.standard.removeObject(forKey: "momentra_hide_balances")
+        AppLockSession.unlocked = false
         try? Auth.auth().signOut()
         #if os(iOS)
         GIDSignIn.sharedInstance.signOut()

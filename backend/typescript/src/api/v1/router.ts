@@ -2717,8 +2717,11 @@ v1Router.get('/personal/memory', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
     const data = await withDb((client) => projectionService.getPersonalMemory(client, ctx.userId));
-    // Honest empty projection — clients must not fabricate Memory items (S2 G4).
-    const status = !data.items?.length ? 'EMPTY' : 'OK';
+    // Honest empty — no memories and no period activity.
+    const status =
+      !data.items?.length && !(data.counts?.activities > 0) && !(data.highlights?.length > 0)
+        ? 'EMPTY'
+        : 'OK';
     res.json(projectionEnvelope(data, ctx.correlationId, { status }));
   } catch (e) {
     next(e);

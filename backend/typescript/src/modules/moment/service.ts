@@ -1877,6 +1877,19 @@ export async function deleteMoment(
       );
     }
   }
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
+    eventName: 'MomentDeleted',
+    domainCode: row.domain_code,
+    aggregateType: 'MOMENT',
+    aggregateId: row.moment_id,
+    scopeType: 'MOMENT',
+    scopeId: row.moment_id,
+    payload: { momentId: row.moment_id, status: 'DELETED' },
+  });
+  await insertAudit(client, ctx, 'MOMENT_DELETE', 'MOMENT', row.moment_id, domainEventId, {
+    momentId: row.moment_id,
+    status: 'DELETED',
+  });
   return {
     momentId: row.moment_id,
     domainCode: row.domain_code,

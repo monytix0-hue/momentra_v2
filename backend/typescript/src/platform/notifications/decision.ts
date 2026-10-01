@@ -9,6 +9,7 @@ import {
 import { applyRatePolicy, type DeliveryRoute } from './rate-policy';
 import { categoryEnabled, inQuietHours, type RecipientPrefs } from './recipient-prefs';
 import { threadKeyFor } from './thread-key';
+import { lockScreenPush } from './lock-screen';
 import {
   buildRecipientFinanceCtx,
   cadenceFromNotifyFlag,
@@ -184,14 +185,15 @@ export async function decideNotificationForRecipient(
     }
   }
 
+  const lockScreen = lockScreenPush(copy.title, copy.body);
   return {
     outcome,
     route: outcomeToRoute(outcome),
     suppressionReason,
     category,
     priority,
-    title: copy.title,
-    body: copy.body,
+    title: lockScreen.title,
+    body: lockScreen.body,
     threadKey,
     replacePrior: input.eventName === 'DigestReady' || input.eventName === 'MomentDigestReady',
     relationship,

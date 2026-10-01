@@ -8,12 +8,6 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function moneyLabel(amount: number, currency: string): string {
-  const formatted = amount.toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  if ((currency ?? '').toUpperCase() === 'INR' || !currency) return `₹${formatted}`;
-  return `${currency} ${formatted}`;
-}
-
 const GOAL_MILESTONES = [25, 50, 75, 100] as const;
 const BUDGET_THRESHOLDS = [80, 100] as const;
 
@@ -67,7 +61,7 @@ export async function evaluatePersonalSignals(pool: Pool): Promise<DerivedNotifi
           goalTitle: row.title,
           progressPercent: Math.round(progress),
           milestonePercent: milestone,
-          body: `Your ${row.title} is now ${Math.round(progress)}% complete.`,
+          body: 'A goal of yours reached a milestone.',
         },
         dedupeKey,
         explanationCode: `GOAL_${milestone}_PERCENT`,
@@ -107,7 +101,7 @@ export async function evaluatePersonalSignals(pool: Pool): Promise<DerivedNotifi
             goalTitle: row.title,
             progressPercent: Math.round(progress),
             daysLeft: Math.round(daysLeft),
-            body: `${row.title} is at risk — ${Math.round(progress)}% with ${Math.round(daysLeft)} days left.`,
+            body: 'A goal of yours needs attention.',
           },
           dedupeKey: riskKey,
           explanationCode: 'GOAL_AT_RISK',
@@ -160,7 +154,7 @@ export async function evaluatePersonalSignals(pool: Pool): Promise<DerivedNotifi
           thresholdPercent: threshold,
           expenseTotal: expense.toFixed(2),
           budgetTotal: budget.toFixed(2),
-          body: `You've used ${Math.round(pct)}% of your personal budget.`,
+          body: 'You have a budget update in Momentra.',
         },
         dedupeKey,
         explanationCode: threshold >= 100 ? 'PERSONAL_BUDGET_100' : 'PERSONAL_BUDGET_80',
@@ -221,10 +215,7 @@ export async function evaluatePersonalSignals(pool: Pool): Promise<DerivedNotifi
         title,
         currencyCode: currency,
         amount: amount > 0 ? amount.toFixed(2) : null,
-        body:
-          amount > 0
-            ? `${title} (${moneyLabel(amount, currency)}) is expected soon.`
-            : `${title} is expected soon.`,
+        body: 'A bill is expected soon.',
       },
       dedupeKey: `PERSONAL:USER:${row.owner_user_id}:BILL:${row.recurring_schedule_id}:${day}`,
       explanationCode: 'BILL_DUE_SOON',
@@ -242,7 +233,7 @@ export async function evaluatePersonalSignals(pool: Pool): Promise<DerivedNotifi
       facts: {
         scheduleId: row.recurring_schedule_id,
         title,
-        body: `Expected recurring expense: ${title}.`,
+        body: 'A recurring expense is expected.',
       },
       dedupeKey: `PERSONAL:USER:${row.owner_user_id}:RECURRING:${row.recurring_schedule_id}:${day}`,
       explanationCode: 'RECURRING_EXPENSE_EXPECTED',

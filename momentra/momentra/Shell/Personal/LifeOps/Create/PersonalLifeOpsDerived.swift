@@ -210,9 +210,9 @@ enum PersonalLifeOpsDerived {
         let stage = stageBand(wellbeing: wellbeing)
         switch stage {
         case "Thriving":
-            return ("Adaptive Operator", "\(min(92, 55 + activityCount * 3))% confidence", "You respond best when structure and recovery work together.")
+            return ("Adaptive Operator", "Strong signal", "You respond best when structure and recovery work together.")
         case "Structured":
-            return ("Structured Operator", "\(min(85, 45 + activityCount * 3))% confidence", "Your rhythm is forming — keep pairing pressure with recovery.")
+            return ("Structured Operator", "Forming signal", "Your rhythm is forming — keep pairing pressure with recovery.")
         default:
             return ("Stabilizing Operator", "Building…", "Early signals show up once recovery and attention logs accumulate.")
         }

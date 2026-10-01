@@ -2,8 +2,6 @@ package com.example.momentra.ui.shell.personal.shared
 
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import com.example.momentra.ui.shell.personal.shared.theme
-import com.example.momentra.ui.shell.personal.shared.heroBrush
 
 /** Personal Pulse family variants — Figma populated Pulse frames. */
 enum class PersonalPulseFamily {
@@ -34,10 +32,12 @@ data class PersonalPulseFamilyTheme(
     val heroSubtitleEmpty: String,
     val heroMetrics: List<String>,
     val tileLabels: List<String>,
+    val todayActionLabels: List<String>,
     val nudgeTitle: String,
     val nudgeBody: String,
     val nudgeCta: String,
     val moneyTitle: String,
+    val moneyCompactTitle: String,
     val quickActions: List<String>,
     val heroStart: Color,
     val heroEnd: Color,
@@ -49,14 +49,14 @@ fun PersonalPulseFamily.theme(): PersonalPulseFamilyTheme = when (this) {
         heroTitle = "YOUR DAY",
         heroSubtitleFilled = "Your day is taking shape",
         heroSubtitleEmpty = "Nothing logged yet",
-        // Figma 353:8893 hero chips
         heroMetrics = listOf("Pressure", "Recovery", "Discipline", "Attention"),
-        // Figma metric tiles (2x2)
         tileLabels = listOf("Pressure", "Recovery", "Discipline", "Attention"),
-        nudgeTitle = "Protect Recovery",
+        todayActionLabels = listOf("Spend", "Mood", "Recovery"),
+        nudgeTitle = "A small win today",
         nudgeBody = "You've been busy — rest for a bit before the next stretch.",
-        nudgeCta = "Log Recovery Now",
+        nudgeCta = "Log Recovery",
         moneyTitle = "This month's money",
+        moneyCompactTitle = "This month",
         quickActions = listOf("Recovery", "Attention", "Mood", "Adjust"),
         heroStart = Color(0xFF7C5CFC),
         heroEnd = Color(0xFFA78BFA),
@@ -68,12 +68,13 @@ fun PersonalPulseFamily.theme(): PersonalPulseFamilyTheme = when (this) {
         heroSubtitleEmpty = "Nothing logged yet",
         heroMetrics = listOf("Vision", "Growth", "Momentum", "Discipline"),
         tileLabels = listOf("Vision", "Growth", "Momentum", "Discipline"),
-        nudgeTitle = "Accelerate Growth",
+        todayActionLabels = listOf("Milestone", "Progress", "Learning"),
+        nudgeTitle = "Keep building",
         nudgeBody = "Log a milestone to keep momentum compounding.",
         nudgeCta = "Log Milestone",
         moneyTitle = "This month's investments",
+        moneyCompactTitle = "This month",
         quickActions = listOf("Milestone", "Opportunity", "Pivot", "Progress", "Learning"),
-        // SCREEN_STALE fix (G8): align with MomentThemes emerald, not purple Pulse leftover.
         heroStart = Color(0xFF10B981),
         heroEnd = Color(0xFF34D399),
         accent = Color(0xFF10B981),
@@ -84,10 +85,12 @@ fun PersonalPulseFamily.theme(): PersonalPulseFamilyTheme = when (this) {
         heroSubtitleEmpty = "Nothing logged yet",
         heroMetrics = listOf("Joy", "Fulfillment", "Vitality", "Exploration"),
         tileLabels = listOf("Joy", "Fulfillment", "Vitality", "Exploration"),
+        todayActionLabels = listOf("Experience", "Wellbeing", "Discovery"),
         nudgeTitle = "Protect a ritual",
         nudgeBody = "Log one experience to protect your lifestyle rhythm.",
         nudgeCta = "Log Experience",
         moneyTitle = "This month's lifestyle spend",
+        moneyCompactTitle = "This month",
         quickActions = listOf("Experience", "Wellbeing", "Discovery", "Create", "Adjust"),
         heroStart = Color(0xFF0EA5A4),
         heroEnd = Color(0xFF7C5CFC),
@@ -99,10 +102,12 @@ fun PersonalPulseFamily.theme(): PersonalPulseFamilyTheme = when (this) {
         heroSubtitleEmpty = "Nothing logged yet",
         heroMetrics = listOf("Trust", "Care", "Support", "Presence"),
         tileLabels = listOf("Trust", "Care", "Support", "Presence"),
-        nudgeTitle = "Protect Connection",
+        todayActionLabels = listOf("Connect", "Shared", "Support"),
+        nudgeTitle = "Stay close",
         nudgeBody = "Log a connection before the next busy stretch.",
         nudgeCta = "Log Connection",
         moneyTitle = "This month's shared spend",
+        moneyCompactTitle = "This month",
         quickActions = listOf("Connection", "Shared", "Investment", "Support", "Adjust"),
         heroStart = Color(0xFFE91E63),
         heroEnd = Color(0xFFA78BFA),

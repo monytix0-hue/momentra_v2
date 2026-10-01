@@ -91,7 +91,13 @@ class MeRepository(
 
     override suspend fun listBusinessMoments(limit: Int): Result<List<MomentSummary>> = runCatching {
         api.listBusinessMoments(limit = limit).data.items.map {
-            MomentSummary(it.momentId, it.title, it.status)
+            MomentSummary(
+                momentId = it.momentId,
+                title = it.title,
+                status = it.status,
+                momentTypeCode = it.momentTypeCode?.takeIf { code -> code.isNotBlank() } ?: it.businessFamily,
+                companyId = it.companyId,
+            )
         }
     }.recoverCatching { e -> throw mapThrowable(e) }
 

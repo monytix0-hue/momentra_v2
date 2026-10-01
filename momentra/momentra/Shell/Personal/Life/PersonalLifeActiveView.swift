@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Figma `1047:7689` body — Personal Life populated (cross-moment).
+/// M3 Life — overall state only (five honest blocks via PersonalLifeSummaryModel).
 struct PersonalLifeActiveView: View {
     let refreshToken: UInt64
     var onLogRecovery: () -> Void = {}
@@ -12,6 +12,7 @@ struct PersonalLifeActiveView: View {
     @State private var error: String?
     /// nil = All; otherwise LIFE_OPERATIONS | FUTURE_BUILDING | LIFESTYLE | RELATIONSHIPS
     @State private var selectedFamilyFilter: String? = nil
+    @State private var allocationMode: PersonalLifeAllocationMode = .activity
 
     private let bg = Color(red: 0.078, green: 0.071, blue: 0.106)
     private let card = Color(red: 0.110, green: 0.106, blue: 0.180)
@@ -26,6 +27,11 @@ struct PersonalLifeActiveView: View {
     private let blue = Color(red: 0.231, green: 0.510, blue: 0.965)
     private let pink = Color(red: 0.882, green: 0.165, blue: 0.620)
 
+    private var summary: PersonalLifeSummaryModel? {
+        guard let life else { return nil }
+        return PersonalLifeSummaryModel.from(life, familyFilter: selectedFamilyFilter)
+    }
+
     var body: some View {
         Group {
             if loading && life == nil {
@@ -36,29 +42,36 @@ struct PersonalLifeActiveView: View {
                         chipRow
                     }
                     NativeListSection {
-                        if life?.sectionQuality?.values.contains("API_GAP") == true {
-                            Text("Some Life sections are not available yet. Core areas and journey data are live when present.")
-                                .font(.plusJakarta(size: 11))
-                                .foregroundStyle(amber)
-                                .padding(12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(card)
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(amber.opacity(0.35), lineWidth: 1))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
                         if let error {
                             Text(error).font(.plusJakarta(size: 12)).foregroundStyle(red)
                         }
-                        thisWeekCard
-                        journeyCard
-                        healthSummary
-                        driftCard
-                        leverageCard
-                        balanceSection
-                        emotionalTrendCard
-                        dominantEmotionCard
-                        happyDriversCard
-                        aiInsightsCard
+                        if let summary {
+                            overviewBlock(summary)
+                            thisWeekBlock(summary.weekSummary)
+                            whereLifeWentBlock(summary)
+                            if let slipping = summary.slipping {
+                                insightBlock(
+                                    chromeTitle: "Something slipping",
+                                    insight: slipping,
+                                    accent: red,
+                                    tintBg: Color(red: 0.165, green: 0.082, blue: 0.125)
+                                )
+                            }
+                            if let working = summary.working {
+                                insightBlock(
+                                    chromeTitle: "What’s working",
+                                    insight: working,
+                                    accent: green,
+                                    tintBg: card
+                                )
+                            }
+                            if let money = summary.moneySnapshot {
+                                moneyBlock(money)
+                            }
+                            if let score = summary.globalScore {
+                                secondaryScoreLine(score: score, max: summary.scoreMax)
+                            }
+                        }
                     }
                 }
             }
@@ -86,7 +99,7 @@ struct PersonalLifeActiveView: View {
         loading = false
     }
 
-    // MARK: - Chips
+    // MARK: - Chips (This week filter only)
 
     private var chipRow: some View {
         let chips: [(String, String?, Color)] = [
@@ -130,578 +143,278 @@ struct PersonalLifeActiveView: View {
         .onTapGesture { selectedFamilyFilter = familyCode }
     }
 
-    // MARK: - Sections
+    // MARK: - 1. Life overview
 
-    private var thisWeekCard: some View {
-        let emotion = life?.dominantEmotion?.headline.isEmpty == false
-            ? life?.dominantEmotion?.headline
-            : life?.emotionalTrend?.subtitle
-        let journeyCount = (life?.journey?.items ?? []).filter {
-            matchesLifeFamilyFilter($0.familyCode, filter: selectedFamilyFilter)
-        }.count
-        let week = life?.thisWeek
-        let familyRow = selectedFamilyFilter.flatMap { code in
-            week?.byFamily?.first { $0.familyCode.caseInsensitiveCompare(code) == .orderedSame }
-        }
-        let expenseAmount = Double(familyRow?.expenseTotal ?? week?.expenseTotal ?? "0") ?? 0
-        let currencyCode = week?.currencyCode
-            ?? week?.spendByCurrency?.max(by: { (Double($0.value) ?? 0) < (Double($1.value) ?? 0) })?.key
-        let extraCurrencies: Int = {
-            if selectedFamilyFilter != nil { return 0 }
-            return max(0, (week?.spendByCurrency?.count ?? 0) - (currencyCode != nil ? 1 : 0))
-        }()
-        let moneyLine: String = {
-            if expenseAmount > 0 {
-                let symbol = (currencyCode == nil || currencyCode == "INR") ? "₹" : "\(currencyCode!) "
-                let formatted: String = {
-                    if expenseAmount == floor(expenseAmount) {
-                        return String(Int(expenseAmount))
+    private func overviewBlock(_ summary: PersonalLifeSummaryModel) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Life overview")
+                .font(.plusJakarta(size: 12, weight: .bold))
+                .foregroundStyle(purple)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                ForEach(summary.familyStates) { state in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(state.label)
+                            .font(.plusJakarta(size: 11, weight: .semibold))
+                            .foregroundStyle(dim)
+                        Text(state.status.rawValue)
+                            .font(.plusJakarta(size: 15, weight: .bold))
+                            .foregroundStyle(statusColor(state.status))
                     }
-                    return String(format: "%.2f", expenseAmount)
-                }()
-                let suffix = extraCurrencies > 0 ? " (+\(extraCurrencies) currencies)" : ""
-                return "Money · \(symbol)\(formatted) this week\(suffix)"
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(cardAlt)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.06)))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
             }
-            return "Money · Log spend from Add"
-        }()
-        let checkIns = familyRow?.moodOrRecoveryLogs ?? week?.moodOrRecoveryLogs ?? 0
-        let energyLine: String = {
-            if selectedFamilyFilter != nil {
-                if checkIns > 0 { return "Energy · \(checkIns) check-ins this week" }
-                return "Energy · Log recovery or mood from Add"
-            }
-            if let emotion, !emotion.isEmpty { return "Energy · \(emotion)" }
-            if checkIns > 0 { return "Energy · \(checkIns) check-ins this week" }
-            return "Energy · Log recovery or mood from Add"
-        }()
-        let people = life?.areaScores?.first(where: { $0.code.uppercased().contains("RELATION") })
-        let showPeople = selectedFamilyFilter == nil
-            || selectedFamilyFilter?.uppercased() == "RELATIONSHIPS"
-        let highlights = (week?.highlights ?? []).filter {
-            matchesLifeFamilyFilter($0.familyCode, filter: selectedFamilyFilter)
         }
-        let filterSubtitle = lifeFamilyFilterLabel(selectedFamilyFilter).map { "This week · \($0)" }
-            ?? "Across Everyday, Future, Lifestyle, and People"
-        let lev = life?.leverage
-        let ctaLabel = (lev?.ctaLabel.isEmpty == false ? lev?.ctaLabel : nil) ?? "Log today's recovery"
-        let ctaAction = resolveLifeCtaAction(lev?.ctaAction)
-        return VStack(alignment: .leading, spacing: 10) {
+        .padding(16)
+        .background(card)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08)))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func statusColor(_ status: PersonalLifeFamilyStatus) -> Color {
+        switch status {
+        case .strong: return green
+        case .growing: return blue
+        case .steady: return muted
+        case .quiet: return dim
+        case .needsAttention: return amber
+        }
+    }
+
+    // MARK: - 2. This week
+
+    private func thisWeekBlock(_ week: PersonalLifeWeekSummary) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text("This week")
                 .font(.plusJakarta(size: 12, weight: .bold))
                 .foregroundStyle(purple)
-            Text(filterSubtitle)
-                .font(.plusJakarta(size: 11))
-                .foregroundStyle(dim)
-            Text(moneyLine)
-                .font(.plusJakarta(size: 13))
-                .foregroundStyle(muted)
-            Text(energyLine)
-                .font(.plusJakarta(size: 13))
-                .foregroundStyle(muted)
-            if showPeople, let people {
-                Text("People · \(people.label) \(people.score.map(String.init) ?? "—")")
+            if let filter = week.filterLabel {
+                Text("This week · \(filter)")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(dim)
+            } else {
+                Text("Across Everyday, Future, Lifestyle, and People")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(dim)
+            }
+
+            switch week.tier {
+            case .empty:
+                Text("Nothing logged this week yet")
+                    .font(.plusJakarta(size: 13))
+                    .foregroundStyle(muted)
+            case .thin:
+                familyCountLines(week.familyCounts)
+            case .partial:
+                if let sentence = week.sentence {
+                    Text(sentence)
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(text)
+                }
+                familyCountLines(week.familyCounts)
+            case .rich:
+                if let sentence = week.sentence {
+                    Text(sentence)
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(text)
+                }
+                familyCountLines(week.familyCounts)
+            }
+        }
+        .padding(16)
+        .background(card)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08)))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    @ViewBuilder
+    private func familyCountLines(_ counts: [PersonalLifeWeekFamilyCount]) -> some View {
+        ForEach(counts) { row in
+            if row.periodLogs > 0 {
+                Text("\(row.label) · \(row.periodLogs) \(row.periodLogs == 1 ? "activity" : "activities")")
                     .font(.plusJakarta(size: 13))
                     .foregroundStyle(muted)
             }
-            if journeyCount > 0 {
-                Text(journeyCount == 1 ? "1 journey note this week" : "\(journeyCount) journey notes")
-                    .font(.plusJakarta(size: 12))
-                    .foregroundStyle(dim)
+        }
+    }
+
+    // MARK: - 3. Where your life went
+
+    private func whereLifeWentBlock(_ summary: PersonalLifeSummaryModel) -> some View {
+        let allocation = allocationMode == .activity
+            ? summary.activityAllocation
+            : summary.moneyAllocation
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Where your life went")
+                .font(.plusJakarta(size: 12, weight: .bold))
+                .foregroundStyle(purple)
+            HStack(spacing: 0) {
+                allocationToggle("Activity", mode: .activity)
+                allocationToggle("Money", mode: .money)
             }
-            ForEach(Array(highlights.enumerated()), id: \.offset) { _, h in
-                if !h.title.isEmpty {
-                    Text(h.title)
-                        .font(.plusJakarta(size: 12))
-                        .foregroundStyle(dim)
+            .padding(3)
+            .background(cardAlt)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            if !allocation.hasData {
+                Text(allocationMode == .activity
+                     ? "No activity to allocate this week"
+                     : "No spend to allocate this week")
+                    .font(.plusJakarta(size: 13))
+                    .foregroundStyle(muted)
+                    .padding(.top, 4)
+            } else {
+                ForEach(allocation.slices) { slice in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(slice.label)
+                                .font(.plusJakarta(size: 13, weight: .medium))
+                                .foregroundStyle(text)
+                            Spacer()
+                            Text("\(slice.percent)%")
+                                .font(.plusJakarta(size: 13, weight: .semibold))
+                                .foregroundStyle(muted)
+                        }
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Color.white.opacity(0.06))
+                                Capsule()
+                                    .fill(familyAccent(slice.familyCode))
+                                    .frame(width: geo.size.width * CGFloat(slice.percent) / 100.0)
+                            }
+                        }
+                        .frame(height: 8)
+                    }
                 }
             }
-            if let ctaAction {
-                Button(action: ctaAction) {
-                    Text(ctaLabel)
-                        .font(.plusJakarta(size: 13, weight: .bold))
-                        .foregroundStyle(green)
+        }
+        .padding(16)
+        .background(card)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08)))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func allocationToggle(_ label: String, mode: PersonalLifeAllocationMode) -> some View {
+        let active = allocationMode == mode
+        return Text(label)
+            .font(.plusJakarta(size: 12, weight: active ? .bold : .medium))
+            .foregroundStyle(active ? text : dim)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(active ? purple.opacity(0.25) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .onTapGesture { allocationMode = mode }
+    }
+
+    private func familyAccent(_ code: String) -> Color {
+        switch code.uppercased() {
+        case "LIFE_OPERATIONS": return purple
+        case "FUTURE_BUILDING": return green
+        case "LIFESTYLE": return amber
+        case "RELATIONSHIPS": return pink
+        default: return blue
+        }
+    }
+
+    // MARK: - 4. Slipping / Working
+
+    private func insightBlock(
+        chromeTitle: String,
+        insight: PersonalLifeInsight,
+        accent: Color,
+        tintBg: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(chromeTitle)
+                .font(.plusJakarta(size: 11, weight: .bold))
+                .foregroundStyle(accent)
+            Text(insight.headline)
+                .font(.plusJakarta(size: 16, weight: .bold))
+                .foregroundStyle(text)
+            Text(insight.body)
+                .font(.plusJakarta(size: 13))
+                .foregroundStyle(muted)
+            if let cta = insight.ctaLabel, let action = resolveCta(insight.ctaAction) {
+                Button(action: action) {
+                    Text(cta)
+                        .font(.plusJakarta(size: 13, weight: .semibold))
+                        .foregroundStyle(accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(accent.opacity(0.12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(accent.opacity(0.35)))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(card)
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        .background(tintBg)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(accent.opacity(0.3)))
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    private var healthSummary: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Life health")
-                        .font(.plusJakarta(size: 11, weight: .semibold))
-                        .foregroundStyle(dim)
-                    HStack(alignment: .bottom, spacing: 2) {
-                        if let score = life?.score {
-                            Text("\(score)")
-                                .font(.plusJakarta(size: 48, weight: .bold))
-                                .foregroundStyle(text)
-                            Text("/\(life?.scoreMax ?? 100)")
-                                .font(.plusJakarta(size: 16))
-                                .foregroundStyle(muted)
-                                .padding(.bottom, 10)
-                        } else {
-                            Text("—")
-                                .font(.plusJakarta(size: 48, weight: .bold))
-                                .foregroundStyle(text)
-                        }
-                    }
-                    Text(life?.statusLabel ?? "No areas yet")
-                        .font(.plusJakarta(size: 14))
-                        .foregroundStyle(text)
-                    if let trend = life?.trendLabel, !trend.isEmpty {
-                        Text(trend)
-                            .font(.plusJakarta(size: 12, weight: .semibold))
-                            .foregroundStyle(green)
-                    }
-                }
-                Spacer()
-                scoreRing
+    // MARK: - 5. Money supporting your life
+
+    private func moneyBlock(_ money: PersonalLifeMoneySnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Money supporting your life")
+                .font(.plusJakarta(size: 12, weight: .bold))
+                .foregroundStyle(purple)
+            if money.incomeTotal > 0 {
+                moneyRow("Income", BalanceMask.mask(PersonalLifeSummaryModel.formatMoney(money.incomeTotal, currencyCode: money.currencyCode)))
             }
-            if let insight = life?.insight, !insight.isEmpty {
-                Text("\"\(insight)\"")
-                    .font(.plusJakarta(size: 13))
-                    .foregroundStyle(muted)
+            if money.expenseTotal > 0 {
+                moneyRow("Spent", BalanceMask.mask(PersonalLifeSummaryModel.formatMoney(money.expenseTotal, currencyCode: money.currencyCode)))
             }
-            let areas = life?.areaScores ?? []
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                ForEach(areas, id: \.code) { area in
-                    HStack(spacing: 8) {
-                        Circle().fill(Color(hex: area.color)).frame(width: 8, height: 8)
-                        Text("\(area.label): \(area.score.map(String.init) ?? "—")")
-                            .font(.plusJakarta(size: 12))
-                            .foregroundStyle(text)
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(cardAlt.opacity(0.6))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            if let available = money.available {
+                moneyRow("Available", BalanceMask.mask(PersonalLifeSummaryModel.formatMoney(available, currencyCode: money.currencyCode)))
+            }
+            if !money.byFamilySpend.isEmpty {
+                Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1).padding(.vertical, 4)
+                ForEach(money.byFamilySpend) { slice in
+                    moneyRow(
+                        slice.label,
+                        BalanceMask.mask(PersonalLifeSummaryModel.formatMoney(slice.value, currencyCode: money.currencyCode))
+                    )
                 }
             }
         }
-        .padding(20)
-        .background(
-            ZStack(alignment: .bottomTrailing) {
-                card
-                Circle()
-                    .fill(Color(red: 0.486, green: 0.227, blue: 0.929).opacity(0.18))
-                    .frame(width: 160, height: 160)
-                    .blur(radius: 30)
-                    .offset(x: 40, y: 40)
-            }
-        )
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.08)))
-        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .padding(16)
+        .background(card)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08)))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    private var scoreRing: some View {
-        let colors = (life?.areaScores ?? []).map { Color(hex: $0.color) }
-        let palette = colors.isEmpty ? [blue, green, amber, pink] : colors
-        let score = life?.score
-        return ZStack {
-            ForEach(Array(palette.enumerated()), id: \.offset) { i, c in
-                Circle()
-                    .trim(from: 0, to: score != nil ? 0.72 : 0.55)
-                    .stroke(c.opacity(score != nil ? 0.85 : 0.35), style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                    .rotationEffect(.degrees(-90 + Double(i) * 20))
-                    .padding(CGFloat(i) * 12)
-            }
-            Text(score.map(String.init) ?? "—")
-                .font(.plusJakarta(size: 18, weight: .bold))
+    private func moneyRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.plusJakarta(size: 13))
+                .foregroundStyle(muted)
+            Spacer()
+            Text(value)
+                .font(.plusJakarta(size: 13, weight: .semibold))
                 .foregroundStyle(text)
         }
-        .frame(width: 110, height: 110)
     }
 
-    @ViewBuilder
-    private var driftCard: some View {
-        if let drift = life?.drift {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(drift.title)
-                    .font(.plusJakarta(size: 11, weight: .bold))
-                    .foregroundStyle(red)
-                Text(drift.headline)
-                    .font(.plusJakarta(size: 18, weight: .bold))
-                    .foregroundStyle(text)
-                Text(drift.body)
-                    .font(.plusJakarta(size: 13))
-                    .foregroundStyle(muted)
-                Text(drift.ctaLabel)
-                    .font(.plusJakarta(size: 13, weight: .semibold))
-                    .foregroundStyle(red)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color(red: 0.102, green: 0.071, blue: 0.094))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(red.opacity(0.25)))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-            .padding(20)
-            .background(Color(red: 0.165, green: 0.082, blue: 0.125))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(red.opacity(0.35)))
-            .shadow(color: red.opacity(0.28), radius: 16)
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-        }
+    private func secondaryScoreLine(score: Int, max: Int) -> some View {
+        Text("Overall score · \(score)/\(max)")
+            .font(.plusJakarta(size: 11))
+            .foregroundStyle(dim)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
     }
 
-    @ViewBuilder
-    private var leverageCard: some View {
-        if let lev = life?.leverage {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 6) {
-                    Text("🎯")
-                    Text(lev.title)
-                        .font(.plusJakarta(size: 11, weight: .bold))
-                        .foregroundStyle(green)
-                }
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(lev.actionTitle)
-                            .font(.plusJakarta(size: 18, weight: .bold))
-                            .foregroundStyle(text)
-                        Text(lev.actionBody)
-                            .font(.plusJakarta(size: 12))
-                            .foregroundStyle(muted)
-                    }
-                    Spacer()
-                    if let ctaAction = resolveLifeCtaAction(lev.ctaAction) {
-                        Button(action: ctaAction) {
-                            Text(lev.ctaLabel)
-                                .font(.plusJakarta(size: 12, weight: .semibold))
-                                .foregroundStyle(green)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(green.opacity(0.15))
-                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(green.opacity(0.4)))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
-                Text("EXPECTED IMPACT")
-                    .font(.plusJakarta(size: 10, weight: .semibold))
-                    .foregroundStyle(dim)
-                HStack {
-                    ForEach(lev.impacts ?? [], id: \.label) { impact in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(impact.label).font(.plusJakarta(size: 11)).foregroundStyle(dim)
-                            Text(impact.delta)
-                                .font(.plusJakarta(size: 16, weight: .bold))
-                                .foregroundStyle(impact.tone == "up" ? green : impact.tone == "down" ? red : muted)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
-            .padding(20)
-            .background(card)
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(green.opacity(0.25)))
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-        }
-    }
-
-    @ViewBuilder
-    private var balanceSection: some View {
-        let axes = life?.balance ?? []
-        if !axes.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Life Balance Model")
-                    .font(.plusJakarta(size: 14, weight: .semibold))
-                    .foregroundStyle(text)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    ForEach(axes, id: \.code) { axis in
-                        let badgeColor: Color = {
-                            switch axis.badgeTone {
-                            case "amber": return amber
-                            case "green": return green
-                            case "blue": return blue
-                            case "pink": return pink
-                            default: return purple
-                            }
-                        }()
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text(axis.label)
-                                    .font(.plusJakarta(size: 10, weight: .bold))
-                                    .foregroundStyle(dim)
-                                Spacer()
-                                Text(axis.badge)
-                                    .font(.plusJakarta(size: 8, weight: .bold))
-                                    .foregroundStyle(badgeColor)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(badgeColor.opacity(0.15))
-                                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                            }
-                            Text("\(axis.score)")
-                                .font(.plusJakarta(size: 24, weight: .bold))
-                                .foregroundStyle(text)
-                        }
-                        .padding(14)
-                        .background(cardAlt)
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.08)))
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var emotionalTrendCard: some View {
-        if let trend = life?.emotionalTrend {
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Emotional Trend")
-                        .font(.plusJakarta(size: 14, weight: .semibold))
-                        .foregroundStyle(text)
-                    Text(trend.subtitle)
-                        .font(.plusJakarta(size: 12))
-                        .foregroundStyle(dim)
-                }
-                EmotionalTrendChartView(series: trend.series ?? [])
-                    .frame(height: 120)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    ForEach(trend.series ?? [], id: \.code) { s in
-                        HStack(spacing: 6) {
-                            Circle().fill(Color(hex: s.color)).frame(width: 6, height: 6)
-                            Text(s.label).font(.plusJakarta(size: 11)).foregroundStyle(muted)
-                        }
-                    }
-                }
-            }
-            .padding(16)
-            .background(card)
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.08)))
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-        }
-    }
-
-    @ViewBuilder
-    private var dominantEmotionCard: some View {
-        if let dom = life?.dominantEmotion {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(dom.title)
-                    .font(.plusJakarta(size: 14, weight: .semibold))
-                    .foregroundStyle(text)
-                HStack(spacing: 16) {
-                    DominantDonutView(segments: dom.segments ?? [])
-                        .frame(width: 80, height: 80)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(dom.headline)
-                            .font(.plusJakarta(size: 13))
-                            .foregroundStyle(text)
-                        HStack(spacing: 10) {
-                            ForEach(Array((dom.segments ?? []).filter { $0.label != "Connection" && $0.label != "Other" }.prefix(3)), id: \.label) { seg in
-                                Text("\(seg.label) (\(seg.percent)%)")
-                                    .font(.plusJakarta(size: 11))
-                                    .foregroundStyle(dim)
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(16)
-            .background(card)
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.08)))
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-        }
-    }
-
-    @ViewBuilder
-    private var happyDriversCard: some View {
-        if let happy = life?.happyDrivers {
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(happy.title)
-                        .font(.plusJakarta(size: 14, weight: .semibold))
-                        .foregroundStyle(text)
-                    Text(happy.subtitle)
-                        .font(.plusJakarta(size: 12))
-                        .foregroundStyle(dim)
-                }
-                ForEach(happy.items ?? [], id: \.self) { item in
-                    HStack(spacing: 10) {
-                        Text("✨")
-                            .font(.plusJakarta(size: 10))
-                            .frame(width: 22, height: 22)
-                            .background(purple.opacity(0.15))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        Text(item).font(.plusJakarta(size: 13)).foregroundStyle(text)
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-            .padding(16)
-            .background(card)
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.08)))
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-        }
-    }
-
-    @ViewBuilder
-    private var journeyCard: some View {
-        if let journey = life?.journey {
-            let items = (journey.items ?? []).filter {
-                matchesLifeFamilyFilter($0.familyCode, filter: selectedFamilyFilter)
-            }
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(journey.title)
-                        .font(.plusJakarta(size: 14, weight: .semibold))
-                        .foregroundStyle(text)
-                    Text(journey.subtitle)
-                        .font(.plusJakarta(size: 12))
-                        .foregroundStyle(dim)
-                }
-                if items.isEmpty {
-                    Text(selectedFamilyFilter != nil ? "No journey notes for this area yet." : "No journey notes yet.")
-                        .font(.plusJakarta(size: 12))
-                        .foregroundStyle(dim)
-                }
-                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(spacing: 12) {
-                        Text(item.icon)
-                            .frame(width: 36, height: 36)
-                            .background(cardAlt)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.title).font(.plusJakarta(size: 13)).foregroundStyle(text)
-                            Text(item.whenLabel ?? "").font(.plusJakarta(size: 11)).foregroundStyle(dim)
-                        }
-                        Spacer()
-                        let tone: Color = item.tone == "up" ? green : item.tone == "down" ? red : muted
-                        Text(item.value)
-                            .font(.plusJakarta(size: 12, weight: .semibold))
-                            .foregroundStyle(tone)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(tone.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                }
-            }
-            .padding(16)
-            .background(card)
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.08)))
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-        }
-    }
-
-    @ViewBuilder
-    private var aiInsightsCard: some View {
-        if let ai = life?.aiInsights {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 6) {
-                    Text("✨")
-                    Text(ai.title)
-                        .font(.plusJakarta(size: 15, weight: .semibold))
-                        .foregroundStyle(text)
-                }
-                Text(ai.lead)
-                    .font(.plusJakarta(size: 13))
-                    .foregroundStyle(text)
-                Text(ai.body)
-                    .font(.plusJakarta(size: 12))
-                    .foregroundStyle(muted)
-            }
-            .padding(20)
-            .background(
-                LinearGradient(colors: [Color(red: 0.118, green: 0.102, blue: 0.196), card], startPoint: .topLeading, endPoint: .bottomTrailing)
-            )
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(purple.opacity(0.25)))
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-        }
-    }
-
-    private func matchesLifeFamilyFilter(_ itemFamilyCode: String?, filter: String?) -> Bool {
-        guard let filter else { return true }
-        return itemFamilyCode?.caseInsensitiveCompare(filter) == .orderedSame
-    }
-
-    private func lifeFamilyFilterLabel(_ filterCode: String?) -> String? {
-        switch filterCode?.uppercased() {
-        case "LIFE_OPERATIONS": return "Everyday"
-        case "FUTURE_BUILDING": return "Future"
-        case "LIFESTYLE": return "Lifestyle"
-        case "RELATIONSHIPS": return "People"
-        default: return nil
-        }
-    }
-
-    private func resolveLifeCtaAction(_ ctaAction: String?) -> (() -> Void)? {
+    private func resolveCta(_ ctaAction: String?) -> (() -> Void)? {
         switch ctaAction?.uppercased() {
         case "LOG_RECOVERY": return onLogRecovery
         case "LOG_SPEND": return onLogSpend
         case "OPEN_ADD": return onOpenAdd
         default: return nil
         }
-    }
-}
-
-private struct EmotionalTrendChartView: View {
-    let series: [APIClient.PersonalLifePayload.LifeEmotionSeries]
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                ForEach([0.25, 0.5, 0.75], id: \.self) { f in
-                    Path { p in
-                        let y = geo.size.height * f
-                        p.move(to: CGPoint(x: 0, y: y))
-                        p.addLine(to: CGPoint(x: geo.size.width, y: y))
-                    }
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                }
-                ForEach(series, id: \.code) { s in
-                    let pts = s.points ?? []
-                    if pts.count >= 2 {
-                        Path { path in
-                            for (i, v) in pts.enumerated() {
-                                let x = geo.size.width * CGFloat(i) / CGFloat(max(pts.count - 1, 1))
-                                let y = geo.size.height * (1 - CGFloat(v / 100.0).clamped(to: 0...1))
-                                if i == 0 { path.move(to: CGPoint(x: x, y: y)) }
-                                else { path.addLine(to: CGPoint(x: x, y: y)) }
-                            }
-                        }
-                        .stroke(Color(hex: s.color), style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct DominantDonutView: View {
-    let segments: [APIClient.PersonalLifePayload.LifeEmotionSegment]
-
-    var body: some View {
-        let total = max(segments.reduce(0) { $0 + $1.percent }, 1)
-        Canvas { context, size in
-            var start = Angle.degrees(-90)
-            let stroke: CGFloat = 12
-            let rect = CGRect(x: stroke / 2, y: stroke / 2, width: size.width - stroke, height: size.height - stroke)
-            for seg in segments {
-                let sweep = Angle.degrees(360 * Double(seg.percent) / Double(total))
-                var path = Path()
-                path.addArc(center: CGPoint(x: size.width / 2, y: size.height / 2), radius: (size.width - stroke) / 2, startAngle: start, endAngle: start + sweep, clockwise: false)
-                context.stroke(path, with: .color(Color(hex: seg.color)), style: StrokeStyle(lineWidth: stroke, lineCap: .butt))
-                start = start + sweep
-            }
-            _ = rect
-        }
-    }
-}
-
-private extension Comparable {
-    func clamped(to range: ClosedRange<Self>) -> Self {
-        min(max(self, range.lowerBound), range.upperBound)
     }
 }

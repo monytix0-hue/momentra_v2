@@ -2,15 +2,40 @@ package com.example.momentra.ui.shell.business.shared
 
 import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.ui.shell.perf.ShellPerf
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 const val BUSINESS_PULSE_ACTIVITY_LIMIT = 5
 
 private val pulseInflight =
     ConcurrentHashMap<String, CompletableDeferred<Result<BusinessTabDataCache.PulseTab>>>()
+
+private val pulseGeneration = ConcurrentHashMap<String, AtomicLong>()
+
+fun businessPulseLoadFamily(momentTypeCode: String?): BusinessMomentFamilyConfig.Family {
+    val code = momentTypeCode?.uppercase().orEmpty()
+    return when {
+        code.contains("RUNWAY") -> BusinessMomentFamilyConfig.Family.MONEY
+        code.contains("OPERATIONS") && !code.contains("TEAM") -> BusinessMomentFamilyConfig.Family.DAILY
+        else -> BusinessMomentFamilyConfig.Family.TEAM
+    }
+}
+
+/**
+ * Drop cached Business facets and any in-flight pulse load for one moment.
+ * Call this before bumping the refresh token or starting a new prefetch.
+ */
+fun invalidateBusinessPulseLoad(momentId: String) {
+    BusinessTabDataCache.invalidateMoment(momentId)
+    pulseGeneration.computeIfAbsent(momentId) { AtomicLong(0) }.incrementAndGet()
+    pulseInflight.remove(momentId)?.complete(Result.failure(CancellationException("invalidated")))
+}
+
+private fun pulseGen(momentId: String): Long = pulseGeneration[momentId]?.get() ?: 0L
 
 /**
  * Personal-parity pulse load: one bundled /pulse GET (finance + activity preview).
@@ -21,13 +46,21 @@ suspend fun loadBusinessPulseTab(
     momentId: String,
     activityLimit: Int = BUSINESS_PULSE_ACTIVITY_LIMIT,
     fetchTeamOpsMetrics: Boolean = false,
+    family: BusinessMomentFamilyConfig.Family = BusinessMomentFamilyConfig.Family.TEAM,
 ): Result<BusinessTabDataCache.PulseTab> {
     val created = CompletableDeferred<Result<BusinessTabDataCache.PulseTab>>()
     val existing = pulseInflight.putIfAbsent(momentId, created)
     val shared = existing ?: created
     if (existing == null) {
+        val generation = pulseGen(momentId)
         try {
-            created.complete(fetchBundledPulse(repository, momentId, activityLimit))
+            val fetched = fetchBundledPulse(repository, momentId, activityLimit, family)
+            if (pulseGen(momentId) != generation) {
+                created.complete(Result.failure(CancellationException("invalidated")))
+            } else {
+                fetched.onSuccess { BusinessTabDataCache.putPulse(momentId, it) }
+                created.complete(fetched)
+            }
         } catch (t: Throwable) {
             created.complete(Result.failure(t))
         } finally {
@@ -43,27 +76,89 @@ private suspend fun fetchBundledPulse(
     repository: BusinessSliceRepository,
     momentId: String,
     activityLimit: Int,
+    family: BusinessMomentFamilyConfig.Family,
 ): Result<BusinessTabDataCache.PulseTab> = runCatching {
     val mark = ShellPerf.start("pulse_tab_ready")
-    val pulseFacet = repository.getPulse(momentId).getOrThrow()
+    val data = when (family) {
+        BusinessMomentFamilyConfig.Family.MONEY -> fetchMoneyPulse(repository, momentId, activityLimit)
+        BusinessMomentFamilyConfig.Family.DAILY -> fetchDailyPulse(repository, momentId, activityLimit)
+        BusinessMomentFamilyConfig.Family.TEAM -> fetchTeamPulse(repository, momentId, activityLimit)
+    }
+    ShellPerf.end(mark, mapOf("context" to "BUSINESS", "bundled" to true, "cached" to false))
+    data
+}
+
+private suspend fun fetchMoneyPulse(
+    repository: BusinessSliceRepository,
+    momentId: String,
+    activityLimit: Int,
+): BusinessTabDataCache.PulseTab = coroutineScope {
+    val pulseDeferred = async { repository.getPulse(momentId) }
+    val lifeDeferred = async { repository.getLife(momentId) }
+    val pulseFacet = pulseDeferred.await().getOrThrow()
+    val lifeResult = lifeDeferred.await()
     val pulse = pulseFacet.payload
-    val finance = pulse?.finance
     val activities = pulse?.activity
         ?: repository.getActivity(momentId, limit = activityLimit).getOrThrow().items
-    val previous = BusinessTabDataCache.peekPulse(momentId)
-    val data = BusinessTabDataCache.PulseTab(
+    val approvals = repository.listPendingApprovals(momentId).getOrNull()?.items
+    BusinessTabDataCache.PulseTab(
         pulse = pulse,
-        finance = finance ?: previous?.finance,
-        life = previous?.life,
+        finance = pulse?.finance,
+        life = lifeResult.getOrNull()?.payload,
         activities = activities,
         businessFamily = pulseFacet.businessFamily,
         facetStatus = pulseFacet.status,
-        capacity = previous?.capacity,
-        workload = previous?.workload,
+        approvals = approvals,
+        lifeFailed = lifeResult.isFailure,
     )
-    BusinessTabDataCache.putPulse(momentId, data)
-    ShellPerf.end(mark, mapOf("context" to "BUSINESS", "bundled" to true, "cached" to false))
-    data
+}
+
+private suspend fun fetchDailyPulse(
+    repository: BusinessSliceRepository,
+    momentId: String,
+    activityLimit: Int,
+): BusinessTabDataCache.PulseTab {
+    val pulseFacet = repository.getPulse(momentId).getOrThrow()
+    val pulse = pulseFacet.payload
+    val activities = pulse?.activity
+        ?: repository.getActivity(momentId, limit = activityLimit).getOrThrow().items
+    val issues = repository.listIssues(momentId).getOrNull()?.items
+    return BusinessTabDataCache.PulseTab(
+        pulse = pulse,
+        finance = pulse?.finance,
+        life = null,
+        activities = activities,
+        businessFamily = pulseFacet.businessFamily,
+        facetStatus = pulseFacet.status,
+        issues = issues,
+    )
+}
+
+private suspend fun fetchTeamPulse(
+    repository: BusinessSliceRepository,
+    momentId: String,
+    activityLimit: Int,
+): BusinessTabDataCache.PulseTab = coroutineScope {
+    val pulseDeferred = async { repository.getPulse(momentId) }
+    val rosterDeferred = async { repository.getRoster(momentId) }
+    val approvalsDeferred = async { repository.listPendingApprovals(momentId) }
+    val issuesDeferred = async { repository.listIssues(momentId) }
+    val pulseFacet = pulseDeferred.await().getOrThrow()
+    val pulse = pulseFacet.payload
+    val activities = pulse?.activity
+        ?: repository.getActivity(momentId, limit = activityLimit).getOrThrow().items
+    val roster = rosterDeferred.await().getOrNull()
+    BusinessTabDataCache.PulseTab(
+        pulse = pulse,
+        finance = pulse?.finance,
+        life = null,
+        activities = activities,
+        businessFamily = pulseFacet.businessFamily,
+        facetStatus = pulseFacet.status,
+        approvals = approvalsDeferred.await().getOrNull()?.items,
+        issues = issuesDeferred.await().getOrNull()?.items,
+        rosterCount = roster?.members?.size,
+    )
 }
 
 private suspend fun enrichTeamOps(
@@ -111,7 +206,15 @@ suspend fun loadBusinessMemoryTab(
 }
 
 /** Prefetch bundled pulse for Business tab SWR. */
-suspend fun prefetchBusinessTabs(repository: BusinessSliceRepository, momentId: String) {
+suspend fun prefetchBusinessTabs(
+    repository: BusinessSliceRepository,
+    momentId: String,
+    momentTypeCode: String? = null,
+) {
     if (momentId.isBlank()) return
-    loadBusinessPulseTab(repository, momentId)
+    loadBusinessPulseTab(
+        repository,
+        momentId,
+        family = businessPulseLoadFamily(momentTypeCode),
+    )
 }

@@ -5,6 +5,9 @@ import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { z } from 'zod';
 
+/** Signed download lifetime. Possession of an old URL is not a lasting grant. */
+export const SIGNED_DOWNLOAD_TTL_SEC = 900;
+
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'application/pdf']);
 const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -48,6 +51,77 @@ function mediaBucket(): string {
   return process.env.MEDIA_BUCKET?.trim() || 'momentra-media';
 }
 
+/** Client-supplied scope ids are not authorization. Reject before any signed URL is minted. */
+async function assertUploadScope(
+  client: PoolClient,
+  ctx: RequestContext,
+  scopeType: 'USER' | 'MOMENT' | 'COMPANY',
+  scopeId: string
+): Promise<void> {
+  if (scopeType === 'USER') {
+    if (scopeId !== ctx.userId) {
+      throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Upload scope not found.', 404);
+    }
+    return;
+  }
+  if (scopeType === 'COMPANY') {
+    const member = await client.query(
+      `SELECT 1 FROM business.company_membership
+       WHERE company_id = $1 AND user_id = $2 AND status = 'ACTIVE'`,
+      [scopeId, ctx.userId]
+    );
+    if (!member.rowCount) {
+      throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Not an active company member.', 403);
+    }
+    return;
+  }
+  const moment = await client.query<{ domain_code: string }>(
+    `SELECT domain_code FROM core.moment WHERE moment_id = $1`,
+    [scopeId]
+  );
+  const domain = moment.rows[0]?.domain_code;
+  if (!domain) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Upload scope not found.', 404);
+  }
+  if (domain === 'PERSONAL') {
+    const owned = await client.query(
+      `SELECT 1 FROM personal.personal_moment_context
+       WHERE moment_id = $1 AND user_id = $2`,
+      [scopeId, ctx.userId]
+    );
+    if (!owned.rowCount) {
+      throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Upload scope not found.', 404);
+    }
+    return;
+  }
+  if (domain === 'GROUP') {
+    const member = await client.query(
+      `SELECT 1 FROM collaboration.moment_participant
+       WHERE moment_id = $1 AND user_id = $2 AND status = 'ACTIVE'`,
+      [scopeId, ctx.userId]
+    );
+    if (!member.rowCount) {
+      throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Not an active member of this group moment.', 403);
+    }
+    return;
+  }
+  if (domain === 'BUSINESS') {
+    const member = await client.query(
+      `SELECT 1
+       FROM business.business_moment_context bmc
+       JOIN business.company_membership cm
+         ON cm.company_id = bmc.company_id AND cm.user_id = $2 AND cm.status = 'ACTIVE'
+       WHERE bmc.moment_id = $1 AND bmc.status = 'ACTIVE'`,
+      [scopeId, ctx.userId]
+    );
+    if (!member.rowCount) {
+      throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Not an active company member for this business moment.', 403);
+    }
+    return;
+  }
+  throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Upload scope not found.', 404);
+}
+
 export async function createUploadIntent(
   client: PoolClient,
   ctx: RequestContext,
@@ -65,6 +139,7 @@ export async function createUploadIntent(
   if (body.byteSize > MAX_BYTES) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'File exceeds maximum size.', 400);
   }
+  await assertUploadScope(client, ctx, body.scopeType, body.scopeId);
 
   const uploadId = randomUUID();
   const bucket = mediaBucket();
@@ -161,11 +236,11 @@ export async function completeUpload(
   return { uploadId, mediaId: uploadId, status: 'READY' };
 }
 
-/** Signed GET URL for a private media object (default 1 hour). */
+/** Signed GET URL for a private media object (default SIGNED_DOWNLOAD_TTL_SEC). */
 export async function createSignedDownloadUrl(
   bucket: string,
   objectKey: string,
-  expiresSec = 3600
+  expiresSec = SIGNED_DOWNLOAD_TTL_SEC
 ): Promise<string> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(objectKey, expiresSec);
@@ -183,7 +258,7 @@ export async function createSignedDownloadUrl(
 export async function trySignedDownloadUrl(
   bucket: string | null | undefined,
   objectKey: string | null | undefined,
-  expiresSec = 3600
+  expiresSec = SIGNED_DOWNLOAD_TTL_SEC
 ): Promise<string | null> {
   if (!bucket?.trim() || !objectKey?.trim()) return null;
   try {

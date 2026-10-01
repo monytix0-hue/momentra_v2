@@ -84,7 +84,7 @@ enum BusinessSetupCatalog {
             "reviewCycle": "Weekly",
             "monitoring": "Balanced",
             "spendingApproval": "Required",
-            "approvalThreshold": "₹50,000",
+            "approvalThreshold": "",
         ]
     )
 
@@ -128,10 +128,10 @@ enum BusinessSetupCatalog {
             "currency": "INR",
             "multiCurrency": true,
             "extraCurrencies": [] as [String],
-            "availableCash": "₹ 1,80,00,000",
-            "monthlySpending": "₹ 12,50,000",
+            "availableCash": "",
+            "monthlySpending": "",
             "revenueStage": "Growing",
-            "monthlyRevenue": "₹ 8,08,000",
+            "monthlyRevenue": "",
             "revenueModel": "Recurring",
             "warningThreshold": "6 months",
             "fundingSource": "Bootstrapped + revenue",
@@ -185,11 +185,11 @@ enum BusinessSetupCatalog {
             "currency": "INR",
             "multiCurrency": false,
             "extraCurrencies": [] as [String],
-            "monthlyBudget": "₹35,00,000",
+            "monthlyBudget": "",
             "allocationMethod": "Category-based",
             "monitoringStyle": "Proactive",
             "approvalModel": "Threshold-based",
-            "approvalAlarm": "₹5,00,000",
+            "approvalAlarm": "",
         ]
     )
 

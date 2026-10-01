@@ -5,6 +5,7 @@ struct BusinessKhataHomeView: View {
     let companyId: String
     let shopName: String
     @Binding var isPresented: Bool
+    var onEntrySaved: () -> Void = {}
 
     @State private var tab = "CUSTOMER"
     @State private var items: [APIClient.KhataPartyItem] = []
@@ -86,12 +87,14 @@ struct BusinessKhataHomeView: View {
                 ) {
                     entryParty = nil
                     Task { await reload() }
+                    onEntrySaved()
                 }
             }
             .sheet(item: $cashSaleParty) { party in
                 BusinessKhataCashSaleView(momentId: momentId, party: party) {
                     cashSaleParty = nil
                     Task { await reload() }
+                    onEntrySaved()
                 }
             }
             .sheet(item: $historyParty) { party in

@@ -8,12 +8,6 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function moneyLabel(amount: number, currency: string): string {
-  const formatted = amount.toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  if ((currency ?? '').toUpperCase() === 'INR' || !currency) return `₹${formatted}`;
-  return `${currency} ${formatted}`;
-}
-
 const RUNWAY_DELTA_MONTHS = 0.5;
 const EXPENSE_THRESHOLDS = [80, 100] as const;
 
@@ -181,7 +175,7 @@ export async function evaluateBusinessSignals(pool: Pool): Promise<DerivedNotifi
           invoiceNumber: row.invoice_number,
           currencyCode: row.currency_code,
           remainingAmount: remaining.toFixed(2),
-          body: `Invoice ${row.invoice_number} is overdue (${moneyLabel(remaining, row.currency_code)}).`,
+          body: 'An invoice is overdue.',
         },
         dedupeKey: `BUSINESS:${row.company_id}:USER:${row.user_id}:INVOICE:${row.invoice_id}:OVERDUE`,
         explanationCode: 'INVOICE_OVERDUE',
@@ -206,7 +200,7 @@ export async function evaluateBusinessSignals(pool: Pool): Promise<DerivedNotifi
           invoiceNumber: row.invoice_number,
           currencyCode: row.currency_code,
           remainingAmount: remaining.toFixed(2),
-          body: `Invoice ${row.invoice_number} is due within 24h.`,
+          body: 'An invoice is due soon.',
         },
         dedupeKey: `BUSINESS:${row.company_id}:USER:${row.user_id}:INVOICE:${row.invoice_id}:DUE_24H`,
         explanationCode: 'INVOICE_DUE_24H',
@@ -265,7 +259,7 @@ export async function evaluateBusinessSignals(pool: Pool): Promise<DerivedNotifi
           currencyCode: row.currency_code,
           utilizationPercent: Math.round(pct),
           thresholdPercent: threshold,
-          body: `${row.company_name} has used ${Math.round(pct)}% of its expense budget.`,
+          body: 'You have a budget update in Momentra.',
         },
         dedupeKey,
         explanationCode: threshold >= 100 ? 'EXPENSE_100_PERCENT' : 'EXPENSE_80_PERCENT',
@@ -313,7 +307,7 @@ export async function evaluateBusinessSignals(pool: Pool): Promise<DerivedNotifi
       facts: {
         companyName: row.company_name,
         runwayMonths: Math.round(months * 10) / 10,
-        body: `${row.company_name} runway is now ${Math.round(months * 10) / 10} months.`,
+        body: 'You have a runway update in Momentra.',
       },
       dedupeKey,
       explanationCode: 'RUNWAY_CHANGED',

@@ -19,7 +19,7 @@ function initFirebaseAdmin(): void {
 
 export async function verifyFirebaseToken(bearerToken: string): Promise<DecodedIdToken> {
   initFirebaseAdmin();
-  return getAuth().verifyIdToken(bearerToken);
+  return getAuth().verifyIdToken(bearerToken, true);
 }
 
 /** In-process warm cache: skip DB after we know the profile row exists. */

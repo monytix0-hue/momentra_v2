@@ -1,3 +1,4 @@
+import CryptoKit
 import LocalAuthentication
 import SwiftUI
 
@@ -75,11 +76,21 @@ enum AppLockStore {
         return String(data: data, encoding: .utf8)
     }
 
+    /// SHA-256 of the PIN, stored only in the Keychain. Never networked.
     private static func sha256(_ value: String) -> String {
-        // Lightweight verifier — Keychain stores the hash; never networked.
-        var hash = value.utf8.reduce(5381) { (($0 << 5) &+ $0) &+ Int($1) }
-        hash = hash &- 0
-        return String(format: "%016llx", UInt64(bitPattern: Int64(hash)))
+        let digest = SHA256.hash(data: Data(value.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+/// Shoulder-surfing mask for money text. Not an authorization or encryption control.
+enum BalanceMask {
+    static var hideBalances: Bool {
+        UserDefaults.standard.bool(forKey: "momentra_hide_balances")
+    }
+
+    static func mask(_ text: String) -> String {
+        hideBalances ? "••••" : text
     }
 }
 

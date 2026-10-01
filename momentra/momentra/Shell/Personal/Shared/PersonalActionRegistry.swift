@@ -179,6 +179,52 @@ enum PersonalActionRegistry {
         return out
     }
 
+    /// Primary Today / Add row labels for a family (exactly 3).
+    static func primaryLabels(for family: PersonalPulseFamily) -> [String] {
+        family.theme.todayActionLabels
+    }
+
+    /// Family-first hub: primaries then secondaries for the selected family.
+    static func familyFirstSections(
+        selected: PersonalPulseFamily,
+        presentFamilies: Set<PersonalPulseFamily>,
+        hasActiveMoment: Bool,
+        capabilityCodes: [String]? = nil,
+        showOtherFamilies: Bool = false
+    ) -> [PersonalHubSection] {
+        let caps = capabilityCodes ?? defaultCodes(for: selected).map(\.rawValue)
+        let all = tiles(for: selected, hasActiveMoment: hasActiveMoment, capabilityCodes: caps)
+        let primaries = Set(primaryLabels(for: selected))
+        // Map Connect → Connection, Shared → Shared Exp for registry labels.
+        let primaryTiles = all.filter { tile in
+            primaries.contains(tile.label)
+                || (selected == .relationships && tile.label == "Connection" && primaries.contains("Connect"))
+                || (selected == .relationships && (tile.label == "Shared Exp" || tile.label == "Shared") && primaries.contains("Shared"))
+        }
+        let orderedPrimary: [PersonalActionTile] = primaryLabels(for: selected).compactMap { label in
+            primaryTiles.first {
+                $0.label == label
+                    || (label == "Connect" && $0.label == "Connection")
+                    || (label == "Shared" && ($0.label == "Shared Exp" || $0.label == "Shared"))
+            }
+        }
+        let secondary = all.filter { tile in !orderedPrimary.contains(where: { $0.id == tile.id }) }
+        var sections: [PersonalHubSection] = [
+            PersonalHubSection(title: nil, tiles: orderedPrimary + secondary),
+        ]
+        if showOtherFamilies {
+            let others = PersonalPulseFamily.allCases.filter { $0 != selected && presentFamilies.contains($0) }
+            for family in others {
+                let familyCaps = capabilityCodes ?? defaultCodes(for: family).map(\.rawValue)
+                let tiles = tiles(for: family, hasActiveMoment: hasActiveMoment, capabilityCodes: familyCaps)
+                if !tiles.isEmpty {
+                    sections.append(PersonalHubSection(title: family.switcherLabel, tiles: tiles))
+                }
+            }
+        }
+        return sections
+    }
+
     /// Builds hub tiles for a family — always returns the full catalog; greys tiles when capability/moment inactive.
     /// When `simpleMode` is true on Life Ops, keeps Expense / Mood / Recovery only.
     static func tiles(
@@ -232,10 +278,10 @@ enum PersonalActionRegistry {
         case .futureBuilding:
             return [
                 tile(.milestoneCreate, "Milestone", "QaTarget", "#8B5CF6", "#6C4EF2"),
-                tile(.opportunityCreate, "Opportunity", "QaActivity", "#3B82F6", "#1D4ED8"),
-                tile(.pivotRecord, "Pivot", "QaRefresh", "#06B6D4", "#0891B2"),
                 tile(.progressRecord, "Progress", "QaTrending", "#10B981", "#047857"),
                 tile(.learningActivityCreate, "Learning", "QaBook", "#6366F1", "#4338CA"),
+                tile(.opportunityCreate, "Opportunity", "QaActivity", "#3B82F6", "#1D4ED8"),
+                tile(.pivotRecord, "Pivot", "QaRefresh", "#06B6D4", "#0891B2"),
             ]
         case .lifestyle:
             return [
@@ -248,17 +294,17 @@ enum PersonalActionRegistry {
         case .relationships:
             return [
                 tile(.relationshipActivityRecord, "Connection", "QaUsers", "#E12A9E", "#BE1882"),
-                tile(.relationshipActivityRecord, "Support", "QaHeart", "#C8238C", "#A51473"),
                 tile(.relationshipActivityRecord, "Shared Exp", "QaCamera", "#EB3CAA", "#C82891"),
+                tile(.relationshipActivityRecord, "Support", "QaHeart", "#C8238C", "#A51473"),
                 tile(.relationshipActivityRecord, "Investment", "QaTrending", "#F578C8", "#E12A9E"),
                 tile(.relationshipActivityRecord, "Adjust", "QaSliders", "#F064B9", "#D23296"),
             ]
         case .lifeOperations:
             return [
                 tile(.expenseCreate, "Spend", "QaWallet", "#8B5CF6", "#6C4EF2"),
-                tile(.expenseCreate, "Income", "QaTrending", "#10B981", "#047857"),
-                tile(.lifeObservationRecord, "Recovery", "QaActivity", "#3B82F6", "#1D4ED8"),
                 tile(.lifeObservationRecord, "Mood", "QaSmile", "#06B6D4", "#0891B2"),
+                tile(.lifeObservationRecord, "Recovery", "QaActivity", "#3B82F6", "#1D4ED8"),
+                tile(.expenseCreate, "Income", "QaTrending", "#10B981", "#047857"),
                 tile(.lifeObservationRecord, "Attention", "QaTarget", "#A78BFA", "#7C3AED"),
                 tile(.movementRecord, "Transfer", "QaRefresh", "#1E40AF", "#0B2A8A"),
                 tile(.movementRecord, "Savings", "QaTrending", "#10B981", "#047857"),

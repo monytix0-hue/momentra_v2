@@ -56,6 +56,46 @@ function parseMoneyish(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+export const LIFE_MONEY_FAMILY = 'BUSINESS_RUNWAY';
+export const LIFE_DAILY_FAMILY = 'BUSINESS_OPERATIONS';
+export const LIFE_TEAM_FAMILY = 'TEAM_OPERATIONS';
+
+/** Earliest active moment of a family, then the lower moment id. Not the caller moment. */
+export async function resolveCanonicalFamilyMoment(
+  client: PoolClient,
+  companyId: string,
+  businessFamily: string
+): Promise<string | null> {
+  const row = await client.query<{ moment_id: string }>(
+    `SELECT moment_id
+     FROM business.business_moment_context
+     WHERE company_id = $1 AND status = 'ACTIVE' AND business_family = $2
+     ORDER BY created_at ASC, moment_id ASC
+     LIMIT 1`,
+    [companyId, businessFamily]
+  );
+  return row.rows[0]?.moment_id ?? null;
+}
+
+async function loadFamilyPrefs(
+  client: PoolClient,
+  companyId: string,
+  momentId: string
+): Promise<Record<string, unknown>> {
+  const prefsRow = await client.query<{ preferences: Record<string, unknown> }>(
+    `SELECT preferences FROM business.business_system_setup
+     WHERE company_id = $1 AND moment_id = $2 AND status = 'ACTIVE'
+     ORDER BY updated_at DESC LIMIT 1`,
+    [companyId, momentId]
+  );
+  return prefsRow.rows[0]?.preferences ?? {};
+}
+
+function warningThresholdMonths(prefs: Record<string, unknown>): number {
+  if (prefs.warningThreshold == null || prefs.warningThreshold === '') return 6;
+  return parseMoneyish(prefs.warningThreshold);
+}
+
 export async function loadLifeTrendSeries(
   client: PoolClient,
   companyId: string
@@ -108,7 +148,6 @@ export async function loadLifeTrendSeries(
 export async function assembleTypedSignals(
   client: PoolClient,
   ctx: RequestContext,
-  momentId: string,
   companyId: string,
   issueRows: Array<{
     issue_id: string;
@@ -126,16 +165,24 @@ export async function assembleTypedSignals(
     severity: r.severity,
   }));
 
-  const capacity = await getCapacity(client, ctx, momentId);
-  if (capacity.capacityPct != null && capacity.capacityPct < 40) {
-    signals.push({
-      signalId: `capacity-${companyId}`,
-      signalType: 'capacity',
-      title: `Team capacity at ${capacity.capacityPct}%`,
-      family: 'TEAM_OPS',
-      statusLabel: capacity.capacityPct < 25 ? 'Action' : 'Watch',
-      metricValue: capacity.capacityPct,
-    });
+  const [teamMomentId, moneyMomentId, dailyMomentId] = await Promise.all([
+    resolveCanonicalFamilyMoment(client, companyId, LIFE_TEAM_FAMILY),
+    resolveCanonicalFamilyMoment(client, companyId, LIFE_MONEY_FAMILY),
+    resolveCanonicalFamilyMoment(client, companyId, LIFE_DAILY_FAMILY),
+  ]);
+
+  if (teamMomentId) {
+    const capacity = await getCapacity(client, ctx, teamMomentId);
+    if (capacity.capacityPct != null && capacity.capacityPct < 40) {
+      signals.push({
+        signalId: `capacity-${companyId}`,
+        signalType: 'capacity',
+        title: `Team capacity at ${capacity.capacityPct}%`,
+        family: 'TEAM_OPS',
+        statusLabel: capacity.capacityPct < 25 ? 'Action' : 'Watch',
+        metricValue: capacity.capacityPct,
+      });
+    }
   }
 
   const pulse = await client.query<{ runway_months: string | null }>(
@@ -143,50 +190,49 @@ export async function assembleTypedSignals(
     [companyId]
   );
   const runwayMonths = pulse.rows[0]?.runway_months != null ? parseFloat(pulse.rows[0].runway_months) : null;
-  const prefsRow = await client.query<{ preferences: Record<string, unknown> }>(
-    `SELECT preferences FROM business.business_system_setup
-     WHERE company_id = $1 AND moment_id = $2 AND status = 'ACTIVE'
-     ORDER BY updated_at DESC LIMIT 1`,
-    [companyId, momentId]
-  );
-  const prefs = prefsRow.rows[0]?.preferences ?? {};
-  const warningThreshold = parseMoneyish(prefs.warningThreshold) || 6;
-  if (runwayMonths != null && runwayMonths < warningThreshold) {
-    signals.push({
-      signalId: `runway-${companyId}`,
-      signalType: 'runway',
-      title: `Runway ${runwayMonths} months below ${warningThreshold} month target`,
-      family: 'RUNWAY',
-      statusLabel: runwayMonths < warningThreshold / 2 ? 'Action' : 'Watch',
-      metricValue: runwayMonths,
-    });
+  if (moneyMomentId) {
+    const prefs = await loadFamilyPrefs(client, companyId, moneyMomentId);
+    const warningThreshold = warningThresholdMonths(prefs);
+    if (runwayMonths != null && runwayMonths < warningThreshold) {
+      signals.push({
+        signalId: `runway-${companyId}`,
+        signalType: 'runway',
+        title: `Runway ${runwayMonths} months below ${warningThreshold} month target`,
+        family: 'RUNWAY',
+        statusLabel: runwayMonths < warningThreshold / 2 ? 'Action' : 'Watch',
+        metricValue: runwayMonths,
+      });
+    }
   }
 
-  const ops = await loadOpsPulseExtras(client, companyId, momentId);
-  const budgetRaw = prefs.monthlyBudget ?? prefs.monthlySpending;
-  const budgetNum = budgetRaw != null ? parseMoneyish(budgetRaw) : 0;
-  const spendNum = parseFloat(ops.monthlySpend ?? '0');
-  if (budgetNum > 0 && spendNum > budgetNum) {
-    const pct = Math.round((spendNum / budgetNum) * 100);
-    signals.push({
-      signalId: `budget-${companyId}`,
-      signalType: 'budget',
-      title: `Monthly spend at ${pct}% of budget`,
-      family: 'OPERATIONS',
-      statusLabel: pct > 110 ? 'Action' : 'Watch',
-      metricValue: pct,
-    });
-  }
+  if (dailyMomentId) {
+    const ops = await loadOpsPulseExtras(client, companyId, dailyMomentId);
+    const prefs = await loadFamilyPrefs(client, companyId, dailyMomentId);
+    const budgetRaw = prefs.monthlyBudget ?? prefs.monthlySpending;
+    const budgetNum = budgetRaw != null ? parseMoneyish(budgetRaw) : 0;
+    const spendNum = ops.monthlySpend != null ? parseFloat(ops.monthlySpend) : null;
+    if (budgetNum > 0 && spendNum != null && spendNum > budgetNum) {
+      const pct = Math.round((spendNum / budgetNum) * 100);
+      signals.push({
+        signalId: `budget-${companyId}`,
+        signalType: 'budget',
+        title: `Monthly spend at ${pct}% of budget`,
+        family: 'OPERATIONS',
+        statusLabel: pct > 110 ? 'Action' : 'Watch',
+        metricValue: pct,
+      });
+    }
 
-  if (ops.slaCompliancePct != null && ops.slaCompliancePct < 90) {
-    signals.push({
-      signalId: `sla-${companyId}`,
-      signalType: 'sla',
-      title: `SLA compliance ${ops.slaCompliancePct}%`,
-      family: 'OPERATIONS',
-      statusLabel: ops.slaCompliancePct < 75 ? 'Action' : 'Watch',
-      metricValue: ops.slaCompliancePct,
-    });
+    if (ops.slaCompliancePct != null && ops.slaCompliancePct < 90) {
+      signals.push({
+        signalId: `sla-${companyId}`,
+        signalType: 'sla',
+        title: `SLA compliance ${ops.slaCompliancePct}%`,
+        family: 'OPERATIONS',
+        statusLabel: ops.slaCompliancePct < 75 ? 'Action' : 'Watch',
+        metricValue: ops.slaCompliancePct,
+      });
+    }
   }
 
   const overdue = await client
@@ -222,15 +268,11 @@ export async function assembleTypedSignals(
 export async function computeLifeModuleScores(
   client: PoolClient,
   ctx: RequestContext,
-  momentId: string,
   companyId: string,
   pulse: {
     runway_months: string | null;
     financial_health_score: string | null;
-  } | undefined,
-  teamPayload: Record<string, unknown>,
-  runwayPayload: Record<string, unknown>,
-  opsPayload: Record<string, unknown>
+  } | undefined
 ): Promise<{
   teamScore: number | null;
   runwayScore: number | null;
@@ -240,10 +282,19 @@ export async function computeLifeModuleScores(
   revenueMomPct: number | null;
   expenseMomPct: number | null;
 }> {
-  const [capacity, mom, ops] = await Promise.all([
-    getCapacity(client, ctx, momentId),
-    getMomDeltas(client, ctx, momentId),
-    loadOpsPulseExtras(client, companyId, momentId),
+  const [teamMomentId, moneyMomentId, dailyMomentId] = await Promise.all([
+    resolveCanonicalFamilyMoment(client, companyId, LIFE_TEAM_FAMILY),
+    resolveCanonicalFamilyMoment(client, companyId, LIFE_MONEY_FAMILY),
+    resolveCanonicalFamilyMoment(client, companyId, LIFE_DAILY_FAMILY),
+  ]);
+
+  const [capacity, mom, ops, moneyPrefs] = await Promise.all([
+    teamMomentId ? getCapacity(client, ctx, teamMomentId) : Promise.resolve({ capacityPct: null as number | null }),
+    moneyMomentId
+      ? getMomDeltas(client, ctx, moneyMomentId)
+      : Promise.resolve({ revenueMomPct: null as number | null, expenseMomPct: null as number | null }),
+    dailyMomentId ? loadOpsPulseExtras(client, companyId, dailyMomentId) : Promise.resolve(null),
+    moneyMomentId ? loadFamilyPrefs(client, companyId, moneyMomentId) : Promise.resolve({}),
   ]);
 
   const fin = await client.query<{ expense_total: string; revenue_total: string }>(
@@ -251,38 +302,27 @@ export async function computeLifeModuleScores(
      FROM projection.business_finance_snapshot WHERE company_id = $1 LIMIT 1`,
     [companyId]
   );
-  const prefsRow = await client.query<{ preferences: Record<string, unknown> }>(
-    `SELECT preferences FROM business.business_system_setup
-     WHERE company_id = $1 AND moment_id = $2 AND status = 'ACTIVE'
-     ORDER BY updated_at DESC LIMIT 1`,
-    [companyId, momentId]
-  );
-  const prefs = prefsRow.rows[0]?.preferences ?? {};
+  const dailyPrefs = dailyMomentId ? await loadFamilyPrefs(client, companyId, dailyMomentId) : {};
   const expenseTotal = parseFloat(fin.rows[0]?.expense_total ?? '0');
   const revenueTotal = parseFloat(fin.rows[0]?.revenue_total ?? '0');
   const runwayMonths = pulse?.runway_months != null ? parseFloat(pulse.runway_months) : null;
 
-  const teamScore = await computeTeamScore(client, companyId, momentId);
+  const teamScore = teamMomentId ? await computeTeamScore(client, companyId, teamMomentId) : null;
   const runwayScore =
     pulse?.financial_health_score != null
       ? Math.round(parseFloat(pulse.financial_health_score))
-      : computeHealthScore(runwayMonths, prefs, expenseTotal, revenueTotal);
-  const opsScore = computeOpsScore(ops.slaCompliancePct, ops.monthlySpend, prefs);
-  const vendorScore =
-    ops.slaCompliancePct != null && ops.activeVendorCount > 0
-      ? Math.round((ops.slaCompliancePct + Math.min(100, ops.activeVendorCount * 10)) / 2)
-      : ops.activeVendorCount > 0
-        ? Math.min(100, ops.activeVendorCount * 15)
+      : moneyMomentId
+        ? computeHealthScore(runwayMonths, moneyPrefs, expenseTotal, revenueTotal)
         : null;
-
-  if (capacity.capacityPct != null && teamPayload) {
-    teamPayload.capacityPct = capacity.capacityPct;
-  }
-  if (runwayPayload) {
-    if (mom.revenueMomPct != null) runwayPayload.revenueMomPct = mom.revenueMomPct;
-    if (mom.expenseMomPct != null) runwayPayload.expenseMomPct = mom.expenseMomPct;
-  }
-  void opsPayload;
+  const opsScore = ops ? computeOpsScore(ops.slaCompliancePct, ops.monthlySpend, dailyPrefs) : null;
+  const vendorScore =
+    ops == null
+      ? null
+      : ops.slaCompliancePct != null && ops.activeVendorCount > 0
+        ? Math.round((ops.slaCompliancePct + Math.min(100, ops.activeVendorCount * 10)) / 2)
+        : ops.activeVendorCount > 0
+          ? Math.min(100, ops.activeVendorCount * 15)
+          : null;
 
   return {
     teamScore,

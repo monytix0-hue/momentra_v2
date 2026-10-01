@@ -28,7 +28,7 @@ struct AccountHubView: View {
     @State private var apiBaseOverride = APIConfig.baseURLOverride
 
     private var currentDeviceId: String {
-        UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
+        PushNotifications.currentDeviceId
     }
 
     var body: some View {

@@ -11,6 +11,16 @@ enum BusinessTabDataCache {
         let facetStatus: String?
         let capacity: APIClient.BusinessCapacityPayload?
         let workload: APIClient.BusinessWorkloadPayload?
+        let approvalTitles: [PulseNamedRow]?
+        let issueTitles: [PulseNamedRow]?
+        let needsAttention: [PulseNamedRow]
+        let rosterCount: Int?
+        let lifeFailed: Bool
+    }
+
+    struct PulseNamedRow: Equatable {
+        let id: String
+        let title: String
     }
 
     struct MemoryTab {
@@ -50,7 +60,12 @@ enum BusinessTabDataCache {
             businessFamily: previous.businessFamily,
             facetStatus: previous.facetStatus,
             capacity: previous.capacity,
-            workload: previous.workload
+            workload: previous.workload,
+            approvalTitles: previous.approvalTitles,
+            issueTitles: previous.issueTitles,
+            needsAttention: previous.needsAttention,
+            rosterCount: previous.rosterCount,
+            lifeFailed: previous.lifeFailed
         ))
         if let mem = memoryByMoment[momentId] {
             putMemory(momentId, MemoryTab(
@@ -78,10 +93,13 @@ enum BusinessTabPrefetch {
     static let activityLimit = 5
 
     /// Warm bundled pulse (finance + activity preview) so Business tabs paint without spinners.
-    static func run(momentId: String) async {
+    static func run(momentId: String, momentTypeCode: String? = nil) async {
         guard !momentId.isEmpty else { return }
         do {
-            _ = try await BusinessTabLoad.loadPulseTab(momentId: momentId)
+            _ = try await BusinessTabLoad.loadPulseTab(
+                momentId: momentId,
+                family: BusinessTabLoad.loadFamily(for: momentTypeCode)
+            )
         } catch {
             // Prefetch is best-effort; visible tabs retry on their own .task.
         }

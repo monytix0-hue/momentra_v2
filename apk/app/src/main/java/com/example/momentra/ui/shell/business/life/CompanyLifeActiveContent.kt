@@ -17,6 +17,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -30,23 +31,25 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.BusinessLifePayloadDto
 import com.example.momentra.data.api.WeeklyReportDto
 import com.example.momentra.data.repository.BusinessSliceRepository
-import com.example.momentra.ui.shell.business.shared.BusinessAudience
-import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
-import com.example.momentra.ui.shell.business.life.components.CompanyLifeActivitySection
 import com.example.momentra.ui.shell.business.life.components.CompanyLifeColors
-import com.example.momentra.ui.shell.business.life.components.CompanyLifeFilter
-import com.example.momentra.ui.shell.business.life.components.CompanyLifeFilterChips
 import com.example.momentra.ui.shell.business.life.components.CompanyLifeGradientButton
-import com.example.momentra.ui.shell.business.life.components.CompanyLifeHealthHeader
-import com.example.momentra.ui.shell.business.life.components.CompanyLifeJourneySection
-import com.example.momentra.ui.shell.business.life.components.CompanyLifeModuleCards
 import com.example.momentra.ui.shell.business.life.components.CompanyLifeOutlineButton
-import com.example.momentra.ui.shell.business.life.components.CompanyLifeSignalsSection
-import com.example.momentra.ui.shell.business.life.components.CompanyLifeTrendsSection
+import com.example.momentra.ui.shell.business.shared.BusinessLifeActivityFact
+import com.example.momentra.ui.shell.business.shared.BusinessLifeFacts
+import com.example.momentra.ui.shell.business.shared.BusinessLifeLens
+import com.example.momentra.ui.shell.business.shared.BusinessLifeMovementTab
+import com.example.momentra.ui.shell.business.shared.BusinessLifeSignalFact
+import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
+import com.example.momentra.ui.shell.business.shared.buildBusinessLifeCompanyState
+import com.example.momentra.ui.shell.business.shared.businessLifeLens
+import com.example.momentra.ui.shell.business.shared.movementTabFor
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
 
-/** Figma `695:9782` company-unified Business Life — live bind; honest empties. */
+/** Company Life. The payload is the company. The lens only changes focus. */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun CompanyLifeActiveContent(
     momentId: String?,
@@ -56,42 +59,61 @@ fun CompanyLifeActiveContent(
     onOpenFinance: () -> Unit = {},
     onOpenVendor: () -> Unit = {},
     repository: BusinessSliceRepository = remember { BusinessSliceRepository() },
-    focusFilter: CompanyLifeFilter? = null,
+    companyId: String? = null,
+    momentTypeCode: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val zone = remember { ZoneId.systemDefault() }
     var loading by remember { mutableStateOf(true) }
     var payload by remember { mutableStateOf<BusinessLifePayloadDto?>(null) }
+    var shownCompany by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var filter by remember { mutableStateOf(focusFilter ?: CompanyLifeFilter.ALL) }
+    var lens by remember(momentTypeCode) { mutableStateOf(businessLifeLens(momentTypeCode)) }
+    var movement by remember(lens) { mutableStateOf(movementTabFor(lens)) }
+    var retry by remember { mutableIntStateOf(0) }
     var report by remember { mutableStateOf<WeeklyReportDto?>(null) }
     var showReport by remember { mutableStateOf(false) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
     var shareBusy by remember { mutableStateOf(false) }
-    var smallShop by remember { mutableStateOf(false) }
 
-    LaunchedEffect(momentId) {
-        smallShop = BusinessAudience.isSmallShopMoment(momentId, context = context)
+    LaunchedEffect(companyId) {
+        if (!companyId.isNullOrBlank() && shownCompany != null && companyId != shownCompany) {
+            payload = null
+            error = null
+            shownCompany = companyId
+        }
     }
 
-    LaunchedEffect(refreshToken, momentId) {
+    LaunchedEffect(momentTypeCode) {
+        val next = businessLifeLens(momentTypeCode)
+        lens = next
+        movement = movementTabFor(next)
+    }
+
+    LaunchedEffect(refreshToken, momentId, companyId, retry) {
         if (momentId.isNullOrBlank()) {
             loading = false
             payload = null
             error = "Select a Business Moment."
             return@LaunchedEffect
         }
+        if (payload == null) {
+            BusinessTabDataCache.peekPulse(momentId)?.life?.let { payload = it }
+        }
         loading = payload == null
         error = null
-        BusinessTabDataCache.peekPulse(momentId)?.life?.let {
-            payload = it
-            loading = false
-        }
         repository.getLife(momentId).fold(
-            onSuccess = {
-                payload = it.payload
-                BusinessTabDataCache.putLife(momentId, it.payload)
+            onSuccess = { facet ->
+                val incoming = facet.companyId
+                if (!companyId.isNullOrBlank() && !incoming.isNullOrBlank() && incoming != companyId) return@fold
+                if (!shownCompany.isNullOrBlank() && !incoming.isNullOrBlank() && incoming != shownCompany && companyId.isNullOrBlank()) {
+                    return@fold
+                }
+                payload = facet.payload
+                shownCompany = incoming ?: companyId
+                BusinessTabDataCache.putLife(momentId, facet.payload)
             },
             onFailure = { error = it.message },
         )
@@ -108,45 +130,8 @@ fun CompanyLifeActiveContent(
         return
     }
 
-    val kpis = payload?.kpis
-    val scoreRaw = kpis?.financialHealthScore?.trim()?.takeIf { it.isNotBlank() }
-    val score = scoreRaw?.toDoubleOrNull()?.toInt()?.toString()
-        ?: scoreRaw?.takeIf { it.all { ch -> ch.isDigit() } }
-        ?: "—"
-    val hasLiveScore = score != "—"
-    val attention = kpis?.attentionCount ?: 0
-    val narrative = when {
-        !hasLiveScore && attention > 0 -> "Needs attention"
-        !hasLiveScore -> "Awaiting live company signal"
-        (score.toIntOrNull() ?: 0) >= 80 && attention == 0 -> "Healthy"
-        (score.toIntOrNull() ?: 0) >= 60 -> "Watch"
-        else -> "Needs focus"
-    }
-    val subtitle = when {
-        !hasLiveScore -> "Activate modules and log activity to surface company health."
-        attention > 0 -> "$attention open signal${if (attention == 1) "" else "s"} need review across modules."
-        else -> "Modules with live data are within available thresholds. No critical alerts invented."
-    }
-    val moduleCount = kpis?.activeModuleCount ?: 0
-    val momentCount = kpis?.activeMomentCount ?: 0
-    val runway = kpis?.runwayMonths?.trim()?.takeIf { it.isNotBlank() }
-    val activeModulesLabel = "$moduleCount MODULE${if (moduleCount == 1) "" else "S"}"
-    val momentsLabel = "$momentCount MOMENT${if (momentCount == 1) "" else "S"}"
-    val runwayLabel = runway?.let { "$it MONTHS" } ?: "—"
-
-    val familyKey = filter.familyKey
-    val signals = payload?.signals.orEmpty().filter { familyKey == null || it.family.equals(familyKey, true) }
-    val activity = payload?.activity.orEmpty().filter { familyKey == null || it.family.equals(familyKey, true) }
-    val journey = payload?.journey.orEmpty().filter {
-        familyKey == null || it.family.equals(familyKey, true) || it.familyCode.contains(
-            when (familyKey) {
-                "TEAM_OPS" -> "TEAM"
-                "RUNWAY" -> "RUNWAY"
-                "OPERATIONS" -> "OPERATIONS"
-                else -> ""
-            },
-            ignoreCase = true,
-        )
+    val state = payload?.let {
+        buildBusinessLifeCompanyState(it.toLifeFacts(), Instant.now(), zone)
     }
 
     Column(
@@ -155,66 +140,29 @@ fun CompanyLifeActiveContent(
             .background(CompanyLifeColors.Bg)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        Text(
+            "Company life",
+            color = CompanyLifeColors.Text,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
+        )
+        BusinessLifeLensChips(selected = lens, onSelect = { lens = it })
         error?.let {
-            Text(
-                it,
-                color = CompanyLifeColors.Red,
-                fontSize = 12.sp,
-                fontFamily = PlusJakartaSans,
-            )
+            Text(it, color = CompanyLifeColors.Red, fontSize = 12.sp, fontFamily = PlusJakartaSans)
+            if (payload == null) {
+                TextButton(onClick = { retry += 1 }) { Text("Try again") }
+            }
         }
         actionMessage?.let {
-            Text(
-                it,
-                color = CompanyLifeColors.Indigo,
-                fontSize = 12.sp,
-                fontFamily = PlusJakartaSans,
-            )
+            Text(it, color = CompanyLifeColors.Indigo, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         }
-        if (!momentTitle.isNullOrBlank()) {
-            Text(
-                momentTitle,
-                color = CompanyLifeColors.Secondary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = PlusJakartaSans,
-            )
+        if (state != null) {
+            BusinessLifeBlocks(state = state, movement = movement, onMovement = { movement = it })
         }
-
-        if (focusFilter == null) {
-            CompanyLifeFilterChips(selected = filter, onSelect = { filter = it }, smallShop = smallShop)
-        }
-
-        CompanyLifeHealthHeader(
-            score = score,
-            narrative = narrative,
-            subtitle = subtitle,
-            activeModules = activeModulesLabel,
-            totalMoments = momentsLabel,
-            avgRunway = runwayLabel,
-            smallShop = smallShop,
-        )
-
-        CompanyLifeModuleCards(
-            team = payload?.modules?.teamOperations,
-            runway = payload?.modules?.runway,
-            ops = payload?.modules?.businessOperations,
-            vendor = payload?.modules?.vendorOperations,
-            onOpenFinance = onOpenFinance,
-            onOpenVendor = onOpenVendor,
-        )
-
-        CompanyLifeSignalsSection(signals = signals)
-        CompanyLifeActivitySection(items = activity)
-        CompanyLifeJourneySection(steps = journey)
-        CompanyLifeTrendsSection(trends = payload?.trends)
-
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             CompanyLifeGradientButton(
                 label = "View Detailed Report",
                 enabled = !momentId.isNullOrBlank(),
@@ -288,3 +236,19 @@ fun CompanyLifeActiveContent(
         )
     }
 }
+
+private fun BusinessLifePayloadDto.toLifeFacts(): BusinessLifeFacts = BusinessLifeFacts(
+    sections = sections,
+    runway = runwayPayload.orEmpty(),
+    daily = businessOperationsPayload.orEmpty(),
+    team = teamOperationsPayload.orEmpty(),
+    runwayStatus = runwayPayload.statusLabel() ?: modules?.runway?.statusLabel,
+    dailyStatus = businessOperationsPayload.statusLabel() ?: modules?.businessOperations?.statusLabel,
+    teamStatus = teamOperationsPayload.statusLabel() ?: modules?.teamOperations?.statusLabel,
+    runwayMonths = kpis?.runwayMonths,
+    signals = signals.map { BusinessLifeSignalFact(it.title, it.family, it.statusLabel) },
+    activity = activity.map { BusinessLifeActivityFact(it.title, it.occurredAt, it.activityCode) },
+)
+
+private fun Map<String, Any?>?.statusLabel(): String? =
+    this?.get("statusLabel")?.toString()?.trim()?.takeIf { it.isNotEmpty() }

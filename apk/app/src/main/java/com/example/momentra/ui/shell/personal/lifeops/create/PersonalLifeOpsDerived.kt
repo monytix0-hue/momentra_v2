@@ -194,12 +194,12 @@ object PersonalLifeOpsDerived {
         return when (stageBand(wellbeing)) {
             "Thriving" -> Triple(
                 "Adaptive Operator",
-                "${min(92, 55 + activityCount * 3)}% confidence",
+                "Strong signal",
                 "You respond best when structure and recovery work together.",
             )
             "Structured" -> Triple(
                 "Structured Operator",
-                "${min(85, 45 + activityCount * 3)}% confidence",
+                "Forming signal",
                 "Your rhythm is forming — keep pairing pressure with recovery.",
             )
             else -> Triple(

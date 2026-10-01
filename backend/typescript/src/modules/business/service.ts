@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGovernanceAllowed } from '../governance/resolver';
-import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
+import { insertAudit, insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
 
 export const createCompanySchema = z
@@ -82,7 +82,7 @@ export async function createCompany(
      VALUES ($1, $2, 'OWNER', 'ACTIVE', now(), 1)`,
     [companyId, ctx.userId]
   );
-  await insertDomainEventAndOutbox(client, ctx, {
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'CompanyCreated',
     domainCode: 'BUSINESS',
     aggregateType: 'COMPANY',
@@ -90,6 +90,10 @@ export async function createCompany(
     scopeType: 'COMPANY',
     scopeId: companyId,
     payload: { companyId, displayName: body.displayName },
+  });
+  await insertAudit(client, ctx, 'COMPANY_CREATE', 'COMPANY', companyId, domainEventId, {
+    companyId,
+    membershipType: 'OWNER',
   });
   return {
     companyId,

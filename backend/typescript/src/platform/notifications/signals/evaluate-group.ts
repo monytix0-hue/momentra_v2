@@ -87,7 +87,7 @@ export async function evaluateGroupSignals(pool: Pool): Promise<DerivedNotificat
           budgetTotal: moneyStr(budget),
           utilizationPercent: Math.round(pct),
           thresholdPercent: threshold,
-          body: `This trip has used ${Math.round(pct)}% of its planned budget.`,
+          body: 'You have a budget update in Momentra.',
         },
         dedupeKey,
         explanationCode,
@@ -182,10 +182,7 @@ export async function evaluateGroupSignals(pool: Pool): Promise<DerivedNotificat
           momentTitle: title,
           currencyCode: agg.currency_code,
           netPosition: moneyStr(agg.net),
-          body:
-            agg.net < 0
-              ? `Your ${title} share has reached ${moneyLabel(agg.absNet, agg.currency_code)}.`
-              : `You're owed ${moneyLabel(agg.absNet, agg.currency_code)} in ${title}.`,
+          body: 'Your share in a moment changed.',
         },
         dedupeKey: shareKey,
         explanationCode: 'BALANCE_CHANGED_MEANINGFUL',
@@ -211,10 +208,7 @@ export async function evaluateGroupSignals(pool: Pool): Promise<DerivedNotificat
           currencyCode: agg.currency_code,
           settleAmount: moneyStr(agg.absNet),
           direction: agg.net < 0 ? 'YOU_OWE' : 'YOU_ARE_OWED',
-          body:
-            agg.net < 0
-              ? `One ${moneyLabel(agg.absNet, agg.currency_code)} settlement would clear your balance.`
-              : `A ${moneyLabel(agg.absNet, agg.currency_code)} settlement would clear what’s owed to you.`,
+          body: 'A settlement would clear a shared balance.',
         },
         dedupeKey: settleKey,
         explanationCode: 'BALANCE_SETTLEABLE',
@@ -247,7 +241,7 @@ export async function evaluateGroupSignals(pool: Pool): Promise<DerivedNotificat
           momentTitle: title,
           currencyCode: agg.currency_code,
           outstandingTotal: moneyStr(agg.outstanding),
-          body: `${title} is nearly settled — only ${moneyLabel(agg.outstanding, agg.currency_code)} left.`,
+          body: 'A shared balance is nearly settled.',
         },
         dedupeKey: nearlyKey,
         explanationCode: 'GROUP_NEARLY_SETTLED',
@@ -381,10 +375,4 @@ async function clearSettledBalanceSignals(pool: Pool): Promise<void> {
        )`,
     [BALANCE_MEANINGFUL_ABS * 0.4]
   );
-}
-
-function moneyLabel(amount: number, currency: string): string {
-  const formatted = amount.toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  if ((currency ?? '').toUpperCase() === 'INR' || !currency) return `₹${formatted}`;
-  return `${currency} ${formatted}`;
 }

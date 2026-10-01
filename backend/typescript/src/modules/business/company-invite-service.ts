@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGovernanceAllowed } from '../governance/resolver';
-import { insertDomainEventAndOutbox } from '../../platform/events/outbox';
+import { insertAudit, insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { assertActiveCompanyMember } from './membership';
 
 export const mintCompanyInviteSchema = z
@@ -266,7 +266,7 @@ export async function redeemCompanyInvite(
     },
   });
 
-  await insertDomainEventAndOutbox(client, ctx, {
+  const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'CompanyMemberAdded',
     domainCode: 'BUSINESS',
     aggregateType: 'COMPANY',
@@ -280,6 +280,11 @@ export async function redeemCompanyInvite(
       membershipType: row.membership_type,
       viaInvite: true,
     },
+  });
+  await insertAudit(client, ctx, 'COMPANY_MEMBER_ADD', 'COMPANY_MEMBERSHIP', membershipId, domainEventId, {
+    companyId: row.company_id,
+    membershipId,
+    membershipType: row.membership_type,
   });
 
   return {

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getCorrelationId, getMaestroRunId } from '../observability/correlation';
 import { config } from '../config';
+import { redactForLog } from './sensitive-redaction';
 
 /** Structured request logging — never logs Authorization or tokens. */
 export function requestLogMiddleware(req: Request, res: Response, next: NextFunction): void {
@@ -34,7 +35,7 @@ export function requestLogMiddleware(req: Request, res: Response, next: NextFunc
       durationMs: Date.now() - started,
       canonicalUserId: req.requestContext?.userId,
     };
-    console.log(JSON.stringify(line));
+    console.log(JSON.stringify(redactForLog(line)));
   });
   next();
 }

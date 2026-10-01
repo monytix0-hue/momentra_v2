@@ -1,104 +1,34 @@
 import SwiftUI
 
-/// Figma `695:9782` company-unified Business Life — live bind; honest empties.
+/// Company Life. The payload is the company. The selected moment only sets the lens.
 struct BusinessLifeActiveView: View {
     let refreshToken: UInt64
     let momentId: String?
     let momentTitle: String?
     var momentTypeCode: String? = nil
+    var companyId: String? = nil
     var onViewReport: () -> Void = {}
     var onOpenFinance: () -> Void = {}
     var onOpenVendor: () -> Void = {}
 
     @State private var life: APIClient.BusinessLifePayload?
+    @State private var shownCompany: String?
     @State private var loading = true
     @State private var error: String?
-    @State private var filter: CompanyLifeFilter = .all
+    @State private var lens: BusinessLifeLens = .overview
+    @State private var movement: BusinessLifeMovementTab = .activity
     @State private var report: APIClient.BusinessWeeklyReportPayload?
     @State private var showReport = false
     @State private var actionMessage: String?
     @State private var shareBusy = false
-    @State private var smallShop = false
+    @State private var retry = 0
 
-    private var teamLocked: Bool {
-        (momentTypeCode ?? "").uppercased().contains("TEAM_OPERATIONS")
-    }
-
-    private var cashFlowLocked: Bool {
-        let code = (momentTypeCode ?? "").uppercased()
-        return code.contains("RUNWAY") && !code.contains("TEAM")
-    }
-
-    private var dailyLocked: Bool {
-        let code = (momentTypeCode ?? "").uppercased()
-        return code.contains("OPERATIONS") && !code.contains("TEAM")
-    }
-
-    private var activeFilter: CompanyLifeFilter {
-        if teamLocked { return .team }
-        if cashFlowLocked { return .runway }
-        if dailyLocked { return .ops }
-        return filter
-    }
-
-    private var inner: APIClient.BusinessLifePayload.LifeInner? { life?.payload }
-    private var kpis: APIClient.BusinessLifePayload.LifeInner.LifeKpis? { inner?.kpis }
-
-    private var score: String {
-        guard let raw = kpis?.financialHealthScore?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !raw.isEmpty else { return "—" }
-        if let n = Double(raw) { return "\(Int(n))" }
-        return raw.allSatisfy(\.isNumber) ? raw : "—"
-    }
-
-    private var hasLiveScore: Bool { score != "—" }
-    private var attention: Int { kpis?.attentionCount ?? 0 }
-
-    private var narrative: String {
-        if !hasLiveScore {
-            return attention > 0 ? "Needs attention" : "Awaiting live company signal"
-        }
-        let n = Int(score) ?? 0
-        if n >= 80 && attention == 0 { return "Healthy" }
-        if n >= 60 { return "Watch" }
-        return "Needs focus"
-    }
-
-    private var subtitle: String {
-        if !hasLiveScore {
-            return "Activate modules and log activity to surface company health."
-        }
-        if attention > 0 {
-            return "\(attention) open signal\(attention == 1 ? "" : "s") need review across modules."
-        }
-        return "Modules with live data are within available thresholds. No critical alerts invented."
-    }
-
-    private var signals: [APIClient.BusinessLifePayload.LifeInner.LifeSignal] {
-        let all = inner?.signals ?? []
-        guard let key = activeFilter.familyKey else { return all }
-        return all.filter { ($0.family ?? "").uppercased() == key }
-    }
-
-    private var activity: [APIClient.BusinessLifePayload.LifeInner.LifeActivity] {
-        let all = inner?.activity ?? []
-        guard let key = activeFilter.familyKey else { return all }
-        return all.filter { ($0.family ?? "").uppercased() == key }
-    }
-
-    private var journey: [APIClient.BusinessLifePayload.LifeInner.LifeJourney] {
-        let all = inner?.journey ?? []
-        guard let key = activeFilter.familyKey else { return all }
-        let needle: String = {
-            switch key {
-            case "TEAM_OPS": return "TEAM"
-            case "RUNWAY": return "RUNWAY"
-            default: return "OPERATIONS"
-            }
-        }()
-        return all.filter {
-            ($0.family ?? "").uppercased() == key || $0.familyCode.uppercased().contains(needle)
-        }
+    private var companyState: BusinessLifeCompanyState {
+        buildBusinessLifeCompanyState(
+            facts: businessLifeFacts(from: life?.payload),
+            now: Date(),
+            timeZone: .current
+        )
     }
 
     var body: some View {
@@ -108,56 +38,28 @@ struct BusinessLifeActiveView: View {
             } else {
                 NativeDashboardScaffold(background: CompanyLifeColors.bg) {
                     NativeListSection {
-                        VStack(alignment: .leading, spacing: 24) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Company life")
+                                .font(.plusJakarta(size: 22, weight: .semibold))
+                                .foregroundStyle(CompanyLifeColors.text)
+                            lensChips
                             if let error {
                                 Text(error)
                                     .font(.caption)
                                     .foregroundStyle(CompanyLifeColors.red)
+                                if life == nil {
+                                    Button("Try again") { retry += 1 }
+                                        .font(.caption)
+                                }
                             }
                             if let actionMessage {
                                 Text(actionMessage)
                                     .font(.caption)
                                     .foregroundStyle(CompanyLifeColors.indigo)
                             }
-                            if let momentTitle, !momentTitle.isEmpty {
-                                Text(momentTitle)
-                                    .font(.plusJakarta(size: 12, weight: .semibold))
-                                    .foregroundStyle(CompanyLifeColors.secondary)
+                            if life != nil {
+                                companyBlocks
                             }
-
-                            if !teamLocked && !cashFlowLocked && !dailyLocked {
-                                CompanyLifeFilterChips(selected: $filter, smallShop: smallShop)
-                            }
-
-                            CompanyLifeHealthHeader(
-                                score: score,
-                                narrative: narrative,
-                                subtitle: subtitle,
-                                activeModules: "\(kpis?.activeModuleCount ?? 0) MODULE\((kpis?.activeModuleCount ?? 0) == 1 ? "" : "S")",
-                                totalMoments: "\(kpis?.activeMomentCount ?? 0) MOMENT\((kpis?.activeMomentCount ?? 0) == 1 ? "" : "S")",
-                                avgRunway: {
-                                    if let m = kpis?.runwayMonths?.trimmingCharacters(in: .whitespacesAndNewlines),
-                                       !m.isEmpty {
-                                        return "\(m) MONTHS"
-                                    }
-                                    return "—"
-                                }(),
-                                smallShop: smallShop
-                            )
-
-                            CompanyLifeModuleCards(
-                                team: inner?.modules?.teamOperations,
-                                runway: inner?.modules?.runway,
-                                ops: inner?.modules?.businessOperations,
-                                vendor: inner?.modules?.vendorOperations,
-                                onOpenFinance: onOpenFinance,
-                                onOpenVendor: onOpenVendor
-                            )
-
-                            CompanyLifeSignalsSection(signals: signals)
-                            CompanyLifeActivitySection(items: activity)
-                            CompanyLifeJourneySection(steps: journey)
-                            CompanyLifeTrendsSection(trends: inner?.trends)
                         }
                     }
                 }
@@ -201,10 +103,158 @@ struct BusinessLifeActiveView: View {
                 }
             }
         }
-        .task(id: momentId) {
-            smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
+        .onChange(of: companyId) { _, next in
+            if let shownCompany, let next, next != shownCompany {
+                life = nil
+                self.shownCompany = next
+            }
         }
-        .task(id: "\(refreshToken)-\(momentId ?? "")") { await load() }
+        .onChange(of: momentTypeCode) { _, code in
+            let next = businessLifeLens(momentTypeCode: code)
+            lens = next
+            movement = movementTab(for: next)
+        }
+        .onAppear {
+            let next = businessLifeLens(momentTypeCode: momentTypeCode)
+            lens = next
+            movement = movementTab(for: next)
+        }
+        .task(id: "\(refreshToken)-\(momentId ?? "")-\(companyId ?? "")-\(retry)") { await load() }
+    }
+
+    private var lensChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(BusinessLifeLens.allCases, id: \.self) { item in
+                    Button {
+                        lens = item
+                        movement = movementTab(for: item)
+                    } label: {
+                        Text(item.label)
+                            .font(.plusJakarta(size: 13, weight: .semibold))
+                            .foregroundStyle(CompanyLifeColors.text)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(item == lens ? CompanyLifeColors.indigoSolid : CompanyLifeColors.card)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private var companyBlocks: some View {
+        let state = companyState
+        return VStack(alignment: .leading, spacing: 22) {
+            block("Company overview") {
+                ForEach(Array(state.overview.enumerated()), id: \.offset) { _, line in
+                    pair(line.title, line.state)
+                }
+            }
+            block("This week") {
+                Text(state.thisWeek)
+                    .font(.plusJakarta(size: 14))
+                    .foregroundStyle(CompanyLifeColors.text)
+            }
+            block("Where the business moved") {
+                HStack(spacing: 8) {
+                    movementChip("Activity", selected: movement == .activity) { movement = .activity }
+                    movementChip("Money", selected: movement == .money) { movement = .money }
+                }
+                if movement == .activity {
+                    if state.activity.isEmpty {
+                        muted("Nothing recorded yet.")
+                    } else {
+                        ForEach(Array(state.activity.enumerated()), id: \.offset) { _, item in
+                            Text(item.title.isEmpty ? "Activity" : item.title)
+                                .font(.plusJakarta(size: 14))
+                                .foregroundStyle(CompanyLifeColors.text)
+                        }
+                    }
+                } else if state.moneyMovement.isEmpty {
+                    muted("No money figures recorded.")
+                } else {
+                    ForEach(Array(state.moneyMovement.enumerated()), id: \.offset) { _, line in
+                        pair(line.label, line.value)
+                    }
+                }
+            }
+            block("Needs attention") {
+                if state.needsAttention.isEmpty {
+                    muted("Nothing needs attention.")
+                } else {
+                    ForEach(Array(state.needsAttention.enumerated()), id: \.offset) { _, title in
+                        Text(title).font(.plusJakarta(size: 14)).foregroundStyle(CompanyLifeColors.text)
+                    }
+                }
+            }
+            block("What's working") {
+                if state.working.isEmpty {
+                    muted("Nothing marked as working.")
+                } else {
+                    ForEach(Array(state.working.enumerated()), id: \.offset) { _, title in
+                        Text(title).font(.plusJakarta(size: 14)).foregroundStyle(CompanyLifeColors.text)
+                    }
+                }
+            }
+            block("Financial position") {
+                Text(businessLifeFinanceScope)
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(CompanyLifeColors.secondary)
+                if state.financialPosition.isEmpty {
+                    muted("No company totals yet.")
+                } else {
+                    ForEach(Array(state.financialPosition.enumerated()), id: \.offset) { _, line in
+                        pair(line.label, line.value)
+                    }
+                }
+            }
+        }
+    }
+
+    private func block<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.plusJakarta(size: 16, weight: .semibold))
+                .foregroundStyle(CompanyLifeColors.text)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(CompanyLifeColors.card)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func pair(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.plusJakarta(size: 14))
+                .foregroundStyle(CompanyLifeColors.secondary)
+            Spacer()
+            Text(value)
+                .font(.plusJakarta(size: 14, weight: .medium))
+                .foregroundStyle(CompanyLifeColors.text)
+        }
+    }
+
+    private func movementChip(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.plusJakarta(size: 12))
+                .foregroundStyle(CompanyLifeColors.text)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(selected ? CompanyLifeColors.indigo : CompanyLifeColors.bg)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func muted(_ text: String) -> some View {
+        Text(text)
+            .font(.plusJakarta(size: 14))
+            .foregroundStyle(CompanyLifeColors.secondary)
     }
 
     private func load() async {
@@ -214,17 +264,23 @@ struct BusinessLifeActiveView: View {
             return
         }
         error = nil
-        if let cached = BusinessTabDataCache.peekPulse(momentId)?.life {
+        if life == nil, let cached = BusinessTabDataCache.peekPulse(momentId)?.life {
             life = cached
-            loading = false
-        } else {
-            loading = life == nil
         }
+        loading = life == nil
         do {
-            life = try await APIClient.shared.getBusinessLife(momentId: momentId)
-            if let life {
-                BusinessTabDataCache.putLife(momentId, life)
+            let incoming = try await APIClient.shared.getBusinessLife(momentId: momentId)
+            if let companyId, let incomingCompany = incoming.companyId, incomingCompany != companyId {
+                loading = false
+                return
             }
+            if companyId == nil, let shownCompany, let incomingCompany = incoming.companyId, incomingCompany != shownCompany {
+                loading = false
+                return
+            }
+            life = incoming
+            shownCompany = incoming.companyId ?? companyId
+            BusinessTabDataCache.putLife(momentId, incoming)
         } catch {
             self.error = error.localizedDescription
         }

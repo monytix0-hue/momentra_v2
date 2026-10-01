@@ -570,7 +570,8 @@ struct AppShellView: View {
                     momentId: momentId,
                     companyId: companyId,
                     shopName: model.selectedCompany?.displayName ?? model.selectedMomentTitle ?? "",
-                    isPresented: $businessKhataSheetPresented
+                    isPresented: $businessKhataSheetPresented,
+                    onEntrySaved: { model.refreshVisibleBusinessTab() }
                 )
             }
         }
@@ -609,23 +610,16 @@ struct AppShellView: View {
                 hasCompany: model.selectedCompany != nil,
                 capabilityCodes: model.capabilities,
                 momentId: model.selectedMomentId,
-                momentTypeCode: model.selectedMomentTypeCode,
+                momentTypeCode: BusinessMomentFamilyConfig.selectedQuickAddTypeCode(
+                    selectedMomentId: model.selectedMomentId,
+                    moments: model.moments,
+                    selectedMomentTypeCode: model.selectedMomentTypeCode
+                ),
                 companyId: model.selectedCompany?.companyId,
                 onClose: { businessQuickAddPresented = false },
                 onTile: { kind in
                     businessQuickAddPresented = false
-                    switch kind {
-                    case .khata:
-                        businessKhataSheetPresented = true
-                    case .expense, .spendEntry:
-                        businessExpenseSheetPresented = true
-                    case .revenue:
-                        businessRevenueSheetPresented = true
-                    case .invoice:
-                        businessInvoiceSheetPresented = true
-                    default:
-                        businessGapQa = kind
-                    }
+                    presentBusinessKind(kind)
                 },
                             onNewMoment: {
                     businessQuickAddPresented = false
@@ -653,6 +647,7 @@ struct AppShellView: View {
                     businessMembersSheetPresented = true
                 }
             )
+            .id(model.selectedMomentId ?? "")
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
@@ -1015,6 +1010,21 @@ struct AppShellView: View {
             return []
         }
         return base.map { ($0.momentId, $0.title) }
+    }
+
+    private func presentBusinessKind(_ kind: BusinessQuickAddKind) {
+        switch kind {
+        case .khata:
+            businessKhataSheetPresented = true
+        case .expense, .spendEntry:
+            businessExpenseSheetPresented = true
+        case .revenue:
+            businessRevenueSheetPresented = true
+        case .invoice:
+            businessInvoiceSheetPresented = true
+        default:
+            businessGapQa = kind
+        }
     }
 
     private func openMoneyQa(_ kind: MoneyQuickAddKind) {
@@ -1808,65 +1818,22 @@ struct AppShellView: View {
                         onLifestyleQuickAdd: { openLifestyleQa($0) },
                         onRelationshipsQuickAdd: { openRelationshipsQa($0) },
                         onViewAllActivity: {
-                            if isRelationships {
-                                relationshipsActivityOpen = true
-                            } else {
-                                recentActivityOpen = true
-                            }
+                            model.selectBottomDestination(.moments)
                         },
                         forceCollapsed: true
                     )
-                } else if model.selectedContext == .personal, model.bottomDestination == .moments, isFutureBuilding {
-                    PersonalFutureMomentsActiveView(
+                } else if model.selectedContext == .personal, model.bottomDestination == .moments {
+                    PersonalMomentsActiveView(
                         refreshToken: model.personalTabRefreshToken,
                         momentId: model.selectedMomentId,
                         momentTitle: model.selectedMomentTitle,
-                        onOpenQuickAdd: { model.selectBottomDestination(.create) }
+                        momentTypeCode: personalTypeCode,
+                        onOpenQuickAdd: { model.selectBottomDestination(.create) },
+                        onActivityChanged: { model.refreshVisiblePersonalTab() }
                     )
-                } else if model.selectedContext == .personal, model.bottomDestination == .moments, isLifestyle {
-                    PersonalLifestyleMomentsActiveView(
-                        refreshToken: model.personalTabRefreshToken,
-                        momentId: model.selectedMomentId,
-                        momentTitle: model.selectedMomentTitle,
-                        onOpenQuickAdd: { model.selectBottomDestination(.create) }
-                    )
-                } else if model.selectedContext == .personal, model.bottomDestination == .moments, isRelationships {
-                    PersonalRelationshipsMomentsActiveView(
-                        refreshToken: model.personalTabRefreshToken,
-                        momentId: model.selectedMomentId,
-                        momentTitle: model.selectedMomentTitle,
-                        onOpenQuickAdd: { model.selectBottomDestination(.create) }
-                    )
-                } else if model.selectedContext == .personal, model.bottomDestination == .moments, isLifeOps {
-                    PersonalLifeOpsMomentsActiveView(
-                        refreshToken: model.personalTabRefreshToken,
-                        momentId: model.selectedMomentId,
-                        momentTitle: model.selectedMomentTitle,
-                        onOpenQuickAdd: { model.selectBottomDestination(.create) }
-                    )
-                } else if model.selectedContext == .personal, model.bottomDestination == .memory, isFutureBuilding {
-                    PersonalFutureMemoryActiveView(
-                        refreshToken: model.personalTabRefreshToken,
-                        momentId: model.selectedMomentId,
-                        onProtectMilestone: { openFutureQa(.milestone) }
-                    )
-                } else if model.selectedContext == .personal, model.bottomDestination == .memory, isLifestyle {
-                    PersonalLifestyleMemoryActiveView(
-                        refreshToken: model.personalTabRefreshToken,
-                        momentId: model.selectedMomentId,
-                        onProtectRitual: { openLifestyleQa(.experience) }
-                    )
-                } else if model.selectedContext == .personal, model.bottomDestination == .memory, isRelationships {
-                    PersonalRelationshipsMemoryActiveView(
-                        refreshToken: model.personalTabRefreshToken,
-                        momentId: model.selectedMomentId,
-                        onProtectConnection: { openRelationshipsQa(.connection) }
-                    )
-                } else if model.selectedContext == .personal, model.bottomDestination == .memory, isLifeOps {
-                    PersonalLifeOpsMemoryActiveView(
-                        refreshToken: model.personalTabRefreshToken,
-                        momentId: model.selectedMomentId,
-                        onProtectRecovery: { openLifeOpsQa(.recovery) }
+                } else if model.selectedContext == .personal, model.bottomDestination == .memory {
+                    PersonalMemoryActiveView(
+                        refreshToken: model.personalTabRefreshToken
                     )
                 } else if model.selectedContext == .personal, model.bottomDestination == .life {
                     PersonalLifeActiveView(
@@ -1911,7 +1878,10 @@ struct AppShellView: View {
                                 businessRecentActivityAccent = Color(hex: "#F59E0B")
                                 businessRecentActivitySubtitle = "Spend, revenue, and financial events."
                                 businessRecentActivityOpen = true
-                            }
+                            },
+                            onToday: { presentBusinessKind($0) },
+                            capabilities: model.capabilities,
+                            momentTypeCode: model.selectedMomentTypeCode
                         )
                     } else if code.contains("OPERATIONS") && !code.contains("TEAM") {
                         OpsPulseActiveView(
@@ -1925,7 +1895,10 @@ struct AppShellView: View {
                                 businessRecentActivityAccent = Color(hex: "#818CF8")
                                 businessRecentActivitySubtitle = "Deliveries, vendors, issues, and ops events."
                                 businessRecentActivityOpen = true
-                            }
+                            },
+                            onToday: { presentBusinessKind($0) },
+                            capabilities: model.capabilities,
+                            momentTypeCode: model.selectedMomentTypeCode
                         )
                     } else if code.contains("TEAM_OPERATIONS") {
                         TeamOpsPulseActiveView(
@@ -1935,7 +1908,11 @@ struct AppShellView: View {
                             onLogDelivery: { businessGapQa = .teamUpdate },
                             onOpenQuickAdd: { businessQuickAddPresented = true },
                             onViewAllActivity: { teamRecentActivityOpen = true },
-                            onAddExpense: { businessExpenseSheetPresented = true }
+                            onAddExpense: { businessExpenseSheetPresented = true },
+                            onOpenMoments: { model.selectBottomDestination(.moments) },
+                            onToday: { presentBusinessKind($0) },
+                            capabilities: model.capabilities,
+                            momentTypeCode: model.selectedMomentTypeCode
                         )
                     } else {
                         BusinessPulseActiveView(
@@ -1944,7 +1921,9 @@ struct AppShellView: View {
                             momentId: model.selectedMomentId,
                             momentTypeCode: model.selectedMomentTypeCode,
                             onAddExpense: { businessExpenseSheetPresented = true },
-                            onOpenQuickAdd: { businessQuickAddPresented = true }
+                            onOpenQuickAdd: { businessQuickAddPresented = true },
+                            onToday: { presentBusinessKind($0) },
+                            capabilities: model.capabilities
                         )
                     }
                 } else if model.selectedContext == .business, model.bottomDestination == .moments {
@@ -2002,6 +1981,7 @@ struct AppShellView: View {
                         momentId: model.selectedMomentId,
                         momentTitle: model.selectedMomentTitle,
                         momentTypeCode: model.selectedMomentTypeCode,
+                        companyId: model.selectedCompany?.companyId,
                         onViewReport: { businessGap = .finance },
                         onOpenFinance: { businessGap = .finance },
                         onOpenVendor: { businessGap = .vendor }
@@ -2013,6 +1993,7 @@ struct AppShellView: View {
                             refreshToken: model.businessTabRefreshToken,
                             momentId: model.selectedMomentId,
                             momentTitle: model.selectedMomentTitle,
+                            companyId: model.selectedCompany?.companyId,
                             onRecordLearning: { businessGapQa = .memory }
                         )
                     } else if code.contains("OPERATIONS") && !code.contains("TEAM") {
@@ -2020,6 +2001,7 @@ struct AppShellView: View {
                             refreshToken: model.businessTabRefreshToken,
                             momentId: model.selectedMomentId,
                             momentTitle: model.selectedMomentTitle,
+                            companyId: model.selectedCompany?.companyId,
                             onRecordLearning: { businessGapQa = .memory }
                         )
                     } else if code.contains("TEAM_OPERATIONS") {
@@ -2027,6 +2009,7 @@ struct AppShellView: View {
                             refreshToken: model.businessTabRefreshToken,
                             momentId: model.selectedMomentId,
                             momentTitle: model.selectedMomentTitle,
+                            companyId: model.selectedCompany?.companyId,
                             onRecordLearning: { businessGapQa = .memory },
                             onOpenQuickAdd: { businessGapQa = .teamUpdate }
                         )
@@ -2036,17 +2019,23 @@ struct AppShellView: View {
                             momentId: model.selectedMomentId,
                             momentTitle: model.selectedMomentTitle,
                             momentTypeCode: model.selectedMomentTypeCode,
+                            companyId: model.selectedCompany?.companyId,
                             onOpenQuickAdd: { businessGapQa = .memory }
                         )
                     }
                 } else if model.selectedContext == .business, model.bottomDestination == .create {
                     if model.selectedMomentId != nil, model.selectedCompany != nil {
+                        let quickAddType = BusinessMomentFamilyConfig.selectedQuickAddTypeCode(
+                            selectedMomentId: model.selectedMomentId,
+                            moments: model.moments,
+                            selectedMomentTypeCode: model.selectedMomentTypeCode
+                        )
                         BusinessQuickAddHub(
                             hasActiveMoment: true,
                             hasCompany: true,
                             capabilityCodes: model.capabilities,
                             momentId: model.selectedMomentId,
-                            momentTypeCode: model.selectedMomentTypeCode,
+                            momentTypeCode: quickAddType,
                             companyId: model.selectedCompany?.companyId,
                             onClose: { model.exitCreateDestination() },
                             onTile: { kind in
@@ -2077,6 +2066,7 @@ struct AppShellView: View {
                             },
                             onMembers: { businessMembersSheetPresented = true }
                         )
+                        .id(quickAddType ?? model.selectedMomentId ?? "")
                     } else {
                         ContextEmptyExperienceView(
                             createModel: createModel,

@@ -107,6 +107,7 @@ fun BusinessKhataHomeSheet(
     shopName: String,
     visible: Boolean,
     onDismiss: () -> Unit,
+    onEntrySaved: () -> Unit = {},
     repository: BusinessSliceRepository = remember { BusinessSliceRepository() },
 ) {
     if (!visible) return
@@ -261,6 +262,7 @@ fun BusinessKhataHomeSheet(
             onSaved = {
                 entryParty = null
                 reload()
+                onEntrySaved()
             },
             repository = repository,
         )
@@ -275,6 +277,7 @@ fun BusinessKhataHomeSheet(
             onSaved = {
                 cashSaleParty = null
                 reload()
+                onEntrySaved()
             },
             repository = repository,
         )

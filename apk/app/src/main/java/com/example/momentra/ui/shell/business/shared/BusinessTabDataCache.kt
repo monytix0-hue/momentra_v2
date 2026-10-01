@@ -1,7 +1,9 @@
 package com.example.momentra.ui.shell.business.shared
 
 import com.example.momentra.data.api.ActivityItemDto
+import com.example.momentra.data.api.BusinessApprovalItemDto
 import com.example.momentra.data.api.BusinessFinancePayloadDto
+import com.example.momentra.data.api.BusinessIssueItemDto
 import com.example.momentra.data.api.BusinessLifePayloadDto
 import com.example.momentra.data.api.BusinessMemoryPayloadDto
 import com.example.momentra.data.api.BusinessPulsePayloadDto
@@ -20,6 +22,12 @@ object BusinessTabDataCache {
         val facetStatus: String?,
         val capacity: CapacityDto? = null,
         val workload: WorkloadDto? = null,
+        val approvals: List<BusinessApprovalItemDto>? = null,
+        val issues: List<BusinessIssueItemDto>? = null,
+        /** Null when roster was not loaded. */
+        val rosterCount: Int? = null,
+        /** Money Pulse getLife failed. Cash and runway must stay omitted. */
+        val lifeFailed: Boolean = false,
     )
 
     data class MemoryTab(

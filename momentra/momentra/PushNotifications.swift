@@ -7,8 +7,17 @@ import UserNotifications
 /// Requests notification permission, syncs APNs→FCM, and POSTs `/me/devices` with the FCM token.
 @MainActor
 enum PushNotifications {
-    private static var deviceId: String {
-        UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+    static var currentDeviceId: String {
+        if let vendor = UIDevice.current.identifierForVendor?.uuidString {
+            return vendor
+        }
+        let key = "momentra_device_id"
+        if let existing = UserDefaults.standard.string(forKey: key), !existing.isEmpty {
+            return existing
+        }
+        let created = UUID().uuidString
+        UserDefaults.standard.set(created, forKey: key)
+        return created
     }
 
     /// Latest FCM registration token. Never an installation id — FCM cannot send to an FID.
@@ -51,7 +60,7 @@ enum PushNotifications {
         // any token it already holds rather than overwriting it with a blank.
         // FCM token arrives via MessagingDelegate → noteFcmToken (token(completion:) is deprecated).
         _ = try? await APIClient.shared.registerDevice(
-            deviceId: deviceId,
+            deviceId: currentDeviceId,
             platform: "IOS",
             pushToken: cachedFcmToken
         )

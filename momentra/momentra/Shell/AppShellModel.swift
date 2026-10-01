@@ -716,6 +716,7 @@ final class AppShellModel: ObservableObject {
     }
 
     func refreshVisiblePersonalTab() {
+        PersonalTabDataCache.invalidate(momentId: selectedMomentId)
         personalTabRefreshToken &+= 1
         ShellPerf.instant("scoped_refresh_personal", extras: ["token": personalTabRefreshToken])
     }
@@ -746,27 +747,31 @@ final class AppShellModel: ObservableObject {
     }
 
     func refreshVisibleBusinessTab(forcePrefetch: Bool = false) {
-        let warm = selectedMomentId.map { BusinessTabDataCache.peekPulse($0) != nil } ?? false
-        if forcePrefetch || !warm {
-            prefetchBusinessTabs(for: selectedMomentId)
+        let momentId = selectedMomentId
+        let typeCode = selectedMomentTypeCode
+        if let momentId, !momentId.isEmpty {
+            BusinessTabLoad.invalidate(momentId: momentId)
         }
         businessTabRefreshToken &+= 1
+        prefetchBusinessTabs(for: momentId, momentTypeCode: typeCode)
         ShellPerf.instant(
             "scoped_refresh_business",
             extras: [
                 "token": businessTabRefreshToken,
-                "warm": warm,
-                "prefetch": forcePrefetch || !warm,
+                "invalidated": momentId != nil,
+                "prefetch": true,
+                "force": forcePrefetch,
             ]
         )
     }
 
     /// Warm bundled pulse so Business tabs paint without spinners.
-    private func prefetchBusinessTabs(for momentId: String?) {
+    private func prefetchBusinessTabs(for momentId: String?, momentTypeCode: String? = nil) {
         guard let momentId, !momentId.isEmpty else { return }
         businessPrefetchTask?.cancel()
+        let code = momentTypeCode ?? selectedMomentTypeCode
         businessPrefetchTask = Task {
-            await BusinessTabPrefetch.run(momentId: momentId)
+            await BusinessTabPrefetch.run(momentId: momentId, momentTypeCode: code)
         }
     }
 

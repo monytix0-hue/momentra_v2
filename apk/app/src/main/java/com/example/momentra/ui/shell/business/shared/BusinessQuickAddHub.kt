@@ -90,20 +90,21 @@ fun BusinessQuickAddHub(
         )
         hubHint = IndustryTemplateCatalog.hubHintForCompany(context, companyId)
     }
-    val tiles = remember(theme, search, smallShop) {
-        val all = businessHubTiles(theme, smallShop)
-        val q = search.trim().lowercase()
-        if (q.isEmpty()) all else all.filter {
-            it.label(smallShop).lowercase().contains(q) || it.subtitle().lowercase().contains(q)
-        }
-    }
-    val tileRows = remember(tiles, isTeamOps, search, smallShop) {
-        if (isTeamOps && search.isBlank() && tiles.size >= 13) {
-            tiles.take(9).chunked(3) + listOf(tiles.drop(9))
-        } else {
-            tiles.chunked(3)
-        }
-    }
+    val spec = BusinessMomentFamilyConfig.quickAddSpec(momentTypeCode, smallShop)
+    val primaryTiles = filterHubKinds(
+        spec?.let {
+            BusinessMomentFamilyConfig.visibleActions(it.primary, capabilities, momentTypeCode)
+        }.orEmpty(),
+        search,
+        smallShop,
+    )
+    val secondaryTiles = filterHubKinds(
+        spec?.let {
+            BusinessMomentFamilyConfig.visibleActions(it.secondary, capabilities, momentTypeCode)
+        }.orEmpty(),
+        search,
+        smallShop,
+    )
     val hubSubtitle = remember(theme, smallShop, hubHint, isRunway) {
         if (smallShop && isRunway && !hubHint.isNullOrBlank()) {
             hubHint!!
@@ -113,8 +114,9 @@ fun BusinessQuickAddHub(
     }
     val filterChips = remember(theme, smallShop) { businessHubFilterChips(theme, smallShop) }
     val showFilterChips = filterChips.isNotEmpty()
-    val disabledReason = remember(hasActiveMoment, momentTypeCode, tiles, capabilities) {
-        val financeDisabled = tiles.any { kind ->
+    val disabledReason = remember(hasActiveMoment, momentTypeCode, primaryTiles, secondaryTiles, capabilities) {
+        val visible = primaryTiles + secondaryTiles
+        val financeDisabled = visible.any { kind ->
             val dest = kind.registryDestination()
             (dest == BusinessActionRegistry.Destination.REVENUE ||
                 dest == BusinessActionRegistry.Destination.INVOICE ||
@@ -291,48 +293,36 @@ fun BusinessQuickAddHub(
             )
         }
 
-        tileRows.forEach { chunk ->
-            val columns = chunk.size.coerceAtLeast(1)
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                chunk.forEach { kind ->
-                    val capOk = kind.isCapabilityEnabled(capabilities, momentTypeCode)
-                    ActionTile(
-                        kind = kind,
-                        theme = theme,
-                        smallShop = smallShop,
-                        enabled = (hasActiveMoment || kind == BusinessQuickAddKind.MEMORY) && capOk,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            when (kind) {
-                                BusinessQuickAddKind.EXPENSE, BusinessQuickAddKind.SPEND_ENTRY -> {
-                                    if (useLegacyExpenseShortcuts) onExpense()
-                                    onTile(kind)
-                                }
-                                BusinessQuickAddKind.REVENUE -> {
-                                    if (useLegacyExpenseShortcuts) onRevenue()
-                                    onTile(kind)
-                                }
-                                BusinessQuickAddKind.INVOICE -> {
-                                    if (useLegacyExpenseShortcuts) onInvoice()
-                                    onTile(kind)
-                                }
-                                else -> onTile(kind)
-                            }
-                        },
-                    )
-                }
-                if (columns < 3) {
-                    repeat(3 - columns) {
-                        Box(modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-        }
+        HubKindSection(
+            title = "Primary",
+            kinds = primaryTiles,
+            theme = theme,
+            smallShop = smallShop,
+            hasActiveMoment = hasActiveMoment,
+            capabilities = capabilities,
+            momentTypeCode = momentTypeCode,
+            useLegacyExpenseShortcuts = useLegacyExpenseShortcuts,
+            onExpense = onExpense,
+            onRevenue = onRevenue,
+            onInvoice = onInvoice,
+            onTile = onTile,
+        )
+        HubKindSection(
+            title = "More",
+            kinds = secondaryTiles,
+            theme = theme,
+            smallShop = smallShop,
+            hasActiveMoment = hasActiveMoment,
+            capabilities = capabilities,
+            momentTypeCode = momentTypeCode,
+            useLegacyExpenseShortcuts = useLegacyExpenseShortcuts,
+            onExpense = onExpense,
+            onRevenue = onRevenue,
+            onInvoice = onInvoice,
+            onTile = onTile,
+        )
 
-        if (tiles.isEmpty()) {
+        if (primaryTiles.isEmpty() && secondaryTiles.isEmpty()) {
             Text(
                 "No actions match this search.",
                 color = theme.secondary,
@@ -359,6 +349,80 @@ fun BusinessQuickAddHub(
                 .padding(vertical = 10.dp)
                 .testTag(MaestroIds.QA_TILE_EXPENSE),
         )
+        }
+    }
+}
+
+private fun filterHubKinds(
+    kinds: List<BusinessQuickAddKind>,
+    search: String,
+    smallShop: Boolean,
+): List<BusinessQuickAddKind> {
+    val q = search.trim().lowercase()
+    if (q.isEmpty()) return kinds
+    return kinds.filter {
+        it.label(smallShop).lowercase().contains(q) || it.subtitle().lowercase().contains(q)
+    }
+}
+
+@Composable
+private fun HubKindSection(
+    title: String,
+    kinds: List<BusinessQuickAddKind>,
+    theme: BusinessActiveTheme,
+    smallShop: Boolean,
+    hasActiveMoment: Boolean,
+    capabilities: List<String>,
+    momentTypeCode: String?,
+    useLegacyExpenseShortcuts: Boolean,
+    onExpense: () -> Unit,
+    onRevenue: () -> Unit,
+    onInvoice: () -> Unit,
+    onTile: (BusinessQuickAddKind) -> Unit,
+) {
+    if (kinds.isEmpty()) return
+    Text(
+        title,
+        color = Color.White,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        fontFamily = PlusJakartaSans,
+    )
+    kinds.chunked(3).forEach { chunk ->
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            chunk.forEach { kind ->
+                val capOk = kind.isCapabilityEnabled(capabilities, momentTypeCode)
+                ActionTile(
+                    kind = kind,
+                    theme = theme,
+                    smallShop = smallShop,
+                    enabled = (hasActiveMoment || kind == BusinessQuickAddKind.MEMORY) && capOk,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        when (kind) {
+                            BusinessQuickAddKind.EXPENSE, BusinessQuickAddKind.SPEND_ENTRY -> {
+                                if (useLegacyExpenseShortcuts) onExpense()
+                                onTile(kind)
+                            }
+                            BusinessQuickAddKind.REVENUE -> {
+                                if (useLegacyExpenseShortcuts) onRevenue()
+                                onTile(kind)
+                            }
+                            BusinessQuickAddKind.INVOICE -> {
+                                if (useLegacyExpenseShortcuts) onInvoice()
+                                onTile(kind)
+                            }
+                            else -> onTile(kind)
+                        }
+                    },
+                )
+            }
+            repeat(3 - chunk.size) {
+                Box(modifier = Modifier.weight(1f))
+            }
         }
     }
 }

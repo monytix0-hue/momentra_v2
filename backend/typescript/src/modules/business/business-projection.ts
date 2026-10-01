@@ -155,7 +155,8 @@ async function upsertPulseHistory(
   financialHealthScore: number | null,
   teamScore: number | null,
   runwayScore: number | null,
-  opsScore: number | null
+  opsScore: number | null,
+  owners: { money: boolean; team: boolean; daily: boolean }
 ): Promise<void> {
   await client.query('SAVEPOINT sp_business_pulse_history');
   try {
@@ -165,13 +166,26 @@ async function upsertPulseHistory(
          projection_version, updated_at
        ) VALUES ($1, date_trunc('month', now())::date, $2, $3, $4, $5, 1, now())
        ON CONFLICT (company_id, period_month) DO UPDATE SET
-         financial_health_score = EXCLUDED.financial_health_score,
-         team_score = EXCLUDED.team_score,
-         runway_score = EXCLUDED.runway_score,
-         ops_score = EXCLUDED.ops_score,
+         financial_health_score = CASE WHEN $6::boolean THEN EXCLUDED.financial_health_score
+           ELSE projection.business_pulse_history.financial_health_score END,
+         team_score = CASE WHEN $7::boolean THEN EXCLUDED.team_score
+           ELSE projection.business_pulse_history.team_score END,
+         runway_score = CASE WHEN $6::boolean THEN EXCLUDED.runway_score
+           ELSE projection.business_pulse_history.runway_score END,
+         ops_score = CASE WHEN $8::boolean THEN EXCLUDED.ops_score
+           ELSE projection.business_pulse_history.ops_score END,
          projection_version = projection.business_pulse_history.projection_version + 1,
          updated_at = now()`,
-      [companyId, financialHealthScore, teamScore, runwayScore, opsScore]
+      [
+        companyId,
+        financialHealthScore,
+        teamScore,
+        runwayScore,
+        opsScore,
+        owners.money,
+        owners.team,
+        owners.daily,
+      ]
     );
     await client.query('RELEASE SAVEPOINT sp_business_pulse_history');
   } catch {
@@ -185,6 +199,16 @@ export async function refreshBusinessPulseProjection(
   companyId: string,
   momentId: string
 ): Promise<void> {
+  const familyRow = await client.query<{ business_family: string }>(
+    `SELECT business_family FROM business.business_moment_context
+     WHERE company_id = $1 AND moment_id = $2`,
+    [companyId, momentId]
+  );
+  const family = (familyRow.rows[0]?.business_family ?? '').toUpperCase();
+  const isMoney = family.includes('RUNWAY');
+  const isTeam = family.includes('TEAM');
+  const isDaily = family.includes('OPERATIONS') && !isTeam;
+
   const prefs = await loadSetupPrefs(client, companyId, momentId);
   const categories = await computeCategoryBreakdown(client, companyId, momentId);
   const runwayMonths = await computeRunwayMonths(client, companyId, momentId, prefs);
@@ -205,7 +229,15 @@ export async function refreshBusinessPulseProjection(
   const opsScore = computeOpsScore(opsExtras.slaCompliancePct, opsExtras.monthlySpend, prefs);
   const runwayScore = healthScore;
 
-  await upsertPulseHistory(client, companyId, healthScore, teamScore, runwayScore, opsScore);
+  await upsertPulseHistory(
+    client,
+    companyId,
+    isMoney ? healthScore : null,
+    isTeam ? teamScore : null,
+    isMoney ? runwayScore : null,
+    isDaily ? opsScore : null,
+    { money: isMoney, team: isTeam, daily: isDaily }
+  );
 
   const issueCount = await client.query<{ n: string }>(
     `SELECT COUNT(*)::text AS n FROM business.issue
@@ -241,9 +273,12 @@ export async function refreshBusinessPulseProjection(
      ON CONFLICT (company_id) DO UPDATE SET
        active_moment_count = EXCLUDED.active_moment_count,
        open_issue_count = EXCLUDED.open_issue_count,
-       runway_months = COALESCE(EXCLUDED.runway_months, projection.business_pulse.runway_months),
-       financial_health_score = COALESCE(EXCLUDED.financial_health_score, projection.business_pulse.financial_health_score),
-       widget_payload = EXCLUDED.widget_payload,
+       runway_months = CASE WHEN $7::boolean THEN EXCLUDED.runway_months
+         ELSE projection.business_pulse.runway_months END,
+       financial_health_score = CASE WHEN $7::boolean THEN EXCLUDED.financial_health_score
+         ELSE projection.business_pulse.financial_health_score END,
+       widget_payload = CASE WHEN $7::boolean THEN EXCLUDED.widget_payload
+         ELSE projection.business_pulse.widget_payload END,
        projection_version = projection.business_pulse.projection_version + 1,
        updated_at = now()`,
     [
@@ -253,10 +288,11 @@ export async function refreshBusinessPulseProjection(
       runwayMonths,
       healthScore,
       JSON.stringify(widgetPayload),
+      isMoney,
     ]
   );
 
-  if (categories.length > 0) {
+  if (isMoney && categories.length > 0) {
     await client.query(
       `UPDATE projection.business_finance_snapshot
        SET snapshot_payload = COALESCE(snapshot_payload, '{}'::jsonb)
@@ -310,8 +346,9 @@ export async function refreshBusinessLifeProjection(
       }
     : {};
 
+  const isDaily = family.includes('OPERATIONS') && !family.includes('TEAM');
   const opsPayload =
-    family.includes('OPERATIONS') && !family.includes('TEAM') ?
+    isDaily ?
       {
         statusLabel: prefs.operatingModel ?? 'Daily Business',
         monthlyBudget: prefs.monthlyBudget ?? null,
@@ -320,19 +357,21 @@ export async function refreshBusinessLifeProjection(
       }
     : {};
 
-  const opsExtras = await loadOpsPulseExtras(client, companyId, momentId);
-  const vendorOpsPayload = {
-    statusLabel:
-      opsExtras.activeVendorCount > 0
-        ? `${opsExtras.activeVendorCount} active vendor${opsExtras.activeVendorCount === 1 ? '' : 's'}`
-        : 'Vendor operations',
-    activeVendorCount: opsExtras.activeVendorCount,
-    slaCompliancePct: opsExtras.slaCompliancePct,
-    monthlySpend: opsExtras.monthlySpend,
-    spendVsForecast: opsExtras.spendVsForecast,
-    openIssueCount: opsExtras.openIssueCount,
-  };
-  const vendorActive = opsExtras.activeVendorCount > 0 || opsExtras.slaCompliancePct != null;
+  let vendorOpsPayload: Record<string, unknown> = {};
+  if (isDaily) {
+    const opsExtras = await loadOpsPulseExtras(client, companyId, momentId);
+    vendorOpsPayload = {
+      statusLabel:
+        opsExtras.activeVendorCount > 0
+          ? `${opsExtras.activeVendorCount} active vendor${opsExtras.activeVendorCount === 1 ? '' : 's'}`
+          : 'Vendor operations',
+      activeVendorCount: opsExtras.activeVendorCount,
+      slaCompliancePct: opsExtras.slaCompliancePct,
+      monthlySpend: opsExtras.monthlySpend,
+      spendVsForecast: opsExtras.spendVsForecast,
+      openIssueCount: opsExtras.openIssueCount,
+    };
+  }
 
   await client.query(
     `INSERT INTO projection.business_life (
@@ -346,8 +385,7 @@ export async function refreshBusinessLifeProjection(
          ELSE projection.business_life.runway_payload END,
        business_operations_payload = CASE WHEN $8::boolean THEN EXCLUDED.business_operations_payload
          ELSE projection.business_life.business_operations_payload END,
-       vendor_operations_payload = CASE WHEN $9::boolean OR $5::jsonb != '{}'::jsonb
-         THEN EXCLUDED.vendor_operations_payload
+       vendor_operations_payload = CASE WHEN $8::boolean THEN EXCLUDED.vendor_operations_payload
          ELSE projection.business_life.vendor_operations_payload END,
        projection_version = projection.business_life.projection_version + 1,
        updated_at = now()`,
@@ -359,18 +397,47 @@ export async function refreshBusinessLifeProjection(
       JSON.stringify(vendorOpsPayload),
       family.includes('TEAM'),
       family.includes('RUNWAY'),
-      family.includes('OPERATIONS') && !family.includes('TEAM'),
-      vendorActive,
+      isDaily,
     ]
   );
 }
 
-/** Sync business_memory projection from memory.memory rows. */
+const MEMORY_FAMILY_ORDER = ['BUSINESS_RUNWAY', 'BUSINESS_OPERATIONS', 'TEAM_OPERATIONS'] as const;
+
+type MemorySliceItem = {
+  memoryId: string;
+  title: string;
+  body: string | null;
+  memoryType: string;
+  occurredAt: string | null;
+  businessFamily: string;
+};
+
+type MemoryFamilySlice = {
+  items: MemorySliceItem[];
+  riskCount: number;
+  successCount: number;
+};
+
+function memoryRisk(title: string, body: string | null): boolean {
+  const hay = `${title} ${body ?? ''}`.toLowerCase();
+  return hay.includes('risk') || hay.includes('issue') || hay.includes('incident');
+}
+
+/** Replace only this moment's family slice. Other families stay on the company row. */
 export async function refreshBusinessMemoryProjection(
   client: PoolClient,
   companyId: string,
   momentId: string
 ): Promise<void> {
+  const familyRow = await client.query<{ business_family: string }>(
+    `SELECT business_family FROM business.business_moment_context
+     WHERE company_id = $1 AND moment_id = $2 AND status = 'ACTIVE'`,
+    [companyId, momentId]
+  );
+  const businessFamily = familyRow.rows[0]?.business_family;
+  if (!businessFamily) return;
+
   const rows = await client.query<{
     memory_id: string;
     title: string;
@@ -381,38 +448,110 @@ export async function refreshBusinessMemoryProjection(
     `SELECT m.memory_id, m.title, m.summary, m.memory_type, m.occurred_at
      FROM memory.memory m
      JOIN business.business_moment_context bmc ON bmc.moment_id = m.moment_id
-     WHERE bmc.company_id = $1 AND m.moment_id = $2 AND m.status = 'ACTIVE'
-     ORDER BY COALESCE(m.occurred_at, m.created_at) DESC
+     WHERE bmc.company_id = $1
+       AND bmc.status = 'ACTIVE'
+       AND bmc.business_family = $2
+       AND m.status = 'ACTIVE'
+     ORDER BY COALESCE(m.occurred_at, m.created_at) DESC, m.memory_id DESC
      LIMIT 50`,
-    [companyId, momentId]
+    [companyId, businessFamily]
   );
 
-  const items = rows.rows.map((r) => ({
+  const items: MemorySliceItem[] = rows.rows.map((r) => ({
     memoryId: r.memory_id,
     title: r.title,
     body: r.summary,
     memoryType: r.memory_type,
     occurredAt: r.occurred_at?.toISOString() ?? null,
+    businessFamily,
   }));
-
-  const riskCount = items.filter((i) => {
-    const hay = `${i.title} ${i.body ?? ''}`.toLowerCase();
-    return hay.includes('risk') || hay.includes('issue') || hay.includes('incident');
-  }).length;
+  const riskCount = items.filter((item) => memoryRisk(item.title, item.body)).length;
+  const slice: MemoryFamilySlice = {
+    items,
+    riskCount,
+    successCount: items.length - riskCount,
+  };
 
   await client.query(
     `INSERT INTO projection.business_memory (
        company_id, memory_count, pattern_count, learning_count, playbook_count,
        recent_memory_payload, projection_version, updated_at
-     ) VALUES ($1, $2, 0, $2, 0, $3::jsonb, 1, now())
+     ) VALUES (
+       $1,
+       jsonb_array_length($3::jsonb -> 'items'),
+       0,
+       jsonb_array_length($3::jsonb -> 'items'),
+       0,
+       jsonb_build_object('families', jsonb_build_object($2::text, $3::jsonb)),
+       1,
+       now()
+     )
      ON CONFLICT (company_id) DO UPDATE SET
-       memory_count = EXCLUDED.memory_count,
-       learning_count = EXCLUDED.learning_count,
-       recent_memory_payload = EXCLUDED.recent_memory_payload,
+       recent_memory_payload = jsonb_set(
+         CASE
+           WHEN COALESCE(projection.business_memory.recent_memory_payload, '{}'::jsonb) ? 'families'
+             THEN projection.business_memory.recent_memory_payload
+           ELSE jsonb_build_object('families', '{}'::jsonb)
+         END,
+         ARRAY['families', $2::text],
+         $3::jsonb,
+         true
+       ),
+       memory_count = (
+         SELECT COALESCE(SUM(jsonb_array_length(slice.value -> 'items')), 0)::int
+         FROM jsonb_each(
+           jsonb_set(
+             CASE
+               WHEN COALESCE(projection.business_memory.recent_memory_payload, '{}'::jsonb) ? 'families'
+                 THEN projection.business_memory.recent_memory_payload
+               ELSE jsonb_build_object('families', '{}'::jsonb)
+             END,
+             ARRAY['families', $2::text],
+             $3::jsonb,
+             true
+           ) -> 'families'
+         ) AS slice(key, value)
+       ),
+       learning_count = (
+         SELECT COALESCE(SUM(jsonb_array_length(slice.value -> 'items')), 0)::int
+         FROM jsonb_each(
+           jsonb_set(
+             CASE
+               WHEN COALESCE(projection.business_memory.recent_memory_payload, '{}'::jsonb) ? 'families'
+                 THEN projection.business_memory.recent_memory_payload
+               ELSE jsonb_build_object('families', '{}'::jsonb)
+             END,
+             ARRAY['families', $2::text],
+             $3::jsonb,
+             true
+           ) -> 'families'
+         ) AS slice(key, value)
+       ),
        projection_version = projection.business_memory.projection_version + 1,
        updated_at = now()`,
-    [companyId, items.length, JSON.stringify({ items, riskCount, successCount: items.length - riskCount })]
+    [companyId, businessFamily, JSON.stringify(slice)]
   );
+}
+
+export function mergeBusinessMemoryFamilies(payload: Record<string, unknown>): {
+  items: MemorySliceItem[];
+  riskCount: number;
+  successCount: number;
+  hasFamilies: boolean;
+} {
+  const families = payload.families;
+  if (!families || typeof families !== 'object' || Array.isArray(families)) {
+    return { items: [], riskCount: 0, successCount: 0, hasFamilies: false };
+  }
+  const record = families as Record<string, MemoryFamilySlice | undefined>;
+  const extra = Object.keys(record)
+    .filter((key) => !MEMORY_FAMILY_ORDER.includes(key as (typeof MEMORY_FAMILY_ORDER)[number]))
+    .sort();
+  const keys = [...MEMORY_FAMILY_ORDER.filter((key) => key in record), ...extra];
+  const items = keys.flatMap((key) => record[key]?.items ?? []);
+  const riskCount = keys.reduce((sum, key) => sum + (record[key]?.riskCount ?? 0), 0);
+  const successCount = keys.reduce((sum, key) => sum + (record[key]?.successCount ?? 0), 0);
+  return { items, riskCount, successCount, hasFamilies: true };
 }
 
 /** Append a structured timeline event into business_moments.card_payload.events. */

@@ -46,6 +46,11 @@ import com.example.momentra.data.security.BalanceMask
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.theme.ShellTokens
+import com.example.momentra.ui.shell.personal.shared.MomentCard
+import com.example.momentra.ui.shell.personal.shared.MomentClustering
+import com.example.momentra.ui.shell.personal.shared.PersonalPulseCopy
+import com.example.momentra.ui.shell.personal.shared.personalPulseFamilyFor
+import com.example.momentra.ui.shell.personal.shared.theme
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -59,9 +64,8 @@ import com.example.momentra.ui.shell.personal.shared.RelationshipsQuickAddKind
 import com.example.momentra.ui.shell.personal.shared.PersonalActivityTimelineDerived
 import com.example.momentra.ui.shell.personal.shared.loadPersonalPulseTab
 import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
-import com.example.momentra.ui.shell.personal.shared.personalPulseFamilyFor
 import com.example.momentra.ui.shell.personal.shared.PersonalTabDataCache
-import com.example.momentra.ui.shell.personal.shared.theme
+import com.example.momentra.ui.shell.personal.shared.MomentCardModel
 import com.example.momentra.ui.shell.personal.shared.heroBrush
 import androidx.compose.ui.text.style.TextOverflow
 
@@ -104,10 +108,7 @@ fun PersonalLifeOpsPulseActiveContent(
     var pulse by remember { mutableStateOf<PersonalPulseDto?>(null) }
     var activities by remember { mutableStateOf<List<ActivityItemDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
-    var seeMoreExpanded by remember { mutableStateOf(false) }
-    LaunchedEffect(forceCollapsed) {
-        if (forceCollapsed) seeMoreExpanded = false
-    }
+    var showShapedDetail by remember { mutableStateOf(false) }
 
     LaunchedEffect(refreshToken, momentId) {
         error = null
@@ -165,12 +166,6 @@ fun PersonalLifeOpsPulseActiveContent(
     val exploration = attention
     val streak = PersonalLifeOpsDerived.streakDays(activities.map { it.occurredAt })
     val todayLogCount = PersonalLifeOpsDerived.todayActivityCount(activities.map { it.occurredAt })
-    val dayFeedback = PersonalLifeOpsDerived.dayFeedbackLine(
-        moodState = pulse?.moodState,
-        spendPairs = spend,
-        todayLogCount = todayLogCount,
-        family = family,
-    )
     val greeting = PersonalLifeOpsDerived.timeOfDayGreeting()
     val todayLabel = DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault())
         .format(java.time.LocalDate.now())
@@ -293,6 +288,28 @@ fun PersonalLifeOpsPulseActiveContent(
                 R.drawable.ic_pulse_zap,
             )
         }
+        val statusBand = PersonalPulseCopy.statusBand(pulse?.wellbeingScore)
+        val heroSentence = PersonalPulseCopy.heroSentence(
+            family = family,
+            recoveryScore = pulse?.recoveryScore,
+            wellbeingScore = pulse?.wellbeingScore,
+            moodState = pulse?.moodState,
+            spendPairs = spend,
+            todayLogCount = todayLogCount,
+        )
+        val shapedSignals = PersonalPulseCopy.shapedTodaySignals(
+            family = family,
+            recoveryScore = pulse?.recoveryScore,
+            wellbeingScore = pulse?.wellbeingScore,
+            rhythmScore = pulse?.rhythmScore,
+            attentionCount = pulse?.attentionCount,
+            moodState = pulse?.moodState,
+            spendPairs = spend,
+            helpingLabels = emptyList(),
+            hurtingLabels = emptyList(),
+        )
+        val recentCards = MomentClustering.cards(activities, family).take(3)
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -300,7 +317,7 @@ fun PersonalLifeOpsPulseActiveContent(
                 .background(theme.heroBrush())
                 .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(24.dp))
                 .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -318,23 +335,15 @@ fun PersonalLifeOpsPulseActiveContent(
                         fontWeight = FontWeight.ExtraBold,
                         fontFamily = PlusJakartaSans,
                     )
+                    Text(
+                        statusBand,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                    )
                 }
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(100.dp))
-                            .background(Color.White.copy(alpha = 0.1f))
-                            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(100.dp))
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    ) {
-                        Text(
-                            if (wellbeing != "—") theme.heroSubtitleFilled else theme.heroSubtitleEmpty,
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontFamily = PlusJakartaSans,
-                        )
-                    }
                     if (streak > 0) {
                         Box(
                             modifier = Modifier
@@ -343,32 +352,29 @@ fun PersonalLifeOpsPulseActiveContent(
                                 .padding(horizontal = 10.dp, vertical = 4.dp),
                         ) {
                             Text(
-                                "$streak Day Streak",
+                                "$streak day rhythm",
                                 color = PulseGreen,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontFamily = PlusJakartaSans,
                             )
                         }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_pulse_zap),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            todayLabel,
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = PlusJakartaSans,
-                        )
-                    }
+                    Text(
+                        todayLabel,
+                        color = Color.White.copy(alpha = 0.75f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                    )
                 }
             }
-            // Axis chips live behind "See more" so Today stays above the fold for all families.
+            Text(
+                heroSentence,
+                color = Color.White.copy(alpha = 0.9f),
+                fontSize = 13.sp,
+                fontFamily = PlusJakartaSans,
+            )
         }
 
         FamilyTodayActionStrip(
@@ -380,418 +386,182 @@ fun PersonalLifeOpsPulseActiveContent(
             onLifestyleQuickAdd = onLifestyleQuickAdd,
             onRelationshipsQuickAdd = onRelationshipsQuickAdd,
         )
-        Text(
-            dayFeedback,
-            color = PulseMuted,
-            fontSize = 13.sp,
-            fontFamily = PlusJakartaSans,
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.White.copy(alpha = 0.05f))
-                .border(1.dp, BorderSoft, RoundedCornerShape(12.dp))
-                .clickable { seeMoreExpanded = !seeMoreExpanded }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-        ) {
-            Text(
-                if (seeMoreExpanded) "Show less" else "See more of your day",
-                color = PulsePurpleSoft,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = PlusJakartaSans,
-            )
-        }
 
-        if (seeMoreExpanded) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            theme.heroMetrics.forEachIndexed { index, label ->
-                HeroMetricChip(label, heroValues.getOrElse(index) { "—" }, Modifier.weight(1f))
-            }
-        }
-        Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            theme.tileLabels.take(2).forEachIndexed { index, label ->
-                MetricTile(
-                    label = label,
-                    value = tileValues[index],
-                    accent = tileAccents[index],
-                    iconRes = tileIcons[index],
-                    badge = tileBadges.getOrElse(index) {
-                        if (tileValues[index] != "—" && tileValues[index] != "0") "Live" else "Empty"
-                    },
-                    progress = tileProgress[index],
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-        Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            theme.tileLabels.drop(2).forEachIndexed { i, label ->
-                val index = i + 2
-                MetricTile(
-                    label = label,
-                    value = tileValues[index],
-                    accent = tileAccents[index],
-                    iconRes = tileIcons[index],
-                    badge = tileBadges.getOrElse(index) {
-                        if (tileValues[index] != "—" && tileValues[index] != "0") "Live" else "Empty"
-                    },
-                    progress = tileProgress[index],
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-
-        // Today's Momentum — Figma 353:8893 four pills
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF14121C))
-                .border(1.dp, BorderSoft, RoundedCornerShape(20.dp))
+                .background(Color.White.copy(alpha = 0.05f))
+                .border(1.dp, BorderSoft, RoundedCornerShape(16.dp))
+                .clickable { showShapedDetail = true }
                 .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    painter = painterResource(R.drawable.ic_pulse_zap),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    "TODAY'S MOMENTUM",
-                    color = Color.White,
-                    fontSize = 12.sp,
+                    "What shaped today",
+                    color = PulseText,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PlusJakartaSans,
                 )
+                Text("Details", color = PulseMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MomentumPill(
-                    label = when {
-                        isFuture -> if (growth == "—") "Career pending" else "Career Rising"
-                        isLifestyle -> if (joy == "—") "Joy pending" else "Joy Rising"
-                        else -> if (recovery == "—") "Recovery pending" else "Recovery Rising"
-                    },
-                    tint = PulseGreen,
-                    modifier = Modifier.weight(1f),
-                )
-                MomentumPill(
-                    label = when {
-                        isFuture -> if (discipline == "—") "Skills quiet" else "Skills Improving"
-                        isLifestyle -> if (vitality == "—") "Ritual quiet" else "Ritual Steady"
-                        else -> if (pressure == "—") "Pressure quiet" else "Pressure Stable"
-                    },
-                    tint = PulseOrange,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MomentumPill(
-                    label = when {
-                        isFuture -> if (spend.isEmpty()) "Savings quiet" else "Savings Strong"
-                        else -> if (mood == "—") "Mood pending" else "Mood · $mood"
-                    },
-                    tint = if (isFuture && spend.isEmpty()) PulseOrange else PulseGreen,
-                    modifier = Modifier.weight(1f),
-                )
-                MomentumPill(
-                    label = when {
-                        isFuture -> if (momentum == "—") "Network quiet" else "Network Growing"
-                        else -> if (spend.isEmpty()) "Budget quiet" else "Budget Strong"
-                    },
-                    tint = when {
-                        isFuture -> PulseGreen
-                        spend.isEmpty() -> PulseOrange
-                        else -> PulseGreen
-                    },
-                    modifier = Modifier.weight(1f),
-                )
+            shapedSignals.forEach { signal ->
+                val arrow = when (signal.direction) {
+                    PersonalPulseCopy.SignalLine.Direction.UP -> "↑"
+                    PersonalPulseCopy.SignalLine.Direction.DOWN -> "↓"
+                    else -> "·"
+                }
+                val tint = when (signal.direction) {
+                    PersonalPulseCopy.SignalLine.Direction.UP -> PulseGreen
+                    PersonalPulseCopy.SignalLine.Direction.DOWN -> PulseRed
+                    else -> PulseMuted
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(arrow, color = tint, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+                    Text(signal.label, color = PulseText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+                }
             }
         }
 
-        if (isLifeOps || isFuture || isLifestyle) {
-            val (helping, hurting) = PersonalLifeOpsDerived.helpingHurting(
-                activities.map {
-                    it.activityCode to PersonalActivityTimelineDerived.driverLabel(it)
-                },
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(theme.heroBrush())
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(theme.nudgeTitle, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+            Text(theme.nudgeBody, color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, fontFamily = PlusJakartaSans)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.White)
+                    .clickable(enabled = momentId != null) {
+                        when (family) {
+                            PersonalPulseFamily.LIFE_OPERATIONS -> onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY)
+                            PersonalPulseFamily.FUTURE_BUILDING -> onFutureQuickAdd(FutureQuickAddKind.MILESTONE)
+                            PersonalPulseFamily.LIFESTYLE -> onLifestyleQuickAdd(LifestyleQuickAddKind.EXPERIENCE)
+                            PersonalPulseFamily.RELATIONSHIPS -> onRelationshipsQuickAdd(RelationshipsQuickAddKind.CONNECTION)
+                        }
+                    }
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                DriverColumn(
-                    title = "HELPING",
-                    tint = PulseGreen,
-                    items = helping.map { it.label },
-                    empty = when {
-                        isFuture -> "Log a milestone or learning"
-                        isLifestyle -> "Log an experience or wellbeing"
-                        else -> "Log recovery or mood"
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                DriverColumn(
-                    title = "HURTING",
-                    tint = PulseRed,
-                    items = hurting.map { it.label },
-                    empty = if (isFuture || isLifestyle) "No drag signals" else "No pressure signals",
-                    modifier = Modifier.weight(1f),
-                )
+                Text(theme.nudgeCta, color = Color(0xFF1A1726), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
             }
         }
 
-        // Recent Activity — Figma 1009:7590
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
                 .background(Color.White.copy(alpha = 0.05f))
-                .border(1.dp, BorderSoft, RoundedCornerShape(20.dp))
+                .border(1.dp, BorderSoft, RoundedCornerShape(16.dp))
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Recent", color = PulseText, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
                 Text(
-                    "RECENT ACTIVITY",
-                    color = PulseMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSans,
-                )
-                Text(
-                    "View All",
-                    color = PulsePurple,
+                    "See all",
+                    color = theme.accent,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PlusJakartaSans,
                     modifier = Modifier.clickable(onClick = onViewAllActivity),
                 )
             }
-            if (activities.isEmpty()) {
-                Text(
-                    "No activity yet.",
-                    color = PulseMuted,
-                    fontSize = 14.sp,
-                    fontFamily = PlusJakartaSans,
-                )
+            if (recentCards.isEmpty()) {
+                Text("No moments yet today.", color = PulseMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
             } else {
-                activities.take(8).forEachIndexed { index, item ->
-                    ActivityRowFigma(
-                        item = item,
-                        showDivider = index < activities.take(8).lastIndex,
+                recentCards.forEach { card ->
+                    MomentCard(
+                        model = card,
+                        accent = theme.accent,
+                        onTap = onViewAllActivity,
                     )
                 }
             }
         }
 
-        // Money Snapshot — real spendByCurrency
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
                 .background(Color.White.copy(alpha = 0.05f))
-                .border(1.dp, BorderSoft, RoundedCornerShape(20.dp))
+                .border(1.dp, BorderSoft, RoundedCornerShape(16.dp))
                 .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    theme.moneyTitle,
-                    color = PulseMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSans,
-                )
-                Text(
-                    if (spend.isEmpty()) "—" else spend.joinToString(" · ") {
-                        "${it.first} ${BalanceMask.mask(formatMoney(it.second), hideBalances)}"
-                    },
-                    color = PulseText,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontFamily = PlusJakartaSans,
-                )
-            }
-            if (spend.isEmpty()) {
-                Text(
-                    "No spend recorded for this moment yet.",
-                    color = PulseMuted,
-                    fontSize = 13.sp,
-                    fontFamily = PlusJakartaSans,
-                )
-            } else {
-                spend.forEach { (currency, amount) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(currency, color = PulseText, fontSize = 14.sp, fontFamily = PlusJakartaSans)
-                        Text(
-                            BalanceMask.mask(formatMoney(amount), hideBalances),
-                            color = PulseText,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = PlusJakartaSans,
+            Text(theme.moneyCompactTitle, color = PulseMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+            Text(
+                PersonalPulseCopy.moneySpentLine(spend) { BalanceMask.mask(formatMoney(it), hideBalances) },
+                color = PulseText,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = PlusJakartaSans,
+            )
+        }
+
+        if (showShapedDetail) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(PulseCard)
+                    .border(1.dp, BorderSoft, RoundedCornerShape(16.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Axes & metrics", color = PulseText, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+                    Text(
+                        "Close",
+                        color = theme.accent,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier.clickable { showShapedDetail = false },
+                    )
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    theme.heroMetrics.forEachIndexed { index, label ->
+                        HeroMetricChip(label, heroValues.getOrElse(index) { "—" }, Modifier.weight(1f))
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    theme.tileLabels.take(2).forEachIndexed { index, label ->
+                        MetricTile(
+                            label = label,
+                            value = tileValues[index],
+                            accent = tileAccents[index],
+                            iconRes = tileIcons[index],
+                            badge = tileBadges.getOrElse(index) { "Live" },
+                            progress = tileProgress[index],
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    theme.tileLabels.drop(2).take(2).forEachIndexed { i, label ->
+                        val index = i + 2
+                        MetricTile(
+                            label = label,
+                            value = tileValues.getOrElse(index) { "—" },
+                            accent = tileAccents.getOrElse(index) { theme.accent },
+                            iconRes = tileIcons.getOrElse(index) { R.drawable.ic_pulse_zap },
+                            badge = tileBadges.getOrElse(index) { "Live" },
+                            progress = tileProgress.getOrElse(index) { 0f },
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }
             }
         }
-
-        // Smart Nudge — family copy; CTA visual until matching write API exists
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(Brush.verticalGradient(listOf(theme.heroStart, theme.heroEnd)))
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    painter = painterResource(R.drawable.ic_pulse_shield),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    theme.nudgeTitle,
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontFamily = PlusJakartaSans,
-                )
-            }
-            Text(
-                theme.nudgeBody,
-                color = Color.White.copy(alpha = 0.9f),
-                fontSize = 14.sp,
-                fontFamily = PlusJakartaSans,
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White)
-                    .clickable(enabled = (isLifeOps || isFuture || isLifestyle) && momentId != null) {
-                        when {
-                            isLifeOps -> onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY)
-                            isFuture -> onFutureQuickAdd(FutureQuickAddKind.MILESTONE)
-                            isLifestyle -> onLifestyleQuickAdd(LifestyleQuickAddKind.EXPERIENCE)
-                        }
-                    }
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    theme.nudgeCta,
-                    color = PulsePurple,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontFamily = PlusJakartaSans,
-                )
-            }
-        }
-
-        // AI Insights — Figma Coming Soon
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White.copy(alpha = 0.05f))
-                .border(1.dp, BorderSoft, RoundedCornerShape(20.dp))
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "AI Insights",
-                    color = PulseText,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSans,
-                )
-                Spacer(Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(100.dp))
-                        .background(PulsePurple.copy(alpha = 0.2f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                ) {
-                    Text(
-                        "Coming Soon",
-                        color = PulsePurpleSoft,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontFamily = PlusJakartaSans,
-                    )
-                }
-            }
-            Text(
-                when {
-                    isFuture -> "Patterns across milestones, learning, progress, and capital will surface here."
-                    isLifestyle -> "Patterns across experiences, wellbeing, discovery, and spend will surface here."
-                    else -> "Patterns across pressure, recovery, mood, and money will surface here."
-                },
-                color = PulseMuted,
-                fontSize = 13.sp,
-                fontFamily = PlusJakartaSans,
-            )
-        }
-
-        // Quick action row — Money opens expense when present for this family
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            val actionColors = listOf(PulseCyan, PulseOrange, PulsePurpleSoft, PulseGreen, PulseMuted)
-            val visibleQuickActions = if (isLifeOps && forceCollapsed) {
-                theme.quickActions.filter { it == "Recovery" || it == "Mood" }
-            } else {
-                theme.quickActions
-            }
-            visibleQuickActions.forEachIndexed { index, label ->
-                val icon = quickActionIcon(label)
-                val tint = actionColors.getOrElse(index) { PulseMuted }
-                val onClick: (() -> Unit)? = when (label) {
-                    "Money" -> onAddExpense
-                    "Recovery" -> ({ onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY) })
-                    "Mood" -> ({ onLifeOpsQuickAdd(LifeOpsQuickAddKind.MOOD) })
-                    "Attention" -> ({ onLifeOpsQuickAdd(LifeOpsQuickAddKind.ATTENTION) })
-                    "Adjust" -> when {
-                        isLifestyle -> ({ onLifestyleQuickAdd(LifestyleQuickAddKind.ADJUST) })
-                        isRelationships -> ({ onRelationshipsQuickAdd(RelationshipsQuickAddKind.ADJUST) })
-                        else -> ({ onLifeOpsQuickAdd(LifeOpsQuickAddKind.ADJUST) })
-                    }
-                    "Milestone" -> ({ onFutureQuickAdd(FutureQuickAddKind.MILESTONE) })
-                    "Opportunity" -> ({ onFutureQuickAdd(FutureQuickAddKind.OPPORTUNITY) })
-                    "Pivot" -> ({ onFutureQuickAdd(FutureQuickAddKind.PIVOT) })
-                    "Progress" -> ({ onFutureQuickAdd(FutureQuickAddKind.PROGRESS) })
-                    "Learning" -> ({ onFutureQuickAdd(FutureQuickAddKind.LEARNING) })
-                    "Experience" -> ({ onLifestyleQuickAdd(LifestyleQuickAddKind.EXPERIENCE) })
-                    "Wellbeing" -> ({ onLifestyleQuickAdd(LifestyleQuickAddKind.WELLBEING) })
-                    "Discovery" -> ({ onLifestyleQuickAdd(LifestyleQuickAddKind.DISCOVERY) })
-                    "Create", "Expression" -> ({ onLifestyleQuickAdd(LifestyleQuickAddKind.EXPRESSION) })
-                    "Connection" -> ({ onRelationshipsQuickAdd(RelationshipsQuickAddKind.CONNECTION) })
-                    "Shared" -> ({ onRelationshipsQuickAdd(RelationshipsQuickAddKind.SHARED) })
-                    "Investment" -> ({ onRelationshipsQuickAdd(RelationshipsQuickAddKind.INVESTMENT) })
-                    "Support" -> ({ onRelationshipsQuickAdd(RelationshipsQuickAddKind.SUPPORT) })
-                    else -> null
-                }
-                QuickActionDot(
-                    label = label,
-                    tint = tint,
-                    iconRes = icon,
-                    onClick = onClick,
-                    enabled = momentId != null || onClick == null,
-                )
-            }
-        }
-        } // end seeMoreExpanded
 
         Spacer(Modifier.height(12.dp))
     }
@@ -1075,7 +845,7 @@ private fun FamilyTodayActionStrip(
             Action("Discovery", PulseCyan, R.drawable.ic_pulse_activity) { onLifestyleQuickAdd(LifestyleQuickAddKind.DISCOVERY) },
         )
         PersonalPulseFamily.RELATIONSHIPS -> listOf(
-            Action("Connection", PulseGreen, R.drawable.ic_pulse_smile) { onRelationshipsQuickAdd(RelationshipsQuickAddKind.CONNECTION) },
+            Action("Connect", PulseGreen, R.drawable.ic_pulse_smile) { onRelationshipsQuickAdd(RelationshipsQuickAddKind.CONNECTION) },
             Action("Shared", PulsePurpleSoft, R.drawable.ic_pulse_activity) { onRelationshipsQuickAdd(RelationshipsQuickAddKind.SHARED) },
             Action("Support", PulseCyan, R.drawable.ic_pulse_zap) { onRelationshipsQuickAdd(RelationshipsQuickAddKind.SUPPORT) },
         )

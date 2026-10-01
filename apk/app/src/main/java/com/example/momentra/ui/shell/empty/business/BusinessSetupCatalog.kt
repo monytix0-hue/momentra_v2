@@ -55,7 +55,7 @@ object BusinessSetupCatalog {
             "reviewCycle" to "Weekly",
             "monitoring" to "Balanced",
             "spendingApproval" to "Required",
-            "approvalThreshold" to "₹50,000",
+            "approvalThreshold" to "",
         ),
         sections = listOf(
             BusinessSetupSectionSpec(
@@ -106,10 +106,10 @@ object BusinessSetupCatalog {
             "currency" to "INR",
             "multiCurrency" to true,
             "extraCurrencies" to emptyList<String>(),
-            "availableCash" to "₹ 1,80,00,000",
-            "monthlySpending" to "₹ 12,50,000",
+            "availableCash" to "",
+            "monthlySpending" to "",
             "revenueStage" to "Growing",
-            "monthlyRevenue" to "₹ 8,08,000",
+            "monthlyRevenue" to "",
             "revenueModel" to "Recurring",
             "warningThreshold" to "6 months",
             "fundingSource" to "Bootstrapped + revenue",
@@ -160,11 +160,11 @@ object BusinessSetupCatalog {
             "currency" to "INR",
             "multiCurrency" to false,
             "extraCurrencies" to emptyList<String>(),
-            "monthlyBudget" to "₹35,00,000",
+            "monthlyBudget" to "",
             "allocationMethod" to "Category-based",
             "monitoringStyle" to "Proactive",
             "approvalModel" to "Threshold-based",
-            "approvalAlarm" to "₹5,00,000",
+            "approvalAlarm" to "",
         ),
         sections = listOf(
             BusinessSetupSectionSpec(

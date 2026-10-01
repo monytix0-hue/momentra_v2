@@ -31,14 +31,25 @@ struct BusinessQuickAddHub: View {
     }
     private let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
 
-    private var tiles: [BusinessQuickAddKind] {
+    private var spec: BusinessMomentFamilySpec? {
+        BusinessMomentFamilyConfig.quickAddSpec(momentTypeCode, smallShop: smallShop)
+    }
+
+    private func filtered(_ kinds: [BusinessQuickAddKind]) -> [BusinessQuickAddKind] {
+        let visible = BusinessMomentFamilyConfig.visibleActions(
+            kinds,
+            capabilities: capabilityCodes,
+            momentTypeCode: momentTypeCode
+        )
         let q = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let all = BusinessQuickAddKind.hubTiles(theme: theme, smallShop: smallShop)
-        guard !q.isEmpty else { return all }
-        return all.filter {
+        guard !q.isEmpty else { return visible }
+        return visible.filter {
             $0.label(smallShop: smallShop).lowercased().contains(q) || $0.subtitle.lowercased().contains(q)
         }
     }
+
+    private var primaryTiles: [BusinessQuickAddKind] { filtered(spec?.primary ?? []) }
+    private var secondaryTiles: [BusinessQuickAddKind] { filtered(spec?.secondary ?? []) }
 
     private var hubSubtitleText: String {
         if smallShop, isRunway, let hubHint, !hubHint.isEmpty {
@@ -53,8 +64,9 @@ struct BusinessQuickAddHub: View {
 
     private var disabledReasonText: String? {
         let financeKinds: [BusinessQuickAddKind] = [.revenue, .invoice, .expense, .spendEntry]
+        let visible = primaryTiles + secondaryTiles
         let anyDisabled = financeKinds.contains { kind in
-            tiles.contains(kind) && !(
+            visible.contains(kind) && !(
                 (hasActiveMoment || kind == .memory)
                     && BusinessActionRegistry.isKindEnabled(
                         kind,
@@ -184,63 +196,10 @@ struct BusinessQuickAddHub: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(tiles) { kind in
-                        let capOk = BusinessActionRegistry.isKindEnabled(
-                            kind,
-                            capabilities: capabilityCodes,
-                            momentTypeCode: momentTypeCode
-                        )
-                        let momentOk = hasActiveMoment || kind == .memory
-                        Button { handle(kind) } label: {
-                            let tall = kind == .activityLog || kind == .poll || kind == .memory
-                            VStack(spacing: 8) {
-                                if let icon = kind.teamOpsHubIconName {
-                                    Image(icon)
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(width: 40, height: 40)
-                                } else {
-                                    Text(kind.emoji)
-                                        .font(.system(size: 22))
-                                        .frame(width: 40, height: 40)
-                                }
-                                Text(kind.label(smallShop: smallShop))
-                                    .font(.plusJakarta(size: 11, weight: .semibold))
-                                    .foregroundStyle(kind.stripeColor)
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(2)
-                                    .minimumScaleFactor(0.8)
-                                Text(kind.subtitle)
-                                    .font(.plusJakarta(size: 9))
-                                    .foregroundStyle(theme.muted)
-                                    .lineLimit(1)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: tall ? 120 : 100)
-                            .padding(8)
-                            .background(
-                                LinearGradient(
-                                    colors: [kind.stripeColor.opacity(0.12), .clear],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                                .background(theme.card)
-                            )
-                            .overlay(alignment: .leading) {
-                                Rectangle()
-                                    .fill(kind.stripeColor)
-                                    .frame(width: 3)
-                            }
-                            .overlay(RoundedRectangle(cornerRadius: tall ? 20 : 16).stroke(theme.border))
-                            .clipShape(RoundedRectangle(cornerRadius: tall ? 20 : 16))
-                            .opacity(momentOk && capOk ? 1 : 0.45)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(!(momentOk && capOk))
-                    }
-                }
-                if tiles.isEmpty {
+                actionGrid("Primary", kinds: primaryTiles)
+                actionGrid("More", kinds: secondaryTiles)
+
+                if primaryTiles.isEmpty && secondaryTiles.isEmpty {
                     Text("No actions match this search.")
                         .font(.plusJakarta(size: 13))
                         .foregroundStyle(theme.secondary)
@@ -284,6 +243,72 @@ struct BusinessQuickAddHub: View {
                 fallbackCompanyId: companyId
             )
             hubHint = IndustryTemplateCatalog.hubHintForCompany(companyId: companyId)
+        }
+    }
+
+    @ViewBuilder
+    private func actionGrid(_ title: String, kinds: [BusinessQuickAddKind]) -> some View {
+        if !kinds.isEmpty {
+            Text(title)
+                .font(.plusJakarta(size: 14, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(kinds) { kind in
+                    let capOk = BusinessActionRegistry.isKindEnabled(
+                        kind,
+                        capabilities: capabilityCodes,
+                        momentTypeCode: momentTypeCode
+                    )
+                    let momentOk = hasActiveMoment || kind == .memory
+                    Button { handle(kind) } label: {
+                        let tall = kind == .activityLog || kind == .poll || kind == .memory
+                        VStack(spacing: 8) {
+                            if let icon = kind.teamOpsHubIconName {
+                                Image(icon)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 40, height: 40)
+                            } else {
+                                Text(kind.emoji)
+                                    .font(.system(size: 22))
+                                    .frame(width: 40, height: 40)
+                            }
+                            Text(kind.label(smallShop: smallShop))
+                                .font(.plusJakarta(size: 11, weight: .semibold))
+                                .foregroundStyle(kind.stripeColor)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.8)
+                            Text(kind.subtitle)
+                                .font(.plusJakarta(size: 9))
+                                .foregroundStyle(theme.muted)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: tall ? 120 : 100)
+                        .padding(8)
+                        .background(
+                            LinearGradient(
+                                colors: [kind.stripeColor.opacity(0.12), .clear],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .background(theme.card)
+                        )
+                        .overlay(alignment: .leading) {
+                            Rectangle()
+                                .fill(kind.stripeColor)
+                                .frame(width: 3)
+                        }
+                        .overlay(RoundedRectangle(cornerRadius: tall ? 20 : 16).stroke(theme.border))
+                        .clipShape(RoundedRectangle(cornerRadius: tall ? 20 : 16))
+                        .opacity(momentOk && capOk ? 1 : 0.45)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!(momentOk && capOk))
+                }
+            }
         }
     }
 

@@ -117,6 +117,7 @@ import com.example.momentra.ui.shell.business.gap.BusinessVisibilitySettingsScre
 import com.example.momentra.ui.shell.business.gap.PendingBusinessActivation
 import com.example.momentra.ui.shell.business.gap.VendorOperationsScreen
 import com.example.momentra.ui.shell.business.shared.BusinessPulseActiveContent
+import com.example.momentra.ui.shell.business.shared.BusinessMomentFamilyConfig
 import com.example.momentra.ui.shell.business.shared.BusinessQuickAddHub
 import com.example.momentra.ui.shell.business.shared.BusinessQuickAddKind
 import com.example.momentra.ui.shell.business.shared.BusinessRevenueSheet
@@ -193,23 +194,19 @@ import com.example.momentra.ui.shell.group.wedding.create.WeddingQuickAddKind
 import com.example.momentra.ui.shell.perf.ShellPerf
 import com.example.momentra.ui.shell.personal.future.create.FutureQuickAddKind
 import com.example.momentra.ui.shell.personal.future.create.PersonalFutureQuickAddSheet
-import com.example.momentra.ui.shell.personal.future.memory.PersonalFutureMemoryActiveContent
 import com.example.momentra.ui.shell.personal.future.moments.PersonalFutureMomentsActiveContent
 import com.example.momentra.ui.shell.personal.life.PersonalLifeActiveContent
 import com.example.momentra.ui.shell.personal.lifeops.create.LifeOpsQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.MoneyQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalLifeOpsQuickAddSheet
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalMoneyQuickAddSheet
-import com.example.momentra.ui.shell.personal.lifeops.memory.PersonalLifeOpsMemoryActiveContent
 import com.example.momentra.ui.shell.personal.lifeops.moments.PersonalLifeOpsMomentsActiveContent
 import com.example.momentra.ui.shell.personal.lifeops.pulse.PersonalLifeOpsPulseActiveContent
 import com.example.momentra.ui.shell.personal.lifestyle.pulse.PersonalLifestylePulseActiveContent
 import com.example.momentra.ui.shell.personal.lifestyle.create.PersonalLifestyleQuickAddSheet
-import com.example.momentra.ui.shell.personal.lifestyle.memory.PersonalLifestyleMemoryActiveContent
 import com.example.momentra.ui.shell.personal.lifestyle.moments.PersonalLifestyleMomentsActiveContent
 import com.example.momentra.ui.shell.personal.relationships.create.PersonalRelationshipsActivityFlow
 import com.example.momentra.ui.shell.personal.relationships.create.PersonalRelationshipsQuickAddSheet
-import com.example.momentra.ui.shell.personal.relationships.memory.PersonalRelationshipsMemoryActiveContent
 import com.example.momentra.ui.shell.personal.relationships.moments.PersonalRelationshipsMomentsActiveContent
 import com.example.momentra.ui.shell.personal.relationships.pulse.PersonalRelationshipsPulseActiveContent
 import com.example.momentra.ui.shell.personal.shared.LifestyleQuickAddKind
@@ -868,6 +865,7 @@ fun AppShellScreen(
                     onRelationshipsQuickAdd = { openRelationshipsQa(it) },
                     onOpenRelationshipsActivity = { relationshipsActivityOpen = true },
                     onViewAllActivity = { recentActivityOpen = true },
+                    onPersonalActivityChanged = { shellViewModel.refreshVisiblePersonalTab() },
                     onViewAllGroupActivity = { groupRecentActivityOpen = true },
                     onViewAllTeamActivity = { teamRecentActivityOpen = true },
                     onViewAllBusinessActivity = { businessRecentActivityOpen = true },
@@ -1367,6 +1365,7 @@ fun AppShellScreen(
                         ?: "",
                     visible = businessKhataSheetOpen,
                     onDismiss = { businessKhataSheetOpen = false },
+                    onEntrySaved = { shellViewModel.refreshVisibleBusinessTab() },
                 )
             }
         }
@@ -1856,6 +1855,7 @@ private fun ShellDestinationContent(
     onRelationshipsQuickAdd: (RelationshipsQuickAddKind) -> Unit = {},
     onOpenRelationshipsActivity: () -> Unit = {},
     onViewAllActivity: () -> Unit = {},
+    onPersonalActivityChanged: () -> Unit = {},
     onViewAllGroupActivity: () -> Unit = {},
     onViewAllTeamActivity: () -> Unit = {},
     onViewAllBusinessActivity: () -> Unit = {},
@@ -2026,6 +2026,11 @@ private fun ShellDestinationContent(
                 }
                 context == AppContext.BUSINESS && destination == BottomDestination.CREATE -> {
                     if (selectedMomentId != null && hasCompany) {
+                        val quickAddType = BusinessMomentFamilyConfig.selectedQuickAddTypeCode(
+                            selectedMomentId,
+                            moments,
+                            selectedMomentTypeCode,
+                        )
                         BusinessQuickAddHub(
                             hasActiveMoment = true,
                             hasCompany = hasCompany,
@@ -2038,8 +2043,7 @@ private fun ShellDestinationContent(
                             onOpenCompanySettings = onOpenCompanySettings,
                             onTile = onBusinessQuickAdd,
                             momentId = selectedMomentId,
-                            momentTypeCode = moments.firstOrNull { it.momentId == selectedMomentId }?.momentTypeCode
-                                ?: selectedMomentTypeCode,
+                            momentTypeCode = quickAddType,
                             companyId = companyId
                                 ?: moments.firstOrNull { it.momentId == selectedMomentId }?.companyId,
                             capabilities = capabilities,
@@ -2298,6 +2302,9 @@ private fun ShellDestinationContent(
                                     onOpenQuickAdd = onOpenQuickAdd,
                                     onOpenMoments = onOpenMoments,
                                     onViewAllActivity = onViewAllBusinessActivity,
+                                    onToday = onBusinessQuickAdd,
+                                    capabilities = capabilities,
+                                    momentTypeCode = businessTypeCode,
                                 )
                                 code.contains("TEAM_OPERATIONS") -> TeamOpsPulseActiveContent(
                                     momentId = selectedMomentId,
@@ -2307,6 +2314,10 @@ private fun ShellDestinationContent(
                                     onOpenQuickAdd = onOpenQuickAdd,
                                     onViewAllActivity = onViewAllTeamActivity,
                                     onAddExpense = onAddExpense,
+                                    onOpenMoments = onOpenMoments,
+                                    onToday = onBusinessQuickAdd,
+                                    capabilities = capabilities,
+                                    momentTypeCode = businessTypeCode,
                                 )
                                 code.contains("OPERATIONS") && !code.contains("TEAM") -> OpsPulseActiveContent(
                                     momentId = selectedMomentId,
@@ -2316,6 +2327,9 @@ private fun ShellDestinationContent(
                                     onOpenQuickAdd = onOpenQuickAdd,
                                     onOpenMoments = onOpenMoments,
                                     onViewAllActivity = onViewAllBusinessActivity,
+                                    onToday = onBusinessQuickAdd,
+                                    capabilities = capabilities,
+                                    momentTypeCode = businessTypeCode,
                                 )
                                 else -> BusinessPulseActiveContent(
                                     momentId = selectedMomentId,
@@ -2324,6 +2338,8 @@ private fun ShellDestinationContent(
                                     momentTypeCode = businessTypeCode,
                                     onAddExpense = onAddExpense,
                                     onOpenQuickAdd = onOpenQuickAdd,
+                                    onToday = onBusinessQuickAdd,
+                                    capabilities = capabilities,
                                 )
                             }
                         }
@@ -2375,6 +2391,7 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 refreshToken = businessTabRefreshToken,
                                 momentTypeCode = businessTypeCode,
+                                companyId = companyId,
                                 onViewReport = onViewBusinessReport,
                                 onOpenFinance = onOpenBusinessFinance,
                                 onOpenVendor = onOpenVendor,
@@ -2390,6 +2407,7 @@ private fun ShellDestinationContent(
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = businessTabRefreshToken,
                                     onRecordLearning = { onBusinessQuickAdd(BusinessQuickAddKind.MEMORY) },
+                                    companyId = companyId,
                                 )
                                 code.contains("TEAM_OPERATIONS") -> TeamOpsMemoryActiveContent(
                                     momentId = selectedMomentId,
@@ -2397,12 +2415,14 @@ private fun ShellDestinationContent(
                                     refreshToken = businessTabRefreshToken,
                                     onRecordLearning = { onBusinessQuickAdd(BusinessQuickAddKind.MEMORY) },
                                     onOpenQuickAdd = { onBusinessQuickAdd(BusinessQuickAddKind.TEAM_UPDATE) },
+                                    companyId = companyId,
                                 )
                                 code.contains("OPERATIONS") && !code.contains("TEAM") -> OpsMemoryActiveContent(
                                     momentId = selectedMomentId,
                                     momentTitle = selectedMomentTitle,
                                     refreshToken = businessTabRefreshToken,
                                     onRecordMemory = { onBusinessQuickAdd(BusinessQuickAddKind.MEMORY) },
+                                    companyId = companyId,
                                 )
                                 else -> BusinessMemoryActiveContent(
                                     momentId = selectedMomentId,
@@ -2410,6 +2430,7 @@ private fun ShellDestinationContent(
                                     refreshToken = businessTabRefreshToken,
                                     momentTypeCode = businessTypeCode,
                                     onOpenQuickAdd = onOpenQuickAdd,
+                                    companyId = companyId,
                                 )
                             }
                         }
@@ -2433,71 +2454,22 @@ private fun ShellDestinationContent(
                                 onFutureQuickAdd = onFutureQuickAdd,
                                 onLifestyleQuickAdd = onLifestyleQuickAdd,
                                 onRelationshipsQuickAdd = onRelationshipsQuickAdd,
-                                onViewAllActivity = if (isRelationships) onOpenRelationshipsActivity else onViewAllActivity,
+                                onViewAllActivity = onOpenMoments,
                             )
                         }
-                        context == AppContext.PERSONAL && destination == BottomDestination.MOMENTS && isFutureBuilding -> {
-                            PersonalFutureMomentsActiveContent(
+                        context == AppContext.PERSONAL && destination == BottomDestination.MOMENTS -> {
+                            com.example.momentra.ui.shell.personal.shared.PersonalMomentsActiveContent(
                                 refreshToken = personalTabRefreshToken,
                                 momentId = selectedMomentId,
                                 momentTitle = selectedMomentTitle,
+                                momentTypeCode = personalTypeCode,
                                 onOpenQuickAdd = onOpenQuickAdd,
-                                onAddExpense = onAddExpense,
+                                onActivityChanged = onPersonalActivityChanged,
                             )
                         }
-                        context == AppContext.PERSONAL && destination == BottomDestination.MOMENTS && isLifeOps -> {
-                            PersonalLifeOpsMomentsActiveContent(
+                        context == AppContext.PERSONAL && destination == BottomDestination.MEMORY -> {
+                            com.example.momentra.ui.shell.personal.memory.PersonalMemoryActiveContent(
                                 refreshToken = personalTabRefreshToken,
-                                momentId = selectedMomentId,
-                                momentTitle = selectedMomentTitle,
-                                onOpenQuickAdd = onOpenQuickAdd,
-                                onAddExpense = onAddExpense,
-                            )
-                        }
-                        context == AppContext.PERSONAL && destination == BottomDestination.MOMENTS && isLifestyle -> {
-                            PersonalLifestyleMomentsActiveContent(
-                                refreshToken = personalTabRefreshToken,
-                                momentId = selectedMomentId,
-                                momentTitle = selectedMomentTitle,
-                                onOpenQuickAdd = onOpenQuickAdd,
-                                onAddExpense = onAddExpense,
-                            )
-                        }
-                        context == AppContext.PERSONAL && destination == BottomDestination.MOMENTS && isRelationships -> {
-                            PersonalRelationshipsMomentsActiveContent(
-                                refreshToken = personalTabRefreshToken,
-                                momentId = selectedMomentId,
-                                momentTitle = selectedMomentTitle,
-                                onOpenQuickAdd = onOpenQuickAdd,
-                                onAddExpense = onAddExpense,
-                            )
-                        }
-                        context == AppContext.PERSONAL && destination == BottomDestination.MEMORY && isFutureBuilding -> {
-                            PersonalFutureMemoryActiveContent(
-                                refreshToken = personalTabRefreshToken,
-                                momentId = selectedMomentId,
-                                onProtectMilestone = { onFutureQuickAdd(FutureQuickAddKind.MILESTONE) },
-                            )
-                        }
-                        context == AppContext.PERSONAL && destination == BottomDestination.MEMORY && isLifeOps -> {
-                            PersonalLifeOpsMemoryActiveContent(
-                                refreshToken = personalTabRefreshToken,
-                                momentId = selectedMomentId,
-                                onProtectRecovery = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY) },
-                            )
-                        }
-                        context == AppContext.PERSONAL && destination == BottomDestination.MEMORY && isLifestyle -> {
-                            PersonalLifestyleMemoryActiveContent(
-                                refreshToken = personalTabRefreshToken,
-                                momentId = selectedMomentId,
-                                onLogExperience = { onLifestyleQuickAdd(LifestyleQuickAddKind.EXPERIENCE) },
-                            )
-                        }
-                        context == AppContext.PERSONAL && destination == BottomDestination.MEMORY && isRelationships -> {
-                            PersonalRelationshipsMemoryActiveContent(
-                                refreshToken = personalTabRefreshToken,
-                                momentId = selectedMomentId,
-                                onLogConnection = { onRelationshipsQuickAdd(RelationshipsQuickAddKind.CONNECTION) },
                             )
                         }
                         context == AppContext.PERSONAL && destination == BottomDestination.CREATE -> {
