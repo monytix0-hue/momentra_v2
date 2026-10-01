@@ -16,6 +16,7 @@ import {
   personalFamilyLabel,
   type PersonalFamilyCode,
 } from '../personal/moment-family';
+import { lifeActivityCountExclusionSql } from './life-activity-count';
 
 export interface CursorPage<T> {
   items: T[];
@@ -522,7 +523,8 @@ async function buildPersonalLifeThisWeek(
        WHERE user_id = $1
          AND domain_code = 'PERSONAL'
          AND occurred_at >= now() - ($2 || ' days')::interval
-         AND COALESCE(activity_payload->>'status', 'POSTED') <> 'VOIDED'`,
+         AND COALESCE(activity_payload->>'status', 'POSTED') <> 'VOIDED'
+         AND ${lifeActivityCountExclusionSql()}`,
       [userId, String(days)]
     )
     .catch(() => ({ rows: [] as Array<{ period_logs: string; mood_recovery_logs: string }> }));
@@ -585,6 +587,7 @@ async function buildPersonalLifeThisWeek(
          AND ra.domain_code = 'PERSONAL'
          AND ra.occurred_at >= now() - ($2 || ' days')::interval
          AND COALESCE(ra.activity_payload->>'status', 'POSTED') <> 'VOIDED'
+         AND ${lifeActivityCountExclusionSql('ra')}
        GROUP BY mt.code`,
       [userId, String(days)]
     )
@@ -645,6 +648,7 @@ async function buildPersonalLifeThisWeek(
        WHERE ra.user_id = $1
          AND ra.domain_code = 'PERSONAL'
          AND COALESCE(ra.activity_payload->>'status', 'POSTED') <> 'VOIDED'
+         AND ${lifeActivityCountExclusionSql('ra')}
        ORDER BY ra.occurred_at DESC
        LIMIT 8`,
       [userId]
