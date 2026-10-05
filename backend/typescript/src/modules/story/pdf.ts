@@ -532,7 +532,7 @@ function paintOriented(
   }
   try {
     // Custom EXIF transform already applied above; tell PDFKit not to rotate again.
-    doc.image(image, 0, 0, { width: imageW, height: imageH, ignoreOrientation: true });
+    doc.image(image, 0, 0, { width: imageW, height: imageH, ignoreOrientation: true } as never;
   } catch {
     // Skip a photo the PDF engine cannot decode.
   }
