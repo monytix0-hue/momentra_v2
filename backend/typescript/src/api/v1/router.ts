@@ -1798,8 +1798,11 @@ v1Router.post('/moments/:momentId/complete', requireIdempotencyKey, async (req, 
   try {
     const ctx = req.requestContext!;
     const expectedVersion = parseVersion(req.body);
-    const result = await withDb((client) =>
-      momentService.completeMoment(client, ctx, param(req.params.momentId), expectedVersion)
+    // withTransaction required: completeMoment uses SAVEPOINT moment_story
+    const result = await withTransaction(
+      (client) =>
+        momentService.completeMoment(client, ctx, param(req.params.momentId), expectedVersion),
+      ctx.userId
     );
     res.json(commandEnvelope(result, ctx.correlationId, { resourceVersion: result.version }));
   } catch (e) {
@@ -1888,8 +1891,10 @@ v1Router.get('/moments/:momentId/story', async (req, res, next) => {
 v1Router.post('/moments/:momentId/stories', requireIdempotencyKey, async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
-    const data = await withDb((client) =>
-      storyService.regenerateMomentStory(client, ctx, param(req.params.momentId))
+    // Transaction so story inserts + artifacts commit atomically
+    const data = await withTransaction(
+      (client) => storyService.regenerateMomentStory(client, ctx, param(req.params.momentId)),
+      ctx.userId
     );
     res.json(commandEnvelope(data, ctx.correlationId));
   } catch (e) {

@@ -227,6 +227,14 @@ interface ApiService {
         @Path("momentId") momentId: String,
     ): SuccessEnvelope<MomentStoryDto>
 
+    /** Queue / regenerate Moment Story (additive new version; does not delete READY rows). */
+    @POST("v1/moments/{momentId}/stories")
+    suspend fun createMomentStory(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any> = emptyMap(),
+    ): SuccessEnvelope<MomentStoryCreateResultDto>
+
     @GET("v1/moments/{momentId}/story/share-pack")
     suspend fun getMomentStorySharePack(
         @Path("momentId") momentId: String,

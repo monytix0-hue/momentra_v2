@@ -1,5 +1,10 @@
 package com.example.momentra.data.api
 
+data class MomentStoryCreateResultDto(
+    val storyId: String? = null,
+    val storyVersion: Int? = null,
+)
+
 data class MomentStoryStatusDto(
     val status: String? = null,
     val storyId: String? = null,

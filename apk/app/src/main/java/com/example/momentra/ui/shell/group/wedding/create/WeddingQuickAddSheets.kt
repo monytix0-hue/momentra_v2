@@ -5,7 +5,6 @@ import com.example.momentra.ui.shell.shared.PersonLabel
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -88,6 +87,7 @@ import com.example.momentra.ui.shell.group.shared.GroupPlanningCategoryCatalog
 import com.example.momentra.ui.shell.group.shared.GroupReceiptPickControl
 import com.example.momentra.ui.shell.group.shared.GroupSettlementSheet
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
+import com.example.momentra.ui.shell.group.shared.decodeBitmapRespectingExif
 import com.example.momentra.ui.shell.group.shared.encodeMemoryPhotoBytes
 import com.example.momentra.ui.shell.group.shared.groupMemoryTypeCode
 import com.example.momentra.ui.shell.group.shared.tryTakePersistableReadPermission
@@ -2033,7 +2033,7 @@ internal fun WeddingMemorySheetBody(momentId: String?, repository: GroupSliceRep
         tryTakePersistableReadPermission(context.contentResolver, uri)
         photoUri = uri
         photoBitmap = runCatching {
-            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+            context.contentResolver.openInputStream(uri)?.use { decodeBitmapRespectingExif(it.readBytes()) }
         }.getOrNull()
         if (photoBitmap == null) error = "Could not open that photo"
     }
@@ -2045,7 +2045,7 @@ internal fun WeddingMemorySheetBody(momentId: String?, repository: GroupSliceRep
         if (!ok || uri == null) return@rememberLauncherForActivityResult
         photoUri = uri
         photoBitmap = runCatching {
-            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+            context.contentResolver.openInputStream(uri)?.use { decodeBitmapRespectingExif(it.readBytes()) }
         }.getOrNull()
         if (photoBitmap == null) error = "Could not open the captured photo"
     }

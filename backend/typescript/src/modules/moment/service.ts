@@ -1563,12 +1563,56 @@ export async function completeMoment(
     throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Moment not found.', 404);
   }
   if (cur.status === 'COMPLETED') {
+    // Additive backfill: if already COMPLETED but no READY story exists, queue generation.
+    // Never deletes or regenerates an existing READY story.
+    let storyId: string | undefined;
+    if (!opts?.skipStory && cur.domain_code === 'GROUP') {
+      const ready = await client.query<{ story_id: string }>(
+        `SELECT story_id FROM core.moment_story
+         WHERE moment_id = $1 AND status = 'READY'
+         ORDER BY story_version DESC LIMIT 1`,
+        [momentId]
+      );
+      if (ready.rows[0]) {
+        storyId = ready.rows[0].story_id;
+      } else {
+        const completionId = randomUUID();
+        const { queueMomentStoryGeneration, recordStoryGenerationFailure } = await import('../story/service');
+        await client.query('SAVEPOINT moment_story');
+        try {
+          const story = await queueMomentStoryGeneration(client, ctx, {
+            momentId,
+            completionId,
+            completedByUserId: ctx.userId,
+          });
+          storyId = story.storyId;
+          await client.query('RELEASE SAVEPOINT moment_story');
+        } catch (err) {
+          try {
+            await client.query('ROLLBACK TO SAVEPOINT moment_story');
+          } catch {
+            // Savepoint is already gone if the connection died.
+          }
+          const message = err instanceof Error ? err.message : 'Story generation failed';
+          console.log(JSON.stringify({ level: 'warn', msg: 'moment_story_generation_failed', momentId, err: message }));
+          await recordStoryGenerationFailure({
+            momentId,
+            completionId,
+            completedByUserId: ctx.userId,
+            message,
+          }).catch((recordErr) => {
+            console.log(JSON.stringify({ level: 'warn', msg: 'moment_story_failure_unrecorded', momentId, err: String(recordErr) }));
+          });
+        }
+      }
+    }
     return {
       momentId,
       domainCode: cur.domain_code,
       title: cur.title,
       status: cur.status,
       version: parseInt(cur.version, 10),
+      storyId,
     };
   }
   if (cur.status !== 'ACTIVE') {
@@ -1594,17 +1638,27 @@ export async function completeMoment(
   }
   const row = updated.rows[0];
 
-  // Soft-close group context rows when present.
-  await client.query(
-    `UPDATE collaboration.group_moment_context SET status = 'COMPLETED', updated_at = now()
-     WHERE moment_id = $1 AND status = 'ACTIVE'`,
-    [momentId]
-  ).catch(() => undefined);
-  await client.query(
-    `UPDATE collaboration.shared_experience_context SET status = 'COMPLETED', updated_at = now()
-     WHERE moment_id = $1 AND status = 'ACTIVE'`,
-    [momentId]
-  ).catch(() => undefined);
+  // Soft-close group context rows when present (savepoints so a miss cannot abort the txn).
+  await client.query('SAVEPOINT soft_group_ctx');
+  try {
+    await client.query(
+      `UPDATE collaboration.group_moment_context SET status = 'COMPLETED', updated_at = now()
+       WHERE moment_id = $1 AND status = 'ACTIVE'`,
+      [momentId]
+    );
+    await client.query(
+      `UPDATE collaboration.shared_experience_context SET status = 'COMPLETED', updated_at = now()
+       WHERE moment_id = $1 AND status = 'ACTIVE'`,
+      [momentId]
+    );
+    await client.query('RELEASE SAVEPOINT soft_group_ctx');
+  } catch {
+    try {
+      await client.query('ROLLBACK TO SAVEPOINT soft_group_ctx');
+    } catch {
+      // ignore
+    }
+  }
 
   const { listOtherMemberUserIds } = await import('../collaboration/group-membership');
   const peers =

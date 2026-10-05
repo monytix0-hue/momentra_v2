@@ -1,7 +1,6 @@
 package com.example.momentra.ui.shell.group.shared
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -116,7 +115,7 @@ fun RemoteMemoryImage(
                     readTimeout = 12_000
                     instanceFollowRedirects = true
                 }
-                conn.inputStream.use { BitmapFactory.decodeStream(it) }
+                conn.inputStream.use { decodeBitmapRespectingExif(it.readBytes()) }
             }.getOrNull()
         }
         if (bitmap == null) failed = true

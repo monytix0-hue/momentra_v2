@@ -68,6 +68,23 @@ export function resolveExpenseCategory(
   };
 }
 
+
+/** Log optional snapshot query failures; keep empty fallback so one bad join cannot abort generation. */
+function softQueryFail<T>(label: string, momentId: string, fallback: T): (err: unknown) => T {
+  return (err) => {
+    console.log(
+      JSON.stringify({
+        level: 'warn',
+        msg: 'story_snapshot_query_failed',
+        label,
+        momentId,
+        err: err instanceof Error ? err.message : String(err),
+      })
+    );
+    return fallback;
+  };
+}
+
 function asIso(value: Date | string | null | undefined): string | null {
   if (!value) return null;
   const parsed = value instanceof Date ? value : new Date(value);
@@ -272,7 +289,7 @@ export async function loadFreshStoryPhotos(
        AND mu.object_key IS NOT NULL
      ORDER BY me.created_at DESC`,
     [momentId]
-  ).catch(() => ({
+  ).catch(softQueryFail('photo_media', momentId, {
     rows: [] as Array<{
       media_upload_id: string;
       bucket: string | null;
@@ -482,7 +499,7 @@ export async function buildMomentStorySnapshot(
      LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
      WHERE mp.moment_id = $1 AND mp.status = 'ACTIVE'`,
     [momentId]
-  ).catch(() => ({ rows: [] as Array<{ user_id: string | null; display_name: string | null; participant_role: string }> }));
+  ).catch(softQueryFail('people', momentId, { rows: [] as Array<{ user_id: string | null; display_name: string | null; participant_role: string }> }));
 
   const people = peopleRows.rows.map((p) => ({
     userId: p.user_id,
@@ -540,7 +557,7 @@ export async function buildMomentStorySnapshot(
      LEFT JOIN core.external_party ep ON ep.external_party_id = mp.external_party_id
      WHERE c.moment_id = $1 AND c.status = 'RECORDED'`,
     [momentId]
-  ).catch(() => ({ rows: [] as Array<{ amount: string; name: string | null }> }));
+  ).catch(softQueryFail('contributors', momentId, { rows: [] as Array<{ amount: string; name: string | null }> }));
 
   const budgetRow = await client.query<{ amount: string; currency_code: string }>(
     `SELECT amount::text, currency_code FROM finance.budget
@@ -548,7 +565,7 @@ export async function buildMomentStorySnapshot(
      ORDER BY updated_at DESC
      LIMIT 1`,
     [momentId]
-  ).catch(() => ({ rows: [] as Array<{ amount: string; currency_code: string }> }));
+  ).catch(softQueryFail('contributions_sum', momentId, { rows: [] as Array<{ amount: string; currency_code: string }> }));
 
   const outstandingRow = await client.query<{ outstanding: string }>(
     `SELECT COALESCE(SUM(outstanding_total), 0)::text AS outstanding
@@ -593,12 +610,12 @@ export async function buildMomentStorySnapshot(
      WHERE moment_id = $1
        AND status IN ('OPEN', 'IN_PROGRESS', 'DONE')`,
     [momentId]
-  ).catch(() => ({ rows: [{ n: '0', done: '0' }] }));
+  ).catch(softQueryFail('plans', momentId, { rows: [{ n: '0', done: '0' }] }));
 
   const polls = await client.query<{ title: string; status: string }>(
     `SELECT question AS title, status FROM shared.poll WHERE moment_id = $1 ORDER BY created_at DESC LIMIT 8`,
     [momentId]
-  ).catch(() => ({ rows: [] as Array<{ title: string; status: string }> }));
+  ).catch(softQueryFail('polls', momentId, { rows: [] as Array<{ title: string; status: string }> }));
 
   const places = composer.omitPlaces
     ? []
@@ -607,7 +624,7 @@ export async function buildMomentStorySnapshot(
           `SELECT label, start_at, end_at FROM collaboration.shared_experience_place
            WHERE moment_id = $1 ORDER BY sort_order ASC`,
           [momentId]
-        ).catch(() => ({ rows: [] as Array<{ label: string; start_at: Date | null; end_at: Date | null }> }))
+        ).catch(softQueryFail('places', momentId, { rows: [] as Array<{ label: string; start_at: Date | null; end_at: Date | null }> }))
       ).rows.map((p) => ({
         label: p.label,
         startAt: p.start_at?.toISOString() ?? null,
@@ -622,7 +639,7 @@ export async function buildMomentStorySnapshot(
      WHERE moment_id = $1 AND status = 'ACTIVE'
      ORDER BY created_at DESC LIMIT 12`,
     [momentId]
-  ).catch(() => ({ rows: [] as Array<{ body_text: string | null; created_at: Date | null }> }));
+  ).catch(softQueryFail('memories', momentId, { rows: [] as Array<{ body_text: string | null; created_at: Date | null }> }));
 
   const photoCount = await client.query<{ n: string }>(
     `SELECT COUNT(*)::text AS n
@@ -634,7 +651,7 @@ export async function buildMomentStorySnapshot(
        AND me.source_type = 'MEDIA'
        AND mu.status = 'COMPLETED'`,
     [momentId]
-  ).catch(() => ({ rows: [{ n: '0' }] }));
+  ).catch(softQueryFail('photo_count', momentId, { rows: [{ n: '0' }] }));
 
   const photoMedia = await client.query<{
     media_upload_id: string;
@@ -655,7 +672,7 @@ export async function buildMomentStorySnapshot(
        AND mu.object_key IS NOT NULL
      ORDER BY me.created_at DESC`,
     [momentId]
-  ).catch(() => ({
+  ).catch(softQueryFail('photo_media', momentId, {
     rows: [] as Array<{
       media_upload_id: string;
       bucket: string | null;
@@ -689,7 +706,7 @@ export async function buildMomentStorySnapshot(
        created_at ASC
      LIMIT 3`,
     [momentId]
-  ).catch(() => ({ rows: [] as Array<{ title: string; status: string; created_at: Date | null }> }));
+  ).catch(softQueryFail('plan_items', momentId, { rows: [] as Array<{ title: string; status: string; created_at: Date | null }> }));
 
   const startAt = row.start_at?.toISOString() ?? null;
   const endAt = row.end_at?.toISOString() ?? null;

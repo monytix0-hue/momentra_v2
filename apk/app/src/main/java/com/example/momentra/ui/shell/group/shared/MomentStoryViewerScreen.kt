@@ -6,8 +6,6 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.media.ExifInterface
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.compose.foundation.Canvas
@@ -90,6 +88,7 @@ import java.net.URL
 import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
+import java.util.UUID
 import kotlin.math.roundToInt
 
 /**
@@ -121,12 +120,20 @@ fun MomentStoryViewerScreen(
                     }
                     "FAILED" -> {
                         phase = "failed"
-                        message = status.errorMessage ?: "Story generation failed."
+                        message = status.errorMessage
+                            ?: "Story generation failed. Tap Retry to generate again for the group."
                         return@launch
                     }
                     "NOT_STARTED" -> {
                         phase = "not_started"
-                        message = "No Story yet — complete the moment to unlock it."
+                        val momentStatus = runCatching {
+                            ApiClient.apiService.getMoment(momentId).data.status
+                        }.getOrNull()
+                        message = if (momentStatus == "COMPLETED") {
+                            "Story is not ready yet. Tap Generate to create it so every member can view it."
+                        } else {
+                            "No Story yet — complete the moment first, then generate the Story."
+                        }
                         return@launch
                     }
                 }
@@ -135,6 +142,24 @@ fun MomentStoryViewerScreen(
             } catch (e: Exception) {
                 phase = "error"
                 message = e.message ?: "Could not load Story"
+            }
+        }
+    }
+
+
+    fun generateStory() {
+        scope.launch {
+            phase = "generating"
+            message = null
+            try {
+                ApiClient.apiService.createMomentStory(
+                    momentId = momentId,
+                    idempotencyKey = UUID.randomUUID().toString(),
+                )
+                reload()
+            } catch (e: Exception) {
+                phase = "failed"
+                message = e.message ?: "Could not generate Story"
             }
         }
     }
@@ -235,17 +260,24 @@ fun MomentStoryViewerScreen(
                         modifier = Modifier.padding(24.dp),
                     )
                     Button(
-                        onClick = { reload() },
+                        onClick = { generateStory() },
                         colors = ButtonDefaults.buttonColors(containerColor = MomentraBrandColors.Ember500),
                     ) { Text("Retry") }
                 }
             }
             "not_started" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    message ?: "No Story yet — complete the moment to unlock it.",
-                    color = if (chromeDark) MomentraBrandColors.TextOnDark else MomentraBrandColors.StoryInk,
-                    modifier = Modifier.padding(24.dp),
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        message ?: "Story is not ready yet. Tap Generate to create it for the group.",
+                        color = if (chromeDark) MomentraBrandColors.TextOnDark else MomentraBrandColors.StoryInk,
+                        modifier = Modifier.padding(24.dp),
+                        textAlign = TextAlign.Center,
+                    )
+                    Button(
+                        onClick = { generateStory() },
+                        colors = ButtonDefaults.buttonColors(containerColor = MomentraBrandColors.Ember500),
+                    ) { Text("Generate") }
+                }
             }
             else -> {
                 HorizontalPager(
@@ -1345,36 +1377,6 @@ private fun RemoteStoryImage(
     } else {
         Box(modifier.background(MomentraBrandColors.Indigo700))
     }
-}
-
-private fun applyExifOrientation(bitmap: Bitmap, bytes: ByteArray): Bitmap {
-    val orientation = runCatching {
-        ExifInterface(ByteArrayInputStream(bytes)).getAttributeInt(
-            ExifInterface.TAG_ORIENTATION,
-            ExifInterface.ORIENTATION_NORMAL,
-        )
-    }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
-    val matrix = Matrix()
-    when (orientation) {
-        ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
-        ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
-        ExifInterface.ORIENTATION_FLIP_VERTICAL -> {
-            matrix.setRotate(180f)
-            matrix.postScale(-1f, 1f)
-        }
-        ExifInterface.ORIENTATION_TRANSPOSE -> {
-            matrix.setRotate(90f)
-            matrix.postScale(-1f, 1f)
-        }
-        ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
-        ExifInterface.ORIENTATION_TRANSVERSE -> {
-            matrix.setRotate(-90f)
-            matrix.postScale(-1f, 1f)
-        }
-        ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(-90f)
-        else -> return bitmap
-    }
-    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
 }
 
 private fun metricInt(metrics: Map<String, Any?>?, key: String): Int? {
