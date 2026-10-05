@@ -1,4 +1,4 @@
-import type { PoolClient } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
 import {
   getStoryComposer,
   resolveStoryFamilyProfile,
@@ -89,7 +89,7 @@ function softQueryFail<T>(label: string, momentId: string, fallback: T): (err: u
  * Run an optional query inside a SAVEPOINT so a missing column / join
  * does not abort the outer story transaction (Postgres 25P02).
  */
-async function softClientQuery<T>(
+async function softClientQuery<T extends QueryResultRow>(
   client: PoolClient,
   label: string,
   momentId: string,
