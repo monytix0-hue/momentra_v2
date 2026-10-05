@@ -85,6 +85,35 @@ function softQueryFail<T>(label: string, momentId: string, fallback: T): (err: u
   };
 }
 
+/**
+ * Run an optional query inside a SAVEPOINT so a missing column / join
+ * does not abort the outer story transaction (Postgres 25P02).
+ */
+async function softClientQuery<T>(
+  client: PoolClient,
+  label: string,
+  momentId: string,
+  fallback: { rows: T[] },
+  sql: string,
+  params: unknown[]
+): Promise<{ rows: T[] }> {
+  const sp = ('sq_' + label.replace(/\W+/g, '_')).slice(0, 63);
+  try {
+    await client.query('SAVEPOINT ' + sp);
+    const result = await client.query<T>(sql, params);
+    await client.query('RELEASE SAVEPOINT ' + sp);
+    return result;
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK TO SAVEPOINT ' + sp);
+      await client.query('RELEASE SAVEPOINT ' + sp);
+    } catch {
+      /* already aborted or savepoint missing */
+    }
+    return softQueryFail(label, momentId, fallback)(err);
+  }
+}
+
 function asIso(value: Date | string | null | undefined): string | null {
   if (!value) return null;
   const parsed = value instanceof Date ? value : new Date(value);
@@ -631,15 +660,20 @@ export async function buildMomentStorySnapshot(
         endAt: p.end_at?.toISOString() ?? null,
       }));
 
-  const memoryRows = await client.query<{
+  const memoryRows = await softClientQuery<{
     body_text: string | null;
     created_at: Date | null;
   }>(
-    `SELECT body_text, created_at FROM memory.memory
+    client,
+    'memories',
+    momentId,
+    { rows: [] },
+    `SELECT COALESCE(NULLIF(BTRIM(summary), ''), NULLIF(BTRIM(title), '')) AS body_text, created_at
+     FROM memory.memory
      WHERE moment_id = $1 AND status = 'ACTIVE'
      ORDER BY created_at DESC LIMIT 12`,
     [momentId]
-  ).catch(softQueryFail('memories', momentId, { rows: [] as Array<{ body_text: string | null; created_at: Date | null }> }));
+  );
 
   const photoCount = await client.query<{ n: string }>(
     `SELECT COUNT(*)::text AS n
