@@ -53,7 +53,7 @@ fun PersonalPulseFamily.theme(): PersonalPulseFamilyTheme = when (this) {
         tileLabels = listOf("Pressure", "Recovery", "Discipline", "Attention"),
         todayActionLabels = listOf("Spend", "Mood", "Recovery"),
         nudgeTitle = "A small win today",
-        nudgeBody = "You've been busy — rest for a bit before the next stretch.",
+        nudgeBody = "Log recovery if you want it on today's record.",
         nudgeCta = "Log Recovery",
         moneyTitle = "This month's money",
         moneyCompactTitle = "This month",
@@ -135,3 +135,24 @@ fun personalSwitcherLabelFor(momentTypeCode: String?): String =
 
 fun PersonalPulseFamilyTheme.heroBrush(): Brush =
     Brush.horizontalGradient(listOf(heroStart, heroEnd))
+
+data class VisiblePulseNudge(
+    val title: String,
+    val body: String?,
+    val cta: String,
+)
+
+/**
+ * Everyday nudge is omitted until today has a log, and never claims the person has been busy.
+ * Other families keep their instruction copy.
+ */
+fun PersonalPulseFamily.visibleNudge(todayLogCount: Int): VisiblePulseNudge? {
+    val theme = theme()
+    if (this == PersonalPulseFamily.LIFE_OPERATIONS && todayLogCount <= 0) return null
+    val body = if (this == PersonalPulseFamily.LIFE_OPERATIONS) {
+        theme.nudgeBody.takeUnless { it.contains("busy", ignoreCase = true) }
+    } else {
+        theme.nudgeBody
+    }
+    return VisiblePulseNudge(theme.nudgeTitle, body, theme.nudgeCta)
+}

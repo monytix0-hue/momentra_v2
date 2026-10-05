@@ -1,6 +1,8 @@
 package com.example.momentra.data.local
 
 import android.content.Context
+import com.example.momentra.ui.shell.policy.decodeBusinessMoments
+import com.example.momentra.ui.shell.policy.encodeBusinessMoments
 
 class AppPreferences(context: Context) {
     private val prefs = context.applicationContext
@@ -128,11 +130,27 @@ class AppPreferences(context: Context) {
         }.apply()
     }
 
+    fun getShellBusinessMomentId(userId: String, companyId: String): String? {
+        if (userId.isBlank() || companyId.isBlank()) return null
+        return decodeBusinessMoments(prefs.getString(shellBusinessMomentsKey(userId), null))[companyId]
+    }
+
+    fun setShellBusinessMomentId(userId: String, companyId: String, momentId: String?) {
+        if (userId.isBlank() || companyId.isBlank()) return
+        val next = decodeBusinessMoments(prefs.getString(shellBusinessMomentsKey(userId), null)).toMutableMap()
+        if (momentId.isNullOrBlank()) next.remove(companyId) else next[companyId] = momentId
+        prefs.edit().apply {
+            if (next.isEmpty()) remove(shellBusinessMomentsKey(userId))
+            else putString(shellBusinessMomentsKey(userId), encodeBusinessMoments(next))
+        }.apply()
+    }
+
     fun clearUserScopedShell(userId: String?) {
         if (userId.isNullOrBlank()) return
         prefs.edit()
             .remove(shellContextKey(userId))
             .remove(shellCompanyKey(userId))
+            .remove(shellBusinessMomentsKey(userId))
             .remove(selectedPersonalMomentKey(userId))
             .apply()
     }
@@ -227,5 +245,6 @@ class AppPreferences(context: Context) {
         private fun identityEmailKey(firebaseUid: String) = "identity_email_$firebaseUid"
         private fun shellContextKey(userId: String) = "shell_context_$userId"
         private fun shellCompanyKey(userId: String) = "shell_company_$userId"
+        private fun shellBusinessMomentsKey(userId: String) = "shell_business_moments_$userId"
     }
 }

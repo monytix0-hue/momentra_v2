@@ -1016,6 +1016,13 @@ private fun PollForm(
     )
 }
 
+/** Team chips are labels. The API enum has no NOTE. */
+internal fun teamMemoryTypeCode(label: String): String = when (label.trim().lowercase()) {
+    "milestone" -> "MILESTONE"
+    "decision" -> "DECISION"
+    else -> "GENERAL"
+}
+
 @Composable
 private fun MemoryForm(
     momentId: String?,
@@ -1036,7 +1043,7 @@ private fun MemoryForm(
         iconRes = kind.teamOpsHubIconRes(),
         emojiFallback = kind.emoji(),
         title = "Save to Memory",
-        explanation = "Capture a learning for the playbook",
+        explanation = "Capture a learning for the company",
         accent = accent,
         onClose = onDismiss,
     )
@@ -1066,12 +1073,12 @@ private fun MemoryForm(
                     body = CreateBusinessMemoryBody(
                         title = title.trim(),
                         body = body.trim(),
-                        memoryType = memoryType.uppercase(),
+                        memoryType = teamMemoryTypeCode(memoryType),
                     ),
                     idempotencyKey = UUID.randomUUID().toString(),
                 ).fold(
                     onSuccess = { submitting = false; onSaved(); onDismiss() },
-                    onFailure = { submitting = false; error = it.message ?: "Could not save memory" },
+                    onFailure = { submitting = false; error = "Could not save memory" },
                 )
             }
         },

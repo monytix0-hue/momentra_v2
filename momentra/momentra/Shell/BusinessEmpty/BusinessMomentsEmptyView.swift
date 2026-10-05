@@ -4,11 +4,7 @@ import SwiftUI
 struct BusinessMomentsEmptyView: View {
     var onStartCta: () -> Void
 
-    private let timeline: [(String, String)] = [
-        ("You bought supplies", "Today, 10:42 AM"),
-        ("A customer paid", "Oct 14, 2024"),
-        ("You saved a receipt", "Sep 01, 2024"),
-    ]
+    private let timeline = BusinessNoMomentEmptyCopy.momentsSampleRows
 
     private let chips = ["Purchases", "Expenses", "Receipts", "Activity"]
 
@@ -22,6 +18,7 @@ struct BusinessMomentsEmptyView: View {
                         bodyText: "Keep purchases, expenses, receipts and important activity together."
                     )
 
+                    if !timeline.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(timeline.enumerated()), id: \.offset) { index, item in
                             HStack(alignment: .top, spacing: 16) {
@@ -37,10 +34,10 @@ struct BusinessMomentsEmptyView: View {
                                 .frame(width: 10)
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.0)
+                                    Text(item.title)
                                         .font(.system(size: 13, weight: .semibold))
                                         .foregroundStyle(BusinessEmptyTokens.textPrimary)
-                                    Text(item.1)
+                                    Text(item.time)
                                         .font(.system(size: 11, design: .monospaced))
                                         .foregroundStyle(BusinessEmptyTokens.textMuted)
                                 }
@@ -56,6 +53,7 @@ struct BusinessMomentsEmptyView: View {
                             .stroke(BusinessEmptyTokens.cardStroke, lineWidth: 1)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 20))
+                    }
 
                     HStack(spacing: 6) {
                         ForEach(chips, id: \.self, content: chipView)

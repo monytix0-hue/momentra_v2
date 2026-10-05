@@ -205,6 +205,14 @@ suspend fun loadBusinessMemoryTab(
     }
 }
 
+/**
+ * A business save refreshes Pulse by bumping the visible-tab token.
+ * That screen load is the one fetch. Prefetch only when the caller asked
+ * (moment select). A save that also prefetches finishes first, then the
+ * screen starts a second Pulse load.
+ */
+fun businessRefreshPrefetchesPulse(forcePrefetch: Boolean): Boolean = forcePrefetch
+
 /** Prefetch bundled pulse for Business tab SWR. */
 suspend fun prefetchBusinessTabs(
     repository: BusinessSliceRepository,

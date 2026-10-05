@@ -1,0 +1,22 @@
+appId: resolvingpoint.momentra
+name: Business Reality Seed chunk 02
+---
+- launchApp
+- runScript: ../data/business_chunk_02.js
+- repeat:
+    while:
+      true: ${output.index < output.records.length}
+    commands:
+      - evalScript: ${output.r = output.records[output.index]}
+      - runFlow:
+          file: flows/business/add_record.yaml
+          env:
+            FAMILY: ${output.r.family}
+            TYPE: ${output.r.type}
+            TITLE: ${output.r.title}
+            AMOUNT: ${output.r.amount}
+            STORE: ${output.r.store}
+            STATUS: ${output.r.status}
+            NOTE: ${output.r.note}
+            RECORD_DATE: ${output.r.date}
+      - evalScript: ${output.index++}

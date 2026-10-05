@@ -1,4 +1,7 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
+/** Dev uses the Vite proxy so the browser does not preflight a cross-origin admin call. */
+const API_BASE = import.meta.env.DEV
+  ? ''
+  : (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000');
 const STORAGE_KEY = 'momentra_admin_api_key';
 
 export function getApiKey(): string | null {

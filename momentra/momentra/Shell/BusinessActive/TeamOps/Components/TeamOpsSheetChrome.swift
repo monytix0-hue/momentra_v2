@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum TeamOpsSheetTokens {
     static let sheetBg = Color(hex: "#161B26")
@@ -112,6 +113,7 @@ struct TeamOpsTextField: View {
     var placeholder: String
     var minHeight: CGFloat = 44
     var singleLine: Bool = true
+    var fieldId: String? = nil
 
     var body: some View {
         Group {
@@ -121,12 +123,14 @@ struct TeamOpsTextField: View {
                     .foregroundStyle(TeamOpsSheetTokens.text)
                     .padding(.horizontal, 16)
                     .frame(height: minHeight)
+                    .maestroId(fieldId)
             } else {
                 TextField(placeholder, text: $value, axis: .vertical)
                     .font(.plusJakarta(size: 14, weight: .medium))
                     .foregroundStyle(TeamOpsSheetTokens.text)
                     .padding(16)
                     .frame(minHeight: minHeight, alignment: .topLeading)
+                    .maestroId(fieldId)
             }
         }
         .background(TeamOpsSheetTokens.field)
@@ -381,6 +385,7 @@ struct TeamOpsPrimaryCta: View {
     let loading: Bool
     let footerHint: String
     let accent: TeamOpsSheetAccent
+    var fieldId: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -410,10 +415,40 @@ struct TeamOpsPrimaryCta: View {
             }
             .buttonStyle(.plain)
             .disabled(!enabled || loading)
+            .maestroId(fieldId)
 
             Text(footerHint)
                 .font(.plusJakarta(size: 12))
                 .foregroundStyle(TeamOpsSheetTokens.footerHint)
+        }
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func maestroId(_ id: String?) -> some View {
+        if let id, !id.isEmpty {
+            accessibilityIdentifier(id)
+        } else {
+            self
+        }
+    }
+
+    /// Decimal pad has no return key, so Maestro cannot dismiss it with hideKeyboard.
+    func maestroKeyboardDone() -> some View {
+        toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder),
+                        to: nil,
+                        from: nil,
+                        for: nil
+                    )
+                }
+                .accessibilityIdentifier("keyboard.done")
+            }
         }
     }
 }

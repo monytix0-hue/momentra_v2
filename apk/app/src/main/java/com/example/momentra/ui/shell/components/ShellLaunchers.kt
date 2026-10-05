@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.domain.AppContext
+import com.example.momentra.ui.shell.shared.PersonLabel
 import com.example.momentra.domain.ShellContentState
 import com.example.momentra.domain.ShellIdentity
 import com.example.momentra.ui.shell.policy.ShellScreenResolver
@@ -83,8 +84,8 @@ fun ShellProfileSheet(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(text = "Profile", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-        Text(text = identity.displayName ?: "Member", fontSize = 16.sp)
-        identity.email?.let { Text(text = it, fontSize = 14.sp) }
+        Text(text = PersonLabel.personName(identity.displayName), fontSize = 16.sp)
+        PersonLabel.contactEmail(identity.email)?.let { Text(text = it, fontSize = 14.sp) }
         Button(
             onClick = onSignOut,
             modifier = Modifier.semantics { contentDescription = "Sign out" },

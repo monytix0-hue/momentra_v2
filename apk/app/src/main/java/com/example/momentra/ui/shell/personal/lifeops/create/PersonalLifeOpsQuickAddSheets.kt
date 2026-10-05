@@ -42,7 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -598,27 +597,6 @@ private fun MoodSheet(
                 LoFieldLabel("WHAT SHAPED THIS MOOD?")
                 Spacer(Modifier.height(10.dp))
                 LoTextChipRow(shapedBy, shaped, onSelect = { shaped = it }, emojiPrefix = shapedEmoji)
-            }
-            LoSectionCard {
-                LoFieldLabel("THIS WEEK")
-                Spacer(Modifier.height(8.dp))
-                Canvas(modifier = Modifier.fillMaxWidth().height(60.dp)) {
-                    val pts = listOf(0.65f, 0.55f, 0.7f, 0.45f, 0.55f, 0.45f, 0.45f)
-                    val step = size.width / (pts.size - 1)
-                    for (i in 0 until pts.size - 1) {
-                        drawLine(LoAccent, Offset(i * step, size.height * (1 - pts[i])), Offset((i + 1) * step, size.height * (1 - pts[i + 1])), strokeWidth = 2.dp.toPx())
-                    }
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach {
-                        Text(it, color = LoMuted, fontSize = 10.sp, fontFamily = PlusJakartaSans)
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Average: 7.0", color = LoSecondary, fontSize = 12.sp)
-                    Text("Trending: ↑ Up", color = LoGreen, fontSize = 12.sp)
-                }
             }
             LoSectionCard {
                 LoFieldLabel("REFLECTION NOTE")

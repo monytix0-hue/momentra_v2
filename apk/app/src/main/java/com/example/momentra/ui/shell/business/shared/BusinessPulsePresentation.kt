@@ -5,6 +5,10 @@ import com.example.momentra.data.api.BusinessApprovalItemDto
 import com.example.momentra.data.api.BusinessFinancePayloadDto
 import com.example.momentra.data.api.BusinessIssueItemDto
 import com.example.momentra.data.api.OpsPulseExtrasDto
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /** Shown value, a real zero, or omitted. A DTO default of 0 is not [Zero]. */
 sealed class PulseMetric {
@@ -19,6 +23,21 @@ data class PulseFact(
     /** Finance snapshot or Life cash/runway. Not a location total. */
     val companyWide: Boolean,
 )
+
+private val pulseActivityTimeFormat =
+    DateTimeFormatter.ofPattern("d MMM, h:mm a", Locale.ENGLISH)
+
+/**
+ * Local label for a Pulse recent-activity row. The stored timestamp stays ISO.
+ * Unparseable values are omitted so a raw ISO string is never the label.
+ */
+fun formatBusinessPulseOccurredAt(
+    raw: String,
+    zone: ZoneId = ZoneId.of("Asia/Kolkata"),
+): String {
+    val instant = runCatching { Instant.parse(raw.trim()) }.getOrNull() ?: return ""
+    return pulseActivityTimeFormat.format(instant.atZone(zone))
+}
 
 data class PulseAttentionItem(
     val id: String,

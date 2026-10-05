@@ -52,7 +52,9 @@ struct PersonalPulseActiveView: View {
                         heroCard
                         familyTodayActionStrip
                         shapedTodayCard
-                        nudgeCard
+                        if let nudge = family.visibleNudge(todayLogCount: todayLogCount) {
+                            nudgeCard(nudge)
+                        }
                         recentStrip
                         moneyCard
                     }
@@ -119,6 +121,9 @@ struct PersonalPulseActiveView: View {
     }
     private var streak: Int {
         PersonalLifeOpsDerived.streakDays(from: activities.map(\.occurredAt))
+    }
+    private var todayLogCount: Int {
+        PersonalLifeOpsDerived.todayActivityCount(from: activities.map(\.occurredAt))
     }
     private var spendPairs: [(String, String)] {
         guard let map = pulse?.widgetPayload?["spendByCurrency"]?.value as? [String: Any] else {
@@ -749,14 +754,16 @@ struct PersonalPulseActiveView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    private var nudgeCard: some View {
+    private func nudgeCard(_ nudge: VisiblePulseNudge) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(theme.nudgeTitle)
+            Text(nudge.title)
                 .font(.plusJakarta(size: 15, weight: .heavy))
                 .foregroundStyle(.white)
-            Text(theme.nudgeBody)
-                .font(.plusJakarta(size: 13))
-                .foregroundStyle(.white.opacity(0.9))
+            if let body = nudge.body {
+                Text(body)
+                    .font(.plusJakarta(size: 13))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
             Button {
                 switch family {
                 case .lifeOperations: onLifeOpsQuickAdd(.recovery)
@@ -765,7 +772,7 @@ struct PersonalPulseActiveView: View {
                 case .relationships: onRelationshipsQuickAdd(.connection)
                 }
             } label: {
-                Text(theme.nudgeCta)
+                Text(nudge.cta)
                     .font(.plusJakarta(size: 14, weight: .heavy))
                     .foregroundStyle(Color(hex: "#1A1726"))
                     .frame(maxWidth: .infinity)

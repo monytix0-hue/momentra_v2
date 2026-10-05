@@ -1,0 +1,132 @@
+appId: resolvingpoint.momentra
+---
+# TITLE / description
+- runFlow:
+    when:
+      visible: "What did you spend on?"
+    commands:
+      - tapOn: "What did you spend on?"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "Title"
+    commands:
+      - tapOn: "Title"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "What did you achieve?"
+    commands:
+      - tapOn: "What did you achieve?"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "What moved forward?"
+    commands:
+      - tapOn: "What moved forward?"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "What did you learn?"
+    commands:
+      - tapOn: "What did you learn?"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "What did you experience?"
+    commands:
+      - tapOn: "What did you experience?"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "What did you discover?"
+    commands:
+      - tapOn: "What did you discover?"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "What did you create?"
+    commands:
+      - tapOn: "What did you create?"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "What happened?"
+    commands:
+      - tapOn: "What happened?"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "Who?"
+    commands:
+      - tapOn: "Who?"
+      - inputText: ${TITLE}
+
+# Amount if present
+- runFlow:
+    when:
+      visible: "Amount"
+    commands:
+      - tapOn: "Amount"
+      - eraseText
+      - inputText: ${AMOUNT}
+
+# Category if present
+- runFlow:
+    when:
+      true: ${CATEGORY != ""}
+    commands:
+      - tapOn:
+          text: "Category"
+          optional: true
+      - tapOn:
+          text: ${CATEGORY}
+          optional: true
+
+# Common defaults for mandatory choice controls when visible
+- tapOn:
+    text: "Great|Calm|Neutral|Low|Stressed"
+    optional: true
+- tapOn:
+    text: "Walk|Sleep|Nap|Meditate|Stretch|Social"
+    optional: true
+- tapOn:
+    text: "Work|Health|Family|Money|Learning|Rest"
+    optional: true
+- tapOn:
+    text: "Started|Moving|Complete"
+    optional: true
+- tapOn:
+    text: "Course|Book|Mentorship|Article|Podcast"
+    optional: true
+- tapOn:
+    text: "Travel|Food|Nature|Entertainment|Activity"
+    optional: true
+- tapOn:
+    text: "Great|Good|Okay|Rough"
+    optional: true
+- tapOn:
+    text: "Call|Met|Messaged|Quality time|Other"
+    optional: true
+
+# Notes / reflection
+- runFlow:
+    when:
+      visible: "Notes"
+    commands:
+      - tapOn: "Notes"
+      - inputText: ${NOTE}
+- runFlow:
+    when:
+      visible: "Reflection note"
+    commands:
+      - tapOn: "Reflection note"
+      - inputText: ${NOTE}
+
+- runFlow:
+    file: ../common/set_when.yaml
+    env:
+      RECORD_DATE: ${RECORD_DATE}
+
+- tapOn:
+    text: "Save|Add|Log|Record"

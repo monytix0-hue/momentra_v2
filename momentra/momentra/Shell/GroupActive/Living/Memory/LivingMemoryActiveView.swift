@@ -30,7 +30,7 @@ struct LivingMemoryActiveView: View {
 
     private var nameById: [String: String] {
         Dictionary(uniqueKeysWithValues: participants.map {
-            ($0.participantId, $0.displayName ?? String($0.participantId.prefix(8)))
+            ($0.participantId, PersonLabel.personName($0.displayName))
         })
     }
 
@@ -139,7 +139,7 @@ struct LivingMemoryActiveView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             ForEach(Array(positions.prefix(3))) { pos in
                                 HStack {
-                                    Text(nameById[pos.participantId] ?? String(pos.participantId.prefix(8)))
+                                    Text(PersonLabel.personName(nameById[pos.participantId]))
                                         .font(.plusJakarta(size: 12))
                                         .foregroundStyle(theme.text)
                                     Spacer()

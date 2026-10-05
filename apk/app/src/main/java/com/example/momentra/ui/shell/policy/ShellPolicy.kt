@@ -123,6 +123,44 @@ object ShellStateInvariants {
     }
 }
 
+/**
+ * Cold start uses the moment last open for this company.
+ * A choice made in this process wins. A stored id that is no longer in the
+ * company is dropped so heal can fall back to the first active moment.
+ */
+fun resolveRestoredBusinessMoment(
+    companyId: String?,
+    moments: List<MomentSummary>,
+    liveMomentId: String?,
+    persistedMomentId: String?,
+    userChoseThisProcess: Boolean,
+): String? {
+    fun belongs(id: String?): Boolean {
+        if (id.isNullOrBlank()) return false
+        return moments.any { moment ->
+            moment.momentId == id && (moment.companyId == null || moment.companyId == companyId)
+        }
+    }
+    if (userChoseThisProcess && belongs(liveMomentId)) return liveMomentId
+    if (belongs(persistedMomentId)) return persistedMomentId
+    return null
+}
+
+internal fun decodeBusinessMoments(raw: String?): Map<String, String> {
+    if (raw.isNullOrBlank()) return emptyMap()
+    return raw.lineSequence().mapNotNull { line ->
+        val parts = line.split('=', limit = 2)
+        val companyId = parts.getOrNull(0)?.trim().orEmpty()
+        val momentId = parts.getOrNull(1)?.trim().orEmpty()
+        if (companyId.isEmpty() || momentId.isEmpty()) null else companyId to momentId
+    }.toMap()
+}
+
+internal fun encodeBusinessMoments(entries: Map<String, String>): String =
+    entries.entries
+        .filter { (companyId, momentId) -> companyId.isNotBlank() && momentId.isNotBlank() }
+        .joinToString("\n") { (companyId, momentId) -> "$companyId=$momentId" }
+
 enum class ShellScreenSlot {
     LOADING,
     EMPTY,

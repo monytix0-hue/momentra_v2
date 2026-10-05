@@ -1,0 +1,23 @@
+appId: com.example.momentra
+name: Personal Reality Seed chunk 10
+---
+- launchApp
+- runFlow: flows/common/goto_personal.yaml
+- runScript: ../data/personal_chunk_10.js
+- repeat:
+    while:
+      true: ${output.index < output.records.length}
+    commands:
+      - evalScript: ${output.r = output.records[output.index]}
+      - runFlow:
+          file: flows/personal/add_record.yaml
+          env:
+            FAMILY: ${output.r.family}
+            TYPE: ${output.r.type}
+            TITLE: ${output.r.title}
+            AMOUNT: ${output.r.amount}
+            CATEGORY: ${output.r.category}
+            NOTE: ${output.r.note}
+            RECORD_DATE: ${output.r.date}
+            EXTRA: ${output.r.extra || ""}
+      - evalScript: ${output.index++}

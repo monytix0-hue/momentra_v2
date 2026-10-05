@@ -49,7 +49,17 @@ struct AccountHubView: View {
                                 }
                             }
                         }
-                        Text(identity.email ?? "No email").foregroundStyle(.secondary)
+                        let accountTitle = PersonLabel.accountName(
+                            displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? identity.displayName
+                                : displayName
+                        )
+                        if !accountTitle.isEmpty {
+                            Text(accountTitle).font(.headline)
+                        }
+                        if let email = PersonLabel.contactEmail(identity.email) {
+                            Text(email).foregroundStyle(.secondary)
+                        }
                     }
                     Section {
                         Button("App Security") { section = "security" }

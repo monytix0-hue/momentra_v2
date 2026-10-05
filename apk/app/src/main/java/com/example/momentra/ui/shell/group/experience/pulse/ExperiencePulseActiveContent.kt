@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.experience.pulse
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -318,7 +320,7 @@ fun ExperiencePulseActiveContent(
                     val pos = netById[p.participantId]
                     ExperienceCrewRow(
                         theme = theme,
-                        name = p.displayName ?: p.participantId.take(8),
+                        name = PersonLabel.personName(p.displayName),
                         role = p.roleCode ?: "Member",
                         amountLabel = pos?.let {
                             GroupFinanceFormat.formatMoney(it.netPosition, it.currencyCode)
@@ -330,7 +332,7 @@ fun ExperiencePulseActiveContent(
                 positions.take(5).forEach { pos ->
                     ExperienceCrewRow(
                         theme = theme,
-                        name = pos.displayName ?: pos.participantId.take(8),
+                        name = PersonLabel.personName(pos.displayName),
                         role = "Member",
                         amountLabel = GroupFinanceFormat.formatMoney(pos.netPosition, pos.currencyCode),
                     )

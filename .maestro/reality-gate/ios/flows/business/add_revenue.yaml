@@ -1,0 +1,37 @@
+appId: resolvingpoint.momentra
+---
+- runFlow:
+    when:
+      notVisible: "Log Revenue"
+    commands:
+      - tapOn:
+          id: "bottom.quickadd"
+      - extendedWaitUntil:
+          visible: "Log Revenue"
+          timeout: 15000
+- tapOn: "Log Revenue"
+- extendedWaitUntil:
+    visible:
+      id: "business.revenue.amount"
+    timeout: 15000
+- tapOn:
+    id: "business.revenue.amount"
+- eraseText:
+    optional: true
+- inputText: ${AMOUNT}
+- tapOn:
+    id: "keyboard.done"
+- tapOn:
+    id: "business.revenue.description"
+- inputText: ${DESCRIPTION}
+- tapOn:
+    id: "keyboard.done"
+- swipe:
+    start: "50%,70%"
+    end: "50%,40%"
+- tapOn:
+    id: "business.revenue.submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "business.revenue.submit"
+    timeout: 20000

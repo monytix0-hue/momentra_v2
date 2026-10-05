@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.shared
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -130,7 +132,7 @@ fun GroupParticipantsSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    p.displayName ?: p.participantId.take(8),
+                                    PersonLabel.personName(p.displayName),
                                     color = textPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,

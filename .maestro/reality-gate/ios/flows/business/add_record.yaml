@@ -1,0 +1,60 @@
+appId: resolvingpoint.momentra
+---
+# Money forms that exist on this build: Expense, Revenue, CashSale, Invoice.
+# Daily and Team types have no create sheet, so those rows are skipped.
+
+- runFlow:
+    when:
+      true: ${TYPE == "Expense" || TYPE == "Spend" || TYPE == "Revenue" || TYPE == "CashSale" || TYPE == "Invoice"}
+    commands:
+      # Launch leaves the shell blank for a moment. Wait before reading the switcher,
+      # or the Business tap is skipped and the Personal pulse is still on screen.
+      - extendedWaitUntil:
+          visible: "Switch to Business"
+          timeout: 25000
+      - tapOn: "Switch to Business"
+      - extendedWaitUntil:
+          visible: "Business · Pulse"
+          timeout: 8000
+          optional: true
+      - runFlow:
+          when:
+            notVisible: "Business · Pulse"
+          commands:
+            - tapOn: "Switch to Business"
+            - extendedWaitUntil:
+                visible: "Business · Pulse"
+                timeout: 20000
+
+      - runFlow:
+          when:
+            true: ${TYPE == "Expense" || TYPE == "Spend"}
+          commands:
+            - runFlow:
+                file: add_expense.yaml
+                env:
+                  AMOUNT: ${AMOUNT}
+                  DESCRIPTION: ${TITLE}
+                  CATEGORY: ""
+                  PAYMENT: ""
+
+      - runFlow:
+          when:
+            true: ${TYPE == "Revenue" || TYPE == "CashSale"}
+          commands:
+            - runFlow:
+                file: add_revenue.yaml
+                env:
+                  AMOUNT: ${AMOUNT}
+                  DESCRIPTION: ${TITLE}
+
+      - runFlow:
+          when:
+            true: ${TYPE == "Invoice"}
+          commands:
+            - runFlow:
+                file: add_invoice.yaml
+                env:
+                  AMOUNT: ${AMOUNT}
+                  TITLE: ${TITLE}
+                  DESCRIPTION: ${NOTE}

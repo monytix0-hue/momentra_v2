@@ -103,10 +103,17 @@ struct BusinessExpenseSheet: View {
                         .keyboardType(.decimalPad)
                         .font(.plusJakarta(size: 36, weight: .heavy))
                         .foregroundStyle(TeamOpsSheetTokens.text)
+                        .accessibilityLabel("Amount")
+                        .accessibilityIdentifier("business.expense.amount")
                     }
 
                     TeamOpsFieldLabel(text: "Description")
-                    TeamOpsTextField(value: $descriptionText, placeholder: "AWS, ads, supplies…", minHeight: 44)
+                    TeamOpsTextField(
+                        value: $descriptionText,
+                        placeholder: "AWS, ads, supplies…",
+                        minHeight: 44,
+                        fieldId: "business.expense.note"
+                    )
 
                     TeamOpsFieldLabel(text: "Category")
                     TeamOpsChipRow(options: categoryLabels, selected: $categoryLabel, accent: accent)
@@ -170,13 +177,15 @@ struct BusinessExpenseSheet: View {
                         enabled: canSubmit && !submitting && pendingApprovalId == nil,
                         loading: submitting,
                         footerHint: "Team will be notified",
-                        accent: accent
+                        accent: accent,
+                        fieldId: "business.expense.submit"
                     ) {
                         Task { await save() }
                     }
                 }
                 .padding(16)
             }
+            .maestroKeyboardDone()
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -349,6 +358,8 @@ struct BusinessRevenueSheet: View {
                     .padding(12)
                     .background(Color(hex: "#201E28"))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .accessibilityLabel("Revenue amount")
+                    .accessibilityIdentifier("business.revenue.amount")
                 if smallShop {
                     Text("Payment")
                         .font(.system(size: 12, weight: .semibold))
@@ -365,6 +376,8 @@ struct BusinessRevenueSheet: View {
                     .padding(12)
                     .background(Color(hex: "#201E28"))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .accessibilityLabel("Description")
+                    .accessibilityIdentifier("business.revenue.description")
                 if let error {
                     Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
                 }
@@ -387,10 +400,12 @@ struct BusinessRevenueSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14))
                 .disabled(amount.isEmpty || submitting || currencyCode.count != 3)
                 .opacity(amount.isEmpty ? 0.55 : 1)
+                .accessibilityIdentifier("business.revenue.submit")
                 Spacer()
             }
             .padding(16)
             .background(Color(hex: "#14121B"))
+            .maestroKeyboardDone()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { isPresented = false }
@@ -401,7 +416,7 @@ struct BusinessRevenueSheet: View {
                 smallShop = await BusinessAudience.isSmallShopMoment(momentId: momentId)
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
     }
 
     private func save() async {
@@ -505,26 +520,35 @@ struct BusinessInvoiceSheet: View {
                                 .padding(.vertical, 10)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("business.invoice.submit_done")
                     } else {
                         TextField("Invoice #", text: $invoiceNumber)
                             .foregroundStyle(Color(hex: "#E5E0EE"))
                             .padding(12)
                             .background(Color(hex: "#201E28"))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .accessibilityLabel("Invoice number")
+                            .accessibilityIdentifier("business.invoice.number")
                         TextField("Customer name (optional)", text: $customerName)
                             .foregroundStyle(Color(hex: "#E5E0EE"))
                             .padding(12)
                             .background(Color(hex: "#201E28"))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .accessibilityLabel("Customer")
+                            .accessibilityIdentifier("business.invoice.customer")
                         TextField("Line description", text: $lineDescription)
                             .foregroundStyle(Color(hex: "#E5E0EE"))
                             .padding(12)
                             .background(Color(hex: "#201E28"))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .accessibilityLabel("Line description")
+                            .accessibilityIdentifier("business.invoice.line")
                         HStack {
                             TextField("Qty", text: $quantity)
                                 .keyboardType(.decimalPad)
                                 .foregroundStyle(Color(hex: "#E5E0EE"))
+                                .accessibilityLabel("Quantity")
+                                .accessibilityIdentifier("business.invoice.quantity")
                             TextField(currencyCode, text: $currencyCode)
                                 .textInputAutocapitalization(.characters)
                                 .frame(width: 56)
@@ -532,6 +556,8 @@ struct BusinessInvoiceSheet: View {
                             TextField("Unit price", text: $unitPrice)
                                 .keyboardType(.decimalPad)
                                 .foregroundStyle(Color(hex: "#E5E0EE"))
+                                .accessibilityLabel("Unit price")
+                                .accessibilityIdentifier("business.invoice.amount")
                         }
                         .padding(12)
                         .background(Color(hex: "#201E28"))
@@ -561,11 +587,13 @@ struct BusinessInvoiceSheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .disabled(!canSubmit || submitting)
                         .opacity(!canSubmit ? 0.55 : 1)
+                        .accessibilityIdentifier("business.invoice.submit")
                     }
                 }
                 .padding(16)
             }
             .background(Color(hex: "#14121B"))
+            .maestroKeyboardDone()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(shareReceipt == nil ? "Close" : "Done") {
@@ -688,7 +716,7 @@ struct BusinessMembersSheet: View {
                 } else {
                     List(members) { m in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(m.displayName ?? String(m.userId.prefix(8)))
+                            Text(PersonLabel.personName(m.displayName))
                                 .font(.headline)
                             Text("\(m.membershipType) · \(m.status)")
                                 .font(.caption)

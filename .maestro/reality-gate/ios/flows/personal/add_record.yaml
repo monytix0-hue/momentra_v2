@@ -1,0 +1,106 @@
+appId: resolvingpoint.momentra
+---
+# One personal expense. Confirm only accepts an amount greater than zero, so other rows are skipped.
+
+- runFlow:
+    when:
+      true: ${Number(AMOUNT) > 0}
+    commands:
+      - extendedWaitUntil:
+          visible: "Switch to Personal"
+          timeout: 25000
+      - tapOn: "Switch to Personal"
+      - extendedWaitUntil:
+          visible: "Personal · Pulse"
+          timeout: 8000
+          optional: true
+      - runFlow:
+          when:
+            notVisible: "Personal · Pulse"
+          commands:
+            - tapOn: "Switch to Personal"
+            - extendedWaitUntil:
+                visible: "Personal · Pulse"
+                timeout: 20000
+
+      - tapOn:
+          text: "Add expense"
+          index: 0
+      - extendedWaitUntil:
+          visible:
+            id: "personal.expense.amount"
+          timeout: 15000
+
+      - tapOn:
+          id: "personal.expense.note"
+      - inputText: ${TITLE}
+      - tapOn:
+          id: "keyboard.done"
+
+      - tapOn:
+          id: "personal.expense.amount"
+      - eraseText:
+          optional: true
+      - inputText: ${AMOUNT}
+      - tapOn:
+          id: "keyboard.done"
+
+      - runFlow:
+          when:
+            true: ${CATEGORY == "Food"}
+          commands:
+            - tapOn: "Food"
+      - runFlow:
+          when:
+            true: ${CATEGORY == "Grocery"}
+          commands:
+            - tapOn: "Food"
+            - tapOn:
+                text: "Groceries"
+                optional: true
+      - runFlow:
+          when:
+            true: ${CATEGORY == "Transport"}
+          commands:
+            - tapOn: "Transport"
+      - runFlow:
+          when:
+            true: ${CATEGORY == "Health"}
+          commands:
+            - tapOn: "Health"
+      - runFlow:
+          when:
+            true: ${CATEGORY == "Utilities"}
+          commands:
+            - swipe:
+                start: "50%,70%"
+                end: "50%,40%"
+            - tapOn: "Bills"
+            - tapOn:
+                text: "Utilities"
+                optional: true
+      - runFlow:
+          when:
+            true: ${CATEGORY == "Housing"}
+          commands:
+            - swipe:
+                start: "50%,70%"
+                end: "50%,40%"
+            - tapOn: "Bills"
+            - tapOn:
+                text: "Housing"
+                optional: true
+
+      # Finger moves up so the sheet does not dismiss. Confirm sits below the fold.
+      - swipe:
+          start: "50%,72%"
+          end: "50%,28%"
+      - swipe:
+          start: "50%,72%"
+          end: "50%,28%"
+      - tapOn:
+          id: "personal.expense.submit"
+      - extendedWaitUntil:
+          notVisible:
+            id: "personal.expense.submit"
+          timeout: 20000

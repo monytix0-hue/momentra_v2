@@ -16,8 +16,8 @@ struct IdentityCacheTests {
         MomentraIdentityCache.save(
             firebaseUid: fb,
             userId: "11111111-2222-3333-4444-555555555555",
-            email: "a@b.co",
-            displayName: "Ada"
+            displayName: "Ada",
+            email: "a@b.co"
         )
         let loaded = MomentraIdentityCache.load(firebaseUid: fb)
         #expect(loaded?.userId == "11111111-2222-3333-4444-555555555555")

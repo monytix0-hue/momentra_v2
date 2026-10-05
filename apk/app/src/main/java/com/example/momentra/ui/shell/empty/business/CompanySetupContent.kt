@@ -1,6 +1,7 @@
 package com.example.momentra.ui.shell.empty.business
 
 import android.graphics.BitmapFactory
+import com.example.momentra.ui.shell.shared.PersonLabel
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -145,9 +146,7 @@ private data class CoLocation(
 
 private fun signedInOwnerName(): String {
     val user = FirebaseAuth.getInstance().currentUser
-    return user?.displayName?.trim().takeUnless { it.isNullOrEmpty() }
-        ?: user?.email?.substringBefore("@")?.trim().takeUnless { it.isNullOrEmpty() }
-        ?: "You"
+    return PersonLabel.personName(user?.displayName, fallback = "You")
 }
 
 private fun memberFromName(name: String) = CoMember(

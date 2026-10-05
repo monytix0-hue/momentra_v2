@@ -7,27 +7,22 @@ enum GroupParticipantNameMap {
         for p in participants {
             let key = p.participantId.lowercased()
             if map[key] != nil { continue }
-            if let name = p.displayName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
-                map[key] = name
-            } else {
-                map[key] = String(p.participantId.prefix(8))
-            }
+            map[key] = PersonLabel.personName(p.displayName)
         }
         return map
     }
 
-    /// Prefer finance position displayName, then participants map, then UUID prefix.
+    /// Prefer finance position displayName, then the participants map, then "Member".
     static func resolve(
         participantId: String,
         positionDisplayName: String?,
         nameById: [String: String]
     ) -> String {
-        if let name = positionDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
-            return name
-        }
+        let named = PersonLabel.personName(positionDisplayName, fallback: "")
+        if !named.isEmpty { return named }
         if let name = nameById[participantId.lowercased()], !name.isEmpty {
             return name
         }
-        return String(participantId.prefix(8))
+        return PersonLabel.personName(nil)
     }
 }

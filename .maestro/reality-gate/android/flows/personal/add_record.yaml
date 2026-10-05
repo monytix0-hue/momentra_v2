@@ -1,0 +1,51 @@
+appId: com.example.momentra
+---
+# launchApp restores the last-used space, and after a save the Quick Add sheet is
+# still open (bottom nav is covered), so only open it when it is not open.
+- runFlow:
+    when:
+      notVisible: "Quick Add"
+    commands:
+      # A previous save can leave its sheet open, which hides the bottom nav.
+      # Exactly one Back, then relaunch rather than backing out to the launcher.
+      - runFlow:
+          when:
+            notVisible: "bottom.nav"
+          commands:
+            - pressKey: Back
+      - runFlow:
+          when:
+            notVisible: "bottom.nav"
+          commands:
+            - launchApp
+      - tapOn:
+          id: "bottom.quickadd"
+- runScript: ../common/type_ids.js
+# The Future / Lifestyle / People tiles only exist after expanding the families.
+- runFlow:
+    when:
+      visible: "More families"
+    commands:
+      - tapOn:
+          text: "More families"
+- scrollUntilVisible:
+    element:
+      id: ${output.tileId}
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: ${output.tileId}
+- runFlow:
+    file: fill_record.yaml
+    env:
+      FAMILY: ${FAMILY}
+      TYPE: ${TYPE}
+      TITLE: ${TITLE}
+      AMOUNT: ${AMOUNT}
+      CATEGORY: ${CATEGORY}
+      NOTE: ${NOTE}
+      RECORD_DATE: ${RECORD_DATE}
+      EXTRA: ${EXTRA}
+- extendedWaitUntil:
+    notVisible: "Save|Confirm|Transfer Now"
+    timeout: 15000

@@ -580,7 +580,7 @@ struct TripParticipantPicker: View {
                 ForEach(Array(participants.enumerated()), id: \.element.participantId) { index, p in
                     let id = p.participantId
                     let on = selectedIds.contains(id)
-                    let name = p.displayName ?? String(id.prefix(8))
+                    let name = PersonLabel.personName(p.displayName)
                     let color = TripForm.avatarColors[index % TripForm.avatarColors.count]
                     VStack(spacing: 6) {
                         ZStack(alignment: .bottomTrailing) {

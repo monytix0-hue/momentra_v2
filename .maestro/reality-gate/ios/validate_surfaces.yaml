@@ -1,0 +1,41 @@
+appId: resolvingpoint.momentra
+name: Reality Gate - Surface Smoke
+---
+# Non-destructive. Asserts each surface in BOTH contexts.
+#
+# The previous version marked the context switches `optional: true`, so a failed
+# switch was swallowed and the subsequent asserts silently re-ran against the
+# Personal tab bar. The switches are now mandatory and the context header is
+# asserted after each one.
+
+# --- Personal ----------------------------------------------------------------
+- launchApp
+- runFlow:
+    when:
+      visible: "Back"
+    commands:
+      - tapOn: "Back"
+- tapOn: "Switch to Personal"
+- extendedWaitUntil:
+    visible: "Personal · Pulse"
+    timeout: 20000
+- assertVisible: "Pulse"
+- tapOn: "Moments"
+- assertVisible: "Moments"
+- tapOn: "Life"
+- assertVisible: "Life"
+- tapOn: "Memory"
+- assertVisible: "Memory"
+
+# --- Business ----------------------------------------------------------------
+- tapOn: "Switch to Business"
+- extendedWaitUntil:
+    visible: "Business · Pulse"
+    timeout: 20000
+- assertVisible: "Pulse"
+- tapOn: "Moments"
+- assertVisible: "Moments"
+- tapOn: "Life"
+- assertVisible: "Life"
+- tapOn: "Memory"
+- assertVisible: "Memory"

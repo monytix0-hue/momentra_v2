@@ -32,10 +32,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Backspace
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -141,7 +145,7 @@ fun PersonalMoneyQuickAddSheet(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun MoneySheetBody(
     activeKind: MoneyQuickAddKind,
@@ -169,6 +173,18 @@ private fun MoneySheetBody(
     var frequency by remember { mutableStateOf("One-time") }
     var selectedGoalId by remember { mutableStateOf(savingsGoals.first().id) }
     var whenCode by remember { mutableStateOf("Now") }
+    var customWhenEpochMillis by remember { mutableStateOf<Long?>(null) }
+    var showCustomWhenPicker by remember { mutableStateOf(false) }
+    val onWhenSelected: (String) -> Unit = { opt ->
+        whenCode = opt
+        if (opt == "Custom") showCustomWhenPicker = true
+    }
+    val moneyEffectiveAt: String? = when (whenCode) {
+        "Yesterday" -> java.time.Instant.now().minus(java.time.Duration.ofDays(1)).toString()
+        "Today", "Now" -> java.time.Instant.now().toString()
+        "Custom" -> customWhenEpochMillis?.let { java.time.Instant.ofEpochMilli(it).toString() }
+        else -> null
+    }
     var currencyCode by remember { mutableStateOf("INR") }
     var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var submitting by remember { mutableStateOf(false) }
@@ -266,7 +282,7 @@ private fun MoneySheetBody(
                             SubcategoryChips(selectedCategory, subcategory, { subcategory = it }, tabAccent, MaestroIds.PERSONAL_INCOME_SUBCATEGORY)
                             FieldLabel("FINANCIAL IMPACT")
                             LoSimpleChips(listOf("Essential", "Planned", "Unplanned"), financialImpact, { financialImpact = it }, tabAccent)
-                            WhenChips(whenCode, { whenCode = it }, tabAccent)
+                            WhenChips(whenCode, onWhenSelected, tabAccent)
                             SaveButton(
                                 label = "Save Income ✓",
                                 accent = tabAccent,
@@ -284,6 +300,7 @@ private fun MoneySheetBody(
                                         merchantName = title.ifBlank { null },
                                         categoryCode = category,
                                         financialAccountId = fromId,
+                                    effectiveAt = moneyEffectiveAt,
                                     ).fold(
                                         onSuccess = { submitting = false; onSaved(); onDismiss() },
                                         onFailure = { e -> submitting = false; error = e.message },
@@ -323,7 +340,7 @@ private fun MoneySheetBody(
                             NoteField(note, { note = it }, MaestroIds.PERSONAL_MONEY_TRANSFER_NOTE)
                             FieldLabel("TRANSFER TYPE")
                             LoSimpleChips(listOf("One-time", "Recurring"), transferType, { transferType = it }, tabAccent)
-                            WhenChips(whenCode, { whenCode = it }, tabAccent)
+                            WhenChips(whenCode, onWhenSelected, tabAccent)
                             SaveButton(
                                 label = "Transfer Now ✓",
                                 accent = tabAccent,
@@ -375,7 +392,7 @@ private fun MoneySheetBody(
                             )
                             FieldLabel("FREQUENCY")
                             LoSimpleChips(listOf("One-time", "Weekly", "Monthly"), frequency, { frequency = it }, tabAccent)
-                            WhenChips(whenCode, { whenCode = it }, tabAccent)
+                            WhenChips(whenCode, onWhenSelected, tabAccent)
                             SaveButton(
                                 label = "Save Now ✓",
                                 accent = tabAccent,
@@ -405,6 +422,28 @@ private fun MoneySheetBody(
                 }
             }
             error?.let { Text(it, color = Color(0xFFF87171), fontSize = 12.sp, fontFamily = PlusJakartaSans) }
+        }
+    }
+
+    if (showCustomWhenPicker) {
+        val customDateState = rememberDatePickerState(
+            initialSelectedDateMillis = customWhenEpochMillis ?: System.currentTimeMillis(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { showCustomWhenPicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        customWhenEpochMillis = customDateState.selectedDateMillis
+                        showCustomWhenPicker = false
+                    },
+                ) { Text("Set") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomWhenPicker = false }) { Text("Cancel") }
+            },
+        ) {
+            DatePicker(state = customDateState)
         }
     }
 
@@ -633,7 +672,7 @@ private fun SubcategoryChips(
 private fun WhenChips(selected: String, onSelect: (String) -> Unit, accent: Color) {
     FieldLabel("WHEN")
     Spacer(Modifier.height(6.dp))
-    LoSimpleChips(listOf("Now", "Today", "Yesterday", "Change"), selected, onSelect, accent)
+    LoSimpleChips(listOf("Now", "Today", "Yesterday", "Custom"), selected, onSelect, accent)
 }
 
 @OptIn(ExperimentalLayoutApi::class)

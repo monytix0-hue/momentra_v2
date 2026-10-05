@@ -1,0 +1,1012 @@
+[
+  {
+    "seedId": "P-E-SP-01",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-06-01",
+    "title": "Groceries",
+    "amount": "2840",
+    "category": "Grocery",
+    "note": "Reality seed 1"
+  },
+  {
+    "seedId": "P-E-SP-02",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-06-07",
+    "title": "Fuel",
+    "amount": "2000",
+    "category": "Transport",
+    "note": "Reality seed 2"
+  },
+  {
+    "seedId": "P-E-SP-03",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-06-13",
+    "title": "Electricity",
+    "amount": "3250",
+    "category": "Utilities",
+    "note": "Reality seed 3"
+  },
+  {
+    "seedId": "P-E-SP-04",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-06-18",
+    "title": "Rent",
+    "amount": "18000",
+    "category": "Housing",
+    "note": "Reality seed 4"
+  },
+  {
+    "seedId": "P-E-SP-05",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-06-24",
+    "title": "Pharmacy",
+    "amount": "1120",
+    "category": "Health",
+    "note": "Reality seed 5"
+  },
+  {
+    "seedId": "P-E-SP-06",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-06-30",
+    "title": "Groceries",
+    "amount": "3110",
+    "category": "Grocery",
+    "note": "Reality seed 6"
+  },
+  {
+    "seedId": "P-E-SP-07",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-07-06",
+    "title": "Mobile bill",
+    "amount": "799",
+    "category": "Utilities",
+    "note": "Reality seed 7"
+  },
+  {
+    "seedId": "P-E-SP-08",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-07-11",
+    "title": "Fuel",
+    "amount": "2100",
+    "category": "Transport",
+    "note": "Reality seed 8"
+  },
+  {
+    "seedId": "P-E-SP-09",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-07-17",
+    "title": "Restaurant",
+    "amount": "1850",
+    "category": "Food",
+    "note": "Reality seed 9"
+  },
+  {
+    "seedId": "P-E-SP-10",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-07-23",
+    "title": "Rent",
+    "amount": "18000",
+    "category": "Housing",
+    "note": "Reality seed 10"
+  },
+  {
+    "seedId": "P-E-SP-11",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-07-29",
+    "title": "Groceries",
+    "amount": "2960",
+    "category": "Grocery",
+    "note": "Reality seed 11"
+  },
+  {
+    "seedId": "P-E-SP-12",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-08-03",
+    "title": "Gym accessories",
+    "amount": "2450",
+    "category": "Health",
+    "note": "Reality seed 12"
+  },
+  {
+    "seedId": "P-E-SP-13",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-08-09",
+    "title": "Fuel",
+    "amount": "2250",
+    "category": "Transport",
+    "note": "Reality seed 13"
+  },
+  {
+    "seedId": "P-E-SP-14",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-08-15",
+    "title": "Doctor consultation",
+    "amount": "1500",
+    "category": "Health",
+    "note": "Reality seed 14"
+  },
+  {
+    "seedId": "P-E-SP-15",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-08-21",
+    "title": "Rent",
+    "amount": "18000",
+    "category": "Housing",
+    "note": "Reality seed 15"
+  },
+  {
+    "seedId": "P-E-SP-16",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-08-26",
+    "title": "Groceries",
+    "amount": "3400",
+    "category": "Grocery",
+    "note": "Reality seed 16"
+  },
+  {
+    "seedId": "P-E-SP-17",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-09-01",
+    "title": "Electricity",
+    "amount": "3080",
+    "category": "Utilities",
+    "note": "Reality seed 17"
+  },
+  {
+    "seedId": "P-E-SP-18",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-09-07",
+    "title": "Fuel",
+    "amount": "2350",
+    "category": "Transport",
+    "note": "Reality seed 18"
+  },
+  {
+    "seedId": "P-E-SP-19",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-09-13",
+    "title": "Groceries",
+    "amount": "3200",
+    "category": "Grocery",
+    "note": "Reality seed 19"
+  },
+  {
+    "seedId": "P-E-SP-20",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-09-18",
+    "title": "Rent",
+    "amount": "18000",
+    "category": "Housing",
+    "note": "Reality seed 20"
+  },
+  {
+    "seedId": "P-E-SP-21",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-09-24",
+    "title": "Food delivery",
+    "amount": "1111",
+    "category": "Food",
+    "note": "Reality seed 21"
+  },
+  {
+    "seedId": "P-E-SP-22",
+    "family": "Everyday",
+    "type": "Spend",
+    "date": "2026-09-30",
+    "title": "GateCheck1111",
+    "amount": "1111",
+    "category": "Food",
+    "note": "Reality seed 22"
+  },
+  {
+    "seedId": "P-E-IN-01",
+    "family": "Everyday",
+    "type": "Income",
+    "date": "2026-06-01",
+    "title": "Salary June",
+    "amount": "120000",
+    "category": "Salary",
+    "note": "Reality seed income"
+  },
+  {
+    "seedId": "P-E-IN-02",
+    "family": "Everyday",
+    "type": "Income",
+    "date": "2026-07-01",
+    "title": "Salary July",
+    "amount": "120000",
+    "category": "Salary",
+    "note": "Reality seed income"
+  },
+  {
+    "seedId": "P-E-IN-03",
+    "family": "Everyday",
+    "type": "Income",
+    "date": "2026-09-01",
+    "title": "Consulting",
+    "amount": "25000",
+    "category": "Freelance",
+    "note": "Reality seed income"
+  },
+  {
+    "seedId": "P-E-TR-01",
+    "family": "Everyday",
+    "type": "Transfer",
+    "date": "2026-06-08",
+    "title": "HDFC to Savings",
+    "amount": "20000",
+    "category": "",
+    "note": "Reality seed transfer"
+  },
+  {
+    "seedId": "P-E-TR-02",
+    "family": "Everyday",
+    "type": "Transfer",
+    "date": "2026-08-08",
+    "title": "Savings to HDFC",
+    "amount": "5000",
+    "category": "",
+    "note": "Reality seed transfer"
+  },
+  {
+    "seedId": "P-E-SA-01",
+    "family": "Everyday",
+    "type": "Savings",
+    "date": "2026-06-05",
+    "title": "Travel goal",
+    "amount": "10000",
+    "category": "",
+    "note": "Reality seed savings"
+  },
+  {
+    "seedId": "P-E-SA-02",
+    "family": "Everyday",
+    "type": "Savings",
+    "date": "2026-07-05",
+    "title": "House goal",
+    "amount": "15000",
+    "category": "",
+    "note": "Reality seed savings"
+  },
+  {
+    "seedId": "P-E-SA-03",
+    "family": "Everyday",
+    "type": "Savings",
+    "date": "2026-09-05",
+    "title": "Emergency fund",
+    "amount": "10000",
+    "category": "",
+    "note": "Reality seed savings"
+  },
+  {
+    "seedId": "P-E-MO-01",
+    "family": "Everyday",
+    "type": "Mood",
+    "date": "2026-06-23",
+    "title": "Calm",
+    "amount": "",
+    "category": "",
+    "note": "Intensity 7",
+    "extra": "7"
+  },
+  {
+    "seedId": "P-E-MO-02",
+    "family": "Everyday",
+    "type": "Mood",
+    "date": "2026-07-20",
+    "title": "Great",
+    "amount": "",
+    "category": "",
+    "note": "Intensity 8",
+    "extra": "8"
+  },
+  {
+    "seedId": "P-E-MO-03",
+    "family": "Everyday",
+    "type": "Mood",
+    "date": "2026-08-15",
+    "title": "Stressed",
+    "amount": "",
+    "category": "",
+    "note": "Intensity 6",
+    "extra": "6"
+  },
+  {
+    "seedId": "P-E-MO-04",
+    "family": "Everyday",
+    "type": "Mood",
+    "date": "2026-09-23",
+    "title": "Calm",
+    "amount": "",
+    "category": "",
+    "note": "Intensity 7",
+    "extra": "7"
+  },
+  {
+    "seedId": "P-E-RE-01",
+    "family": "Everyday",
+    "type": "Recovery",
+    "date": "2026-06-23",
+    "title": "Walk",
+    "amount": "",
+    "category": "",
+    "note": "Energy restored 6",
+    "extra": "30"
+  },
+  {
+    "seedId": "P-E-RE-02",
+    "family": "Everyday",
+    "type": "Recovery",
+    "date": "2026-07-20",
+    "title": "Sleep",
+    "amount": "",
+    "category": "",
+    "note": "Energy restored 6",
+    "extra": "60"
+  },
+  {
+    "seedId": "P-E-RE-03",
+    "family": "Everyday",
+    "type": "Recovery",
+    "date": "2026-08-15",
+    "title": "Meditate",
+    "amount": "",
+    "category": "",
+    "note": "Energy restored 6",
+    "extra": "15"
+  },
+  {
+    "seedId": "P-E-RE-04",
+    "family": "Everyday",
+    "type": "Recovery",
+    "date": "2026-09-23",
+    "title": "Walk",
+    "amount": "",
+    "category": "",
+    "note": "Energy restored 6",
+    "extra": "30"
+  },
+  {
+    "seedId": "P-E-AT-01",
+    "family": "Everyday",
+    "type": "Attention",
+    "date": "2026-07-12",
+    "title": "Work",
+    "amount": "",
+    "category": "",
+    "note": "Focused session",
+    "extra": "60"
+  },
+  {
+    "seedId": "P-E-AT-02",
+    "family": "Everyday",
+    "type": "Attention",
+    "date": "2026-09-12",
+    "title": "Learning",
+    "amount": "",
+    "category": "",
+    "note": "Focused session",
+    "extra": "45"
+  },
+  {
+    "seedId": "P-F-01",
+    "family": "Future",
+    "type": "Progress",
+    "date": "2026-06-04",
+    "title": "Momentra onboarding 25%",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed progress"
+  },
+  {
+    "seedId": "P-F-02",
+    "family": "Future",
+    "type": "Progress",
+    "date": "2026-06-10",
+    "title": "Monytix calibration 50%",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed progress"
+  },
+  {
+    "seedId": "P-F-03",
+    "family": "Future",
+    "type": "Progress",
+    "date": "2026-06-17",
+    "title": "Notification Wave 1",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed progress"
+  },
+  {
+    "seedId": "P-F-04",
+    "family": "Future",
+    "type": "Progress",
+    "date": "2026-06-23",
+    "title": "Unified Personal Pulse",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed progress"
+  },
+  {
+    "seedId": "P-F-05",
+    "family": "Future",
+    "type": "Progress",
+    "date": "2026-06-29",
+    "title": "Business B1",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed progress"
+  },
+  {
+    "seedId": "P-F-06",
+    "family": "Future",
+    "type": "Progress",
+    "date": "2026-07-06",
+    "title": "Production readiness",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed progress"
+  },
+  {
+    "seedId": "P-F-07",
+    "family": "Future",
+    "type": "Progress",
+    "date": "2026-07-12",
+    "title": "Runtime reality gate",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed progress"
+  },
+  {
+    "seedId": "P-F-08",
+    "family": "Future",
+    "type": "Milestone",
+    "date": "2026-07-19",
+    "title": "First Android beta build",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed milestone"
+  },
+  {
+    "seedId": "P-F-09",
+    "family": "Future",
+    "type": "Milestone",
+    "date": "2026-07-25",
+    "title": "iOS internal TestFlight",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed milestone"
+  },
+  {
+    "seedId": "P-F-10",
+    "family": "Future",
+    "type": "Milestone",
+    "date": "2026-07-31",
+    "title": "Personal M1 complete",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed milestone"
+  },
+  {
+    "seedId": "P-F-11",
+    "family": "Future",
+    "type": "Milestone",
+    "date": "2026-08-07",
+    "title": "Memory redesign complete",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed milestone"
+  },
+  {
+    "seedId": "P-F-12",
+    "family": "Future",
+    "type": "Learning",
+    "date": "2026-08-13",
+    "title": "Product analytics article",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed learning"
+  },
+  {
+    "seedId": "P-F-13",
+    "family": "Future",
+    "type": "Learning",
+    "date": "2026-08-19",
+    "title": "FCM delivery architecture",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed learning"
+  },
+  {
+    "seedId": "P-F-14",
+    "family": "Future",
+    "type": "Learning",
+    "date": "2026-08-26",
+    "title": "Clustering design",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed learning"
+  },
+  {
+    "seedId": "P-F-15",
+    "family": "Future",
+    "type": "Learning",
+    "date": "2026-09-01",
+    "title": "Memory projection design",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed learning"
+  },
+  {
+    "seedId": "P-F-16",
+    "family": "Future",
+    "type": "Learning",
+    "date": "2026-09-08",
+    "title": "Production QA discipline",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed learning"
+  },
+  {
+    "seedId": "P-F-17",
+    "family": "Future",
+    "type": "Opportunity",
+    "date": "2026-09-14",
+    "title": "Potential fintech partner",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed opportunity"
+  },
+  {
+    "seedId": "P-F-18",
+    "family": "Future",
+    "type": "Opportunity",
+    "date": "2026-09-20",
+    "title": "Multi-store business testing",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed opportunity"
+  },
+  {
+    "seedId": "P-F-19",
+    "family": "Future",
+    "type": "Pivot",
+    "date": "2026-09-27",
+    "title": "Simplify Personal onboarding",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed pivot"
+  },
+  {
+    "seedId": "P-F-20",
+    "family": "Future",
+    "type": "Pivot",
+    "date": "2026-06-03",
+    "title": "Evidence-first production gates",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed pivot"
+  },
+  {
+    "seedId": "P-L-01",
+    "family": "Lifestyle",
+    "type": "Experience",
+    "date": "2026-06-07",
+    "title": "Dinner with friends",
+    "amount": "2400",
+    "category": "",
+    "note": "Reality seed experience"
+  },
+  {
+    "seedId": "P-L-02",
+    "family": "Lifestyle",
+    "type": "Experience",
+    "date": "2026-06-13",
+    "title": "Movie night",
+    "amount": "1200",
+    "category": "",
+    "note": "Reality seed experience"
+  },
+  {
+    "seedId": "P-L-03",
+    "family": "Lifestyle",
+    "type": "Experience",
+    "date": "2026-06-19",
+    "title": "Sunday breakfast outing",
+    "amount": "1450",
+    "category": "",
+    "note": "Reality seed experience"
+  },
+  {
+    "seedId": "P-L-04",
+    "family": "Lifestyle",
+    "type": "Experience",
+    "date": "2026-06-24",
+    "title": "Drive outside Hyderabad",
+    "amount": "3800",
+    "category": "",
+    "note": "Reality seed experience"
+  },
+  {
+    "seedId": "P-L-05",
+    "family": "Lifestyle",
+    "type": "Experience",
+    "date": "2026-06-30",
+    "title": "Family lunch",
+    "amount": "2700",
+    "category": "",
+    "note": "Reality seed experience"
+  },
+  {
+    "seedId": "P-L-06",
+    "family": "Lifestyle",
+    "type": "Experience",
+    "date": "2026-07-06",
+    "title": "Nature walk",
+    "amount": "0",
+    "category": "",
+    "note": "Reality seed experience"
+  },
+  {
+    "seedId": "P-L-07",
+    "family": "Lifestyle",
+    "type": "Experience",
+    "date": "2026-07-12",
+    "title": "New restaurant",
+    "amount": "1850",
+    "category": "",
+    "note": "Reality seed experience"
+  },
+  {
+    "seedId": "P-L-08",
+    "family": "Lifestyle",
+    "type": "Experience",
+    "date": "2026-07-17",
+    "title": "Ganesh celebration",
+    "amount": "4500",
+    "category": "",
+    "note": "Reality seed experience"
+  },
+  {
+    "seedId": "P-L-09",
+    "family": "Lifestyle",
+    "type": "Experience",
+    "date": "2026-07-23",
+    "title": "Evening cafe",
+    "amount": "860",
+    "category": "",
+    "note": "Reality seed experience"
+  },
+  {
+    "seedId": "P-L-10",
+    "family": "Lifestyle",
+    "type": "Wellbeing",
+    "date": "2026-07-29",
+    "title": "Good energy",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed wellbeing"
+  },
+  {
+    "seedId": "P-L-11",
+    "family": "Lifestyle",
+    "type": "Wellbeing",
+    "date": "2026-08-04",
+    "title": "Balanced day",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed wellbeing"
+  },
+  {
+    "seedId": "P-L-12",
+    "family": "Lifestyle",
+    "type": "Wellbeing",
+    "date": "2026-08-09",
+    "title": "Low energy",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed wellbeing"
+  },
+  {
+    "seedId": "P-L-13",
+    "family": "Lifestyle",
+    "type": "Wellbeing",
+    "date": "2026-08-15",
+    "title": "Rested",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed wellbeing"
+  },
+  {
+    "seedId": "P-L-14",
+    "family": "Lifestyle",
+    "type": "Wellbeing",
+    "date": "2026-08-21",
+    "title": "Mentally clear",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed wellbeing"
+  },
+  {
+    "seedId": "P-L-15",
+    "family": "Lifestyle",
+    "type": "Discovery",
+    "date": "2026-08-27",
+    "title": "New podcast",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed discovery"
+  },
+  {
+    "seedId": "P-L-16",
+    "family": "Lifestyle",
+    "type": "Discovery",
+    "date": "2026-09-01",
+    "title": "New cafe",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed discovery"
+  },
+  {
+    "seedId": "P-L-17",
+    "family": "Lifestyle",
+    "type": "Discovery",
+    "date": "2026-09-07",
+    "title": "Useful article",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed discovery"
+  },
+  {
+    "seedId": "P-L-18",
+    "family": "Lifestyle",
+    "type": "Discovery",
+    "date": "2026-09-13",
+    "title": "New walking route",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed discovery"
+  },
+  {
+    "seedId": "P-L-19",
+    "family": "Lifestyle",
+    "type": "Create",
+    "date": "2026-09-19",
+    "title": "Product sketch",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed create"
+  },
+  {
+    "seedId": "P-L-20",
+    "family": "Lifestyle",
+    "type": "Create",
+    "date": "2026-09-24",
+    "title": "Journal note",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed create"
+  },
+  {
+    "seedId": "P-L-21",
+    "family": "Lifestyle",
+    "type": "Create",
+    "date": "2026-09-30",
+    "title": "Photo story",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed create"
+  },
+  {
+    "seedId": "P-L-22",
+    "family": "Lifestyle",
+    "type": "Create",
+    "date": "2026-06-06",
+    "title": "Prototype idea",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed create"
+  },
+  {
+    "seedId": "P-P-01",
+    "family": "People",
+    "type": "Connection",
+    "date": "2026-06-10",
+    "title": "Call with Mom",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed connection"
+  },
+  {
+    "seedId": "P-P-02",
+    "family": "People",
+    "type": "Connection",
+    "date": "2026-06-17",
+    "title": "Dinner with friend",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed connection"
+  },
+  {
+    "seedId": "P-P-03",
+    "family": "People",
+    "type": "Connection",
+    "date": "2026-06-24",
+    "title": "Family visit",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed connection"
+  },
+  {
+    "seedId": "P-P-04",
+    "family": "People",
+    "type": "Connection",
+    "date": "2026-07-01",
+    "title": "Coffee with friend",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed connection"
+  },
+  {
+    "seedId": "P-P-05",
+    "family": "People",
+    "type": "Connection",
+    "date": "2026-07-08",
+    "title": "Long call with old friend",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed connection"
+  },
+  {
+    "seedId": "P-P-06",
+    "family": "People",
+    "type": "Connection",
+    "date": "2026-07-16",
+    "title": "Cafe with Arjun",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed connection"
+  },
+  {
+    "seedId": "P-P-07",
+    "family": "People",
+    "type": "Connection",
+    "date": "2026-07-23",
+    "title": "Catch-up with cousin",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed connection"
+  },
+  {
+    "seedId": "P-P-08",
+    "family": "People",
+    "type": "Support",
+    "date": "2026-07-30",
+    "title": "Supported teammate",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed support"
+  },
+  {
+    "seedId": "P-P-09",
+    "family": "People",
+    "type": "Support",
+    "date": "2026-08-06",
+    "title": "Helped friend with work",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed support"
+  },
+  {
+    "seedId": "P-P-10",
+    "family": "People",
+    "type": "Support",
+    "date": "2026-08-13",
+    "title": "Received family support",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed support"
+  },
+  {
+    "seedId": "P-P-11",
+    "family": "People",
+    "type": "Support",
+    "date": "2026-08-20",
+    "title": "Shared advice",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed support"
+  },
+  {
+    "seedId": "P-P-12",
+    "family": "People",
+    "type": "Shared Exp",
+    "date": "2026-08-27",
+    "title": "Shared movie",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed shared exp"
+  },
+  {
+    "seedId": "P-P-13",
+    "family": "People",
+    "type": "Shared Exp",
+    "date": "2026-09-03",
+    "title": "Family celebration",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed shared exp"
+  },
+  {
+    "seedId": "P-P-14",
+    "family": "People",
+    "type": "Shared Exp",
+    "date": "2026-09-11",
+    "title": "Weekend breakfast",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed shared exp"
+  },
+  {
+    "seedId": "P-P-15",
+    "family": "People",
+    "type": "Shared Exp",
+    "date": "2026-09-18",
+    "title": "Evening walk",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed shared exp"
+  },
+  {
+    "seedId": "P-P-16",
+    "family": "People",
+    "type": "Shared Exp",
+    "date": "2026-09-25",
+    "title": "Festival visit",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed shared exp"
+  },
+  {
+    "seedId": "P-P-17",
+    "family": "People",
+    "type": "Investment",
+    "date": "2026-06-02",
+    "title": "Quality time with family",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed investment"
+  },
+  {
+    "seedId": "P-P-18",
+    "family": "People",
+    "type": "Investment",
+    "date": "2026-06-09",
+    "title": "Mentored a friend",
+    "amount": "",
+    "category": "",
+    "note": "Reality seed investment"
+  }
+]

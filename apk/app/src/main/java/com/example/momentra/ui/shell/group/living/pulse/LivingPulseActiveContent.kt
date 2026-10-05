@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.living.pulse
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -153,7 +155,7 @@ fun LivingPulseActiveContent(
     val openTasks = pulse?.openTaskCount ?: 0
     val fundedPercent = LivingPulseMath.fundedPercent(contributionTotal, budgetTotal)
     val positions = finance?.positions.orEmpty()
-    val nameById = participants.associateBy({ it.participantId }, { it.displayName ?: it.participantId.take(8) })
+    val nameById = participants.associateBy({ it.participantId }, { PersonLabel.personName(it.displayName) })
     val deadlines = planningItems.filter { !it.dueAt.isNullOrBlank() }
 
     ActiveTabScrollScaffold(
@@ -295,9 +297,9 @@ fun LivingPulseActiveContent(
                             ?: pos.paidTotal.takeIf { it.isNotBlank() && it != "0" }
                         LivingCrewRow(
                             theme = theme,
-                            name = pos.displayName?.takeIf { it.isNotBlank() }
-                                ?: nameById[pos.participantId]
-                                ?: pos.participantId.take(8),
+                            name = PersonLabel.accountName(pos.displayName).ifBlank {
+                                PersonLabel.personName(nameById[pos.participantId])
+                            },
                             role = participants.find { it.participantId == pos.participantId }?.roleCode ?: "Member",
                             amountLabel = if (amount != null) {
                                 BalanceMask.mask(GroupFinanceFormat.formatMoney(amount, pos.currencyCode), hideBalances)
@@ -310,9 +312,7 @@ fun LivingPulseActiveContent(
                 }
                 residents.isNotEmpty() -> {
                     residents.take(8).forEach { r ->
-                        val name = r.name
-                            ?: r.residentId?.take(8)
-                            ?: "Resident"
+                        val name = PersonLabel.personName(r.name, fallback = "Resident")
                         val role = r.roleCode ?: "Resident"
                         LivingCrewRow(theme = theme, name = name, role = role, amountLabel = "—")
                     }
@@ -321,7 +321,7 @@ fun LivingPulseActiveContent(
                     participants.take(8).forEach { p ->
                         LivingCrewRow(
                             theme = theme,
-                            name = p.displayName ?: p.participantId.take(8),
+                            name = PersonLabel.personName(p.displayName),
                             role = p.roleCode,
                             amountLabel = "—",
                         )

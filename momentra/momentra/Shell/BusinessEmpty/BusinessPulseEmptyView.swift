@@ -30,7 +30,7 @@ struct BusinessPulseEmptyView: View {
                                         .font(.system(size: 11))
                                         .foregroundStyle(BusinessEmptyTokens.textSecondary)
                                     Spacer()
-                                    Text("0")
+                                    Text(BusinessNoMomentEmptyCopy.absent)
                                         .font(.system(size: 11, design: .monospaced))
                                         .foregroundStyle(BusinessEmptyTokens.accent)
                                 }

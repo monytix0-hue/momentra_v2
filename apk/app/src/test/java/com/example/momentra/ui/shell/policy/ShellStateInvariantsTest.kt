@@ -66,4 +66,60 @@ class ShellStateInvariantsTest {
         assertNull(result.selectedCompanyId)
         assertEquals("p1", result.selectedMomentId)
     }
+
+    @Test
+    fun coldStartRestoresTheMomentSavedForThatCompany() {
+        val moments = listOf(
+            MomentSummary("team", "Team", "ACTIVE", companyId = "c1"),
+            MomentSummary("money", "Money", "ACTIVE", companyId = "c1"),
+        )
+        assertEquals(
+            "money",
+            resolveRestoredBusinessMoment(
+                companyId = "c1",
+                moments = moments,
+                liveMomentId = null,
+                persistedMomentId = "money",
+                userChoseThisProcess = false,
+            ),
+        )
+    }
+
+    @Test
+    fun missingStoredMomentFallsThroughSoHealCanPickTheFirstActive() {
+        val moments = listOf(MomentSummary("team", "Team", "ACTIVE", companyId = "c1"))
+        assertNull(
+            resolveRestoredBusinessMoment(
+                companyId = "c1",
+                moments = moments,
+                liveMomentId = "team",
+                persistedMomentId = "gone",
+                userChoseThisProcess = false,
+            ),
+        )
+    }
+
+    @Test
+    fun aChoiceThisProcessWinsOverTheStoredMoment() {
+        val moments = listOf(
+            MomentSummary("team", "Team", "ACTIVE", companyId = "c1"),
+            MomentSummary("money", "Money", "ACTIVE", companyId = "c1"),
+        )
+        assertEquals(
+            "team",
+            resolveRestoredBusinessMoment(
+                companyId = "c1",
+                moments = moments,
+                liveMomentId = "team",
+                persistedMomentId = "money",
+                userChoseThisProcess = true,
+            ),
+        )
+    }
+
+    @Test
+    fun businessMomentMapRoundTripsPerCompany() {
+        val encoded = encodeBusinessMoments(mapOf("c1" to "money", "c2" to "daily"))
+        assertEquals(mapOf("c1" to "money", "c2" to "daily"), decodeBusinessMoments(encoded))
+    }
 }

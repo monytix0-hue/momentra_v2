@@ -68,16 +68,14 @@ struct GroupExpenseSheet: View {
         participants.map { (id: $0.participantId, name: participantLabel($0)) }
     }
 
-    private func participantLabel(_ p: APIClient.GroupParticipantPayload?, fallbackId: String? = nil) -> String {
-        let id = p?.participantId ?? fallbackId ?? ""
-        let trimmed = p?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let base = (trimmed?.isEmpty == false) ? trimmed! : shortId(id.isEmpty ? "Member" : id)
+    private func participantLabel(_ p: APIClient.GroupParticipantPayload?) -> String {
+        let base = PersonLabel.personName(p?.displayName)
         if p?.guest == true { return "\(base) · Guest" }
         return base
     }
 
     private func participantLabel(id: String) -> String {
-        participantLabel(participants.first(where: { $0.participantId == id }), fallbackId: id)
+        participantLabel(participants.first(where: { $0.participantId == id }))
     }
 
     var body: some View {
@@ -465,11 +463,6 @@ struct GroupExpenseSheet: View {
             .foregroundStyle(peach)
     }
 
-    private func shortId(_ id: String) -> String {
-        guard id.count > 8 else { return id }
-        return String(id.prefix(8))
-    }
-
     private func loadParticipants() async {
         loading = true
         error = nil
@@ -736,7 +729,7 @@ struct GroupParticipantsSheet: View {
                     List(participants) { p in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 8) {
-                                Text(p.displayName ?? String(p.participantId.prefix(8)))
+                                Text(PersonLabel.personName(p.displayName))
                                     .font(.headline)
                                 if p.guest {
                                     Text("Guest")

@@ -1,0 +1,22 @@
+appId: com.example.momentra
+---
+# Drives the Material3 date picker that is already open.
+# Expects output.whenDayDesc / output.whenMonthsBack from when_calc.js.
+- evalScript: ${output.step = 0}
+- repeat:
+    while:
+      true: ${output.step < 8}
+    commands:
+      - runFlow:
+          when:
+            notVisible: "${output.whenMonthDesc}"
+          commands:
+            - tapOn: "Change to previous month"
+            - waitForAnimationToEnd:
+                timeout: 700
+      - evalScript: ${output.step++}
+- tapOn: ${output.whenDayDesc}
+# Personal WHEN picker confirms with "Set"; the business DATE row uses "OK".
+- tapOn:
+    text: "^(Set|OK)$"
+    optional: true

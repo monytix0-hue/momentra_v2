@@ -1,0 +1,59 @@
+appId: resolvingpoint.momentra
+---
+# Quantity stays at its default of 1, so the saved total is the unit price.
+- runFlow:
+    when:
+      notVisible: "Invoice Track"
+    commands:
+      - tapOn:
+          id: "bottom.quickadd"
+      - extendedWaitUntil:
+          visible: "Invoice Track"
+          timeout: 15000
+- tapOn: "Invoice Track"
+- extendedWaitUntil:
+    visible:
+      id: "business.invoice.number"
+    timeout: 15000
+- tapOn:
+    id: "business.invoice.number"
+- inputText: ${TITLE}
+- tapOn:
+    id: "business.invoice.line"
+- inputText: ${DESCRIPTION}
+- tapOn:
+    id: "keyboard.done"
+- tapOn:
+    id: "business.invoice.amount"
+- eraseText:
+    optional: true
+- inputText: ${AMOUNT}
+- tapOn:
+    id: "keyboard.done"
+- swipe:
+    start: "50%,72%"
+    end: "50%,36%"
+- tapOn:
+    id: "business.invoice.submit"
+# A second run of the same seed hits "invoice number already exists". Close and continue.
+- extendedWaitUntil:
+    visible:
+      id: "business.invoice.submit_done"
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "business.invoice.submit_done"
+    commands:
+      - tapOn:
+          id: "business.invoice.submit_done"
+- runFlow:
+    when:
+      visible: "Invoice number already exists for this company."
+    commands:
+      - tapOn: "Close"
+      - extendedWaitUntil:
+          notVisible:
+            id: "business.invoice.number"
+          timeout: 10000

@@ -26,11 +26,13 @@ import com.example.momentra.domain.resolveMomentExperience
 import com.example.momentra.ui.shell.policy.ShellInvariantInput
 import com.example.momentra.ui.shell.policy.ShellStateInvariants
 import com.example.momentra.ui.shell.policy.ShellVisibilityPolicy
+import com.example.momentra.ui.shell.policy.resolveRestoredBusinessMoment
 import com.example.momentra.ui.shell.perf.ShellPerf
 import com.example.momentra.ui.shell.personal.shared.PersonalTabDataCache
 import com.example.momentra.ui.shell.personal.shared.loadPersonalPulseTab
 import com.example.momentra.ui.shell.personal.shared.resolvePreferredPersonalMoment
 import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
+import com.example.momentra.ui.shell.business.shared.businessRefreshPrefetchesPulse
 import com.example.momentra.ui.shell.business.shared.invalidateBusinessPulseLoad
 import com.example.momentra.ui.shell.business.shared.prefetchBusinessTabs
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
@@ -116,6 +118,8 @@ class AppShellViewModel(
     private var businessPrefetchJob: Job? = null
     private var sseCollectJob: Job? = null
     private var preferredPersonalMomentId: String? = null
+    /** True after the user picks a Business moment or company in this process. */
+    private var businessMomentChosenThisProcess: Boolean = false
     /** Honors Personal deep-link selection until user leaves Personal. */
     private var personalDeepLinkHold: Boolean = false
     private var bootstrap: ShellBootstrap? = null
@@ -134,7 +138,16 @@ class AppShellViewModel(
         _state.update { it.copy(identity = identity, bootstrapStatus = BootstrapStatus.REFRESHING) }
         meRepository.cachedBootstrap(identity.userId)?.let { cached ->
             bootstrap = cached
-            applyBootstrapInventory(cached, networkRefresh = false)
+            _state.update {
+                it.copy(
+                    companies = cached.companies,
+                    supportedContexts = cached.supportedContexts.ifEmpty { it.supportedContexts },
+                )
+            }
+        }
+        restorePersistedSelections(identity.userId)
+        if (bootstrap != null) {
+            applyBootstrapInventory(bootstrap!!, networkRefresh = false)
             _state.update {
                 it.copy(
                     bootstrapStatus = BootstrapStatus.CACHED,
@@ -146,7 +159,6 @@ class AppShellViewModel(
                 mapOf("ttcsMs" to (System.currentTimeMillis() - bindStartedAtMs)),
             )
         }
-        restorePersistedSelections(identity.userId)
         if (bootstrap != null && meRepository.isBootstrapCacheFresh(identity.userId)) {
             ensureContextContent()
             _state.update { it.copy(bootstrapStatus = BootstrapStatus.READY) }
@@ -390,6 +402,18 @@ class AppShellViewModel(
                     ?: current.selectedMomentByContext[AppContext.PERSONAL]
                     ?: preferredPersonalMomentId
             }
+            current.selectedContext == AppContext.BUSINESS -> {
+                val companyId = current.selectedCompany?.companyId
+                    ?: current.identity?.userId?.let { prefs?.getShellCompanyId(it) }
+                    ?: boot.selectedCompany?.companyId
+                resolveRestoredBusinessMoment(
+                    companyId = companyId,
+                    moments = rawMoments,
+                    liveMomentId = current.selectedMomentId,
+                    persistedMomentId = persistedBusinessMomentId(companyId),
+                    userChoseThisProcess = businessMomentChosenThisProcess,
+                )
+            }
             else -> current.selectedMomentId
                 ?: current.selectedMomentByContext[current.selectedContext]
                 ?: if (current.selectedContext == AppContext.PERSONAL) preferredPersonalMomentId else null
@@ -430,7 +454,9 @@ class AppShellViewModel(
                     listOf(AppContext.PERSONAL, AppContext.GROUP, AppContext.BUSINESS, AppContext.CIRCLE)
                 },
                 selectedContext = current.selectedContext,
-                selectedCompanyId = current.selectedCompany?.companyId ?: boot.selectedCompany?.companyId,
+                selectedCompanyId = current.selectedCompany?.companyId
+                    ?: current.identity?.userId?.let { prefs?.getShellCompanyId(it) }
+                    ?: boot.selectedCompany?.companyId,
                 companies = boot.companies,
                 moments = momentsForHeal,
                 selectedMomentId = preferredMomentId,
@@ -600,7 +626,11 @@ class AppShellViewModel(
                 refreshVisiblePersonalTab()
             }
             AppContext.GROUP -> refreshVisibleGroupTab(forcePrefetch = true)
-            AppContext.BUSINESS -> refreshVisibleBusinessTab(forcePrefetch = true)
+            AppContext.BUSINESS -> {
+                businessMomentChosenThisProcess = true
+                persistBusinessMoment(_state.value.selectedCompany?.companyId, moment.momentId)
+                refreshVisibleBusinessTab(forcePrefetch = true)
+            }
             else -> Unit
         }
         ShellPerf.end(mark, mapOf("momentId" to momentId.take(8)))
@@ -985,13 +1015,16 @@ class AppShellViewModel(
             invalidateBusinessPulseLoad(momentId)
         }
         _state.update { it.copy(businessTabRefreshToken = it.businessTabRefreshToken + 1) }
-        prefetchBusinessTabsFor(momentId, typeCode)
+        val prefetch = businessRefreshPrefetchesPulse(forcePrefetch)
+        if (prefetch) {
+            prefetchBusinessTabsFor(momentId, typeCode)
+        }
         ShellPerf.instant(
             "scoped_refresh_business",
             mapOf(
                 "token" to _state.value.businessTabRefreshToken,
                 "invalidated" to !momentId.isNullOrBlank(),
-                "prefetch" to true,
+                "prefetch" to prefetch,
                 "force" to forcePrefetch,
             ),
         )
@@ -1033,7 +1066,11 @@ class AppShellViewModel(
                 m.companyId == null || m.companyId == company.companyId
             }
         }
-        val nextMoment = scoped.firstOrNull { it.isActiveStatus() } ?: scoped.firstOrNull()
+        val rememberedId = persistedBusinessMomentId(company?.companyId)
+        val nextMoment = scoped.firstOrNull { it.momentId == rememberedId }
+            ?: scoped.firstOrNull { it.isActiveStatus() }
+            ?: scoped.firstOrNull()
+        businessMomentChosenThisProcess = true
         val experience = when {
             company == null -> MomentExperienceKind.FIRST_MOMENT
             else -> resolveMomentExperience(scoped)
@@ -1070,6 +1107,7 @@ class AppShellViewModel(
             )
         }
         persistCompany(company?.companyId)
+        persistBusinessMoment(company?.companyId, nextMoment?.momentId)
         ShellPerf.end(mark, mapOf("companyId" to (company?.companyId?.take(8) ?: "none")))
     }
 
@@ -1151,9 +1189,8 @@ class AppShellViewModel(
         val p = prefs ?: return
         p.getShellContext(userId)?.let { raw ->
             val ctx = runCatching { AppContext.valueOf(raw) }.getOrNull() ?: return@let
-            if (ctx in _state.value.supportedContexts || bootstrap == null) {
-                _state.update { it.copy(selectedContext = ctx) }
-            }
+            // Heal runs immediately after this and drops a context the account cannot use.
+            _state.update { it.copy(selectedContext = ctx) }
         }
         p.getShellCompanyId(userId)?.let { cid ->
             _state.update { st ->
@@ -1170,5 +1207,17 @@ class AppShellViewModel(
     private fun persistCompany(companyId: String?) {
         val uid = _state.value.identity?.userId ?: return
         prefs?.setShellCompanyId(uid, companyId)
+    }
+
+    private fun persistedBusinessMomentId(companyId: String?): String? {
+        val uid = _state.value.identity?.userId ?: return null
+        if (companyId.isNullOrBlank()) return null
+        return prefs?.getShellBusinessMomentId(uid, companyId)
+    }
+
+    private fun persistBusinessMoment(companyId: String?, momentId: String?) {
+        val uid = _state.value.identity?.userId ?: return
+        if (companyId.isNullOrBlank()) return
+        prefs?.setShellBusinessMomentId(uid, companyId, momentId)
     }
 }

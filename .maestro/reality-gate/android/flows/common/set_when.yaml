@@ -1,0 +1,31 @@
+appId: com.example.momentra
+---
+# Custom date support. The WHEN control has two shapes on this build:
+#   Spend  -> a row that opens a dropdown menu (Now/Today/Yesterday/Custom)
+#   Income / Transfer / Savings -> inline chips, "Custom" is directly tappable
+# Both end in the same Material3 calendar, driven by set_date_picker.yaml.
+# output.whenDone keeps the two branches mutually exclusive: driving the picker
+# twice pages back twice the intended number of months.
+- evalScript: ${output.whenDone = false}
+- scrollUntilVisible:
+    element:
+      text: "WHEN"
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- runFlow:
+    when:
+      visible: "^Custom$"
+    commands:
+      - tapOn: "^Custom$"
+      - runFlow: set_date_picker.yaml
+      - evalScript: ${output.whenDone = true}
+- runFlow:
+    when:
+      true: ${!output.whenDone}
+      visible: "^(Now|Today|Yesterday)"
+    commands:
+      - tapOn: "^(Now|Today|Yesterday)"
+      - tapOn: "Custom"
+      - runFlow: set_date_picker.yaml
+      - evalScript: ${output.whenDone = true}

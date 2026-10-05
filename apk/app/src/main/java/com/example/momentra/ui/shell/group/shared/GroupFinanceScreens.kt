@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.shared
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -588,7 +590,7 @@ private fun ParticipantPositionsSection(
     hide: Boolean,
     chrome: GroupFinanceChrome,
 ) {
-    val nameById = participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
+    val nameById = participants.associate { it.participantId to (PersonLabel.personName(it.displayName)) }
     val grouped = GroupFinanceFormat.groupPositionsByParticipant(positions)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -610,7 +612,7 @@ private fun ParticipantPositionsSection(
         } else {
             grouped.forEach { (participantId, rows) ->
                 PositionDetailCard(
-                    name = nameById[participantId] ?: participantId.take(8),
+                    name = PersonLabel.personName(nameById[participantId]),
                     positions = rows,
                     hide = hide,
                     chrome = chrome,
@@ -890,7 +892,7 @@ private fun WhoOwesWhomSection(
     hide: Boolean,
     chrome: GroupFinanceChrome,
 ) {
-    val nameById = participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
+    val nameById = participants.associate { it.participantId to (PersonLabel.personName(it.displayName)) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("🤝 Who Owes Whom", color = chrome.text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
         Text(
@@ -908,7 +910,7 @@ private fun WhoOwesWhomSection(
             Text("No outstanding nets yet.", color = chrome.secondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         } else {
             actionable.forEach { pos ->
-                val name = nameById[pos.participantId] ?: pos.participantId.take(8)
+                val name = PersonLabel.personName(nameById[pos.participantId])
                 val currency = pos.currencyCode
                 val net = GroupFinanceFormat.parseAmount(pos.netPosition)
                 val owes = net < BigDecimal.ZERO
@@ -967,7 +969,7 @@ private fun ExpenseBreakdownSection(
     hide: Boolean,
     chrome: GroupFinanceChrome,
 ) {
-    val nameById = participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
+    val nameById = participants.associate { it.participantId to (PersonLabel.personName(it.displayName)) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("📊 Expense Breakdown", color = chrome.text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
         Text(
@@ -980,7 +982,7 @@ private fun ExpenseBreakdownSection(
             Text("Breakdown appears after expenses are recorded.", color = chrome.secondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
         } else {
             GroupFinanceFormat.groupPositionsByParticipant(positions).forEach { (participantId, rows) ->
-                val name = nameById[participantId] ?: participantId.take(8)
+                val name = PersonLabel.personName(nameById[participantId])
                 rows.forEach { pos ->
                     val currency = pos.currencyCode
                     val paid = GroupFinanceFormat.parseAmount(pos.paidTotal)

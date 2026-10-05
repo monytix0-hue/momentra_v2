@@ -1,0 +1,29 @@
+appId: com.example.momentra
+name: Reality Gate - Surface Smoke
+---
+- launchApp
+- tapOn: "Personal"
+- assertVisible: "Pulse"
+- tapOn: "Moments"
+- assertVisible: "Moments"
+- tapOn: "Life"
+- assertVisible: "Life"
+- tapOn: "Memory"
+- assertVisible: "Memory"
+- tapOn:
+    text: "Business"
+    optional: true
+- tapOn:
+    text: "Momentra Multi Store QA"
+    optional: true
+- tapOn:
+    text: "Close"
+    optional: true
+- tapOn: "Pulse"
+- assertVisible: "Pulse"
+- tapOn: "Moments"
+- assertVisible: "Moments"
+- tapOn: "Life"
+- assertVisible: "Life"
+- tapOn: "Memory"
+- assertVisible: "Memory"

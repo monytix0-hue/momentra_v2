@@ -22,7 +22,7 @@ final class GroupActivityTreeTests: XCTestCase {
         XCTAssertEqual(GroupActivityPresentation.amountLabel(for: item), "₹1234.50")
     }
 
-    func testNestsVoidedUnderRecorded() {
+    func testNestsVoidedUnderRecorded() throws {
         let recorded = activity(
             code: "GROUP_EXPENSE_RECORDED",
             title: "Lunch",

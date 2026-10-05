@@ -486,10 +486,8 @@ struct WeddingExpenseBody: View {
         participants.map { (id: $0.participantId, name: weddingExpenseParticipantLabel($0)) }
     }
 
-    private func weddingExpenseParticipantLabel(_ p: APIClient.GroupParticipantPayload?, fallbackId: String? = nil) -> String {
-        let id = p?.participantId ?? fallbackId ?? ""
-        let trimmed = p?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let base = (trimmed?.isEmpty == false) ? trimmed! : String((id.isEmpty ? "Member" : id).prefix(8))
+    private func weddingExpenseParticipantLabel(_ p: APIClient.GroupParticipantPayload?) -> String {
+        let base = PersonLabel.personName(p?.displayName)
         if p?.guest == true { return "\(base) · Guest" }
         return base
     }
@@ -620,8 +618,7 @@ struct WeddingExpenseBody: View {
                     ForEach(Array(selected).sorted(), id: \.self) { id in
                         HStack {
                             Text(weddingExpenseParticipantLabel(
-                                participants.first(where: { $0.participantId == id }),
-                                fallbackId: id
+                                participants.first(where: { $0.participantId == id })
                             ))
                                 .font(.plusJakarta(size: 12, weight: .semibold))
                                 .foregroundStyle(Wq.text)
@@ -894,8 +891,7 @@ struct WeddingContributionBody: View {
 
     private var fromLabel: String {
         guard let p = selectedParticipant else { return "You" }
-        let name = p.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (name?.isEmpty == false) ? name! : "You"
+        return PersonLabel.personName(p.displayName, fallback: "You")
     }
 
     private var fromInitial: String {
@@ -1144,7 +1140,7 @@ struct WeddingContributionBody: View {
 
     private func participantLabel(_ p: APIClient.GroupParticipantPayload) -> String {
         let name = p.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (name?.isEmpty == false) ? name! : String(p.participantId.prefix(8))
+        return PersonLabel.personName(name)
     }
 
     private func currencySymbol(_ code: String) -> String {
@@ -1661,7 +1657,7 @@ struct WeddingPlanningBody: View {
     private var isEditing: Bool { editingItem?.planningItemId != nil }
 
     private var people: [(id: String, name: String)] {
-        participants.map { (id: $0.participantId, name: $0.displayName ?? String($0.participantId.prefix(8))) }
+        participants.map { (id: $0.participantId, name: PersonLabel.personName($0.displayName)) }
     }
 
     private var categoryOptions: [String] {
@@ -1858,7 +1854,7 @@ struct WeddingAttendanceBody: View {
 
     private var filtered: [APIClient.GroupParticipantPayload] {
         participants.filter {
-            let name = $0.displayName ?? $0.participantId
+            let name = PersonLabel.personName($0.displayName)
             return search.isEmpty || name.localizedCaseInsensitiveContains(search)
         }
     }
@@ -1905,7 +1901,7 @@ struct WeddingAttendanceBody: View {
                     .font(.plusJakarta(size: 12))
                     .foregroundStyle(Wq.muted)
                 ForEach(filtered.prefix(12), id: \.participantId) { p in
-                    let label = p.displayName ?? String(p.participantId.prefix(8))
+                    let label = PersonLabel.personName(p.displayName)
                     Button {
                         selectedId = p.participantId
                     } label: {

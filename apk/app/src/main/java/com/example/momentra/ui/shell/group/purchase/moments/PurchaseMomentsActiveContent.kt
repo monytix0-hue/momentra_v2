@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.purchase.moments
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -214,7 +216,7 @@ fun PurchaseMomentsActiveContent(
         buildMomentsUpcomingEvents(bookings, planningItems, finance)
     }
     val positions = finance?.positions.orEmpty()
-    val nameById = participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
+    val nameById = participants.associate { it.participantId to (PersonLabel.personName(it.displayName)) }
     val g0 = listOf(theme.accentSolid, theme.accent)
     val g1 = listOf(theme.accent, theme.accentLight)
     val g2 = listOf(theme.accentLight, theme.accentSolid)
@@ -554,7 +556,7 @@ private fun PurchaseContributionsCard(
                 val amount = pos.contributionTotal.takeIf { it.isNotBlank() && it != "0" }
                     ?: pos.paidTotal.takeIf { it.isNotBlank() && it != "0" }
                 MomentsSimpleRowCard(
-                    title = nameById[pos.participantId] ?: pos.participantId.take(8),
+                    title = PersonLabel.personName(nameById[pos.participantId]),
                     chrome = chrome,
                     meta = amount?.let { GroupFinanceFormat.formatMoney(it, pos.currencyCode.ifBlank { currency }) },
                 )

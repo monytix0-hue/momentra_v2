@@ -1,0 +1,59 @@
+appId: resolvingpoint.momentra
+---
+# Business -> Money & Cash Flow -> Log Expense.
+# Fields are addressed by accessibility id. Category and payment stay on the
+# form defaults unless those labels are already on screen.
+
+- runFlow:
+    when:
+      notVisible: "Log Expense"
+    commands:
+      - tapOn:
+          id: "bottom.quickadd"
+      - extendedWaitUntil:
+          visible: "Log Expense"
+          timeout: 15000
+- tapOn: "Log Expense"
+- extendedWaitUntil:
+    visible:
+      id: "business.expense.amount"
+    timeout: 15000
+
+- tapOn:
+    id: "business.expense.amount"
+- eraseText:
+    optional: true
+- inputText: ${AMOUNT}
+- tapOn:
+    id: "keyboard.done"
+
+- tapOn:
+    id: "business.expense.note"
+- inputText: ${DESCRIPTION}
+- tapOn:
+    id: "keyboard.done"
+
+- runFlow:
+    when:
+      true: ${CATEGORY != ""}
+    commands:
+      - tapOn:
+          text: ${CATEGORY}
+          optional: true
+- runFlow:
+    when:
+      true: ${PAYMENT != ""}
+    commands:
+      - tapOn:
+          text: ${PAYMENT}
+          optional: true
+
+- swipe:
+    start: "50%,72%"
+    end: "50%,32%"
+- tapOn:
+    id: "business.expense.submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "business.expense.submit"
+    timeout: 20000

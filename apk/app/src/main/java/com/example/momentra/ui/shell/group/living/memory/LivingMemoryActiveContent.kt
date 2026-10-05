@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.living.memory
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -114,7 +116,7 @@ fun LivingMemoryActiveContent(
     val funded = LivingMemoryMath.fundedPercent(total?.contributionTotal, total?.budgetTotal)
     val positions = finance?.positions.orEmpty()
     val nameById = remember(participants) {
-        participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
+        participants.associate { it.participantId to (PersonLabel.personName(it.displayName)) }
     }
 
     ActiveTabScrollScaffold(
@@ -204,7 +206,7 @@ fun LivingMemoryActiveContent(
                     val amount = pos.contributionTotal.takeIf { it.isNotBlank() && it != "0" } ?: pos.netPosition
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(
-                            nameById[pos.participantId] ?: pos.participantId.take(8),
+                            PersonLabel.personName(nameById[pos.participantId]),
                             color = theme.text,
                             fontSize = 12.sp,
                             fontFamily = PlusJakartaSans,

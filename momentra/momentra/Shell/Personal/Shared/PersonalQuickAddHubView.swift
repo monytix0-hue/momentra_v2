@@ -123,14 +123,7 @@ struct PersonalQuickAddHubView: View {
     private var gridGap: CGFloat { useWideTiles ? 12 : 10 }
 
     private func actionRows(for tiles: [PersonalActionTile]) -> [[PersonalActionTile]] {
-        let isSearchBlank = search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if isSearchBlank {
-            return [
-                Array(tiles.prefix(3)),
-                Array(tiles.dropFirst(3)),
-            ].filter { !$0.isEmpty }
-        }
-        return stride(from: 0, to: tiles.count, by: 3).map {
+        stride(from: 0, to: tiles.count, by: 3).map {
             Array(tiles[$0..<min($0 + 3, tiles.count)])
         }
     }
@@ -273,8 +266,9 @@ struct PersonalQuickAddHubView: View {
             ForEach(Array(row.enumerated()), id: \.offset) { _, action in
                 actionCard(action)
             }
-            if fillEmptySlots {
-                ForEach(0..<(3 - row.count), id: \.self) { _ in
+            let emptySlots = max(0, 3 - row.count)
+            if fillEmptySlots, emptySlots > 0 {
+                ForEach(0..<emptySlots, id: \.self) { _ in
                     Color.clear.frame(maxWidth: .infinity)
                 }
             }

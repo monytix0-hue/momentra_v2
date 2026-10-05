@@ -54,6 +54,7 @@ import com.example.momentra.data.api.CompanyMemberDto
 import com.example.momentra.data.api.CreateCompanyBody
 import com.example.momentra.domain.CompanySummary
 import com.example.momentra.ui.shell.business.shared.BusinessAudience
+import com.example.momentra.ui.shell.shared.PersonLabel
 import com.example.momentra.ui.shell.business.shared.CompanyModules
 import com.example.momentra.ui.shell.business.shared.IndustryTemplateCatalog
 import java.util.UUID
@@ -595,7 +596,7 @@ private fun CompanySettingsPage(
                 } else {
                     members.forEach { member ->
                         SettingsValueRow(
-                            member.displayName?.takeIf { it.isNotBlank() } ?: member.userId,
+                            PersonLabel.personName(member.displayName),
                             member.membershipType,
                         )
                     }
@@ -729,7 +730,7 @@ private fun CompanySettingsPage(
                     )
                     transferCandidates.forEach { member ->
                         Text(
-                            member.displayName?.takeIf { it.isNotBlank() } ?: member.userId,
+                            PersonLabel.personName(member.displayName),
                             color = Accent,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp,

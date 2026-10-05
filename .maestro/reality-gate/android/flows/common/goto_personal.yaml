@@ -1,0 +1,10 @@
+appId: com.example.momentra
+---
+# launchApp restores the last-used space, so the add affordance can read "Quickadds"
+# (Business) instead of "Add" (Personal). Always land in Personal before writing.
+- tapOn:
+    text: "Switch to Personal"
+    optional: true
+- extendedWaitUntil:
+    visible: "Add"
+    timeout: 20000

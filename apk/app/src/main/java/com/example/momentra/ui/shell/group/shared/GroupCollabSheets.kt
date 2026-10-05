@@ -64,6 +64,7 @@ import com.example.momentra.R
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.setup.SetupDateTimeUtils
 import com.example.momentra.ui.shell.components.MomentraModalBottomSheet
+import com.example.momentra.ui.shell.shared.PersonLabel
 import com.example.momentra.ui.shell.shared.loadGroupCurrencyContext
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.Dispatchers
@@ -941,7 +942,7 @@ private fun BookingBody(
                 },
             )
             splitIds.sorted().forEach { id ->
-                val name = participants.firstOrNull { it.participantId == id }?.displayName ?: id.take(8)
+                val name = PersonLabel.personName(participants.firstOrNull { it.participantId == id }?.displayName)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -967,7 +968,7 @@ private fun BookingBody(
                 },
             )
             previewShares.forEach { (id, share) ->
-                val name = participants.firstOrNull { it.participantId == id }?.displayName ?: id.take(8)
+                val name = PersonLabel.personName(participants.firstOrNull { it.participantId == id }?.displayName)
                 Text(
                     "$name · $costSymbol$share",
                     color = TripSheet.Muted,

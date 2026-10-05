@@ -50,7 +50,7 @@ struct BusinessLifeEmptyView: View {
                     HStack(spacing: 8) {
                         ForEach(stats, id: \.self) { label in
                             VStack(spacing: 4) {
-                                Text("-")
+                                Text(BusinessNoMomentEmptyCopy.absent)
                                     .font(.system(size: 15, weight: .bold, design: .monospaced))
                                     .foregroundStyle(BusinessEmptyTokens.textPrimary)
                                 Text(label)

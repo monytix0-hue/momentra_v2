@@ -61,6 +61,7 @@ struct PersonalMasterExpenseSheet: View {
             .padding(.bottom, 24)
         }
         .background(PersonalMasterExpenseTheme.bg)
+        .maestroKeyboardDone()
         .task {
             accounts = (try? await APIClient.shared.listFinancialAccounts()) ?? []
             selectedAccountId = accounts.first?.financialAccountId
@@ -184,6 +185,8 @@ struct PersonalMasterExpenseSheet: View {
                 TextField("Dinner with friends", text: $purpose)
                     .foregroundStyle(PersonalMasterExpenseTheme.textMain)
                     .font(.system(size: 15, weight: .medium))
+                    .accessibilityLabel("What did you spend on?")
+                    .accessibilityIdentifier("personal.expense.note")
             }
             .padding(18)
             .background(PersonalMasterExpenseTheme.surfaceSolid.opacity(0.7))
@@ -208,6 +211,8 @@ struct PersonalMasterExpenseSheet: View {
                     .font(.system(size: 40, weight: .heavy))
                     .foregroundStyle(.white)
                     .keyboardType(.decimalPad)
+                    .accessibilityLabel("Amount")
+                    .accessibilityIdentifier("personal.expense.amount")
             }
             .padding(20)
             .background(PersonalMasterExpenseTheme.surfaceSolid.opacity(0.7))
@@ -445,7 +450,7 @@ struct PersonalMasterExpenseSheet: View {
             .buttonStyle(.plain)
             .disabled(amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || submitting)
             .opacity(amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || submitting ? 0.5 : 1)
-            .accessibilityIdentifier("master_expense_confirm")
+            .accessibilityIdentifier("personal.expense.submit")
         }
     }
 

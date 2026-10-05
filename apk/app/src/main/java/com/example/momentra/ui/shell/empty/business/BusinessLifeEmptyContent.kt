@@ -106,7 +106,7 @@ fun BusinessLifeEmptyContent(
                         .padding(10.dp),
                 ) {
                     Text(
-                        text = "-",
+                        text = BusinessNoMomentEmptyCopy.ABSENT,
                         color = BusinessEmptyTokens.TextPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,

@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.experience.memory
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -130,7 +132,7 @@ fun ExperienceMemoryActiveContent(
         GroupActiveTheme.AccentOrange,
     )
     val nameById = remember(participants) {
-        participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
+        participants.associate { it.participantId to (PersonLabel.personName(it.displayName)) }
     }
 
     ActiveTabScrollScaffold(
@@ -209,7 +211,7 @@ fun ExperienceMemoryActiveContent(
                 positions.take(3).forEach { pos ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(
-                            nameById[pos.participantId] ?: pos.participantId.take(8),
+                            PersonLabel.personName(nameById[pos.participantId]),
                             color = GroupActiveTheme.Text,
                             fontSize = 12.sp,
                             fontFamily = PlusJakartaSans,

@@ -10,7 +10,7 @@ struct BusinessMomentsPresentationTests {
         let model = present(.money, [
             item("BUSINESS_REVENUE", "Till sale", "2026-09-30T05:12:00Z", amount: "12500.0000", currency: "INR", revenueId: "rev-1", status: "POSTED", actor: "Santosh"),
             item("BUSINESS_EXPENSE", "Shop expense", "2026-09-30T04:00:00Z", amount: "3250.0000", currency: "INR", expenseId: "exp-1", category: "RENT", actor: "  "),
-            item("BUSINESS_INVOICE", "Invoice INV-9", "2026-09-29T03:48:00Z", total: "18000.0000", invoiceId: "inv-1", merchant: "ABC Traders"),
+            item("BUSINESS_INVOICE", "Invoice INV-9", "2026-09-29T03:48:00Z", invoiceId: "inv-1", total: "18000.0000", merchant: "ABC Traders"),
         ])
         let cards = model.groups.flatMap { $0.entries }.map { $0.card }
         #expect(cards[0].amountLabel == "₹12,500")
@@ -184,8 +184,10 @@ struct BusinessMomentsPresentationTests {
             occurredAt: occurredAt,
             activityPayload: APIClient.ActivityItemPayload.ActivityPayload(
                 expenseId: expenseId,
-                categoryCode: category,
+                amount: amount,
+                currencyCode: currency,
                 merchantName: merchant,
+                categoryCode: category,
                 status: status,
                 revenueId: revenueId,
                 invoiceId: invoiceId,
@@ -193,9 +195,7 @@ struct BusinessMomentsPresentationTests {
                 issueId: issueId,
                 severity: severity,
                 updateId: updateId,
-                approvalRequestId: approvalId,
-                amount: amount,
-                currencyCode: currency
+                approvalRequestId: approvalId
             ),
             actorDisplayName: actor
         )

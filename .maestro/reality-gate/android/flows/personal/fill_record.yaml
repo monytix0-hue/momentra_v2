@@ -1,0 +1,160 @@
+appId: com.example.momentra
+---
+# Per-type fills for the installed build, all 21 sheets probed individually.
+# Only Spend / Income / Transfer / Savings accept a typed amount, and only Spend
+# and Income have a title field. The other 17 are chip/slider forms with no text
+# inputs, so they are created from defaults.
+#
+# IMPORTANT: the point percentages below are measured from a FRESHLY opened
+# sheet. Scrolling a sheet first invalidates them, so nothing here may scroll
+# before tapping an input.
+#
+# Save labels (verified on device):
+#   Spend "Confirm Expense" | Income "Save Income" | Transfer "Transfer Now"
+#   Savings "Save Now" | Mood "Save Reflection" | Recovery "Save Recovery"
+#   Attention "Save Focus" | Progress "Save Progress" | Milestone "Save Milestone"
+#   Learning "Save Learning" | Opportunity "Save Opportunity" | Pivot "Save Pivot"
+#   Experience "Save Experience" | Wellbeing "Save Wellbeing Check-in"
+#   Discovery "Save Discovery" | Create "Save Creation"
+#   Connection "Save Connection" | Support "Save Support"
+#   Shared Exp "Save Shared Experience" | Investment "Save Relationship Investment"
+
+# ---- Spend: the only type whose amounts make up personalSpendTotal ----
+- runFlow:
+    when:
+      visible: "WHAT DID YOU SPEND ON?"
+    commands:
+      - tapOn:
+          point: "53%,35%"
+      - inputText: ${TITLE}
+      - hideKeyboard
+      - tapOn:
+          point: "55%,49%"
+      - inputText: ${AMOUNT}
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: "CATEGORY"
+          direction: DOWN
+          timeout: 15000
+      - tapOn:
+          text: ${CATEGORY}
+          optional: true
+      - runScript: ../common/when_calc.js
+      - runFlow: ../common/set_when.yaml
+      - scrollUntilVisible:
+          element:
+            text: "NOTES"
+          direction: DOWN
+          timeout: 15000
+      - tapOn:
+          text: "Add any additional notes..."
+          optional: true
+      - inputText: ${NOTE}
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: "Confirm Expense.*"
+          direction: DOWN
+          centerElement: true
+          timeout: 15000
+      - tapOn: "Confirm Expense.*"
+
+# ---- Income: TITLE + AMOUNT ----
+- runFlow:
+    when:
+      visible: "TITLE"
+    commands:
+      - tapOn:
+          point: "50%,43%"
+      - inputText: ${TITLE}
+      - hideKeyboard
+      - tapOn:
+          point: "53%,56%"
+      - inputText: ${AMOUNT}
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: "CATEGORY"
+          direction: DOWN
+          timeout: 15000
+      - tapOn:
+          text: ${CATEGORY}
+          optional: true
+      - runScript: ../common/when_calc.js
+      - runFlow: ../common/set_when.yaml
+      - scrollUntilVisible:
+          element:
+            text: "Save Income.*"
+          direction: DOWN
+          centerElement: true
+          timeout: 15000
+      - tapOn: "Save Income.*"
+
+# ---- Transfer: amount only; the submit button stays disabled without one ----
+- runFlow:
+    when:
+      visible: "TRANSFER TYPE"
+    commands:
+      - tapOn:
+          point: "53%,68%"
+      - inputText: ${AMOUNT}
+      - hideKeyboard
+      - runScript: ../common/when_calc.js
+      - runFlow: ../common/set_when.yaml
+      - scrollUntilVisible:
+          element:
+            text: "Transfer Now.*"
+          direction: DOWN
+          centerElement: true
+          timeout: 15000
+      - tapOn: "Transfer Now.*"
+
+# ---- Savings: deposit amount only ----
+- runFlow:
+    when:
+      visible: "SAVINGS GOAL"
+    commands:
+      - tapOn:
+          point: "53%,83%"
+      - inputText: ${AMOUNT}
+      - hideKeyboard
+      - runScript: ../common/when_calc.js
+      - runFlow: ../common/set_when.yaml
+      - scrollUntilVisible:
+          element:
+            text: "Save Now.*"
+          direction: DOWN
+          centerElement: true
+          timeout: 15000
+      - tapOn: "Save Now.*"
+
+# ---- Pivot: has a mandatory free-text direction field, so Save stays disabled ----
+- runFlow:
+    when:
+      visible: "WHAT DIRECTION CHANGED"
+    commands:
+      - tapOn:
+          point: "50%,26%"
+      - inputText: ${TITLE}
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: "Save Pivot.*"
+          direction: DOWN
+          centerElement: true
+          timeout: 20000
+      - tapOn: "Save Pivot.*"
+
+# ---- The 17 chip/slider types: defaults, then save ----
+- runFlow:
+    when:
+      visible: "ACTIVITY|PROGRESS TYPE|MEASURABLE OUTCOME|LEARNING TYPE|OPPORTUNITY TYPE|EXPERIENCE TYPE|How it feels|Discovery type|CREATION TYPE|CONNECTION TYPE|SUPPORT TYPE|Shared Experience|Investment Area|REFLECTION NOTE|FOCUS TARGET"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "^Save (Reflection|Recovery|Focus|Progress|Milestone|Learning|Opportunity|Pivot|Experience|Wellbeing|Discovery|Creation|Connection|Support|Shared Experience|Relationship Investment).*"
+          direction: DOWN
+          centerElement: true
+          timeout: 20000
+      - tapOn: "^Save (Reflection|Recovery|Focus|Progress|Milestone|Learning|Opportunity|Pivot|Experience|Wellbeing|Discovery|Creation|Connection|Support|Shared Experience|Relationship Investment).*"

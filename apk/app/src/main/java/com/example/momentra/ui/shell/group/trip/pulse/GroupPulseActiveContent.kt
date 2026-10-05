@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.trip.pulse
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -179,7 +181,7 @@ fun GroupPulseActiveContent(
     val hideBalances = SecurityPreferences(LocalContext.current).hideBalances()
     val displayTitle = momentTitle ?: title ?: "Trip"
     val nameById = remember(participants) {
-        participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
+        participants.associate { it.participantId to (PersonLabel.personName(it.displayName)) }
     }
     val maxAbsNet = positions.maxOfOrNull {
         GroupFinanceFormat.parseAmount(it.netPosition).abs()
@@ -391,7 +393,7 @@ fun GroupPulseActiveContent(
                 } else if (positions.isEmpty()) {
                     participants.take(6).forEach { person ->
                         Text(
-                            person.displayName ?: person.participantId.take(8),
+                            PersonLabel.personName(person.displayName),
                             color = GroupActiveTheme.Text,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp,
@@ -402,9 +404,9 @@ fun GroupPulseActiveContent(
                 } else {
                     GroupFinanceFormat.groupPositionsByParticipant(positions).take(6).forEach { (_, rows) ->
                         val primary = rows.first()
-                        val resolvedName = primary.displayName?.takeIf { it.isNotBlank() }
-                            ?: nameById[primary.participantId]
-                            ?: primary.participantId.take(8)
+                        val resolvedName = PersonLabel.accountName(primary.displayName).ifBlank {
+                            PersonLabel.personName(nameById[primary.participantId])
+                        }
                         ParticipationRow(
                             name = resolvedName,
                             positions = rows,

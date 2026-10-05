@@ -1,0 +1,20 @@
+appId: com.example.momentra
+---
+# Puts the app in Business context on Momentra Multi Store QA and lands on a
+# screen that exposes the bottom.quickadd button.
+- extendedWaitUntil:
+    visible: "Pulse|Business|Momentra Multi Store QA"
+    timeout: 20000
+- tapOn:
+    id: "context.business"
+- tapOn:
+    id: "company.switcher"
+- tapOn:
+    text: "^Momentra Gate QA$"
+# Business-only surfaces confirm the switch actually landed.
+- assertVisible: "Company totals|Log Revenue|Choose a Moment"
+# The Pulse surface has no quick-add FAB; Moments does.
+- tapOn:
+    id: "bottom.moments"
+- assertVisible:
+    id: "bottom.quickadd"

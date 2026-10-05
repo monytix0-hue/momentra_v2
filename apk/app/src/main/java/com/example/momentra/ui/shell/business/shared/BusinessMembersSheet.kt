@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.business.shared
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -139,7 +141,7 @@ fun BusinessMembersSheet(
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             Text(
-                                m.displayName ?: m.userId.take(8),
+                                PersonLabel.personName(m.displayName),
                                 color = TextPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,

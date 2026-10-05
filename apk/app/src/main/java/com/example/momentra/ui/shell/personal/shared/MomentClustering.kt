@@ -106,13 +106,9 @@ object MomentClustering {
         if (subtitleParts.isEmpty()) subtitleParts.add("${group.size} linked logs")
 
         val amount = group.mapNotNull { PersonalActivityTimelineDerived.amountLabel(it) }.firstOrNull()
-        val sourceIds = group.map { activity ->
-            activity.activityPayload?.activityId
-                ?: activity.activityPayload?.expenseId
-                ?: activity.activityPayload?.incomeId
-                ?: activity.activityPayload?.contributionId
-                ?: "${activity.occurredAt}|${activity.title}|${activity.activityCode}"
-        }
+        val sourceIds = group.map(::sourceKey)
+        val primaryKey = sourceKey(primary)
+        val orderedSourceIds = listOf(primaryKey) + sourceIds.filter { it != primaryKey }
 
         val earliest = group.minByOrNull { parseInstant(it.occurredAt)?.toEpochMilli() ?: Long.MAX_VALUE }
             ?: primary
@@ -138,11 +134,18 @@ object MomentClustering {
             occurredAt = earliest.occurredAt,
             sourceIconKind = MomentSourceIconKind.from(primary.activityCode),
             activityCode = primary.activityCode,
-            sourceActivityIds = sourceIds,
+            sourceActivityIds = orderedSourceIds,
             tapDestination = MomentCardTapDestination.ACTIVITY_DETAIL,
             mediaUrls = emptyList(),
         )
     }
+
+    private fun sourceKey(activity: ActivityItemDto): String =
+        activity.activityPayload?.activityId
+            ?: activity.activityPayload?.expenseId
+            ?: activity.activityPayload?.incomeId
+            ?: activity.activityPayload?.contributionId
+            ?: "${activity.occurredAt}|${activity.title}|${activity.activityCode}"
 
     private fun parseInstant(raw: String): Instant? = runCatching { Instant.parse(raw) }.getOrNull()
 }

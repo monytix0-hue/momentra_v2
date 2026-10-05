@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.shared
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -731,7 +733,6 @@ fun GroupExpenseSheet(
                 selectedSplitIds.sorted().forEach { id ->
                     val name = expenseParticipantLabel(
                         participants.firstOrNull { it.participantId == id },
-                        fallbackId = id,
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -786,7 +787,6 @@ fun GroupExpenseSheet(
                 previewShares.forEach { (id, share) ->
                     val name = expenseParticipantLabel(
                         participants.firstOrNull { it.participantId == id },
-                        fallbackId = id,
                     )
                     Text(
                         "$name · $share",
@@ -1067,13 +1067,8 @@ private fun SheetField(
     }
 }
 
-private fun expenseParticipantLabel(
-    p: GroupParticipantDto?,
-    fallbackId: String? = null,
-): String {
-    val id = p?.participantId ?: fallbackId.orEmpty()
-    val trimmed = p?.displayName?.trim().orEmpty()
-    val base = if (trimmed.isNotEmpty()) trimmed else id.take(8).ifEmpty { "Member" }
+private fun expenseParticipantLabel(p: GroupParticipantDto?): String {
+    val base = PersonLabel.personName(p?.displayName)
     return if (p?.isGuest == true) "$base · Guest" else base
 }
 

@@ -38,6 +38,7 @@ import com.example.momentra.data.device.DeviceRegistrar
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.data.local.AppPreferences
 import com.example.momentra.data.repository.AccountRepository
+import com.example.momentra.ui.shell.shared.PersonLabel
 import com.example.momentra.data.security.AppLockStore
 import com.example.momentra.data.security.SecurityPreferences
 import com.example.momentra.domain.ShellIdentity
@@ -121,7 +122,13 @@ fun AccountHubSheet(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(text = "Account", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-        Text(text = identity.email ?: "No email", fontSize = 14.sp)
+        val accountTitle = PersonLabel.accountName(displayName.trim().ifBlank { identity.displayName })
+        if (accountTitle.isNotEmpty()) {
+            Text(text = accountTitle, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        }
+        PersonLabel.contactEmail(identity.email)?.let { email ->
+            Text(text = email, fontSize = 14.sp, color = Color(0xFF8E8E93))
+        }
         statusMsg?.let { Text(text = it, fontSize = 13.sp) }
 
         when (hubSection) {

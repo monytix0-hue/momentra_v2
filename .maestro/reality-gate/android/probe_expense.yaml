@@ -1,0 +1,38 @@
+﻿appId: com.example.momentra
+name: Probe expense amount fidelity
+---
+- launchApp
+- runFlow: flows/business/goto_business.yaml
+- runScript: probe_expense.js
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    text: "Log Expense"
+- extendedWaitUntil:
+    visible: "CATEGORY"
+    timeout: 15000
+- tapOn:
+    point: "58%,27%"
+- eraseText: 30
+- inputText: "45500"
+- tapOn:
+    point: "50%,37%"
+- eraseText: 30
+- inputText: "Expense probe 45500"
+- hideKeyboard
+- runScript: flows/common/when_calc.js
+- scrollUntilVisible:
+    element:
+      text: "^DATE$"
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    point: "77%,70%"
+- runFlow: flows/common/set_date_picker.yaml
+- tapOn:
+    text: "^Add Expense$"
+    index: 1
+    optional: true
+- extendedWaitUntil:
+    notVisible: "CATEGORY"
+    timeout: 20000

@@ -1,0 +1,132 @@
+﻿appId: com.example.momentra
+---
+# Business record creation against the real Business Quick Add surface.
+# There is no family grid and no store/location control on this build, so the
+# seed's "store" column is dropped and the store split cannot be reproduced.
+# The three money-bearing sheets have different field orders, so each branch is
+# keyed on a label unique to that sheet.
+# Every amount field is a formatted currency field pre-filled with a value.
+# The default eraseText does not clear it, which silently corrupted amounts
+# (9800 saved as 809), so the field is explicitly emptied first.
+# The IME shifts the sheet when a field takes focus, so the keyboard is
+# dismissed and the DATE row re-anchored before its tap.
+- runScript: ../common/business_action.js
+- tapOn:
+    id: "bottom.quickadd"
+- tapOn:
+    text: ${output.action}
+
+# --- Log Revenue: SOURCE / AMOUNT / TYPE / CLIENT / DATE / NOTES ---
+- runFlow:
+    when:
+      visible: "SOURCE"
+    commands:
+      - tapOn:
+          point: "50%,37%"
+      - eraseText: 30
+      - inputText: ${AMOUNT}
+      - hideKeyboard
+      - runScript: ../common/when_calc.js
+      - scrollUntilVisible:
+          element:
+            text: "^DATE$"
+          direction: DOWN
+          centerElement: true
+      - tapOn:
+          point: "53%,68%"
+      - runFlow: ../common/set_date_picker.yaml
+      - scrollUntilVisible:
+          element:
+            text: "^NOTES$"
+          direction: DOWN
+          centerElement: true
+      - tapOn:
+          point: "50%,78%"
+      - inputText: ${NOTE}
+      - hideKeyboard
+      - tapOn:
+          text: "^Log Revenue$"
+          index: 1
+          optional: true
+
+# --- Add Expense: AMOUNT / DESCRIPTION / CATEGORY / PAYMENT / PAID BY / DATE ---
+- runFlow:
+    when:
+      visible: "CATEGORY"
+    commands:
+      - tapOn:
+          point: "58%,27%"
+      - eraseText: 30
+      - inputText: ${AMOUNT}
+      - tapOn:
+          point: "50%,37%"
+      - eraseText: 30
+      - inputText: ${TITLE}
+      - hideKeyboard
+      - runScript: ../common/when_calc.js
+      - scrollUntilVisible:
+          element:
+            text: "^DATE$"
+          direction: DOWN
+          centerElement: true
+      - tapOn:
+          point: "77%,70%"
+      - runFlow: ../common/set_date_picker.yaml
+      - tapOn:
+          text: "^Add Expense$"
+          index: 1
+          optional: true
+
+# --- Create Invoice: CLIENT / INVOICE NUMBER / AMOUNT / ISSUE DATE / DUE DATE ---
+- runFlow:
+    when:
+      visible: "INVOICE NUMBER"
+    commands:
+      - tapOn:
+          point: "50%,40%"
+      - eraseText: 30
+      - inputText: ${TITLE}
+      - tapOn:
+          point: "50%,50%"
+      - eraseText: 30
+      - inputText: ${TITLE}
+      - tapOn:
+          point: "50%,61%"
+      - eraseText: 30
+      - inputText: ${AMOUNT}
+      # This sheet does not expose a standard IME dismiss action, so BACK
+      # closes the keyboard (Android consumes it before the sheet).
+      - pressKey: BACK
+      - runScript: ../common/when_calc.js
+      - scrollUntilVisible:
+          element:
+            text: "^ISSUE DATE$"
+          direction: DOWN
+          centerElement: true
+      # Centering puts the ISSUE DATE label mid-screen; its value row sits just
+      # below it. Matching the value by regex alone is ambiguous because DUE
+      # DATE renders the same "Mon D, YYYY" shape.
+      - tapOn:
+          point: "53%,55%"
+      - runFlow: ../common/set_date_picker.yaml
+      # Centering scrolled the submit button out of the sheet.
+      - scrollUntilVisible:
+          element:
+            text: "^Create Invoice$"
+          direction: DOWN
+      - tapOn:
+          text: "^Create Invoice$"
+          index: 1
+          optional: true
+
+# --- Remaining sheets (Tax Entry, Investor Update, Budget Alert, Forecast Update, General Update) ---
+- runFlow:
+    when:
+      visible: "^(Save|Post|Add|Create|Submit|Log)[a-zA-Z ]*$"
+    commands:
+      - tapOn:
+          point: "50%,88%"
+
+- extendedWaitUntil:
+    notVisible: "SOURCE|CATEGORY|INVOICE NUMBER"
+    timeout: 20000

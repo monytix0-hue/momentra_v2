@@ -53,5 +53,5 @@ object PersonalMasterExpenseTheme {
     val reasoningOptions = listOf("Celebration", "Daily Need", "Gift", "Travel", "Other")
 
     val segmentOptions = listOf("Low", "Medium", "High")
-    val whenOptions = listOf("Now", "Today", "Yesterday")
+    val whenOptions = listOf("Now", "Today", "Yesterday", "Custom")
 }

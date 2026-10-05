@@ -1,4 +1,4 @@
-package com.example.momentra.ui.shell.business.teamops.components
+﻿package com.example.momentra.ui.shell.business.teamops.components
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
@@ -43,8 +43,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -104,17 +106,26 @@ val TeamOpsRedAccent = TeamOpsSheetAccent(
     ctaText = Color.White,
 )
 
+// Groups an integer digit string with thousands separators while preserving
+// leading zeros. DecimalFormat via toLongOrNull() used to be used here, but that
+// silently dropped leading zeros, which combined with the caret desync below to
+// reorder digits typed one character at a time.
+private fun teamOpsGroupDigits(intPart: String): String {
+    val out = StringBuilder()
+    for (i in intPart.indices) {
+        val remaining = intPart.length - i
+        if (i > 0 && remaining % 3 == 0) out.append(',')
+        out.append(intPart[i])
+    }
+    return out.toString()
+}
+
 fun teamOpsFormatAmountDisplay(raw: String): String {
     val cleaned = raw.filter { it.isDigit() || it == '.' }
     if (cleaned.isEmpty()) return ""
     val parts = cleaned.split('.', limit = 2)
     val intPart = parts[0].ifEmpty { "0" }
-    val symbols = DecimalFormatSymbols(Locale.US).apply { groupingSeparator = ',' }
-    val formatted = try {
-        DecimalFormat("#,###", symbols).format(intPart.toLongOrNull() ?: 0L)
-    } catch (_: Exception) {
-        intPart
-    }
+    val formatted = teamOpsGroupDigits(intPart)
     return if (parts.size > 1) "$formatted.${parts[1].take(2)}" else formatted
 }
 
@@ -264,20 +275,64 @@ fun TeamOpsAmountField(
     displayValue: String,
     onDisplayChange: (String) -> Unit,
     accent: TeamOpsSheetAccent,
-    placeholder: String = "₹ Enter amount",
+    placeholder: String = "â‚¹ Enter amount",
     modifier: Modifier = Modifier,
 ) {
-    TeamOpsTextField(
-        value = if (displayValue.isEmpty()) "" else "₹ $displayValue",
-        onValueChange = { raw ->
-            val stripped = teamOpsStripAmount(raw.removePrefix("₹").trim())
-            onDisplayChange(teamOpsFormatAmountDisplay(stripped))
-        },
-        placeholder = placeholder,
-        accent = accent,
-        modifier = modifier,
-        keyboardType = KeyboardType.Decimal,
-    )
+    // The rupee sign is rendered as a sibling of the input, never as part of the
+    // editable value. It used to be prepended into the field text, which offset
+    // the caret by two characters on every keystroke and scrambled the amount.
+    // Selection is pinned to the end of the reformatted text because grouping
+    // separators are inserted at arbitrary positions.
+    var fieldState by remember(displayValue) {
+        mutableStateOf(TextFieldValue(displayValue, TextRange(displayValue.length)))
+    }
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(TeamOpsSheetTokens.Field)
+            .border(1.dp, TeamOpsSheetTokens.Border, RoundedCornerShape(12.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        if (displayValue.isEmpty()) {
+            Text(
+                placeholder,
+                color = TeamOpsSheetTokens.Muted.copy(alpha = 0.7f),
+                fontSize = 14.sp,
+                fontFamily = PlusJakartaSans,
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (displayValue.isNotEmpty()) {
+                Text(
+                    "â‚¹ ",
+                    color = TeamOpsSheetTokens.Text,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+            BasicTextField(
+                value = fieldState,
+                onValueChange = { next ->
+                    val formatted = teamOpsFormatAmountDisplay(teamOpsStripAmount(next.text))
+                    fieldState = TextFieldValue(formatted, TextRange(formatted.length))
+                    onDisplayChange(formatted)
+                },
+                singleLine = true,
+                textStyle = TextStyle(
+                    color = TeamOpsSheetTokens.Text,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = PlusJakartaSans,
+                ),
+                cursorBrush = SolidColor(accent.accent),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
 }
 
 @Composable

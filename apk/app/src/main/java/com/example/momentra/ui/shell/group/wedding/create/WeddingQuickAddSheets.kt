@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.wedding.create
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -855,7 +857,6 @@ internal fun WeddingExpenseSheetBody(momentId: String?, repository: GroupSliceRe
             selected.sorted().forEach { id ->
                 val name = weddingExpenseParticipantLabel(
                     participants.firstOrNull { it.participantId == id },
-                    fallbackId = id,
                 )
                 Row(
                     modifier = Modifier
@@ -1183,7 +1184,7 @@ internal fun WeddingContributionSheetBody(
                     participants.forEach { p ->
                         androidx.compose.material3.DropdownMenuItem(
                             text = {
-                                Text(p.displayName?.takeIf { it.isNotBlank() } ?: p.participantId.take(8))
+                                Text(PersonLabel.personName(p.displayName))
                             },
                             onClick = {
                                 selectedParticipantId = p.participantId
@@ -1340,13 +1341,8 @@ private fun normalizeContributionAmount(raw: String): String? {
     return plain
 }
 
-private fun weddingExpenseParticipantLabel(
-    p: GroupParticipantDto?,
-    fallbackId: String? = null,
-): String {
-    val id = p?.participantId ?: fallbackId.orEmpty()
-    val trimmed = p?.displayName?.trim().orEmpty()
-    val base = if (trimmed.isNotEmpty()) trimmed else id.take(8).ifEmpty { "Member" }
+private fun weddingExpenseParticipantLabel(p: GroupParticipantDto?): String {
+    val base = PersonLabel.personName(p?.displayName)
     return if (p?.isGuest == true) "$base · Guest" else base
 }
 
@@ -1699,7 +1695,7 @@ internal fun WeddingPlanningSheetBody(
     }
 
     val people: List<Pair<String, String>> = participants.map {
-        it.participantId to (it.displayName ?: it.participantId.take(8))
+        it.participantId to (PersonLabel.personName(it.displayName))
     }
 
     SheetHeader(
@@ -1853,7 +1849,7 @@ internal fun WeddingAttendanceSheetBody(momentId: String?, repository: GroupSlic
     }
 
     val filtered = participants.filter {
-        val name = it.displayName ?: it.participantId
+        val name = PersonLabel.personName(it.displayName)
         search.isBlank() || name.contains(search, ignoreCase = true)
     }
 
@@ -1896,7 +1892,7 @@ internal fun WeddingAttendanceSheetBody(momentId: String?, repository: GroupSlic
         else -> {
             Text("Select a guest", color = Wq.Muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
             filtered.take(12).forEach { p ->
-                val label = p.displayName ?: p.participantId.take(8)
+                val label = PersonLabel.personName(p.displayName)
                 val selected = selectedId == p.participantId
                 Text(
                     label,

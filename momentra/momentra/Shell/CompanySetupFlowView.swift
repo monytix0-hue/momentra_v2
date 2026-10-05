@@ -144,9 +144,7 @@ struct CompanySetupFlowView: View {
 
     private static func ownerMember() -> (initials: String, name: String, role: String, scope: String, color: Color, you: Bool) {
         let user = Auth.auth().currentUser
-        let emailName = user?.email?.split(separator: "@").first.map(String.init)
-        let raw = user?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let name = (raw?.isEmpty == false ? raw : nil) ?? emailName ?? "You"
+        let name = PersonLabel.personName(user?.displayName, fallback: "You")
         return (String(name.prefix(2)).uppercased(), name, "Owner", "All Locations", Color(hex: "#818CF8"), true)
     }
 

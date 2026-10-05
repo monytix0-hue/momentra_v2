@@ -412,7 +412,7 @@ struct PurchaseMomentsActiveView: View {
             } else {
                 ForEach(Array(positions.prefix(5))) { pos in
                     let name = participants.first(where: { $0.participantId == pos.participantId })?.displayName
-                        ?? String(pos.participantId.prefix(8)) + "…"
+                        ?? PersonLabel.personName(nil)
                     HStack {
                         Text(name)
                             .font(.plusJakarta(size: 13, weight: .semibold))

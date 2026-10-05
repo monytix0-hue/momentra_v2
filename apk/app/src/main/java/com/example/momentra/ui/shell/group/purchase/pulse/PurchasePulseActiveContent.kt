@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.purchase.pulse
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -147,7 +149,7 @@ fun PurchasePulseActiveContent(
     val openTasks = pulse?.openTaskCount ?: 0
     val fundedPercent = PurchasePulseMath.fundedPercent(contributionTotal, budgetTotal)
     val positions = finance?.positions.orEmpty()
-    val nameById = participants.associateBy({ it.participantId }, { it.displayName ?: it.participantId.take(8) })
+    val nameById = participants.associateBy({ it.participantId }, { PersonLabel.personName(it.displayName) })
     val deadlines = planningItems.filter { !it.dueAt.isNullOrBlank() }
 
     ActiveTabScrollScaffold(
@@ -279,9 +281,9 @@ fun PurchasePulseActiveContent(
                             ?: pos.paidTotal.takeIf { it.isNotBlank() && it != "0" }
                         PurchaseCrewRow(
                             theme = theme,
-                            name = pos.displayName?.takeIf { it.isNotBlank() }
-                                ?: nameById[pos.participantId]
-                                ?: pos.participantId.take(8),
+                            name = PersonLabel.accountName(pos.displayName).ifBlank {
+                                PersonLabel.personName(nameById[pos.participantId])
+                            },
                             role = participants.find { it.participantId == pos.participantId }?.roleCode ?: "Member",
                             amountLabel = if (amount != null) {
                                 BalanceMask.mask(GroupFinanceFormat.formatMoney(amount, pos.currencyCode), hideBalances)
@@ -296,7 +298,7 @@ fun PurchasePulseActiveContent(
                     participants.take(8).forEach { p ->
                         PurchaseCrewRow(
                             theme = theme,
-                            name = p.displayName ?: p.participantId.take(8),
+                            name = PersonLabel.personName(p.displayName),
                             role = p.roleCode,
                             amountLabel = "—",
                         )

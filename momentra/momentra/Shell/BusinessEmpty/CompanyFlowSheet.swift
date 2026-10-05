@@ -528,7 +528,7 @@ private struct BusinessSettingsPage: View {
                 } else {
                     ForEach(members) { member in
                         valueRow(
-                            member.displayName?.isEmpty == false ? member.displayName! : member.userId,
+                            PersonLabel.personName(member.displayName),
                             member.membershipType
                         )
                     }
@@ -682,7 +682,7 @@ private struct BusinessSettingsPage: View {
                             Button {
                                 Task { await transferTo(member.userId) }
                             } label: {
-                                Text(member.displayName?.isEmpty == false ? member.displayName! : member.userId)
+                                Text(PersonLabel.personName(member.displayName))
                                     .foregroundStyle(Color(hex: "#818CF8"))
                             }
                             .disabled(managementBusy)

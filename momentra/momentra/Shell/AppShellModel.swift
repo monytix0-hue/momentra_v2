@@ -318,6 +318,26 @@ final class AppShellModel: ObservableObject {
         }
     }
 
+    /// Bootstrap can lag the company the switcher just selected. Keep that company
+    /// in the heal set so the chip stays and Create does not restart company setup.
+    private func retainedBusinessCompanies(
+        bootCompanies: [CompanySummary],
+        heldCompanies: [CompanySummary],
+        selected: CompanySummary?
+    ) -> [CompanySummary] {
+        var pool: [CompanySummary] = []
+        var seen = Set<String>()
+        for company in bootCompanies + heldCompanies {
+            if seen.insert(company.companyId).inserted {
+                pool.append(company)
+            }
+        }
+        if let selected, seen.insert(selected.companyId).inserted {
+            pool.append(selected)
+        }
+        return pool
+    }
+
     private func applyBootstrapInventory(
         _ boot: ShellBootstrap,
         networkRefresh: Bool,
@@ -325,8 +345,13 @@ final class AppShellModel: ObservableObject {
     ) {
         let previousMomentIds = moments.map(\.momentId)
         let previousSelection = selectedMomentId
+        let companyPool = retainedBusinessCompanies(
+            bootCompanies: boot.companies,
+            heldCompanies: companies,
+            selected: selectedCompany
+        )
         identity = boot.identity
-        companies = boot.companies
+        companies = companyPool
         capabilities = boot.capabilities
         var rawMoments: [MomentSummary]
         switch selectedContext {
@@ -385,7 +410,7 @@ final class AppShellModel: ObservableObject {
                     : boot.supportedContexts,
                 selectedContext: selectedContext,
                 selectedCompanyId: selectedCompany?.companyId ?? boot.selectedCompany?.companyId,
-                companies: boot.companies,
+                companies: companyPool,
                 moments: rawMoments,
                 selectedMomentId: preferredMomentId,
                 selectedTabByContext: tabByContext,
@@ -396,7 +421,7 @@ final class AppShellModel: ObservableObject {
             ? [.personal, .group, .business, .circle]
             : boot.supportedContexts
         selectedContext = healed.selectedContext
-        selectedCompany = boot.companies.first { $0.companyId == healed.selectedCompanyId }
+        selectedCompany = companyPool.first { $0.companyId == healed.selectedCompanyId }
         let previousById = Dictionary(uniqueKeysWithValues: moments.map { ($0.momentId, $0) })
         // Preserve known type codes when bootstrap omits them (legacy group inventory).
         moments = healed.moments.map { m in

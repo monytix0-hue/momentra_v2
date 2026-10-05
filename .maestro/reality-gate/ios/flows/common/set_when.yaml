@@ -1,0 +1,20 @@
+appId: resolvingpoint.momentra
+---
+# Central date hook. If your build uses a native calendar instead of an editable field,
+# record that interaction once in Maestro Studio and replace ONLY this file.
+- runFlow:
+    when:
+      visible: "When"
+    commands:
+      - tapOn: "When"
+      - runFlow:
+          when:
+            visible: "Date"
+          commands:
+            - tapOn: "Date"
+            - eraseText
+            - inputText: ${RECORD_DATE}
+            - hideKeyboard
+      - tapOn:
+          text: "Done|OK|Apply|Save"
+          optional: true

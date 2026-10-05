@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.shared
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -492,7 +494,7 @@ internal fun TripPaidByField(
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             participants.forEach { p ->
                 DropdownMenuItem(
-                    text = { Text(p.displayName ?: p.participantId.take(8), fontFamily = PlusJakartaSans) },
+                    text = { Text(PersonLabel.personName(p.displayName), fontFamily = PlusJakartaSans) },
                     onClick = {
                         onSelect(p.participantId)
                         expanded = false
@@ -687,7 +689,7 @@ internal fun TripParticipantPicker(
     ) {
         participants.forEachIndexed { index, p ->
             val on = selectedIds.contains(p.participantId)
-            val name = p.displayName ?: p.participantId.take(8)
+            val name = PersonLabel.personName(p.displayName)
             val color = TripFormTokens.AvatarColors[index % TripFormTokens.AvatarColors.size]
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,

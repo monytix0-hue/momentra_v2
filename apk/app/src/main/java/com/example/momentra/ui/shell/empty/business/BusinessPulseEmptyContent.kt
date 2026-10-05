@@ -102,7 +102,7 @@ private fun ZeroMetricBar(label: String) {
         ) {
             Text(label, color = BusinessEmptyTokens.TextSecondary, fontSize = 11.sp)
             Text(
-                text = "0",
+                text = BusinessNoMomentEmptyCopy.ABSENT,
                 color = BusinessEmptyTokens.Accent,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,

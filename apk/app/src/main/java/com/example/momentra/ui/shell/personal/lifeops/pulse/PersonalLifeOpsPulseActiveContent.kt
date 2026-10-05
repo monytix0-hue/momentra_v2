@@ -64,6 +64,7 @@ import com.example.momentra.ui.shell.personal.shared.RelationshipsQuickAddKind
 import com.example.momentra.ui.shell.personal.shared.PersonalActivityTimelineDerived
 import com.example.momentra.ui.shell.personal.shared.loadPersonalPulseTab
 import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
+import com.example.momentra.ui.shell.personal.shared.visibleNudge
 import com.example.momentra.ui.shell.personal.shared.PersonalTabDataCache
 import com.example.momentra.ui.shell.personal.shared.MomentCardModel
 import com.example.momentra.ui.shell.personal.shared.heroBrush
@@ -425,33 +426,37 @@ fun PersonalLifeOpsPulseActiveContent(
             }
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(theme.heroBrush())
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(theme.nudgeTitle, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
-            Text(theme.nudgeBody, color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, fontFamily = PlusJakartaSans)
-            Box(
+        family.visibleNudge(todayLogCount)?.let { nudge ->
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color.White)
-                    .clickable(enabled = momentId != null) {
-                        when (family) {
-                            PersonalPulseFamily.LIFE_OPERATIONS -> onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY)
-                            PersonalPulseFamily.FUTURE_BUILDING -> onFutureQuickAdd(FutureQuickAddKind.MILESTONE)
-                            PersonalPulseFamily.LIFESTYLE -> onLifestyleQuickAdd(LifestyleQuickAddKind.EXPERIENCE)
-                            PersonalPulseFamily.RELATIONSHIPS -> onRelationshipsQuickAdd(RelationshipsQuickAddKind.CONNECTION)
-                        }
-                    }
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center,
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(theme.heroBrush())
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(theme.nudgeCta, color = Color(0xFF1A1726), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+                Text(nudge.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+                nudge.body?.let { body ->
+                    Text(body, color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, fontFamily = PlusJakartaSans)
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.White)
+                        .clickable(enabled = momentId != null) {
+                            when (family) {
+                                PersonalPulseFamily.LIFE_OPERATIONS -> onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY)
+                                PersonalPulseFamily.FUTURE_BUILDING -> onFutureQuickAdd(FutureQuickAddKind.MILESTONE)
+                                PersonalPulseFamily.LIFESTYLE -> onLifestyleQuickAdd(LifestyleQuickAddKind.EXPERIENCE)
+                                PersonalPulseFamily.RELATIONSHIPS -> onRelationshipsQuickAdd(RelationshipsQuickAddKind.CONNECTION)
+                            }
+                        }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(nudge.cta, color = Color(0xFF1A1726), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlusJakartaSans)
+                }
             }
         }
 

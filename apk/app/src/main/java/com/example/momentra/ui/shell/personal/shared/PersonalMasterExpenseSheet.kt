@@ -21,11 +21,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -97,6 +101,8 @@ fun PersonalMasterExpenseSheet(
     var selectedAccountId by remember { mutableStateOf<String?>(null) }
     var showAccountPicker by remember { mutableStateOf(false) }
     var showWhenMenu by remember { mutableStateOf(false) }
+    var customWhenEpochMillis by remember { mutableStateOf<Long?>(null) }
+    var showCustomWhenPicker by remember { mutableStateOf(false) }
     var paymentMethod by remember { mutableStateOf("CASH") }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -365,7 +371,7 @@ fun PersonalMasterExpenseSheet(
             Box {
                 MeRowCard(
                     icon = PersonalMasterExpenseIcons.Chrome.Calendar.vector,
-                    label = formatWhenLabel(whenCode),
+                    label = formatWhenLabel(whenCode, customWhenEpochMillis),
                     onChange = { showWhenMenu = true },
                 )
                 DropdownMenu(
@@ -378,8 +384,30 @@ fun PersonalMasterExpenseSheet(
                             onClick = {
                                 whenCode = opt
                                 showWhenMenu = false
+                                if (opt == "Custom") showCustomWhenPicker = true
                             },
                         )
+                    }
+                }
+                if (showCustomWhenPicker) {
+                    val customDateState = rememberDatePickerState(
+                        initialSelectedDateMillis = customWhenEpochMillis ?: System.currentTimeMillis(),
+                    )
+                    DatePickerDialog(
+                        onDismissRequest = { showCustomWhenPicker = false },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    customWhenEpochMillis = customDateState.selectedDateMillis
+                                    showCustomWhenPicker = false
+                                },
+                            ) { Text("Set") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showCustomWhenPicker = false }) { Text("Cancel") }
+                        },
+                    ) {
+                        DatePicker(state = customDateState)
                     }
                 }
             }
@@ -505,7 +533,7 @@ fun PersonalMasterExpenseSheet(
                                     categoryCode = categoryCode,
                                     financialAccountId = selectedAccountId,
                                     paymentMethodCode = paymentMethod,
-                                    effectiveAt = effectiveAtFromWhen(whenCode),
+                                    effectiveAt = effectiveAtFromWhen(whenCode, customWhenEpochMillis),
                                     asDraft = true,
                                 ).fold(
                                     onSuccess = {
@@ -564,7 +592,7 @@ fun PersonalMasterExpenseSheet(
                                     subcategoryCode = subcategoryCode,
                                     financialAccountId = selectedAccountId,
                                     paymentMethodCode = paymentMethod,
-                                    effectiveAt = effectiveAtFromWhen(whenCode),
+                                    effectiveAt = effectiveAtFromWhen(whenCode, customWhenEpochMillis),
                                     asDraft = false,
                                     sharedExperienceCode = sharedExperienceCode,
                                     sharedExperienceLabel = sharedExperienceLabel
@@ -1099,18 +1127,25 @@ private fun MeSegmentControl(
     }
 }
 
-private fun formatWhenLabel(whenCode: String): String {
+private fun formatWhenLabel(whenCode: String, customEpochMillis: Long? = null): String {
     val time = LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"))
     return when (whenCode) {
         "Yesterday" -> "Yesterday $time"
         "Today" -> "Today $time"
+        "Custom" -> customEpochMillis?.let {
+            java.time.Instant.ofEpochMilli(it)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDate()
+                .format(DateTimeFormatter.ofPattern("d MMM yyyy"))
+        } ?: "Pick a date"
         else -> "Now"
     }
 }
 
-private fun effectiveAtFromWhen(whenCode: String): String? = when (whenCode) {
+private fun effectiveAtFromWhen(whenCode: String, customEpochMillis: Long? = null): String? = when (whenCode) {
     "Yesterday" -> java.time.Instant.now().minus(java.time.Duration.ofDays(1)).toString()
     "Today", "Now" -> java.time.Instant.now().toString()
+    "Custom" -> customEpochMillis?.let { java.time.Instant.ofEpochMilli(it).toString() }
     else -> null
 }
 

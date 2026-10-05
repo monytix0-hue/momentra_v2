@@ -1,4 +1,4 @@
-package com.example.momentra.ui.shell.business.ops.components
+﻿package com.example.momentra.ui.shell.business.ops.components
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
@@ -40,8 +40,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,17 +72,26 @@ object OpsSheetTokens {
     val CloseBg = Color(0xFF252230)
 }
 
+// Groups an integer digit string with thousands separators while preserving
+// leading zeros. DecimalFormat via toLongOrNull() used to be used here, but that
+// silently dropped leading zeros, which combined with the caret desync below to
+// reorder digits typed one character at a time (6800 became 15).
+private fun opsGroupDigits(intPart: String): String {
+    val out = StringBuilder()
+    for (i in intPart.indices) {
+        val remaining = intPart.length - i
+        if (i > 0 && remaining % 3 == 0) out.append(',')
+        out.append(intPart[i])
+    }
+    return out.toString()
+}
+
 fun opsFormatAmountDisplay(raw: String): String {
     val cleaned = raw.filter { it.isDigit() || it == '.' }
     if (cleaned.isEmpty()) return ""
     val parts = cleaned.split('.', limit = 2)
     val intPart = parts[0].ifEmpty { "0" }
-    val symbols = DecimalFormatSymbols(Locale.US).apply { groupingSeparator = ',' }
-    val formatted = try {
-        DecimalFormat("#,###", symbols).format(intPart.toLongOrNull() ?: 0L)
-    } catch (_: Exception) {
-        intPart
-    }
+    val formatted = opsGroupDigits(intPart)
     return if (parts.size > 1) "$formatted.${parts[1].take(2)}" else formatted
 }
 
@@ -222,19 +233,64 @@ fun OpsTextField(
 fun OpsAmountField(
     displayValue: String,
     onDisplayChange: (String) -> Unit,
-    placeholder: String = "₹ Enter amount",
+    placeholder: String = "â‚¹ Enter amount",
     modifier: Modifier = Modifier,
 ) {
-    OpsTextField(
-        value = if (displayValue.isEmpty()) "" else "₹ $displayValue",
-        onValueChange = { raw ->
-            val stripped = opsStripAmount(raw.removePrefix("₹").trim())
-            onDisplayChange(opsFormatAmountDisplay(stripped))
-        },
-        placeholder = placeholder,
-        modifier = modifier,
-        keyboardType = KeyboardType.Decimal,
-    )
+    // The rupee sign is rendered as a sibling of the input, never as part of the
+    // editable value. It used to be prepended into the field text, which offset
+    // the caret by two characters on every keystroke and scrambled the amount.
+    // Selection is pinned to the end of the reformatted text because grouping
+    // separators are inserted at arbitrary positions.
+    var fieldState by remember(displayValue) {
+        mutableStateOf(TextFieldValue(displayValue, TextRange(displayValue.length)))
+    }
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(OpsSheetTokens.Field)
+            .border(1.dp, OpsSheetTokens.Border, RoundedCornerShape(12.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        if (displayValue.isEmpty()) {
+            Text(
+                placeholder,
+                color = OpsSheetTokens.Muted.copy(alpha = 0.7f),
+                fontSize = 14.sp,
+                fontFamily = PlusJakartaSans,
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (displayValue.isNotEmpty()) {
+                Text(
+                    "â‚¹ ",
+                    color = OpsSheetTokens.Text,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+            BasicTextField(
+                value = fieldState,
+                onValueChange = { next ->
+                    val formatted = opsFormatAmountDisplay(opsStripAmount(next.text))
+                    fieldState = TextFieldValue(formatted, TextRange(formatted.length))
+                    onDisplayChange(formatted)
+                },
+                singleLine = true,
+                textStyle = TextStyle(
+                    color = OpsSheetTokens.Text,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = PlusJakartaSans,
+                ),
+                cursorBrush = SolidColor(OpsSheetTokens.Accent),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
 }
 
 @Composable

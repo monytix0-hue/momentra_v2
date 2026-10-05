@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.wedding.memory
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -130,7 +132,7 @@ fun WeddingMemoryActiveContent(
     val utilization = GroupFinanceFormat.utilizationPercent(total?.expenseTotal, total?.budgetTotal)
     val positions = finance?.positions.orEmpty()
     val nameById = remember(participants) {
-        participants.associate { it.participantId to (it.displayName ?: it.participantId.take(8)) }
+        participants.associate { it.participantId to (PersonLabel.personName(it.displayName)) }
     }
 
     WeddingFadeIn {
@@ -222,7 +224,7 @@ fun WeddingMemoryActiveContent(
                 } else {
                     positions.take(3).forEach { pos ->
                         Text(
-                            "${nameById[pos.participantId] ?: pos.participantId.take(8)} · ${BalanceMask.mask(GroupFinanceFormat.formatMoney(pos.netPosition, pos.currencyCode), hide)}",
+                            "${PersonLabel.personName(nameById[pos.participantId])} · ${BalanceMask.mask(GroupFinanceFormat.formatMoney(pos.netPosition, pos.currencyCode), hide)}",
                             color = WeddingActiveTheme.Secondary,
                             fontSize = 12.sp,
                             fontFamily = PlusJakartaSans,

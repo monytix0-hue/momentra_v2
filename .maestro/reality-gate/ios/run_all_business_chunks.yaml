@@ -1,0 +1,33 @@
+appId: resolvingpoint.momentra
+name: Run all Business chunks
+---
+- runFlow: business_chunk_01.yaml
+- runFlow: business_chunk_02.yaml
+- runFlow: business_chunk_03.yaml
+- runFlow: business_chunk_04.yaml
+- runFlow: business_chunk_05.yaml
+- runFlow: business_chunk_06.yaml
+- runFlow: business_chunk_07.yaml
+- runFlow: business_chunk_08.yaml
+- runFlow: business_chunk_09.yaml
+- runFlow: business_chunk_10.yaml
+- runFlow: business_chunk_11.yaml
+- runFlow: business_chunk_12.yaml
+- runFlow: business_chunk_13.yaml
+- runFlow: business_chunk_14.yaml
+- runFlow: business_chunk_15.yaml
+- runFlow: business_chunk_16.yaml
+- runFlow: business_chunk_17.yaml
+- runFlow: business_chunk_18.yaml
+- runFlow: business_chunk_19.yaml
+- runFlow: business_chunk_20.yaml
+- runFlow: business_chunk_21.yaml
+- runFlow: business_chunk_22.yaml
+- runFlow: business_chunk_23.yaml
+- runFlow: business_chunk_24.yaml
+- runFlow: business_chunk_25.yaml
+- runFlow: business_chunk_26.yaml
+- runFlow: business_chunk_27.yaml
+- runFlow: business_chunk_28.yaml
+- runFlow: business_chunk_29.yaml
+- runFlow: business_chunk_30.yaml

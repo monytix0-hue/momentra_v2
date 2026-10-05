@@ -322,7 +322,8 @@ private fun RecentBlock(
                         .padding(12.dp),
                 ) {
                     Text(card.title, color = theme.text, fontSize = 14.sp, fontFamily = PlusJakartaSans)
-                    val detail = listOfNotNull(card.amountLabel, card.occurredAt).joinToString(" · ")
+                    val whenLabel = formatBusinessPulseOccurredAt(card.occurredAt).ifBlank { null }
+                    val detail = listOfNotNull(card.amountLabel, whenLabel).joinToString(" · ")
                     if (detail.isNotBlank()) {
                         Text(detail, color = theme.muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
                     }

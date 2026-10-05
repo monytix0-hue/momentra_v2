@@ -30,11 +30,7 @@ fun BusinessMomentsEmptyContent(
     onStartCta: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val timeline = listOf(
-        "You bought supplies" to "Today, 10:42 AM",
-        "A customer paid" to "Oct 14, 2024",
-        "You saved a receipt" to "Sep 01, 2024",
-    )
+    val timeline = BusinessNoMomentEmptyCopy.momentsSampleRows
     val chips = listOf("Purchases", "Expenses", "Receipts", "Activity")
 
     BusinessEmptyScrollColumn(modifier = modifier) {
@@ -44,7 +40,7 @@ fun BusinessMomentsEmptyContent(
             body = "Keep purchases, expenses, receipts and important activity together.",
         )
 
-        Column(
+        if (timeline.isNotEmpty()) Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))

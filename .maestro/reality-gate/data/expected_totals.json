@@ -1,0 +1,25 @@
+{
+  "personalRecordCount": 100,
+  "personalByFamily": {
+    "Everyday": 40,
+    "Future": 20,
+    "Lifestyle": 22,
+    "People": 18
+  },
+  "personalSpendTotal": 112481,
+  "businessRecordCount": 300,
+  "businessByFamily": {
+    "Money": 100,
+    "Daily": 100,
+    "Team": 100
+  },
+  "businessByStore": {
+    "Main Store": 113,
+    "North Store": 95,
+    "South Store": 92
+  },
+  "businessRevenueTotalRule": "Revenue + CashSale; invoice creation excluded; Khata collections excluded from this fixture total",
+  "businessRevenueTotal": 712500,
+  "businessExpenseTotal": 449700,
+  "cashSaleTotal": 19500
+}

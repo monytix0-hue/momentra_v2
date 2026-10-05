@@ -54,7 +54,7 @@ extension PersonalPulseFamily {
                 tileLabels: ["Pressure", "Recovery", "Discipline", "Attention"],
                 todayActionLabels: ["Spend", "Mood", "Recovery"],
                 nudgeTitle: "A small win today",
-                nudgeBody: "You've been busy — rest for a bit before the next stretch.",
+                nudgeBody: "Log recovery if you want it on today's record.",
                 nudgeCta: "Log Recovery",
                 moneyTitle: "This month's money",
                 moneyCompactTitle: "This month",
@@ -136,6 +136,27 @@ extension PersonalPulseFamily {
         case .lifestyle: return "Lifestyle"
         case .relationships: return "People"
         }
+    }
+}
+
+struct VisiblePulseNudge: Equatable {
+    let title: String
+    let body: String?
+    let cta: String
+}
+
+extension PersonalPulseFamily {
+    /// Everyday nudge is omitted until today has a log, and never claims the person has been busy.
+    /// Other families keep their instruction copy.
+    func visibleNudge(todayLogCount: Int) -> VisiblePulseNudge? {
+        if self == .lifeOperations && todayLogCount <= 0 { return nil }
+        let body: String? = {
+            if self == .lifeOperations && theme.nudgeBody.localizedCaseInsensitiveContains("busy") {
+                return nil
+            }
+            return theme.nudgeBody
+        }()
+        return VisiblePulseNudge(title: theme.nudgeTitle, body: body, cta: theme.nudgeCta)
     }
 }
 

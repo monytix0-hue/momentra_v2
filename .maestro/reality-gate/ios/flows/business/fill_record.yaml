@@ -1,0 +1,95 @@
+appId: resolvingpoint.momentra
+---
+# Generic title/description inputs
+- runFlow:
+    when:
+      visible: "Title"
+    commands:
+      - tapOn: "Title"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "What happened?"
+    commands:
+      - tapOn: "What happened?"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "Description"
+    commands:
+      - tapOn: "Description"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "Invoice number"
+    commands:
+      - tapOn: "Invoice number"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "Customer"
+    commands:
+      - tapOn: "Customer"
+      - inputText: ${TITLE}
+- runFlow:
+    when:
+      visible: "Vendor"
+    commands:
+      - tapOn: "Vendor"
+      - inputText: ${TITLE}
+
+# Amount
+- runFlow:
+    when:
+      true: ${AMOUNT != ""}
+    commands:
+      - tapOn:
+          text: "Amount|Revenue|Expense amount|Spend"
+          optional: true
+      - eraseText
+      - inputText: ${AMOUNT}
+
+# Store/location if exposed
+- runFlow:
+    when:
+      visible: "Location"
+    commands:
+      - tapOn: "Location"
+      - tapOn:
+          text: ${STORE}
+          optional: true
+
+# Status if exposed
+- runFlow:
+    when:
+      true: ${STATUS != ""}
+    commands:
+      - tapOn:
+          text: ${STATUS}
+          optional: true
+
+# Common defaults
+- tapOn:
+    text: "Cash|Bank|UPI"
+    optional: true
+- tapOn:
+    text: "General|Other"
+    optional: true
+- tapOn:
+    text: "Pending|Open"
+    optional: true
+
+- runFlow:
+    when:
+      visible: "Notes"
+    commands:
+      - tapOn: "Notes"
+      - inputText: ${NOTE}
+
+- runFlow:
+    file: ../common/set_when.yaml
+    env:
+      RECORD_DATE: ${RECORD_DATE}
+
+- tapOn:
+    text: "Save|Add|Log|Record|Create"

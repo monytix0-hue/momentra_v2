@@ -33,20 +33,20 @@ type Tab =
   | 'businessSetups'
   | 'groupExperiences';
 
-const TABS: { id: Tab; label: string; ico: string }[] = [
-  { id: 'founder', label: 'Founder', ico: '🎯' },
-  { id: 'product', label: 'Product', ico: '🛠️' },
-  { id: 'vc', label: 'VC', ico: '📈' },
-  { id: 'overview', label: 'Playground', ico: '✨' },
-  { id: 'setups', label: 'Personal setups', ico: '🧭' },
-  { id: 'businessSetups', label: 'Business setups', ico: '💼' },
-  { id: 'groupExperiences', label: 'Group Experiences', ico: '🧡' },
-  { id: 'users', label: 'People', ico: '👋' },
-  { id: 'screens', label: 'Screen time', ico: '⏱️' },
-  { id: 'stuck', label: 'Stuck spots', ico: '🧊' },
-  { id: 'widgets', label: 'Hot taps', ico: '👆' },
-  { id: 'events', label: 'Live feed', ico: '📡' },
-  { id: 'sessions', label: 'Sessions', ico: '🚀' },
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'founder', label: 'Founder' },
+  { id: 'product', label: 'Product' },
+  { id: 'vc', label: 'VC' },
+  { id: 'overview', label: 'Playground' },
+  { id: 'setups', label: 'Personal setups' },
+  { id: 'businessSetups', label: 'Business setups' },
+  { id: 'groupExperiences', label: 'Group Experiences' },
+  { id: 'users', label: 'People' },
+  { id: 'screens', label: 'Screen time' },
+  { id: 'stuck', label: 'Stuck spots' },
+  { id: 'widgets', label: 'Hot taps' },
+  { id: 'events', label: 'Live feed' },
+  { id: 'sessions', label: 'Sessions' },
 ];
 
 let activeTab: Tab = 'founder';
@@ -190,30 +190,6 @@ function userDisplay(
   return wrap;
 }
 
-function sprayConfetti(): void {
-  const layer = el('div', 'confetti');
-  document.body.appendChild(layer);
-  const colors = ['#ff7a1a', '#2dd4bf', '#38bdf8', '#a3e635', '#fb7185', '#ffb347'];
-  for (let i = 0; i < 42; i++) {
-    const piece = document.createElement('i');
-    piece.style.left = `${Math.random() * 100}%`;
-    piece.style.background = colors[i % colors.length];
-    piece.style.animationDelay = `${Math.random() * 0.4}s`;
-    piece.style.animationDuration = `${1.1 + Math.random() * 0.8}s`;
-    layer.appendChild(piece);
-  }
-  window.setTimeout(() => layer.remove(), 2200);
-}
-
-function ensureAmbient(root: HTMLElement): void {
-  if (document.querySelector('.ambient')) return;
-  const ambient = el('div', 'ambient');
-  ambient.appendChild(el('div', 'orb a'));
-  ambient.appendChild(el('div', 'orb b'));
-  ambient.appendChild(el('div', 'orb c'));
-  root.prepend(ambient);
-}
-
 function barChart(
   items: { label: string; value: number }[],
   opts?: { fillClass?: string; onClick?: (label: string) => void }
@@ -249,19 +225,14 @@ function goTab(tab: Tab, root: HTMLElement): void {
 
 function renderApp(root: HTMLElement): void {
   root.innerHTML = '';
-  ensureAmbient(root);
   const layout = el('div', 'layout');
 
   const sidebar = el('aside', 'sidebar');
-  const brand = el('div', 'brand');
-  brand.innerHTML = 'momentra <span>lean</span>';
+  const brand = el('div', 'brand', 'momentra');
   sidebar.appendChild(brand);
-  sidebar.appendChild(el('div', 'brand-tag', 'Phase 13 · telemetry'));
 
   for (const tab of TABS) {
-    const btn = el('button', `nav-btn${activeTab === tab.id ? ' active' : ''}`);
-    btn.appendChild(el('span', 'nav-ico', tab.ico));
-    btn.appendChild(document.createTextNode(tab.label));
+    const btn = el('button', `nav-btn${activeTab === tab.id ? ' active' : ''}`, tab.label);
     btn.onclick = () => goTab(tab.id, root);
     sidebar.appendChild(btn);
   }
@@ -328,11 +299,12 @@ async function loadTab(main: HTMLElement, root: HTMLElement): Promise<void> {
     }
   } catch (e) {
     content.innerHTML = '';
-    errBox.textContent = e instanceof Error ? e.message : 'Failed to load';
+    errBox.textContent = !getApiKey()
+      ? 'Set VITE_ADMIN_API_KEY in admin-dashboard/.env to the same value as ADMIN_API_KEY.'
+      : e instanceof Error
+        ? e.message
+        : 'Failed to load';
     errBox.style.display = 'block';
-    if (!getApiKey()) {
-      errBox.textContent = 'Set VITE_ADMIN_API_KEY in admin-dashboard/.env to the same value as ADMIN_API_KEY.';
-    }
   }
 }
 
@@ -463,7 +435,6 @@ async function renderFounder(parent: HTMLElement, _root: HTMLElement): Promise<v
     refreshBtn.textContent = 'Refreshing…';
     try {
       await api.leanRefresh();
-      sprayConfetti();
       await load();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Refresh failed');

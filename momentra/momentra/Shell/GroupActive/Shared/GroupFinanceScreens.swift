@@ -325,7 +325,7 @@ struct GroupFinanceDetailView: View {
 
     private var positionsSection: some View {
         let positions = finance?.positions ?? []
-        let nameById = Dictionary(uniqueKeysWithValues: participants.map { ($0.participantId, $0.displayName ?? String($0.participantId.prefix(8))) })
+        let nameById = Dictionary(uniqueKeysWithValues: participants.map { ($0.participantId, PersonLabel.personName($0.displayName)) })
         let grouped = GroupFinanceFormat.groupPositionsByParticipant(positions)
         return VStack(alignment: .leading, spacing: 10) {
             Text("👥 Participant Positions")
@@ -337,7 +337,7 @@ struct GroupFinanceDetailView: View {
                     .foregroundStyle(chrome.secondary)
             } else {
                 ForEach(grouped, id: \.0) { participantId, rows in
-                    let name = nameById[participantId] ?? String(participantId.prefix(8))
+                    let name = PersonLabel.personName(nameById[participantId])
                     positionCard(name: name, rows: rows)
                 }
             }
@@ -602,7 +602,7 @@ struct GroupExpenseSplitsView: View {
 
     private var whoOwes: some View {
         let positions = finance?.positions ?? []
-        let nameById = Dictionary(uniqueKeysWithValues: participants.map { ($0.participantId, $0.displayName ?? String($0.participantId.prefix(8))) })
+        let nameById = Dictionary(uniqueKeysWithValues: participants.map { ($0.participantId, PersonLabel.personName($0.displayName)) })
         return VStack(alignment: .leading, spacing: 10) {
             Text("🤝 Who Owes Whom")
                 .font(.plusJakarta(size: 16, weight: .heavy))
@@ -611,7 +611,7 @@ struct GroupExpenseSplitsView: View {
                 .font(.plusJakarta(size: 11))
                 .foregroundStyle(chrome.secondary)
             ForEach(positions.filter { abs(GroupFinanceFormat.parseAmount($0.netPosition)) > 0 }) { pos in
-                let name = nameById[pos.participantId] ?? String(pos.participantId.prefix(8))
+                let name = PersonLabel.personName(nameById[pos.participantId])
                 let net = GroupFinanceFormat.parseAmount(pos.netPosition)
                 let owes = net < 0
                 HStack(spacing: 12) {
@@ -644,7 +644,7 @@ struct GroupExpenseSplitsView: View {
 
     private var breakdown: some View {
         let positions = finance?.positions ?? []
-        let nameById = Dictionary(uniqueKeysWithValues: participants.map { ($0.participantId, $0.displayName ?? String($0.participantId.prefix(8))) })
+        let nameById = Dictionary(uniqueKeysWithValues: participants.map { ($0.participantId, PersonLabel.personName($0.displayName)) })
         return VStack(alignment: .leading, spacing: 10) {
             Text("📊 Expense Breakdown")
                 .font(.plusJakarta(size: 16, weight: .heavy))
@@ -653,7 +653,7 @@ struct GroupExpenseSplitsView: View {
                 .font(.plusJakarta(size: 11))
                 .foregroundStyle(chrome.secondary)
             ForEach(GroupFinanceFormat.groupPositionsByParticipant(positions), id: \.0) { participantId, rows in
-                let name = nameById[participantId] ?? String(participantId.prefix(8))
+                let name = PersonLabel.personName(nameById[participantId])
                 ForEach(rows) { pos in
                     let net = GroupFinanceFormat.parseAmount(pos.netPosition)
                     let positive = net >= 0

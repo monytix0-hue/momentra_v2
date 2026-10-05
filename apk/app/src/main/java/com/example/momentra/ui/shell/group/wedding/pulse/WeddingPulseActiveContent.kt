@@ -1,5 +1,7 @@
 package com.example.momentra.ui.shell.group.wedding.pulse
 
+import com.example.momentra.ui.shell.shared.PersonLabel
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -362,7 +364,7 @@ fun WeddingPulseActiveContent(
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             Text(
-                                pos.displayName?.takeIf { it.isNotBlank() } ?: pos.participantId.take(8),
+                                PersonLabel.personName(pos.displayName),
                                 color = WeddingActiveTheme.Text,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,

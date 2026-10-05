@@ -562,7 +562,7 @@ struct GroupCollabSheet: View {
                     TripFieldLabel(text: "Booked By")
                     Menu {
                         ForEach(participants, id: \.participantId) { p in
-                            Button(p.displayName ?? String(p.participantId.prefix(8))) {
+                            Button(PersonLabel.personName(p.displayName)) {
                                 bookedById = p.participantId
                             }
                         }
@@ -605,7 +605,7 @@ struct GroupCollabSheet: View {
                     TripFieldLabel(text: "Paid By")
                     Menu {
                         ForEach(participants, id: \.participantId) { p in
-                            Button(p.displayName ?? String(p.participantId.prefix(8))) {
+                            Button(PersonLabel.personName(p.displayName)) {
                                 paidById = p.participantId
                             }
                         }
@@ -696,7 +696,7 @@ struct GroupCollabSheet: View {
                     VStack(alignment: .leading, spacing: 6) {
                         TripFieldLabel(text: splitStrategy == "PERCENTAGE" ? "Percent (must sum to 100)" : "Exact amount per person")
                         ForEach(Array(splitIds).sorted(), id: \.self) { id in
-                            let name = participants.first(where: { $0.participantId == id })?.displayName ?? String(id.prefix(8))
+                            let name = PersonLabel.personName(participants.first(where: { $0.participantId == id })?.displayName)
                             HStack {
                                 Text(name)
                                     .font(.plusJakarta(size: 12))

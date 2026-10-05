@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "personal": {
+    "everydayCount": 40,
+    "futureCount": 20,
+    "lifestyleCount": 22,
+    "peopleCount": 18,
+    "totalRecords": 100,
+    "everydaySpendTotal": 99311,
+    "everydayIncomeTotal": 265000,
+    "everydaySavingsTotal": 35000,
+    "everydayTransferTotal": 25000,
+    "lifestyleSpendTotal": 31910,
+    "peopleCareTotal": 1500
+  },
+  "business": {
+    "moneyRecordsCount": 100,
+    "dailyRecordsCount": 100,
+    "teamRecordsCount": 100,
+    "totalRecords": 300,
+    "revenueTotal": 839301,
+    "expenseTotal": 415303,
+    "openInvoicesCount": 6,
+    "paidInvoicesCount": 9,
+    "storeDistribution": {
+      "mainStorePercent": 0.45,
+      "northStorePercent": 0.30,
+      "southStorePercent": 0.25
+    }
+  }
+}
