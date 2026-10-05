@@ -18,7 +18,7 @@ import java.util.Calendar
 object PersonalEveningNudgeScheduler {
     const val CHANNEL_ID = "personal_evening_nudge"
     const val NOTIFICATION_ID = 4201
-    const val ACTION_FIRE = "com.example.momentra.PERSONAL_EVENING_NUDGE"
+    const val ACTION_FIRE = "resolvingpoint.momentra.PERSONAL_EVENING_NUDGE"
     const val EXTRA_OPEN_PERSONAL_PULSE = "open_personal_pulse"
 
     fun sync(context: Context, enabled: Boolean) {

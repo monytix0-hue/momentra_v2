@@ -55,8 +55,15 @@ def require_internal_auth(
     x_momentra_internal_key: Optional[str] = Header(default=None, alias="X-Momentra-Internal-Key"),
 ) -> None:
     expected = os.environ.get("MOMENTRA_AI_INTERNAL_KEY", "").strip()
+    env = (os.environ.get("MOMENTRA_ENV") or os.environ.get("NODE_ENV") or "development").strip().lower()
+    production_like = env in ("production", "prod", "staging")
     if not expected:
-        # Dev-open when unset; production must set the key.
+        # Fail closed in production/staging. Local/dev may omit the key.
+        if production_like:
+            raise HTTPException(
+                status_code=503,
+                detail="Compute plane misconfigured: MOMENTRA_AI_INTERNAL_KEY is required",
+            )
         return
     if not x_momentra_internal_key or x_momentra_internal_key != expected:
         raise HTTPException(status_code=401, detail="Unauthorized compute plane")

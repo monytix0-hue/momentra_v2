@@ -29,7 +29,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.momentra"
+        applicationId = "resolvingpoint.momentra"
         minSdk = 24
         targetSdk = 36
         versionCode = 2
@@ -43,7 +43,7 @@ android {
     }
 
     // Shared debug keystore so Google Sign-In SHA fingerprints stay stable across machines
-    // (default ~/.android/debug.keystore SHA collides on package com.example.momentra).
+    // (default ~/.android/debug.keystore SHA collides on package resolvingpoint.momentra).
     signingConfigs {
         create("momentraDebug") {
             storeFile = rootProject.file("keystore/momentra-debug.jks")

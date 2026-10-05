@@ -62,7 +62,7 @@
             android:name=".ui.shell.personal.shared.PersonalEveningNudgeReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.example.momentra.PERSONAL_EVENING_NUDGE" />
+                <action android:name="resolvingpoint.momentra.PERSONAL_EVENING_NUDGE" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

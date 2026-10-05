@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:315259659778:android:1e5714d69fcbc5be88291b",
         "android_client_info": {
-          "package_name": "com.example.momentra"
+          "package_name": "resolvingpoint.momentra"
         }
       },
       "oauth_client": [
@@ -17,7 +17,7 @@
           "client_id": "315259659778-563a9jlb9v8htqkk7vo4s4stpuk1e7v9.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.momentra",
+            "package_name": "resolvingpoint.momentra",
             "certificate_hash": "3e38ea66f4bb9919ae0d38905675f7b659a74fe3"
           }
         },
@@ -25,7 +25,7 @@
           "client_id": "315259659778-9vbptd5pc2844ah0j9nhvma5hpeud2g9.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.momentra",
+            "package_name": "resolvingpoint.momentra",
             "certificate_hash": "fa1981ca2d1fc986a6ef0a70fe50be7ed577c4cf"
           }
         },

@@ -143,6 +143,8 @@ services:
       - .env
     environment:
       PORT: "8000"
+      # Required when MOMENTRA_ENV/NODE_ENV is production|staging - empty key => 503 on compute routes.
+      MOMENTRA_ENV: production
       MOMENTRA_AI_INTERNAL_KEY: ${MOMENTRA_AI_INTERNAL_KEY:-}
     expose:
       - "8000"

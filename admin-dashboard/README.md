@@ -1,5 +1,16 @@
 # Momentra Telemetry Admin
 
+## Security warning (admin key)
+
+`VITE_ADMIN_API_KEY` is a **Vite client env var**. Anything prefixed with `VITE_` is compiled into the browser JavaScript.
+
+- **Do not** set a real production `ADMIN_API_KEY` in `admin-dashboard/.env` for a hosted or publicly reachable build.
+- Prefer the login screen (key stored in `sessionStorage` only).
+- Production dashboard builds ignore `VITE_ADMIN_API_KEY` (see `src/api.ts`); paste the key at unlock time.
+- Keep the admin UI off the public internet (VPN / Cloudflare Access / private host) even with a strong key.
+- Server-side secret remains `ADMIN_API_KEY` on the API (`X-Admin-Key` header).
+
+
 **Completely separate** from the Momentra mobile apps and the main user API.
 
 | | Mobile app | User API | **This admin** |
@@ -41,7 +52,7 @@ cp .env.example .env
 npm run dev
 ```
 
-4. Put the same value in `admin-dashboard/.env` as `VITE_ADMIN_API_KEY`, then open **http://localhost:5180**. The dashboard opens directly.
+4. For **local Vite DEV only**, you may put the same value in `admin-dashboard/.env` as `VITE_ADMIN_API_KEY` so the dashboard unlocks automatically. For any hosted/production build, leave it empty and paste the key on the login screen. Then open **http://localhost:5180**.
 
 5. On the **Founder** tab, click **Refresh KPIs** (or run the CLI below) to materialize mart rows.
 

@@ -5,8 +5,12 @@ const API_BASE = import.meta.env.DEV
 const STORAGE_KEY = 'momentra_admin_api_key';
 
 export function getApiKey(): string | null {
-  const fromEnv = import.meta.env.VITE_ADMIN_API_KEY?.trim();
-  if (fromEnv) return fromEnv;
+  // VITE_* values are embedded in client bundles. Only allow .env key in local Vite DEV.
+  // Production builds must paste the key at login (sessionStorage) — never ship ADMIN_API_KEY in the UI artifact.
+  if (import.meta.env.DEV) {
+    const fromEnv = import.meta.env.VITE_ADMIN_API_KEY?.trim();
+    if (fromEnv) return fromEnv;
+  }
   return sessionStorage.getItem(STORAGE_KEY);
 }
 

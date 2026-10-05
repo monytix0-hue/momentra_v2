@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { createServer } from 'http';
 import { config } from './platform/config';
 import { correlationMiddleware } from './api/middleware/correlation';
@@ -20,6 +21,32 @@ export function createApp(): express.Express {
   const corsOrigins = config.corsOrigins;
 
   app.disable('x-powered-by');
+  // Security headers (JSON API + public story HTML with inline <style>).
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'", 'data:'],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+        },
+      },
+      hsts: { maxAge: 15552000, includeSubDomains: true },
+      frameguard: { action: 'deny' },
+      noSniff: true,
+      referrerPolicy: { policy: 'no-referrer' },
+      crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+  );
   // Mounted ahead of the global layer so it owns the /admin/api preflight.
   app.use('/admin/api', adminCors());
   app.use(
