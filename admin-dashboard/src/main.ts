@@ -1,9 +1,7 @@
 import './styles.css';
 import {
   api,
-  clearApiKey,
   getApiKey,
-  setApiKey,
   type EventRow,
   type Overview,
   type PersonalSetupReport,
@@ -249,67 +247,6 @@ function goTab(tab: Tab, root: HTMLElement): void {
   renderApp(root);
 }
 
-function renderLogin(root: HTMLElement): void {
-  root.innerHTML = '';
-  ensureAmbient(root);
-  const screen = el('div', 'login-screen');
-  const card = el('div', 'login-card');
-  card.appendChild(el('div', 'login-mark', 'M'));
-  card.appendChild(el('h1', '', 'Telemetry Playground'));
-  card.appendChild(
-    el(
-      'p',
-      '',
-      'Watch where people wander, linger, and get stuck — live from your own database. Drop in your ADMIN_API_KEY to unlock the room.'
-    )
-  );
-
-  const input = el('input') as HTMLInputElement;
-  input.type = 'password';
-  input.placeholder = 'Paste your secret key…';
-  input.autocomplete = 'off';
-
-  const err = el('div', 'error');
-  err.style.display = 'none';
-
-  const btn = el('button', 'btn', 'Let’s play →') as HTMLButtonElement;
-  btn.type = 'button';
-  btn.onclick = async () => {
-    err.style.display = 'none';
-    const key = input.value.trim();
-    if (!key) {
-      err.textContent = 'Need a key first — peek in backend/.env for ADMIN_API_KEY.';
-      err.style.display = 'block';
-      return;
-    }
-    btn.disabled = true;
-    btn.textContent = 'Unlocking…';
-    setApiKey(key);
-    try {
-      await api.overview();
-      sprayConfetti();
-      renderApp(root);
-    } catch (e) {
-      clearApiKey();
-      err.textContent = e instanceof Error ? e.message : 'Connection failed';
-      err.style.display = 'block';
-      btn.disabled = false;
-      btn.textContent = 'Let’s play →';
-    }
-  };
-
-  input.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') btn.click();
-  });
-
-  card.appendChild(input);
-  card.appendChild(err);
-  card.appendChild(btn);
-  screen.appendChild(card);
-  root.appendChild(screen);
-  input.focus();
-}
-
 function renderApp(root: HTMLElement): void {
   root.innerHTML = '';
   ensureAmbient(root);
@@ -328,17 +265,6 @@ function renderApp(root: HTMLElement): void {
     btn.onclick = () => goTab(tab.id, root);
     sidebar.appendChild(btn);
   }
-
-  const logout = el('button', 'nav-btn');
-  logout.style.marginTop = 'auto';
-  logout.appendChild(el('span', 'nav-ico', '🚪'));
-  logout.appendChild(document.createTextNode('Sign out'));
-  logout.onclick = () => {
-    clearApiKey();
-    if (refreshTimer) window.clearInterval(refreshTimer);
-    renderLogin(root);
-  };
-  sidebar.appendChild(logout);
 
   const main = el('main', 'main');
   layout.appendChild(sidebar);
@@ -404,8 +330,8 @@ async function loadTab(main: HTMLElement, root: HTMLElement): Promise<void> {
     content.innerHTML = '';
     errBox.textContent = e instanceof Error ? e.message : 'Failed to load';
     errBox.style.display = 'block';
-    if (errBox.textContent.includes('admin key') || errBox.textContent.includes('Not authenticated')) {
-      renderLogin(document.getElementById('app')!);
+    if (!getApiKey()) {
+      errBox.textContent = 'Set VITE_ADMIN_API_KEY in admin-dashboard/.env to the same value as ADMIN_API_KEY.';
     }
   }
 }
@@ -1381,11 +1307,7 @@ async function renderGroupExperiences(parent: HTMLElement): Promise<void> {
 }
 
 const root = document.getElementById('app')!;
-if (getApiKey()) {
-  renderApp(root);
-} else {
-  renderLogin(root);
-}
+renderApp(root);
 
 refreshTimer = window.setInterval(() => {
   if (activeTab === 'overview' && getApiKey()) {

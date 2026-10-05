@@ -2,6 +2,8 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 const STORAGE_KEY = 'momentra_admin_api_key';
 
 export function getApiKey(): string | null {
+  const fromEnv = import.meta.env.VITE_ADMIN_API_KEY?.trim();
+  if (fromEnv) return fromEnv;
   return sessionStorage.getItem(STORAGE_KEY);
 }
 

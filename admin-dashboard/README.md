@@ -41,7 +41,7 @@ cp .env.example .env
 npm run dev
 ```
 
-4. Open **http://localhost:5180** and paste the same `ADMIN_API_KEY`.
+4. Put the same value in `admin-dashboard/.env` as `VITE_ADMIN_API_KEY`, then open **http://localhost:5180**. The dashboard opens directly.
 
 5. On the **Founder** tab, click **Refresh KPIs** (or run the CLI below) to materialize mart rows.
 
