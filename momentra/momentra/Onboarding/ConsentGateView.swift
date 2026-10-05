@@ -1,6 +1,7 @@
 import SwiftUI
+import UIKit
 
-/// Minimal consent gate (FIGMA_GAP) before login — grant/withdraw refined in Account hub.
+/// Minimal consent gate before login — grant/withdraw refined in Account hub.
 struct ConsentGateView: View {
     var onContinue: () -> Void
 
@@ -16,6 +17,22 @@ struct ConsentGateView: View {
                 )
                 .font(.system(size: 14))
                 .foregroundStyle(Color.white.opacity(0.75))
+                .listRowBackground(Color.clear)
+                Text("By continuing you agree to our Privacy Policy and Terms of Service.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.white.opacity(0.75))
+                    .listRowBackground(Color.clear)
+                Button("Privacy Policy") {
+                    if let url = URL(string: "https://momentra.tech/privacy") {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .listRowBackground(Color.clear)
+                Button("Terms of Service") {
+                    if let url = URL(string: "https://momentra.tech/terms") {
+                        UIApplication.shared.open(url)
+                    }
+                }
                 .listRowBackground(Color.clear)
             }
         }

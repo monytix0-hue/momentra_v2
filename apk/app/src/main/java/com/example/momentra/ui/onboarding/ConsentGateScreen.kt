@@ -1,5 +1,7 @@
 package com.example.momentra.ui.onboarding
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,9 +12,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -20,9 +24,10 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.theme.ShellTokens
 
-/** Minimal consent gate (FIGMA_GAP) before login — analytics/AI purposes refined in Account hub. */
+/** Minimal consent gate before login — analytics/AI purposes refined in Account hub. */
 @Composable
 fun ConsentGateScreen(onContinue: () -> Unit) {
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -38,7 +43,31 @@ fun ConsentGateScreen(onContinue: () -> Unit) {
             color = Color.White.copy(alpha = 0.75f),
             fontSize = 14.sp,
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "By continuing you agree to our Privacy Policy and Terms of Service.",
+            color = Color.White.copy(alpha = 0.75f),
+            fontSize = 13.sp,
+        )
+        TextButton(onClick = {
+            runCatching {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/privacy")),
+                )
+            }
+        }) {
+            Text("Privacy Policy", color = Color.White)
+        }
+        TextButton(onClick = {
+            runCatching {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/terms")),
+                )
+            }
+        }) {
+            Text("Terms of Service", color = Color.White)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = onContinue,
             modifier = Modifier

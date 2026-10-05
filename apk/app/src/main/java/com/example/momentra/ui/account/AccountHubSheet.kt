@@ -1,5 +1,7 @@
 package com.example.momentra.ui.account
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -422,6 +424,25 @@ fun AccountHubSheet(
                         )
                     }
                 }
+                Text(
+                    text = "Full policies:",
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                TextButton(onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/privacy")),
+                        )
+                    }
+                }) { Text("Privacy Policy") }
+                TextButton(onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/terms")),
+                        )
+                    }
+                }) { Text("Terms of Service") }
                 TextButton(onClick = { hubSection = "home" }) { Text("Back") }
             }
 
@@ -466,9 +487,23 @@ fun AccountHubSheet(
                     fontSize = 13.sp,
                 )
                 Text(
-                    text = "Privacy Policy / Terms: placeholder (FIGMA_GAP).",
+                    text = "Read our policies (opens in browser):",
                     fontSize = 12.sp,
                 )
+                TextButton(onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/privacy")),
+                        )
+                    }
+                }) { Text("Privacy Policy") }
+                TextButton(onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/terms")),
+                        )
+                    }
+                }) { Text("Terms of Service") }
                 TextButton(onClick = { hubSection = "home" }) { Text("Back") }
             }
         }

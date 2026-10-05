@@ -66,6 +66,20 @@
       font-size: 0.8rem;
       color: var(--muted);
     }
+    footer {
+      margin-top: 22px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    footer a {
+      color: var(--accent2);
+      text-decoration: none;
+      margin: 0 6px;
+    }
+    footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -74,6 +88,11 @@
     <p id="blurb">This invite opens in the Momentra app. If nothing happens, tap the button below.</p>
     <div class="code" id="pathLabel"></div>
     <a class="btn" id="openBtn" href="#">Open Momentra</a>
+    <footer>
+      <a href="https://momentra.tech/privacy">Privacy Policy</a>
+      ·
+      <a href="https://momentra.tech/terms">Terms of Service</a>
+    </footer>
     <p class="hint">Don’t have the app yet? Install Momentra, then return to this link.</p>
   </main>
   <script>

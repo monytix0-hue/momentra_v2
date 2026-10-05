@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy Policy — Momentra (Draft)</title>
+  <style>
+    :root { --bg:#14121b; --card:#1e1a28; --text:#f5f3fa; --muted:#9e9aa8; --accent:#e8621a; --warn:#fbbf24; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"Segoe UI",system-ui,sans-serif; background:var(--bg); color:var(--text); line-height:1.55; }
+    main { max-width:720px; margin:0 auto; padding:32px 20px 64px; }
+    .banner { background:#3a2a10; border:1px solid var(--warn); color:var(--warn); padding:12px 14px; border-radius:10px; margin-bottom:24px; font-size:0.92rem; }
+    h1 { font-size:1.75rem; margin:0 0 8px; }
+    h2 { font-size:1.15rem; margin:28px 0 8px; color:#ffb598; }
+    p, li { color:var(--muted); }
+    a { color:#ffb598; }
+    .meta { font-size:0.85rem; color:var(--muted); margin-bottom:20px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="banner"><strong>DRAFT — not legal advice.</strong> This page is a product draft pending lawyer review. Contact <a href="mailto:resolvingpoint@gmail.com">resolvingpoint@gmail.com</a> for privacy requests.</div>
+    <h1>Privacy Policy</h1>
+    <p class="meta">Last updated: 5 October 2026 · Momentra · Contact: <a href="mailto:resolvingpoint@gmail.com">resolvingpoint@gmail.com</a></p>
+
+    <h2>Who we are</h2>
+    <p>Momentra is an app for Personal, Group, and Business moments (planning, memories, collaboration). This draft describes how we handle information when you use Momentra mobile apps and related services.</p>
+
+    <h2>Information we collect</h2>
+    <ul>
+      <li><strong>Account &amp; profile:</strong> identifiers from sign-in (e.g. Firebase Auth email/phone/Apple/Google), display name, and profile fields you provide.</li>
+      <li><strong>Moment content:</strong> titles, notes, tasks, expenses/metadata, invites, and media you upload (photos/files).</li>
+      <li><strong>Device &amp; notifications:</strong> device identifiers used for push (FCM tokens), platform, and notification preferences.</li>
+      <li><strong>Consents:</strong> purpose-based consent grants/withdrawals (e.g. analytics, AI) stored with your account.</li>
+      <li><strong>Usage / diagnostics:</strong> optional analytics and crash/diagnostic signals (e.g. Firebase Analytics / Crashlytics) when enabled and consented where required.</li>
+      <li><strong>Technical logs:</strong> API request metadata and audit logs for security and abuse prevention.</li>
+    </ul>
+
+    <h2>How we use information</h2>
+    <ul>
+      <li>Provide and sync your moments across devices.</li>
+      <li>Authenticate you and protect accounts (including token revocation on sensitive changes).</li>
+      <li>Send push notifications you enable.</li>
+      <li>Run consented analytics and optional AI features.</li>
+      <li>Maintain security, rate limiting, and operational reliability.</li>
+    </ul>
+
+    <h2>Service providers</h2>
+    <p>We use processors such as:</p>
+    <ul>
+      <li><strong>Firebase</strong> — authentication, analytics (when enabled), Cloud Messaging (FCM).</li>
+      <li><strong>Supabase / Postgres</strong> — application database and related storage for app data.</li>
+      <li><strong>Apple / Google</strong> — platform sign-in and store distribution services as applicable.</li>
+    </ul>
+    <p>These providers process data under their own terms and our configuration.</p>
+
+    <h2>Consents</h2>
+    <p>You can grant or withdraw certain purposes (for example analytics or AI) in <strong>Account → Privacy &amp; Consent</strong>. Core account operation may still require basic processing to run the service you asked for.</p>
+
+    <h2>Account deletion (soft-delete)</h2>
+    <p><strong>Important:</strong> When you delete your account in the app, Momentra <strong>soft-deletes</strong> the account (marks it deleted / disables sign-in) and does <strong>not</strong> hard-wipe moment history, media, or related domain records. Shared group/business history may remain for other participants. We do not run a hard-wipe of user or media data as part of account deletion.</p>
+    <p>If you need a specific access, correction, or retention discussion, email <a href="mailto:resolvingpoint@gmail.com">resolvingpoint@gmail.com</a>.</p>
+
+    <h2>Access and correction</h2>
+    <p>You can edit profile fields in the app. For a broader access or correction request, email <a href="mailto:resolvingpoint@gmail.com">resolvingpoint@gmail.com</a> from the address associated with your account. We will respond as reasonably practicable.</p>
+
+    <h2>Children</h2>
+    <p>Momentra is not directed at children under 13 (or the higher age required in your region). Do not create an account if you are under the applicable age. A formal age gate may be added in a later release.</p>
+
+    <h2>International users</h2>
+    <p>Data may be processed in the regions where our providers operate. Exact hosting regions depend on Firebase/Supabase configuration.</p>
+
+    <h2>Changes</h2>
+    <p>We may update this draft. Material changes will be reflected on this page and, where appropriate, in-app.</p>
+
+    <h2>Contact</h2>
+    <p>Privacy questions: <a href="mailto:resolvingpoint@gmail.com">resolvingpoint@gmail.com</a></p>
+    <p><a href="https://momentra.tech/terms">Terms of Service</a></p>
+  </main>
+</body>
+</html>

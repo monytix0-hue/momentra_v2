@@ -217,6 +217,16 @@ struct AccountHubView: View {
                                 }
                             ))
                         }
+                        Button("Privacy Policy") {
+                            if let url = URL(string: "https://momentra.tech/privacy") {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                        Button("Terms of Service") {
+                            if let url = URL(string: "https://momentra.tech/terms") {
+                                UIApplication.shared.open(url)
+                            }
+                        }
                         Button("Back") { section = "home" }
                     }
                 case "devices":
@@ -248,8 +258,18 @@ struct AccountHubView: View {
                 default:
                     Section("Help & Legal") {
                         Text("About Momentra")
-                        Text("Placeholder Privacy / Terms (FIGMA_GAP).")
+                        Text("Momentra helps you run Personal, Group, and Business moments in one shell.")
                             .font(.caption)
+                        Button("Privacy Policy") {
+                            if let url = URL(string: "https://momentra.tech/privacy") {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                        Button("Terms of Service") {
+                            if let url = URL(string: "https://momentra.tech/terms") {
+                                UIApplication.shared.open(url)
+                            }
+                        }
                         Button("Back") { section = "home" }
                     }
                 }
