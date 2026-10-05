@@ -6,23 +6,34 @@ import android.graphics.Bitmap
 import android.net.Uri
 import java.io.ByteArrayOutputStream
 
-/** Prefer in-memory bitmap (survives lost URI grants); fall back to content URI. */
+/**
+ * Always decode with EXIF respect, then compress upright JPEG.
+ * Never upload raw URI bytes (those keep sideways sensor pixels + Orientation tag,
+ * or lose the tag after a bad decode and stay sideways forever).
+ */
 fun encodeMemoryPhotoBytes(
     resolver: ContentResolver,
     photoUri: Uri?,
     photoBitmap: Bitmap?,
 ): ByteArray? {
+    // Prefer already-decoded upright bitmap from the picker/camera path.
     photoBitmap?.let { bmp ->
-        val encoded = ByteArrayOutputStream().use { out ->
-            val ok = bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
-            if (ok) out.toByteArray() else null
-        }
-        if (encoded != null && encoded.isNotEmpty()) return encoded
+        val encoded = compressUprightJpeg(bmp)
+        if (encoded != null) return encoded
     }
     if (photoUri == null) return null
     return runCatching {
-        resolver.openInputStream(photoUri)?.use { it.readBytes() }
-    }.getOrNull()?.takeIf { it.isNotEmpty() }
+        val raw = resolver.openInputStream(photoUri)?.use { it.readBytes() } ?: return@runCatching null
+        val upright = decodeBitmapRespectingExif(raw) ?: return@runCatching null
+        compressUprightJpeg(upright)
+    }.getOrNull()
+}
+
+private fun compressUprightJpeg(bmp: Bitmap): ByteArray? {
+    return ByteArrayOutputStream().use { out ->
+        val ok = bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+        if (ok) out.toByteArray().takeIf { it.isNotEmpty() } else null
+    }
 }
 
 /** Best-effort persistable grant so gallery URIs remain readable after the picker closes. */

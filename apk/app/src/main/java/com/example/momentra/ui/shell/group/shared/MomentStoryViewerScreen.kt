@@ -1169,6 +1169,7 @@ private fun CollagePhoto(photo: MomentStoryPhotoDto, imageModifier: Modifier, co
         RemoteStoryImage(
             url = url,
             modifier = imageModifier.clip(RoundedCornerShape(corner)),
+            upright = true,
         )
         photo.title?.takeIf { it.isNotBlank() }?.let { label ->
             Spacer(Modifier.height(4.dp))
@@ -1348,7 +1349,7 @@ private fun MetricGrid(
 private fun RemoteStoryImage(
     url: String,
     modifier: Modifier = Modifier,
-    upright: Boolean = false,
+    upright: Boolean = true,
     cover: Boolean = false,
 ) {
     var bitmap by remember(url) { mutableStateOf<Bitmap?>(null) }
@@ -1356,8 +1357,11 @@ private fun RemoteStoryImage(
         bitmap = withContext(Dispatchers.IO) {
             runCatching {
                 val bytes = URL(url).openStream().use { it.readBytes() }
-                val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@runCatching null
-                if (!upright) decoded else applyExifOrientation(decoded, bytes)
+                if (upright) {
+                    decodeBitmapRespectingExif(bytes)
+                } else {
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                }
             }.getOrNull()
         }
     }
