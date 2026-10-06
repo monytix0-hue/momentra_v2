@@ -60,7 +60,7 @@
   "dependencies": {
     "@prisma/client": "^7.9.1",
     "@sentry/node": "^10.71.0",
-    "@supabase/supabase-js": "^2.112.4",
+    "@supabase/supabase-js": "^2.117.2",
     "bcrypt": "^6.0.0",
     "bullmq": "^6.2.2",
     "cors": "^2.8.6",
