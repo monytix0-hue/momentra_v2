@@ -66,6 +66,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "315259659778-1g23f74o3g7l00at2rbjpop0qf2j0a0m.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "resolvingpoint.momentra",
+            "certificate_hash": "fa1981ca2d1fc986a6ef0a70fe50be7ed577c4cf"
+          }
+        },
+        {
+          "client_id": "315259659778-8oqmg8s2j1jt0stfhr9qrosds8hd9i7b.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "resolvingpoint.momentra",
+            "certificate_hash": "3e38ea66f4bb9919ae0d38905675f7b659a74fe3"
+          }
+        },
+        {
           "client_id": "315259659778-vhau66jfi22k27rc8lbgueo3os92knrl.apps.googleusercontent.com",
           "client_type": 3
         }
