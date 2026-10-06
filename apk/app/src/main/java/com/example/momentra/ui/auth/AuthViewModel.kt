@@ -314,6 +314,27 @@ class AuthViewModel @JvmOverloads constructor(
         }
     }
 
+    fun signInWithApple(activity: Activity) {
+        _state.update { it.copy(phase = AuthPhase.Authenticating, error = null) }
+        viewModelScope.launch {
+            authRepository.signInWithApple(activity).fold(
+                onSuccess = {
+                    MomentraAnalytics.get().trackAuthResult("apple", success = true)
+                    onFirebaseLoggedIn()
+                },
+                onFailure = { e ->
+                    MomentraAnalytics.get().trackAuthResult("apple", success = false, errorCode = e.message)
+                    _state.update {
+                        it.copy(
+                            phase = AuthPhase.AuthError,
+                            error = AuthErrorMapper.userMessage(e.message ?: "Apple sign-in failed"),
+                        )
+                    }
+                },
+            )
+        }
+    }
+
     fun signInWithGoogle(context: Context) {
         _state.update { it.copy(phase = AuthPhase.Authenticating, error = null) }
         viewModelScope.launch {

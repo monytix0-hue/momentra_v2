@@ -42,5 +42,6 @@ object AnalyticsWidgets {
     const val LOGIN_BTN_PHONE_VERIFY = "login/btn_phone_verify"
     const val LOGIN_BTN_PHONE_CHANGE = "login/btn_phone_change_number"
     const val LOGIN_BTN_GOOGLE = "login/btn_google"
+    const val LOGIN_BTN_APPLE = "login/btn_apple"
     const val SPLASH_COMPLETE = "splash/event_complete"
 }

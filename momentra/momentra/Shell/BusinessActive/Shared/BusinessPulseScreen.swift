@@ -93,6 +93,7 @@ struct BusinessPulseScreen: View {
                             .foregroundStyle(theme.muted)
                             .padding(.top, 4)
                             .accessibilityIdentifier("finance.disclaimer")
+                            .accessibilityLabel("Disclaimer: Not financial, legal, or tax advice. Figures are for your records only.")
                     }
                 } else if loading {
                     ProgressView().tint(theme.accent).frame(maxWidth: .infinity)

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -27,6 +28,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,7 +59,13 @@ fun ConsentGateScreen(
             .testTag(MaestroIds.CONSENT_GATE),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("Privacy & consent", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.White)
+        Text(
+            "Privacy & consent",
+            fontWeight = FontWeight.Bold,
+            fontSize = 22.sp,
+            color = Color.White,
+            modifier = Modifier.semantics { heading() },
+        )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             "Momentra uses your account and moment data to run the product. You can manage these purposes anytime in Account → Privacy:",
@@ -70,34 +83,46 @@ fun ConsentGateScreen(
             color = Color.White.copy(alpha = 0.75f),
             fontSize = 13.sp,
         )
-        TextButton(onClick = {
-            runCatching {
-                context.startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/privacy")),
-                )
-            }
-        }) {
+        TextButton(
+            onClick = {
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/privacy")),
+                    )
+                }
+            },
+            modifier = Modifier.semantics { contentDescription = "Privacy Policy, opens in browser" },
+        ) {
             Text("Privacy Policy", color = Color.White)
         }
-        TextButton(onClick = {
-            runCatching {
-                context.startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/terms")),
-                )
-            }
-        }) {
+        TextButton(
+            onClick = {
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/terms")),
+                    )
+                }
+            },
+            modifier = Modifier.semantics { contentDescription = "Terms of Service, opens in browser" },
+        ) {
             Text("Terms of Service", color = Color.White)
         }
         Spacer(modifier = Modifier.height(8.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
+            // Whole row is one checkbox target so TalkBack reads the label with the state.
             modifier = Modifier
                 .fillMaxWidth()
+                .toggleable(
+                    value = confirmedAge13Plus,
+                    role = Role.Checkbox,
+                    onValueChange = { confirmedAge13Plus = it },
+                )
                 .testTag("consent.age_gate"),
         ) {
             Checkbox(
                 checked = confirmedAge13Plus,
-                onCheckedChange = { confirmedAge13Plus = it },
+                onCheckedChange = null,
             )
             Text(
                 "I confirm I am 13 years of age or older",
@@ -115,6 +140,11 @@ fun ConsentGateScreen(
             enabled = confirmedAge13Plus,
             modifier = Modifier
                 .fillMaxWidth()
+                .semantics {
+                    if (!confirmedAge13Plus) {
+                        stateDescription = "Confirm you are 13 or older to continue"
+                    }
+                }
                 .testTag(MaestroIds.CONSENT_CONTINUE),
         ) {
             Text("Continue")
@@ -125,7 +155,12 @@ fun ConsentGateScreen(
 @Composable
 private fun PurposeBullet(text: String) {
     Row(modifier = Modifier.padding(vertical = 2.dp)) {
-        Text("•  ", color = Color.White.copy(alpha = 0.75f), fontSize = 13.sp)
+        Text(
+            "•  ",
+            color = Color.White.copy(alpha = 0.75f),
+            fontSize = 13.sp,
+            modifier = Modifier.clearAndSetSemantics { },
+        )
         Text(text, color = Color.White.copy(alpha = 0.75f), fontSize = 13.sp)
     }
 }

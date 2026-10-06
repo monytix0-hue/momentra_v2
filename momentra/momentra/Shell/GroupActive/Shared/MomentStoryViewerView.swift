@@ -53,6 +53,7 @@ struct MomentStoryViewerView: View {
                     Spacer()
                     Button("Close", action: onClose)
                         .foregroundStyle(chromeDark ? Color(hex: "#E8621A") : Color(hex: "#6C4EF2"))
+                        .accessibilityLabel("Close Moment Story")
                 }
                 .padding(16)
 
@@ -70,14 +71,18 @@ struct MomentStoryViewerView: View {
                     Text(message ?? "Could not load Story")
                         .foregroundStyle(chromeDark ? Color(hex: "#F5F0FF") : Color(hex: "#25231F"))
                         .padding()
-                    Button("Retry") { Task { await load() } }
+                    Button("Retry") { Task { await generate() } }
                         .foregroundStyle(Color(hex: "#E8621A"))
+                        .accessibilityHint("Generates the Moment Story again")
                     Spacer()
                 } else if phase == "not_started" {
                     Spacer()
                     Text(message ?? "No Story yet — complete the moment to unlock it.")
                         .foregroundStyle(chromeDark ? Color(hex: "#F5F0FF") : Color(hex: "#25231F"))
                         .padding()
+                    Button("Generate") { Task { await generate() } }
+                        .foregroundStyle(Color(hex: "#E8621A"))
+                        .accessibilityHint("Creates the Moment Story for everyone in this moment")
                     Spacer()
                 } else {
                     TabView(selection: $page) {
@@ -742,12 +747,15 @@ struct MomentStoryViewerView: View {
             }
             if status.status == "FAILED" {
                 phase = "failed"
-                message = status.errorMessage ?? "Story generation failed."
+                message = status.errorMessage ?? "Story generation failed. Tap Retry to generate again for the group."
                 return
             }
             if status.status == "NOT_STARTED" {
                 phase = "not_started"
-                message = "No Story yet — complete the moment to unlock it."
+                let momentStatus = try? await APIClient.shared.getMomentDetail(momentId: momentId).status
+                message = momentStatus == "COMPLETED"
+                    ? "Story is not ready yet. Tap Generate to create it so every member can view it."
+                    : "No Story yet — complete the moment first, then generate the Story."
                 return
             }
             story = try await APIClient.shared.getMomentStory(momentId: momentId)
@@ -755,6 +763,19 @@ struct MomentStoryViewerView: View {
         } catch {
             phase = "error"
             message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Android parity: POST /v1/moments/{id}/stories (additive version; never deletes prior stories).
+    private func generate() async {
+        phase = "generating"
+        message = nil
+        do {
+            try await APIClient.shared.createMomentStory(momentId: momentId)
+            await load()
+        } catch {
+            phase = "failed"
+            message = (error as? LocalizedError)?.errorDescription ?? "Could not generate Story"
         }
     }
 

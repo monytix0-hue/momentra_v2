@@ -1,6 +1,6 @@
 # Launch decisions (Momentra)
 
-Updated: 2026-10-05 (Asia/Calcutta)
+Updated: 2026-10-06 (Asia/Calcutta)
 
 ## Data deletion policy (locked)
 
@@ -60,3 +60,11 @@ Updated: 2026-10-05 (Asia/Calcutta)
 - Invite polish: `web/invite` favicon.svg, Open Graph tags on `join.html`, robots.txt + sitemap.xml. Privacy/Terms links remain `https://momentra.tech/privacy` and `/terms`.
 - **Sentry DSN:** still an ops responsibility — set only in production when ready; not required for this sprint to pass.
 - **Still locked:** no hard-wipe / no user-data deletes; soft-delete unchanged.
+
+## Sprint S5 scope (parity, accessibility, Apple on Android)
+
+- **Parity re-check** (`docs/audit/04b-ios-android-parity-S5-recheck.md`): the 2026-09-03 `04-ios-android-parity.csv` listed 95 `ANDROID_ONLY` routes; a fresh scan of `ApiService.kt` (237 routes) vs iOS call sites shows 94 of them are now called on iOS too (telemetry via `BackendTelemetry` direct request). The only one still missing on iOS, `DELETE /v1/moments/{id}`, is no longer called by Android either and **will not be added** (no-delete policy). Newer Android-only routes found: `POST /v1/moments/{id}/stories` -> **closed in S5** (iOS Moment Story viewer Generate / Retry; additive new version, never deletes prior stories); `GET /v1/me/notifications/metrics` -> declared on Android but unused in UI, deferred.
+- **Accessibility pass (both platforms):** headings + live status on Account hub; labelled switches; Privacy/Terms links announce "opens in browser/Safari"; delete-confirm explains soft-delete; device Revoke names the device; consent gate age checkbox is a single labelled toggle target (Android) and Continue explains why it is disabled; finance disclaimers read as "Disclaimer: …" with `finance.disclaimer` test tag on both; decorative lock/bullet glyphs hidden; Personal expense Save draft / Confirm are announced as buttons; login error is a polite live region.
+- **Sign in with Apple on Android:** client implemented (Firebase `OAuthProvider("apple.com")`) and wired on Login behind `BuildConfig.APPLE_SIGNIN_ENABLED` (default **false**) until the Apple Services ID + key are configured in Firebase. Checklist: `docs/legal/APPLE_SIGNIN_ANDROID.md`.
+- **Still open (not S5):** phone auth on iOS; full TalkBack/VoiceOver audit of every shell screen; contrast audit of Business/money tokens; Apple/Google account linking.
+- **Still locked:** no hard-wipe / no user-data deletes; `DELETE /v1/me` soft-delete unchanged; no new delete endpoints or client delete calls added.

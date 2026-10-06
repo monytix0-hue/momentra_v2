@@ -19,6 +19,9 @@ val googleWebClientId = localProperties.getProperty(
         "315259659778-vhau66jfi22k27rc8lbgueo3os92knrl.apps.googleusercontent.com",
     )
 val sentryDsn = localProperties.getProperty("SENTRY_DSN", "")
+// Sign in with Apple on Android (Firebase OAuthProvider "apple.com" web flow). Off until the
+// Apple Services ID + key are configured in Firebase — see docs/legal/APPLE_SIGNIN_ANDROID.md.
+val appleSignInEnabled = localProperties.getProperty("APPLE_SIGNIN_ENABLED", "false").trim().toBoolean()
 
 android {
     namespace = "com.example.momentra"
@@ -40,6 +43,7 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         buildConfigField("String", "SENTRY_DSN", "\"$sentryDsn\"")
+        buildConfigField("boolean", "APPLE_SIGNIN_ENABLED", appleSignInEnabled.toString())
     }
 
     // Shared debug keystore so Google Sign-In SHA fingerprints stay stable across machines

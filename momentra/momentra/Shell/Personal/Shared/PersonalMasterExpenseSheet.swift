@@ -458,6 +458,7 @@ struct PersonalMasterExpenseSheet: View {
         VStack(spacing: 4) {
             HStack(spacing: 6) {
                 Text("🔒").font(.system(size: 12))
+                    .accessibilityHidden(true)
                 Text("Your details private and secure.")
                     .font(.system(size: 12))
                     .foregroundStyle(PersonalMasterExpenseTheme.muted)
@@ -467,6 +468,7 @@ struct PersonalMasterExpenseSheet: View {
                 .foregroundStyle(PersonalMasterExpenseTheme.muted)
                 .multilineTextAlignment(.center)
                 .accessibilityIdentifier("finance.disclaimer")
+                .accessibilityLabel("Disclaimer: Not financial, legal, or tax advice. Figures are for your records only.")
         }
         .frame(maxWidth: .infinity)
     }

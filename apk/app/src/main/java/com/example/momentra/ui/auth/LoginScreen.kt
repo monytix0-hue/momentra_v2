@@ -30,10 +30,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.BuildConfig
 import com.example.momentra.analytics.AnalyticsScreens
 import com.example.momentra.analytics.AnalyticsWidgets
 import com.example.momentra.analytics.TrackScreen
@@ -67,6 +72,15 @@ fun LoginScreen(
         }
         trackWidget(AnalyticsScreens.LOGIN, AnalyticsWidgets.LOGIN_BTN_GOOGLE, "tap")
         authViewModel.signInWithGoogle(activity)
+    }
+
+    val handleAppleSignIn: () -> Unit = signIn@{
+        if (activity == null) {
+            authViewModel.onAuthError("Could not start Apple sign-in")
+            return@signIn
+        }
+        trackWidget(AnalyticsScreens.LOGIN, AnalyticsWidgets.LOGIN_BTN_APPLE, "tap")
+        authViewModel.signInWithApple(activity)
     }
 
     fun submitEmailAuth() {
@@ -263,7 +277,7 @@ fun LoginScreen(
                             modifier = Modifier
                                 .align(Alignment.End)
                                 .testTag(MaestroIds.LOGIN_FORGOT)
-                                .clickable {
+                                .clickable(role = Role.Button, onClickLabel = "Send password reset email") {
                                     authViewModel.sendPasswordReset(email)
                                 }
                                 .padding(vertical = 4.dp),
@@ -309,6 +323,15 @@ fun LoginScreen(
                     onClick = handleGoogleSignIn,
                     modifier = Modifier.testTag(MaestroIds.LOGIN_GOOGLE),
                 )
+                // Hidden until Apple Services ID is configured in Firebase (APPLE_SIGNIN_ENABLED).
+                if (BuildConfig.APPLE_SIGNIN_ENABLED) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    BrandSecondaryButton(
+                        text = "Continue with Apple",
+                        onClick = handleAppleSignIn,
+                        modifier = Modifier.testTag(MaestroIds.LOGIN_APPLE),
+                    )
+                }
             }
 
             state.error?.let { error ->
@@ -319,6 +342,7 @@ fun LoginScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .semantics { liveRegion = LiveRegionMode.Polite }
                         .testTag(MaestroIds.LOGIN_ERROR),
                 )
             }

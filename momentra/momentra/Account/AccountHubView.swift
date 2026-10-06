@@ -34,7 +34,12 @@ struct AccountHubView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if let status { Text(status).foregroundStyle(.secondary) }
+                if let status {
+                    Text(status)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Status: \(status)")
+                        .accessibilityAddTraits(.updatesFrequently)
+                }
                 switch section {
                 case "home":
                     Section("Profile") {
@@ -71,6 +76,7 @@ struct AccountHubView: View {
                     }
                     Section {
                         Button("Sign out", role: .destructive, action: onSignOut)
+                            .accessibilityIdentifier("account.sign_out")
                         if confirmDelete {
                             Text("Soft-delete only: account marked deleted, devices revoked. Moment/domain history may be retained (no hard wipe). Shared history may remain for other members.")
                                 .font(.caption)
@@ -85,9 +91,11 @@ struct AccountHubView: View {
                                     }
                                 }
                             }
+                            .accessibilityHint("Soft delete only. Moment history is retained.")
                             Button("Cancel") { confirmDelete = false }
                         } else {
                             Button("Delete account…", role: .destructive) { confirmDelete = true }
+                                .accessibilityHint("Shows what deleting your account does before you confirm")
                         }
                     }
                 case "security":
@@ -222,11 +230,13 @@ struct AccountHubView: View {
                                 UIApplication.shared.open(url)
                             }
                         }
+                        .accessibilityHint("Opens in Safari")
                         Button("Terms of Service") {
                             if let url = URL(string: "https://momentra.tech/terms") {
                                 UIApplication.shared.open(url)
                             }
                         }
+                        .accessibilityHint("Opens in Safari")
                         Button("Back") { section = "home" }
                     }
                 case "devices":
@@ -248,6 +258,7 @@ struct AccountHubView: View {
                                             devices = (try? await APIClient.shared.listDevices().items) ?? devices
                                         }
                                     }
+                                    .accessibilityLabel("Revoke \(d.platform ?? "device") \(String(d.deviceId.prefix(12)))")
                                 }
                             }
                         }
@@ -265,11 +276,13 @@ struct AccountHubView: View {
                                 UIApplication.shared.open(url)
                             }
                         }
+                        .accessibilityHint("Opens in Safari")
                         Button("Terms of Service") {
                             if let url = URL(string: "https://momentra.tech/terms") {
                                 UIApplication.shared.open(url)
                             }
                         }
+                        .accessibilityHint("Opens in Safari")
                         Button("Back") { section = "home" }
                     }
                 }
@@ -278,6 +291,7 @@ struct AccountHubView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", action: onClose)
+                        .accessibilityLabel("Close account hub")
                 }
             }
             .onAppear {

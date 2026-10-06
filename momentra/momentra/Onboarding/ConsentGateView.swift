@@ -14,6 +14,7 @@ struct ConsentGateView: View {
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(Color.white)
                     .listRowBackground(Color.clear)
+                    .accessibilityAddTraits(.isHeader)
                 Text(
                     "Momentra uses your account and moment data to run the product. You can manage these purposes anytime in Account → Privacy:"
                 )
@@ -37,12 +38,14 @@ struct ConsentGateView: View {
                     }
                 }
                 .listRowBackground(Color.clear)
+                .accessibilityHint("Opens in Safari")
                 Button("Terms of Service") {
                     if let url = URL(string: "https://momentra.tech/terms") {
                         UIApplication.shared.open(url)
                     }
                 }
                 .listRowBackground(Color.clear)
+                .accessibilityHint("Opens in Safari")
                 Toggle(isOn: $confirmedAge13Plus) {
                     Text("I confirm I am 13 years of age or older")
                         .font(.system(size: 14))
@@ -51,6 +54,7 @@ struct ConsentGateView: View {
                 .tint(Color.accentColor)
                 .listRowBackground(Color.clear)
                 .accessibilityIdentifier("consent.age_gate")
+                .accessibilityLabel("I confirm I am 13 years of age or older")
             }
         }
         .scrollContentBackground(.hidden)
@@ -65,6 +69,7 @@ struct ConsentGateView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 16)
             .accessibilityIdentifier("consent.continue")
+            .accessibilityHint(confirmedAge13Plus ? "Continues to sign in" : "Confirm you are 13 or older to continue")
         }
         .brandAuthScreen()
         .accessibilityIdentifier("consent.gate")
@@ -74,10 +79,12 @@ struct ConsentGateView: View {
         HStack(alignment: .top, spacing: 8) {
             Text("•")
                 .foregroundStyle(Color.white.opacity(0.75))
+                .accessibilityHidden(true)
             Text(text)
                 .font(.system(size: 13))
                 .foregroundStyle(Color.white.opacity(0.75))
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .accessibilityElement(children: .combine)
     }
 }

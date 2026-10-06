@@ -26,7 +26,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Color
@@ -123,7 +126,12 @@ fun AccountHubSheet(
             .semantics { contentDescription = "Account hub" },
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(text = "Account", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+        Text(
+            text = "Account",
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            modifier = Modifier.semantics { heading() },
+        )
         val accountTitle = PersonLabel.accountName(displayName.trim().ifBlank { identity.displayName })
         if (accountTitle.isNotEmpty()) {
             Text(text = accountTitle, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
@@ -131,7 +139,13 @@ fun AccountHubSheet(
         PersonLabel.contactEmail(identity.email)?.let { email ->
             Text(text = email, fontSize = 14.sp, color = Color(0xFF8E8E93))
         }
-        statusMsg?.let { Text(text = it, fontSize = 13.sp) }
+        statusMsg?.let {
+            Text(
+                text = it,
+                fontSize = 13.sp,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
 
         when (hubSection) {
             "home" -> {
@@ -192,14 +206,23 @@ fun AccountHubSheet(
                                     .onFailure { statusMsg = it.message ?: "Delete failed" }
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics {
+                                contentDescription =
+                                    "Confirm delete account. Soft delete only; moment history is retained."
+                            },
                     ) { Text("Confirm delete account") }
                     TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
                 }
             }
 
             "security" -> {
-                Text(text = "App Security", fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = "App Security",
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.semantics { heading() },
+                )
                 Text(
                     text = "PIN and biometrics lock this device only. Never sent to Momentra servers.",
                     fontSize = 12.sp,
@@ -234,6 +257,7 @@ fun AccountHubSheet(
                     Text("Unlock with biometrics")
                     Switch(
                         checked = biometrics && pinEnabled,
+                        modifier = Modifier.semantics { contentDescription = "Unlock with biometrics" },
                         onCheckedChange = {
                             if (!pinEnabled) {
                                 statusMsg = "Set a PIN first"
@@ -262,7 +286,11 @@ fun AccountHubSheet(
             }
 
             "prefs" -> {
-                Text(text = "Notifications", fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = "Notifications",
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.semantics { heading() },
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -271,6 +299,7 @@ fun AccountHubSheet(
                     Text("Notifications")
                     Switch(
                         checked = pushEnabled,
+                        modifier = Modifier.semantics { contentDescription = "Notifications" },
                         onCheckedChange = { enabled ->
                             pushEnabled = enabled
                             securityPrefs.setNotificationsEnabledLocal(enabled)
@@ -300,6 +329,7 @@ fun AccountHubSheet(
                         Text(label)
                         Switch(
                             checked = checked,
+                            modifier = Modifier.semantics { contentDescription = label },
                             onCheckedChange = { on ->
                                 categoryMap = categoryMap + (key to on)
                                 scope.launch {
@@ -327,6 +357,7 @@ fun AccountHubSheet(
                     Text("Smart digest")
                     Switch(
                         checked = digestEnabled,
+                        modifier = Modifier.semantics { contentDescription = "Smart digest" },
                         onCheckedChange = { on ->
                             digestEnabled = on
                             scope.launch {
@@ -364,6 +395,7 @@ fun AccountHubSheet(
                     Text("Hide balances")
                     Switch(
                         checked = hideBalances,
+                        modifier = Modifier.semantics { contentDescription = "Hide balances" },
                         onCheckedChange = {
                             hideBalances = it
                             securityPrefs.setHideBalances(it)
@@ -388,6 +420,7 @@ fun AccountHubSheet(
                     }
                     Switch(
                         checked = eveningNudge,
+                        modifier = Modifier.semantics { contentDescription = "Evening check-in" },
                         onCheckedChange = {
                             eveningNudge = it
                             appPrefs.setPersonalEveningNudgeEnabled(it)
@@ -399,7 +432,11 @@ fun AccountHubSheet(
             }
 
             "privacy" -> {
-                Text(text = "Privacy & Consent", fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = "Privacy & Consent",
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.semantics { heading() },
+                )
                 consents.forEach { c ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -409,6 +446,7 @@ fun AccountHubSheet(
                         Text(text = c.displayName ?: c.code, modifier = Modifier.weight(1f))
                         Switch(
                             checked = c.granted,
+                            modifier = Modifier.semantics { contentDescription = c.displayName ?: c.code },
                             onCheckedChange = { enabled ->
                                 scope.launch {
                                     val r = if (enabled) {
@@ -429,25 +467,35 @@ fun AccountHubSheet(
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 8.dp),
                 )
-                TextButton(onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/privacy")),
-                        )
-                    }
-                }) { Text("Privacy Policy") }
-                TextButton(onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/terms")),
-                        )
-                    }
-                }) { Text("Terms of Service") }
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/privacy")),
+                            )
+                        }
+                    },
+                    modifier = Modifier.semantics { contentDescription = "Privacy Policy, opens in browser" },
+                ) { Text("Privacy Policy") }
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/terms")),
+                            )
+                        }
+                    },
+                    modifier = Modifier.semantics { contentDescription = "Terms of Service, opens in browser" },
+                ) { Text("Terms of Service") }
                 TextButton(onClick = { hubSection = "home" }) { Text("Back") }
             }
 
             "devices" -> {
-                Text(text = "Devices", fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = "Devices",
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.semantics { heading() },
+                )
                 val currentId = DeviceRegistrar.deviceId(context)
                 devices.filter { !it.revoked }.forEach { d ->
                     Row(
@@ -466,12 +514,17 @@ fun AccountHubSheet(
                             fontSize = 12.sp,
                         )
                         if (d.deviceId != currentId) {
-                            TextButton(onClick = {
-                                scope.launch {
-                                    accountRepo.revokeDevice(d.deviceId)
-                                    devices = accountRepo.listDevices().getOrDefault(devices)
-                                }
-                            }) { Text("Revoke") }
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        accountRepo.revokeDevice(d.deviceId)
+                                        devices = accountRepo.listDevices().getOrDefault(devices)
+                                    }
+                                },
+                                modifier = Modifier.semantics {
+                                    contentDescription = "Revoke ${d.platform ?: "device"} ${d.deviceId.take(12)}"
+                                },
+                            ) { Text("Revoke") }
                         }
                     }
                 }
@@ -480,7 +533,11 @@ fun AccountHubSheet(
             }
 
             else -> {
-                Text(text = "Help & Legal", fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = "Help & Legal",
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.semantics { heading() },
+                )
                 Text(text = "About Momentra", fontWeight = FontWeight.Medium)
                 Text(
                     text = "Momentra helps you run Personal, Group, and Business moments in one shell.",
@@ -490,24 +547,33 @@ fun AccountHubSheet(
                     text = "Read our policies (opens in browser):",
                     fontSize = 12.sp,
                 )
-                TextButton(onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/privacy")),
-                        )
-                    }
-                }) { Text("Privacy Policy") }
-                TextButton(onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/terms")),
-                        )
-                    }
-                }) { Text("Terms of Service") }
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/privacy")),
+                            )
+                        }
+                    },
+                    modifier = Modifier.semantics { contentDescription = "Privacy Policy, opens in browser" },
+                ) { Text("Privacy Policy") }
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/terms")),
+                            )
+                        }
+                    },
+                    modifier = Modifier.semantics { contentDescription = "Terms of Service, opens in browser" },
+                ) { Text("Terms of Service") }
                 TextButton(onClick = { hubSection = "home" }) { Text("Back") }
             }
         }
 
-        TextButton(onClick = onClose) { Text("Close") }
+        TextButton(
+            onClick = onClose,
+            modifier = Modifier.semantics { contentDescription = "Close account hub" },
+        ) { Text("Close") }
     }
 }

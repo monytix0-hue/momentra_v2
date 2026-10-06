@@ -1341,6 +1341,25 @@ final class APIClient {
         try await authorizedGet(path: "v1/moments/\(momentId)/story")
     }
 
+    /// Queue / regenerate Moment Story (additive new version; never deletes READY rows). Android parity.
+    @discardableResult
+    func createMomentStory(
+        momentId: String,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> MomentStoryCreateResult {
+        struct Body: Encodable {}
+        return try await authorizedPost(
+            path: "v1/moments/\(momentId)/stories",
+            body: Body(),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    struct MomentStoryCreateResult: Decodable {
+        let storyId: String?
+        let storyVersion: Int?
+    }
+
     func getMomentStorySharePack(momentId: String) async throws -> MomentStorySharePack {
         try await authorizedGet(path: "v1/moments/\(momentId)/story/share-pack")
     }

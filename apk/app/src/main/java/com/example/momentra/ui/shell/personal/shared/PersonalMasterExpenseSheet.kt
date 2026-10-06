@@ -46,6 +46,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -520,7 +524,11 @@ fun PersonalMasterExpenseSheet(
                         .alpha(if (amount.isNotBlank() && !submitting) 1f else 0.5f)
                         .clip(RoundedCornerShape(14.dp))
                         .border(1.dp, T.Border, RoundedCornerShape(14.dp))
-                        .clickable(enabled = amount.isNotBlank() && !submitting) {
+                        .clickable(
+                            enabled = amount.isNotBlank() && !submitting,
+                            role = Role.Button,
+                            onClickLabel = "Save expense as draft",
+                        ) {
                             submitting = true
                             error = null
                             scope.launch {
@@ -565,7 +573,11 @@ fun PersonalMasterExpenseSheet(
                         .alpha(if (amount.isNotBlank() && !submitting) 1f else 0.5f)
                         .clip(RoundedCornerShape(14.dp))
                         .background(T.Accent)
-                        .clickable(enabled = amount.isNotBlank() && !submitting) {
+                        .clickable(
+                            enabled = amount.isNotBlank() && !submitting,
+                            role = Role.Button,
+                            onClickLabel = "Confirm expense",
+                        ) {
                             submitting = true
                             error = null
                             val description = buildMasterDescription(
@@ -612,6 +624,7 @@ fun PersonalMasterExpenseSheet(
                             }
                         }
                         .padding(vertical = 14.dp)
+                        .semantics { contentDescription = if (submitting) "Saving expense" else "Confirm expense" }
                         .testTag("master_expense_confirm"),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -630,13 +643,19 @@ fun PersonalMasterExpenseSheet(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("🔒", fontSize = 12.sp)
+                Text("🔒", fontSize = 12.sp, modifier = Modifier.clearAndSetSemantics { })
                 Spacer(Modifier.width(6.dp))
                 Text(
                     "Your details private and secure.\nNot financial, legal, or tax advice. Figures are for your records only.",
                     color = T.Muted,
                     fontSize = 12.sp,
                     fontFamily = PlusJakartaSans,
+                    modifier = Modifier
+                        .semantics {
+                            contentDescription =
+                                "Your details are private and secure. Disclaimer: Not financial, legal, or tax advice. Figures are for your records only."
+                        }
+                        .testTag("finance.disclaimer"),
                 )
             }
 

@@ -6,6 +6,7 @@ import com.example.momentra.data.api.ApiClient
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.OAuthProvider
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
@@ -55,6 +56,24 @@ class FirebaseAuthRepository(
 
     suspend fun signInWithGoogle(context: Context): Result<FirebaseUser> =
         googleSignInClient.signIn(context)
+
+    /**
+     * Sign in with Apple via Firebase's hosted OAuth flow (Custom Tab).
+     * Requires the Apple provider in Firebase to have a Services ID, Team ID, Key ID and private key
+     * (docs/legal/APPLE_SIGNIN_ANDROID.md). Gated in UI by BuildConfig.APPLE_SIGNIN_ENABLED.
+     */
+    suspend fun signInWithApple(activity: Activity): Result<FirebaseUser> = runCatching {
+        val pending = firebaseAuth.pendingAuthResult
+        val result = if (pending != null) {
+            pending.await()
+        } else {
+            val provider = OAuthProvider.newBuilder("apple.com")
+                .setScopes(listOf("email", "name"))
+                .build()
+            firebaseAuth.startActivityForSignInWithProvider(activity, provider).await()
+        }
+        result.user ?: error("Apple sign-in succeeded but user is null")
+    }
 
     suspend fun sendPhoneCode(activity: Activity, rawPhone: String): Result<PhoneSendResult> =
         runCatching {
