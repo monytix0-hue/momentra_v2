@@ -23,7 +23,7 @@ android {
 dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
-    implementation("com.squareup.retrofit2:converter-scalars:2.11.0")
+    implementation("com.squareup.retrofit2:converter-scalars:3.0.0")
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.gson)
