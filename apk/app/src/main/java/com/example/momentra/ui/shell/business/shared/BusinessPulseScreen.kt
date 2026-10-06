@@ -158,6 +158,15 @@ fun BusinessPulseScreen(
             RecentBlock(theme, model, onOpenMoments)
             Text("Snapshot", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
             FactBlock(theme, model)
+            if (family == BusinessMomentFamilyConfig.Family.MONEY) {
+                Text(
+                    "Not financial, legal, or tax advice. Figures are for your records only.",
+                    color = theme.muted,
+                    fontSize = 11.sp,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
         }
     }
 }

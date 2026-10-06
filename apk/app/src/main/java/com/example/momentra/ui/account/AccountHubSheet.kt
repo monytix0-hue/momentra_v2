@@ -175,7 +175,7 @@ fun AccountHubSheet(
                     TextButton(onClick = { confirmDelete = true }) { Text("Delete account…") }
                 } else {
                     Text(
-                        text = "Soft-deletes your Momentra profile (DELETED). Domain history may be retained.",
+                        text = "This soft-deletes your Momentra account: the profile is marked deleted and signed-in devices are revoked. Moment and domain history may be retained (no hard wipe). Shared group/business history may stay visible to other members. Questions: hello@momentra.app",
                         fontSize = 12.sp,
                     )
                     Button(

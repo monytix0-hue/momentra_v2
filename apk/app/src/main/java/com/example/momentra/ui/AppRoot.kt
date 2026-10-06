@@ -88,7 +88,7 @@ fun AppRoot() {
         },
     )
     var onboardingDone by remember { mutableStateOf(prefs.isOnboardingSeen()) }
-    var consentAck by remember { mutableStateOf(prefs.isConsentGateSeen()) }
+    var consentAck by remember { mutableStateOf(prefs.isConsentGateSeen() && prefs.isAgeGateAccepted()) }
     val authState by authViewModel.state.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, shellViewModel) {
@@ -217,6 +217,7 @@ fun AppRoot() {
                         prefs.setConsentGateSeen(true)
                         consentAck = true
                     },
+                    prefs = prefs,
                 )
             }
             else -> {

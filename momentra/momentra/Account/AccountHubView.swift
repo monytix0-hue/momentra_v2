@@ -72,7 +72,7 @@ struct AccountHubView: View {
                     Section {
                         Button("Sign out", role: .destructive, action: onSignOut)
                         if confirmDelete {
-                            Text("Soft-deletes profile (DELETED). Domain history may be retained.")
+                            Text("Soft-delete only: account marked deleted, devices revoked. Moment/domain history may be retained (no hard wipe). Shared history may remain for other members.")
                                 .font(.caption)
                             Button("Confirm delete account", role: .destructive) {
                                 Task {

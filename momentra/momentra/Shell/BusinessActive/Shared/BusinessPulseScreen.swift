@@ -87,6 +87,13 @@ struct BusinessPulseScreen: View {
                         .font(.plusJakarta(size: 16, weight: .bold))
                         .foregroundStyle(.white)
                     factBlock(model)
+                    if family == .money {
+                        Text("Not financial, legal, or tax advice. Figures are for your records only.")
+                            .font(.plusJakarta(size: 11))
+                            .foregroundStyle(theme.muted)
+                            .padding(.top, 4)
+                            .accessibilityIdentifier("finance.disclaimer")
+                    }
                 } else if loading {
                     ProgressView().tint(theme.accent).frame(maxWidth: .infinity)
                 }

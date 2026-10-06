@@ -41,3 +41,13 @@ Updated: 2026-10-05 (Asia/Calcutta)
 - iOS `PrivacyInfo.xcprivacy` (UserDefaults CA92.1).
 - **Still locked:** no hard-wipe / no user-data deletes; `DELETE /v1/me` soft-delete unchanged.
 
+
+
+## Sprint S3 scope (age, disclaimer, honesty)
+
+- Age gate (13+) on consent gate for Android + iOS; Continue disabled until confirmed; local flag `momentra_age_gate_accepted_13plus`.
+- Consent gate copy lists purposes briefly (account/moments, analytics, AI, memory) aligned with Privacy Policy; `/v1/me/consents` API unchanged.
+- Finance disclaimer on Business Money/Runway Pulse and Personal Master Expense: "Not financial, legal, or tax advice."
+- Delete-account copy clarifies soft-delete only (devices revoked; moment/domain history may be retained; no hard wipe).
+- **Still locked:** no hard-wipe / no user-data deletes; `DELETE /v1/me` soft-delete unchanged; no export endpoint in S3.
+- Live policy pages on momentra.tech remain source of truth; in-repo drafts stay DRAFT.

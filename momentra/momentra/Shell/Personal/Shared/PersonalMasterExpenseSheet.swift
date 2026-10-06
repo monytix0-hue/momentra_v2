@@ -455,11 +455,18 @@ struct PersonalMasterExpenseSheet: View {
     }
 
     private var privacyLine: some View {
-        HStack(spacing: 6) {
-            Text("🔒").font(.system(size: 12))
-            Text("Your details private and secure.")
-                .font(.system(size: 12))
+        VStack(spacing: 4) {
+            HStack(spacing: 6) {
+                Text("🔒").font(.system(size: 12))
+                Text("Your details private and secure.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(PersonalMasterExpenseTheme.muted)
+            }
+            Text("Not financial, legal, or tax advice. Figures are for your records only.")
+                .font(.system(size: 11))
                 .foregroundStyle(PersonalMasterExpenseTheme.muted)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("finance.disclaimer")
         }
         .frame(maxWidth: .infinity)
     }

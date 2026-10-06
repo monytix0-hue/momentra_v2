@@ -154,7 +154,7 @@ struct AuthOnlyView: View {
     @ObservedObject var viewModel: AuthViewModel
     @StateObject private var shellModel = AppShellModel()
     @State private var onboardingSeen = OnboardingPrefs.isSeen
-    @State private var consentAck = OnboardingPrefs.isConsentGateSeen
+    @State private var consentAck = OnboardingPrefs.isConsentGateSeen && OnboardingPrefs.isAgeGateAccepted
     @State private var lockTick = 0
     @Environment(\.scenePhase) private var scenePhase
 

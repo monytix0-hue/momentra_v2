@@ -633,7 +633,7 @@ fun PersonalMasterExpenseSheet(
                 Text("🔒", fontSize = 12.sp)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "Your details private and secure.",
+                    "Your details private and secure.\nNot financial, legal, or tax advice. Figures are for your records only.",
                     color = T.Muted,
                     fontSize = 12.sp,
                     fontFamily = PlusJakartaSans,
