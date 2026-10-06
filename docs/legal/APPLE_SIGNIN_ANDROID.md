@@ -46,3 +46,13 @@ Updated: 2026-10-06 (Asia/Calcutta) · Sprint S5
   `account-exists-with-different-credential` — surfaced via `AuthErrorMapper`; account linking is a
   follow-up, not in S5.
 - **No user data is deleted** by any part of this flow.
+
+## Done when
+
+- [ ] Apple Services ID (e.g. `resolvingpoint.momentra.signin`) exists with return URL `https://momentra-v2.firebaseapp.com/__/auth/handler`.
+- [ ] Sign in with Apple key (`.p8`), Key ID, and Team ID are saved in Firebase -> Authentication -> Apple.
+- [ ] Android app `resolvingpoint.momentra` is registered in Firebase and the new `google-services.json` is committed (`ANDROID_PACKAGE_RENAME.md`).
+- [ ] With `APPLE_SIGNIN_ENABLED=true`: a new Apple user completes consent/onboarding on Android.
+- [ ] An existing iOS Apple user signs in on Android and gets the **same Firebase UID** (same data, nothing duplicated or deleted).
+- [ ] Hide My Email relay works (or is consciously skipped).
+- [ ] Flag turned on for release builds.

@@ -31,7 +31,7 @@ Or merge [`vercel.json`](vercel.json) rewrites/headers into the existing marketi
 |------|---------|
 | `/j/{code}` / `/join/{code}` | Group invite landing → opens `momentra://j/{code}` |
 | `/c/{code}` / `/company/{code}` | Company invite landing → opens `momentra://c/{code}` |
-| `/.well-known/assetlinks.json` | Android App Links (`com.example.momentra`) |
+| `/.well-known/assetlinks.json` | Android App Links (`resolvingpoint.momentra` + legacy `com.example.momentra`) |
 | `/.well-known/apple-app-site-association` | iOS Universal Links (`resolvingpoint.momentra`) |
 
 ## Android fingerprint
@@ -45,3 +45,7 @@ keytool -list -v -keystore your-release.keystore -alias your-alias
 ## iOS
 
 Associated domains: `applinks:momentra.tech` (and www). Enable Associated Domains for App ID `resolvingpoint.momentra` in the Apple Developer portal.
+
+## Open Graph image (`og.png`)
+
+`join.html` sets `og:image` to `https://momentra.tech/og.png`. That asset must be hosted on the **momentra.tech marketing site** (it is not in this folder). As of 2026-10-06 it returns **404** on both apex and `www`, so invite previews show no image until a 1200x630 PNG is published at that path.

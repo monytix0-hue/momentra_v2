@@ -1,6 +1,20 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "resolvingpoint.momentra",
+      "sha256_cert_fingerprints": [
+        "6CECCA673AAB612EB5BE2F23976C68ED0E91588FF9AD55F214C63CAC63AABCBB"
+      ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "com.example.momentra",

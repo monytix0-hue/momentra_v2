@@ -78,7 +78,7 @@ struct AccountHubView: View {
                         Button("Sign out", role: .destructive, action: onSignOut)
                             .accessibilityIdentifier("account.sign_out")
                         if confirmDelete {
-                            Text("Soft-delete only: account marked deleted, devices revoked. Moment/domain history may be retained (no hard wipe). Shared history may remain for other members.")
+                            Text("Soft-delete only: account marked deleted, devices revoked. Moment/domain history may be retained (no hard wipe). Shared history may remain for other members. Questions: hello@momentra.app")
                                 .font(.caption)
                             Button("Confirm delete account", role: .destructive) {
                                 Task {

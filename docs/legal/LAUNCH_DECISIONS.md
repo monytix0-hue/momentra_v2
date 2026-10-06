@@ -7,14 +7,15 @@ Updated: 2026-10-06 (Asia/Calcutta)
 - **No hard-wipe of user, media, or domain data.** Operators and product must not DROP/TRUNCATE/destroy production user data for â€œcleanupâ€ or account-deletion automation.
 - **Account deletion = soft-delete only** (`DELETE /v1/me` marks the account deleted / disables Firebase sign-in). Historical moments, media, and related records are **retained**.
 - Shared group/business history may remain visible to other participants after a member soft-deletes.
-- Access / correction / retention questions: `resolvingpoint@gmail.com`.
+- Access / correction / retention questions: `hello@momentra.app` (matches live momentra.tech Privacy/Terms).
 
 ## Legal documents
 
 - Privacy Policy and Terms of Service in-repo drafts: `web/legal/privacy.html`, `web/legal/terms.html`.
 - Canonical public URLs (apps + invite footer): `https://momentra.tech/privacy`, `https://momentra.tech/terms`.
 - **Status:** DRAFT â€” pending lawyer review. Not legal advice.
-- Contact / entity email for policies: `resolvingpoint@gmail.com`.
+- Public contact for policies and in-app support copy: `hello@momentra.app`.
+- `resolvingpoint@gmail.com` stays only as the Firebase / Google OAuth consent-screen support email (`firebase.json` `supportEmail`, Firebase console). Change it there only in the console if you ever want to; it is not user-facing support.
 
 ## Sprint S1 scope (this decision set)
 
