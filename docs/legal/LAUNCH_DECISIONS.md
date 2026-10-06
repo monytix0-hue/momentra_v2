@@ -4,7 +4,7 @@ Updated: 2026-10-05 (Asia/Calcutta)
 
 ## Data deletion policy (locked)
 
-- **No hard-wipe of user, media, or domain data.** Operators and product must not DROP/TRUNCATE/destroy production user data for “cleanup” or account-deletion automation.
+- **No hard-wipe of user, media, or domain data.** Operators and product must not DROP/TRUNCATE/destroy production user data for â€œcleanupâ€ or account-deletion automation.
 - **Account deletion = soft-delete only** (`DELETE /v1/me` marks the account deleted / disables Firebase sign-in). Historical moments, media, and related records are **retained**.
 - Shared group/business history may remain visible to other participants after a member soft-deletes.
 - Access / correction / retention questions: `resolvingpoint@gmail.com`.
@@ -13,7 +13,7 @@ Updated: 2026-10-05 (Asia/Calcutta)
 
 - Privacy Policy and Terms of Service in-repo drafts: `web/legal/privacy.html`, `web/legal/terms.html`.
 - Canonical public URLs (apps + invite footer): `https://momentra.tech/privacy`, `https://momentra.tech/terms`.
-- **Status:** DRAFT — pending lawyer review. Not legal advice.
+- **Status:** DRAFT â€” pending lawyer review. Not legal advice.
 - Contact / entity email for policies: `resolvingpoint@gmail.com`.
 
 ## Sprint S1 scope (this decision set)
@@ -25,7 +25,7 @@ Updated: 2026-10-05 (Asia/Calcutta)
 
 ## Billing
 
-- No in-app purchases / subscriptions in current scope → refund policy deferred until billing ships.
+- No in-app purchases / subscriptions in current scope â†’ refund policy deferred until billing ships.
 
 ## Hosting note
 
@@ -51,3 +51,12 @@ Updated: 2026-10-05 (Asia/Calcutta)
 - Delete-account copy clarifies soft-delete only (devices revoked; moment/domain history may be retained; no hard wipe).
 - **Still locked:** no hard-wipe / no user-data deletes; `DELETE /v1/me` soft-delete unchanged; no export endpoint in S3.
 - Live policy pages on momentra.tech remain source of truth; in-repo drafts stay DRAFT.
+
+## Sprint S4 scope (ops polish)
+
+- Dependabot: `.github/dependabot.yml` (npm: `backend/typescript`, `admin-dashboard`, `backend/packages/event-contracts`, root; gradle: `apk/`; github-actions). **SPM (iOS):** not covered by Dependabot — update Xcode packages manually.
+- Backups ops checklist: `docs/security/BACKUPS_CHECKLIST.md` (Supabase encryption at rest, PITR, restore drill). Not automated.
+- Subprocessors register: `docs/legal/SUBPROCESSORS.md` (Firebase, Google, Apple, FCM, Supabase, optional Sentry).
+- Invite polish: `web/invite` favicon.svg, Open Graph tags on `join.html`, robots.txt + sitemap.xml. Privacy/Terms links remain `https://momentra.tech/privacy` and `/terms`.
+- **Sentry DSN:** still an ops responsibility — set only in production when ready; not required for this sprint to pass.
+- **Still locked:** no hard-wipe / no user-data deletes; soft-delete unchanged.
