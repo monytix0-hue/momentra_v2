@@ -360,7 +360,13 @@ private fun ReadinessGroup(label: String, rows: List<com.example.momentra.data.a
         rows.forEach { item ->
             Column(Modifier.clickable { com.example.momentra.ui.shell.business.shared.OperatingChromeState.settling = item }) {
                 Line(item.title, money(model, item.amount), DistInk)
-                val meta = listOfNotNull(item.counterpartyName, item.dueAt?.take(10)).filter { it.isNotBlank() }.joinToString(" · ")
+                val bucket = when (item.dueBucket) {
+                    "OVERDUE" -> "Overdue"
+                    "DUE_SOON" -> "Due soon"
+                    "OPEN" -> if (item.dueAt.isNullOrBlank()) "Open · no due date" else "Open"
+                    else -> null
+                }
+                val meta = listOfNotNull(item.counterpartyName, item.dueAt?.take(10), bucket).filter { it.isNotBlank() }.joinToString(" · ")
                 if (meta.isNotBlank()) Text(meta, color = DistSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
             }
         }

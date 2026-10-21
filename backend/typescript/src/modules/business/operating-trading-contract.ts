@@ -10,7 +10,6 @@ import {
   obligationRemaining,
   parseOperatingContract,
   salesCoverage,
-  stockPositions as ownedStockPositions,
   type OperatingContract,
   type RetailAttention,
   type RetailEvent,
@@ -19,11 +18,12 @@ import {
   type RetailWriteResult,
   type StockPosition,
 } from './operating-retail-contract';
+import { lineBaseQuantity, toBaseQuantity, type MasterMeta } from './operating-trading-lov';
 
 export const TRADING_SUBTYPES = ['TRADING_WHOLESALE', 'DISTRIBUTION_DEALERSHIP'] as const;
 
 export type TradingEvent = RetailEvent;
-export type TradingWrite = RetailWrite;
+export type TradingWrite = RetailWrite & { channelTracking?: boolean };
 export type TradingAttention = RetailAttention;
 export type TradingLine = RetailLine;
 
@@ -61,6 +61,43 @@ function fail(message: string): { ok: false; message: string } {
 
 function lineTotal(lines: TradingLine[] | null | undefined): number {
   return (lines ?? []).reduce((total, line) => total + num(line.quantity ?? 1) * num(line.unitPrice), 0);
+}
+
+function productForLine(line: TradingLine, existing: TradingEvent[]): MasterMeta | null {
+  if (line.masterId) {
+    const byId = existing.find((row) => row.operatingEventId === line.masterId && row.master?.kind === 'PRODUCT');
+    if (byId?.master) {
+      return {
+        kind: byId.master.kind,
+        name: byId.master.name,
+        unit: byId.master.unit,
+        dimension: (byId.master.dimension as MasterMeta['dimension']) ?? null,
+        conversionToBase: byId.master.conversionToBase,
+      };
+    }
+  }
+  const name = line.itemName.trim().toLowerCase();
+  if (!name) return null;
+  const byName = existing.find(
+    (row) => row.master?.kind === 'PRODUCT' && row.master.name.trim().toLowerCase() === name
+  );
+  if (!byName?.master) return null;
+  return {
+    kind: byName.master.kind,
+    name: byName.master.name,
+    unit: byName.master.unit,
+    dimension: (byName.master.dimension as MasterMeta['dimension']) ?? null,
+    conversionToBase: byName.master.conversionToBase,
+  };
+}
+
+function convertLine(line: TradingLine, existing: TradingEvent[]): { ok: true } | { ok: false; message: string } {
+  const product = productForLine(line, existing);
+  if (line.masterId && !product) return fail('Choose a product from the list.');
+  const converted = toBaseQuantity(line.quantity, line.unit, product);
+  if (!converted.ok) return fail(converted.message);
+  line.baseQuantity = money(converted.baseQty);
+  return { ok: true };
 }
 
 function addDays(dayText: string, days: number): string {
@@ -103,12 +140,13 @@ export function validateTradingWrite(
 ): RetailWriteResult | { ok: false; message: string } {
   const contract: OperatingContract = { ...(input.contract ?? {}) };
   if (input.eventType === 'SALE') return validateSale(input, existing, contract);
-  if (input.eventType === 'PURCHASE') return validatePurchase(input, contract);
+  if (input.eventType === 'PURCHASE') return validatePurchase(input, existing, contract);
   if (input.eventType === 'SPEND') return validateExpense(input, contract);
   if (input.eventType === 'COLLECTION' || input.eventType === 'PAYMENT') return validateSettlement(input, existing, contract);
   if (input.eventType === 'STOCK') return validateStock(input, contract);
   if (input.eventType === 'ORDER') return validateOrder(input, contract);
   if (input.eventType === 'SHIPMENT' || input.eventType === 'DELIVERY') return validateShipment(input, existing, contract);
+  if (input.eventType === 'RETURN') return validateReturn(input, existing, contract);
   return {
     ok: true,
     paymentStatus: 'NONE',
@@ -120,6 +158,33 @@ export function validateTradingWrite(
   };
 }
 
+function applyTaxAndFx(
+  contract: OperatingContract,
+  amount: number
+): RetailWriteResult | { ok: false; message: string } | null {
+  if (!contract.taxMode) contract.taxMode = 'NOT_CONFIGURED';
+  if (contract.taxMode === 'NOT_CONFIGURED') {
+    contract.taxAmount = null;
+  } else if (contract.taxAmount != null && !(num(contract.taxAmount) >= 0)) {
+    return fail('Tax amount cannot be negative.');
+  }
+  const original = String(contract.originalCurrency ?? '').trim().toUpperCase();
+  const rate = num(contract.fxRate);
+  const converted = num(contract.convertedAmount);
+  if (original || rate > 0 || converted > 0) {
+    if (!original) return fail('Original currency is required for FX conversion.');
+    if (!(rate > 0)) return fail('FX rate is required to convert currency.');
+    if (!(converted > 0)) {
+      contract.convertedAmount = money(amount * rate);
+    }
+  } else {
+    contract.originalCurrency = null;
+    contract.fxRate = null;
+    contract.convertedAmount = null;
+  }
+  return null;
+}
+
 function validateSale(
   input: TradingWrite,
   existing: TradingEvent[],
@@ -127,7 +192,9 @@ function validateSale(
 ): RetailWriteResult | { ok: false; message: string } {
   const mode = contract.entryMode;
   if (mode !== 'QUICK' && mode !== 'ITEMIZED') return fail('Choose quick amount or itemized.');
-  if (!String(input.channelName ?? '').trim()) return fail('Sales channel is required.');
+  if (input.channelTracking && !String(input.channelName ?? '').trim()) {
+    return fail('Sales channel is required.');
+  }
   const lines = input.lines ?? [];
   let amount = num(input.amount);
   if (mode === 'ITEMIZED') {
@@ -136,15 +203,21 @@ function validateSale(
       if (!line.itemName.trim() || !(num(line.quantity) > 0) || !String(line.unit ?? '').trim() || !(num(line.unitPrice) > 0)) {
         return fail('Each item needs a name, quantity, unit, and price.');
       }
+      const converted = convertLine(line, existing);
+      if (!converted.ok) return converted;
     }
     amount = lineTotal(lines);
   }
   if (!(amount > 0)) return fail('Amount is required.');
+  const taxFx = applyTaxAndFx(contract, amount);
+  if (taxFx && !taxFx.ok) return taxFx;
   const state = contract.paymentState;
   if (state !== 'RECEIVED' && state !== 'PART_PAID' && state !== 'PAY_LATER') return fail('Choose received, part paid, or pay later.');
   const received = state === 'RECEIVED' ? amount : state === 'PAY_LATER' ? 0 : num(contract.receivedAmount);
   if (state === 'PART_PAID' && !(received > 0 && received < amount)) return fail('Part paid must be more than zero and less than the total.');
   if (received < amount && !namedParty(input.counterpartyName)) return fail('A named buyer is required when a balance remains.');
+  // D1: due date required when a credit balance remains.
+  if (received < amount && !day(input.dueAt)) return fail('Due date is required when a balance remains.');
   if (input.parentEventId) {
     const parent = existing.find((row) => row.operatingEventId === input.parentEventId);
     if (!parent) return fail('Choose a record on this moment.');
@@ -160,17 +233,30 @@ function validateSale(
     paymentStatus: state === 'RECEIVED' ? 'COLLECTED' : 'PENDING',
     amount: money(amount),
     parentEventId: input.parentEventId ?? null,
-    quantity: mode === 'ITEMIZED' ? money(lines.reduce((total, line) => total + num(line.quantity), 0)) : null,
+    quantity: mode === 'ITEMIZED'
+      ? money(lines.reduce((total, line) => total + lineBaseQuantity(line, productForLine(line, existing)), 0))
+      : null,
     contract,
     settleChild: state === 'PART_PAID' ? { type: 'COLLECTION', amount: money(received) } : null,
   };
 }
 
-function validatePurchase(input: TradingWrite, contract: OperatingContract): RetailWriteResult | { ok: false; message: string } {
+function validatePurchase(
+  input: TradingWrite,
+  existing: TradingEvent[],
+  contract: OperatingContract
+): RetailWriteResult | { ok: false; message: string } {
   if (!namedParty(input.counterpartyName)) return fail('Supplier is required.');
   const lines = input.lines ?? [];
   const amount = lines.length > 0 && lineTotal(lines) > 0 ? lineTotal(lines) : num(input.amount);
   if (!(amount > 0)) return fail('Amount is required.');
+  // Quick cost never asserts physical receipt (v6 / D3).
+  if (contract.entryMode === 'QUICK' || lines.length === 0) {
+    contract.receiptState = 'AWAITING';
+    contract.quantityReceived = null;
+  } else if (!contract.receiptState) {
+    contract.receiptState = 'RECEIVED';
+  }
   if (contract.receiptState !== 'RECEIVED' && contract.receiptState !== 'PART_RECEIVED' && contract.receiptState !== 'AWAITING') {
     return fail('Choose whether goods were received.');
   }
@@ -181,6 +267,15 @@ function validatePurchase(input: TradingWrite, contract: OperatingContract): Ret
   const paid = state === 'PAID' ? amount : state === 'PAY_LATER' ? 0 : num(contract.receivedAmount);
   if (paid - amount > 0.00005) return fail('Paid amount cannot exceed the total.');
   if (state === 'PART_PAID' && !(paid > 0 && paid < amount)) return fail('Part paid must be more than zero and less than the total.');
+  if (paid < amount && !day(input.dueAt)) return fail('Due date is required when a balance remains.');
+  const taxFx = applyTaxAndFx(contract, amount);
+  if (taxFx && !taxFx.ok) return taxFx;
+  if (input.lines?.length) {
+    for (const line of input.lines) {
+      const converted = convertLine(line, existing);
+      if (!converted.ok) return converted;
+    }
+  }
   contract.paymentState = state;
   contract.receivedAmount = money(paid);
   return {
@@ -204,6 +299,7 @@ function validateExpense(input: TradingWrite, contract: OperatingContract): Reta
   const paid = state === 'PAID' ? amount : state === 'PAY_LATER' ? 0 : num(contract.receivedAmount);
   if (state !== 'PAID' && !namedParty(input.counterpartyName)) return fail('Payee is required when the expense is not fully paid.');
   if (state === 'PART_PAID' && !(paid > 0 && paid < amount)) return fail('Part paid must be more than zero and less than the total.');
+  if (paid < amount && !day(input.dueAt)) return fail('Due date is required when a balance remains.');
   contract.expenseCategory = category;
   contract.paymentState = state;
   contract.receivedAmount = money(paid);
@@ -327,23 +423,210 @@ function validateShipment(
   };
 }
 
-/** Owned on-hand only — consignment receipts never enter owned stock. */
+function validateReturn(
+  input: TradingWrite,
+  existing: TradingEvent[],
+  contract: OperatingContract
+): RetailWriteResult | { ok: false; message: string } {
+  const direction = contract.returnDirection;
+  if (direction !== 'CUSTOMER' && direction !== 'SUPPLIER') return fail('Choose customer return or supplier return.');
+  if (!contract.goodsOutcome) return fail('Choose whether goods returned to stock.');
+  if (
+    contract.goodsOutcome !== 'TO_STOCK' &&
+    contract.goodsOutcome !== 'NOT_RETURNED' &&
+    contract.goodsOutcome !== 'PENDING_INSPECTION'
+  ) {
+    return fail('Choose a goods outcome.');
+  }
+  if (!String(contract.returnReason ?? '').trim()) return fail('Return reason is required.');
+  const parentId = input.parentEventId;
+  if (!parentId) return fail('Choose the source sale or purchase.');
+  const source = existing.find((row) => row.operatingEventId === parentId);
+  if (!source || !effective(source)) return fail('Choose a posted source on this moment.');
+  if (direction === 'CUSTOMER' && source.eventType !== 'SALE') return fail('Customer returns link to a sale.');
+  if (direction === 'SUPPLIER' && source.eventType !== 'PURCHASE') return fail('Supplier returns link to a purchase.');
+  const amount = num(input.amount);
+  if (!(amount > 0)) return fail('Credit amount is required.');
+  const open = obligationRemaining(source, existing, direction === 'CUSTOMER' ? 'COLLECTION' : 'PAYMENT');
+  // Remaining open obligation (after collections/payments and prior returns).
+  const ceiling = Math.max(open, 0);
+  if (!(ceiling > 0)) return fail('Nothing remains open on that source.');
+  if (amount - ceiling > 0.00005) return fail('Return cannot exceed the remaining open amount.');
+  const qty = num(input.quantity);
+  if (contract.goodsOutcome === 'TO_STOCK' && !(qty > 0) && !(input.lines?.length)) {
+    return fail('Quantity is required when goods return to stock.');
+  }
+  if (input.lines?.length) {
+    for (const line of input.lines) {
+      const converted = convertLine(line, existing);
+      if (!converted.ok) return converted;
+    }
+  }
+  return {
+    ok: true,
+    paymentStatus: 'NONE',
+    amount: money(amount),
+    parentEventId: parentId,
+    quantity: qty > 0 ? money(qty) : input.lines?.length
+      ? money(input.lines.reduce((total, line) => total + lineBaseQuantity(line, productForLine(line, existing)), 0))
+      : null,
+    contract,
+    settleChild: null,
+  };
+}
+
+/**
+ * Owned on-hand only. Sale never decrements stock (sale ≠ dispatch).
+ * Stock moves from STOCK adjustments, received PURCHASE qty, delivered SHIPMENT/DELIVERY,
+ * and RETURN with goodsOutcome TO_STOCK. Quantities use baseQuantity when present.
+ * Consignment never enters owned on-hand.
+ */
 export function tradingStockPositions(events: TradingEvent[]): StockPosition[] {
-  const filtered = events.filter((row) => {
-    if (!effective(row)) return false;
-    if (row.contract?.ownership === 'CONSIGNMENT') return false;
-    return true;
-  });
-  return ownedStockPositions(filtered);
+  const ordered = events
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => effective(row) && row.contract?.ownership !== 'CONSIGNMENT')
+    .sort((a, b) => a.row.occurredAt.localeCompare(b.row.occurredAt) || a.index - b.index);
+  const positions = new Map<string, StockPosition>();
+  const touch = (name: string, unit: string | null) => {
+    const key = itemKey(name);
+    const current = positions.get(key) ?? { item: name.trim(), unit, onHand: 0, reorderPoint: null };
+    if (unit && !current.unit) current.unit = unit;
+    positions.set(key, current);
+    return current;
+  };
+  const qtyOf = (line: RetailLine) => lineBaseQuantity(line, null);
+  for (const { row } of ordered) {
+    const reorder = row.contract?.reorderPoint;
+    if (row.eventType === 'STOCK' && row.contract?.stockAction) {
+      const position = touch(row.title, row.unit ?? null);
+      if (reorder != null) position.reorderPoint = num(reorder);
+      const qty = num(row.contract.declaredQuantity ?? row.quantity);
+      if (row.contract.stockAction === 'SET') position.onHand = qty;
+      else if (row.contract.stockAction === 'ADD') position.onHand += num(row.quantity);
+      else position.onHand -= num(row.quantity);
+      continue;
+    }
+    if (row.eventType === 'PURCHASE' && row.contract?.receiptState && row.contract.receiptState !== 'AWAITING') {
+      const lines = row.lines ?? [];
+      if (lines.length === 0) continue;
+      const received =
+        row.contract.receiptState === 'PART_RECEIVED'
+          ? num(row.contract.quantityReceived)
+          : lines.reduce((total, line) => total + qtyOf(line), 0);
+      let left = received;
+      for (const line of lines) {
+        const take =
+          row.contract.receiptState === 'PART_RECEIVED' ? Math.min(qtyOf(line) || left, left) : qtyOf(line);
+        if (!(take > 0)) continue;
+        touch(line.itemName, line.unit ?? null).onHand += take;
+        left -= take;
+      }
+      continue;
+    }
+    if (
+      (row.eventType === 'SHIPMENT' || row.eventType === 'DELIVERY') &&
+      row.contract?.shipmentStatus === 'DELIVERED'
+    ) {
+      const lines = row.lines ?? [];
+      if (lines.length > 0) {
+        for (const line of lines) {
+          touch(line.itemName, line.unit ?? null).onHand -= qtyOf(line);
+        }
+      } else if (row.title.trim() && num(row.quantity) > 0) {
+        touch(row.title, row.unit ?? null).onHand -= num(row.quantity);
+      }
+      continue;
+    }
+    if (row.eventType === 'RETURN' && row.contract?.goodsOutcome === 'TO_STOCK') {
+      const lines = row.lines ?? [];
+      if (lines.length > 0) {
+        for (const line of lines) {
+          touch(line.itemName, line.unit ?? null).onHand += qtyOf(line);
+        }
+      } else if (row.title.trim() && num(row.quantity) > 0) {
+        touch(row.title, row.unit ?? null).onHand += num(row.quantity);
+      }
+    }
+  }
+  return [...positions.values()];
+}
+
+/** Consignment quantity held separately from owned on-hand (D6). */
+export function consignmentStockHint(events: TradingEvent[]): string | null {
+  const held = new Map<string, number>();
+  for (const row of events) {
+    if (!effective(row) || row.contract?.ownership !== 'CONSIGNMENT') continue;
+    if (row.eventType === 'PURCHASE' && row.contract.receiptState && row.contract.receiptState !== 'AWAITING') {
+      for (const line of row.lines ?? []) {
+        const key = itemKey(line.itemName);
+        held.set(key, (held.get(key) ?? 0) + num(line.quantity));
+      }
+    }
+    if (row.eventType === 'STOCK' && row.contract.stockAction === 'ADD') {
+      const key = itemKey(row.title);
+      held.set(key, (held.get(key) ?? 0) + num(row.quantity));
+    }
+  }
+  if (held.size === 0) return null;
+  const total = [...held.values()].reduce((sum, qty) => sum + qty, 0);
+  return `Consignment held ${trim(total)} (not owned)`;
 }
 
 export function ordersCoverage(events: TradingEvent[]): string | null {
   const sales = events.filter((row) => row.eventType === 'SALE' && effective(row));
   if (sales.length === 0) return null;
+  const totalValue = sales.reduce((sum, row) => sum + num(row.amount), 0);
+  const itemized = sales.filter((row) => row.contract?.entryMode === 'ITEMIZED');
+  const itemizedValue = itemized.reduce((sum, row) => sum + num(row.amount), 0);
+  if (itemized.length === 0) return 'Line coverage not recorded';
+  if (itemized.length === sales.length) return null;
+  const pct = totalValue > 0 ? Math.round((itemizedValue / totalValue) * 100) : Math.round((itemized.length / sales.length) * 100);
+  return `Based on itemized sales: ${pct}% of sales value (${itemized.length} of ${sales.length})`;
+}
+
+export type TradingDueBucket = 'OVERDUE' | 'DUE_SOON' | 'OPEN';
+
+export function tradingDueBucket(dueAt: string | null | undefined, asOf: Date): TradingDueBucket {
+  const due = day(dueAt);
+  if (!due) return 'OPEN';
+  const today = asOf.toISOString().slice(0, 10);
+  if (due < today) return 'OVERDUE';
+  if (due <= addDays(today, DUE_SOON_DAYS)) return 'DUE_SOON';
+  return 'OPEN';
+}
+
+export function stockCoverage(events: TradingEvent[]): string | null {
+  const sales = events.filter((row) => row.eventType === 'SALE' && effective(row));
+  if (sales.length === 0) return null;
   const itemized = sales.filter((row) => row.contract?.entryMode === 'ITEMIZED').length;
-  if (itemized === 0) return 'Line coverage not recorded';
-  if (itemized === sales.length) return null;
-  return `Line coverage ${itemized} of ${sales.length} posted sales`;
+  if (itemized === 0) return 'SKU stock excludes amount-only sales';
+  if (itemized < sales.length) {
+    return `Stock tracks itemized lines only · ${itemized} of ${sales.length} sales`;
+  }
+  return null;
+}
+
+export function buyersChannelsCoverage(events: TradingEvent[]): string | null {
+  const sales = events.filter((row) => row.eventType === 'SALE' && effective(row));
+  if (sales.length === 0) return null;
+  const withChannel = sales.filter((row) => String(row.channelName ?? '').trim()).length;
+  const withBuyer = sales.filter((row) => namedParty(row.counterpartyName)).length;
+  if (withChannel === sales.length && withBuyer === sales.length) return null;
+  if (withChannel === 0 && withBuyer === 0) return 'Buyer/channel attribution unavailable';
+  return `Attributed ${withBuyer} buyers · ${withChannel} channels of ${sales.length} sales`;
+}
+
+export function currentBusinessDetail(events: TradingEvent[], visible: boolean, currency: string): string | null {
+  const rows = events.filter((row) => effective(row));
+  const sales = rows.filter((row) => row.eventType === 'SALE').length;
+  const purchases = rows.filter((row) => row.eventType === 'PURCHASE').length;
+  const stock = rows.filter((row) => row.eventType === 'STOCK').length;
+  const issues = rows.filter((row) => row.eventType === 'ISSUE').length;
+  if (sales + purchases + stock + issues === 0) return null;
+  const moneyText = visible
+    ? ` · Sales ${money(rows.filter((row) => row.eventType === 'SALE').reduce((sum, row) => sum + num(row.amount), 0))} ${currency}`
+    : '';
+  return `Sales ${sales} · Purchases ${purchases} · Stock moves ${stock} · Issues ${issues}${moneyText}`;
 }
 
 export function fulfilmentCoverage(events: TradingEvent[]): string | null {

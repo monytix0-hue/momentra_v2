@@ -84,28 +84,7 @@ struct TradingQuickAddHub: View {
                 eventType: "UPDATE",
                 mode: "MASTERS",
                 model: model,
-                onSubmit: { draft in
-                    try await onRecord(TradingEventDraft(
-                        eventType: draft.eventType,
-                        title: draft.title,
-                        amount: draft.amount,
-                        note: draft.note,
-                        channelName: draft.channelName,
-                        counterpartyName: draft.counterpartyName,
-                        paymentStatus: draft.paymentStatus,
-                        occurredAt: draft.occurredAt,
-                        quantity: draft.quantity,
-                        unit: draft.unit,
-                        unitPrice: draft.unitPrice,
-                        itemName: draft.itemName,
-                        parentEventId: draft.parentEventId,
-                        revisesEventId: draft.revisesEventId,
-                        masterKind: draft.masterKind,
-                        dueAt: draft.dueAt,
-                        contract: draft.contract,
-                        lineItems: draft.lineItems
-                    ))
-                },
+                onSubmit: { draft in try await onRecord(draft.toTrading()) },
                 onDecide: onDecide
             )
         }
@@ -118,30 +97,31 @@ struct TradingQuickAddHub: View {
                 model: model,
                 channelLabel: kind == .sale ? "Sales channel" : (kind == .collection ? "Received from" : "Channel"),
                 variant: "trading",
-                onSubmit: { draft in
+                onSubmit: { draft in try await onRecord(draft.toTrading()) },
+                onDecide: onDecide,
+                onCreateMaster: { kind, name, unit in
                     try await onRecord(TradingEventDraft(
-                        eventType: draft.eventType,
-                        title: draft.title,
-                        amount: draft.amount,
-                        note: draft.note,
-                        channelName: draft.channelName,
-                        counterpartyName: draft.counterpartyName,
-                        paymentStatus: draft.paymentStatus,
-                        occurredAt: draft.occurredAt,
-                        quantity: draft.quantity,
-                        unit: draft.unit,
-                        unitPrice: draft.unitPrice,
-                        itemName: draft.itemName,
-                        parentEventId: draft.parentEventId,
-                        revisesEventId: draft.revisesEventId,
-                        masterKind: draft.masterKind,
-                        dueAt: draft.dueAt,
-                        contract: draft.contract,
-                        lineItems: draft.lineItems
+                        eventType: "UPDATE",
+                        title: name,
+                        amount: nil,
+                        note: nil,
+                        channelName: nil,
+                        counterpartyName: nil,
+                        paymentStatus: nil,
+                        unit: unit,
+                        masterKind: kind
                     ))
-                },
-                onDecide: onDecide
+                }
             )
+        }
+        .onAppear {
+            switch OperatingQuickAddHint.value {
+            case "shipment": sheet = .shipment
+            case "stock": sheet = .stock
+            case "budget": sheet = .budget
+            default: break
+            }
+            OperatingQuickAddHint.value = nil
         }
         .sheet(isPresented: $approvalOpen) {
             OperatingCaptureSheet(
@@ -209,7 +189,7 @@ struct TradingQuickAddHub: View {
 }
 
 enum TradingSheetKind: String, Identifiable {
-    case sale, purchase, spend, payment, collection, budget, update, issue, stock, order, shipment, reimburse, person, role, invite, supplier
+    case sale, purchase, spend, payment, collection, budget, update, issue, stock, order, shipment, returnNote, reimburse, person, role, invite, supplier
     var id: String { rawValue }
     var label: String {
         switch self {
@@ -224,6 +204,7 @@ enum TradingSheetKind: String, Identifiable {
         case .stock: return "Stock"
         case .order: return "Order"
         case .shipment: return "Shipment"
+        case .returnNote: return "Return"
         case .reimburse: return "Reimbursement"
         case .person: return "Add person"
         case .role: return "Role & access"
@@ -233,7 +214,7 @@ enum TradingSheetKind: String, Identifiable {
     }
     var icon: String {
         switch self {
-        case .sale, .spend: return "qa_receipt"
+        case .sale, .spend, .returnNote: return "qa_receipt"
         case .purchase: return "biz_qa_wallet"
         case .payment, .reimburse: return "qa_credit_card"
         case .collection: return "qa_arrow_left_right"
@@ -262,6 +243,7 @@ enum TradingSheetKind: String, Identifiable {
         case .stock: return "Stock / Availability Update"
         case .order: return "Order / Dispatch Update"
         case .shipment: return "Shipment / Delivery Update"
+        case .returnNote: return "Return / Credit Note"
         case .reimburse: return "Record Reimbursement"
         case .person, .role, .invite: return "Add or invite person"
         case .supplier: return "Add Supplier"
@@ -279,6 +261,7 @@ enum TradingSheetKind: String, Identifiable {
         case .stock: return "STOCK"
         case .order: return "ORDER"
         case .shipment: return "SHIPMENT"
+        case .returnNote: return "RETURN"
         default: return "UPDATE"
         }
     }
@@ -296,5 +279,5 @@ enum TradingSheetKind: String, Identifiable {
         default: return nil
         }
     }
-    static let core: [TradingSheetKind] = [.sale, .purchase, .spend, .payment, .collection, .budget, .update, .issue, .stock, .order, .shipment]
+    static let core: [TradingSheetKind] = [.sale, .purchase, .spend, .payment, .collection, .budget, .update, .issue, .stock, .order, .shipment, .returnNote]
 }

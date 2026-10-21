@@ -36,8 +36,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.api.OperatingProjectionDto
+import androidx.compose.runtime.LaunchedEffect
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
+import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -61,6 +63,7 @@ data class DistributionEventDraft(
     val masterKind: String? = null,
     val dueAt: String? = null,
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
+    val masterId: String? = null,
 )
 
 private enum class DistributionSheet(
@@ -82,6 +85,7 @@ private enum class DistributionSheet(
     STOCK("Stock / Availability Update", "STOCK", false, false, false, null),
     ORDER("Order / Dispatch Update", "ORDER", false, false, false, null),
     SHIPMENT("Delivery Update", "SHIPMENT", false, false, false, null),
+    RETURN("Return / Credit Note", "RETURN", true, false, false, null),
     REIMBURSE("Record Reimbursement", "PAYMENT", true, false, true, "PENDING"),
     PERSON("Add or invite person", "UPDATE", false, false, true, null),
     ROLE("Add or invite person", "UPDATE", false, false, true, null),
@@ -104,6 +108,14 @@ fun DistributionQuickAddHub(
     val role = model.role.orEmpty()
     val owner = role == "OWNER_ADMIN"
     val approver = role == "APPROVER" || owner
+    LaunchedEffect(Unit) {
+        when (OperatingChromeState.quickAddHint) {
+            "shipment" -> sheet = DistributionSheet.SHIPMENT
+            "stock" -> sheet = DistributionSheet.STOCK
+            "budget" -> sheet = DistributionSheet.BUDGET
+        }
+        OperatingChromeState.quickAddHint = null
+    }
     Box(Modifier.fillMaxSize()) {
     Column(
         Modifier
@@ -177,6 +189,7 @@ fun DistributionQuickAddHub(
         DistributionSheet.STOCK to "Stock",
         DistributionSheet.ORDER to "Order",
         DistributionSheet.SHIPMENT to "Shipment",
+        DistributionSheet.RETURN to "Return",
     ).filter { (kind, label) ->
         kind.eventType in allowed && label.contains(query, ignoreCase = true)
     }
@@ -225,6 +238,22 @@ fun DistributionQuickAddHub(
     }
     if (error != null) Text(error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans, fontSize = 13.sp)
     }
+    val createMaster: suspend (String, String, String?) -> Unit = { kind, name, unit ->
+        onRecord(
+            DistributionEventDraft(
+                eventType = "UPDATE",
+                title = name,
+                amount = null,
+                note = null,
+                channelName = null,
+                counterpartyName = null,
+                paymentStatus = null,
+                unit = unit,
+                itemName = name,
+                masterKind = kind,
+            ),
+        )
+    }
     val open = sheet
     if (open != null) {
         OperatingSheetScrim(onDismiss = { sheet = null }) {
@@ -246,6 +275,7 @@ fun DistributionQuickAddHub(
                     sheet = null
                 },
                 onDecide = onDecide,
+                onCreateMaster = if ("UPDATE" in allowed) createMaster else null,
             )
         }
     }
@@ -295,6 +325,7 @@ private val DistributionSheet.hubIcon: Int
         DistributionSheet.STOCK -> R.drawable.qa_package
         DistributionSheet.ORDER -> R.drawable.qa_truck
         DistributionSheet.SHIPMENT -> R.drawable.qa_package
+        DistributionSheet.RETURN -> R.drawable.qa_arrow_left_right
         DistributionSheet.PERSON -> R.drawable.qa_user_plus
         DistributionSheet.ROLE -> R.drawable.qa_users
         DistributionSheet.INVITE -> R.drawable.qa_qr
@@ -349,6 +380,7 @@ private val DistributionSheet.captureMode: String
         DistributionSheet.STOCK -> "STOCK"
         DistributionSheet.ORDER -> "ORDER"
         DistributionSheet.SHIPMENT -> "SHIPMENT"
+        DistributionSheet.RETURN -> "RETURN"
         DistributionSheet.REIMBURSE -> "REIMBURSE"
         DistributionSheet.PERSON -> "PERSON"
         DistributionSheet.ROLE -> "ROLE"
@@ -374,4 +406,5 @@ private fun OperatingCaptureDraft.toDistribution() = DistributionEventDraft(
     masterKind = masterKind,
     dueAt = dueAt,
     contract = contract,
+    masterId = masterId,
 )

@@ -18,13 +18,18 @@ import {
   type OperatingContract,
 } from './operating-retail-contract';
 import {
+  buyersChannelsCoverage,
+  consignmentStockHint,
+  currentBusinessDetail,
   fulfilmentCoverage,
   isTradingSubtype,
   moneyMovingDetail as tradingMoneyMoving,
   ordersCommitmentsSummary,
   ordersCoverage,
   peopleNetworkDetail,
+  stockCoverage,
   tradingAttention,
+  tradingDueBucket,
   tradingStockPositions,
   obligationRemaining as tradingObligationRemaining,
 } from './operating-trading-contract';
@@ -85,7 +90,8 @@ export type QuickAddCode =
   | 'APPOINTMENT'
   | 'PRODUCTION'
   | 'CUSTOMER_ORDER'
-  | 'DELIVERY';
+  | 'DELIVERY'
+  | 'RETURN';
 
 export type PaymentRelevance = 'NONE' | 'PAYABLE' | 'RECEIVABLE' | 'REIMBURSEMENT' | 'SETTLEMENT';
 
@@ -122,6 +128,7 @@ const QA = {
   PRODUCTION: qa('PRODUCTION', 'Record Production', false, true, 'NONE', false, true),
   CUSTOMER_ORDER: qa('CUSTOMER_ORDER', 'Customer Order', false, false, 'RECEIVABLE', false, true),
   DELIVERY: qa('DELIVERY', 'Record Delivery', false, false, 'NONE', false, false),
+  RETURN: qa('RETURN', 'Return / Credit Note', false, false, 'NONE', false, true),
 } satisfies Record<QuickAddCode, QuickAddDef>;
 
 function qa(
@@ -196,7 +203,7 @@ export const OPERATING_FAMILIES: OperatingFamily[] = [
         code: 'TRADING_WHOLESALE',
         label: 'Trading / Wholesale',
         partyLabel: 'Business',
-        quickAdds: ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK', 'ORDER', 'SHIPMENT'],
+        quickAdds: ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK', 'ORDER', 'SHIPMENT', 'RETURN'],
         targetMetrics: ['REVENUE', 'ORDERS', 'CUSTOM_COUNT'],
         requiresChannel: false,
       },
@@ -204,7 +211,7 @@ export const OPERATING_FAMILIES: OperatingFamily[] = [
         code: 'DISTRIBUTION_DEALERSHIP',
         label: 'Distribution / Dealership',
         partyLabel: 'Principal',
-        quickAdds: ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK', 'ORDER', 'SHIPMENT', 'DELIVERY'],
+        quickAdds: ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK', 'ORDER', 'SHIPMENT', 'DELIVERY', 'RETURN'],
         targetMetrics: ['REVENUE', 'ORDERS', 'CUSTOM_COUNT'],
         requiresChannel: false,
       },
@@ -503,12 +510,18 @@ export interface OperatingLine {
   quantity?: string | null;
   unit?: string | null;
   unitPrice?: string | null;
+  masterId?: string | null;
+  baseQuantity?: string | null;
 }
 
 export interface OperatingMaster {
   kind: string;
   name: string;
   unit?: string | null;
+  dimension?: string | null;
+  conversionToBase?: string | null;
+  tracked?: boolean | null;
+  barcode?: string | null;
 }
 
 export interface OperatingProjection {
@@ -524,7 +537,16 @@ export interface OperatingProjection {
   startDate: string;
   endDate: string;
   participants: string[];
-  masters: Array<{ id: string; kind: string; name: string; unit: string | null }>;
+  masters: Array<{
+    id: string;
+    kind: string;
+    name: string;
+    unit: string | null;
+    dimension?: string | null;
+    conversionToBase?: string | null;
+    tracked?: boolean | null;
+    barcode?: string | null;
+  }>;
   location: string;
   budget: { amount: string; spent: string; remaining: string; configured: boolean } | null;
   target: { metric: string; value: string; progress: string; configured: boolean } | null;
@@ -549,6 +571,7 @@ export interface OperatingProjection {
     status: string;
     counterpartyName: string | null;
     dueAt: string | null;
+    dueBucket?: 'OVERDUE' | 'DUE_SOON' | 'OPEN' | null;
   }>;
   activity: Array<{
     id: string;
@@ -973,6 +996,7 @@ export function projectOperatingMoment(args: {
           ...budgetAttention(spent, budget, budgetConfigured, visible),
         ])
       : legacyAttention;
+  const tradingReady = isTradingSubtype(args.prefs.subtype);
   const paymentReadiness = visible
     ? pulseEvents
         .filter(
@@ -994,9 +1018,15 @@ export function projectOperatingMoment(args: {
                 status: row.paymentStatus,
                 counterpartyName: row.counterpartyName,
                 dueAt: row.dueAt ?? null,
+                dueBucket: tradingReady ? tradingDueBucket(row.dueAt, asOf) : null,
               };
         })
         .filter((row): row is NonNullable<typeof row> => row != null && num(row.amount) > 0)
+        .sort((a, b) => {
+          if (!tradingReady) return 0;
+          const rank = { OVERDUE: 0, DUE_SOON: 1, OPEN: 2 } as const;
+          return (rank[a.dueBucket ?? 'OPEN'] ?? 2) - (rank[b.dueBucket ?? 'OPEN'] ?? 2);
+        })
     : [];
   const continuity = operatingContinuity(pulseEvents, args.familyCode, visible);
   const quickAdds = (sub?.quickAdds ?? [])
@@ -1023,6 +1053,10 @@ export function projectOperatingMoment(args: {
         kind: row.master!.kind,
         name: row.master!.name,
         unit: row.master!.unit ?? null,
+        dimension: row.master!.dimension ?? null,
+        conversionToBase: row.master!.conversionToBase ?? null,
+        tracked: row.master!.tracked ?? null,
+        barcode: row.master!.barcode ?? null,
       })),
     location: args.prefs.location,
     finance: financeTotals(pulseEvents, visible, continuity),
@@ -1374,14 +1408,22 @@ function decorateTradingBoards(
   }
   const stock = moments.find((section) => section.code === 'stock');
   const positions = tradingStockPositions(events);
-  if (stock && positions.length > 0) {
-    stock.detail = positions
-      .map((position) => {
-        const unit = position.unit ? ` ${position.unit}` : '';
-        const low = position.reorderPoint != null && position.onHand <= position.reorderPoint ? ' · low' : '';
-        return `${position.item} · ${Number(position.onHand.toFixed(2))}${unit} on hand${low}`;
-      })
-      .join(' · ');
+  const consignHint = consignmentStockHint(events);
+  const skuCoverage = stockCoverage(events);
+  if (stock) {
+    if (positions.length > 0) {
+      const owned = positions
+        .map((position) => {
+          const unit = position.unit ? ` ${position.unit}` : '';
+          const low = position.reorderPoint != null && position.onHand <= position.reorderPoint ? ' · low' : '';
+          return `${position.item} · ${Number(position.onHand.toFixed(2))}${unit} on hand${low}`;
+        })
+        .join(' · ');
+      stock.detail = consignHint ? `${owned} · ${consignHint}` : owned;
+    } else if (consignHint) {
+      stock.detail = consignHint;
+    }
+    if (skuCoverage) stock.coverage = skuCoverage;
   }
   const networkBoard = moments.find((section) => section.code === 'network');
   if (networkBoard) networkBoard.detail = peopleNetworkDetail(events, network);
@@ -1394,13 +1436,45 @@ function decorateTradingBoards(
       })
       .join(' · ');
   }
+  const current = life.find((section) => section.code === 'L1');
+  const liveDetail = currentBusinessDetail(events, visible, currency);
+  if (current && liveDetail) current.detail = liveDetail;
+  const buyers = life.find((section) => section.code === 'L2');
+  if (buyers) {
+    const channelCov = buyersChannelsCoverage(events);
+    if (channelCov) buyers.coverage = channelCov;
+  }
   const moving = life.find((section) => section.code === 'L3');
   const movingDetail = tradingMoneyMoving(events, visible, currency, asOf);
-  if (moving && movingDetail) moving.detail = movingDetail;
+  if (moving) {
+    // Cash-true rows only — sales/purchases are obligations, not money movement.
+    moving.rows = events
+      .filter(
+        (row) =>
+          effective(row) &&
+          ((row.eventType === 'COLLECTION' && row.paymentStatus === 'COLLECTED') ||
+            (row.eventType === 'PAYMENT' && row.paymentStatus === 'PAID') ||
+            ((row.eventType === 'SALE' || row.eventType === 'PURCHASE' || row.eventType === 'SPEND') &&
+              (row.paymentStatus === 'COLLECTED' || row.paymentStatus === 'PAID') &&
+              !events.some(
+                (child) =>
+                  child.parentEventId === row.operatingEventId &&
+                  (child.eventType === 'COLLECTION' || child.eventType === 'PAYMENT') &&
+                  effective(child)
+              )))
+      )
+      .map((row) => boardRow(row, visible));
+    if (movingDetail) moving.detail = movingDetail;
+  }
   const fulfilment = memory.find((section) => section.code === 'fulfilment');
   if (fulfilment) {
     const coverage = fulfilmentCoverage(events);
     if (coverage) fulfilment.coverage = coverage;
+  }
+  const ordersBoard = moments.find((section) => section.code === 'orders');
+  if (ordersBoard && ordersBoard.coverage == null) {
+    const cov = ordersCoverage(events);
+    if (cov) ordersBoard.coverage = cov;
   }
   // Primary Open Commitments surface is M4 — clear the duplicate family board.
   const duplicate = moments.find((section) => section.code === 'commitments');

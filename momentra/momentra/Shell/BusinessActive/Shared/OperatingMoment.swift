@@ -155,10 +155,7 @@ struct OperatingMomentPage: View {
                             itemName: draft.itemName,
                             unitPrice: draft.unitPrice,
                             masterKind: draft.masterKind,
-                            revisesEventId: row.id,
-                            dueAt: draft.dueAt,
-                            contract: draft.contract,
-                            lineItems: draft.lineItems
+                            revisesEventId: row.id
                         )
                         chrome.editing = nil
                         tick += 1
@@ -209,71 +206,13 @@ struct OperatingMomentPage: View {
                             itemName: draft.itemName,
                             unitPrice: draft.unitPrice,
                             masterKind: draft.masterKind,
-                            revisesEventId: nil,
-                            dueAt: draft.dueAt,
-                            contract: draft.contract,
-                            lineItems: draft.lineItems
+                            revisesEventId: nil
                         )
                         chrome.settling = nil
                         tick += 1
                     }
                 )
             }
-            }
-        }
-        .background {
-            Color.clear.sheet(item: Binding(get: { chrome.charging }, set: { chrome.charging = $0 })) { booking in
-                if let projection {
-                    let serviceMode = projection.subtype == "CONSUMER_SERVICE" ? "SERVICE" : "SALE"
-                    OperatingCaptureSheet(
-                        title: serviceMode == "SERVICE" ? "Finalize Charge" : "Record Sale",
-                        icon: "qa_shield",
-                        eventType: serviceMode,
-                        mode: serviceMode,
-                        model: projection,
-                        seed: OperatingActivityPayload(
-                            id: "",
-                            title: booking.title,
-                            eventType: serviceMode,
-                            occurredAt: "",
-                            amount: nil,
-                            channelName: booking.channelName,
-                            counterpartyName: booking.counterpartyName,
-                            paymentStatus: nil,
-                            approvalStatus: nil,
-                            note: nil,
-                            quantity: nil,
-                            unit: nil,
-                            parentEventId: booking.id
-                        ),
-                        onSubmit: { draft in
-                            guard let momentId else { return }
-                            _ = try await APIClient.shared.recordOperatingEvent(
-                                momentId: momentId,
-                                eventType: draft.eventType,
-                                title: draft.title,
-                                amount: draft.amount,
-                                note: draft.note,
-                                channelName: draft.channelName,
-                                counterpartyName: draft.counterpartyName,
-                                paymentStatus: draft.paymentStatus,
-                                occurredAt: draft.occurredAt,
-                                parentEventId: draft.parentEventId ?? booking.id,
-                                quantity: draft.quantity,
-                                unit: draft.unit,
-                                itemName: draft.itemName,
-                                unitPrice: draft.unitPrice,
-                                masterKind: draft.masterKind,
-                                revisesEventId: nil,
-                                dueAt: draft.dueAt,
-                                contract: draft.contract,
-                                lineItems: draft.lineItems
-                            )
-                            chrome.charging = nil
-                            tick += 1
-                        }
-                    )
-                }
             }
         }
     }

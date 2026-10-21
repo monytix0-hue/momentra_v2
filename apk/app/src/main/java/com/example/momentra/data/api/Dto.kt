@@ -1153,14 +1153,14 @@ data class OperatingMoneyDto(
     val amount: String = "0",
     val spent: String = "0",
     val remaining: String = "0",
-    val configured: Boolean? = null,
+    val configured: Boolean = false,
 )
 
 data class OperatingTargetDto(
     val metric: String = "",
     val value: String = "0",
     val progress: String = "0",
-    val configured: Boolean? = null,
+    val configured: Boolean = false,
 )
 
 data class OperatingAttentionDto(
@@ -1183,6 +1183,7 @@ data class OperatingPaymentDto(
     val status: String = "",
     val counterpartyName: String? = null,
     val dueAt: String? = null,
+    val dueBucket: String? = null,
 )
 
 data class OperatingFinanceDto(
@@ -1272,6 +1273,10 @@ data class OperatingMasterDto(
     val kind: String = "",
     val name: String = "",
     val unit: String? = null,
+    val dimension: String? = null,
+    val conversionToBase: String? = null,
+    val tracked: Boolean? = null,
+    val barcode: String? = null,
 )
 
 data class OperatingLineBody(
@@ -1279,12 +1284,18 @@ data class OperatingLineBody(
     val quantity: String? = null,
     val unit: String? = null,
     val unitPrice: String? = null,
+    val masterId: String? = null,
+    val baseQuantity: String? = null,
 )
 
 data class OperatingMasterBody(
     val kind: String,
     val name: String,
     val unit: String? = null,
+    val dimension: String? = null,
+    val conversionToBase: String? = null,
+    val tracked: Boolean? = null,
+    val barcode: String? = null,
 )
 
 data class OperatingAllocationBody(
@@ -1301,18 +1312,25 @@ data class OperatingContractBody(
     val stockAction: String? = null,
     val stockReason: String? = null,
     val expenseCategory: String? = null,
-    val appointmentStatus: String? = null,
     val appointmentAction: String? = null,
     val orderStatus: String? = null,
     val clientKey: String? = null,
-    val allocations: List<OperatingAllocationBody>? = null,
     val reorderPoint: String? = null,
     val staffName: String? = null,
     val estimatedAmount: String? = null,
-    val followUp: Boolean? = null,
+    val allocations: List<OperatingAllocationBody>? = null,
     val ownership: String? = null,
     val shipmentStatus: String? = null,
     val promisedAt: String? = null,
+    val declaredQuantity: String? = null,
+    val taxMode: String? = null,
+    val taxAmount: String? = null,
+    val originalCurrency: String? = null,
+    val fxRate: String? = null,
+    val convertedAmount: String? = null,
+    val returnDirection: String? = null,
+    val goodsOutcome: String? = null,
+    val returnReason: String? = null,
 )
 
 data class RecordOperatingEventBody(

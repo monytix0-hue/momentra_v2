@@ -91,6 +91,7 @@ data class OperatingCaptureDraft(
     val masterKind: String? = null,
     val dueAt: String? = null,
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
+    val masterId: String? = null,
 )
 
 private val dayFormat = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH)
@@ -149,6 +150,7 @@ fun OperatingCaptureSheet(
     onSubmit: suspend (OperatingCaptureDraft) -> Unit,
     onDecide: (suspend (String, String) -> Unit)? = null,
     seed: OperatingActivityDto? = null,
+    onCreateMaster: (suspend (String, String, String?) -> Unit)? = null,
 ) {
     val currency = model.currency?.ifBlank { null } ?: "INR"
     var eventDate by remember { mutableStateOf(LocalDate.now()) }
@@ -163,6 +165,10 @@ fun OperatingCaptureSheet(
     var choice by remember(mode, variant) {
         mutableStateOf(
             when {
+                (variant == "trading" || variant == "distribution" || variant == "restaurant" || variant == "service") &&
+                    mode in setOf("PURCHASE", "SPEND") -> "Pay later"
+                (variant == "trading" || variant == "distribution" || variant == "restaurant" || variant == "service") &&
+                    mode in setOf("SALE", "SERVICE") -> "Received"
                 variant == "restaurant" && mode == "ORDER" -> "Preparing"
                 variant == "service" && mode == "APPOINTMENT" -> "Scheduled"
                 variant == "trading" && mode == "ORDER" -> "Ready for dispatch"
@@ -205,10 +211,48 @@ fun OperatingCaptureSheet(
     var link by remember { mutableStateOf("") }
     var itemName by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
-    var unit by remember { mutableStateOf("piece") }
+    var unit by remember {
+        mutableStateOf(
+            if (variant == "trading" || variant == "distribution" || model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")) "pc" else "piece",
+        )
+    }
     var unitPrice by remember { mutableStateOf("") }
     var parentId by remember { mutableStateOf("") }
     var masterKind by remember { mutableStateOf(masterKinds(model.subtype).first()) }
+    var entryMode by remember { mutableStateOf("Quick amount") }
+    var receiptState by remember { mutableStateOf("Received") }
+    var ownership by remember { mutableStateOf("Owned") }
+    var stockAction by remember { mutableStateOf("Set current stock") }
+    var stockReason by remember { mutableStateOf("Stocktake") }
+    var receivedAmount by remember { mutableStateOf("") }
+    val contractFamily = restaurant || service || trading || distribution || model.subtype in setOf(
+        "RETAIL_STORE", "RESTAURANT_FOOD", "CONSUMER_SERVICE", "TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP",
+    )
+    val lovTrade = trading || distribution || model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")
+    var productMasterId by remember { mutableStateOf<String?>(null) }
+    var lovKind by remember { mutableStateOf<String?>(null) }
+    var localMasters by remember { mutableStateOf<List<OperatingLovOption>>(emptyList()) }
+    var taxMode by remember { mutableStateOf("Not configured") }
+    var taxAmount by remember { mutableStateOf("") }
+    var originalCurrency by remember { mutableStateOf("") }
+    var fxRate by remember { mutableStateOf("") }
+    var returnDirection by remember { mutableStateOf("Customer return") }
+    var goodsOutcome by remember { mutableStateOf("To stock") }
+    var returnReason by remember { mutableStateOf("") }
+    var expenseCategory by remember { mutableStateOf("") }
+    fun applyLov(kind: String, option: OperatingLovOption) {
+        when (kind) {
+            "PRODUCT" -> {
+                if (mode == "STOCK") purpose = option.name else itemName = option.name
+                productMasterId = option.id.takeUnless { it.startsWith("local-") || it.startsWith("seed-") }
+                option.unit?.takeIf { it.isNotBlank() }?.let { unit = it }
+            }
+            "BUYER", "CUSTOMER", "SUPPLIER" -> party = option.name
+            "CHANNEL" -> channel = option.name
+            "EXPENSE_CATEGORY" -> expenseCategory = option.name
+            "UOM" -> unit = option.name
+        }
+    }
     LaunchedEffect(seed?.id, seed?.parentEventId) {
         val row = seed ?: return@LaunchedEffect
         amount = row.amount.orEmpty()
@@ -287,42 +331,66 @@ fun OperatingCaptureSheet(
                     MoreDetails(moreOpen, "Batch, output quantity, and reference. Optional.") { moreOpen = !moreOpen }
                     if (moreOpen) NoteField("Note", note, "Optional") { note = it }
                     SummaryCard("After save", saleSummary(model, currency, typed, choice == "Paid"))
-                } else {
-                    ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
-                    AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, channel) { channel = it }
-                    if (distribution && mode == "SALE") EditField("Buyer / dealer", party, "Required") { party = it }
-                    FieldRow {
-                        ReadField(if (restaurant || service || trading || distribution) "Sale date" else "Date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                        ReadField(if (restaurant || service || trading || distribution) "Receipt actor" else "Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
+                } else if (contractFamily) {
+                    ChoiceBlock("Entry", listOf("Quick amount", "Itemized"), entryMode) { entryMode = it }
+                    if (entryMode == "Itemized") {
+                        if (lovTrade) {
+                            LovItemLine(itemName, quantity, unit, unitPrice, { lovKind = "PRODUCT" }, { lovKind = "UOM" }, { quantity = it }, { unitPrice = it })
+                        } else {
+                            ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
+                        }
+                    } else {
+                        AmountBlock("Sale amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
                     }
-                    ChoiceBlock(if (trading) "Received status" else "Money received", listOf("Received", "Pending"), choice) { choice = it }
+                    if (lovTrade) LovField(channelLabel, channel, "channel") { lovKind = "CHANNEL" }
+                    else if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, channel) { channel = it }
+                    else EditField(channelLabel, channel, "Required when channel tracking is on") { channel = it }
+                    if (distribution && mode == "SALE") {
+                        if (lovTrade) LovField("Buyer / dealer", party, "buyer") { lovKind = "BUYER" }
+                        else EditField("Buyer / dealer", party, "Required when a balance remains") { party = it }
+                    }
+                    FieldRow {
+                        ReadField("Sale date", dateText, Modifier.weight(1f)) { dateOpen = true }
+                        ReadField("Receipt actor", actor.substringBefore(" ·"), Modifier.weight(1f))
+                    }
+                    ChoiceBlock("Payment state", listOf("Received", "Part paid", "Pay later"), choice) { choice = it }
+                    if (choice == "Part paid") EditField("Received amount", receivedAmount, "Less than the total") { receivedAmount = it }
+                    if (choice != "Received") {
+                        if (lovTrade) LovField("Customer", party, "customer") { lovKind = "BUYER" }
+                        else EditField("Customer", party, "Required when a balance remains") { party = it }
+                    }
                     Text(
-                        when {
-                            distribution -> "One sale and its linked receipt. This is not a separate collection."
-                            trading -> "One sale and its linked receipt. This is not a second collection."
-                            service -> "One sale and its linked receipt. This is not a second sale or collection."
-                            restaurant -> "One sale and its linked receipt. This is not a separate collection."
-                            else -> "One sale and its receipt. A collection is a separate event."
+                        if (trading || distribution) {
+                            "A quick amount does not change stock. Itemized sales do not deduct stock until dispatch."
+                        } else {
+                            "One sale and its linked receipt. This is not a separate collection."
                         },
                         color = SheetMuted,
                         fontFamily = PlusJakartaSans,
                         fontSize = 12.sp,
                     )
-                    MoreDetails(
-                        moreOpen,
-                        when {
-                            distribution -> "Note and reference. Optional."
-                            trading -> "Buyer, reference, and shipment context. Optional."
-                            service -> "Customer, note and evidence. Optional."
-                            else -> "Note, reference and evidence. Optional."
-                        },
-                    ) { moreOpen = !moreOpen }
+                    MoreDetails(moreOpen, if (lovTrade) "Due date, tax, FX, note, and reference. Optional." else "Due date, note, and reference. Optional.") { moreOpen = !moreOpen }
+                    if (moreOpen) {
+                        EditField("Due date", link, "YYYY-MM-DD") { link = it }
+                        if (lovTrade) {
+                            TaxFxFields(currency, taxMode, taxAmount, originalCurrency, fxRate, { taxMode = it }, { taxAmount = it }, { originalCurrency = it }, { fxRate = it })
+                        }
+                        NoteField("Note", note, "Optional") { note = it }
+                    }
+                    SummaryCard("After save", saleSummary(model, currency, typed, choice == "Received"))
+                } else {
+                    ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
+                    AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
+                    if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, channel) { channel = it }
+                    FieldRow {
+                        ReadField("Date", dateText, Modifier.weight(1f)) { dateOpen = true }
+                        ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
+                    }
+                    ChoiceBlock("Money received", listOf("Received", "Pending"), choice) { choice = it }
+                    Text("One sale and its receipt. A collection is a separate event.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                    MoreDetails(moreOpen, "Note, reference and evidence. Optional.") { moreOpen = !moreOpen }
                     if (moreOpen) NoteField("Note", note, "Optional") { note = it }
-                    SummaryCard(
-                        "After save",
-                        saleSummary(model, currency, typed, choice == "Received"),
-                    )
+                    SummaryCard("After save", saleSummary(model, currency, typed, choice == "Received"))
                 }
                 "PURCHASE", "VENDOR" -> if (production && mode == "PURCHASE") {
                     ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
@@ -345,12 +413,40 @@ fun OperatingCaptureSheet(
                     ChoiceBlock("Paid / pending", listOf("Pending / unpaid", "Paid"), choice) { choice = it }
                     Text("Pending approval. Submission is not payment.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                     SummaryCard("After approval", purchaseSummary(model, currency, typed, choice.startsWith("Pending")))
+                } else if (contractFamily) {
+                    if (lovTrade) {
+                        LovItemLine(itemName, quantity, unit, unitPrice, { lovKind = "PRODUCT" }, { lovKind = "UOM" }, { quantity = it }, { unitPrice = it })
+                    } else {
+                        ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
+                    }
+                    AmountBlock("Amount", currency, amount, "Positive amount, or leave blank when items have prices") { amount = it }
+                    if (lovTrade) LovField(if (distribution) "Principal / supplier" else "Supplier", party, "supplier") { lovKind = "SUPPLIER" }
+                    else EditField(if (distribution) "Principal / supplier" else "Supplier", party, "Required") { party = it }
+                    ReadField("Purchase date", dateText) { dateOpen = true }
+                    ChoiceBlock("Goods receipt", listOf("Received", "Part received", "Awaiting receipt"), receiptState) { receiptState = it }
+                    if (receiptState == "Part received") EditField("Quantity received", quantity, "Required") { quantity = it }
+                    if (trading || distribution) {
+                        ChoiceBlock("Ownership", listOf("Owned", "Consignment"), ownership) { ownership = it }
+                        Text("Consignment is not owned stock.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                    }
+                    ChoiceBlock("Payment state", listOf("Paid", "Part paid", "Pay later"), choice) { choice = it }
+                    if (choice == "Part paid") EditField("Amount paid", receivedAmount, "Less than the total") { receivedAmount = it }
+                    Text("Purchase obligation is not payment. Stock moves only for received quantity.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                    MoreDetails(moreOpen, if (lovTrade) "Due date, tax, FX, and note. Optional." else "Due date and note. Optional.") { moreOpen = !moreOpen }
+                    if (moreOpen) {
+                        EditField("Due date", link, "YYYY-MM-DD") { link = it }
+                        if (lovTrade) {
+                            TaxFxFields(currency, taxMode, taxAmount, originalCurrency, fxRate, { taxMode = it }, { taxAmount = it }, { originalCurrency = it }, { fxRate = it })
+                        }
+                        NoteField("Note", note, "Optional") { note = it }
+                    }
+                    SummaryCard("After save", purchaseSummary(model, currency, typed, choice != "Paid"))
                 } else {
                     ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
                     AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
                     FieldRow {
-                        EditField(if (distribution) "Principal · Optional" else "Supplier · Optional", party, "Name", Modifier.weight(1f)) { party = it }
-                        ReadField(if (restaurant || service || trading || distribution) "Purchase date" else "Date", dateText, Modifier.weight(1f)) { dateOpen = true }
+                        EditField("Supplier · Optional", party, "Name", Modifier.weight(1f)) { party = it }
+                        ReadField("Date", dateText, Modifier.weight(1f)) { dateOpen = true }
                     }
                     EditField("Purpose", purpose, "What was bought") { purpose = it }
                     ChoiceBlock("Payment state", listOf("Pending / unpaid", "Paid"), choice) { choice = it }
@@ -386,6 +482,7 @@ fun OperatingCaptureSheet(
                     SummaryCard("After approval", spendSummary(model, currency, typed))
                 } else {
                     AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
+                    if (lovTrade) LovField("Expense category", expenseCategory, "category") { lovKind = "EXPENSE_CATEGORY" }
                     FieldRow {
                         EditField("Purpose", purpose, "What this was for", Modifier.weight(1f)) { purpose = it }
                         ReadField(if (restaurant || service || trading || distribution) "Expense date" else "Date", dateText, Modifier.weight(1f)) { dateOpen = true }
@@ -400,8 +497,11 @@ fun OperatingCaptureSheet(
                             fontSize = 12.sp,
                         )
                     }
-                    MoreDetails(moreOpen, "Reference and note. Optional.") { moreOpen = !moreOpen }
-                    if (moreOpen) NoteField("Note", note, "Optional") { note = it }
+                    MoreDetails(moreOpen, if (lovTrade) "Due date, reference and note. Optional." else "Reference and note. Optional.") { moreOpen = !moreOpen }
+                    if (moreOpen) {
+                        if (lovTrade) EditField("Due date", link, "YYYY-MM-DD") { link = it }
+                        NoteField("Note", note, "Optional") { note = it }
+                    }
                     SummaryCard("After approval", spendSummary(model, currency, typed))
                 }
                 "PAYMENT", "REIMBURSE" -> if (marketing && mode == "PAYMENT") {
@@ -878,7 +978,20 @@ fun OperatingCaptureSheet(
                         listOf("Opens an attention item.", "Money totals stay unchanged."),
                     )
                 }
-                "STOCK" -> if (production) {
+                "STOCK" -> if (contractFamily && (trading || distribution || restaurant || service)) {
+                    if (lovTrade) LovField("Item", purpose, "product") { lovKind = "PRODUCT" }
+                    else EditField("Item", purpose, "Product or SKU") { purpose = it }
+                    ChoiceBlock("Action", listOf("Set current stock", "Add", "Reduce"), stockAction) { stockAction = it }
+                    EditField("Quantity", quantity, "Required") { quantity = it }
+                    if (lovTrade) LovField("Unit", unit, "UOM") { lovKind = "UOM" }
+                    else EditField("Unit", unit, "pcs, kg, L") { unit = it }
+                    ChoiceBlock("Reason", listOf("Opening count", "Stocktake", "Damage", "Waste", "Return", "Correction"), stockReason) { stockReason = it }
+                    if (trading || distribution) {
+                        ChoiceBlock("Ownership", listOf("Owned", "Consignment"), ownership) { ownership = it }
+                    }
+                    EditField("Reorder point", detail, "Optional") { detail = it }
+                    Text("Set replaces the count. Add and reduce move it. This is not a purchase.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                } else if (production) {
                     EditField("Material / finished-goods context", purpose, "Required") { purpose = it }
                     ChoiceBlock("Quantity / stock status", listOf("Available", "Needs check", "Low availability"), choice) { choice = it }
                     NoteField("Stock note", note, "Required") { note = it }
@@ -913,6 +1026,75 @@ fun OperatingCaptureSheet(
                         ReadField("Recorded by", actor.substringBefore(" ·"))
                     }
                     SummaryCard("After save", listOf("Saves an operational signal.", "No purchase, sale, or money record is created."))
+                }
+                "RETURN" -> {
+                    val customerReturn = returnDirection.startsWith("Customer")
+                    val sourceType = if (customerReturn) "SALE" else "PURCHASE"
+                    ChoiceBlock("Return type", listOf("Customer return", "Supplier return"), returnDirection) {
+                        returnDirection = it
+                        parentId = ""
+                    }
+                    val sources = model.activity
+                        .filter { it.eventType == sourceType && it.approvalStatus != "REJECTED" && it.approvalStatus?.startsWith("PENDING") != true }
+                        .take(25)
+                    Text(
+                        if (sources.isEmpty()) {
+                            if (customerReturn) "No posted sale to return against." else "No posted purchase to return against."
+                        } else if (customerReturn) "Source sale" else "Source purchase",
+                        color = SheetMuted,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 12.sp,
+                    )
+                    sources.forEach { row ->
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (parentId == row.id) SheetHigh else Color.Transparent)
+                                .border(1.dp, if (parentId == row.id) SheetAccent else SheetBorder, RoundedCornerShape(12.dp))
+                                .clickable {
+                                    parentId = row.id
+                                    if (amount.isBlank()) row.amount?.takeIf { it.isNotBlank() }?.let { amount = it }
+                                    row.counterpartyName?.takeIf { it.isNotBlank() }?.let { party = it }
+                                }
+                                .padding(10.dp),
+                        ) {
+                            Text(row.title, color = SheetInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(
+                                listOfNotNull(row.counterpartyName, row.amount, row.occurredAt.take(10)).filter { it.isNotBlank() }.joinToString(" · "),
+                                color = SheetMuted,
+                                fontFamily = PlusJakartaSans,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+                    AmountBlock("Credit amount", currency, amount, "Positive amount · cannot exceed the source") { amount = it }
+                    ChoiceBlock("Goods", listOf("To stock", "Not returned", "Pending inspection"), goodsOutcome) { goodsOutcome = it }
+                    EditField("Reason", returnReason, "Required") { returnReason = it.take(80) }
+                    ChoiceBlock("Items", listOf("Quick amount", "Itemized"), entryMode) { entryMode = it }
+                    if (entryMode == "Itemized") {
+                        LovItemLine(itemName, quantity, unit, unitPrice, { lovKind = "PRODUCT" }, { lovKind = "UOM" }, { quantity = it }, { unitPrice = it }, showPrice = false)
+                    } else if (goodsOutcome == "To stock") {
+                        FieldRow {
+                            EditField("Qty returned", quantity, "Required", Modifier.weight(1f)) { quantity = it }
+                            LovField("UOM", unit, "UOM", Modifier.weight(1f)) { lovKind = "UOM" }
+                        }
+                    }
+                    ReadField("Return date", dateText) { dateOpen = true }
+                    NoteField("Note · Optional", note, "Optional") { note = it }
+                    Text(
+                        "A return is a credit against the source. Stock moves only when goods go to stock.",
+                        color = SheetMuted,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 12.sp,
+                    )
+                    SummaryCard(
+                        "After save",
+                        listOf(
+                            if (customerReturn) "Credits the customer against the source sale." else "Credits the supplier against the source purchase.",
+                            "No refund is paid by this record.",
+                        ),
+                    )
                 }
                 "PERSON", "ROLE", "INVITE" -> {
                     EditField("Name", party, "Person") { party = it }
@@ -1031,6 +1213,8 @@ fun OperatingCaptureSheet(
             Text(footerLine(mode, restaurant, service, trading, distribution, marketing, client, production, job), color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
             val action = actionLabel(mode, choice, restaurant, service, trading, distribution, marketing, client, production)
             val enabled = when {
+                mode == "RETURN" -> parentId.isNotBlank() && returnReason.isNotBlank()
+                lovTrade && mode == "SPEND" -> expenseCategory.isNotBlank()
                 mode == "SUPPLIER" || mode == "PARTNER" -> party.isNotBlank()
                 distribution && mode == "SALE" -> party.isNotBlank()
                 distribution && mode == "ORDER" -> party.isNotBlank() && purpose.isNotBlank()
@@ -1086,6 +1270,13 @@ fun OperatingCaptureSheet(
                             }
                             return@clickable
                         }
+                        if (lovTrade && mode in setOf("SALE", "PURCHASE") && originalCurrency.isNotBlank()) {
+                            val rate = fxRate.toBigDecimalOrNull()
+                            if (rate == null || rate <= BigDecimal.ZERO) {
+                                error = "Enter an FX rate for the original currency."
+                                return@clickable
+                            }
+                        }
                         val draftNote = if (distribution && mode == "SHIPMENT" && link.isNotBlank()) {
                             listOf(note, link).filter { it.isNotBlank() }.joinToString(" · ")
                         } else {
@@ -1105,6 +1296,22 @@ fun OperatingCaptureSheet(
                             ) || trading || distribution,
                             restaurant = restaurant,
                             service = service,
+                            entryMode = entryMode,
+                            receiptState = receiptState,
+                            ownership = ownership,
+                            stockActionLabel = stockAction,
+                            stockReasonLabel = stockReason,
+                            receivedAmount = receivedAmount,
+                            productMasterId = productMasterId,
+                            taxModeLabel = taxMode,
+                            taxAmount = taxAmount,
+                            originalCurrency = originalCurrency,
+                            fxRate = fxRate,
+                            returnDirectionLabel = returnDirection,
+                            goodsOutcomeLabel = goodsOutcome,
+                            returnReason = returnReason,
+                            expenseCategory = expenseCategory,
+                            lovTrade = lovTrade,
                         )
                         if (draft == null) {
                             error = requiredMessage(mode)
@@ -1133,6 +1340,28 @@ fun OperatingCaptureSheet(
         ) {
             DatePicker(state = pickerState)
         }
+    }
+    lovKind?.let { kind ->
+        SearchableOperatingLovSheet(
+            title = lovTitle(kind),
+            kind = kind,
+            options = lovOptions(kind, model.masters.orEmpty(), channels, localMasters),
+            canAdd = onCreateMaster != null,
+            accent = if (distribution) Color(0xFF66C7A4) else Color(0xFF6DDCFF),
+            onSelect = { option -> applyLov(kind, option) },
+            onAdd = { name, unitArg ->
+                val created = OperatingLovOption(
+                    id = "local-$kind-${name.lowercase()}",
+                    name = name,
+                    kind = kind,
+                    unit = unitArg ?: if (kind == "UOM") name else null,
+                )
+                localMasters = localMasters + created
+                applyLov(kind, created)
+                onCreateMaster?.let { create -> scope.launch { create(kind, name, unitArg) } }
+            },
+            onDismiss = { lovKind = null },
+        )
     }
 }
 
@@ -1215,6 +1444,7 @@ private fun footerLine(mode: String, restaurant: Boolean = false, service: Boole
     "PERSON", "ROLE", "INVITE" -> if (production || marketing || service || trading || distribution) "No access until the invitation is accepted." else "Draft · Nothing saved yet"
     "PAYMENT" -> if (marketing) "Draft · Manual confirmation only · No live transfer" else "Draft · Nothing saved yet"
     "RESULT", "COMPLETE" -> "Draft · Not yet saved"
+    "RETURN" -> "Draft · Credit note only · No refund is paid"
     "DELIVERABLE" -> if (marketing) "Assigned work only" else "Draft · Nothing saved yet"
     "PRODUCTION" -> "Draft · Not yet saved"
     "DELIVERY" -> if (production && job) "Draft · No evidence attached · Not yet saved" else if (production) "Draft · Operational signal, not an inventory ledger" else "Draft · Nothing saved yet"
@@ -1227,6 +1457,7 @@ private fun actionLabel(mode: String, choice: String, restaurant: Boolean = fals
     "PURCHASE", "VENDOR", "SPEND" -> if (service) "Submit for Approval" else "Submit for approval"
     "PAYMENT" -> if (marketing) "Mark Paid" else "Record Payment"
     "REIMBURSE" -> "Mark Reimbursed"
+    "RETURN" -> "Save return"
     "COLLECTION" -> "Mark Received"
     "BUDGET" -> if (marketing) "Submit plan revision" else "Submit revision"
     "TARGET" -> when {
@@ -1289,6 +1520,7 @@ private fun requiredMessage(mode: String): String = when (mode) {
     "ISSUE", "UPDATE", "STOCK", "ORDER", "SHIPMENT", "DELIVERY", "APPOINTMENT", "DELIVERABLE", "COMPLETE" ->
         "A description is required."
     "PERSON", "ROLE", "INVITE", "SUPPLIER", "PARTNER" -> "A name is required."
+    "RETURN" -> "Choose the source, a positive credit amount, and a reason."
     else -> "Check the fields and try again."
 }
 
@@ -1334,6 +1566,22 @@ private fun buildDraft(
     retail: Boolean = false,
     restaurant: Boolean = false,
     service: Boolean = false,
+    entryMode: String = "Quick amount",
+    receiptState: String = "Received",
+    ownership: String = "Owned",
+    stockActionLabel: String = "Set current stock",
+    stockReasonLabel: String = "Stocktake",
+    receivedAmount: String = "",
+    productMasterId: String? = null,
+    taxModeLabel: String = "Not configured",
+    taxAmount: String = "",
+    originalCurrency: String = "",
+    fxRate: String = "",
+    returnDirectionLabel: String = "Customer return",
+    goodsOutcomeLabel: String = "To stock",
+    returnReason: String = "",
+    expenseCategory: String = "",
+    lovTrade: Boolean = false,
 ): OperatingCaptureDraft? {
     if (mode == "MASTERS") {
         if (itemName.isBlank()) return null
@@ -1353,7 +1601,7 @@ private fun buildDraft(
     }
     val marketing = client || own
     val production = standard || job
-    val needsAmount = mode in setOf("SALE", "SERVICE", "PURCHASE", "VENDOR", "SPEND", "PAYMENT", "REIMBURSE", "COLLECTION", "BUDGET", "TARGET", "RESULT", "PRODUCTION")
+    val needsAmount = mode in setOf("SALE", "SERVICE", "PURCHASE", "VENDOR", "SPEND", "PAYMENT", "REIMBURSE", "COLLECTION", "BUDGET", "TARGET", "RESULT", "PRODUCTION", "RETURN")
     val computed = quantity.toBigDecimalOrNull()?.multiply(unitPrice.toBigDecimalOrNull() ?: BigDecimal.ZERO)
     val resolvedAmount = amount.ifBlank {
         computed?.takeIf { it > BigDecimal.ZERO }?.setScale(2, RoundingMode.HALF_UP)?.toPlainString() ?: ""
@@ -1391,7 +1639,9 @@ private fun buildDraft(
     val open = readiness.filter { row ->
         if (mode == "COLLECTION") row.relevance == "RECEIVABLE" else row.relevance == "PAYABLE" || row.relevance == "REIMBURSEMENT"
     }
+    if (mode == "RETURN" && (parentId.isBlank() || returnReason.isBlank())) return null
     if (mode in setOf("PAYMENT", "REIMBURSE", "COLLECTION") && open.isNotEmpty() && parentId.isBlank() && !(client && mode == "COLLECTION" && choice == "Create Receivable")) return null
+    val lineItemName = if (mode == "RETURN" && !entryMode.equals("Itemized", ignoreCase = true)) "" else itemName
     val savedTitle = when (mode) {
         "PERSON", "ROLE", "INVITE", "SUPPLIER", "PARTNER" -> party.trim()
         "UPDATE", "ISSUE", "ORDER", "SHIPMENT", "DELIVERY", "APPOINTMENT", "DELIVERABLE", "COMPLETE" ->
@@ -1399,6 +1649,7 @@ private fun buildDraft(
         "STOCK" -> purpose.trim().ifBlank { title }
         "PURCHASE", "VENDOR", "SPEND" -> itemName.trim().ifBlank { purpose.trim() }.ifBlank { title }
         "SALE", "SERVICE" -> itemName.trim().ifBlank { title }
+        "RETURN" -> lineItemName.trim().ifBlank { title }
         else -> title
     }
     val payment = when (mode) {
@@ -1453,10 +1704,12 @@ private fun buildDraft(
         choice.takeIf { it.isNotBlank() && mode in setOf("ISSUE", "STOCK", "ORDER", "SHIPMENT", "APPOINTMENT", "SPEND", "PERSON", "ROLE", "INVITE", "SUPPLIER", "PARTNER") },
     ).joinToString(" · ").ifBlank { null }
     val retailContract = if (retail || restaurant || service || trading || distribution) {
-        val itemized = itemName.isNotBlank() && quantity.isNotBlank() && unitPrice.isNotBlank()
+        val itemized = entryMode.equals("Itemized", ignoreCase = true) ||
+            (itemName.isNotBlank() && quantity.isNotBlank() && unitPrice.isNotBlank())
         val salePay = when {
             choice.equals("Received", ignoreCase = true) || choice.equals("Paid", ignoreCase = true) -> "RECEIVED"
             choice.equals("Part paid", ignoreCase = true) -> "PART_PAID"
+            choice.equals("Pay later", ignoreCase = true) || choice.equals("Pending", ignoreCase = true) -> "PAY_LATER"
             else -> "PAY_LATER"
         }
         val purchasePay = when {
@@ -1464,13 +1717,13 @@ private fun buildDraft(
             choice.equals("Part paid", ignoreCase = true) -> "PART_PAID"
             else -> "PAY_LATER"
         }
-        val stockAction = when (choice.lowercase()) {
+        val stockActionCode = when (stockActionLabel.lowercase()) {
             "set current stock", "set" -> "SET"
             "add" -> "ADD"
             "reduce" -> "REDUCE"
             else -> if (mode == "STOCK") "SET" else null
         }
-        val stockReason = when (choice.lowercase()) {
+        val stockReasonCode = when (stockReasonLabel.lowercase()) {
             "opening count", "opening" -> "opening"
             "stocktake" -> "stocktake"
             "damage" -> "damage"
@@ -1493,10 +1746,17 @@ private fun buildDraft(
             choice.contains("placed", ignoreCase = true) -> "PLACED"
             else -> "IN_TRANSIT"
         }
-        val ownership = when {
+        val ownershipCode = when {
             mode !in setOf("PURCHASE", "STOCK") || !(trading || distribution) -> null
-            choice.contains("consign", ignoreCase = true) || note.contains("consign", ignoreCase = true) -> "CONSIGNMENT"
+            ownership.equals("Consignment", ignoreCase = true) -> "CONSIGNMENT"
             else -> "OWNED"
+        }
+        val receiptCode = when {
+            mode != "PURCHASE" -> null
+            entryMode.equals("Quick amount", ignoreCase = true) && itemName.isBlank() -> "AWAITING"
+            receiptState.equals("Part received", ignoreCase = true) -> "PART_RECEIVED"
+            receiptState.equals("Awaiting receipt", ignoreCase = true) -> "AWAITING"
+            else -> "RECEIVED"
         }
         val appointmentAction = when (choice.lowercase()) {
             "reschedule" -> "RESCHEDULE"
@@ -1510,30 +1770,63 @@ private fun buildDraft(
             listOf(com.example.momentra.data.api.OperatingAllocationBody(parentId, resolvedAmount))
         } else null
         val promised = link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }
+        val paidOrReceived = when {
+            mode in setOf("SALE", "SERVICE") && salePay == "PART_PAID" -> receivedAmount.ifBlank { null }
+            mode in setOf("SALE", "SERVICE") && salePay == "RECEIVED" -> resolvedAmount.ifBlank { null }
+            mode in setOf("PURCHASE", "SPEND") && purchasePay == "PART_PAID" -> receivedAmount.ifBlank { null }
+            mode in setOf("PURCHASE", "SPEND") && purchasePay == "PAID" -> resolvedAmount.ifBlank { null }
+            else -> null
+        }
+        val taxApplies = lovTrade && mode in setOf("SALE", "PURCHASE")
+        val fxApplies = taxApplies && originalCurrency.isNotBlank()
+        val taxCode = when (taxModeLabel.lowercase()) {
+            "inclusive" -> "INCLUSIVE"
+            "exclusive" -> "EXCLUSIVE"
+            else -> "NOT_CONFIGURED"
+        }
         com.example.momentra.data.api.OperatingContractBody(
-            entryMode = if (mode in setOf("SALE", "SERVICE")) if (itemized) "ITEMIZED" else "QUICK" else null,
+            entryMode = if (mode in setOf("SALE", "SERVICE")) if (itemized) "ITEMIZED" else "QUICK" else if (mode == "PURCHASE") if (itemized) "ITEMIZED" else "QUICK" else null,
             paymentState = when (mode) {
                 "SALE", "SERVICE" -> salePay
                 "PURCHASE", "SPEND" -> purchasePay
                 else -> null
             },
-            receiptState = if (mode == "PURCHASE") "RECEIVED" else null,
-            receivedAmount = if (mode in setOf("SALE", "SERVICE") && salePay == "RECEIVED") resolvedAmount.ifBlank { null } else null,
-            stockAction = stockAction,
-            stockReason = stockReason,
+            receiptState = receiptCode,
+            receivedAmount = paidOrReceived,
+            quantityReceived = if (mode == "PURCHASE" && receiptCode == "PART_RECEIVED") quantity.ifBlank { null } else null,
+            stockAction = stockActionCode,
+            stockReason = stockReasonCode,
             appointmentAction = appointmentAction,
             orderStatus = orderStatus,
             staffName = if (mode == "APPOINTMENT") detail.ifBlank { null } else null,
             estimatedAmount = if (mode in setOf("ORDER", "APPOINTMENT")) resolvedAmount.ifBlank { null } else null,
             allocations = allocations,
-            ownership = ownership,
+            ownership = ownershipCode,
             shipmentStatus = shipmentStatus,
             promisedAt = if (mode in setOf("ORDER", "SHIPMENT", "DELIVERY")) promised else null,
+            declaredQuantity = if (mode == "STOCK" && stockActionCode == "SET") quantity.ifBlank { null } else null,
+            expenseCategory = if (lovTrade && mode == "SPEND") expenseCategory.trim().ifBlank { null } else null,
+            taxMode = if (taxApplies) taxCode else null,
+            taxAmount = if (taxApplies && taxCode != "NOT_CONFIGURED") taxAmount.ifBlank { null } else null,
+            originalCurrency = if (fxApplies) originalCurrency.trim().uppercase() else null,
+            fxRate = if (fxApplies) fxRate.ifBlank { null } else null,
+            returnDirection = if (mode == "RETURN") {
+                if (returnDirectionLabel.startsWith("Supplier", ignoreCase = true)) "SUPPLIER" else "CUSTOMER"
+            } else null,
+            goodsOutcome = if (mode == "RETURN") {
+                when (goodsOutcomeLabel.lowercase()) {
+                    "not returned" -> "NOT_RETURNED"
+                    "pending inspection" -> "PENDING_INSPECTION"
+                    else -> "TO_STOCK"
+                }
+            } else null,
+            returnReason = if (mode == "RETURN") returnReason.trim().take(80).ifBlank { null } else null,
         )
     } else null
+    val stockTitle = if (mode == "STOCK" && purpose.isNotBlank()) purpose else savedTitle
     return OperatingCaptureDraft(
         eventType = if (production && mode == "BUDGET" && choice == "Target") "TARGET" else eventType,
-        title = savedTitle.ifBlank { title },
+        title = if (mode == "STOCK") stockTitle.ifBlank { title } else savedTitle.ifBlank { title },
         amount = resolvedAmount.ifBlank { null },
         note = savedNote,
         channelName = channel.ifBlank { null },
@@ -1543,12 +1836,13 @@ private fun buildDraft(
         quantity = quantity.ifBlank { null },
         unit = unit.ifBlank { null },
         unitPrice = unitPrice.ifBlank { null },
-        itemName = itemName.ifBlank { null },
+        itemName = lineItemName.ifBlank { null },
         parentEventId = parentId.ifBlank { null },
         revisesEventId = revisesEventId?.takeIf { it.isNotBlank() },
         masterKind = if (mode == "MASTERS") masterKind.ifBlank { null } else null,
         dueAt = link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) },
         contract = retailContract,
+        masterId = if (lineItemName.isNotBlank()) productMasterId?.takeIf { it.isNotBlank() } else null,
     )
 }
 
@@ -1762,6 +2056,111 @@ fun formatOperatingDetail(detail: String, currency: String?): String {
         val token = match.value.substringBefore(' ')
         formatOperatingAmount(currency, token, true)
     }
+}
+
+private val ExpenseCategorySeeds = listOf(
+    "Rent", "Salaries", "Transport", "Freight", "Utilities", "Packaging", "Marketing",
+    "Maintenance", "Office supplies", "Insurance", "Fees and charges", "Other",
+).map { OperatingLovOption(id = "seed-expense-$it", name = it, kind = "EXPENSE_CATEGORY") }
+
+private fun lovTitle(kind: String): String = when (kind) {
+    "PRODUCT" -> "Product"
+    "BUYER" -> "Buyer"
+    "SUPPLIER" -> "Supplier"
+    "CHANNEL" -> "Channel"
+    "EXPENSE_CATEGORY" -> "Expense category"
+    "UOM" -> "UOM"
+    else -> kind.lowercase().replaceFirstChar { it.uppercase() }
+}
+
+private fun lovOptions(
+    kind: String,
+    masters: List<OperatingMasterDto>,
+    channels: List<String>,
+    local: List<OperatingLovOption>,
+): List<OperatingLovOption> {
+    val fromMasters = masters
+        .filter { master ->
+            val masterKind = master.kind.uppercase()
+            masterKind == kind || (kind == "BUYER" && masterKind == "CUSTOMER")
+        }
+        .map { master ->
+            OperatingLovOption(
+                id = master.id,
+                name = master.name,
+                kind = kind,
+                unit = master.unit ?: if (kind == "UOM") master.name else null,
+                subtitle = master.unit?.takeIf { it.isNotBlank() && kind == "PRODUCT" }?.let { "Base unit: $it" },
+            )
+        }
+    val seeds = when (kind) {
+        "UOM" -> OperatingSeedUoms.all
+        "CHANNEL" -> channels.map { OperatingLovOption(id = "seed-channel-$it", name = it, kind = "CHANNEL") }
+        "EXPENSE_CATEGORY" -> ExpenseCategorySeeds
+        else -> emptyList()
+    }
+    return (fromMasters + local.filter { it.kind == kind } + seeds)
+        .distinctBy { it.name.trim().lowercase() }
+}
+
+@Composable
+private fun LovField(label: String, value: String, placeholder: String, modifier: Modifier = Modifier.fillMaxWidth(), onClick: () -> Unit) {
+    ReadField(label, value.ifBlank { "Select $placeholder  ›" }, modifier, onClick)
+}
+
+@Composable
+private fun LovItemLine(
+    itemName: String,
+    quantity: String,
+    unit: String,
+    unitPrice: String,
+    onPickProduct: () -> Unit,
+    onPickUom: () -> Unit,
+    onQuantity: (String) -> Unit,
+    onPrice: (String) -> Unit,
+    showPrice: Boolean = true,
+) {
+    LovField("Product", itemName, "product", onClick = onPickProduct)
+    FieldRow {
+        EditField("Qty", quantity, "1", Modifier.weight(1f)) { onQuantity(it) }
+        LovField("UOM", unit, "UOM", Modifier.weight(1f), onPickUom)
+        if (showPrice) EditField("Price", unitPrice, "0", Modifier.weight(1f)) { onPrice(it) }
+    }
+    if (showPrice) {
+        Text("Quantity, unit, and price stay on the sale or purchase. Stock changes only when you record that the goods were received or dispatched.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun TaxFxFields(
+    currency: String,
+    taxMode: String,
+    taxAmount: String,
+    originalCurrency: String,
+    fxRate: String,
+    onTaxMode: (String) -> Unit,
+    onTaxAmount: (String) -> Unit,
+    onOriginalCurrency: (String) -> Unit,
+    onFxRate: (String) -> Unit,
+) {
+    ChoiceBlock("Tax", listOf("Not configured", "Inclusive", "Exclusive"), taxMode, onTaxMode)
+    if (taxMode != "Not configured") {
+        EditField("Tax amount", taxAmount, "0.00") { onTaxAmount(it.filter { c -> c.isDigit() || c == '.' }) }
+    }
+    FieldRow {
+        EditField("Original currency", originalCurrency, "USD", Modifier.weight(1f)) {
+            onOriginalCurrency(it.filter { c -> c.isLetter() }.take(3).uppercase())
+        }
+        EditField("FX rate", fxRate, if (originalCurrency.isBlank()) "Needs currency" else "Required", Modifier.weight(1f)) {
+            onFxRate(it.filter { c -> c.isDigit() || c == '.' })
+        }
+    }
+    Text(
+        "Amounts are saved in $currency. An FX rate is only needed when an original currency is set.",
+        color = SheetMuted,
+        fontFamily = PlusJakartaSans,
+        fontSize = 12.sp,
+    )
 }
 
 @Composable

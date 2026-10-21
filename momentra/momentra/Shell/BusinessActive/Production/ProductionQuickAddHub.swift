@@ -112,7 +112,10 @@ struct ProductionQuickAddHub: View {
                         itemName: draft.itemName,
                         parentEventId: draft.parentEventId,
                         revisesEventId: draft.revisesEventId,
-                        masterKind: draft.masterKind
+                        masterKind: draft.masterKind,
+                        dueAt: draft.dueAt,
+                        contract: draft.contract,
+                        lineItems: draft.lineItems
                     ))
                 },
                 onDecide: onDecide
@@ -143,7 +146,10 @@ struct ProductionQuickAddHub: View {
                         itemName: draft.itemName,
                         parentEventId: draft.parentEventId,
                         revisesEventId: draft.revisesEventId,
-                        masterKind: draft.masterKind
+                        masterKind: draft.masterKind,
+                        dueAt: draft.dueAt,
+                        contract: draft.contract,
+                        lineItems: draft.lineItems
                     ))
                 },
                 onDecide: onDecide
