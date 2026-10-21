@@ -330,7 +330,7 @@ describe('operating moment catalog', () => {
     const dispatches = view.boards.moments.find((section) => section.code === 'M4');
     assert.equal(dispatches?.title, 'Open Commitments');
     assert.equal(dispatches?.rows.length, 1);
-    assert.equal(dispatches?.rows[0]?.title, 'Dispatch');
+    assert.equal(dispatches?.rows[0]?.title, 'In transit · Dispatch');
   });
 
   it('counts only campaign results toward the marketing target and offers collection on an own-business campaign', () => {

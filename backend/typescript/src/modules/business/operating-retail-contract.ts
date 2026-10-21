@@ -82,6 +82,9 @@ export interface OperatingContract {
   staffName?: string | null;
   followUp?: boolean | null;
   estimatedAmount?: string | null;
+  ownership?: 'OWNED' | 'CONSIGNMENT' | null;
+  shipmentStatus?: 'PLACED' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED' | null;
+  promisedAt?: string | null;
 }
 
 export interface RetailLine {
@@ -234,6 +237,15 @@ export function parseOperatingContract(raw: unknown): OperatingContract | null {
     staffName: rec.staffName == null ? null : String(rec.staffName),
     followUp: rec.followUp === true,
     estimatedAmount: rec.estimatedAmount == null ? null : String(rec.estimatedAmount),
+    ownership: rec.ownership === 'OWNED' || rec.ownership === 'CONSIGNMENT' ? rec.ownership : null,
+    shipmentStatus:
+      rec.shipmentStatus === 'PLACED' ||
+      rec.shipmentStatus === 'IN_TRANSIT' ||
+      rec.shipmentStatus === 'DELIVERED' ||
+      rec.shipmentStatus === 'CANCELLED'
+        ? rec.shipmentStatus
+        : null,
+    promisedAt: rec.promisedAt == null ? null : String(rec.promisedAt),
   };
   return contract;
 }

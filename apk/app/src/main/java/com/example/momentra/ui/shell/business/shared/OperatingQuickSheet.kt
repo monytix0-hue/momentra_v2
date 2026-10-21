@@ -1096,7 +1096,13 @@ fun OperatingCaptureSheet(
                             occurredAtValue(eventDate), trading, distribution, client, own, detail,
                             standard, job, link, itemName, quantity, unit, unitPrice, parentId,
                             seed?.id, masterKind, model.paymentReadiness,
-                            retail = model.subtype in setOf("RETAIL_STORE", "RESTAURANT_FOOD", "CONSUMER_SERVICE"),
+                            retail = model.subtype in setOf(
+                                "RETAIL_STORE",
+                                "RESTAURANT_FOOD",
+                                "CONSUMER_SERVICE",
+                                "TRADING_WHOLESALE",
+                                "DISTRIBUTION_DEALERSHIP",
+                            ) || trading || distribution,
                             restaurant = restaurant,
                             service = service,
                         )
@@ -1446,14 +1452,16 @@ private fun buildDraft(
         note.takeIf { it.isNotBlank() },
         choice.takeIf { it.isNotBlank() && mode in setOf("ISSUE", "STOCK", "ORDER", "SHIPMENT", "APPOINTMENT", "SPEND", "PERSON", "ROLE", "INVITE", "SUPPLIER", "PARTNER") },
     ).joinToString(" · ").ifBlank { null }
-    val retailContract = if (retail || restaurant || service) {
+    val retailContract = if (retail || restaurant || service || trading || distribution) {
         val itemized = itemName.isNotBlank() && quantity.isNotBlank() && unitPrice.isNotBlank()
         val salePay = when {
             choice.equals("Received", ignoreCase = true) || choice.equals("Paid", ignoreCase = true) -> "RECEIVED"
+            choice.equals("Part paid", ignoreCase = true) -> "PART_PAID"
             else -> "PAY_LATER"
         }
         val purchasePay = when {
             choice.equals("Paid", ignoreCase = true) -> "PAID"
+            choice.equals("Part paid", ignoreCase = true) -> "PART_PAID"
             else -> "PAY_LATER"
         }
         val stockAction = when (choice.lowercase()) {
@@ -1471,12 +1479,24 @@ private fun buildDraft(
             "correction" -> "correction"
             else -> if (mode == "STOCK") "stocktake" else null
         }
-        val orderStatus = when (choice.lowercase()) {
-            "placed" -> "PLACED"
-            "preparing", "scheduled" -> "PREPARING"
-            "completed" -> "COMPLETED"
-            "cancelled" -> "CANCELLED"
-            else -> if (mode == "ORDER") "PLACED" else null
+        val orderStatus = when {
+            mode != "ORDER" -> null
+            choice.equals("Preparing", ignoreCase = true) || choice.equals("Scheduled", ignoreCase = true) -> "PREPARING"
+            choice.equals("Completed", ignoreCase = true) -> "COMPLETED"
+            choice.equals("Cancelled", ignoreCase = true) -> "CANCELLED"
+            else -> "PLACED"
+        }
+        val shipmentStatus = when {
+            mode !in setOf("SHIPMENT", "DELIVERY") -> null
+            choice.contains("deliver", ignoreCase = true) -> "DELIVERED"
+            choice.contains("cancel", ignoreCase = true) -> "CANCELLED"
+            choice.contains("placed", ignoreCase = true) -> "PLACED"
+            else -> "IN_TRANSIT"
+        }
+        val ownership = when {
+            mode !in setOf("PURCHASE", "STOCK") || !(trading || distribution) -> null
+            choice.contains("consign", ignoreCase = true) || note.contains("consign", ignoreCase = true) -> "CONSIGNMENT"
+            else -> "OWNED"
         }
         val appointmentAction = when (choice.lowercase()) {
             "reschedule" -> "RESCHEDULE"
@@ -1489,6 +1509,7 @@ private fun buildDraft(
         val allocations = if (mode in setOf("COLLECTION", "PAYMENT", "REIMBURSE") && parentId.isNotBlank() && resolvedAmount.isNotBlank()) {
             listOf(com.example.momentra.data.api.OperatingAllocationBody(parentId, resolvedAmount))
         } else null
+        val promised = link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }
         com.example.momentra.data.api.OperatingContractBody(
             entryMode = if (mode in setOf("SALE", "SERVICE")) if (itemized) "ITEMIZED" else "QUICK" else null,
             paymentState = when (mode) {
@@ -1505,6 +1526,9 @@ private fun buildDraft(
             staffName = if (mode == "APPOINTMENT") detail.ifBlank { null } else null,
             estimatedAmount = if (mode in setOf("ORDER", "APPOINTMENT")) resolvedAmount.ifBlank { null } else null,
             allocations = allocations,
+            ownership = ownership,
+            shipmentStatus = shipmentStatus,
+            promisedAt = if (mode in setOf("ORDER", "SHIPMENT", "DELIVERY")) promised else null,
         )
     } else null
     return OperatingCaptureDraft(
@@ -1523,6 +1547,7 @@ private fun buildDraft(
         parentEventId = parentId.ifBlank { null },
         revisesEventId = revisesEventId?.takeIf { it.isNotBlank() },
         masterKind = if (mode == "MASTERS") masterKind.ifBlank { null } else null,
+        dueAt = link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) },
         contract = retailContract,
     )
 }

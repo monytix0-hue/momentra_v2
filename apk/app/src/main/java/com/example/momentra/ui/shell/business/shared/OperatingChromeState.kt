@@ -34,7 +34,7 @@ fun openOperatingAttention(
         "charge" -> {
             model.activity.firstOrNull { it.id == sourceId }?.let { OperatingChromeState.charging = it }
         }
-        "stock", "budget" -> {
+        "stock", "budget", "shipment" -> {
             OperatingChromeState.quickAddHint = item.cta
             onOpenQuickAdd?.invoke()
         }
@@ -53,5 +53,6 @@ fun operatingAttentionCtaLabel(item: OperatingAttentionDto): String = when (item
     "approval" -> "Review"
     "stock" -> "Review stock"
     "budget" -> "Review budget"
+    "shipment" -> "Record shipment"
     else -> "Open"
 }

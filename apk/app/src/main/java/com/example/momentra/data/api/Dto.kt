@@ -1310,6 +1310,9 @@ data class OperatingContractBody(
     val staffName: String? = null,
     val estimatedAmount: String? = null,
     val followUp: Boolean? = null,
+    val ownership: String? = null,
+    val shipmentStatus: String? = null,
+    val promisedAt: String? = null,
 )
 
 data class RecordOperatingEventBody(

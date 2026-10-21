@@ -33,7 +33,7 @@ func openOperatingAttention(
         if let row = (model.activity ?? []).first(where: { $0.id == sourceId }) {
             OperatingChromeState.shared.charging = row
         }
-    case "stock", "budget":
+    case "stock", "budget", "shipment":
         OperatingChromeState.shared.quickAddHint = item.cta
         onOpenQuickAdd?()
     default:
@@ -54,6 +54,7 @@ func operatingAttentionCtaLabel(_ item: OperatingAttentionPayload) -> String {
     case "approval": return "Review"
     case "stock": return "Review stock"
     case "budget": return "Review budget"
+    case "shipment": return "Record shipment"
     default: return "Open"
     }
 }

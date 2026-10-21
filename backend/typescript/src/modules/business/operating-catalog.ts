@@ -17,6 +17,17 @@ import {
   stockPositions,
   type OperatingContract,
 } from './operating-retail-contract';
+import {
+  fulfilmentCoverage,
+  isTradingSubtype,
+  moneyMovingDetail as tradingMoneyMoving,
+  ordersCommitmentsSummary,
+  ordersCoverage,
+  peopleNetworkDetail,
+  tradingAttention,
+  tradingStockPositions,
+  obligationRemaining as tradingObligationRemaining,
+} from './operating-trading-contract';
 
 export const OPERATING_FAMILY_CODES = [
   'MARKETING_CAMPAIGNS',
@@ -956,7 +967,12 @@ export function projectOperatingMoment(args: {
         ...retailAttention(pulseEvents, visible, canApprove(args.role), asOf),
         ...budgetAttention(spent, budget, budgetConfigured, visible),
       ])
-    : legacyAttention;
+    : isTradingSubtype(args.prefs.subtype)
+      ? sortRetailAttention([
+          ...tradingAttention(pulseEvents, visible, canApprove(args.role), asOf),
+          ...budgetAttention(spent, budget, budgetConfigured, visible),
+        ])
+      : legacyAttention;
   const paymentReadiness = visible
     ? pulseEvents
         .filter(
@@ -1019,7 +1035,7 @@ export function projectOperatingMoment(args: {
       : null,
     attention: [
       ...attention,
-      ...(isRetailSubtype(args.prefs.subtype)
+      ...(isRetailSubtype(args.prefs.subtype) || isTradingSubtype(args.prefs.subtype)
         ? []
         : paymentReadiness.map((row) => ({
             id: `open-${row.id}`,
@@ -1227,9 +1243,9 @@ function widgetLabels(familyCode: string): WidgetLabels {
       m1: 'Business Moment',
       m3: 'Trade Network',
       l1: 'Current Business',
-      l2: 'Channel Activity',
-      l4: 'Operations',
-      me3: 'People & Activity',
+      l2: 'Buyers & Channels',
+      l4: 'People & Activity',
+      me3: 'People & Patterns',
     };
   }
   if (familyCode === 'MANUFACTURING_PRODUCTION') {
@@ -1337,7 +1353,90 @@ function operatingBoards(args: {
     ...familyMemorySections(familyCode, pulseEvents, visible, currency),
   ];
   if (isRetailSubtype(args.subtype)) decorateRetailBoards(moments, life, memory, args.events, visible, currency, args.asOf);
+  if (isTradingSubtype(args.subtype)) decorateTradingBoards(moments, life, memory, args.events, visible, currency, args.asOf, network);
   return { moments, life, memory };
+}
+
+function decorateTradingBoards(
+  moments: OperatingBoardSection[],
+  life: OperatingBoardSection[],
+  memory: OperatingBoardSection[],
+  events: OperatingEventRow[],
+  visible: boolean,
+  currency: string,
+  asOf: Date,
+  network: string[]
+): void {
+  const orders = moments.find((section) => section.code === 'orders');
+  if (orders) {
+    orders.detail = ordersCommitmentsSummary(events, visible, currency);
+    orders.coverage = ordersCoverage(events);
+  }
+  const stock = moments.find((section) => section.code === 'stock');
+  const positions = tradingStockPositions(events);
+  if (stock && positions.length > 0) {
+    stock.detail = positions
+      .map((position) => {
+        const unit = position.unit ? ` ${position.unit}` : '';
+        const low = position.reorderPoint != null && position.onHand <= position.reorderPoint ? ' · low' : '';
+        return `${position.item} · ${Number(position.onHand.toFixed(2))}${unit} on hand${low}`;
+      })
+      .join(' · ');
+  }
+  const networkBoard = moments.find((section) => section.code === 'network');
+  if (networkBoard) networkBoard.detail = peopleNetworkDetail(events, network);
+  const onhand = life.find((section) => section.code === 'onhand');
+  if (onhand && positions.length > 0) {
+    onhand.detail = positions
+      .map((position) => {
+        const unit = position.unit ? ` ${position.unit}` : '';
+        return `${position.item} · ${Number(position.onHand.toFixed(2))}${unit}`;
+      })
+      .join(' · ');
+  }
+  const moving = life.find((section) => section.code === 'L3');
+  const movingDetail = tradingMoneyMoving(events, visible, currency, asOf);
+  if (moving && movingDetail) moving.detail = movingDetail;
+  const fulfilment = memory.find((section) => section.code === 'fulfilment');
+  if (fulfilment) {
+    const coverage = fulfilmentCoverage(events);
+    if (coverage) fulfilment.coverage = coverage;
+  }
+  // Primary Open Commitments surface is M4 — clear the duplicate family board.
+  const duplicate = moments.find((section) => section.code === 'commitments');
+  if (duplicate) {
+    duplicate.detail = 'See Open Commitments above.';
+    duplicate.rows = [];
+  }
+  const commitments = moments.find((section) => section.code === 'M4');
+  if (commitments) {
+    const rows = events.flatMap((row) => {
+      if (!effective(row)) return [];
+      if (row.eventType === 'SALE') {
+        const open = tradingObligationRemaining(row, events, 'COLLECTION');
+        if (!(open > 0)) return [];
+        return [{ ...boardRow(row, visible), title: `To collect · ${row.counterpartyName || row.title}`, amount: visible ? money(open) : null }];
+      }
+      if (PAYABLE_TYPES.has(row.eventType)) {
+        const open = tradingObligationRemaining(row, events, 'PAYMENT');
+        if (!(open > 0)) return [];
+        return [{ ...boardRow(row, visible), title: `To pay · ${row.counterpartyName || row.title}`, amount: visible ? money(open) : null }];
+      }
+      if (row.eventType === 'ORDER' && row.contract?.orderStatus !== 'COMPLETED' && row.contract?.orderStatus !== 'CANCELLED') {
+        return [{ ...boardRow(row, visible), title: `Open order · ${displayTitle(row)}` }];
+      }
+      if (
+        (row.eventType === 'SHIPMENT' || row.eventType === 'DELIVERY') &&
+        row.contract?.shipmentStatus !== 'DELIVERED' &&
+        row.contract?.shipmentStatus !== 'CANCELLED'
+      ) {
+        return [{ ...boardRow(row, visible), title: `In transit · ${displayTitle(row)}` }];
+      }
+      return [];
+    });
+    commitments.detail = rows.length > 0 ? `${rows.length} open` : 'Nothing recorded yet.';
+    commitments.rows = rows;
+  }
 }
 
 function decorateRetailBoards(

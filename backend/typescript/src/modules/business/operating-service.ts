@@ -28,6 +28,7 @@ import {
   validateRetailWrite,
   type OperatingContract,
 } from './operating-retail-contract';
+import { isTradingSubtype, validateTradingWrite } from './operating-trading-contract';
 
 const amountSchema = z.string().regex(/^\d+(\.\d{1,4})?$/);
 
@@ -89,6 +90,9 @@ export const recordOperatingEventSchema = z
         staffName: z.string().max(120).nullish(),
         followUp: z.boolean().nullish(),
         estimatedAmount: amountSchema.nullish(),
+        ownership: z.enum(['OWNED', 'CONSIGNMENT']).nullish(),
+        shipmentStatus: z.enum(['PLACED', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED']).nullish(),
+        promisedAt: z.string().max(40).nullish(),
       })
       .strict()
       .optional(),
@@ -302,7 +306,7 @@ export async function recordOperatingEvent(
   }
   const checker = needsMakerChecker(role, def);
   const approvalStatus = checker || def.code === 'APPROVAL' ? 'PENDING' : 'NONE';
-  let paymentStatus = body.paymentStatus ?? 'NONE';
+  let paymentStatus: 'NONE' | 'PENDING' | 'READY' | 'PAID' | 'COLLECTED' = body.paymentStatus ?? 'NONE';
   if (def.paymentRelevance !== 'NONE' && paymentStatus === 'NONE') {
     paymentStatus = 'PENDING';
   }
@@ -316,29 +320,50 @@ export async function recordOperatingEvent(
   const retailGoverned =
     isRetailSubtype(prefs.subtype) &&
     ['SALE', 'SERVICE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'STOCK', 'ORDER', 'APPOINTMENT'].includes(def.code);
+  const tradingGoverned =
+    isTradingSubtype(prefs.subtype) &&
+    ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'STOCK', 'ORDER', 'SHIPMENT', 'DELIVERY'].includes(def.code);
   let retailContract: OperatingContract | null = null;
   let settleChild: { type: 'COLLECTION' | 'PAYMENT'; amount: string } | null = null;
   let parentEventId = body.parentEventId ?? null;
   let quantity = body.quantity ?? null;
-  if (retailGoverned) {
-    const checked = validateRetailWrite(
-      {
-        eventType: def.code,
-        title: body.title,
-        amount,
-        counterpartyName: body.counterpartyName,
-        channelName: body.channelName,
-        occurredAt: body.occurredAt,
-        parentEventId,
-        quantity: body.quantity,
-        dueAt: body.dueAt,
-        lines: body.lines,
-        contract: body.contract,
-      },
-      existing
-    );
+  if (retailGoverned || tradingGoverned) {
+    const writeContract = parseOperatingContract(body.contract) ?? undefined;
+    const checked = retailGoverned
+      ? validateRetailWrite(
+          {
+            eventType: def.code,
+            title: body.title,
+            amount,
+            counterpartyName: body.counterpartyName,
+            channelName: body.channelName,
+            occurredAt: body.occurredAt,
+            parentEventId,
+            quantity: body.quantity,
+            dueAt: body.dueAt,
+            lines: body.lines,
+            contract: writeContract,
+          },
+          existing
+        )
+      : validateTradingWrite(
+          {
+            eventType: def.code,
+            title: body.title,
+            amount,
+            counterpartyName: body.counterpartyName,
+            channelName: body.channelName,
+            occurredAt: body.occurredAt,
+            parentEventId,
+            quantity: body.quantity,
+            dueAt: body.dueAt,
+            lines: body.lines,
+            contract: writeContract,
+          },
+          existing
+        );
     if (!checked.ok) throw new AppError(ErrorCode.VALIDATION_FAILED, checked.message, 400);
-    paymentStatus = checked.paymentStatus;
+    paymentStatus = checked.paymentStatus as typeof paymentStatus;
     amount = checked.amount;
     parentEventId = checked.parentEventId;
     quantity = checked.quantity;
@@ -435,28 +460,31 @@ export async function recordOperatingEvent(
     ]
   );
   const eventId = inserted.rows[0]!.operating_event_id;
-  if (settleChild && approvalStatus !== 'PENDING') {
-    await ensureSettlement(client, ctx, momentId, scope.companyId, prefs.currency, {
+  const companyId = scope.companyId;
+  if (companyId) {
+    if (settleChild && approvalStatus !== 'PENDING') {
+      await ensureSettlement(client, ctx, momentId, companyId, prefs.currency, {
+        eventId,
+        eventType: def.code,
+        title,
+        amount: settleChild.amount,
+        paymentStatus: settleChild.type === 'COLLECTION' ? 'COLLECTED' : 'PAID',
+        approvalStatus,
+        counterpartyName: body.counterpartyName ?? null,
+        occurredAt: body.occurredAt ?? null,
+      });
+    }
+    await ensureSettlement(client, ctx, momentId, companyId, prefs.currency, {
       eventId,
       eventType: def.code,
       title,
-      amount: settleChild.amount,
-      paymentStatus: settleChild.type === 'COLLECTION' ? 'COLLECTED' : 'PAID',
+      amount,
+      paymentStatus,
       approvalStatus,
       counterpartyName: body.counterpartyName ?? null,
       occurredAt: body.occurredAt ?? null,
     });
   }
-  await ensureSettlement(client, ctx, momentId, scope.companyId, prefs.currency, {
-    eventId,
-    eventType: def.code,
-    title,
-    amount,
-    paymentStatus,
-    approvalStatus,
-    counterpartyName: body.counterpartyName ?? null,
-    occurredAt: body.occurredAt ?? null,
-  });
   if (approvalStatus !== 'PENDING' && (def.code === 'BUDGET' || def.code === 'TARGET') && body.amount) {
     await applyPlanRevision(client, momentId, def.code, body.amount);
   }
@@ -586,7 +614,7 @@ export async function reviseOperatingEvent(
   if (body.dueAt) payload.dueAt = body.dueAt;
   if (body.metric) payload.metric = body.metric;
   let revisedAmount = body.amount ?? null;
-  let revisedStatus = body.paymentStatus ?? null;
+  let revisedStatus: 'NONE' | 'PENDING' | 'READY' | 'PAID' | 'COLLECTED' | null = body.paymentStatus ?? null;
   let revisedQuantity = body.quantity ?? null;
   if (
     isRetailSubtype(prefs.subtype) &&
@@ -605,14 +633,41 @@ export async function reviseOperatingEvent(
         quantity: body.quantity ?? current.quantity,
         dueAt: body.dueAt ?? current.dueAt,
         lines: body.lines ?? current.lines,
-        contract: body.contract ?? current.contract,
+        contract: parseOperatingContract(body.contract) ?? current.contract ?? undefined,
         revisingId: eventId,
       },
       existing
     );
     if (!checked.ok) throw new AppError(ErrorCode.VALIDATION_FAILED, checked.message, 400);
     revisedAmount = checked.amount;
-    revisedStatus = checked.paymentStatus;
+    revisedStatus = checked.paymentStatus as typeof revisedStatus;
+    revisedQuantity = checked.quantity;
+    payload.contract = checked.contract;
+  } else if (
+    isTradingSubtype(prefs.subtype) &&
+    (body.contract || current.contract) &&
+    ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'STOCK', 'ORDER', 'SHIPMENT', 'DELIVERY'].includes(current.eventType)
+  ) {
+    const checked = validateTradingWrite(
+      {
+        eventType: current.eventType,
+        title: body.title,
+        amount: body.amount ?? current.amount,
+        counterpartyName: body.counterpartyName ?? current.counterpartyName,
+        channelName: body.channelName ?? current.channelName,
+        occurredAt: body.occurredAt ?? current.occurredAt,
+        parentEventId: body.parentEventId ?? current.parentEventId,
+        quantity: body.quantity ?? current.quantity,
+        dueAt: body.dueAt ?? current.dueAt,
+        lines: body.lines ?? current.lines,
+        contract: parseOperatingContract(body.contract) ?? current.contract ?? undefined,
+        revisingId: eventId,
+      },
+      existing
+    );
+    if (!checked.ok) throw new AppError(ErrorCode.VALIDATION_FAILED, checked.message, 400);
+    revisedAmount = checked.amount;
+    revisedStatus = checked.paymentStatus as typeof revisedStatus;
     revisedQuantity = checked.quantity;
     payload.contract = checked.contract;
   }
@@ -659,16 +714,18 @@ export async function reviseOperatingEvent(
     momentId,
     eventType: current.eventType,
   });
-  await ensureSettlement(client, ctx, momentId, scope.companyId, prefs.currency, {
-    eventId,
-    eventType: current.eventType,
-    title: body.title,
-    amount: body.amount ?? current.amount,
-    paymentStatus: body.paymentStatus ?? current.paymentStatus,
-    approvalStatus: current.approvalStatus,
-    counterpartyName: body.counterpartyName ?? current.counterpartyName,
-    occurredAt: body.occurredAt ?? current.occurredAt,
-  });
+  if (scope.companyId) {
+    await ensureSettlement(client, ctx, momentId, scope.companyId, prefs.currency, {
+      eventId,
+      eventType: current.eventType,
+      title: body.title,
+      amount: revisedAmount ?? current.amount,
+      paymentStatus: revisedStatus ?? current.paymentStatus,
+      approvalStatus: current.approvalStatus,
+      counterpartyName: body.counterpartyName ?? current.counterpartyName,
+      occurredAt: body.occurredAt ?? current.occurredAt,
+    });
+  }
   const projection = await getOperatingProjection(client, ctx, momentId);
   if ('retired' in projection && projection.retired) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Operating projection unavailable.', 400);

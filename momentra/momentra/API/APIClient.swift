@@ -32,6 +32,9 @@ struct OperatingContractInput: Encodable {
     var estimatedAmount: String? = nil
     var followUp: Bool? = nil
     var allocations: [OperatingAllocationInput]? = nil
+    var ownership: String? = nil
+    var shipmentStatus: String? = nil
+    var promisedAt: String? = nil
 }
 
 struct OperatingAllocationInput: Encodable {

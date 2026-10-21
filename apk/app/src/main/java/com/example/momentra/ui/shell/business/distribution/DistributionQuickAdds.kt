@@ -59,6 +59,8 @@ data class DistributionEventDraft(
     val parentEventId: String? = null,
     val revisesEventId: String? = null,
     val masterKind: String? = null,
+    val dueAt: String? = null,
+    val contract: com.example.momentra.data.api.OperatingContractBody? = null,
 )
 
 private enum class DistributionSheet(
@@ -370,4 +372,6 @@ private fun OperatingCaptureDraft.toDistribution() = DistributionEventDraft(
     parentEventId = parentEventId,
     revisesEventId = revisesEventId,
     masterKind = masterKind,
+    dueAt = dueAt,
+    contract = contract,
 )
