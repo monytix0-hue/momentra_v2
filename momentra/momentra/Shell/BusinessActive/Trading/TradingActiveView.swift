@@ -242,7 +242,15 @@ struct TradingActiveView: View {
                     Button { OperatingChromeState.shared.settling = item } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             line(item.title, money(item.amount), TradingChrome.ink)
-                            Text([item.counterpartyName, item.dueAt.map { String($0.prefix(10)) }].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                            let bucket: String? = {
+                                switch item.dueBucket {
+                                case "OVERDUE": return "Overdue"
+                                case "DUE_SOON": return "Due soon"
+                                case "OPEN": return item.dueAt == nil ? "Open · no due date" : "Open"
+                                default: return nil
+                                }
+                            }()
+                            Text([item.counterpartyName, item.dueAt.map { String($0.prefix(10)) }, bucket].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                                 .font(.plusJakarta(size: 12))
                         }
                     }
@@ -377,5 +385,30 @@ struct TradingEventDraft {
     var masterKind: String? = nil
     var dueAt: String? = nil
     var contract: OperatingContractInput? = nil
-    var lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?)]? = nil
+    var lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil
+}
+
+extension OperatingCaptureDraft {
+    func toTrading() -> TradingEventDraft {
+        TradingEventDraft(
+            eventType: eventType,
+            title: title,
+            amount: amount,
+            note: note,
+            channelName: channelName,
+            counterpartyName: counterpartyName,
+            paymentStatus: paymentStatus,
+            occurredAt: occurredAt,
+            quantity: quantity,
+            unit: unit,
+            unitPrice: unitPrice,
+            itemName: itemName,
+            parentEventId: parentEventId,
+            revisesEventId: revisesEventId,
+            masterKind: masterKind,
+            dueAt: dueAt,
+            contract: contract,
+            lineItems: lineItems
+        )
+    }
 }

@@ -53,6 +53,8 @@ export const recordOperatingEventSchema = z
           quantity: amountSchema.nullish(),
           unit: z.string().max(24).nullish(),
           unitPrice: amountSchema.nullish(),
+          masterId: z.string().max(80).nullish(),
+          baseQuantity: amountSchema.nullish(),
         })
       )
       .max(12)
@@ -62,6 +64,10 @@ export const recordOperatingEventSchema = z
         kind: z.string().min(1).max(40),
         name: z.string().min(1).max(160),
         unit: z.string().max(24).nullish(),
+        dimension: z.enum(['count', 'mass', 'volume', 'length', 'area']).nullish(),
+        conversionToBase: amountSchema.nullish(),
+        tracked: z.boolean().nullish(),
+        barcode: z.string().max(80).nullish(),
       })
       .nullish(),
     metric: z.enum(['LEADS', 'CONVERSIONS']).optional(),
@@ -93,6 +99,14 @@ export const recordOperatingEventSchema = z
         ownership: z.enum(['OWNED', 'CONSIGNMENT']).nullish(),
         shipmentStatus: z.enum(['PLACED', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED']).nullish(),
         promisedAt: z.string().max(40).nullish(),
+        taxMode: z.enum(['INCLUSIVE', 'EXCLUSIVE', 'NOT_CONFIGURED']).nullish(),
+        taxAmount: amountSchema.nullish(),
+        originalCurrency: z.string().max(8).nullish(),
+        fxRate: amountSchema.nullish(),
+        convertedAmount: amountSchema.nullish(),
+        returnDirection: z.enum(['CUSTOMER', 'SUPPLIER']).nullish(),
+        goodsOutcome: z.enum(['TO_STOCK', 'NOT_RETURNED', 'PENDING_INSPECTION']).nullish(),
+        returnReason: z.string().max(80).nullish(),
       })
       .strict()
       .optional(),
@@ -173,17 +187,22 @@ async function loadEvents(client: PoolClient, momentId: string): Promise<Operati
             quantity: rec.quantity == null ? null : String(rec.quantity),
             unit: rec.unit == null ? null : String(rec.unit),
             unitPrice: rec.unitPrice == null ? null : String(rec.unitPrice),
+            masterId: rec.masterId == null ? null : String(rec.masterId),
+            baseQuantity: rec.baseQuantity == null ? null : String(rec.baseQuantity),
           }];
         })
       : [];
     const masterRaw = payload.master;
-    const master = masterRaw && typeof masterRaw === 'object'
+    const masterRec = masterRaw && typeof masterRaw === 'object' ? (masterRaw as Record<string, unknown>) : null;
+    const master = masterRec
       ? {
-          kind: String((masterRaw as Record<string, unknown>).kind ?? ''),
-          name: String((masterRaw as Record<string, unknown>).name ?? ''),
-          unit: (masterRaw as Record<string, unknown>).unit == null
-            ? null
-            : String((masterRaw as Record<string, unknown>).unit),
+          kind: String(masterRec.kind ?? ''),
+          name: String(masterRec.name ?? ''),
+          unit: masterRec.unit == null ? null : String(masterRec.unit),
+          dimension: masterRec.dimension == null ? null : String(masterRec.dimension),
+          conversionToBase: masterRec.conversionToBase == null ? null : String(masterRec.conversionToBase),
+          tracked: masterRec.tracked === true ? true : masterRec.tracked === false ? false : null,
+          barcode: masterRec.barcode == null ? null : String(masterRec.barcode),
         }
       : null;
     return {
@@ -322,7 +341,9 @@ export async function recordOperatingEvent(
     ['SALE', 'SERVICE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'STOCK', 'ORDER', 'APPOINTMENT'].includes(def.code);
   const tradingGoverned =
     isTradingSubtype(prefs.subtype) &&
-    ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'STOCK', 'ORDER', 'SHIPMENT', 'DELIVERY'].includes(def.code);
+    ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'STOCK', 'ORDER', 'SHIPMENT', 'DELIVERY', 'RETURN'].includes(
+      def.code
+    );
   let retailContract: OperatingContract | null = null;
   let settleChild: { type: 'COLLECTION' | 'PAYMENT'; amount: string } | null = null;
   let parentEventId = body.parentEventId ?? null;
@@ -359,6 +380,7 @@ export async function recordOperatingEvent(
             dueAt: body.dueAt,
             lines: body.lines,
             contract: writeContract,
+            channelTracking: (prefs.channels?.length ?? 0) > 0,
           },
           existing
         );
@@ -646,7 +668,9 @@ export async function reviseOperatingEvent(
   } else if (
     isTradingSubtype(prefs.subtype) &&
     (body.contract || current.contract) &&
-    ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'STOCK', 'ORDER', 'SHIPMENT', 'DELIVERY'].includes(current.eventType)
+    ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'STOCK', 'ORDER', 'SHIPMENT', 'DELIVERY', 'RETURN'].includes(
+      current.eventType
+    )
   ) {
     const checked = validateTradingWrite(
       {
@@ -662,6 +686,7 @@ export async function reviseOperatingEvent(
         lines: body.lines ?? current.lines,
         contract: parseOperatingContract(body.contract) ?? current.contract ?? undefined,
         revisingId: eventId,
+        channelTracking: (prefs.channels?.length ?? 0) > 0,
       },
       existing
     );

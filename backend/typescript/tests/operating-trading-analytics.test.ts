@@ -67,6 +67,7 @@ function asTrading(events: OperatingEventRow[]): TradingEvent[] {
     lines: row.lines ?? [],
     contract: row.contract ?? null,
     note: row.note,
+    master: row.master ?? null,
   }));
 }
 
@@ -244,6 +245,7 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
         title: 'Cash sale',
         amount: '2400',
         channelName: 'Wholesale',
+        channelTracking: true,
         contract: { entryMode: 'QUICK', paymentState: 'RECEIVED' },
       }),
       []
@@ -268,7 +270,7 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
     assert.equal(tradingStockPositions(asTrading([event('sale', 'SALE', { contract: checked.contract })])).length, 0);
   });
 
-  it('M2: itemized sale deducts owned stock', () => {
+  it('TD-08: itemized sale does not deduct stock until delivered shipment', () => {
     const opening = event('open', 'STOCK', {
       title: 'SKU-T',
       quantity: '10',
@@ -280,6 +282,7 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
         eventType: 'SALE',
         title: 'Itemized',
         channelName: 'Wholesale',
+        channelTracking: true,
         lines: [{ itemName: 'SKU-T', quantity: '2', unit: 'pcs', unitPrice: '18000' }],
         contract: { entryMode: 'ITEMIZED', paymentState: 'RECEIVED' },
       }),
@@ -294,7 +297,78 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
       lines: [{ itemName: 'SKU-T', quantity: '2', unit: 'pcs', unitPrice: '18000' }],
       contract: saleWrite.contract,
     });
-    assert.equal(tradingStockPositions(asTrading([opening, sale])).find((row) => row.item === 'SKU-T')?.onHand, 8);
+    assert.equal(tradingStockPositions(asTrading([opening, sale])).find((row) => row.item === 'SKU-T')?.onHand, 10);
+    const delivered = event('ship', 'SHIPMENT', {
+      title: 'SKU-T',
+      quantity: '2',
+      unit: 'pcs',
+      occurredAt: '2026-10-11T00:00:00.000Z',
+      lines: [{ itemName: 'SKU-T', quantity: '2', unit: 'pcs', unitPrice: '0' }],
+      contract: { shipmentStatus: 'DELIVERED' },
+    });
+    assert.equal(tradingStockPositions(asTrading([opening, sale, delivered])).find((row) => row.item === 'SKU-T')?.onHand, 8);
+  });
+
+  it('TD-V4-03: partial purchase receipt adds only received qty', () => {
+    const buy = event('buy', 'PURCHASE', {
+      amount: '2000.0000',
+      counterpartyName: 'Mill',
+      paymentRelevance: 'PAYABLE',
+      paymentStatus: 'PENDING',
+      lines: [{ itemName: 'Bags', quantity: '100', unit: 'pcs', unitPrice: '20' }],
+      contract: { receiptState: 'PART_RECEIVED', quantityReceived: '40', paymentState: 'PAY_LATER', ownership: 'OWNED' },
+      dueAt: '2026-10-20',
+    });
+    assert.equal(tradingStockPositions(asTrading([buy]))[0]?.onHand, 40);
+  });
+
+  it('credit sale without due date is rejected', () => {
+    const checked = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Credit',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer A',
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER' },
+      }),
+      []
+    );
+    assert.equal(checked.ok, false);
+  });
+
+  it('payment readiness buckets undated as OPEN not overdue', () => {
+    const view = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('TRADING_WHOLESALE', '10000', '50000'),
+      role: 'FINANCE',
+      events: [
+        event('sale', 'SALE', {
+          amount: '900',
+          paymentStatus: 'PENDING',
+          paymentRelevance: 'RECEIVABLE',
+          counterpartyName: 'Buyer A',
+          dueAt: null,
+          contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER' },
+        }),
+        event('late', 'SALE', {
+          amount: '500',
+          paymentStatus: 'PENDING',
+          paymentRelevance: 'RECEIVABLE',
+          counterpartyName: 'Buyer B',
+          dueAt: '2026-10-01',
+          contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER' },
+          occurredAt: '2026-10-11T00:00:00.000Z',
+        }),
+      ],
+      asOf: new Date('2026-10-18T00:00:00.000Z'),
+    });
+    const undated = view.paymentReadiness.find((row) => row.id === 'sale');
+    const overdue = view.paymentReadiness.find((row) => row.id === 'late');
+    assert.equal(undated?.dueBucket, 'OPEN');
+    assert.equal(overdue?.dueBucket, 'OVERDUE');
+    assert.equal(view.paymentReadiness[0]?.dueBucket, 'OVERDUE');
   });
 
   it('opening + purchase received → on-hand; Set Current reconciles (not 300)', () => {
@@ -434,8 +508,10 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
         title: 'Invoice',
         amount: '50000',
         channelName: 'Wholesale',
+        channelTracking: true,
         parentEventId: 'ord',
         counterpartyName: 'Buyer A',
+        dueAt: '2026-10-30',
         contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER' },
       }),
       asTrading([order])
@@ -459,6 +535,220 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
       ],
     });
     assert.equal(after.finance?.sales, '50000.0000');
+  });
+
+  it('rejects incompatible UOM and converts pack via product conversionToBase', () => {
+    const product = event('prod', 'UPDATE', {
+      title: 'Widget',
+      master: { kind: 'PRODUCT', name: 'Widget', unit: 'pc', dimension: 'count', conversionToBase: '12' },
+    });
+    const bad = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Sale',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        lines: [{ itemName: 'Widget', quantity: '2', unit: 'kg', unitPrice: '10', masterId: 'prod' }],
+        contract: { entryMode: 'ITEMIZED', paymentState: 'RECEIVED' },
+      }),
+      asTrading([product])
+    );
+    assert.equal(bad.ok, false);
+
+    const pack = validateTradingWrite(
+      write({
+        eventType: 'PURCHASE',
+        title: 'Buy packs',
+        counterpartyName: 'Mill',
+        dueAt: '2026-10-30',
+        lines: [{ itemName: 'Widget', quantity: '2', unit: 'pack', unitPrice: '120', masterId: 'prod' }],
+        contract: { entryMode: 'ITEMIZED', receiptState: 'RECEIVED', paymentState: 'PAY_LATER', ownership: 'OWNED' },
+      }),
+      asTrading([product])
+    );
+    assert.equal(pack.ok, true);
+    if (!pack.ok) return;
+    assert.equal(pack.contract.receiptState, 'RECEIVED');
+    const lines = [
+      { itemName: 'Widget', quantity: '2', unit: 'pack', unitPrice: '120', masterId: 'prod', baseQuantity: '24.0000' },
+    ];
+    const buy = event('buy', 'PURCHASE', {
+      amount: pack.amount,
+      counterpartyName: 'Mill',
+      paymentRelevance: 'PAYABLE',
+      paymentStatus: 'PENDING',
+      lines,
+      contract: pack.contract,
+    });
+    assert.equal(tradingStockPositions(asTrading([buy]))[0]?.onHand, 24);
+  });
+
+  it('return to stock increases on-hand; not-returned leaves stock; over-return blocked', () => {
+    const buy = event('buy', 'PURCHASE', {
+      amount: '1000.0000',
+      counterpartyName: 'Mill',
+      paymentRelevance: 'PAYABLE',
+      paymentStatus: 'PENDING',
+      lines: [{ itemName: 'Bolt', quantity: '10', unit: 'pc', unitPrice: '100', baseQuantity: '10.0000' }],
+      contract: { receiptState: 'RECEIVED', paymentState: 'PAY_LATER', ownership: 'OWNED' },
+    });
+    const sale = event('sale', 'SALE', {
+      amount: '500.0000',
+      counterpartyName: 'Buyer A',
+      paymentRelevance: 'RECEIVABLE',
+      paymentStatus: 'PENDING',
+      dueAt: '2026-10-30',
+      contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER' },
+    });
+    const toStock = validateTradingWrite(
+      write({
+        eventType: 'RETURN',
+        title: 'Customer return',
+        amount: '100',
+        quantity: '2',
+        parentEventId: 'sale',
+        contract: {
+          returnDirection: 'CUSTOMER',
+          goodsOutcome: 'TO_STOCK',
+          returnReason: 'Damaged outer',
+        },
+        lines: [{ itemName: 'Bolt', quantity: '2', unit: 'pc', unitPrice: '50' }],
+      }),
+      asTrading([buy, sale])
+    );
+    assert.equal(toStock.ok, true);
+    if (!toStock.ok) return;
+    const returned = event('ret', 'RETURN', {
+      amount: toStock.amount,
+      quantity: toStock.quantity,
+      parentEventId: 'sale',
+      lines: [{ itemName: 'Bolt', quantity: '2', unit: 'pc', unitPrice: '50', baseQuantity: '2.0000' }],
+      contract: toStock.contract,
+      title: 'Bolt',
+    });
+    assert.equal(tradingStockPositions(asTrading([buy, sale, returned]))[0]?.onHand, 12);
+    assert.equal(obligationRemaining(asTrading([buy, sale, returned])[1]!, asTrading([buy, sale, returned]), 'COLLECTION'), 400);
+
+    const notReturned = validateTradingWrite(
+      write({
+        eventType: 'RETURN',
+        title: 'Credit only',
+        amount: '50',
+        parentEventId: 'sale',
+        contract: {
+          returnDirection: 'CUSTOMER',
+          goodsOutcome: 'NOT_RETURNED',
+          returnReason: 'Price adjustment',
+        },
+      }),
+      asTrading([buy, sale, returned])
+    );
+    assert.equal(notReturned.ok, true);
+    if (!notReturned.ok) return;
+    const creditOnly = event('ret2', 'RETURN', {
+      amount: notReturned.amount,
+      parentEventId: 'sale',
+      contract: notReturned.contract,
+    });
+    assert.equal(tradingStockPositions(asTrading([buy, sale, returned, creditOnly]))[0]?.onHand, 12);
+
+    const over = validateTradingWrite(
+      write({
+        eventType: 'RETURN',
+        title: 'Too much',
+        amount: '9999',
+        parentEventId: 'sale',
+        contract: {
+          returnDirection: 'CUSTOMER',
+          goodsOutcome: 'NOT_RETURNED',
+          returnReason: 'Bad',
+        },
+      }),
+      asTrading([buy, sale, returned, creditOnly])
+    );
+    assert.equal(over.ok, false);
+  });
+
+  it('tax NOT_CONFIGURED clears taxAmount; exclusive stores entered tax; FX missing rate blocked', () => {
+    const unconfigured = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Sale',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        contract: { entryMode: 'QUICK', paymentState: 'RECEIVED', taxMode: 'NOT_CONFIGURED', taxAmount: '180' },
+      }),
+      []
+    );
+    assert.equal(unconfigured.ok, true);
+    if (!unconfigured.ok) return;
+    assert.equal(unconfigured.contract.taxMode, 'NOT_CONFIGURED');
+    assert.equal(unconfigured.contract.taxAmount, null);
+
+    const exclusive = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Sale',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        contract: { entryMode: 'QUICK', paymentState: 'RECEIVED', taxMode: 'EXCLUSIVE', taxAmount: '180' },
+      }),
+      []
+    );
+    assert.equal(exclusive.ok, true);
+    if (!exclusive.ok) return;
+    assert.equal(exclusive.contract.taxAmount, '180');
+
+    const missingRate = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'FX sale',
+        amount: '100',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        contract: { entryMode: 'QUICK', paymentState: 'RECEIVED', originalCurrency: 'USD' },
+      }),
+      []
+    );
+    assert.equal(missingRate.ok, false);
+
+    const withRate = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'FX sale',
+        amount: '100',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        contract: { entryMode: 'QUICK', paymentState: 'RECEIVED', originalCurrency: 'USD', fxRate: '83.5' },
+      }),
+      []
+    );
+    assert.equal(withRate.ok, true);
+    if (!withRate.ok) return;
+    assert.equal(withRate.contract.convertedAmount, '8350.0000');
+  });
+
+  it('itemized sale with LOV-bound product master converts dozen to base', () => {
+    const product = event('prod', 'UPDATE', {
+      title: 'Cup',
+      master: { kind: 'PRODUCT', name: 'Cup', unit: 'pc', dimension: 'count' },
+    });
+    const sale = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Dozen cups',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        lines: [{ itemName: 'Cup', quantity: '1', unit: 'dozen', unitPrice: '240', masterId: 'prod' }],
+        contract: { entryMode: 'ITEMIZED', paymentState: 'RECEIVED' },
+      }),
+      asTrading([product])
+    );
+    assert.equal(sale.ok, true);
+    if (!sale.ok) return;
+    assert.equal(sale.quantity, '12.0000');
   });
 
   it('decorates locked trading board titles and primary M4 commitments', () => {

@@ -85,6 +85,14 @@ export interface OperatingContract {
   ownership?: 'OWNED' | 'CONSIGNMENT' | null;
   shipmentStatus?: 'PLACED' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED' | null;
   promisedAt?: string | null;
+  taxMode?: 'INCLUSIVE' | 'EXCLUSIVE' | 'NOT_CONFIGURED' | null;
+  taxAmount?: string | null;
+  originalCurrency?: string | null;
+  fxRate?: string | null;
+  convertedAmount?: string | null;
+  returnDirection?: 'CUSTOMER' | 'SUPPLIER' | null;
+  goodsOutcome?: 'TO_STOCK' | 'NOT_RETURNED' | 'PENDING_INSPECTION' | null;
+  returnReason?: string | null;
 }
 
 export interface RetailLine {
@@ -92,6 +100,8 @@ export interface RetailLine {
   quantity?: string | null;
   unit?: string | null;
   unitPrice?: string | null;
+  masterId?: string | null;
+  baseQuantity?: string | null;
 }
 
 export interface RetailEvent {
@@ -106,10 +116,20 @@ export interface RetailEvent {
   quantity?: string | null;
   unit?: string | null;
   counterpartyName?: string | null;
+  channelName?: string | null;
   dueAt?: string | null;
   lines?: RetailLine[];
   contract?: OperatingContract | null;
   note?: string | null;
+  master?: {
+    kind: string;
+    name: string;
+    unit?: string | null;
+    dimension?: string | null;
+    conversionToBase?: string | null;
+    tracked?: boolean | null;
+    barcode?: string | null;
+  } | null;
 }
 
 export interface RetailWrite {
@@ -246,6 +266,22 @@ export function parseOperatingContract(raw: unknown): OperatingContract | null {
         ? rec.shipmentStatus
         : null,
     promisedAt: rec.promisedAt == null ? null : String(rec.promisedAt),
+    taxMode:
+      rec.taxMode === 'INCLUSIVE' || rec.taxMode === 'EXCLUSIVE' || rec.taxMode === 'NOT_CONFIGURED'
+        ? rec.taxMode
+        : null,
+    taxAmount: rec.taxAmount == null ? null : String(rec.taxAmount),
+    originalCurrency: rec.originalCurrency == null ? null : String(rec.originalCurrency).toUpperCase(),
+    fxRate: rec.fxRate == null ? null : String(rec.fxRate),
+    convertedAmount: rec.convertedAmount == null ? null : String(rec.convertedAmount),
+    returnDirection: rec.returnDirection === 'CUSTOMER' || rec.returnDirection === 'SUPPLIER' ? rec.returnDirection : null,
+    goodsOutcome:
+      rec.goodsOutcome === 'TO_STOCK' ||
+      rec.goodsOutcome === 'NOT_RETURNED' ||
+      rec.goodsOutcome === 'PENDING_INSPECTION'
+        ? rec.goodsOutcome
+        : null,
+    returnReason: rec.returnReason == null ? null : String(rec.returnReason),
   };
   return contract;
 }
@@ -264,7 +300,13 @@ export function obligationRemaining(row: RetailEvent, events: RetailEvent[], chi
     if (child.eventType !== childType || !effective(child)) return total;
     return total + shareAgainst(child, row.operatingEventId);
   }, 0);
-  return Math.max(0, num(row.amount) - used);
+  // QA-07: credit notes / returns reduce open balance without inventing revenue or cost.
+  const credited = events.reduce((total, child) => {
+    if (child.eventType !== 'RETURN' || !effective(child)) return total;
+    if (child.parentEventId !== row.operatingEventId) return total;
+    return total + num(child.amount);
+  }, 0);
+  return Math.max(0, num(row.amount) - used - credited);
 }
 
 function lineTotal(lines: RetailLine[] | null | undefined): number {

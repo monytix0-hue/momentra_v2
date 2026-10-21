@@ -388,5 +388,8 @@ struct MarketingEventDraft {
     var itemName: String? = nil
     var parentEventId: String? = nil
     var revisesEventId: String? = nil
-    var masterKind: String? = nil
+        var masterKind: String? = nil
+    var dueAt: String? = nil
+    var contract: OperatingContractInput? = nil
+    var lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil
 }

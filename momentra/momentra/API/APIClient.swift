@@ -5,53 +5,26 @@ struct OperatingMoneyPayload: Decodable {
     let amount: String
     let spent: String
     let remaining: String
-    var configured: Bool? = nil
+    let configured: Bool?
 }
 
 struct OperatingTargetPayload: Decodable {
     let metric: String
     let value: String
     let progress: String
-    var configured: Bool? = nil
-}
-
-struct OperatingContractInput: Encodable {
-    var entryMode: String? = nil
-    var paymentState: String? = nil
-    var receiptState: String? = nil
-    var receivedAmount: String? = nil
-    var quantityReceived: String? = nil
-    var stockAction: String? = nil
-    var stockReason: String? = nil
-    var expenseCategory: String? = nil
-    var appointmentAction: String? = nil
-    var orderStatus: String? = nil
-    var clientKey: String? = nil
-    var reorderPoint: String? = nil
-    var staffName: String? = nil
-    var estimatedAmount: String? = nil
-    var followUp: Bool? = nil
-    var allocations: [OperatingAllocationInput]? = nil
-    var ownership: String? = nil
-    var shipmentStatus: String? = nil
-    var promisedAt: String? = nil
-}
-
-struct OperatingAllocationInput: Encodable {
-    var sourceId: String
-    var amount: String
+    let configured: Bool?
 }
 
 struct OperatingAttentionPayload: Decodable, Identifiable {
     let id: String
     let title: String
     let kind: String
-    var severity: String? = nil
-    var amount: String? = nil
-    var dueAt: String? = nil
-    var counterpartyName: String? = nil
-    var sourceEventId: String? = nil
-    var cta: String? = nil
+    let severity: String?
+    let amount: String?
+    let dueAt: String?
+    let counterpartyName: String?
+    let sourceEventId: String?
+    let cta: String?
 }
 
 struct OperatingPaymentPayload: Decodable, Identifiable {
@@ -62,6 +35,7 @@ struct OperatingPaymentPayload: Decodable, Identifiable {
     let status: String
     let counterpartyName: String?
     let dueAt: String?
+    let dueBucket: String?
 }
 
 struct OperatingFinancePayload: Decodable {
@@ -87,7 +61,6 @@ struct OperatingActivityPayload: Decodable, Identifiable {
     let quantity: String?
     let unit: String?
     let parentEventId: String?
-    var status: String? = nil
 }
 
 struct OperatingLifePayload: Decodable {
@@ -105,6 +78,10 @@ struct OperatingMasterPayload: Decodable, Identifiable {
     let kind: String
     let name: String
     let unit: String?
+    let dimension: String?
+    let conversionToBase: String?
+    let tracked: Bool?
+    let barcode: String?
 }
 
 struct OperatingQuickAddPayload: Decodable, Identifiable {
@@ -119,7 +96,7 @@ struct OperatingBoardSectionPayload: Decodable, Identifiable {
     let title: String
     let detail: String
     let rows: [OperatingActivityPayload]?
-    var coverage: String? = nil
+    let coverage: String?
     var id: String { code }
 }
 
@@ -159,6 +136,41 @@ struct OperatingProjectionPayload: Decodable {
 struct RecordOperatingEventResult: Decodable {
     let eventId: String
     let approvalStatus: String
+}
+
+struct OperatingAllocationInput: Encodable {
+    let sourceId: String
+    let amount: String
+}
+
+struct OperatingContractInput: Encodable {
+    var entryMode: String? = nil
+    var paymentState: String? = nil
+    var receiptState: String? = nil
+    var receivedAmount: String? = nil
+    var quantityReceived: String? = nil
+    var stockAction: String? = nil
+    var stockReason: String? = nil
+    var expenseCategory: String? = nil
+    var appointmentAction: String? = nil
+    var orderStatus: String? = nil
+    var clientKey: String? = nil
+    var reorderPoint: String? = nil
+    var staffName: String? = nil
+    var estimatedAmount: String? = nil
+    var allocations: [OperatingAllocationInput]? = nil
+    var ownership: String? = nil
+    var shipmentStatus: String? = nil
+    var promisedAt: String? = nil
+    var declaredQuantity: String? = nil
+    var taxMode: String? = nil
+    var taxAmount: String? = nil
+    var originalCurrency: String? = nil
+    var fxRate: String? = nil
+    var convertedAmount: String? = nil
+    var returnDirection: String? = nil
+    var goodsOutcome: String? = nil
+    var returnReason: String? = nil
 }
 
 struct MeBootstrap: Decodable {
@@ -5272,18 +5284,20 @@ final class APIClient {
         revisesEventId: String? = nil,
         dueAt: String? = nil,
         contract: OperatingContractInput? = nil,
-        lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?)]? = nil
+        lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil
     ) async throws -> RecordOperatingEventResult {
         struct Line: Encodable {
             let itemName: String
             let quantity: String?
             let unit: String?
             let unitPrice: String?
+            let masterId: String?
         }
         struct Master: Encodable {
             let kind: String
             let name: String
             let unit: String?
+            let conversionToBase: String?
         }
         struct Body: Encodable {
             let eventType: String
@@ -5302,12 +5316,20 @@ final class APIClient {
             let dueAt: String?
             let contract: OperatingContractInput?
         }
-        let lines = lineItems?.map { Line(itemName: $0.itemName, quantity: $0.quantity, unit: $0.unit, unitPrice: $0.unitPrice) }
-            ?? (itemName?.trimmingCharacters(in: .whitespaces).isEmpty == false
-            ? [Line(itemName: itemName!.trimmingCharacters(in: .whitespaces), quantity: quantity, unit: unit, unitPrice: unitPrice)]
-            : nil)
+        let fromItems = (lineItems ?? []).compactMap { row -> Line? in
+            let name = row.itemName.trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { return nil }
+            return Line(itemName: name, quantity: row.quantity, unit: row.unit, unitPrice: row.unitPrice, masterId: row.masterId)
+        }
+        let lines: [Line]? = {
+            if !fromItems.isEmpty { return fromItems }
+            if let itemName, !itemName.trimmingCharacters(in: .whitespaces).isEmpty {
+                return [Line(itemName: itemName.trimmingCharacters(in: .whitespaces), quantity: quantity, unit: unit, unitPrice: unitPrice, masterId: nil)]
+            }
+            return nil
+        }()
         let master = masterKind?.isEmpty == false
-            ? Master(kind: masterKind!, name: title, unit: unit)
+            ? Master(kind: masterKind!, name: title, unit: unit, conversionToBase: nil)
             : nil
         let body = Body(
             eventType: eventType,

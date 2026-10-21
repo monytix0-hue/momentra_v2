@@ -36,8 +36,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.api.OperatingProjectionDto
+import androidx.compose.runtime.LaunchedEffect
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
+import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -61,6 +63,7 @@ data class TradingEventDraft(
     val masterKind: String? = null,
     val dueAt: String? = null,
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
+    val masterId: String? = null,
 )
 
 private enum class TradingSheet(
@@ -82,6 +85,7 @@ private enum class TradingSheet(
     STOCK("Stock / Availability Update", "STOCK", false, false, false, null),
     ORDER("Order / Dispatch Update", "ORDER", false, false, false, null),
     SHIPMENT("Shipment / Delivery Update", "SHIPMENT", false, false, false, null),
+    RETURN("Return / Credit Note", "RETURN", true, false, false, null),
     REIMBURSE("Record Reimbursement", "PAYMENT", true, false, true, "PENDING"),
     PERSON("Add or invite person", "UPDATE", false, false, true, null),
     ROLE("Add or invite person", "UPDATE", false, false, true, null),
@@ -104,6 +108,14 @@ fun TradingQuickAddHub(
     val role = model.role.orEmpty()
     val owner = role == "OWNER_ADMIN"
     val approver = role == "APPROVER" || owner
+    LaunchedEffect(Unit) {
+        when (OperatingChromeState.quickAddHint) {
+            "shipment" -> sheet = TradingSheet.SHIPMENT
+            "stock" -> sheet = TradingSheet.STOCK
+            "budget" -> sheet = TradingSheet.BUDGET
+        }
+        OperatingChromeState.quickAddHint = null
+    }
     Box(Modifier.fillMaxSize()) {
     Column(
         Modifier
@@ -178,6 +190,7 @@ fun TradingQuickAddHub(
         TradingSheet.STOCK to "Stock",
         TradingSheet.ORDER to "Order",
         TradingSheet.SHIPMENT to "Shipment",
+        TradingSheet.RETURN to "Return",
     ).filter { (kind, label) ->
         kind.eventType in allowed && label.contains(query, ignoreCase = true)
     }
@@ -226,6 +239,22 @@ fun TradingQuickAddHub(
     }
     if (error != null) Text(error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans, fontSize = 13.sp)
     }
+    val createMaster: suspend (String, String, String?) -> Unit = { kind, name, unit ->
+        onRecord(
+            TradingEventDraft(
+                eventType = "UPDATE",
+                title = name,
+                amount = null,
+                note = null,
+                channelName = null,
+                counterpartyName = null,
+                paymentStatus = null,
+                unit = unit,
+                itemName = name,
+                masterKind = kind,
+            ),
+        )
+    }
     val open = sheet
     if (open != null) {
         OperatingSheetScrim(onDismiss = { sheet = null }) {
@@ -247,6 +276,7 @@ fun TradingQuickAddHub(
                     sheet = null
                 },
                 onDecide = onDecide,
+                onCreateMaster = if ("UPDATE" in allowed) createMaster else null,
             )
         }
     }
@@ -296,6 +326,7 @@ private val TradingSheet.hubIcon: Int
         TradingSheet.STOCK -> R.drawable.qa_package
         TradingSheet.ORDER -> R.drawable.qa_clipboard
         TradingSheet.SHIPMENT -> R.drawable.qa_shipment
+        TradingSheet.RETURN -> R.drawable.qa_arrow_left_right
         TradingSheet.PERSON -> R.drawable.qa_user_plus
         TradingSheet.ROLE -> R.drawable.qa_users
         TradingSheet.INVITE -> R.drawable.qa_qr
@@ -350,6 +381,7 @@ private val TradingSheet.captureMode: String
         TradingSheet.STOCK -> "STOCK"
         TradingSheet.ORDER -> "ORDER"
         TradingSheet.SHIPMENT -> "SHIPMENT"
+        TradingSheet.RETURN -> "RETURN"
         TradingSheet.REIMBURSE -> "REIMBURSE"
         TradingSheet.PERSON -> "PERSON"
         TradingSheet.ROLE -> "ROLE"
@@ -375,4 +407,5 @@ private fun OperatingCaptureDraft.toTrading() = TradingEventDraft(
     masterKind = masterKind,
     dueAt = dueAt,
     contract = contract,
+    masterId = masterId,
 )

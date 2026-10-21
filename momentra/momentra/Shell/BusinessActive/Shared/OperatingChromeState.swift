@@ -7,56 +7,64 @@ final class OperatingChromeState: ObservableObject {
     @Published var participantNames: [String] = []
     @Published var editing: OperatingActivityPayload?
     @Published var settling: OperatingPaymentPayload?
-    /// Appointment (or job) selected from Needs Attention to finalize a charge.
-    @Published var charging: OperatingActivityPayload?
-    /// Hint for Quick Add when attention asks for stock or budget revision.
-    @Published var quickAddHint: String?
+}
+
+@MainActor
+func operatingAttentionCtaLabel(_ item: OperatingAttentionPayload) -> String {
+    switch item.cta {
+    case "approval": return "Review"
+    case "collect": return "Collect"
+    case "pay": return "Pay"
+    case "stock": return "Update stock"
+    case "shipment": return "Record shipment"
+    case "booking": return "Open booking"
+    case "charge": return "Record charge"
+    case "budget": return "Review budget"
+    default: return "Open"
+    }
+}
+
+@MainActor
+final class OperatingQuickAddHint {
+    static var value: String?
 }
 
 @MainActor
 func openOperatingAttention(
     _ item: OperatingAttentionPayload,
     model: OperatingProjectionPayload,
-    onOpenQuickAdd: (() -> Void)? = nil
+    onOpenQuickAdd: () -> Void
 ) {
-    let sourceId = item.sourceEventId ?? (item.id.hasPrefix("open-") ? String(item.id.dropFirst(5)) : item.id)
+    let sourceId = item.sourceEventId
+        ?? (item.id.hasPrefix("open-") ? String(item.id.dropFirst(5)) : nil)
     switch item.cta {
     case "collect", "pay":
-        if let payment = (model.paymentReadiness ?? []).first(where: { $0.id == sourceId }) {
+        if let sourceId, let payment = model.paymentReadiness?.first(where: { $0.id == sourceId }) {
             OperatingChromeState.shared.settling = payment
+            return
         }
     case "booking", "approval":
-        if let row = (model.activity ?? []).first(where: { $0.id == sourceId }) {
+        if let sourceId, let row = model.activity?.first(where: { $0.id == sourceId }) {
             OperatingChromeState.shared.editing = row
+            return
         }
-    case "charge":
-        if let row = (model.activity ?? []).first(where: { $0.id == sourceId }) {
-            OperatingChromeState.shared.charging = row
-        }
-    case "stock", "budget", "shipment":
-        OperatingChromeState.shared.quickAddHint = item.cta
-        onOpenQuickAdd?()
+    case "stock", "shipment", "budget":
+        OperatingQuickAddHint.value = item.cta
+        onOpenQuickAdd()
+        return
     default:
-        if let payment = (model.paymentReadiness ?? []).first(where: { $0.id == sourceId }) {
-            OperatingChromeState.shared.settling = payment
-        } else if let row = (model.activity ?? []).first(where: { $0.id == sourceId }) {
-            OperatingChromeState.shared.editing = row
-        }
+        break
     }
-}
-
-func operatingAttentionCtaLabel(_ item: OperatingAttentionPayload) -> String {
-    switch item.cta {
-    case "collect": return "Collect"
-    case "pay": return "Pay"
-    case "booking": return "Update booking"
-    case "charge": return "Finalize charge"
-    case "approval": return "Review"
-    case "stock": return "Review stock"
-    case "budget": return "Review budget"
-    case "shipment": return "Record shipment"
-    default: return "Open"
+    if item.id.hasPrefix("open-"), let sourceId,
+       let payment = model.paymentReadiness?.first(where: { $0.id == sourceId }) {
+        OperatingChromeState.shared.settling = payment
+        return
     }
+    if let sourceId, let row = model.activity?.first(where: { $0.id == sourceId }) {
+        OperatingChromeState.shared.editing = row
+        return
+    }
+    onOpenQuickAdd()
 }
 
 func formatOperatingAmount(_ raw: String?, currency: String?, visible: Bool) -> String {
