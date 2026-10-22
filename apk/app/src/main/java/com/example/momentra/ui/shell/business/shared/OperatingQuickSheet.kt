@@ -89,6 +89,7 @@ data class OperatingCaptureDraft(
     val parentEventId: String? = null,
     val revisesEventId: String? = null,
     val masterKind: String? = null,
+    val conversionToBase: String? = null,
     val dueAt: String? = null,
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
     val masterId: String? = null,
@@ -150,11 +151,15 @@ fun OperatingCaptureSheet(
     onSubmit: suspend (OperatingCaptureDraft) -> Unit,
     onDecide: (suspend (String, String) -> Unit)? = null,
     seed: OperatingActivityDto? = null,
-    onCreateMaster: (suspend (String, String, String?) -> Unit)? = null,
+    /** kind, name, unit, optional conversionToBase */
+    onCreateMaster: (suspend (String, String, String?, String?) -> Unit)? = null,
 ) {
     val currency = model.currency?.ifBlank { null } ?: "INR"
     var eventDate by remember { mutableStateOf(LocalDate.now()) }
     var dateOpen by remember { mutableStateOf(false) }
+    var dueDate by remember { mutableStateOf(LocalDate.now()) }
+    var dueDateOpen by remember { mutableStateOf(false) }
+    val dueDateText = dueDate.format(dayFormat)
     val dateText = eventDate.format(dayFormat)
     val actor = contextLine(model)
     var amount by remember { mutableStateOf("") }
@@ -211,6 +216,7 @@ fun OperatingCaptureSheet(
     var link by remember { mutableStateOf("") }
     var itemName by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
+    var quantityReceived by remember { mutableStateOf("") }
     var unit by remember {
         mutableStateOf(
             if (variant == "trading" || variant == "distribution" || model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")) "pc" else "piece",
@@ -358,6 +364,7 @@ fun OperatingCaptureSheet(
                     if (choice != "Received") {
                         if (lovTrade) LovField("Customer", party, "customer") { lovKind = "BUYER" }
                         else EditField("Customer", party, "Required when a balance remains") { party = it }
+                        ReadField("Due date", dueDateText) { dueDateOpen = true }
                     }
                     Text(
                         if (trading || distribution) {
@@ -369,9 +376,8 @@ fun OperatingCaptureSheet(
                         fontFamily = PlusJakartaSans,
                         fontSize = 12.sp,
                     )
-                    MoreDetails(moreOpen, if (lovTrade) "Due date, tax, FX, note, and reference. Optional." else "Due date, note, and reference. Optional.") { moreOpen = !moreOpen }
+                    MoreDetails(moreOpen, if (lovTrade) "Tax, FX, note, and reference. Optional." else "Note and reference. Optional.") { moreOpen = !moreOpen }
                     if (moreOpen) {
-                        EditField("Due date", link, "YYYY-MM-DD") { link = it }
                         if (lovTrade) {
                             TaxFxFields(currency, taxMode, taxAmount, originalCurrency, fxRate, { taxMode = it }, { taxAmount = it }, { originalCurrency = it }, { fxRate = it })
                         }
@@ -424,17 +430,19 @@ fun OperatingCaptureSheet(
                     else EditField(if (distribution) "Principal / supplier" else "Supplier", party, "Required") { party = it }
                     ReadField("Purchase date", dateText) { dateOpen = true }
                     ChoiceBlock("Goods receipt", listOf("Received", "Part received", "Awaiting receipt"), receiptState) { receiptState = it }
-                    if (receiptState == "Part received") EditField("Quantity received", quantity, "Required") { quantity = it }
+                    if (receiptState == "Part received") {
+                        EditField("Quantity received", quantityReceived, "Less than ordered qty") { quantityReceived = it }
+                    }
                     if (trading || distribution) {
                         ChoiceBlock("Ownership", listOf("Owned", "Consignment"), ownership) { ownership = it }
                         Text("Consignment is not owned stock.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                     }
                     ChoiceBlock("Payment state", listOf("Paid", "Part paid", "Pay later"), choice) { choice = it }
                     if (choice == "Part paid") EditField("Amount paid", receivedAmount, "Less than the total") { receivedAmount = it }
+                    if (choice != "Paid") ReadField("Due date", dueDateText) { dueDateOpen = true }
                     Text("Purchase obligation is not payment. Stock moves only for received quantity.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    MoreDetails(moreOpen, if (lovTrade) "Due date, tax, FX, and note. Optional." else "Due date and note. Optional.") { moreOpen = !moreOpen }
+                    MoreDetails(moreOpen, if (lovTrade) "Tax, FX, and note. Optional." else "Note. Optional.") { moreOpen = !moreOpen }
                     if (moreOpen) {
-                        EditField("Due date", link, "YYYY-MM-DD") { link = it }
                         if (lovTrade) {
                             TaxFxFields(currency, taxMode, taxAmount, originalCurrency, fxRate, { taxMode = it }, { taxAmount = it }, { originalCurrency = it }, { fxRate = it })
                         }
@@ -480,16 +488,31 @@ fun OperatingCaptureSheet(
                     if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, channel) { channel = it }
                     ChoiceBlock("Paid / pending", listOf("Pending / unpaid", "Paid"), choice) { choice = it }
                     SummaryCard("After approval", spendSummary(model, currency, typed))
-                } else {
+                } else if (lovTrade) {
                     AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    if (lovTrade) LovField("Expense category", expenseCategory, "category") { lovKind = "EXPENSE_CATEGORY" }
+                    LovField("Expense category", expenseCategory, "category") { lovKind = "EXPENSE_CATEGORY" }
                     FieldRow {
                         EditField("Purpose", purpose, "What this was for", Modifier.weight(1f)) { purpose = it }
-                        ReadField(if (restaurant || service || trading || distribution) "Expense date" else "Date", dateText, Modifier.weight(1f)) { dateOpen = true }
+                        ReadField("Expense date", dateText, Modifier.weight(1f)) { dateOpen = true }
+                    }
+                    ChoiceBlock("Payment state", listOf("Paid", "Part paid", "Pay later"), choice) { choice = it }
+                    if (choice != "Paid") {
+                        EditField("Payee", party, "Required") { party = it }
+                        ReadField("Due date", dueDateText) { dueDateOpen = true }
+                    }
+                    if (choice == "Part paid") EditField("Amount paid", receivedAmount, "Less than the total") { receivedAmount = it }
+                    MoreDetails(moreOpen, "Note. Optional.") { moreOpen = !moreOpen }
+                    if (moreOpen) NoteField("Note", note, "Optional") { note = it }
+                    SummaryCard("After save", spendSummary(model, currency, typed))
+                } else {
+                    AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
+                    FieldRow {
+                        EditField("Purpose", purpose, "What this was for", Modifier.weight(1f)) { purpose = it }
+                        ReadField(if (restaurant || service) "Expense date" else "Date", dateText, Modifier.weight(1f)) { dateOpen = true }
                     }
                     ChoiceBlock("Funding source", listOf("Business", "Personal"), choice) { choice = it }
                     EditField("Paid by", party, actor.substringBefore(" ·")) { party = it }
-                    if (service || trading || distribution) {
+                    if (service) {
                         Text(
                             "A personal claim is reimbursed later. It is not a second expense.",
                             color = SheetMuted,
@@ -497,11 +520,8 @@ fun OperatingCaptureSheet(
                             fontSize = 12.sp,
                         )
                     }
-                    MoreDetails(moreOpen, if (lovTrade) "Due date, reference and note. Optional." else "Reference and note. Optional.") { moreOpen = !moreOpen }
-                    if (moreOpen) {
-                        if (lovTrade) EditField("Due date", link, "YYYY-MM-DD") { link = it }
-                        NoteField("Note", note, "Optional") { note = it }
-                    }
+                    MoreDetails(moreOpen, "Reference and note. Optional.") { moreOpen = !moreOpen }
+                    if (moreOpen) NoteField("Note", note, "Optional") { note = it }
                     SummaryCard("After approval", spendSummary(model, currency, typed))
                 }
                 "PAYMENT", "REIMBURSE" -> if (marketing && mode == "PAYMENT") {
@@ -1282,6 +1302,11 @@ fun OperatingCaptureSheet(
                         } else {
                             note
                         }
+                        val unpaidDue = when (mode) {
+                            "SALE", "SERVICE" -> choice != "Received"
+                            "PURCHASE", "SPEND" -> choice != "Paid"
+                            else -> false
+                        }
                         val draft = buildDraft(
                             mode, eventType, title, amount, channel, party, purpose, draftNote, choice,
                             occurredAtValue(eventDate), trading, distribution, client, own, detail,
@@ -1312,6 +1337,8 @@ fun OperatingCaptureSheet(
                             returnReason = returnReason,
                             expenseCategory = expenseCategory,
                             lovTrade = lovTrade,
+                            quantityReceived = quantityReceived,
+                            dueAtDay = if (unpaidDue) dueDate.toString() else link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) },
                         )
                         if (draft == null) {
                             error = requiredMessage(mode)
@@ -1341,6 +1368,23 @@ fun OperatingCaptureSheet(
             DatePicker(state = pickerState)
         }
     }
+    if (dueDateOpen) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = localDateToUtcMillis(dueDate))
+        DatePickerDialog(
+            onDismissRequest = { dueDateOpen = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let { dueDate = utcMillisToLocalDate(it) }
+                    dueDateOpen = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { dueDateOpen = false }) { Text("Cancel") }
+            },
+        ) {
+            DatePicker(state = pickerState)
+        }
+    }
     lovKind?.let { kind ->
         SearchableOperatingLovSheet(
             title = lovTitle(kind),
@@ -1349,16 +1393,17 @@ fun OperatingCaptureSheet(
             canAdd = onCreateMaster != null,
             accent = if (distribution) Color(0xFF66C7A4) else Color(0xFF6DDCFF),
             onSelect = { option -> applyLov(kind, option) },
-            onAdd = { name, unitArg ->
+            onAdd = { name, unitArg, conversion ->
                 val created = OperatingLovOption(
                     id = "local-$kind-${name.lowercase()}",
                     name = name,
                     kind = kind,
                     unit = unitArg ?: if (kind == "UOM") name else null,
+                    subtitle = unitArg,
                 )
                 localMasters = localMasters + created
                 applyLov(kind, created)
-                onCreateMaster?.let { create -> scope.launch { create(kind, name, unitArg) } }
+                onCreateMaster?.let { create -> scope.launch { create(kind, name, unitArg, conversion) } }
             },
             onDismiss = { lovKind = null },
         )
@@ -1582,6 +1627,8 @@ private fun buildDraft(
     returnReason: String = "",
     expenseCategory: String = "",
     lovTrade: Boolean = false,
+    quantityReceived: String = "",
+    dueAtDay: String? = null,
 ): OperatingCaptureDraft? {
     if (mode == "MASTERS") {
         if (itemName.isBlank()) return null
@@ -1608,10 +1655,13 @@ private fun buildDraft(
     }
     val value = resolvedAmount.toBigDecimalOrNull()
     if (needsAmount && (value == null || value <= BigDecimal.ZERO)) return null
+    val contractStock = retail && mode == "STOCK"
     val needsText = mode in setOf("UPDATE", "ISSUE", "STOCK", "ORDER", "SHIPMENT", "DELIVERY", "APPOINTMENT", "DELIVERABLE", "COMPLETE")
-    if (needsText && !(production && mode == "ORDER") && purpose.isBlank() && note.isBlank()) return null
-    if (trading && mode in setOf("STOCK", "ORDER", "SHIPMENT") && (purpose.isBlank() || note.isBlank())) return null
-    if (distribution && mode == "STOCK" && (purpose.isBlank() || note.isBlank())) return null
+    if (needsText && !(production && mode == "ORDER") && !contractStock && purpose.isBlank() && note.isBlank()) return null
+    // Contract STOCK has no note field — item + quantity are enough (iOS retailDraft parity).
+    if (contractStock && purpose.isBlank()) return null
+    if (trading && mode in setOf("ORDER", "SHIPMENT") && (purpose.isBlank() || note.isBlank())) return null
+    if (distribution && mode == "STOCK" && !retail && (purpose.isBlank() || note.isBlank())) return null
     if (distribution && mode == "SALE" && party.isBlank()) return null
     if (distribution && mode == "ORDER" && (purpose.isBlank() || party.isBlank())) return null
     if (distribution && mode == "SHIPMENT" && (purpose.isBlank() || note.isBlank() || party.isBlank())) return null
@@ -1793,7 +1843,7 @@ private fun buildDraft(
             },
             receiptState = receiptCode,
             receivedAmount = paidOrReceived,
-            quantityReceived = if (mode == "PURCHASE" && receiptCode == "PART_RECEIVED") quantity.ifBlank { null } else null,
+            quantityReceived = if (mode == "PURCHASE" && receiptCode == "PART_RECEIVED") quantityReceived.ifBlank { null } else null,
             stockAction = stockActionCode,
             stockReason = stockReasonCode,
             appointmentAction = appointmentAction,
@@ -1840,7 +1890,8 @@ private fun buildDraft(
         parentEventId = parentId.ifBlank { null },
         revisesEventId = revisesEventId?.takeIf { it.isNotBlank() },
         masterKind = if (mode == "MASTERS") masterKind.ifBlank { null } else null,
-        dueAt = link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) },
+        dueAt = dueAtDay?.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }
+            ?: link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) },
         contract = retailContract,
         masterId = if (lineItemName.isNotBlank()) productMasterId?.takeIf { it.isNotBlank() } else null,
     )

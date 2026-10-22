@@ -99,7 +99,7 @@ struct DistributionQuickAddHub: View {
                 variant: "distribution",
                 onSubmit: { draft in try await onRecord(draft.toDistribution()) },
                 onDecide: onDecide,
-                onCreateMaster: { kind, name, unit in
+                onCreateMaster: { kind, name, unit, conversion in
                     try await onRecord(DistributionEventDraft(
                         eventType: "UPDATE",
                         title: name,
@@ -109,7 +109,8 @@ struct DistributionQuickAddHub: View {
                         counterpartyName: nil,
                         paymentStatus: nil,
                         unit: unit,
-                        masterKind: kind
+                        masterKind: kind,
+                        conversionToBase: conversion
                     ))
                 }
             )

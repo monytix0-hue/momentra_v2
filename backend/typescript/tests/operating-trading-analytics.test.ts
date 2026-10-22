@@ -425,6 +425,53 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
     assert.equal(view.finance?.outstanding, '60000.0000');
   });
 
+  it('QA-07: finance.sales nets customer RETURN credit notes; catalog obligationRemaining credits RETURN', () => {
+    const sale = event('sale', 'SALE', {
+      amount: '1000.0000',
+      counterpartyName: 'Buyer A',
+      paymentRelevance: 'RECEIVABLE',
+      paymentStatus: 'PENDING',
+      contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER' },
+    });
+    const credit = event('ret', 'RETURN', {
+      amount: '250.0000',
+      parentEventId: 'sale',
+      title: 'Credit note',
+      contract: {
+        returnDirection: 'CUSTOMER',
+        goodsOutcome: 'NOT_RETURNED',
+        returnReason: 'Price adjustment',
+      },
+    });
+    const view = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('TRADING_WHOLESALE', '10000', '200000'),
+      role: 'FINANCE',
+      events: [sale, credit],
+    });
+    assert.equal(view.finance?.sales, '750.0000');
+    assert.equal(view.finance?.outstanding, '750.0000');
+    assert.equal(obligationRemaining(asTrading([sale, credit])[0]!, asTrading([sale, credit]), 'COLLECTION'), 750);
+
+    const supplierReturn = event('sret', 'RETURN', {
+      amount: '100.0000',
+      parentEventId: 'sale',
+      title: 'Wrong direction',
+      contract: {
+        returnDirection: 'SUPPLIER',
+        goodsOutcome: 'NOT_RETURNED',
+        returnReason: 'Should not net sales',
+      },
+    });
+    const ignoreSupplier = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('TRADING_WHOLESALE', '10000', '200000'),
+      role: 'FINANCE',
+      events: [sale, supplierReturn],
+    });
+    assert.equal(ignoreSupplier.finance?.sales, '1000.0000');
+  });
+
   it('partial payment leaves purchase cost unchanged', () => {
     const buy = event('buy', 'PURCHASE', {
       amount: '80000.0000',

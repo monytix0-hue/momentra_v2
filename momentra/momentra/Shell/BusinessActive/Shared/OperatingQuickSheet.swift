@@ -54,7 +54,8 @@ struct OperatingCaptureSheet: View {
     var seed: OperatingActivityPayload? = nil
     var onSubmit: (OperatingCaptureDraft) async throws -> Void
     var onDecide: ((String, String) async throws -> Void)?
-    var onCreateMaster: ((String, String, String?) async throws -> Void)? = nil
+    /// kind, name, unit, optional conversionToBase
+    var onCreateMaster: ((String, String, String?, String?) async throws -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var amount = ""
@@ -69,8 +70,11 @@ struct OperatingCaptureSheet: View {
     @State private var errorText: String?
     @State private var eventDate = Date()
     @State private var dateOpen = false
+    @State private var dueDate = Date()
+    @State private var dueDateOpen = false
     @State private var itemName = ""
     @State private var quantity = ""
+    @State private var quantityReceived = ""
     @State private var unit = "pc"
     @State private var unitPrice = ""
     @State private var parentId = ""
@@ -225,6 +229,24 @@ struct OperatingCaptureSheet: View {
             .presentationBackground(Color(hex: "#3A3842"))
             .preferredColorScheme(.dark)
         }
+        .sheet(isPresented: $dueDateOpen) {
+            NavigationStack {
+                DatePicker("Due date", selection: $dueDate, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+                    .padding()
+                    .navigationTitle("Due date")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { dueDateOpen = false }
+                        }
+                    }
+            }
+            .presentationDetents([.medium, .large])
+            .presentationBackground(Color(hex: "#3A3842"))
+            .preferredColorScheme(.dark)
+        }
         .sheet(item: Binding(
             get: { lovKind.map { LovSheetToken(kind: $0) } },
             set: { lovKind = $0?.kind }
@@ -236,10 +258,10 @@ struct OperatingCaptureSheet: View {
                 canAdd: canAddMaster && token.kind.uppercased() != "UOM",
                 accent: lovAccent,
                 onSelect: { applyLovSelection(token.kind, $0) },
-                onAdd: { name, unitValue in
+                onAdd: { name, unitValue, conversion in
                     Task {
                         do {
-                            try await onCreateMaster?(token.kind, name, unitValue)
+                            try await onCreateMaster?(token.kind, name, unitValue, conversion)
                             let option = OperatingLovOption(
                                 id: "local-\(UUID().uuidString)",
                                 name: name,
@@ -1127,9 +1149,9 @@ struct OperatingCaptureSheet: View {
             }
             Text(mode == "SERVICE" ? "A finalized charge is the sale. A booking is not revenue." : (tradingFamily ? "A quick amount does not change stock. Itemized sales do not deduct stock until dispatch." : "A quick amount does not change stock. Itemized lines do."))
                 .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            moreButton("Due date, tax, FX, and note. Optional.")
+            if choice != "Received" { dueDateField("Due date") }
+            moreButton("Tax, FX, and note. Optional.")
             if moreOpen {
-                editField("Due date", text: $link, placeholder: "YYYY-MM-DD")
                 taxFxMore
                 editField("Note", text: $note, placeholder: "Optional")
             }
@@ -1143,7 +1165,9 @@ struct OperatingCaptureSheet: View {
             }
             dateField("Purchase date")
             choiceBlock("Goods receipt", options: ["Received", "Part received", "Awaiting receipt"], selected: receiptState) { receiptState = $0 }
-            if receiptState == "Part received" { editField("Quantity received", text: $quantity, placeholder: "Required") }
+            if receiptState == "Part received" {
+                editField("Quantity received", text: $quantityReceived, placeholder: "Less than ordered qty")
+            }
             if tradingFamily {
                 choiceBlock("Ownership", options: ["Owned", "Consignment"], selected: ownership) { ownership = $0 }
                 Text("Consignment is not owned stock.")
@@ -1151,9 +1175,9 @@ struct OperatingCaptureSheet: View {
             }
             choiceBlock("Payment state", options: ["Paid", "Part paid", "Pay later"], selected: choice) { choice = $0 }
             if choice == "Part paid" { editField("Amount paid", text: $receivedAmount, placeholder: "Less than the total") }
-            moreButton("Due date, tax, FX, and note. Optional.")
+            if choice != "Paid" { dueDateField("Due date") }
+            moreButton("Tax, FX, and note. Optional.")
             if moreOpen {
-                editField("Due date", text: $link, placeholder: "YYYY-MM-DD")
                 taxFxMore
                 editField("Note", text: $note, placeholder: "Optional")
             }
@@ -1166,7 +1190,10 @@ struct OperatingCaptureSheet: View {
             amountBlock("Amount", hint: "Positive amount")
             dateField("Expense date")
             choiceBlock("Payment state", options: ["Paid", "Part paid", "Pay later"], selected: choice) { choice = $0 }
-            if choice != "Paid" { editField("Payee", text: $party, placeholder: "Required") }
+            if choice != "Paid" {
+                editField("Payee", text: $party, placeholder: "Required")
+                dueDateField("Due date")
+            }
             if choice == "Part paid" { editField("Amount paid", text: $receivedAmount, placeholder: "Less than the total") }
             moreButton("Note. Optional.")
             if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
@@ -1433,7 +1460,7 @@ struct OperatingCaptureSheet: View {
         case "PURCHASE":
             if party.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
             if lines.isEmpty, (Decimal(string: rawAmount) ?? 0) <= 0 { return nil }
-            if receiptState == "Part received", quantity.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+            if receiptState == "Part received", quantityReceived.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
         case "SPEND":
             if (Decimal(string: rawAmount) ?? 0) <= 0 { return nil }
             if choice != "Paid", party.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
@@ -1548,7 +1575,7 @@ struct OperatingCaptureSheet: View {
             paymentState: ["SALE", "SERVICE", "PURCHASE", "SPEND"].contains(mode) ? paymentState : nil,
             receiptState: mode == "PURCHASE" ? receipt : nil,
             receivedAmount: receivedAmount.isEmpty ? nil : receivedAmount,
-            quantityReceived: mode == "PURCHASE" && receiptState == "Part received" ? quantity : nil,
+            quantityReceived: mode == "PURCHASE" && receiptState == "Part received" ? quantityReceived : nil,
             stockAction: mode == "STOCK" ? stockCode : nil,
             stockReason: mode == "STOCK" ? reasonCode : nil,
             expenseCategory: mode == "SPEND" ? expenseCategory : nil,
@@ -1583,10 +1610,19 @@ struct OperatingCaptureSheet: View {
             unit: unit.trimmingCharacters(in: .whitespaces).isEmpty ? nil : unit,
             parentEventId: parentId.isEmpty ? nil : parentId,
             revisesEventId: seed?.id,
-            dueAt: link.trimmingCharacters(in: .whitespaces).isEmpty ? nil : link,
+            dueAt: retailDueAt,
             contract: contract,
             lineItems: lines.isEmpty ? nil : lines
         )
+    }
+
+    private var retailDueAt: String? {
+        let unpaidSale = (mode == "SALE" || mode == "SERVICE") && choice != "Received"
+        let unpaidBuy = mode == "PURCHASE" && choice != "Paid"
+        let unpaidSpend = mode == "SPEND" && choice != "Paid"
+        if unpaidSale || unpaidBuy || unpaidSpend { return isoDay(dueDate) }
+        let manual = link.trimmingCharacters(in: .whitespaces)
+        return manual.isEmpty ? nil : manual
     }
 
     private func retailLines() -> [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)] {
@@ -1727,6 +1763,18 @@ struct OperatingCaptureSheet: View {
 
     private func dateField(_ label: String) -> some View {
         Button { dateOpen = true } label: { readField(label, dateText) }
+            .buttonStyle(.plain)
+    }
+
+    private var dueDateText: String {
+        let format = DateFormatter()
+        format.dateFormat = "dd MMM yyyy"
+        format.locale = Locale(identifier: "en_US_POSIX")
+        return format.string(from: dueDate)
+    }
+
+    private func dueDateField(_ label: String) -> some View {
+        Button { dueDateOpen = true } label: { readField(label, dueDateText) }
             .buttonStyle(.plain)
     }
 

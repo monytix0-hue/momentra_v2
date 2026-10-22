@@ -15,13 +15,15 @@ struct SearchableOperatingLovSheet: View {
     let canAdd: Bool
     var accent: Color = Color(hex: "#6DDCFF")
     var onSelect: (OperatingLovOption) -> Void
-    var onAdd: ((String, String?) -> Void)?
+    /// name, base unit, optional conversionToBase for pack/box/carton
+    var onAdd: ((String, String?, String?) -> Void)?
     var onDismiss: () -> Void
 
     @State private var query = ""
     @State private var adding = false
     @State private var newName = ""
     @State private var newUnit = ""
+    @State private var newConversion = ""
 
     private var filtered: [OperatingLovOption] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -116,7 +118,13 @@ struct SearchableOperatingLovSheet: View {
                             .background(Color(hex: "#1A2330"))
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                         if kind.uppercased() == "PRODUCT" || kind.uppercased() == "UOM" {
-                            TextField(kind.uppercased() == "UOM" ? "Code / unit" : "Base UOM", text: $newUnit)
+                            TextField(kind.uppercased() == "UOM" ? "Code / unit" : "Base UOM (required)", text: $newUnit)
+                                .padding(10)
+                                .background(Color(hex: "#1A2330"))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        if kind.uppercased() == "PRODUCT" {
+                            TextField("Units per pack/box (optional)", text: $newConversion)
                                 .padding(10)
                                 .background(Color(hex: "#1A2330"))
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -136,11 +144,13 @@ struct SearchableOperatingLovSheet: View {
                             Spacer()
                             Button("Save") {
                                 let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                let unitValue = newUnit.trimmingCharacters(in: .whitespacesAndNewlines)
                                 guard !name.isEmpty else { return }
+                                if kind.uppercased() == "PRODUCT" || kind.uppercased() == "UOM", unitValue.isEmpty { return }
                                 if let match = exactMatch {
                                     onSelect(match)
                                 } else {
-                                    onAdd?(name, newUnit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : newUnit)
+                                    onAdd?(name, unitValue.isEmpty ? nil : unitValue, newConversion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : newConversion)
                                 }
                                 onDismiss()
                             }

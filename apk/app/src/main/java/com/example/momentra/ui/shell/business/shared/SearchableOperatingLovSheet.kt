@@ -68,7 +68,8 @@ fun SearchableOperatingLovSheet(
     canAdd: Boolean,
     accent: Color = Color(0xFF6DDCFF),
     onSelect: (OperatingLovOption) -> Unit,
-    onAdd: ((String, String?) -> Unit)? = null,
+    /** name, base unit, optional conversionToBase */
+    onAdd: ((String, String?, String?) -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -76,6 +77,7 @@ fun SearchableOperatingLovSheet(
     var adding by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     var newUnit by remember { mutableStateOf("") }
+    var newConversion by remember { mutableStateOf("") }
     val filtered = remember(query, options, kind) {
         val q = query.trim().lowercase()
         val base = options.filter { it.kind.equals(kind, ignoreCase = true) }
@@ -170,8 +172,20 @@ fun SearchableOperatingLovSheet(
                             onValueChange = { newUnit = it },
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = {
-                                Text(if (kind.equals("UOM", ignoreCase = true)) "Code / unit" else "Base UOM")
+                                Text(
+                                    if (kind.equals("UOM", ignoreCase = true)) "Code / unit (required)"
+                                    else "Base UOM (required)",
+                                )
                             },
+                            singleLine = true,
+                        )
+                    }
+                    if (kind.equals("PRODUCT", ignoreCase = true)) {
+                        OutlinedTextField(
+                            value = newConversion,
+                            onValueChange = { newConversion = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Units per pack/box (optional)") },
                             singleLine = true,
                         )
                     }
@@ -192,12 +206,18 @@ fun SearchableOperatingLovSheet(
                         TextButton(onClick = { adding = false }) { Text("Cancel") }
                         TextButton(onClick = {
                             val name = newName.trim()
+                            val unitValue = newUnit.trim()
                             if (name.isEmpty()) return@TextButton
+                            if ((kind.equals("PRODUCT", ignoreCase = true) || kind.equals("UOM", ignoreCase = true)) &&
+                                unitValue.isEmpty()
+                            ) {
+                                return@TextButton
+                            }
                             val match = exactMatch
                             if (match != null) {
                                 onSelect(match)
                             } else {
-                                onAdd?.invoke(name, newUnit.trim().ifEmpty { null })
+                                onAdd?.invoke(name, unitValue.ifEmpty { null }, newConversion.trim().ifEmpty { null })
                             }
                             onDismiss()
                         }) {

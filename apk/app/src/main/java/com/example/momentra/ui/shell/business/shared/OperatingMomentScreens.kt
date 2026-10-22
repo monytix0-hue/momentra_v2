@@ -353,7 +353,12 @@ fun OperatingMomentPage(
                         ),
                     ),
                     draft.masterKind?.let {
-                        com.example.momentra.data.api.OperatingMasterBody(it, draft.title, draft.unit)
+                        com.example.momentra.data.api.OperatingMasterBody(
+                            it,
+                            draft.title,
+                            draft.unit,
+                            conversionToBase = draft.conversionToBase,
+                        )
                     },
                     draft.revisesEventId,
                     draft.dueAt,
@@ -402,7 +407,12 @@ fun OperatingMomentPage(
                         ),
                     ),
                     draft.masterKind?.let {
-                        com.example.momentra.data.api.OperatingMasterBody(it, draft.title, draft.unit)
+                        com.example.momentra.data.api.OperatingMasterBody(
+                            it,
+                            draft.title,
+                            draft.unit,
+                            conversionToBase = draft.conversionToBase,
+                        )
                     },
                     draft.revisesEventId,
                     draft.dueAt,

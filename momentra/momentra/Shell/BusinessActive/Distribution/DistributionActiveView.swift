@@ -383,6 +383,7 @@ struct DistributionEventDraft {
     var parentEventId: String? = nil
     var revisesEventId: String? = nil
     var masterKind: String? = nil
+    var conversionToBase: String? = nil
     var dueAt: String? = nil
     var contract: OperatingContractInput? = nil
     var lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil
@@ -406,6 +407,7 @@ extension OperatingCaptureDraft {
             parentEventId: parentEventId,
             revisesEventId: revisesEventId,
             masterKind: masterKind,
+            conversionToBase: conversionToBase,
             dueAt: dueAt,
             contract: contract,
             lineItems: lineItems
