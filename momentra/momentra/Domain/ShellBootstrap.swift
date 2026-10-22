@@ -83,7 +83,8 @@ extension MeBootstrap {
                     title: $0.title,
                     status: $0.status,
                     momentTypeCode: $0.momentTypeCode,
-                    companyId: $0.companyId
+                    companyId: $0.companyId,
+                    participantCount: $0.participantCount ?? 0
                 )
             },
             companies: (companies ?? []).map { Self.companySummary(from: $0) },

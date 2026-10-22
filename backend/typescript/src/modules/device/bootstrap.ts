@@ -297,6 +297,7 @@ export async function getMeBootstrap(_client: PoolClient | null, ctx: RequestCon
         momentTypeCode: m.businessFamily ?? null,
         domainCode: 'BUSINESS' as const,
         companyId: m.companyId,
+        participantCount: m.participantCount ?? 0,
       })),
     },
     companies: companyItems,

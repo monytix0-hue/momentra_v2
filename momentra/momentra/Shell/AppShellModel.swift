@@ -404,6 +404,7 @@ final class AppShellModel: ObservableObject {
                         ?? ((selectedMomentTitle?.isEmpty == false) ? (selectedMomentTitle ?? "Group") : "Group"),
                     status: existing?.status ?? "ACTIVE",
                     momentTypeCode: existing?.momentTypeCode ?? selectedMomentTypeCode,
+                    companyId: existing?.companyId,
                     participantCount: existing?.participantCount ?? 0
                 )
             )
@@ -617,6 +618,48 @@ final class AppShellModel: ObservableObject {
                 // Keep optimistic completed selection if bootstrap fails.
             }
             refreshVisibleGroupTab(forcePrefetch: true)
+        }
+    }
+
+    /// Open a COMPLETED Business moment into the live shell.
+    func selectCompletedBusinessMoment(_ moment: MomentSummary) {
+        let status = moment.status.isEmpty ? "COMPLETED" : moment.status
+        let summary = MomentSummary(
+            momentId: moment.momentId,
+            title: moment.title,
+            status: status,
+            momentTypeCode: moment.momentTypeCode,
+            companyId: moment.companyId,
+            participantCount: moment.participantCount
+        )
+        let baseMoments = selectedContext == .business ? moments : []
+        if let idx = baseMoments.firstIndex(where: { $0.momentId == summary.momentId }) {
+            var next = baseMoments
+            next[idx] = summary
+            moments = next
+        } else {
+            moments = baseMoments + [summary]
+        }
+        selectedContext = .business
+        selectedMomentId = summary.momentId
+        selectedMomentTitle = summary.title
+        selectedMomentTypeCode = summary.momentTypeCode
+        selectedMomentByContext[.business] = summary.momentId
+        bottomDestination = .pulse
+        lastNonCreateDestination = .pulse
+        tabByContext[.business] = .pulse
+        momentExperience = .active
+        contextContent = .ready(detail: nil)
+        showMomentSwitcher = true
+        Task {
+            do {
+                let boot = try await gateway.getBootstrap()
+                bootstrap = boot
+                applyBootstrapInventory(boot, networkRefresh: true, preserveMomentId: summary.momentId)
+            } catch {
+                // Keep optimistic completed selection if bootstrap fails.
+            }
+            refreshVisibleBusinessTab(forcePrefetch: true)
         }
     }
 

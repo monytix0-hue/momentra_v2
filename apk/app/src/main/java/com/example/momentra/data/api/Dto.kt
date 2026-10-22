@@ -217,6 +217,7 @@ data class BusinessMomentItemDto(
     @SerializedName("momentTypeCode") val momentTypeCode: String? = null,
     @SerializedName("businessFamily") val businessFamily: String? = null,
     @SerializedName("companyId") val companyId: String? = null,
+    @SerializedName("participantCount") val participantCount: Int? = null,
 )
 
 data class CursorPageDto<T>(

@@ -370,6 +370,7 @@ private struct BusinessMomentItemPayload: Decodable {
     let momentTypeCode: String?
     let businessFamily: String?
     let companyId: String?
+    let participantCount: Int?
 }
 
 private struct ProjectionEnvelopePayload: Decodable {
@@ -954,9 +955,12 @@ final class APIClient {
         }
     }
 
-    func listBusinessMoments(limit: Int = 20) async throws -> [MomentSummary] {
+    func listBusinessMoments(limit: Int = 20, lifecycle: String = "active") async throws -> [MomentSummary] {
         let page: CursorPagePayload<BusinessMomentItemPayload> =
-            try await authorizedGet(path: "v1/business/moments", query: ["limit": String(limit)])
+            try await authorizedGet(
+                path: "v1/business/moments",
+                query: ["limit": String(limit), "lifecycle": lifecycle]
+            )
         return page.items.map {
             let family = ($0.momentTypeCode?.isEmpty == false) ? $0.momentTypeCode : $0.businessFamily
             return MomentSummary(
@@ -964,7 +968,8 @@ final class APIClient {
                 title: $0.title,
                 status: $0.status,
                 momentTypeCode: family,
-                companyId: $0.companyId
+                companyId: $0.companyId,
+                participantCount: $0.participantCount ?? 0
             )
         }
     }

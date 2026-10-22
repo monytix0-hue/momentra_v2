@@ -17,6 +17,7 @@ struct AppShellView: View {
     @State private var groupParticipantsSheetPresented = false
     @State private var groupInviteSheetPresented = false
     @State private var groupMomentDirectoryOpen = false
+    @State private var businessMomentDirectoryOpen = false
     @State private var businessGap: BusinessGapPage?
     @State private var businessLocationName: String?
     @State private var reopenCompanySettings = false
@@ -130,11 +131,13 @@ struct AppShellView: View {
             .onChange(of: model.selectedContext) { _, _ in
                 newMomentOpen = false
                 groupMomentDirectoryOpen = false
+                businessMomentDirectoryOpen = false
                 groupCreatePhase = .chooser
             }
             .onChange(of: model.bottomDestination) { _, destination in
                 newMomentOpen = false
                 groupMomentDirectoryOpen = false
+                businessMomentDirectoryOpen = false
                 if destination == .create, model.selectedContext == .group {
                     // Keep phase when advancing from Pulse type cards; reset only when tapping Create tab from chooser path is handled by openNewMoment / tab setter.
                 }
@@ -953,6 +956,7 @@ struct AppShellView: View {
             set: { next in
                 newMomentOpen = false
                 groupMomentDirectoryOpen = false
+                businessMomentDirectoryOpen = false
                 if next == .create, model.selectedContext == .group, model.bottomDestination != .create {
                     groupCreatePhase = .chooser
                 }
@@ -1128,6 +1132,47 @@ struct AppShellView: View {
                     ))
                     .zIndex(1)
                 }
+                if businessMomentDirectoryOpen && model.selectedContext == .business {
+                    GroupActiveMomentsDirectoryView(
+                        moments: model.moments,
+                        selectedMomentId: model.selectedMomentId,
+                        onDismiss: {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                businessMomentDirectoryOpen = false
+                            }
+                        },
+                        onSelectMoment: { momentId in
+                            model.selectMoment(id: momentId)
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                businessMomentDirectoryOpen = false
+                            }
+                        },
+                        onSelectCompletedMoment: { moment in
+                            model.selectCompletedBusinessMoment(moment)
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                businessMomentDirectoryOpen = false
+                            }
+                        },
+                        onOpenStory: { momentId in
+                            storyMomentId = momentId
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                businessMomentDirectoryOpen = false
+                            }
+                        },
+                        onCreateMoment: {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                businessMomentDirectoryOpen = false
+                            }
+                            openNewMoment()
+                        },
+                        kind: .business
+                    )
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .bottom)),
+                        removal: .opacity.combined(with: .move(edge: .bottom))
+                    ))
+                    .zIndex(1)
+                }
                 if let businessGap, model.selectedContext == .business {
                     BusinessGapHost(
                         page: businessGap,
@@ -1169,11 +1214,12 @@ struct AppShellView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.28), value: groupMomentDirectoryOpen)
+            .animation(.easeInOut(duration: 0.28), value: businessMomentDirectoryOpen)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                if !(groupMomentDirectoryOpen && model.selectedContext == .group) {
+                if !((groupMomentDirectoryOpen && model.selectedContext == .group) || (businessMomentDirectoryOpen && model.selectedContext == .business)) {
                     shellTopChrome
                 }
             }
@@ -1237,7 +1283,7 @@ struct AppShellView: View {
                     onSelect: model.selectContext
                 )
             }
-            if shouldShowMomentSwitcher && model.selectedContext != .personal && !newMomentOpen && !groupMomentDirectoryOpen {
+            if shouldShowMomentSwitcher && model.selectedContext != .personal && !newMomentOpen && !groupMomentDirectoryOpen && !businessMomentDirectoryOpen {
                     MomentSwitcherView(
                         selectedTitle: model.selectedMomentTitle,
                         selectedMomentId: model.selectedMomentId,
@@ -1254,7 +1300,9 @@ struct AppShellView: View {
                         useDirectorySelector: model.selectedContext == .group || model.selectedContext == .business,
                         onOpenDirectory: {
                             if model.selectedContext == .business {
-                                businessGap = .moments
+                                withAnimation(.easeInOut(duration: 0.28)) {
+                                    businessMomentDirectoryOpen = true
+                                }
                             } else {
                                 groupDirectoryPreferCompleted = false
                                 withAnimation(.easeInOut(duration: 0.28)) {

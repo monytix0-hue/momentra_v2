@@ -102,6 +102,19 @@ enum OperatingTab {
     case pulse, moments, life, memory, quickAdd
 }
 
+/// Last operating projection for a moment. Paint this before the ledger replay returns.
+enum OperatingProjectionCache {
+    private static var stored: [String: OperatingProjectionPayload] = [:]
+
+    static func peek(_ momentId: String) -> OperatingProjectionPayload? {
+        stored[momentId]
+    }
+
+    static func put(_ momentId: String, _ payload: OperatingProjectionPayload) {
+        stored[momentId] = payload
+    }
+}
+
 struct OperatingMomentPage: View {
     let momentId: String?
     let momentTypeCode: String?
@@ -625,12 +638,22 @@ struct OperatingMomentPage: View {
 
     private func load() async {
         guard let momentId, !OperatingMomentCatalog.isRetired(momentTypeCode) else { return }
+        if projection == nil, let cached = OperatingProjectionCache.peek(momentId) {
+            projection = cached
+            chrome.participantNames = cached.participants ?? []
+        }
         do {
-            projection = try await APIClient.shared.getOperatingMoment(momentId: momentId)
-            chrome.participantNames = projection?.participants ?? []
+            let fresh = try await APIClient.shared.getOperatingMoment(momentId: momentId)
+            OperatingProjectionCache.put(momentId, fresh)
+            projection = fresh
+            chrome.participantNames = fresh.participants ?? []
             errorText = nil
+        } catch is CancellationError {
+            return
         } catch {
-            errorText = error.localizedDescription
+            if projection == nil {
+                errorText = error.localizedDescription
+            }
         }
     }
 }

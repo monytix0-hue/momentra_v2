@@ -254,12 +254,16 @@ function prefsOf(raw: OperatingPreferences | Record<string, unknown>): Operating
 export async function viewerRole(
   client: PoolClient,
   userId: string,
-  momentId: string,
+  _momentId: string,
   companyId: string | null,
-  prefs: OperatingPreferences
+  prefs: OperatingPreferences,
+  knownMembership?: string | null
 ): Promise<OperatingRole> {
   if (!companyId) {
     return resolveRole(prefs.participants ?? [], userId, 'MEMBER');
+  }
+  if (knownMembership) {
+    return resolveRole(prefs.participants ?? [], userId, knownMembership);
   }
   const membership = await client.query<{ membership_type: string }>(
     `SELECT membership_type FROM business.company_membership
@@ -291,7 +295,7 @@ export async function getOperatingProjection(
   if (!prefs?.subtype) {
     return { retired: true, familyCode: scope.businessFamily, title: 'Business moment' };
   }
-  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs);
+  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType);
   const events = await loadEvents(client, momentId);
   return projectOperatingMoment({
     familyCode: scope.businessFamily,
@@ -325,7 +329,7 @@ export async function recordOperatingEvent(
   if (!def || !allowed) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, `This moment does not include ${body.eventType}.`, 400);
   }
-  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs);
+  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType);
   if (!canSubmit(role, def)) {
     throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Your role cannot add this.', 403);
   }
@@ -630,7 +634,7 @@ export async function decideOperatingEvent(
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Operating setup was not found.', 400);
   }
   const prefs = prefsOf(setup.preferences);
-  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs);
+  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType);
   if (!canApprove(role)) {
     throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Your role cannot approve this.', 403);
   }
@@ -691,7 +695,7 @@ export async function reviseOperatingEvent(
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Operating setup was not found.', 400);
   }
   const prefs = prefsOf(setup.preferences);
-  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs);
+  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType);
   const existing = await loadEvents(client, momentId);
   const current = existing.find((row) => row.operatingEventId === eventId);
   if (!current) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Event was not found.', 404);

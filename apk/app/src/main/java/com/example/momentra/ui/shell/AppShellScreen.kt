@@ -88,6 +88,7 @@ import com.example.momentra.ui.shell.components.ShellBottomNavigation
 import com.example.momentra.ui.shell.components.label
 import com.example.momentra.ui.shell.empty.ContextEmptyExperience
 import com.example.momentra.ui.shell.group.directory.GroupActiveMomentsDirectory
+import com.example.momentra.ui.shell.group.directory.MomentDirectoryKind
 import com.example.momentra.ui.shell.empty.GroupCreateFlow
 import com.example.momentra.ui.shell.empty.group.GroupCreatePhase
 import com.example.momentra.ui.shell.empty.business.CompanyJoinConfirmSheet
@@ -342,6 +343,7 @@ fun AppShellScreen(
     var groupParticipantsSheetOpen by remember { mutableStateOf(false) }
     var groupInviteSheetOpen by remember { mutableStateOf(false) }
     var groupMomentDirectoryOpen by remember { mutableStateOf(false) }
+    var businessMomentDirectoryOpen by remember { mutableStateOf(false) }
     var groupDirectoryPreferCompleted by remember { mutableStateOf(false) }
     var groupViewerReadOnly by remember { mutableStateOf(false) }
     var groupCollabKind by remember { mutableStateOf<GroupCollabKind?>(null) }
@@ -538,6 +540,7 @@ fun AppShellScreen(
         onNavigate = { dest ->
             newMomentOpen = false
             groupMomentDirectoryOpen = false
+            businessMomentDirectoryOpen = false
             shellViewModel.selectBottomDestination(dest)
         },
     ) {
@@ -562,7 +565,9 @@ fun AppShellScreen(
             state.selectedContext == AppContext.GROUP
         val groupDirectoryVisible = state.selectedContext == AppContext.GROUP &&
             (groupMomentDirectoryOpen || groupDirectoryHome)
-        if (!groupDirectoryVisible) {
+        val businessDirectoryVisible = state.selectedContext == AppContext.BUSINESS &&
+            businessMomentDirectoryOpen
+        if (!groupDirectoryVisible && !businessDirectoryVisible) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -610,6 +615,7 @@ fun AppShellScreen(
                         onSelect = {
                             newMomentOpen = false
                             groupMomentDirectoryOpen = false
+                            businessMomentDirectoryOpen = false
                             groupCreatePhase = GroupCreatePhase.CHOOSER
                             preferGroupCreateFlow = false
                             shellViewModel.selectContext(it)
@@ -625,7 +631,7 @@ fun AppShellScreen(
                     onAvatar = { shellViewModel.openProfile(true) },
                 )
             }
-            if (!newMomentOpen && state.showMomentSwitcher && !groupDirectoryVisible) {
+            if (!newMomentOpen && state.showMomentSwitcher && !groupDirectoryVisible && !businessDirectoryVisible) {
                 if (state.selectedContext == AppContext.PERSONAL) {
                     val needsEveryday = state.moments.none {
                         it.isActiveStatus() &&
@@ -673,7 +679,7 @@ fun AppShellScreen(
                         },
                         onOpenDirectory = {
                             if (state.selectedContext == AppContext.BUSINESS) {
-                                businessGap = BusinessGapPage.Moments
+                                businessMomentDirectoryOpen = true
                             } else {
                                 groupDirectoryPreferCompleted = false
                                 groupMomentDirectoryOpen = true
@@ -921,6 +927,32 @@ fun AppShellScreen(
                 initialCompletedTab = groupDirectoryPreferCompleted ||
                     (groupDirectoryHome && state.moments.none { it.isActiveStatus() }),
                 allowDismiss = !groupDirectoryHome,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
+            )
+            GroupActiveMomentsDirectory(
+                moments = state.moments,
+                selectedMomentId = state.selectedMomentId,
+                visible = businessDirectoryVisible,
+                onDismiss = { businessMomentDirectoryOpen = false },
+                onSelectMoment = { momentId ->
+                    shellViewModel.selectMoment(momentId)
+                    businessMomentDirectoryOpen = false
+                },
+                onSelectCompletedMoment = { moment ->
+                    shellViewModel.selectCompletedBusinessMoment(moment)
+                    businessMomentDirectoryOpen = false
+                },
+                onOpenStory = { momentId ->
+                    storyMomentId = momentId
+                    businessMomentDirectoryOpen = false
+                },
+                onCreateMoment = {
+                    businessMomentDirectoryOpen = false
+                    openNewMoment()
+                },
+                kind = MomentDirectoryKind.BUSINESS,
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding(),
@@ -1622,6 +1654,7 @@ fun AppShellScreen(
             onSelect = {
                 newMomentOpen = false
                 groupMomentDirectoryOpen = false
+                businessMomentDirectoryOpen = false
                 if (it == BottomDestination.CREATE && state.selectedContext == AppContext.GROUP) {
                     groupCreatePhase = GroupCreatePhase.CHOOSER
                     preferGroupCreateFlow = false

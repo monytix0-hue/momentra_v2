@@ -689,7 +689,11 @@ v1Router.get('/business/moments', async (req, res, next) => {
     const ctx = req.requestContext!;
     const cursor = req.query.cursor as string | undefined;
     const limit = parseInt(String(req.query.limit ?? '20'), 10);
-    const page = await withDb((client) => projectionService.listBusinessMoments(client, ctx, cursor, limit));
+    const lifecycleRaw = String(req.query.lifecycle ?? 'active').toLowerCase();
+    const lifecycle = lifecycleRaw === 'completed' ? 'completed' : 'active';
+    const page = await withDb((client) =>
+      projectionService.listBusinessMoments(client, ctx, cursor, limit, lifecycle)
+    );
     res.json(projectionEnvelope(page, ctx.correlationId, { nextCursor: page.nextCursor, status: 'OK' }));
   } catch (e) {
     next(e);
