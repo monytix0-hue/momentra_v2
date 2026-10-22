@@ -209,19 +209,21 @@ struct RestaurantQuickAddHub: View {
 }
 
 enum RestaurantSheetKind: String, Identifiable {
-    case sale, purchase, spend, payment, collection, budget, update, issue, order, reimburse, person, role, invite, supplier
+    case sale, purchase, spend, payment, collection, budget, update, issue, order, stock, status, revision, reimburse, person, role, invite, supplier
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .sale: return "Sale"
+        case .sale: return "Bill / Direct Sale"
         case .purchase: return "Purchase"
         case .spend: return "Expense"
         case .payment: return "Payment"
         case .collection: return "Collection"
-        case .budget: return "Budget"
-        case .update: return "Update"
+        case .budget, .revision: return "Budget / Target"
+        case .update: return "Issue / Update"
         case .issue: return "Issue"
-        case .order: return "Order Update"
+        case .order: return "Order"
+        case .stock: return "Stock"
+        case .status: return "Status"
         case .reimburse: return "Reimbursement"
         case .person: return "Add person"
         case .role: return "Role & access"
@@ -235,10 +237,11 @@ enum RestaurantSheetKind: String, Identifiable {
         case .purchase: return "biz_qa_wallet"
         case .payment, .reimburse: return "qa_credit_card"
         case .collection: return "qa_arrow_left_right"
-        case .budget: return "qa_budget"
+        case .budget, .revision: return "qa_budget"
         case .update: return "qa_message"
         case .issue: return "qa_alert"
-        case .order: return "qa_clipboard"
+        case .order, .status: return "qa_clipboard"
+        case .stock: return "qa_package"
         case .person: return "qa_user_plus"
         case .role: return "biz_qa_users"
         case .invite: return "qa_qr"
@@ -247,15 +250,17 @@ enum RestaurantSheetKind: String, Identifiable {
     }
     var title: String {
         switch self {
-        case .sale: return "Record Sale"
+        case .sale: return "Bill / Direct Sale"
         case .purchase: return "Record Purchase"
         case .spend: return "Record Expense"
         case .payment: return "Record Payment"
         case .collection: return "Record Collection"
-        case .budget: return "Revise Budget"
-        case .update: return "Post Update"
+        case .budget, .revision: return "Budget / Target Revision"
+        case .update: return "Issue / Approval / Update"
         case .issue: return "Report Issue"
-        case .order: return "Order Update"
+        case .order: return "Order"
+        case .stock: return "Stock Update"
+        case .status: return "Status / Assignment"
         case .reimburse: return "Record Reimbursement"
         case .person, .role, .invite: return "Add or invite person"
         case .supplier: return "Add Supplier"
@@ -268,15 +273,16 @@ enum RestaurantSheetKind: String, Identifiable {
         case .spend: return "SPEND"
         case .payment, .reimburse: return "PAYMENT"
         case .collection: return "COLLECTION"
-        case .budget: return "BUDGET"
+        case .budget, .revision: return "BUDGET"
         case .issue: return "ISSUE"
-        case .order: return "ORDER"
+        case .order, .status: return "ORDER"
+        case .stock: return "STOCK"
         default: return "UPDATE"
         }
     }
     var needsAmount: Bool {
         switch self {
-        case .update, .issue, .order, .person, .role, .invite, .supplier: return false
+        case .update, .issue, .order, .stock, .status, .person, .role, .invite, .supplier: return false
         default: return true
         }
     }
@@ -288,5 +294,5 @@ enum RestaurantSheetKind: String, Identifiable {
         default: return nil
         }
     }
-    static let core: [RestaurantSheetKind] = [.sale, .purchase, .spend, .payment, .collection, .update, .issue, .order, .supplier]
+    static let core: [RestaurantSheetKind] = [.sale, .purchase, .collection, .payment, .spend, .stock, .order, .status, .revision, .update]
 }

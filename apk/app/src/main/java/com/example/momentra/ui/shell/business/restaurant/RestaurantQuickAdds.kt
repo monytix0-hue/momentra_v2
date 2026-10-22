@@ -71,15 +71,18 @@ private enum class RestaurantSheet(
     val needsParty: Boolean,
     val paymentStatus: String?,
 ) {
-    SALE("Record Sale", "SALE", true, true, false, null),
+    SALE("Bill / Direct Sale", "SALE", true, true, false, null),
     PURCHASE("Record Purchase", "PURCHASE", true, false, true, null),
     SPEND("Record Expense", "SPEND", true, false, false, null),
     PAYMENT("Record Payment", "PAYMENT", true, false, true, "PENDING"),
     COLLECTION("Record Collection", "COLLECTION", true, true, false, "PENDING"),
     BUDGET("Revise Budget", "BUDGET", true, false, false, null),
-    UPDATE("Post Update", "UPDATE", false, false, false, null),
+    UPDATE("Issue / Approval / Update", "UPDATE", false, false, false, null),
     ISSUE("Report Issue", "ISSUE", false, false, false, null),
-    ORDER("Order Update", "ORDER", false, false, true, null),
+    ORDER("Order", "ORDER", false, true, false, null),
+    STOCK("Stock Update", "STOCK", false, false, false, null),
+    STATUS("Status / Assignment", "ORDER", false, false, false, null),
+    REVISION("Budget / Target Revision", "BUDGET", true, false, false, null),
     REIMBURSE("Record Reimbursement", "PAYMENT", true, false, true, "PENDING"),
     PERSON("Add or invite person", "UPDATE", false, false, true, null),
     ROLE("Add or invite person", "UPDATE", false, false, true, null),
@@ -165,15 +168,16 @@ fun RestaurantQuickAddHub(
         )
     }
     val core = listOf(
-        RestaurantSheet.SALE to "Sale",
+        RestaurantSheet.SALE to "Bill / Direct Sale",
         RestaurantSheet.PURCHASE to "Purchase",
-        RestaurantSheet.SPEND to "Expense",
-        RestaurantSheet.PAYMENT to "Payment",
         RestaurantSheet.COLLECTION to "Collection",
-        RestaurantSheet.UPDATE to "Update",
-        RestaurantSheet.ISSUE to "Issue",
-        RestaurantSheet.ORDER to "Order Update",
-        RestaurantSheet.SUPPLIER to "Add Supplier",
+        RestaurantSheet.PAYMENT to "Payment",
+        RestaurantSheet.SPEND to "Expense",
+        RestaurantSheet.STOCK to "Stock",
+        RestaurantSheet.ORDER to "Order",
+        RestaurantSheet.STATUS to "Status",
+        RestaurantSheet.REVISION to "Budget / Target",
+        RestaurantSheet.UPDATE to "Issue / Update",
     ).filter { (kind, label) ->
         kind.eventType in allowed && label.contains(query, ignoreCase = true)
     }
@@ -286,10 +290,11 @@ private val RestaurantSheet.hubIcon: Int
         RestaurantSheet.PURCHASE -> R.drawable.qa_wallet
         RestaurantSheet.PAYMENT, RestaurantSheet.REIMBURSE -> R.drawable.qa_credit_card
         RestaurantSheet.COLLECTION -> R.drawable.qa_arrow_left_right
-        RestaurantSheet.BUDGET -> R.drawable.qa_budget
+        RestaurantSheet.BUDGET, RestaurantSheet.REVISION -> R.drawable.qa_budget
         RestaurantSheet.UPDATE -> R.drawable.qa_message
         RestaurantSheet.ISSUE -> R.drawable.qa_alert
-        RestaurantSheet.ORDER -> R.drawable.qa_clipboard
+        RestaurantSheet.ORDER, RestaurantSheet.STATUS -> R.drawable.qa_clipboard
+        RestaurantSheet.STOCK -> R.drawable.qa_package
         RestaurantSheet.PERSON -> R.drawable.qa_user_plus
         RestaurantSheet.ROLE -> R.drawable.qa_users
         RestaurantSheet.INVITE -> R.drawable.qa_qr
@@ -338,10 +343,11 @@ private val RestaurantSheet.captureMode: String
         RestaurantSheet.SPEND -> "SPEND"
         RestaurantSheet.PAYMENT -> "PAYMENT"
         RestaurantSheet.COLLECTION -> "COLLECTION"
-        RestaurantSheet.BUDGET -> "BUDGET"
+        RestaurantSheet.BUDGET, RestaurantSheet.REVISION -> "BUDGET"
         RestaurantSheet.UPDATE -> "UPDATE"
         RestaurantSheet.ISSUE -> "ISSUE"
-        RestaurantSheet.ORDER -> "ORDER"
+        RestaurantSheet.ORDER, RestaurantSheet.STATUS -> "ORDER"
+        RestaurantSheet.STOCK -> "STOCK"
         RestaurantSheet.REIMBURSE -> "REIMBURSE"
         RestaurantSheet.PERSON -> "PERSON"
         RestaurantSheet.ROLE -> "ROLE"

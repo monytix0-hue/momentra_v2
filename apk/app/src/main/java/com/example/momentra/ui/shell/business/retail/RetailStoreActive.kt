@@ -57,6 +57,7 @@ fun RetailStoreActive(
     onOpenQuickAdd: () -> Unit,
     onRecord: suspend (RetailEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
+    momentId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var activityOpen by remember { mutableStateOf(false) }
@@ -76,7 +77,7 @@ fun RetailStoreActive(
             OperatingTab.PULSE -> RetailPulse(model, onViewAll = { activityOpen = true }, onOpenQuickAdd = onOpenQuickAdd)
             OperatingTab.MOMENTS -> RetailMoments(model, onOpenQuickAdd)
             OperatingTab.LIFE -> RetailLife(model)
-            OperatingTab.MEMORY -> RetailMemory(model)
+            OperatingTab.MEMORY -> RetailMemory(model, momentId)
             OperatingTab.QUICK_ADD -> Unit
         }
     }
@@ -110,7 +111,7 @@ private fun RetailPulse(model: OperatingProjectionDto, onViewAll: () -> Unit, on
             } else {
                 Text("No period budget set.", color = StoreSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
             }
-            Text("Validated sales count toward the target. Eligible purchase and expense facts count once toward budget.", color = StoreSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            Text("Validated sales count toward the target. A quick amount does not move stock. Orders are commitments, not sales.", color = StoreSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
         SectionTitle("Needs Attention")
         if (model.attention.isEmpty()) {
@@ -255,8 +256,20 @@ private fun RetailLife(model: OperatingProjectionDto) {
 }
 
 @Composable
-private fun RetailMemory(model: OperatingProjectionDto) {
+private fun RetailMemory(model: OperatingProjectionDto, momentId: String? = null) {
     Header(model, "Memory", "What this store keeps from the month.")
+    Text(
+        "Preview story",
+        color = StoreBg,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(StoreBrand)
+            .clickable { if (momentId != null) com.example.momentra.ui.shell.business.shared.OperatingChromeState.previewStoryId = momentId }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Pill(periodLabel(model.startDate))
         Pill("Current")

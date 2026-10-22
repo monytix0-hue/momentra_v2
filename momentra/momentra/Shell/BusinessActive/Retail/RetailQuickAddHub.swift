@@ -207,19 +207,21 @@ struct RetailQuickAddHub: View {
 }
 
 enum RetailSheetKind: String, Identifiable {
-    case sale, purchase, spend, payment, collection, budget, update, issue, stock, reimburse, person, role, invite, supplier
+    case sale, purchase, spend, payment, collection, budget, update, issue, stock, order, status, revision, reimburse, person, role, invite, supplier
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .sale: return "Sale"
+        case .sale: return "Record Sale"
         case .purchase: return "Purchase"
         case .spend: return "Expense"
         case .payment: return "Payment"
         case .collection: return "Collection"
-        case .budget: return "Budget"
-        case .update: return "Update"
+        case .budget, .revision: return "Budget / Target"
+        case .update: return "Issue / Update"
         case .issue: return "Issue"
-        case .stock: return "Stock Update"
+        case .stock: return "Stock"
+        case .order: return "Order"
+        case .status: return "Status"
         case .reimburse: return "Reimbursement"
         case .person: return "Add person"
         case .role: return "Role & access"
@@ -233,10 +235,10 @@ enum RetailSheetKind: String, Identifiable {
         case .purchase, .reimburse: return "biz_qa_wallet"
         case .payment: return "qa_credit_card"
         case .collection: return "qa_arrow_left_right"
-        case .budget: return "qa_budget"
+        case .budget, .revision: return "qa_budget"
         case .update: return "qa_message"
         case .issue: return "qa_alert"
-        case .stock: return "qa_package"
+        case .stock, .order, .status: return "qa_package"
         case .person: return "qa_user_plus"
         case .role: return "biz_qa_users"
         case .invite: return "qa_qr"
@@ -250,10 +252,12 @@ enum RetailSheetKind: String, Identifiable {
         case .spend: return "Record Expense"
         case .payment: return "Record Payment"
         case .collection: return "Record Collection"
-        case .budget: return "Revise Budget"
-        case .update: return "Post Update"
+        case .budget, .revision: return "Budget / Target Revision"
+        case .update: return "Issue / Approval / Update"
         case .issue: return "Report Issue"
         case .stock: return "Stock Update"
+        case .order: return "Order"
+        case .status: return "Status / Assignment"
         case .reimburse: return "Record Reimbursement"
         case .person: return "Add person"
         case .role: return "Role & access"
@@ -268,15 +272,16 @@ enum RetailSheetKind: String, Identifiable {
         case .spend: return "SPEND"
         case .payment, .reimburse: return "PAYMENT"
         case .collection: return "COLLECTION"
-        case .budget: return "BUDGET"
+        case .budget, .revision: return "BUDGET"
         case .issue: return "ISSUE"
         case .stock: return "STOCK"
+        case .order, .status: return "ORDER"
         default: return "UPDATE"
         }
     }
     var needsAmount: Bool {
         switch self {
-        case .update, .issue, .stock, .person, .role, .invite, .supplier: return false
+        case .update, .issue, .stock, .order, .status, .person, .role, .invite, .supplier: return false
         default: return true
         }
     }
@@ -288,5 +293,5 @@ enum RetailSheetKind: String, Identifiable {
         default: return nil
         }
     }
-    static let core: [RetailSheetKind] = [.sale, .purchase, .spend, .payment, .collection, .update, .issue, .stock, .supplier]
+    static let core: [RetailSheetKind] = [.sale, .purchase, .collection, .payment, .spend, .stock, .order, .status, .revision, .update]
 }

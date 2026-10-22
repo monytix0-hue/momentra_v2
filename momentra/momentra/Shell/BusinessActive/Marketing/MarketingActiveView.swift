@@ -6,6 +6,7 @@ struct MarketingActiveView: View {
     var onOpenQuickAdd: () -> Void = {}
     var onRecord: (MarketingEventDraft) async throws -> Void = { _ in }
     var onDecide: (String, String) async throws -> Void = { _, _ in }
+    var momentId: String? = nil
 
     @State private var activityOpen = false
 
@@ -36,10 +37,13 @@ struct MarketingActiveView: View {
                 sectionTitle("Target & Budget")
                 card {
                     Text("Accepted results").font(.plusJakarta(size: 12)).foregroundStyle(MarketingChrome.secondary)
-                    Text(money(model.target?.progress)).font(.plusJakarta(size: 28, weight: .semibold)).foregroundStyle(MarketingChrome.ink)
+                    let measured = (model.activity ?? []).contains { $0.eventType == "RESULT" || $0.eventType == "PROGRESS" }
+                    Text(measured ? money(model.target?.progress) : "N/A").font(.plusJakarta(size: 28, weight: .semibold)).foregroundStyle(MarketingChrome.ink)
                     Text("of \(money(model.target?.value)) target").font(.plusJakarta(size: 13)).foregroundStyle(MarketingChrome.secondary)
-                    meter("Results toward target", fraction(model.target?.progress, model.target?.value), MarketingChrome.brand)
-                    channelTotals("Results by channel", (model.activity ?? []).filter { $0.eventType == "RESULT" })
+                    if measured {
+                        meter("Results toward target", fraction(model.target?.progress, model.target?.value), MarketingChrome.brand)
+                    }
+                    channelTotals("Results by channel", (model.activity ?? []).filter { $0.eventType == "RESULT" || $0.eventType == "PROGRESS" })
                     meter("Budget used", fraction(model.budget?.spent, model.budget?.amount), MarketingChrome.success)
                     channelTotals("Spend by channel", (model.activity ?? []).filter { $0.eventType == "SPEND" || $0.eventType == "VENDOR_COST" })
                     line("Budget remaining", money(model.budget?.remaining), MarketingChrome.success)
@@ -57,28 +61,35 @@ struct MarketingActiveView: View {
                         if item.id.hasPrefix("open-"), let payment = (model.paymentReadiness ?? []).first(where: { $0.id == String(item.id.dropFirst(5)) }) {
                             Button("Open") { OperatingChromeState.shared.settling = payment }
                                 .font(.plusJakarta(size: 13, weight: .semibold))
-                        }
-                        if item.kind == "APPROVAL" && (model.role == "OWNER_ADMIN" || model.role == "APPROVER") {
+                        } else if item.kind == "ATT-03" || item.kind == "APPROVAL" || item.cta == "approval", model.role == "OWNER_ADMIN" || model.role == "APPROVER" {
                             HStack {
                                 Button("Approve") { Task { try? await onDecide(item.id, "APPROVED") } }
                                     .foregroundStyle(MarketingChrome.success)
                                 Button("Reject") { Task { try? await onDecide(item.id, "REJECTED") } }
                                     .foregroundStyle(Color(hex: "#F87171"))
                             }
+                        } else if item.cta != nil {
+                            Button(operatingAttentionCtaLabel(item)) {
+                                openOperatingAttention(item, model: model, onOpenQuickAdd: onOpenQuickAdd)
+                            }
+                            .font(.plusJakarta(size: 13, weight: .semibold))
                         }
                     }
                 }
                 sectionTitle("Payment Readiness")
-                readiness("To collect", (model.paymentReadiness ?? []).filter { $0.relevance == "RECEIVABLE" })
+                if model.subtype == "CLIENT_CAMPAIGN" {
+                    readiness("To collect", (model.paymentReadiness ?? []).filter { $0.relevance == "RECEIVABLE" })
+                }
                 readiness("To pay", (model.paymentReadiness ?? []).filter { $0.relevance != "RECEIVABLE" })
                 sectionTitle("Finance")
                 card {
-                    line("Accepted results", money(model.target?.progress), MarketingChrome.accent)
+                    let measured = (model.activity ?? []).contains { $0.eventType == "RESULT" || $0.eventType == "PROGRESS" }
+                    line("Accepted results", measured ? money(model.target?.progress) : "N/A", MarketingChrome.accent)
                     if model.subtype == "CLIENT_CAMPAIGN" {
                         line("Client invoices", money(model.finance?.sales), MarketingChrome.accent)
+                        line("Received", money(model.finance?.received), MarketingChrome.success)
+                        line("Still to collect", money(model.finance?.outstanding), Color(hex: "#FBBF24"))
                     }
-                    line("Received", money(model.finance?.received), MarketingChrome.success)
-                    line("Still to collect", money(model.finance?.outstanding), Color(hex: "#FBBF24"))
                     line("Eligible cost", money(model.finance?.eligibleCost), MarketingChrome.ink)
                     line("Business cash paid", money(model.finance?.cashPaid), MarketingChrome.ink)
                     line("Still to pay", money(model.finance?.payable), Color(hex: "#FBBF24"))
@@ -163,6 +174,15 @@ struct MarketingActiveView: View {
     private var memory: some View {
         VStack(alignment: .leading, spacing: 16) {
             header("Memory", "What this campaign keeps from the month.")
+            Button("Preview story") {
+                if let momentId { OperatingChromeState.shared.previewStoryId = momentId }
+            }
+            .font(.plusJakarta(size: 14, weight: .semibold))
+            .foregroundStyle(MarketingChrome.bg)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(MarketingChrome.brand)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
             HStack {
                 pill(period)
                 pill("Current")
@@ -204,6 +224,9 @@ struct MarketingActiveView: View {
             card {
                 Text(section.detail.isEmpty ? "Nothing recorded yet." : formatOperatingDetail(section.detail, currency: model.currency))
                     .font(.plusJakarta(size: 12)).foregroundStyle(MarketingChrome.secondary)
+                if let coverage = section.coverage, !coverage.isEmpty {
+                    Text(coverage).font(.plusJakarta(size: 12, weight: .semibold)).foregroundStyle(MarketingChrome.accent)
+                }
                 ForEach(section.rows ?? []) { row in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(row.title).foregroundStyle(MarketingChrome.ink)
@@ -388,8 +411,14 @@ struct MarketingEventDraft {
     var itemName: String? = nil
     var parentEventId: String? = nil
     var revisesEventId: String? = nil
-        var masterKind: String? = nil
+    var masterKind: String? = nil
     var dueAt: String? = nil
     var contract: OperatingContractInput? = nil
     var lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil
+    var reportingMode: String? = nil
+    var metricCode: String? = nil
+    var budgetCategory: String? = nil
+    var activityStatus: String? = nil
+    var attributedSales: String? = nil
+    var revisionKind: String? = nil
 }

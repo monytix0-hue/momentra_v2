@@ -115,7 +115,8 @@ struct ProductionQuickAddHub: View {
                         masterKind: draft.masterKind,
                         dueAt: draft.dueAt,
                         contract: draft.contract,
-                        lineItems: draft.lineItems
+                        lineItems: draft.lineItems,
+                        rejectedQuantity: draft.rejectedQuantity
                     ))
                 },
                 onDecide: onDecide
@@ -149,7 +150,8 @@ struct ProductionQuickAddHub: View {
                         masterKind: draft.masterKind,
                         dueAt: draft.dueAt,
                         contract: draft.contract,
-                        lineItems: draft.lineItems
+                        lineItems: draft.lineItems,
+                        rejectedQuantity: draft.rejectedQuantity
                     ))
                 },
                 onDecide: onDecide
@@ -235,7 +237,7 @@ enum ProductionSheetKind: String, Identifiable {
         case .collection: return "Collection"
         case .budget: return "Budget / target"
         case .target: return "Target"
-        case .update: return "Update"
+        case .update: return "Update / Plan"
         case .issue: return "Issue"
         case .stock: return "Material / stock"
         case .reimburse: return "Reimbursement"
@@ -345,9 +347,9 @@ enum ProductionSheetKind: String, Identifiable {
     }
     var paymentStatus: String? {
         switch self {
-        case .payment, .collection, .customerOrder: return "PENDING"
+        case .payment, .collection: return "PENDING"
         default: return nil
         }
     }
-    static let core: [ProductionSheetKind] = [.customerOrder, .production, .purchase, .spend, .sale, .delivery, .payment, .collection, .budget, .update, .issue, .stock]
+    static let core: [ProductionSheetKind] = [.customerOrder, .purchase, .production, .sale, .delivery, .collection, .payment, .spend, .stock, .update]
 }

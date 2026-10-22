@@ -57,6 +57,7 @@ fun RestaurantActive(
     onOpenQuickAdd: () -> Unit,
     onRecord: suspend (RestaurantEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
+    momentId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var activityOpen by remember { mutableStateOf(false) }
@@ -76,7 +77,7 @@ fun RestaurantActive(
             OperatingTab.PULSE -> RestaurantPulse(model, onViewAll = { activityOpen = true }, onOpenQuickAdd = onOpenQuickAdd)
             OperatingTab.MOMENTS -> RestaurantMoments(model, onOpenQuickAdd)
             OperatingTab.LIFE -> RestaurantLife(model)
-            OperatingTab.MEMORY -> RestaurantMemory(model)
+            OperatingTab.MEMORY -> RestaurantMemory(model, momentId)
             OperatingTab.QUICK_ADD -> Unit
         }
     }
@@ -110,7 +111,7 @@ private fun RestaurantPulse(model: OperatingProjectionDto, onViewAll: () -> Unit
             } else {
                 Text("No period budget set.", color = RestSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
             }
-            Text("Validated sales count toward the target. Eligible purchase and expense facts count once toward budget.", color = RestSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            Text("An order is not a sale until a bill is posted. Eligible purchase and expense facts count once toward budget.", color = RestSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
         SectionTitle("Needs Attention")
         if (model.attention.isEmpty()) {
@@ -255,8 +256,20 @@ private fun RestaurantLife(model: OperatingProjectionDto) {
 }
 
 @Composable
-private fun RestaurantMemory(model: OperatingProjectionDto) {
+private fun RestaurantMemory(model: OperatingProjectionDto, momentId: String? = null) {
     Header(model, "Memory", "What this restaurant keeps from the month.")
+    Text(
+        "Preview story",
+        color = RestBg,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(RestBrand)
+            .clickable { if (momentId != null) com.example.momentra.ui.shell.business.shared.OperatingChromeState.previewStoryId = momentId }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Pill(periodLabel(model.startDate))
         Pill("Current")

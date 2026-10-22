@@ -209,19 +209,22 @@ struct ServiceQuickAddHub: View {
 }
 
 enum ServiceSheetKind: String, Identifiable {
-    case service, appointment, sale, spend, payment, collection, budget, update, issue, reimburse, person, role, invite, supplier
+    case service, appointment, sale, purchase, spend, payment, collection, budget, update, issue, stock, status, revision, reimburse, person, role, invite, supplier
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .service: return "Service"
-        case .appointment: return "Appointment"
+        case .service: return "Finalize Charge"
+        case .appointment: return "Booking"
         case .sale: return "Sale"
+        case .purchase: return "Purchase"
         case .spend: return "Expense"
         case .payment: return "Payment"
         case .collection: return "Collection"
-        case .budget: return "Budget"
-        case .update: return "Update"
+        case .budget, .revision: return "Budget / Target"
+        case .update: return "Issue / Update"
         case .issue: return "Issue"
+        case .stock: return "Stock"
+        case .status: return "Status"
         case .reimburse: return "Reimbursement"
         case .person: return "Add person"
         case .role: return "Role & access"
@@ -236,9 +239,11 @@ enum ServiceSheetKind: String, Identifiable {
         case .sale, .spend: return "qa_receipt"
         case .payment: return "qa_credit_card"
         case .collection: return "qa_arrow_left_right"
-        case .budget: return "qa_budget"
+        case .budget, .revision: return "qa_budget"
         case .update: return "qa_message"
         case .issue: return "qa_alert"
+        case .stock, .status: return "qa_package"
+        case .purchase: return "biz_qa_wallet"
         case .reimburse: return "biz_qa_wallet"
         case .person: return "qa_user_plus"
         case .role: return "biz_qa_users"
@@ -248,15 +253,18 @@ enum ServiceSheetKind: String, Identifiable {
     }
     var title: String {
         switch self {
-        case .service: return "Record Service"
-        case .appointment: return "Appointment / Job"
+        case .service: return "Finalize Charge"
+        case .appointment: return "Booking"
         case .sale: return "Record Sale"
+        case .purchase: return "Record Purchase"
         case .spend: return "Record Expense"
         case .payment: return "Record Payment"
         case .collection: return "Record Collection"
-        case .budget: return "Revise Budget"
-        case .update: return "Post Update"
+        case .budget, .revision: return "Budget / Target Revision"
+        case .update: return "Issue / Approval / Update"
         case .issue: return "Report Issue"
+        case .stock: return "Stock Update"
+        case .status: return "Status / Assignment"
         case .reimburse: return "Record Reimbursement"
         case .person, .role, .invite: return "Add or invite person"
         case .supplier: return "Add Supplier"
@@ -265,19 +273,21 @@ enum ServiceSheetKind: String, Identifiable {
     var eventType: String {
         switch self {
         case .service: return "SERVICE"
-        case .appointment: return "APPOINTMENT"
+        case .appointment, .status: return "APPOINTMENT"
         case .sale: return "SALE"
+        case .purchase: return "PURCHASE"
         case .spend: return "SPEND"
         case .payment, .reimburse: return "PAYMENT"
         case .collection: return "COLLECTION"
-        case .budget: return "BUDGET"
+        case .budget, .revision: return "BUDGET"
         case .issue: return "ISSUE"
+        case .stock: return "STOCK"
         default: return "UPDATE"
         }
     }
     var needsAmount: Bool {
         switch self {
-        case .appointment, .update, .issue, .person, .role, .invite, .supplier: return false
+        case .appointment, .status, .update, .issue, .stock, .person, .role, .invite, .supplier: return false
         default: return true
         }
     }
@@ -289,5 +299,5 @@ enum ServiceSheetKind: String, Identifiable {
         default: return nil
         }
     }
-    static let core: [ServiceSheetKind] = [.service, .appointment, .sale, .spend, .payment, .collection, .budget, .update, .issue]
+    static let core: [ServiceSheetKind] = [.service, .purchase, .collection, .payment, .spend, .stock, .appointment, .status, .revision, .update]
 }

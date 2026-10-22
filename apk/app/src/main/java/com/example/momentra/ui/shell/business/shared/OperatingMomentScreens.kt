@@ -137,6 +137,7 @@ fun OperatingMomentPage(
             model = model,
             tab = tab,
             onOpenQuickAdd = onOpenQuickAdd,
+            momentId = momentId,
             onRecord = { draft ->
                 repo.recordOperatingEvent(
                     momentId,
@@ -185,6 +186,7 @@ fun OperatingMomentPage(
             model = model,
             tab = tab,
             onOpenQuickAdd = onOpenQuickAdd,
+            momentId = momentId,
             onRecord = { draft ->
                 repo.recordOperatingEvent(
                     momentId,
@@ -233,6 +235,7 @@ fun OperatingMomentPage(
             model = model,
             tab = tab,
             onOpenQuickAdd = onOpenQuickAdd,
+            momentId = momentId,
             onRecord = { draft ->
                 repo.recordOperatingEvent(
                     momentId,
@@ -261,6 +264,12 @@ fun OperatingMomentPage(
                     draft.revisesEventId,
                     draft.dueAt,
                     draft.contract,
+                    reportingMode = draft.reportingMode,
+                    metricCode = draft.metricCode,
+                    budgetCategory = draft.budgetCategory,
+                    activityStatus = draft.activityStatus,
+                    attributedSales = draft.attributedSales,
+                    revisionKind = draft.revisionKind,
                 ).fold(
                     onSuccess = { tick += 1 },
                     onFailure = { error = it.message },
@@ -281,6 +290,7 @@ fun OperatingMomentPage(
             model = model,
             tab = tab,
             onOpenQuickAdd = onOpenQuickAdd,
+            momentId = momentId,
             onRecord = { draft ->
                 repo.recordOperatingEvent(
                     momentId,
@@ -309,6 +319,7 @@ fun OperatingMomentPage(
                     draft.revisesEventId,
                     draft.dueAt,
                     draft.contract,
+                    rejectedQuantity = draft.rejectedQuantity,
                 ).fold(
                     onSuccess = { tick += 1 },
                     onFailure = { error = it.message },
@@ -437,6 +448,7 @@ fun OperatingMomentPage(
             model = model,
             tab = tab,
             onOpenQuickAdd = onOpenQuickAdd,
+            momentId = momentId,
             onRecord = { draft ->
                 repo.recordOperatingEvent(
                     momentId,

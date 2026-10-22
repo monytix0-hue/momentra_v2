@@ -71,15 +71,19 @@ private enum class ServiceSheet(
     val needsParty: Boolean,
     val paymentStatus: String?,
 ) {
-    SERVICE("Record Service", "SERVICE", true, true, false, null),
-    APPOINTMENT("Appointment / Job", "APPOINTMENT", false, false, true, null),
+    SERVICE("Finalize Charge", "SERVICE", true, true, false, null),
+    APPOINTMENT("Booking", "APPOINTMENT", false, false, false, null),
     SALE("Record Sale", "SALE", true, true, false, null),
+    PURCHASE("Record Purchase", "PURCHASE", true, false, true, null),
     SPEND("Record Expense", "SPEND", true, false, false, null),
     PAYMENT("Record Payment", "PAYMENT", true, false, true, "PENDING"),
     COLLECTION("Record Collection", "COLLECTION", true, true, false, "PENDING"),
     BUDGET("Revise Budget", "BUDGET", true, false, false, null),
-    UPDATE("Post Update", "UPDATE", false, false, false, null),
+    UPDATE("Issue / Approval / Update", "UPDATE", false, false, false, null),
     ISSUE("Report Issue", "ISSUE", false, false, false, null),
+    STOCK("Stock Update", "STOCK", false, false, false, null),
+    STATUS("Status / Assignment", "APPOINTMENT", false, false, false, null),
+    REVISION("Budget / Target Revision", "BUDGET", true, false, false, null),
     REIMBURSE("Record Reimbursement", "PAYMENT", true, false, true, "PENDING"),
     PERSON("Add or invite person", "UPDATE", false, false, true, null),
     ROLE("Add or invite person", "UPDATE", false, false, true, null),
@@ -165,15 +169,16 @@ fun ServiceQuickAddHub(
         )
     }
     val core = listOf(
-        ServiceSheet.SERVICE to "Service",
-        ServiceSheet.APPOINTMENT to "Appointment",
-        ServiceSheet.SALE to "Sale",
-        ServiceSheet.SPEND to "Expense",
-        ServiceSheet.PAYMENT to "Payment",
+        ServiceSheet.SERVICE to "Finalize Charge",
+        ServiceSheet.PURCHASE to "Purchase",
         ServiceSheet.COLLECTION to "Collection",
-        ServiceSheet.BUDGET to "Budget",
-        ServiceSheet.UPDATE to "Update",
-        ServiceSheet.ISSUE to "Issue",
+        ServiceSheet.PAYMENT to "Payment",
+        ServiceSheet.SPEND to "Expense",
+        ServiceSheet.STOCK to "Stock",
+        ServiceSheet.APPOINTMENT to "Booking",
+        ServiceSheet.STATUS to "Status",
+        ServiceSheet.REVISION to "Budget / Target",
+        ServiceSheet.UPDATE to "Issue / Update",
     ).filter { (kind, label) ->
         kind.eventType in allowed && label.contains(query, ignoreCase = true)
     }
@@ -288,9 +293,11 @@ private val ServiceSheet.hubIcon: Int
         ServiceSheet.SALE, ServiceSheet.SPEND -> R.drawable.qa_receipt
         ServiceSheet.PAYMENT -> R.drawable.qa_credit_card
         ServiceSheet.COLLECTION -> R.drawable.qa_arrow_left_right
-        ServiceSheet.BUDGET -> R.drawable.qa_budget
+        ServiceSheet.BUDGET, ServiceSheet.REVISION -> R.drawable.qa_budget
         ServiceSheet.UPDATE -> R.drawable.qa_message
         ServiceSheet.ISSUE -> R.drawable.qa_alert
+        ServiceSheet.PURCHASE -> R.drawable.qa_wallet
+        ServiceSheet.STOCK, ServiceSheet.STATUS -> R.drawable.qa_package
         ServiceSheet.REIMBURSE -> R.drawable.qa_wallet
         ServiceSheet.PERSON -> R.drawable.qa_user_plus
         ServiceSheet.ROLE -> R.drawable.qa_users
@@ -341,9 +348,12 @@ private val ServiceSheet.captureMode: String
         ServiceSheet.SPEND -> "SPEND"
         ServiceSheet.PAYMENT -> "PAYMENT"
         ServiceSheet.COLLECTION -> "COLLECTION"
-        ServiceSheet.BUDGET -> "BUDGET"
+        ServiceSheet.BUDGET, ServiceSheet.REVISION -> "BUDGET"
         ServiceSheet.UPDATE -> "UPDATE"
         ServiceSheet.ISSUE -> "ISSUE"
+        ServiceSheet.PURCHASE -> "PURCHASE"
+        ServiceSheet.STOCK -> "STOCK"
+        ServiceSheet.STATUS -> "APPOINTMENT"
         ServiceSheet.REIMBURSE -> "REIMBURSE"
         ServiceSheet.PERSON -> "PERSON"
         ServiceSheet.ROLE -> "ROLE"

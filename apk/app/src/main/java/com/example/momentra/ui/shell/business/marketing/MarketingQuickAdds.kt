@@ -59,6 +59,14 @@ data class MarketingEventDraft(
     val parentEventId: String? = null,
     val revisesEventId: String? = null,
     val masterKind: String? = null,
+    val dueAt: String? = null,
+    val contract: com.example.momentra.data.api.OperatingContractBody? = null,
+    val reportingMode: String? = null,
+    val metricCode: String? = null,
+    val budgetCategory: String? = null,
+    val activityStatus: String? = null,
+    val attributedSales: String? = null,
+    val revisionKind: String? = null,
 )
 
 private enum class MarketingSheet(
@@ -69,10 +77,14 @@ private enum class MarketingSheet(
     val needsParty: Boolean,
     val paymentStatus: String?,
 ) {
-    SPEND("Add Spend", "SPEND", true, true, false, null),
-    RESULT("Add Result", "RESULT", true, true, false, null),
-    PAYMENT("Add Payment", "PAYMENT", true, false, true, "PENDING"),
-    COLLECTION("Add Collection", "COLLECTION", true, true, false, "PENDING"),
+    ACTIVITY("Add Activity", "ACTIVITY", false, false, false, null),
+    PROGRESS("Update Progress", "PROGRESS", true, false, false, null),
+    SPEND("Record Spend", "SPEND", true, true, false, null),
+    RESULT("Campaign Result", "RESULT", true, true, false, null),
+    PAYMENT("Record Payment", "PAYMENT", true, false, true, "PENDING"),
+    INVOICE("Record Invoice", "INVOICE", true, false, true, "PENDING"),
+    COLLECTION("Record Collection", "COLLECTION", true, true, false, "PENDING"),
+    REVISION("Budget / Target Revision", "REVISION", true, false, false, null),
     BUDGET("Add Budget", "BUDGET", true, false, false, null),
     TARGET("Add Target", "TARGET", true, false, false, null),
     UPDATE("Add Update", "UPDATE", false, false, false, null),
@@ -194,18 +206,17 @@ fun MarketingQuickAddHub(
         )
     }
     val core = listOf(
-        MarketingSheet.SPEND to "Spend",
-        MarketingSheet.RESULT to "Result",
-        MarketingSheet.PAYMENT to "Payment",
-        MarketingSheet.COLLECTION to "Collection",
-        MarketingSheet.BUDGET to "Budget",
-        MarketingSheet.TARGET to "Target",
-        MarketingSheet.UPDATE to "Update",
+        MarketingSheet.ACTIVITY to "Add Activity",
+        MarketingSheet.PROGRESS to "Update Progress",
+        MarketingSheet.SPEND to "Record Spend",
+        MarketingSheet.PAYMENT to "Record Payment",
+        MarketingSheet.INVOICE to "Record Invoice",
+        MarketingSheet.COLLECTION to "Record Collection",
+        MarketingSheet.REVISION to "Budget / Target Revision",
+        MarketingSheet.APPROVAL to "Approval / Decision",
+        MarketingSheet.UPDATE to "Team Update",
         MarketingSheet.ISSUE to "Issue",
-        MarketingSheet.APPROVAL to "Approval",
-        MarketingSheet.DELIVERABLE to "Deliverable",
-        MarketingSheet.VENDOR_COST to "Vendor cost",
-        MarketingSheet.COMPLETE to "Complete",
+        MarketingSheet.RESULT to "Campaign Result",
     ).filter { (kind, label) ->
         kind.eventType in allowed && label.contains(query, ignoreCase = true)
     }
@@ -270,7 +281,7 @@ fun MarketingQuickAddHub(
                 variant = if (client) "client" else "own",
                 onDismiss = { sheet = null },
                 onSubmit = { draft ->
-                    onRecord(draft.toMarketing())
+                    onRecord(draft.toMarketing(model.activity))
                     sheet = null
                 },
                 onDecide = onDecide,
@@ -312,7 +323,11 @@ fun MarketingQuickAddHub(
 
 
 private fun MarketingSheet.icon(client: Boolean): Int = when (this) {
-    MarketingSheet.SPEND -> if (client) R.drawable.qa_receipt else R.drawable.qa_wallet
+        MarketingSheet.ACTIVITY -> R.drawable.qa_message
+        MarketingSheet.PROGRESS -> if (client) R.drawable.qa_message else R.drawable.qa_budget
+        MarketingSheet.INVOICE -> R.drawable.qa_arrow_left_right
+        MarketingSheet.REVISION -> R.drawable.qa_budget
+        MarketingSheet.SPEND -> if (client) R.drawable.qa_receipt else R.drawable.qa_wallet
     MarketingSheet.RESULT -> if (client) R.drawable.qa_message else R.drawable.qa_budget
     MarketingSheet.PAYMENT -> R.drawable.qa_credit_card
     MarketingSheet.COLLECTION -> R.drawable.qa_arrow_left_right
@@ -366,6 +381,10 @@ private fun HubChip(text: String, filled: Boolean) {
 
 private val MarketingSheet.captureMode: String
     get() = when (this) {
+        MarketingSheet.ACTIVITY -> "UPDATE"
+        MarketingSheet.PROGRESS -> "RESULT"
+        MarketingSheet.INVOICE -> "SALE"
+        MarketingSheet.REVISION -> "BUDGET"
         MarketingSheet.SPEND -> "SPEND"
         MarketingSheet.RESULT -> "RESULT"
         MarketingSheet.PAYMENT -> "PAYMENT"
@@ -385,6 +404,10 @@ private val MarketingSheet.captureMode: String
     }
 
 private fun MarketingSheet.sheetTitle(client: Boolean): String = when (this) {
+    MarketingSheet.ACTIVITY -> "Add Activity"
+    MarketingSheet.PROGRESS -> "Update Progress"
+    MarketingSheet.INVOICE -> "Record Invoice"
+    MarketingSheet.REVISION -> "Budget / Target Revision"
     MarketingSheet.SPEND -> "Add Spend / Expense"
     MarketingSheet.RESULT -> "Add Result"
     MarketingSheet.PAYMENT -> "Add Payment"
@@ -401,7 +424,7 @@ private fun MarketingSheet.sheetTitle(client: Boolean): String = when (this) {
     MarketingSheet.PARTNER, MarketingSheet.CHANNELS -> if (client) "Client / Partners / Channels" else "Partners & Channels"
 }
 
-private fun OperatingCaptureDraft.toMarketing() = MarketingEventDraft(
+private fun OperatingCaptureDraft.toMarketing(activities: List<com.example.momentra.data.api.OperatingActivityDto> = emptyList()) = MarketingEventDraft(
     eventType = eventType,
     title = title,
     amount = amount,
@@ -414,7 +437,16 @@ private fun OperatingCaptureDraft.toMarketing() = MarketingEventDraft(
     unit = unit,
     unitPrice = unitPrice,
     itemName = itemName,
-    parentEventId = parentEventId,
+    parentEventId = parentEventId ?: activities.firstOrNull {
+        eventType == "PROGRESS" && it.eventType == "ACTIVITY" && it.approvalStatus != "REJECTED"
+    }?.id,
     revisesEventId = revisesEventId,
     masterKind = masterKind,
+    dueAt = dueAt,
+    contract = contract,
+    reportingMode = if (eventType == "PROGRESS" || eventType == "RESULT") "INCREMENTAL" else null,
+    metricCode = if (eventType == "PROGRESS" || eventType == "RESULT") "LEADS" else null,
+    budgetCategory = if (eventType == "SPEND" || eventType == "INVOICE") "DIGITAL_ADS" else null,
+    activityStatus = if (eventType == "ACTIVITY") "OPEN" else null,
+    revisionKind = if (eventType == "REVISION") "BUDGET" else null,
 )

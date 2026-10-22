@@ -6,9 +6,43 @@ export type StoryFamilyProfile =
   | 'TRIP'
   | 'WEDDING'
   | 'SHARED_PURCHASE'
-  | 'SHARED_LIVING';
+  | 'SHARED_LIVING'
+  | 'MARKETING_CAMPAIGN'
+  | 'RETAIL_FOOD_CONSUMER'
+  | 'MANUFACTURING_MADE_TO_ORDER';
 
-export type StoryChapterId = 'cover' | 'moment' | 'together' | 'money' | 'close' | 'alive' | 'memories';
+export type StoryChapterId =
+  | 'cover'
+  | 'moment'
+  | 'together'
+  | 'money'
+  | 'close'
+  | 'alive'
+  | 'memories'
+  | 'mc-moment'
+  | 'mc-motion'
+  | 'mc-results'
+  | 'mc-money'
+  | 'mc-channels'
+  | 'mc-people'
+  | 'mc-attention'
+  | 'mc-sofar'
+  | 'rf-moment'
+  | 'rf-motion'
+  | 'rf-revenue'
+  | 'rf-money'
+  | 'rf-operations'
+  | 'rf-people'
+  | 'rf-attention'
+  | 'rf-sofar'
+  | 'mf-moment'
+  | 'mf-motion'
+  | 'mf-output'
+  | 'mf-money'
+  | 'mf-materials'
+  | 'mf-people'
+  | 'mf-attention'
+  | 'mf-sofar';
 
 export interface StoryMetricDef {
   key: string;
@@ -42,7 +76,11 @@ const EXPERIENCE_BASE: Omit<StoryFamilyComposer, 'profile' | 'displayLabel' | 'c
 export function resolveStoryFamilyProfile(input: {
   groupFamily?: string | null;
   momentTypeCode?: string | null;
+  businessFamily?: string | null;
 }): StoryFamilyProfile {
+  if ((input.businessFamily ?? '').toUpperCase() === 'MARKETING_CAMPAIGNS') return 'MARKETING_CAMPAIGN';
+  if ((input.businessFamily ?? '').toUpperCase() === 'RETAIL_CONSUMER') return 'RETAIL_FOOD_CONSUMER';
+  if ((input.businessFamily ?? '').toUpperCase() === 'MANUFACTURING_PRODUCTION') return 'MANUFACTURING_MADE_TO_ORDER';
   const type = (input.momentTypeCode ?? '').toUpperCase();
   const family = (input.groupFamily ?? '').toUpperCase();
   if (type === 'HOUSE_PARTY') return 'HOUSE_PARTY';
@@ -141,6 +179,54 @@ export function getStoryComposer(profile: StoryFamilyProfile): StoryFamilyCompos
         shareBlurb: (title, m) =>
           `${title} — ${m.days ?? '?'} days, ${m.people ?? '?'} people. Relive it on Momentra.`,
       };
+    case 'MARKETING_CAMPAIGN':
+      return {
+        profile,
+        displayLabel: 'Campaign Story',
+        coverEyebrow: 'Marketing campaign',
+        closeLine: 'The campaign, as recorded.',
+        metricKeys: [
+          { key: 'results', label: 'Results' },
+          { key: 'spent', label: 'Spent' },
+          { key: 'channels', label: 'Channels' },
+          { key: 'open', label: 'Open' },
+        ],
+        moneyCategoriesHint: ['Media', 'Production', 'Influencer', 'Events', 'Agency', 'Tools', 'Other'],
+        omitPlaces: true,
+        shareBlurb: (title, m) => `${title} — campaign story. Results ${m.results ?? 'n/a'}. Momentra.`,
+      };
+    case 'RETAIL_FOOD_CONSUMER':
+      return {
+        profile,
+        displayLabel: 'Business Story',
+        coverEyebrow: 'Retail, food, and services',
+        closeLine: 'The business, as recorded.',
+        metricKeys: [
+          { key: 'revenue', label: 'Revenue' },
+          { key: 'receivable', label: 'To collect' },
+          { key: 'cash', label: 'Cash' },
+          { key: 'sales', label: 'Charges' },
+        ],
+        moneyCategoriesHint: [],
+        omitPlaces: true,
+        shareBlurb: (title, m) => `${title} — business story. Revenue ${m.revenue ?? 'not recorded'}. Momentra.`,
+      };
+    case 'MANUFACTURING_MADE_TO_ORDER':
+      return {
+        profile,
+        displayLabel: 'Manufacturing Story',
+        coverEyebrow: 'Manufacturing and made-to-order',
+        closeLine: 'The factory, as recorded.',
+        metricKeys: [
+          { key: 'sales', label: 'Net sales' },
+          { key: 'orders', label: 'Orders' },
+          { key: 'accepted', label: 'Accepted' },
+          { key: 'recorded', label: 'Recorded output' },
+        ],
+        moneyCategoriesHint: [],
+        omitPlaces: true,
+        shareBlurb: (title, m) => `${title} — manufacturing story. Sales ${m.sales ?? 'not recorded'}. Momentra.`,
+      };
     default:
       return {
         ...EXPERIENCE_BASE,
@@ -155,3 +241,36 @@ export function getStoryComposer(profile: StoryFamilyProfile): StoryFamilyCompos
 }
 
 export const STORY_CHAPTER_ORDER: StoryChapterId[] = ['cover', 'moment', 'together', 'money', 'close'];
+
+export const MARKETING_STORY_CHAPTERS: StoryChapterId[] = [
+  'mc-moment',
+  'mc-motion',
+  'mc-results',
+  'mc-money',
+  'mc-channels',
+  'mc-people',
+  'mc-attention',
+  'mc-sofar',
+];
+
+export const RETAIL_STORY_CHAPTERS: StoryChapterId[] = [
+  'rf-moment',
+  'rf-motion',
+  'rf-revenue',
+  'rf-money',
+  'rf-operations',
+  'rf-people',
+  'rf-attention',
+  'rf-sofar',
+];
+
+export const MANUFACTURING_STORY_CHAPTERS: StoryChapterId[] = [
+  'mf-moment',
+  'mf-motion',
+  'mf-output',
+  'mf-money',
+  'mf-materials',
+  'mf-people',
+  'mf-attention',
+  'mf-sofar',
+];

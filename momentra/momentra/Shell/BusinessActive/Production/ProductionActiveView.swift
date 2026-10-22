@@ -6,6 +6,7 @@ struct ProductionActiveView: View {
     var onOpenQuickAdd: () -> Void = {}
     var onRecord: (ProductionEventDraft) async throws -> Void = { _ in }
     var onDecide: (String, String) async throws -> Void = { _, _ in }
+    var momentId: String? = nil
 
     @State private var activityOpen = false
     private var chrome: ProductionChrome { model.subtype == "MADE_TO_ORDER" ? .job : .standard }
@@ -40,7 +41,11 @@ struct ProductionActiveView: View {
                     Text("Toward the monthly target").font(.plusJakarta(size: 12)).foregroundStyle(chrome.secondary)
                     Text(money(model.target?.progress)).font(.plusJakarta(size: 28, weight: .semibold)).foregroundStyle(chrome.ink)
                     Text("of \(money(model.target?.value)) target").font(.plusJakarta(size: 13)).foregroundStyle(chrome.secondary)
-                    meter("Target progress", fraction(model.target?.progress, model.target?.value), chrome.brand)
+                    if targetOpen {
+                        meter("Target progress", fraction(model.target?.progress, model.target?.value), chrome.brand)
+                    } else {
+                        Text(model.target?.coverage ?? "not recorded").font(.plusJakarta(size: 13)).foregroundStyle(chrome.secondary)
+                    }
                     meter("Budget used", fraction(model.budget?.spent, model.budget?.amount), chrome.success)
                     line("Budget remaining", money(model.budget?.remaining), chrome.success)
                     Text("Validated sales count toward a revenue target. Collections do not. Production, orders, and deliveries count only for the measure you chose.")
@@ -73,7 +78,7 @@ struct ProductionActiveView: View {
                 readiness("To pay", (model.paymentReadiness ?? []).filter { $0.relevance != "RECEIVABLE" })
                 sectionTitle("Finance")
                 card {
-                    line("Qualifying revenue", money(model.target?.progress), chrome.accent)
+                    line("Net sales", money(model.finance?.sales), chrome.accent)
                     line("Received", money(model.finance?.received), chrome.success)
                     line("Still to collect", money(model.finance?.outstanding), Color(hex: "#FBBF24"))
                     line("Eligible cost", money(model.finance?.eligibleCost), chrome.ink)
@@ -125,7 +130,11 @@ struct ProductionActiveView: View {
                     metric("Spent", money(model.budget?.spent))
                     metric("Remaining", money(model.budget?.remaining))
                 }
-                meter("Toward the monthly target", fraction(model.target?.progress, model.target?.value), chrome.brand)
+                if targetOpen {
+                    meter("Toward the monthly target", fraction(model.target?.progress, model.target?.value), chrome.brand)
+                } else {
+                    Text(model.target?.coverage ?? "not recorded").font(.plusJakarta(size: 12)).foregroundStyle(chrome.secondary)
+                }
             }
             ForEach(model.boards?.moments ?? [], id: \.code) { section in
                 board(section)
@@ -161,6 +170,15 @@ struct ProductionActiveView: View {
                 pill("Current")
             }
             ForEach(model.boards?.memory ?? []) { board($0) }
+            Button("Preview story") {
+                if let momentId { OperatingChromeState.shared.previewStoryId = momentId }
+            }
+            .font(.plusJakarta(size: 15, weight: .semibold))
+            .foregroundStyle(chrome.bg)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(chrome.brand)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
         }
     }
 
@@ -197,6 +215,9 @@ struct ProductionActiveView: View {
             card {
                 Text(section.detail.isEmpty ? "Nothing recorded yet." : formatOperatingDetail(section.detail, currency: model.currency))
                     .font(.plusJakarta(size: 12)).foregroundStyle(chrome.secondary)
+                if let coverage = section.coverage, !coverage.isEmpty {
+                    Text(coverage).font(.plusJakarta(size: 12)).foregroundStyle(chrome.accent)
+                }
                 ForEach(section.rows ?? []) { row in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(row.title).foregroundStyle(chrome.ink)
@@ -318,6 +339,11 @@ struct ProductionActiveView: View {
         }
     }
 
+    private var targetOpen: Bool {
+        let coverage = model.target?.coverage ?? ""
+        return coverage.isEmpty || coverage == "null"
+    }
+
     private var period: String {
         let raw = model.startDate ?? ""
         let formatter = DateFormatter()
@@ -409,4 +435,5 @@ struct ProductionEventDraft {
     var dueAt: String? = nil
     var contract: OperatingContractInput? = nil
     var lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil
+    var rejectedQuantity: String? = nil
 }

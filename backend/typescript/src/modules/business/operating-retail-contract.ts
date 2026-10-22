@@ -93,6 +93,9 @@ export interface OperatingContract {
   returnDirection?: 'CUSTOMER' | 'SUPPLIER' | null;
   goodsOutcome?: 'TO_STOCK' | 'NOT_RETURNED' | 'PENDING_INSPECTION' | null;
   returnReason?: string | null;
+  acceptedQuantity?: string | null;
+  productionStatus?: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | null;
+  deliveryStatus?: 'PLANNED' | 'DISPATCHED' | 'DELIVERED' | 'ACCEPTED' | 'RETURNED' | null;
 }
 
 export interface RetailLine {
@@ -282,6 +285,19 @@ export function parseOperatingContract(raw: unknown): OperatingContract | null {
         ? rec.goodsOutcome
         : null,
     returnReason: rec.returnReason == null ? null : String(rec.returnReason),
+    acceptedQuantity: rec.acceptedQuantity == null ? null : String(rec.acceptedQuantity),
+    productionStatus:
+      rec.productionStatus === 'PLANNED' || rec.productionStatus === 'IN_PROGRESS' || rec.productionStatus === 'COMPLETED'
+        ? rec.productionStatus
+        : null,
+    deliveryStatus:
+      rec.deliveryStatus === 'PLANNED' ||
+      rec.deliveryStatus === 'DISPATCHED' ||
+      rec.deliveryStatus === 'DELIVERED' ||
+      rec.deliveryStatus === 'ACCEPTED' ||
+      rec.deliveryStatus === 'RETURNED'
+        ? rec.deliveryStatus
+        : null,
   };
   return contract;
 }
@@ -332,6 +348,9 @@ export function validateRetailWrite(input: RetailWrite, existing: RetailEvent[])
   const current = input.revisingId ? existing.find((row) => row.operatingEventId === input.revisingId) ?? null : null;
   if (input.eventType === 'APPOINTMENT' && input.revisingId) {
     return validateAppointmentRevision(input, current, contract);
+  }
+  if (input.eventType === 'ORDER' && input.revisingId) {
+    return validateOrderRevision(input, current, contract);
   }
   if (input.eventType === 'SALE' || input.eventType === 'SERVICE') return validateSale(input, existing, contract);
   if (input.eventType === 'PURCHASE') return validatePurchase(input, contract);
@@ -509,6 +528,26 @@ function validateStock(input: RetailWrite, contract: OperatingContract): RetailW
   };
 }
 
+function validateOrderRevision(
+  input: RetailWrite,
+  current: RetailEvent | null,
+  contract: OperatingContract
+): RetailWriteResult | { ok: false; message: string } {
+  if (!current || current.eventType !== 'ORDER') return fail('Choose the order to update.');
+  const status = contract.orderStatus ?? current.contract?.orderStatus ?? 'PLACED';
+  if (!['PLACED', 'PREPARING', 'COMPLETED', 'CANCELLED'].includes(status)) return fail('Choose an order status.');
+  contract.orderStatus = status;
+  return {
+    ok: true,
+    paymentStatus: 'NONE',
+    amount: null,
+    parentEventId: null,
+    quantity: input.quantity ?? current.quantity ?? null,
+    contract,
+    settleChild: null,
+  };
+}
+
 function validateOrder(input: RetailWrite, contract: OperatingContract): RetailWriteResult | { ok: false; message: string } {
   if (!String(input.channelName ?? '').trim()) return fail('Order channel is required.');
   if (!contract.orderStatus) contract.orderStatus = 'PLACED';
@@ -619,11 +658,6 @@ export function stockPositions(events: RetailEvent[]): StockPosition[] {
         left -= take;
       }
       continue;
-    }
-    if ((row.eventType === 'SALE' || row.eventType === 'SERVICE') && row.contract?.entryMode === 'ITEMIZED') {
-      for (const line of row.lines ?? []) {
-        touch(line.itemName, line.unit ?? null).onHand -= num(line.quantity);
-      }
     }
   }
   return [...positions.values()];

@@ -240,6 +240,12 @@ struct AppShellView: View {
                 .preferredColorScheme(.dark)
             }
         }
+        .onChange(of: operatingChrome.previewStoryId) { _, id in
+            if let id {
+                storyMomentId = id
+                operatingChrome.previewStoryId = nil
+            }
+        }
         .sheet(item: $editSetupTarget) { target in
             if let momentId = model.selectedMomentId {
                 EditMomentSetupHost(

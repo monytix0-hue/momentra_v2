@@ -1575,6 +1575,11 @@ fun AppShellScreen(
                 )
             }
         }
+        LaunchedEffect(OperatingChromeState.previewStoryId) {
+            val id = OperatingChromeState.previewStoryId ?: return@LaunchedEffect
+            storyMomentId = id
+            OperatingChromeState.previewStoryId = null
+        }
         if (storyMomentId != null) {
             val momentId = storyMomentId
             if (momentId != null) {

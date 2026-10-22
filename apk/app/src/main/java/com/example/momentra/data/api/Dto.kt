@@ -1161,6 +1161,7 @@ data class OperatingTargetDto(
     val value: String = "0",
     val progress: String = "0",
     val configured: Boolean = false,
+    val coverage: String? = null,
 )
 
 data class OperatingAttentionDto(
@@ -1331,6 +1332,9 @@ data class OperatingContractBody(
     val returnDirection: String? = null,
     val goodsOutcome: String? = null,
     val returnReason: String? = null,
+    val acceptedQuantity: String? = null,
+    val productionStatus: String? = null,
+    val deliveryStatus: String? = null,
 )
 
 data class RecordOperatingEventBody(
@@ -1349,6 +1353,14 @@ data class RecordOperatingEventBody(
     val master: OperatingMasterBody? = null,
     val dueAt: String? = null,
     val contract: OperatingContractBody? = null,
+    val reportingMode: String? = null,
+    val metricCode: String? = null,
+    val budgetCategory: String? = null,
+    val paymentState: String? = null,
+    val activityStatus: String? = null,
+    val attributedSales: String? = null,
+    val revisionKind: String? = null,
+    val rejectedQuantity: String? = null,
 )
 
 data class RecordOperatingEventResultDto(

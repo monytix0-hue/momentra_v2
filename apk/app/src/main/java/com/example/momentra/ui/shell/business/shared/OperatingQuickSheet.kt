@@ -93,6 +93,7 @@ data class OperatingCaptureDraft(
     val dueAt: String? = null,
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
     val masterId: String? = null,
+    val rejectedQuantity: String? = null,
 )
 
 private val dayFormat = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH)
@@ -189,11 +190,14 @@ fun OperatingCaptureSheet(
                 (variant == "client" || variant == "own") && mode == "DELIVERABLE" -> "Deliverable"
                 (variant == "client" || variant == "own") && mode == "COMPLETE" -> "Complete"
                 (variant == "client" || variant == "own") && mode == "PARTNER" -> "Partner"
-                (variant == "standard" || variant == "job") && mode == "SALE" -> "Pending"
-                (variant == "standard" || variant == "job") && mode == "ORDER" -> "In production"
+                (variant == "standard" || variant == "job") && mode == "SALE" -> "Received"
+                (variant == "standard" || variant == "job") && mode == "ORDER" -> "Open"
                 (variant == "standard" || variant == "job") && mode == "DELIVERY" -> "Delivered"
-                (variant == "standard" || variant == "job") && mode == "STOCK" -> "Needs check"
-                (variant == "standard" || variant == "job") && mode == "BUDGET" -> "Budget"
+                (variant == "standard" || variant == "job") && mode == "STOCK" -> "Add"
+                (variant == "standard" || variant == "job") && mode == "PURCHASE" -> "Pay later"
+                (variant == "standard" || variant == "job") && mode == "SPEND" -> "Paid"
+                (variant == "standard" || variant == "job") && mode == "UPDATE" -> "Update"
+                (variant == "standard" || variant == "job") && mode == "PRODUCTION" -> "Completed"
                 else -> defaultChoice(mode)
             },
         )
@@ -316,27 +320,16 @@ fun OperatingCaptureSheet(
 
             when (mode) {
                 "SALE", "SERVICE" -> if (production && mode == "SALE") {
-                    ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
-                    AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    if (channels.isNotEmpty()) {
-                        ChoiceBlock("Buyer / channel", channels, channel) { channel = it }
-                    } else {
-                        EditField("Buyer", party, "Required") { party = it }
+                    AmountBlock("Amount", currency, amount, "Quick amount posts revenue and no SKU quantity") { amount = it }
+                    if (channels.isNotEmpty()) ChoiceBlock("Buyer / channel", channels, channel) { channel = it }
+                    else EditField("Buyer", party, "Required when a balance remains") { party = it }
+                    ReadField("Sale date", dateText) { dateOpen = true }
+                    ChoiceBlock("Payment state", listOf("Received", "Part paid", "Pay later"), choice) { choice = it }
+                    if (choice == "Part paid") EditField("Received now", receivedAmount, "Required") { receivedAmount = it }
+                    model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
+                        TextButton(onClick = { parentId = row.id }) { Text(if (parentId == row.id) "Order ${row.title}" else row.title, color = Color.White) }
                     }
-                    FieldRow {
-                        ReadField("Sale date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                        EditField("Fulfilment status", detail, "Dispatched", Modifier.weight(1f)) { detail = it }
-                    }
-                    ChoiceBlock("Payment state", listOf("Paid", "Pending"), choice) { choice = it }
-                    Text(
-                        "Buyer and fulfilment status required. Reference and output quantity are optional.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                    MoreDetails(moreOpen, "Batch, output quantity, and reference. Optional.") { moreOpen = !moreOpen }
-                    if (moreOpen) NoteField("Note", note, "Optional") { note = it }
-                    SummaryCard("After save", saleSummary(model, currency, typed, choice == "Paid"))
+                    Text("A sale is not a delivery.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                 } else if (contractFamily) {
                     ChoiceBlock("Entry", listOf("Quick amount", "Itemized"), entryMode) { entryMode = it }
                     if (entryMode == "Itemized") {
@@ -399,18 +392,20 @@ fun OperatingCaptureSheet(
                     SummaryCard("After save", saleSummary(model, currency, typed, choice == "Received"))
                 }
                 "PURCHASE", "VENDOR" -> if (production && mode == "PURCHASE") {
-                    ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
-                    AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
+                    AmountBlock("Amount", currency, amount, "Counted once toward budget and payables") { amount = it }
                     FieldRow {
                         EditField("Supplier", party, "Required", Modifier.weight(1f)) { party = it }
                         ReadField("Purchase date", dateText, Modifier.weight(1f)) { dateOpen = true }
                     }
-                    EditField("Purpose", purpose, "What was bought") { purpose = it }
-                    ChoiceBlock("Payment state", listOf("Pending / unpaid", "Paid"), choice) { choice = it }
-                    Text("Pending approval. Submission is not payment.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    MoreDetails(moreOpen, "Quantity, reference, and due date. Optional.") { moreOpen = !moreOpen }
-                    if (moreOpen) NoteField("Note", note, "Optional") { note = it }
-                    SummaryCard("After approval", purchaseSummary(model, currency, typed, choice.startsWith("Pending")))
+                    EditField("Material", itemName, "Optional item") { itemName = it }
+                    FieldRow {
+                        EditField("Qty", quantity, "Qty", Modifier.weight(1f)) { quantity = it }
+                        EditField("Unit", unit, "kg", Modifier.weight(1f)) { unit = it }
+                    }
+                    ChoiceBlock("Materials received", listOf("Received", "Part received", "Awaiting"), receiptState) { receiptState = it }
+                    if (receiptState == "Part received") EditField("Quantity received", quantityReceived, "Required") { quantityReceived = it }
+                    ChoiceBlock("Payment state", listOf("Paid", "Part paid", "Pay later"), choice) { choice = it }
+                    Text("Stock increases only for the quantity you mark as received.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                 } else if (marketing && mode == "VENDOR") {
                     ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
                     AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
@@ -695,40 +690,26 @@ fun OperatingCaptureSheet(
                     SummaryCard("After approval", budgetSummary(model, currency, typed))
                 }
                 "ORDER" -> if (production) {
-                    EditField("Customer", party, "Required") { party = it }
-                    ChoiceBlock(
-                        "Order status",
-                        if (job) {
-                            listOf("Open", "In production", "Ready", "Delivered", "Cancelled", "Delayed", "Blocked")
-                        } else {
-                            listOf("Open", "In production", "Ready", "Delivered")
-                        },
-                        choice,
-                    ) { choice = it }
-                    AmountBlock("Value", currency, amount, "Positive amount") { amount = it }
-                    ReadField("Due date", dateText) { dateOpen = true }
-                    EditField("Reference", purpose, "Optional") { purpose = it }
-                    NoteField("Specification note", note, "Optional") { note = it }
-                    Text(
-                        "An order is a commitment, not revenue.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
+                    EditField("Buyer", party, "Required") { party = it }
+                    EditField("Quantity", quantity, "Required") { quantity = it }
+                    EditField("Unit", unit, "pcs") { unit = it }
+                    AmountBlock("Order value · Optional", currency, amount, "Leave blank when the order is unpriced") { amount = it }
+                    ReadField("Order date", dateText) { dateOpen = true }
+                    Text("An order is not revenue, cash, stock, or a receivable.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                 } else when {
-                    restaurant -> {
-                        EditField("Order / context", purpose, "What changed") { purpose = it }
-                        ChoiceBlock("Order status", listOf("Preparing", "Ready", "Handoff delayed"), choice) { choice = it }
-                        NoteField("Operational note", note, "Optional") { note = it }
-                        EditField("Customer", party, "Optional") { party = it }
-                        FieldRow {
-                            ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                            ReadField("Draft time", dateText, Modifier.weight(1f)) { dateOpen = true }
+                    restaurant || model.subtype == "RETAIL_STORE" -> {
+                        if (channels.isNotEmpty()) ChoiceBlock("Order channel", channels, channel) { channel = it }
+                        else EditField("Order channel", channel, "Required") { channel = it }
+                        ChoiceBlock("Order status", listOf("Placed", "Preparing", "Completed", "Cancelled"), choice.ifBlank { "Placed" }) { choice = it }
+                        model.activity.filter { it.eventType == "ORDER" }.forEach { row ->
+                            TextButton(onClick = { parentId = row.id }) {
+                                Text(if (parentId == row.id) "Updating ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans, fontSize = 13.sp)
+                            }
                         }
-                        SummaryCard(
-                            "After save",
-                            listOf("Saves an operational note.", "This does not create a sale or a money record."),
-                        )
+                        EditField("Guest or customer", party, "Optional") { party = it }
+                        AmountBlock("Estimated amount", currency, amount, "Pipeline only") { amount = it }
+                        ReadField("Order time", dateText) { dateOpen = true }
+                        Text("An order is not a sale until you bill it.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                     }
                     distribution -> {
                         EditField("Buyer / dealer", party, "Required") { party = it }
@@ -817,24 +798,23 @@ fun OperatingCaptureSheet(
                     SummaryCard("After save", listOf("Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."))
                 }
                 "APPOINTMENT" -> if (service) {
-                    EditField("Job / context", purpose, "What the job is") { purpose = it }
-                    if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, channel) { channel = it }
-                    FieldRow {
-                        ReadField("Appointment date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                        EditField("Professional", party, "Who is assigned", Modifier.weight(1f)) { party = it }
+                    EditField("Service", purpose, "Required") { purpose = it }
+                    ReadField("Appointment time", dateText) { dateOpen = true }
+                    EditField("Guest or customer", party, "Optional for a walk-in") { party = it }
+                    EditField("Assigned person", detail, "Optional") { detail = it }
+                    model.activity.filter { it.eventType == "APPOINTMENT" }.forEach { row ->
+                        TextButton(onClick = { parentId = row.id }) {
+                            Text(if (parentId == row.id) "Updating ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans, fontSize = 13.sp)
+                        }
                     }
-                    ChoiceBlock("Job status", listOf("Scheduled", "Completed"), choice) { choice = it }
+                    if (parentId.isNotBlank() || seed?.id?.isNotBlank() == true) {
+                        ChoiceBlock("Action", listOf("Reschedule", "Cancel", "No-show", "Start", "Complete"), choice) { choice = it }
+                    }
                     Text(
-                        "Job status is operational only. Completing a job does not create revenue or a receivable.",
+                        "Booking, starting, and completing do not post revenue. Finalize a charge separately.",
                         color = SheetMuted,
                         fontFamily = PlusJakartaSans,
                         fontSize = 12.sp,
-                    )
-                    MoreDetails(moreOpen, "Customer. Optional.") { moreOpen = !moreOpen }
-                    if (moreOpen) NoteField("Customer", note, "Optional") { note = it }
-                    SummaryCard(
-                        "After save",
-                        listOf("Saves the job as activity.", "Revenue and collections stay unchanged."),
                     )
                 } else {
                     NoteField("Appointment", purpose, "What happened") { purpose = it }
@@ -846,63 +826,41 @@ fun OperatingCaptureSheet(
                     SummaryCard("After save", listOf("Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."))
                 }
                 "UPDATE", "DELIVERY", "DELIVERABLE", "COMPLETE", "RESULT", "PRODUCTION" -> if (production && mode == "PRODUCTION") {
-                    AmountBlock("Quantity / output", currency, amount, "Positive output") { amount = it }
+                    ChoiceBlock("Output", listOf("Quick output", "Detailed batch"), entryMode) { entryMode = it }
+                    AmountBlock("Output quantity", currency, amount, "Recorded output. This is not accepted stock.") { amount = it }
                     FieldRow {
                         EditField("Unit", detail, "Required", Modifier.weight(1f)) { detail = it }
                         ReadField("Date", dateText, Modifier.weight(1f)) { dateOpen = true }
                     }
-                    EditField("Output context", purpose, "Required") { purpose = it }
-                    Text(
-                        if (job) {
-                            "Unit compatible with this job context. Custom jobs and unlike units are never aggregated."
-                        } else {
-                            "Unit compatible with this output context. Unlike units are never aggregated."
-                        },
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                    FieldRow {
-                        EditField(if (job) "Linked order" else "Batch", link, "Optional", Modifier.weight(1f)) { link = it }
-                        EditField(if (job) "Batch / ref" else "Order / ref", party, "Optional", Modifier.weight(1f)) { party = it }
+                    EditField(if (entryMode == "Detailed batch") "Finished product" else "Output context", purpose, "Required for a detailed batch") { purpose = it }
+                    if (entryMode == "Detailed batch") {
+                        EditField("Accepted quantity", quantity, "Required to add finished stock") { quantity = it }
+                        EditField("Rejected quantity", note, "Optional") { note = it }
+                        ChoiceBlock("Status", listOf("Planned", "In progress", "Completed"), choice) { choice = it }
                     }
-                    NoteField("Note", note, "Optional") { note = it }
-                    ReadField("Recorded by", actor.substringBefore(" ·"))
-                    Text(
-                        "Catalogue, BOM, and machine setup are optional. Money totals stay unchanged.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
+                    model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
+                        TextButton(onClick = { parentId = row.id }) { Text(row.title, color = Color.White) }
+                    }
+                    Text("Quick output does not create a finished SKU.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                 } else if (production && mode == "UPDATE") {
-                    NoteField("Update text", purpose, "Required") { purpose = it }
-                    EditField("Linked operational context", note, "Optional") { note = it }
-                    FieldRow {
-                        ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                        ReadField("Draft time", dateText, Modifier.weight(1f)) { dateOpen = true }
+                    ChoiceBlock("Record", listOf("Update", "Issue", "Approval", "Budget", "Target"), choice) { choice = it }
+                    if (choice == "Budget" || choice == "Target") {
+                        AmountBlock(if (choice == "Target") "Proposed target" else "Proposed budget", currency, amount, "Effective when approved") { amount = it }
                     }
-                    SummaryCard(
-                        "After save",
-                        listOf("Saved as production activity.", "Money totals stay unchanged."),
-                    )
+                    NoteField("What happened", purpose, "Required") { purpose = it }
                 } else if (production && mode == "DELIVERY") {
-                    EditField(if (job) "Order" else "Order / buyer", purpose, "Required") { purpose = it }
-                    ChoiceBlock("Delivery status", listOf("Pending", "Partial", "Delivered"), choice) { choice = it }
-                    NoteField("Delivered quantity", note, "Required") { note = it }
-                    AmountBlock("Value · Optional", currency, amount, "Leave blank if there is no amount") { amount = it }
-                    if (job) {
-                        FieldRow {
-                            EditField("Customer", party, "Required", Modifier.weight(1f)) { party = it }
-                            EditField("Linked order", link, "Optional", Modifier.weight(1f)) { link = it }
-                        }
+                    Text("Customer order", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                    model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
+                        TextButton(onClick = { parentId = row.id }) { Text(if (parentId == row.id) "Selected ${row.title}" else row.title, color = Color.White) }
+                    }
+                    ChoiceBlock("Delivery", listOf("Quick status", "Itemized"), entryMode) { entryMode = it }
+                    ChoiceBlock("Status", listOf("Planned", "Dispatched", "Delivered", "Accepted", "Returned"), choice) { choice = it }
+                    if (entryMode == "Itemized") {
+                        EditField("Delivered quantity", quantity, "Cannot exceed the open order") { quantity = it }
+                        EditField("Unit", unit, "pcs") { unit = it }
                     }
                     ReadField("Delivery date", dateText) { dateOpen = true }
-                    Text(
-                        "Delivered is not collected. It does not recognize the sale again.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
+                    Text("A status-only delivery does not post a quantity or a sale.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                 } else if (marketing && mode == "RESULT") {
                     AmountBlock("Value", currency, amount, "Positive amount · 2 decimal places") { amount = it }
                     if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, channel) { channel = it }
@@ -1012,19 +970,14 @@ fun OperatingCaptureSheet(
                     EditField("Reorder point", detail, "Optional") { detail = it }
                     Text("Set replaces the count. Add and reduce move it. This is not a purchase.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                 } else if (production) {
-                    EditField("Material / finished-goods context", purpose, "Required") { purpose = it }
-                    ChoiceBlock("Quantity / stock status", listOf("Available", "Needs check", "Low availability"), choice) { choice = it }
-                    NoteField("Stock note", note, "Required") { note = it }
+                    EditField("Item", purpose, "Required") { purpose = it }
+                    ChoiceBlock("Action", listOf("Set", "Add", "Reduce"), choice) { choice = it }
+                    ChoiceBlock("Reason", listOf("opening", "stocktake", "damage", "waste", "return", "correction"), note) { note = it }
                     FieldRow {
-                        ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                        ReadField("Draft time", dateText, Modifier.weight(1f)) { dateOpen = true }
+                        EditField("Quantity", quantity, "Required", Modifier.weight(1f)) { quantity = it }
+                        EditField("Unit", unit, "kg", Modifier.weight(1f)) { unit = it }
                     }
-                    Text(
-                        "This is an operational signal. It creates no purchase, sale, or money record.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
+                    Text("Damage is not an expense or a sale.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                 } else {
                     EditField(if (distribution) "Availability context" else "Stock context", purpose, "What changed") { purpose = it }
                     ChoiceBlock(
@@ -1249,12 +1202,13 @@ fun OperatingCaptureSheet(
                 marketing && mode == "COMPLETE" -> purpose.isNotBlank() && note.isNotBlank()
                 marketing && mode == "PAYMENT" -> party.isNotBlank() && purpose.isNotBlank()
                 marketing && mode == "ISSUE" -> purpose.isNotBlank() && party.isNotBlank()
-                production && mode == "PRODUCTION" -> detail.isNotBlank() && purpose.isNotBlank()
-                production && mode == "SALE" -> if (channels.isNotEmpty()) channel.isNotBlank() else party.isNotBlank()
-                production && mode == "PURCHASE" -> party.isNotBlank()
-                production && mode == "ORDER" -> party.isNotBlank()
-                production && mode == "DELIVERY" -> purpose.isNotBlank() && note.isNotBlank() && (!job || party.isNotBlank())
-                production && mode == "STOCK" -> purpose.isNotBlank() && note.isNotBlank()
+                production && mode == "SALE" -> amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && (choice == "Received" || party.isNotBlank() || channel.isNotBlank())
+                production && mode == "PURCHASE" -> party.isNotBlank() && amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
+                production && mode == "ORDER" -> party.isNotBlank() && quantity.isNotBlank()
+                production && mode == "DELIVERY" -> parentId.isNotBlank() && (entryMode != "Itemized" || quantity.isNotBlank())
+                production && mode == "STOCK" -> purpose.isNotBlank() && quantity.isNotBlank()
+                production && mode == "PRODUCTION" -> amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && detail.isNotBlank() && (entryMode != "Detailed batch" || purpose.isNotBlank())
+                production && mode == "UPDATE" -> purpose.isNotBlank() || choice == "Budget" || choice == "Target"
                 production && mode == "BUDGET" -> purpose.isNotBlank()
                 production && mode == "ISSUE" -> purpose.isNotBlank() && party.isNotBlank()
                 production && mode == "UPDATE" -> purpose.isNotBlank()
@@ -1581,6 +1535,223 @@ private fun localDateToUtcMillis(date: LocalDate): Long =
 private fun utcMillisToLocalDate(millis: Long): LocalDate =
     Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
 
+private fun payCode(label: String): String = when {
+    label.equals("Received", true) -> "RECEIVED"
+    label.equals("Paid", true) -> "PAID"
+    label.equals("Part paid", true) -> "PART_PAID"
+    else -> "PAY_LATER"
+}
+
+private fun manufacturingDraft(
+    mode: String,
+    eventType: String,
+    title: String,
+    amount: String,
+    channel: String,
+    party: String,
+    purpose: String,
+    note: String,
+    choice: String,
+    occurredAt: String?,
+    detail: String,
+    link: String,
+    itemName: String,
+    quantity: String,
+    unit: String,
+    parentId: String,
+    entryMode: String,
+    receiptState: String,
+    receivedAmount: String,
+    quantityReceived: String,
+): OperatingCaptureDraft? {
+    fun draft(
+        type: String,
+        savedTitle: String,
+        savedAmount: String?,
+        qty: String? = null,
+        savedUnit: String? = null,
+        parent: String? = null,
+        payment: String? = null,
+        contract: com.example.momentra.data.api.OperatingContractBody? = null,
+        rejected: String? = null,
+        item: String? = null,
+    ) = OperatingCaptureDraft(
+        eventType = type,
+        title = savedTitle.ifBlank { title },
+        amount = savedAmount,
+        note = null,
+        channelName = channel.ifBlank { null },
+        counterpartyName = party.ifBlank { null },
+        paymentStatus = payment,
+        occurredAt = occurredAt,
+        quantity = qty,
+        unit = savedUnit,
+        itemName = item,
+        parentEventId = parent,
+        contract = contract,
+        rejectedQuantity = rejected,
+    )
+    return when (mode) {
+        "PRODUCTION" -> {
+            val output = amount.toBigDecimalOrNull()
+            if (output == null || output <= BigDecimal.ZERO || detail.isBlank()) return null
+            val detailed = entryMode.equals("Detailed batch", true)
+            if (detailed && purpose.isBlank()) return null
+            draft(
+                "PRODUCTION",
+                if (detailed) purpose else purpose.ifBlank { title },
+                amount,
+                qty = amount,
+                savedUnit = detail,
+                parent = parentId.ifBlank { null },
+                contract = com.example.momentra.data.api.OperatingContractBody(
+                    entryMode = if (detailed) "ITEMIZED" else "QUICK",
+                    acceptedQuantity = if (detailed) quantity.ifBlank { null } else null,
+                    productionStatus = if (!detailed) null else when (choice) {
+                        "Planned" -> "PLANNED"
+                        "In progress" -> "IN_PROGRESS"
+                        else -> "COMPLETED"
+                    },
+                ),
+                rejected = if (detailed) note.ifBlank { null } else null,
+            )
+        }
+        "PURCHASE" -> {
+            val value = amount.toBigDecimalOrNull()
+            if (party.isBlank() || value == null || value <= BigDecimal.ZERO) return null
+            val receipt = when {
+                receiptState.equals("Part received", true) -> "PART_RECEIVED"
+                receiptState.equals("Awaiting", true) || receiptState.equals("Awaiting receipt", true) -> "AWAITING"
+                else -> "RECEIVED"
+            }
+            draft(
+                "PURCHASE",
+                itemName.ifBlank { purpose.ifBlank { title } },
+                amount,
+                qty = quantity.ifBlank { null },
+                savedUnit = unit.ifBlank { null },
+                contract = com.example.momentra.data.api.OperatingContractBody(
+                    entryMode = if (itemName.isBlank()) "QUICK" else "ITEMIZED",
+                    paymentState = payCode(choice),
+                    receiptState = receipt,
+                    receivedAmount = if (choice.equals("Part paid", true)) receivedAmount.ifBlank { null } else null,
+                    quantityReceived = if (receipt == "PART_RECEIVED") quantityReceived.ifBlank { null } else quantity.ifBlank { null },
+                ),
+                item = itemName.ifBlank { null },
+            )
+        }
+        "SPEND" -> {
+            val value = amount.toBigDecimalOrNull()
+            if (value == null || value <= BigDecimal.ZERO) return null
+            if (!choice.equals("Paid", true) && party.isBlank()) return null
+            draft("SPEND", purpose.ifBlank { title }, amount, contract = com.example.momentra.data.api.OperatingContractBody(paymentState = payCode(choice)))
+        }
+        "SALE" -> {
+            val value = amount.toBigDecimalOrNull()
+            if (value == null || value <= BigDecimal.ZERO) return null
+            if (!choice.equals("Received", true) && party.isBlank() && channel.isBlank()) return null
+            draft(
+                "SALE",
+                title,
+                amount,
+                parent = parentId.ifBlank { null },
+                contract = com.example.momentra.data.api.OperatingContractBody(
+                    entryMode = "QUICK",
+                    paymentState = payCode(choice),
+                    receivedAmount = if (choice.equals("Part paid", true)) receivedAmount.ifBlank { null } else null,
+                ),
+            )
+        }
+        "ORDER" -> {
+            if (party.isBlank() || quantity.isBlank()) return null
+            draft(
+                "CUSTOMER_ORDER",
+                party,
+                amount.ifBlank { null },
+                qty = quantity,
+                savedUnit = unit.ifBlank { null },
+                payment = "NONE",
+                contract = com.example.momentra.data.api.OperatingContractBody(orderStatus = "PLACED", estimatedAmount = amount.ifBlank { null }),
+            )
+        }
+        "DELIVERY" -> {
+            if (parentId.isBlank()) return null
+            val itemized = entryMode.equals("Itemized", true)
+            if (itemized && (quantity.toBigDecimalOrNull() ?: BigDecimal.ZERO) <= BigDecimal.ZERO) return null
+            draft(
+                "DELIVERY",
+                "Delivery",
+                null,
+                qty = if (itemized) quantity else null,
+                savedUnit = if (itemized) unit.ifBlank { null } else null,
+                parent = parentId,
+                contract = com.example.momentra.data.api.OperatingContractBody(
+                    entryMode = if (itemized) "ITEMIZED" else "QUICK",
+                    deliveryStatus = when (choice) {
+                        "Planned" -> "PLANNED"
+                        "Dispatched" -> "DISPATCHED"
+                        "Accepted" -> "ACCEPTED"
+                        "Returned" -> "RETURNED"
+                        else -> "DELIVERED"
+                    },
+                ),
+            )
+        }
+        "COLLECTION" -> {
+            val value = amount.toBigDecimalOrNull()
+            if (value == null || value <= BigDecimal.ZERO || party.isBlank()) return null
+            draft("COLLECTION", "Collection", amount, parent = parentId.ifBlank { null }, payment = "COLLECTED")
+        }
+        "PAYMENT" -> {
+            val value = amount.toBigDecimalOrNull()
+            if (value == null || value <= BigDecimal.ZERO || parentId.isBlank()) return null
+            draft("PAYMENT", "Payment", amount, parent = parentId, payment = "PAID")
+        }
+        "STOCK" -> {
+            if (purpose.isBlank()) return null
+            val action = when (choice.lowercase()) {
+                "reduce" -> "REDUCE"
+                "add" -> "ADD"
+                else -> "SET"
+            }
+            if (action != "SET" && (quantity.toBigDecimalOrNull() ?: BigDecimal.ZERO) <= BigDecimal.ZERO) return null
+            draft(
+                "STOCK",
+                purpose,
+                null,
+                qty = quantity.ifBlank { "0" },
+                savedUnit = unit.ifBlank { null },
+                contract = com.example.momentra.data.api.OperatingContractBody(
+                    stockAction = action,
+                    stockReason = note.ifBlank { "correction" },
+                    declaredQuantity = if (action == "SET") quantity.ifBlank { null } else null,
+                ),
+            )
+        }
+        "BUDGET" -> {
+            val value = amount.toBigDecimalOrNull()
+            if (value == null || value <= BigDecimal.ZERO || purpose.isBlank()) return null
+            draft(if (choice == "Target") "TARGET" else "BUDGET", purpose, amount)
+        }
+        "UPDATE", "ISSUE" -> {
+            if (choice == "Budget" || choice == "Target") {
+                val value = amount.toBigDecimalOrNull()
+                if (value == null || value <= BigDecimal.ZERO || purpose.isBlank()) return null
+                draft(if (choice == "Target") "TARGET" else "BUDGET", purpose, amount)
+            } else {
+                if (purpose.isBlank()) return null
+                val code = when (choice) {
+                    "Issue" -> "ISSUE"
+                    "Approval" -> "APPROVAL"
+                    else -> "UPDATE"
+                }
+                draft(code, purpose, null)
+            }
+        }
+        else -> null
+    }
+}
+
 private fun buildDraft(
     mode: String,
     eventType: String,
@@ -1648,6 +1819,12 @@ private fun buildDraft(
     }
     val marketing = client || own
     val production = standard || job
+    if (production && mode in setOf("PRODUCTION", "PURCHASE", "SPEND", "SALE", "ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "STOCK", "BUDGET", "UPDATE", "ISSUE")) {
+        return manufacturingDraft(
+            mode, eventType, title, amount, channel, party, purpose, note, choice, occurredAt,
+            detail, link, itemName, quantity, unit, parentId, entryMode, receiptState, receivedAmount, quantityReceived,
+        )
+    }
     val needsAmount = mode in setOf("SALE", "SERVICE", "PURCHASE", "VENDOR", "SPEND", "PAYMENT", "REIMBURSE", "COLLECTION", "BUDGET", "TARGET", "RESULT", "PRODUCTION", "RETURN")
     val computed = quantity.toBigDecimalOrNull()?.multiply(unitPrice.toBigDecimalOrNull() ?: BigDecimal.ZERO)
     val resolvedAmount = amount.ifBlank {
@@ -1887,8 +2064,8 @@ private fun buildDraft(
         unit = unit.ifBlank { null },
         unitPrice = unitPrice.ifBlank { null },
         itemName = lineItemName.ifBlank { null },
-        parentEventId = parentId.ifBlank { null },
-        revisesEventId = revisesEventId?.takeIf { it.isNotBlank() },
+        parentEventId = if (mode == "ORDER" || mode == "APPOINTMENT") null else parentId.ifBlank { null },
+        revisesEventId = if ((mode == "ORDER" || mode == "APPOINTMENT") && parentId.isNotBlank()) parentId else revisesEventId?.takeIf { it.isNotBlank() },
         masterKind = if (mode == "MASTERS") masterKind.ifBlank { null } else null,
         dueAt = dueAtDay?.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }
             ?: link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) },

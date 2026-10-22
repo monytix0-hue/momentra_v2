@@ -6,6 +6,7 @@ struct ConsumerServiceActiveView: View {
     var onOpenQuickAdd: () -> Void = {}
     var onRecord: (ServiceEventDraft) async throws -> Void = { _ in }
     var onDecide: (String, String) async throws -> Void = { _, _ in }
+    var momentId: String? = nil
 
     @State private var activityOpen = false
 
@@ -41,6 +42,8 @@ struct ConsumerServiceActiveView: View {
                     } else {
                         Text("No service target set for this period.").font(.plusJakarta(size: 13)).foregroundStyle(ServiceChrome.secondary)
                     }
+                    Text("A booking or a completion is not revenue until the charge is finalized.")
+                        .font(.plusJakarta(size: 12)).foregroundStyle(ServiceChrome.secondary)
                     if model.budget?.configured == true {
                         meter("Budget used", fraction(model.budget?.spent, model.budget?.amount), ServiceChrome.success)
                         line("Budget remaining", money(model.budget?.remaining), ServiceChrome.success)
@@ -137,6 +140,15 @@ struct ConsumerServiceActiveView: View {
     private var memory: some View {
         VStack(alignment: .leading, spacing: 16) {
             header("Memory", "What this service keeps from the month.")
+            Button("Preview story") {
+                if let momentId { OperatingChromeState.shared.previewStoryId = momentId }
+            }
+            .font(.plusJakarta(size: 14, weight: .semibold))
+            .foregroundStyle(ServiceChrome.bg)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(ServiceChrome.brand)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             HStack {
                 pill(period)
                 pill("Current")

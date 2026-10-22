@@ -29,6 +29,8 @@ import {
   type OperatingContract,
 } from './operating-retail-contract';
 import { isTradingSubtype, validateTradingWrite } from './operating-trading-contract';
+import { isMarketingSubtype, parseMarketingFacts, validateMarketingWrite } from './operating-marketing';
+import { isManufacturingSubtype, validateManufacturingWrite } from './operating-manufacturing';
 
 const amountSchema = z.string().regex(/^\d+(\.\d{1,4})?$/);
 
@@ -71,6 +73,14 @@ export const recordOperatingEventSchema = z
       })
       .nullish(),
     metric: z.enum(['LEADS', 'CONVERSIONS']).optional(),
+    reportingMode: z.enum(['INCREMENTAL', 'CUMULATIVE']).optional(),
+    metricCode: z.string().max(40).optional(),
+    budgetCategory: z.string().max(80).optional(),
+    paymentState: z.enum(['PAID', 'PART_PAID', 'PAY_LATER']).optional(),
+    activityStatus: z.enum(['OPEN', 'DONE']).optional(),
+    attributedSales: amountSchema.optional(),
+    revisionKind: z.enum(['BUDGET', 'TARGET', 'CATEGORY']).optional(),
+    effectiveAt: z.string().max(40).optional(),
     rejectedQuantity: amountSchema.optional(),
     contract: z
       .object({
@@ -107,6 +117,9 @@ export const recordOperatingEventSchema = z
         returnDirection: z.enum(['CUSTOMER', 'SUPPLIER']).nullish(),
         goodsOutcome: z.enum(['TO_STOCK', 'NOT_RETURNED', 'PENDING_INSPECTION']).nullish(),
         returnReason: z.string().max(80).nullish(),
+        acceptedQuantity: amountSchema.nullish(),
+        productionStatus: z.enum(['PLANNED', 'IN_PROGRESS', 'COMPLETED']).nullish(),
+        deliveryStatus: z.enum(['PLANNED', 'DISPATCHED', 'DELIVERED', 'ACCEPTED', 'RETURNED']).nullish(),
       })
       .strict()
       .optional(),
@@ -228,6 +241,7 @@ async function loadEvents(client: PoolClient, momentId: string): Promise<Operati
       master: master && master.kind && master.name ? master : null,
       contract: parseOperatingContract(payload.contract),
       metric,
+      marketing: parseMarketingFacts(payload, metric),
       rejectedQuantity: rejected == null || rejected === '' ? null : String(rejected),
     };
   });
@@ -302,8 +316,13 @@ export async function recordOperatingEvent(
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Operating setup was not found.', 400);
   }
   const prefs = prefsOf(setup.preferences);
-  const def = quickAddDef(body.eventType);
-  if (!def || !familyForSubtype(prefs.subtype)?.subtypes.find((s) => s.code === prefs.subtype)?.quickAdds.includes(def.code)) {
+  const postedType = body.eventType.toUpperCase() === 'SALE' && prefs.subtype === 'CLIENT_CAMPAIGN' ? 'INVOICE' : body.eventType;
+  const def = quickAddDef(postedType);
+  const allowed = def && (
+    familyForSubtype(prefs.subtype)?.subtypes.find((s) => s.code === prefs.subtype)?.quickAdds.includes(def.code)
+    || (prefs.subtype === 'CLIENT_CAMPAIGN' && body.eventType.toUpperCase() === 'SALE')
+  );
+  if (!def || !allowed) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, `This moment does not include ${body.eventType}.`, 400);
   }
   const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs);
@@ -313,6 +332,7 @@ export async function recordOperatingEvent(
   const quantityCoversAmount =
     Boolean(body.quantity) &&
     (def.code === 'RESULT' ||
+      def.code === 'PROGRESS' ||
       def.code === 'TARGET' ||
       def.code === 'ORDER' ||
       def.code === 'SHIPMENT' ||
@@ -344,11 +364,14 @@ export async function recordOperatingEvent(
     ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'STOCK', 'ORDER', 'SHIPMENT', 'DELIVERY', 'RETURN'].includes(
       def.code
     );
+  const manufacturingGoverned =
+    isManufacturingSubtype(prefs.subtype) &&
+    ['PRODUCTION', 'PURCHASE', 'SPEND', 'SALE', 'CUSTOMER_ORDER', 'DELIVERY', 'PAYMENT', 'COLLECTION', 'STOCK'].includes(def.code);
   let retailContract: OperatingContract | null = null;
   let settleChild: { type: 'COLLECTION' | 'PAYMENT'; amount: string } | null = null;
   let parentEventId = body.parentEventId ?? null;
   let quantity = body.quantity ?? null;
-  if (retailGoverned || tradingGoverned) {
+  if (retailGoverned || tradingGoverned || manufacturingGoverned) {
     const writeContract = parseOperatingContract(body.contract) ?? undefined;
     const checked = retailGoverned
       ? validateRetailWrite(
@@ -367,7 +390,8 @@ export async function recordOperatingEvent(
           },
           existing
         )
-      : validateTradingWrite(
+      : tradingGoverned
+        ? validateTradingWrite(
           {
             eventType: def.code,
             title: body.title,
@@ -381,6 +405,24 @@ export async function recordOperatingEvent(
             lines: body.lines,
             contract: writeContract,
             channelTracking: (prefs.channels?.length ?? 0) > 0,
+          },
+          existing
+        )
+        : validateManufacturingWrite(
+          {
+            eventType: def.code,
+            title: body.title,
+            amount,
+            counterpartyName: body.counterpartyName,
+            channelName: body.channelName,
+            occurredAt: body.occurredAt,
+            parentEventId,
+            quantity: body.quantity,
+            dueAt: body.dueAt,
+            lines: body.lines,
+            contract: writeContract,
+            unit: body.unit,
+            rejectedQuantity: body.rejectedQuantity,
           },
           existing
         );
@@ -414,7 +456,7 @@ export async function recordOperatingEvent(
       throw new AppError(ErrorCode.VALIDATION_FAILED, 'Choose a record on this moment.', 400);
     }
     const wanted = def.code === 'PAYMENT' || def.code === 'COLLECTION'
-      ? (def.code === 'COLLECTION' ? ['SALE', 'SERVICE', 'CUSTOMER_ORDER'] : ['PURCHASE', 'SPEND', 'VENDOR_COST'])
+      ? (def.code === 'COLLECTION' ? ['SALE', 'SERVICE', 'CUSTOMER_ORDER', 'INVOICE'] : ['PURCHASE', 'SPEND', 'VENDOR_COST'])
       : [];
     const openParent = existing.some(
       (row) =>
@@ -436,11 +478,38 @@ export async function recordOperatingEvent(
     if (!allocation.ok) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, allocation.message, 400);
     }
+    if (isMarketingSubtype(prefs.subtype)) {
+      const checked = validateMarketingWrite(
+        {
+          eventType: def.code === 'INVOICE' && body.eventType.toUpperCase() === 'SALE' ? 'INVOICE' : def.code,
+          subtype: prefs.subtype,
+          amount,
+          quantity: body.quantity ?? null,
+          unit: body.unit ?? null,
+          parentEventId,
+          metricCode: body.metricCode ?? body.metric ?? null,
+          reportingMode: body.reportingMode ?? null,
+          revisionKind: body.revisionKind ?? null,
+          activityStatus: body.activityStatus ?? null,
+          attributedSales: body.attributedSales ?? null,
+        },
+        existing
+      );
+      if (!checked.ok) throw new AppError(ErrorCode.VALIDATION_FAILED, checked.message, 400);
+    }
     const lineQuantity = body.lines?.reduce((total, line) => total + Number(line.quantity ?? 0), 0) ?? 0;
     quantity = body.quantity ?? (lineQuantity > 0 ? lineQuantity.toFixed(4) : null);
   }
   const payload: Record<string, unknown> = {};
   if (body.metric) payload.metric = body.metric;
+  if (body.metricCode) payload.metricCode = body.metricCode;
+  if (body.reportingMode) payload.reportingMode = body.reportingMode;
+  if (body.budgetCategory) payload.budgetCategory = body.budgetCategory;
+  if (body.paymentState) payload.paymentState = body.paymentState;
+  if (body.activityStatus) payload.activityStatus = body.activityStatus;
+  if (body.attributedSales) payload.attributedSales = body.attributedSales;
+  if (body.revisionKind) payload.revisionKind = body.revisionKind;
+  if (body.effectiveAt) payload.effectiveAt = body.effectiveAt;
   if (body.rejectedQuantity) payload.rejectedQuantity = body.rejectedQuantity;
   if (body.lines?.length) payload.lines = body.lines;
   if (body.unit) payload.unit = body.unit;
@@ -635,6 +704,10 @@ export async function reviseOperatingEvent(
   if (body.unit) payload.unit = body.unit;
   if (body.dueAt) payload.dueAt = body.dueAt;
   if (body.metric) payload.metric = body.metric;
+  if (body.metricCode) payload.metricCode = body.metricCode;
+  if (body.reportingMode) payload.reportingMode = body.reportingMode;
+  if (body.revisionKind) payload.revisionKind = body.revisionKind;
+  if (body.activityStatus) payload.activityStatus = body.activityStatus;
   let revisedAmount = body.amount ?? null;
   let revisedStatus: 'NONE' | 'PENDING' | 'READY' | 'PAID' | 'COLLECTED' | null = body.paymentStatus ?? null;
   let revisedQuantity = body.quantity ?? null;
@@ -695,6 +768,34 @@ export async function reviseOperatingEvent(
     revisedStatus = checked.paymentStatus as typeof revisedStatus;
     revisedQuantity = checked.quantity;
     payload.contract = checked.contract;
+  } else if (
+    isManufacturingSubtype(prefs.subtype) &&
+    ['PRODUCTION', 'PURCHASE', 'SPEND', 'SALE', 'CUSTOMER_ORDER', 'DELIVERY', 'PAYMENT', 'COLLECTION', 'STOCK'].includes(current.eventType)
+  ) {
+    const checked = validateManufacturingWrite(
+      {
+        eventType: current.eventType,
+        title: body.title,
+        amount: body.amount ?? current.amount,
+        counterpartyName: body.counterpartyName ?? current.counterpartyName,
+        channelName: body.channelName ?? current.channelName,
+        occurredAt: body.occurredAt ?? current.occurredAt,
+        parentEventId: body.parentEventId ?? current.parentEventId,
+        quantity: body.quantity ?? current.quantity,
+        dueAt: body.dueAt ?? current.dueAt,
+        lines: body.lines ?? current.lines,
+        contract: parseOperatingContract(body.contract) ?? current.contract ?? undefined,
+        unit: body.unit ?? current.unit,
+        rejectedQuantity: body.rejectedQuantity ?? current.rejectedQuantity,
+      },
+      existing.filter((row) => row.operatingEventId !== eventId)
+    );
+    if (!checked.ok) throw new AppError(ErrorCode.VALIDATION_FAILED, checked.message, 400);
+    revisedAmount = checked.amount;
+    revisedStatus = checked.paymentStatus as typeof revisedStatus;
+    revisedQuantity = checked.quantity;
+    payload.contract = checked.contract;
+    if (body.rejectedQuantity) payload.rejectedQuantity = body.rejectedQuantity;
   }
   const lineQuantity = body.lines?.reduce((total, line) => total + Number(line.quantity ?? 0), 0) ?? 0;
   await client.query(

@@ -59,6 +59,9 @@ data class ProductionEventDraft(
     val parentEventId: String? = null,
     val revisesEventId: String? = null,
     val masterKind: String? = null,
+    val dueAt: String? = null,
+    val contract: com.example.momentra.data.api.OperatingContractBody? = null,
+    val rejectedQuantity: String? = null,
 )
 
 private enum class ProductionSheet(
@@ -73,7 +76,7 @@ private enum class ProductionSheet(
     PURCHASE("Material Purchase", "PURCHASE", true, false, true, null),
     SPEND("Expense", "SPEND", true, false, false, null),
     SALE("Sale / Dispatch", "SALE", true, false, true, null),
-    CUSTOMER_ORDER("Customer Order", "CUSTOMER_ORDER", true, false, true, "PENDING"),
+    CUSTOMER_ORDER("Customer Order", "CUSTOMER_ORDER", false, false, true, null),
     DELIVERY("Delivery", "DELIVERY", false, false, true, null),
     PAYMENT("Payment", "PAYMENT", true, false, true, "PENDING"),
     COLLECTION("Collection", "COLLECTION", true, false, false, "PENDING"),
@@ -187,17 +190,15 @@ fun ProductionQuickAddHub(
     }
     val core = listOf(
         ProductionSheet.CUSTOMER_ORDER to "Customer order",
-        ProductionSheet.PRODUCTION to "Production",
         ProductionSheet.PURCHASE to "Material purchase",
-        ProductionSheet.SPEND to "Expense",
-        ProductionSheet.SALE to "Sale / dispatch",
+        ProductionSheet.PRODUCTION to "Production",
+        ProductionSheet.SALE to "Sale",
         ProductionSheet.DELIVERY to "Delivery",
-        ProductionSheet.PAYMENT to "Payment",
         ProductionSheet.COLLECTION to "Collection",
-        ProductionSheet.BUDGET to "Budget / target",
-        ProductionSheet.UPDATE to "Update",
-        ProductionSheet.ISSUE to "Issue",
-        ProductionSheet.STOCK to "Material / stock",
+        ProductionSheet.PAYMENT to "Payment",
+        ProductionSheet.SPEND to "Expense",
+        ProductionSheet.STOCK to "Stock",
+        ProductionSheet.UPDATE to "Update / Plan",
     ).filter { (kind, label) ->
         kind.eventType in allowed && label.contains(query, ignoreCase = true)
     }
@@ -413,4 +414,7 @@ private fun OperatingCaptureDraft.toProduction() = ProductionEventDraft(
     parentEventId = parentEventId,
     revisesEventId = revisesEventId,
     masterKind = masterKind,
+    dueAt = dueAt,
+    contract = contract,
+    rejectedQuantity = rejectedQuantity,
 )

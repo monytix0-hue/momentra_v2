@@ -134,7 +134,13 @@ struct MarketingQuickAddHub: View {
                         masterKind: draft.masterKind,
                         dueAt: draft.dueAt,
                         contract: draft.contract,
-                        lineItems: draft.lineItems
+                        lineItems: draft.lineItems,
+                        reportingMode: draft.reportingMode,
+                        metricCode: draft.metricCode,
+                        budgetCategory: draft.budgetCategory,
+                        activityStatus: draft.activityStatus,
+                        attributedSales: draft.attributedSales,
+                        revisionKind: draft.revisionKind
                     ))
                 },
                 onDecide: onDecide
@@ -168,7 +174,13 @@ struct MarketingQuickAddHub: View {
                         masterKind: draft.masterKind,
                         dueAt: draft.dueAt,
                         contract: draft.contract,
-                        lineItems: draft.lineItems
+                        lineItems: draft.lineItems,
+                        reportingMode: draft.reportingMode,
+                        metricCode: draft.metricCode,
+                        budgetCategory: draft.budgetCategory,
+                        activityStatus: draft.activityStatus,
+                        attributedSales: draft.attributedSales,
+                        revisionKind: draft.revisionKind
                     ))
                 },
                 onDecide: onDecide
@@ -240,11 +252,15 @@ struct MarketingQuickAddHub: View {
 }
 
 enum MarketingSheetKind: String, Identifiable {
-    case spend, result, payment, collection, budget, target, update, issue, approval, deliverable, vendorCost, complete, person, role, partner, channels
+    case activity, progress, spend, result, payment, invoice, collection, revision, update, issue, approval, deliverable, vendorCost, complete, person, role, partner, channels, budget, target
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .spend: return "Spend"
+        case .activity: return "Add Activity"
+        case .progress: return "Update Progress"
+        case .invoice: return "Record Invoice"
+        case .revision: return "Budget / Target Revision"
+        case .spend: return "Record Spend"
         case .result: return "Result"
         case .payment: return "Payment"
         case .collection: return "Collection"
@@ -264,13 +280,12 @@ enum MarketingSheetKind: String, Identifiable {
     }
     func icon(_ client: Bool) -> String {
         switch self {
+        case .activity, .update, .channels: return "qa_message"
+        case .progress, .result: return client ? "qa_message" : "qa_budget"
+        case .invoice, .collection: return "qa_arrow_left_right"
+        case .revision, .budget, .target: return "qa_budget"
         case .spend: return client ? "qa_receipt" : "biz_qa_wallet"
-        case .result: return client ? "qa_message" : "qa_budget"
         case .payment: return "qa_credit_card"
-        case .collection: return "qa_arrow_left_right"
-        case .budget: return "qa_budget"
-        case .target: return client ? "qa_alert" : "qa_budget"
-        case .update, .channels: return "qa_message"
         case .issue: return "qa_alert"
         case .approval: return "qa_shield"
         case .deliverable: return client ? "qa_clipboard" : "qa_message"
@@ -283,6 +298,10 @@ enum MarketingSheetKind: String, Identifiable {
     }
     func sheetTitle(_ client: Bool) -> String {
         switch self {
+        case .activity: return "Add Activity"
+        case .progress: return "Update Progress"
+        case .invoice: return "Record Invoice"
+        case .revision: return "Budget / Target Revision"
         case .spend: return "Add Spend / Expense"
         case .result: return "Add Result"
         case .payment: return "Add Payment"
@@ -301,11 +320,13 @@ enum MarketingSheetKind: String, Identifiable {
     }
     var captureMode: String {
         switch self {
+        case .activity: return "UPDATE"
+        case .progress, .result: return "RESULT"
+        case .invoice: return "SALE"
+        case .revision, .budget: return "BUDGET"
         case .spend: return "SPEND"
-        case .result: return "RESULT"
         case .payment: return "PAYMENT"
         case .collection: return "COLLECTION"
-        case .budget: return "BUDGET"
         case .target: return "TARGET"
         case .update, .approval: return "UPDATE"
         case .issue: return "ISSUE"
@@ -319,6 +340,10 @@ enum MarketingSheetKind: String, Identifiable {
     }
     var title: String {
         switch self {
+        case .activity: return "Add Activity"
+        case .progress: return "Update Progress"
+        case .invoice: return "Record Invoice"
+        case .revision: return "Budget / Target Revision"
         case .spend: return "Add Spend"
         case .result: return "Add Result"
         case .payment: return "Add Payment"
@@ -339,6 +364,10 @@ enum MarketingSheetKind: String, Identifiable {
     }
     var eventType: String {
         switch self {
+        case .activity: return "ACTIVITY"
+        case .progress: return "PROGRESS"
+        case .invoice: return "INVOICE"
+        case .revision: return "REVISION"
         case .spend: return "SPEND"
         case .result: return "RESULT"
         case .payment: return "PAYMENT"
@@ -355,7 +384,7 @@ enum MarketingSheetKind: String, Identifiable {
     }
     var needsAmount: Bool {
         switch self {
-        case .spend, .result, .payment, .collection, .budget, .target, .vendorCost: return true
+        case .spend, .result, .payment, .invoice, .collection, .revision, .budget, .target, .vendorCost, .progress: return true
         default: return false
         }
     }
@@ -367,5 +396,5 @@ enum MarketingSheetKind: String, Identifiable {
         default: return nil
         }
     }
-    static let core: [MarketingSheetKind] = [.spend, .result, .payment, .collection, .budget, .target, .update, .issue, .approval, .deliverable, .vendorCost, .complete]
+    static let core: [MarketingSheetKind] = [.activity, .progress, .spend, .payment, .invoice, .collection, .revision, .approval, .update, .issue, .result]
 }
