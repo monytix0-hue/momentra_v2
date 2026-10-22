@@ -99,7 +99,7 @@ struct TradingQuickAddHub: View {
                 variant: "trading",
                 onSubmit: { draft in try await onRecord(draft.toTrading()) },
                 onDecide: onDecide,
-                onCreateMaster: { kind, name, unit in
+                onCreateMaster: { kind, name, unit, conversion in
                     try await onRecord(TradingEventDraft(
                         eventType: "UPDATE",
                         title: name,
@@ -109,7 +109,8 @@ struct TradingQuickAddHub: View {
                         counterpartyName: nil,
                         paymentStatus: nil,
                         unit: unit,
-                        masterKind: kind
+                        masterKind: kind,
+                        conversionToBase: conversion
                     ))
                 }
             )

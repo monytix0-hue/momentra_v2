@@ -5281,6 +5281,7 @@ final class APIClient {
         itemName: String? = nil,
         unitPrice: String? = nil,
         masterKind: String? = nil,
+        conversionToBase: String? = nil,
         revisesEventId: String? = nil,
         dueAt: String? = nil,
         contract: OperatingContractInput? = nil,
@@ -5329,7 +5330,7 @@ final class APIClient {
             return nil
         }()
         let master = masterKind?.isEmpty == false
-            ? Master(kind: masterKind!, name: title, unit: unit, conversionToBase: nil)
+            ? Master(kind: masterKind!, name: title, unit: unit, conversionToBase: conversionToBase)
             : nil
         let body = Body(
             eventType: eventType,

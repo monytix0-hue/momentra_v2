@@ -733,7 +733,10 @@ function childQuantity(events: OperatingEventRow[], parentId: string, types: Set
 
 function obligationRemaining(row: OperatingEventRow, events: OperatingEventRow[], childTypes: Set<string>): number {
   if (!effective(row) || settled(row)) return 0;
-  return Math.max(0, num(row.amount) - childAmount(events, row.operatingEventId, childTypes, true));
+  // Include RETURN so credit notes reduce open receivable/payable (QA-07).
+  const types = new Set(childTypes);
+  types.add('RETURN');
+  return Math.max(0, num(row.amount) - childAmount(events, row.operatingEventId, types, true));
 }
 
 function producedUnits(row: OperatingEventRow): number {
@@ -1137,8 +1140,24 @@ function financeTotals(
   const rows = events.filter(effective);
   const sum = (match: (row: OperatingEventRow) => boolean) =>
     money(rows.filter(match).reduce((total, row) => total + num(row.amount), 0));
+  const grossSales = rows
+    .filter((row) => row.eventType === 'SALE' || row.eventType === 'SERVICE')
+    .reduce((total, row) => total + num(row.amount), 0);
+  // Net posted sales: subtract effective RETURN credit notes linked to a SALE/SERVICE.
+  const saleIds = new Set(
+    rows.filter((row) => row.eventType === 'SALE' || row.eventType === 'SERVICE').map((row) => row.operatingEventId)
+  );
+  const returned = rows
+    .filter(
+      (row) =>
+        row.eventType === 'RETURN' &&
+        row.parentEventId != null &&
+        saleIds.has(row.parentEventId) &&
+        (row.contract?.returnDirection == null || row.contract.returnDirection === 'CUSTOMER')
+    )
+    .reduce((total, row) => total + num(row.amount), 0);
   return {
-    sales: sum((row) => row.eventType === 'SALE' || row.eventType === 'SERVICE'),
+    sales: money(Math.max(0, grossSales - returned)),
     received: money(
       rows.reduce((total, row) => {
         if (row.eventType === 'COLLECTION' && row.paymentStatus === 'COLLECTED') return total + num(row.amount);

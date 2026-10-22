@@ -61,6 +61,7 @@ data class DistributionEventDraft(
     val parentEventId: String? = null,
     val revisesEventId: String? = null,
     val masterKind: String? = null,
+    val conversionToBase: String? = null,
     val dueAt: String? = null,
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
     val masterId: String? = null,
@@ -238,7 +239,7 @@ fun DistributionQuickAddHub(
     }
     if (error != null) Text(error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans, fontSize = 13.sp)
     }
-    val createMaster: suspend (String, String, String?) -> Unit = { kind, name, unit ->
+    val createMaster: suspend (String, String, String?, String?) -> Unit = { kind, name, unit, conversion ->
         onRecord(
             DistributionEventDraft(
                 eventType = "UPDATE",
@@ -251,6 +252,7 @@ fun DistributionQuickAddHub(
                 unit = unit,
                 itemName = name,
                 masterKind = kind,
+                conversionToBase = conversion,
             ),
         )
     }
@@ -404,6 +406,7 @@ private fun OperatingCaptureDraft.toDistribution() = DistributionEventDraft(
     parentEventId = parentEventId,
     revisesEventId = revisesEventId,
     masterKind = masterKind,
+    conversionToBase = conversionToBase,
     dueAt = dueAt,
     contract = contract,
     masterId = masterId,
