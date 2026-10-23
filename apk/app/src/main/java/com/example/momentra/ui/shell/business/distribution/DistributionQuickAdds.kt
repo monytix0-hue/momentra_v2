@@ -185,6 +185,7 @@ fun DistributionQuickAddHub(
         DistributionSheet.SPEND to "Expense",
         DistributionSheet.PAYMENT to "Payment",
         DistributionSheet.COLLECTION to "Collection",
+        DistributionSheet.BUDGET to "Budget",
         DistributionSheet.UPDATE to "Update",
         DistributionSheet.ISSUE to "Issue",
         DistributionSheet.STOCK to "Stock",

@@ -1211,6 +1211,8 @@ data class OperatingActivityDto(
     val quantity: String? = null,
     val unit: String? = null,
     val parentEventId: String? = null,
+    val status: String? = null,
+    val orderSide: String? = null,
 )
 
 data class OperatingLifeDto(
@@ -1330,6 +1332,8 @@ data class OperatingContractBody(
     val originalCurrency: String? = null,
     val fxRate: String? = null,
     val convertedAmount: String? = null,
+    val orderSide: String? = null,
+    val goodsStatus: String? = null,
     val returnDirection: String? = null,
     val goodsOutcome: String? = null,
     val returnReason: String? = null,

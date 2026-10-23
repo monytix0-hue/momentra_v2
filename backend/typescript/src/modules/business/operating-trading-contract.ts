@@ -143,8 +143,8 @@ export function validateTradingWrite(
   if (input.eventType === 'PURCHASE') return validatePurchase(input, existing, contract);
   if (input.eventType === 'SPEND') return validateExpense(input, contract);
   if (input.eventType === 'COLLECTION' || input.eventType === 'PAYMENT') return validateSettlement(input, existing, contract);
-  if (input.eventType === 'STOCK') return validateStock(input, contract);
-  if (input.eventType === 'ORDER') return validateOrder(input, contract);
+  if (input.eventType === 'STOCK') return validateStock(input, existing, contract);
+  if (input.eventType === 'ORDER') return validateOrder(input, existing, contract);
   if (input.eventType === 'SHIPMENT' || input.eventType === 'DELIVERY') return validateShipment(input, existing, contract);
   if (input.eventType === 'RETURN') return validateReturn(input, existing, contract);
   return {
@@ -220,12 +220,20 @@ function validateSale(
   if (received < amount && !day(input.dueAt)) return fail('Due date is required when a balance remains.');
   if (input.parentEventId) {
     const parent = existing.find((row) => row.operatingEventId === input.parentEventId);
-    if (!parent) return fail('Choose a record on this moment.');
-    if (!['ORDER', 'SHIPMENT', 'DELIVERY'].includes(parent.eventType)) return fail('That record cannot be linked here.');
-    const billed = existing.some(
-      (row) => row.parentEventId === parent.operatingEventId && row.eventType === 'SALE' && effective(row)
-    );
-    if (billed) return fail('This already has a posted sale.');
+    if (!parent || !effective(parent)) return fail('Choose a record on this moment.');
+    if (parent.eventType === 'ORDER') {
+      if (parent.contract?.orderSide === 'PURCHASE') return fail('A purchase order is billed with a purchase.');
+      const cap = num(parent.contract?.estimatedAmount);
+      if (cap > 0) {
+        const used = postedAgainst(parent.operatingEventId, ['SALE'], existing);
+        if (used + amount - cap > 0.00005) return fail('That is more than the order still open.');
+      }
+    } else if (!['SHIPMENT', 'DELIVERY'].includes(parent.eventType)) {
+      return fail('That record cannot be linked here.');
+    }
+  }
+  if (contract.goodsStatus !== 'DELIVERED' && contract.goodsStatus !== 'PARTIAL' && contract.goodsStatus !== 'LATER') {
+    contract.goodsStatus = 'LATER';
   }
   contract.receivedAmount = money(received);
   return {
@@ -276,13 +284,26 @@ function validatePurchase(
       if (!converted.ok) return converted;
     }
   }
+  let parentEventId: string | null = null;
+  if (input.parentEventId) {
+    const parent = existing.find((row) => row.operatingEventId === input.parentEventId);
+    if (!parent || !effective(parent) || parent.eventType !== 'ORDER' || parent.contract?.orderSide !== 'PURCHASE') {
+      return fail('Choose a purchase order on this moment.');
+    }
+    const cap = num(parent.contract?.estimatedAmount);
+    if (cap > 0) {
+      const used = postedAgainst(parent.operatingEventId, ['PURCHASE'], existing);
+      if (used + amount - cap > 0.00005) return fail('That is more than the order still open.');
+    }
+    parentEventId = parent.operatingEventId;
+  }
   contract.paymentState = state;
   contract.receivedAmount = money(paid);
   return {
     ok: true,
     paymentStatus: state === 'PAID' ? 'PAID' : 'PENDING',
     amount: money(amount),
-    parentEventId: null,
+    parentEventId,
     quantity: contract.receiptState === 'AWAITING' ? '0.0000' : contract.quantityReceived ?? input.quantity ?? null,
     contract,
     settleChild: state === 'PART_PAID' ? { type: 'PAYMENT', amount: money(paid) } : null,
@@ -353,7 +374,17 @@ function validateSettlement(
   };
 }
 
-function validateStock(input: TradingWrite, contract: OperatingContract): RetailWriteResult | { ok: false; message: string } {
+function postedAgainst(parentId: string, types: string[], existing: TradingEvent[]): number {
+  return existing
+    .filter((row) => effective(row) && row.parentEventId === parentId && types.includes(row.eventType))
+    .reduce((total, row) => total + num(row.amount), 0);
+}
+
+function validateStock(
+  input: TradingWrite,
+  existing: TradingEvent[],
+  contract: OperatingContract
+): RetailWriteResult | { ok: false; message: string } {
   if (!input.title.trim()) return fail('Choose an item.');
   if (contract.stockAction !== 'SET' && contract.stockAction !== 'ADD' && contract.stockAction !== 'REDUCE') {
     return fail('Choose set, add, or reduce.');
@@ -363,6 +394,13 @@ function validateStock(input: TradingWrite, contract: OperatingContract): Retail
   }
   if (!contract.stockReason) return fail('Choose a reason.');
   if (contract.ownership !== 'OWNED' && contract.ownership !== 'CONSIGNMENT') contract.ownership = 'OWNED';
+  if (num(input.quantity) > 0) {
+    for (const line of input.lines ?? []) {
+      if (!(num(line.quantity) > 0) || !String(line.unit ?? '').trim()) continue;
+      const converted = convertLine(line, existing);
+      if (!converted.ok) return converted;
+    }
+  }
   if (contract.stockAction === 'SET') contract.declaredQuantity = money(num(input.quantity));
   return {
     ok: true,
@@ -375,21 +413,36 @@ function validateStock(input: TradingWrite, contract: OperatingContract): Retail
   };
 }
 
-function validateOrder(input: TradingWrite, contract: OperatingContract): RetailWriteResult | { ok: false; message: string } {
+function validateOrder(
+  input: TradingWrite,
+  existing: TradingEvent[],
+  contract: OperatingContract
+): RetailWriteResult | { ok: false; message: string } {
   if (!String(input.channelName ?? '').trim() && !namedParty(input.counterpartyName)) {
     return fail('Buyer or channel is required.');
   }
   if (!contract.orderStatus) contract.orderStatus = 'PLACED';
   if (!['PLACED', 'PREPARING', 'COMPLETED', 'CANCELLED'].includes(contract.orderStatus)) return fail('Choose an order status.');
-  // Order amount is a commitment estimate — never revenue until billed as SALE.
+  if (contract.orderSide !== 'SALES' && contract.orderSide !== 'PURCHASE') contract.orderSide = 'SALES';
+  if (input.lines?.length) {
+    for (const line of input.lines) {
+      if (!line.itemName.trim() || !(num(line.quantity) > 0) || !String(line.unit ?? '').trim()) {
+        return fail('Each order line needs a name, quantity, and unit.');
+      }
+      const converted = convertLine(line, existing);
+      if (!converted.ok) return converted;
+    }
+  }
+  // Order amount is a commitment estimate — never revenue until billed as SALE or PURCHASE.
   if (input.amount) contract.estimatedAmount = input.amount;
   if (input.dueAt) contract.promisedAt = input.dueAt;
+  const lineQty = (input.lines ?? []).reduce((total, line) => total + lineBaseQuantity(line, productForLine(line, existing)), 0);
   return {
     ok: true,
     paymentStatus: 'NONE',
     amount: null,
     parentEventId: null,
-    quantity: input.quantity ?? null,
+    quantity: lineQty > 0 ? money(lineQty) : input.quantity ?? null,
     contract,
     settleChild: null,
   };
@@ -409,7 +462,11 @@ function validateShipment(
   }
   if (input.parentEventId) {
     const parent = existing.find((row) => row.operatingEventId === input.parentEventId);
-    if (!parent || parent.eventType !== 'ORDER') return fail('Link shipment to an order on this moment.');
+    if (!parent || !effective(parent) || !['ORDER', 'SALE', 'PURCHASE'].includes(parent.eventType)) {
+      return fail('Link delivery to a posted sale, purchase, or order.');
+    }
+  } else if (input.eventType === 'DELIVERY') {
+    return fail('Choose the posted sale or purchase.');
   }
   if (input.dueAt) contract.promisedAt = input.dueAt;
   return {
@@ -527,13 +584,19 @@ export function tradingStockPositions(events: TradingEvent[]): StockPosition[] {
       (row.eventType === 'SHIPMENT' || row.eventType === 'DELIVERY') &&
       row.contract?.shipmentStatus === 'DELIVERED'
     ) {
-      const lines = row.lines ?? [];
-      if (lines.length > 0) {
-        for (const line of lines) {
-          touch(line.itemName, line.unit ?? null).onHand -= qtyOf(line);
+      const parent = events.find((item) => item.operatingEventId === row.parentEventId);
+      const incoming = parent?.eventType === 'PURCHASE';
+      const alreadyReceived = incoming && parent?.contract?.receiptState && parent.contract.receiptState !== 'AWAITING';
+      if (!alreadyReceived) {
+        const sign = incoming ? 1 : -1;
+        const lines = row.lines ?? [];
+        if (lines.length > 0) {
+          for (const line of lines) {
+            touch(line.itemName, line.unit ?? null).onHand += sign * qtyOf(line);
+          }
+        } else if (row.title.trim() && num(row.quantity) > 0) {
+          touch(row.title, row.unit ?? null).onHand += sign * num(row.quantity);
         }
-      } else if (row.title.trim() && num(row.quantity) > 0) {
-        touch(row.title, row.unit ?? null).onHand -= num(row.quantity);
       }
       continue;
     }
@@ -802,6 +865,47 @@ export function tradingAttention(
       dueAt: promised,
       counterpartyName: order.counterpartyName ?? null,
       sourceEventId: order.operatingEventId,
+      cta: 'shipment',
+    });
+  }
+
+  for (const order of events) {
+    if (order.eventType !== 'ORDER' || !effective(order)) continue;
+    if (order.contract?.orderStatus === 'CANCELLED' || order.contract?.orderStatus === 'COMPLETED') continue;
+    if (cards.some((card) => card.sourceEventId === order.operatingEventId && card.kind === 'OVERDUE_SHIPMENT')) continue;
+    const party = order.counterpartyName || order.title;
+    push({
+      id: `order-${order.operatingEventId}`,
+      title: `${party} order is still open`,
+      kind: 'PENDING_ORDER',
+      severity: 'LOW',
+      amount: null,
+      dueAt: order.contract?.promisedAt ?? order.dueAt ?? null,
+      counterpartyName: order.counterpartyName ?? null,
+      sourceEventId: order.operatingEventId,
+      cta: 'order',
+    });
+  }
+
+  for (const row of events) {
+    if (!effective(row)) continue;
+    const openShipment =
+      (row.eventType === 'SHIPMENT' || row.eventType === 'DELIVERY') &&
+      row.contract?.shipmentStatus !== 'DELIVERED' &&
+      row.contract?.shipmentStatus !== 'CANCELLED';
+    const openSaleGoods = row.eventType === 'SALE' && (row.contract?.goodsStatus === 'PARTIAL' || row.contract?.goodsStatus === 'LATER');
+    if (!openShipment && !openSaleGoods) continue;
+    if (cards.some((card) => card.sourceEventId === row.operatingEventId)) continue;
+    const party = row.counterpartyName || row.title;
+    push({
+      id: `move-${row.operatingEventId}`,
+      title: openSaleGoods ? `${party} delivery is still open` : `${party} delivery is not complete`,
+      kind: 'PENDING_DELIVERY',
+      severity: 'LOW',
+      amount: null,
+      dueAt: row.contract?.promisedAt ?? row.dueAt ?? null,
+      counterpartyName: row.counterpartyName ?? null,
+      sourceEventId: row.operatingEventId,
       cta: 'shipment',
     });
   }

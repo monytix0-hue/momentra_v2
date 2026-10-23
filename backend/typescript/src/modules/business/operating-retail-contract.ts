@@ -71,6 +71,8 @@ export interface OperatingContract {
   appointmentStatus?: 'BOOKED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | null;
   appointmentAction?: 'RESCHEDULE' | 'CANCEL' | 'NO_SHOW' | 'START' | 'COMPLETE' | null;
   orderStatus?: 'PLACED' | 'PREPARING' | 'COMPLETED' | 'CANCELLED' | null;
+  orderSide?: 'SALES' | 'PURCHASE' | null;
+  goodsStatus?: 'DELIVERED' | 'PARTIAL' | 'LATER' | null;
   clientKey?: string | null;
   allocations?: OperatingAllocation[];
   reorderPoint?: string | null;
@@ -284,6 +286,8 @@ export function parseOperatingContract(raw: unknown): OperatingContract | null {
       rec.goodsOutcome === 'PENDING_INSPECTION'
         ? rec.goodsOutcome
         : null,
+    orderSide: rec.orderSide === 'SALES' || rec.orderSide === 'PURCHASE' ? rec.orderSide : null,
+    goodsStatus: rec.goodsStatus === 'DELIVERED' || rec.goodsStatus === 'PARTIAL' || rec.goodsStatus === 'LATER' ? rec.goodsStatus : null,
     returnReason: rec.returnReason == null ? null : String(rec.returnReason),
     acceptedQuantity: rec.acceptedQuantity == null ? null : String(rec.acceptedQuantity),
     productionStatus:

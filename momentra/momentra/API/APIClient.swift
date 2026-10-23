@@ -62,6 +62,8 @@ struct OperatingActivityPayload: Decodable, Identifiable {
     let quantity: String?
     let unit: String?
     let parentEventId: String?
+    let status: String?
+    let orderSide: String?
 }
 
 struct OperatingLifePayload: Decodable {
@@ -169,6 +171,8 @@ struct OperatingContractInput: Encodable {
     var originalCurrency: String? = nil
     var fxRate: String? = nil
     var convertedAmount: String? = nil
+    var orderSide: String? = nil
+    var goodsStatus: String? = nil
     var returnDirection: String? = nil
     var goodsOutcome: String? = nil
     var returnReason: String? = nil

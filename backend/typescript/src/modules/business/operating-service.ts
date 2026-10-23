@@ -29,6 +29,7 @@ import {
   type OperatingContract,
 } from './operating-retail-contract';
 import { isTradingSubtype, validateTradingWrite } from './operating-trading-contract';
+import { uomDimension } from './operating-trading-lov';
 import { isMarketingSubtype, parseMarketingFacts, validateMarketingWrite } from './operating-marketing';
 import { isManufacturingSubtype, validateManufacturingWrite } from './operating-manufacturing';
 
@@ -95,6 +96,8 @@ export const recordOperatingEventSchema = z
         appointmentStatus: z.enum(['BOOKED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW']).nullish(),
         appointmentAction: z.enum(['RESCHEDULE', 'CANCEL', 'NO_SHOW', 'START', 'COMPLETE']).nullish(),
         orderStatus: z.enum(['PLACED', 'PREPARING', 'COMPLETED', 'CANCELLED']).nullish(),
+        orderSide: z.enum(['SALES', 'PURCHASE']).nullish(),
+        goodsStatus: z.enum(['DELIVERED', 'PARTIAL', 'LATER']).nullish(),
         clientKey: z.string().max(80).nullish(),
         allocations: z.array(z.object({ sourceId: z.string().min(1).max(80), amount: amountSchema })).max(12).nullish(),
         reorderPoint: amountSchema.nullish(),
@@ -518,7 +521,10 @@ export async function recordOperatingEvent(
   if (body.lines?.length) payload.lines = body.lines;
   if (body.unit) payload.unit = body.unit;
   if (body.dueAt) payload.dueAt = body.dueAt;
-  if (body.master) payload.master = body.master;
+  if (body.master) {
+    const dimension = body.master.dimension ?? (body.master.unit ? uomDimension(body.master.unit) : null);
+    payload.master = dimension ? { ...body.master, dimension } : body.master;
+  }
   if (retailContract) {
     payload.contract = retailContract;
     if (retailContract.clientKey) payload.clientKey = retailContract.clientKey;

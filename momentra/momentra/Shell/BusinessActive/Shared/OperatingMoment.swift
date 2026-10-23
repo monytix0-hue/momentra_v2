@@ -198,7 +198,9 @@ struct OperatingMomentPage: View {
                         note: nil,
                         quantity: nil,
                         unit: nil,
-                        parentEventId: row.id
+                        parentEventId: row.id,
+                        status: nil,
+                        orderSide: nil
                     ),
                     onSubmit: { draft in
                         guard let momentId else { return }

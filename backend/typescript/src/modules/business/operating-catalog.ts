@@ -616,6 +616,7 @@ export interface OperatingProjection {
     unit: string | null;
     parentEventId: string | null;
     status: string | null;
+    orderSide: string | null;
   }>;
   life: { channels: string[]; openCommitments: number; resultProgress: string };
   memory: { revisions: Array<{ id: string; title: string; occurredAt: string }> };
@@ -1010,6 +1011,10 @@ export function projectOperatingMoment(args: {
     const measured = marketingProgress(pulseEvents, args.prefs.targetMetric);
     progress = measured.progress;
   }
+  // Pulse recorded sales is net posted sales. Gross countsTarget amounts ignore credit notes.
+  if (args.familyCode === 'TRADING_DISTRIBUTION' && args.prefs.targetMetric.toUpperCase() === 'REVENUE') {
+    progress = netPostedSales(pulseEvents);
+  }
   let manufacturingCoverage: string | null = null;
   if (args.familyCode === 'MANUFACTURING_PRODUCTION') {
     const measured = manufacturingMeasure(pulseEvents.map(toManufacturing), args.prefs.targetMetric);
@@ -1155,6 +1160,7 @@ export function projectOperatingMoment(args: {
       unit: row.unit ?? row.lines?.[0]?.unit ?? null,
       parentEventId: row.parentEventId ?? null,
       status: row.contract?.appointmentStatus ?? row.contract?.orderStatus ?? null,
+      orderSide: row.contract?.orderSide ?? null,
     })),
     life: {
       channels: args.prefs.channels,
@@ -1190,22 +1196,12 @@ function emptyFacts(): Pick<OperatingBoardRow, 'channelName' | 'counterpartyName
   };
 }
 
-function financeTotals(
-  events: OperatingEventRow[],
-  visible: boolean,
-  continuity: OperatingContinuity
-): OperatingFinanceTotals | null {
-  if (!visible) return null;
+/** Posted SALE, SERVICE, and INVOICE minus linked customer credit notes. */
+function netPostedSales(events: OperatingEventRow[]): number {
   const rows = events.filter(effective);
-  const sum = (match: (row: OperatingEventRow) => boolean) =>
-    money(rows.filter(match).reduce((total, row) => total + num(row.amount), 0));
-  const grossSales = rows
-    .filter((row) => row.eventType === 'SALE' || row.eventType === 'SERVICE' || row.eventType === 'INVOICE')
-    .reduce((total, row) => total + num(row.amount), 0);
-  // Net posted sales: subtract effective RETURN credit notes linked to a SALE/SERVICE.
-  const saleIds = new Set(
-    rows.filter((row) => row.eventType === 'SALE' || row.eventType === 'SERVICE' || row.eventType === 'INVOICE').map((row) => row.operatingEventId)
-  );
+  const posted = rows.filter((row) => row.eventType === 'SALE' || row.eventType === 'SERVICE' || row.eventType === 'INVOICE');
+  const grossSales = posted.reduce((total, row) => total + num(row.amount), 0);
+  const saleIds = new Set(posted.map((row) => row.operatingEventId));
   const returned = rows
     .filter(
       (row) =>
@@ -1215,8 +1211,20 @@ function financeTotals(
         (row.contract?.returnDirection == null || row.contract.returnDirection === 'CUSTOMER')
     )
     .reduce((total, row) => total + num(row.amount), 0);
+  return Math.max(0, grossSales - returned);
+}
+
+function financeTotals(
+  events: OperatingEventRow[],
+  visible: boolean,
+  continuity: OperatingContinuity
+): OperatingFinanceTotals | null {
+  if (!visible) return null;
+  const rows = events.filter(effective);
+  const sum = (match: (row: OperatingEventRow) => boolean) =>
+    money(rows.filter(match).reduce((total, row) => total + num(row.amount), 0));
   return {
-    sales: money(Math.max(0, grossSales - returned)),
+    sales: money(netPostedSales(events)),
     received: money(
       rows.reduce((total, row) => {
         if (row.eventType === 'COLLECTION' && row.paymentStatus === 'COLLECTED') return total + num(row.amount);
