@@ -549,15 +549,18 @@ struct RetailStoreSetupView: View {
     private func metricLabel(_ code: String) -> String {
         let metrics = spec.targetMetrics
         switch code {
-        case "REVENUE": return metrics.contains("VALUE_DISPATCHED") ? "Sales / Revenue" : "Revenue"
+        case "REVENUE": return metrics.contains("PRODUCTION_OUTPUT") ? "Recognized sales" : (metrics.contains("VALUE_DISPATCHED") ? "Sales / Revenue" : "Revenue")
         case "LEADS": return "Leads"
-        case "ORDERS": return metrics.contains("DELIVERY_COUNT") ? "Order count" : "Orders"
+        case "CONVERSIONS": return "Conversions"
+        case "REACH": return "Reach"
+        case "ENGAGEMENT": return "Engagement"
+        case "ORDERS": return metrics.contains("PRODUCTION_OUTPUT") ? "Order intake" : (metrics.contains("DELIVERY_COUNT") ? "Order count" : "Orders")
         case "CUSTOM_COUNT": return metrics.contains("DELIVERY_COUNT") ? "Compatible units" : "Custom count"
         case "CLIENT_BILLING": return "Client billing"
-        case "PRODUCTION_OUTPUT": return "Production output"
+        case "PRODUCTION_OUTPUT": return metrics.contains("DELIVERY_COUNT") ? "Accepted units" : "Production output"
         case "UNITS_PRODUCED": return "Units Produced"
         case "VALUE_DISPATCHED": return "Value Dispatched"
-        case "DELIVERY_COUNT": return "Delivery count"
+        case "DELIVERY_COUNT": return metrics.contains("PRODUCTION_OUTPUT") ? "Delivered units" : "Delivery count"
         default: return code
         }
     }
@@ -721,7 +724,7 @@ private struct SetupSpec {
             ownerAccess: "Full campaign access. Only the owner changes roles.",
             leadTitle: "Campaign lead", leadBody: "Runs day-to-day campaign work. Does not see full money records unless you allow it.",
             peopleNote: "You can start on your own. A campaign lead and finance person are optional.",
-            channelPrompt: "Where does this campaign run? Choose at least one.",
+            channelPrompt: "Channels are optional.",
             channels: channels,
             activate: "Activate campaign",
             footer: "This stays private to your business. Only the owner can change who has access. Nothing is counted until the campaign is active.",
@@ -733,7 +736,8 @@ private struct SetupSpec {
             partyNote: partyNote,
             channelHelp: "These are the places this campaign runs. They are not a different kind of business.",
             targetNote: "Accepted results count toward the target. Money collected does not. Spend and vendor costs count once toward the budget.",
-            targetMetrics: targetMetrics
+            targetMetrics: targetMetrics,
+            channelsOptional: true
         )
     }
 
@@ -808,7 +812,7 @@ private struct SetupSpec {
                 partySection: "Material Suppliers & Buyers",
                 partyKinds: [("SUPPLIER", "Material supplier"), ("BUYER", "Buyer or group")],
                 partyNote: "Material suppliers and buyers are optional. Counterparties stay separate from invited team roles.",
-                targetMetrics: ["REVENUE", "PRODUCTION_OUTPUT", "UNITS_PRODUCED", "VALUE_DISPATCHED"],
+                targetMetrics: ["REVENUE", "PRODUCTION_OUTPUT", "DELIVERY_COUNT", "ORDERS"],
                 reviewKind: "Standard Production",
                 steps: "4 steps · Factory, people, suppliers, buyers and monthly plan"
             )
@@ -821,7 +825,7 @@ private struct SetupSpec {
                 partySection: "Material Suppliers & Customers",
                 partyKinds: [("SUPPLIER", "Material supplier"), ("CUSTOMER", "Customer")],
                 partyNote: "Material suppliers and customers are optional. They are counterparties, not people who can sign in.",
-                targetMetrics: ["REVENUE", "ORDERS", "DELIVERY_COUNT", "PRODUCTION_OUTPUT", "CUSTOM_COUNT"],
+                targetMetrics: ["REVENUE", "PRODUCTION_OUTPUT", "DELIVERY_COUNT", "ORDERS"],
                 reviewKind: "Made-to-Order Production",
                 steps: "4 steps · Factory, people, suppliers, customers and monthly plan",
                 tradeReach: ["Local", "Domestic", "International"]
@@ -833,10 +837,10 @@ private struct SetupSpec {
                 badge: "Campaign draft · Not active",
                 intro: "Run a marketing campaign with clear roles, counterparties and measurable targets before you activate.",
                 basicsLine: "A home for this client campaign.",
-                channels: ["Social", "Email", "Search", "Influencer", "Events", "Other"],
+                channels: ["Search Ads", "Paid Social", "Display / Video Ads", "Organic Social", "SEO / Content", "Email", "SMS / Messaging", "Cold Calling", "Field Sales / Visits", "Newspaper / Magazine", "Flyers / Brochures", "Radio / Podcast", "Billboard / Transit", "Exhibition / Roadshow", "Influencer", "Affiliate / Referral", "Custom Channel"],
                 partyKinds: [("CLIENT", "Client contact"), ("VENDOR", "Vendor, creator, agency, or platform")],
                 partyNote: "Client identity and optional vendors, creators, agencies, and platforms are separate from invited team roles.",
-                targetMetrics: ["REVENUE", "LEADS", "ORDERS", "CUSTOM_COUNT", "CLIENT_BILLING"],
+                targetMetrics: ["LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT", "CLIENT_BILLING"],
                 reviewKind: "Client Campaign"
             )
         case "OWN_BUSINESS_CAMPAIGN":
@@ -846,10 +850,10 @@ private struct SetupSpec {
                 badge: "Draft · Not active",
                 intro: "You run campaigns for your own business or brand",
                 basicsLine: "A home for this brand campaign.",
-                channels: ["Instagram", "Google Search", "Email", "Influencer", "Events", "Other"],
+                channels: ["Search Ads", "Paid Social", "Display / Video Ads", "Organic Social", "SEO / Content", "Email", "SMS / Messaging", "Cold Calling", "Field Sales / Visits", "Newspaper / Magazine", "Flyers / Brochures", "Radio / Podcast", "Billboard / Transit", "Exhibition / Roadshow", "Influencer", "Affiliate / Referral", "Custom Channel"],
                 partyKinds: [("VENDOR", "Vendor, creator, agency, or platform")],
                 partyNote: "Vendors, creators, agencies and platforms are separate from invited team roles. No client is required.",
-                targetMetrics: ["REVENUE", "LEADS", "ORDERS", "CUSTOM_COUNT"],
+                targetMetrics: ["LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT"],
                 reviewKind: "Own Business Campaign"
             )
         case "TRADING_WHOLESALE":

@@ -217,6 +217,7 @@ data class BusinessMomentItemDto(
     @SerializedName("momentTypeCode") val momentTypeCode: String? = null,
     @SerializedName("businessFamily") val businessFamily: String? = null,
     @SerializedName("companyId") val companyId: String? = null,
+    @SerializedName("participantCount") val participantCount: Int? = null,
 )
 
 data class CursorPageDto<T>(
@@ -1161,6 +1162,7 @@ data class OperatingTargetDto(
     val value: String = "0",
     val progress: String = "0",
     val configured: Boolean = false,
+    val coverage: String? = null,
 )
 
 data class OperatingAttentionDto(
@@ -1209,6 +1211,8 @@ data class OperatingActivityDto(
     val quantity: String? = null,
     val unit: String? = null,
     val parentEventId: String? = null,
+    val status: String? = null,
+    val orderSide: String? = null,
 )
 
 data class OperatingLifeDto(
@@ -1328,9 +1332,14 @@ data class OperatingContractBody(
     val originalCurrency: String? = null,
     val fxRate: String? = null,
     val convertedAmount: String? = null,
+    val orderSide: String? = null,
+    val goodsStatus: String? = null,
     val returnDirection: String? = null,
     val goodsOutcome: String? = null,
     val returnReason: String? = null,
+    val acceptedQuantity: String? = null,
+    val productionStatus: String? = null,
+    val deliveryStatus: String? = null,
 )
 
 data class RecordOperatingEventBody(
@@ -1349,6 +1358,14 @@ data class RecordOperatingEventBody(
     val master: OperatingMasterBody? = null,
     val dueAt: String? = null,
     val contract: OperatingContractBody? = null,
+    val reportingMode: String? = null,
+    val metricCode: String? = null,
+    val budgetCategory: String? = null,
+    val paymentState: String? = null,
+    val activityStatus: String? = null,
+    val attributedSales: String? = null,
+    val revisionKind: String? = null,
+    val rejectedQuantity: String? = null,
 )
 
 data class RecordOperatingEventResultDto(

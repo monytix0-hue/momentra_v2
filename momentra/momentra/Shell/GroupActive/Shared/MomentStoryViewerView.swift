@@ -143,6 +143,17 @@ struct MomentStoryViewerView: View {
     }
 
     static func resolveChapters(story: APIClient.MomentStoryPayload?) -> [String] {
+        if story?.snapshot?.identity?.familyProfile == "MARKETING_CAMPAIGN" || story?.snapshot?.identity?.familyProfile == "RETAIL_FOOD_CONSUMER" || story?.snapshot?.identity?.familyProfile == "MANUFACTURING_MADE_TO_ORDER" {
+            let pages = story?.snapshot?.chapters ?? story?.chapters ?? []
+            if !pages.isEmpty { return pages }
+            if story?.snapshot?.identity?.familyProfile == "MANUFACTURING_MADE_TO_ORDER" {
+                return ["mf-moment", "mf-motion", "mf-output", "mf-money", "mf-materials", "mf-people", "mf-attention", "mf-sofar"]
+            }
+            if story?.snapshot?.identity?.familyProfile == "RETAIL_FOOD_CONSUMER" {
+                return ["rf-moment", "rf-motion", "rf-revenue", "rf-money", "rf-operations", "rf-people", "rf-attention", "rf-sofar"]
+            }
+            return ["mc-moment", "mc-motion", "mc-results", "mc-money", "mc-channels", "mc-people", "mc-attention", "mc-sofar"]
+        }
         var pages = ["cover", "moment"]
         if !moneyChapterEmpty(story) {
             pages.append(contentsOf: ["money", "expenses"])
@@ -241,8 +252,26 @@ struct MomentStoryViewerView: View {
             expenseRecordChapter(snap)
         case "money":
             moneyChapter(snap)
+        case let chapter where chapter.hasPrefix("mc-") || chapter.hasPrefix("rf-") || chapter.hasPrefix("mf-"):
+            marketingChapter(snap, chapter)
         default:
             closeChapter(snap)
+        }
+    }
+
+    private func marketingChapter(_ snap: APIClient.MomentStorySnapshot?, _ chapter: String) -> some View {
+        let card = snap?.highlights?.first { $0.key == chapter }
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(card?.title ?? "Campaign")
+                    .font(.system(size: 28, weight: .bold, design: .serif))
+                    .foregroundStyle(Color(hex: "#201E28"))
+                Text(card?.detail ?? snap?.narrative?.opening ?? "")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Color(hex: "#746F67"))
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

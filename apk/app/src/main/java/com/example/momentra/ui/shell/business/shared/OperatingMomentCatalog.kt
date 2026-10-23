@@ -23,27 +23,26 @@ object OperatingMomentCatalog {
     )
 
     private val marketingAdds = listOf(
-        "SPEND", "RESULT", "PAYMENT", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL",
-        "DELIVERABLE", "VENDOR_COST", "COMPLETE",
+        "ACTIVITY", "PROGRESS", "SPEND", "PAYMENT", "REVISION", "APPROVAL", "UPDATE", "ISSUE", "RESULT",
     )
 
     val families: Map<BusinessSetupKind, List<OperatingSubtype>> = mapOf(
         BusinessSetupKind.MARKETING_CAMPAIGNS to listOf(
-            OperatingSubtype("CLIENT_CAMPAIGN", "Client Campaign", "Client", listOf("REVENUE", "LEADS", "ORDERS", "CUSTOM_COUNT", "CLIENT_BILLING"), true, marketingAdds + "COLLECTION"),
-            OperatingSubtype("OWN_BUSINESS_CAMPAIGN", "Own Business Campaign", "Brand", listOf("REVENUE", "LEADS", "ORDERS", "CUSTOM_COUNT"), true, marketingAdds + "COLLECTION"),
+            OperatingSubtype("CLIENT_CAMPAIGN", "Client Campaign", "Client", listOf("LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT", "CLIENT_BILLING"), false, marketingAdds + listOf("INVOICE", "COLLECTION")),
+            OperatingSubtype("OWN_BUSINESS_CAMPAIGN", "Own Business Campaign", "Brand", listOf("LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT"), false, marketingAdds),
         ),
         BusinessSetupKind.TRADING_DISTRIBUTION to listOf(
             OperatingSubtype("TRADING_WHOLESALE", "Trading / Wholesale", "Business", listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"), false, listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER", "SHIPMENT")),
             OperatingSubtype("DISTRIBUTION_DEALERSHIP", "Distribution / Dealership", "Principal", listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"), false, listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER", "SHIPMENT")),
         ),
         BusinessSetupKind.RETAIL_CONSUMER to listOf(
-            OperatingSubtype("RETAIL_STORE", "Retail Store", "Store", listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"), false, listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER")),
-            OperatingSubtype("RESTAURANT_FOOD", "Restaurant / Food", "Outlet", listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"), false, listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER")),
-            OperatingSubtype("CONSUMER_SERVICE", "Consumer Service", "Service", listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"), false, listOf("SERVICE", "APPOINTMENT", "SALE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL")),
+            OperatingSubtype("RETAIL_STORE", "Retail Store", "Store", listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"), true, listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER")),
+            OperatingSubtype("RESTAURANT_FOOD", "Restaurant / Food", "Outlet", listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"), true, listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER")),
+            OperatingSubtype("CONSUMER_SERVICE", "Consumer Service", "Service", listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"), true, listOf("SERVICE", "APPOINTMENT", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK")),
         ),
         BusinessSetupKind.MANUFACTURING_PRODUCTION to listOf(
-            OperatingSubtype("STANDARD_PRODUCTION", "Standard Production", "Plant", listOf("REVENUE", "PRODUCTION_OUTPUT", "UNITS_PRODUCED", "VALUE_DISPATCHED"), false, listOf("PRODUCTION", "PURCHASE", "SPEND", "SALE", "CUSTOMER_ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK")),
-            OperatingSubtype("MADE_TO_ORDER", "Made-to-Order", "Workshop", listOf("REVENUE", "ORDERS", "DELIVERY_COUNT", "PRODUCTION_OUTPUT", "CUSTOM_COUNT"), false, listOf("PRODUCTION", "PURCHASE", "SPEND", "SALE", "CUSTOMER_ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK")),
+            OperatingSubtype("STANDARD_PRODUCTION", "Standard Production", "Plant", listOf("REVENUE", "PRODUCTION_OUTPUT", "DELIVERY_COUNT", "ORDERS"), false, listOf("PRODUCTION", "PURCHASE", "SPEND", "SALE", "CUSTOMER_ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK")),
+            OperatingSubtype("MADE_TO_ORDER", "Made-to-Order", "Workshop", listOf("REVENUE", "PRODUCTION_OUTPUT", "DELIVERY_COUNT", "ORDERS"), false, listOf("PRODUCTION", "PURCHASE", "SPEND", "SALE", "CUSTOMER_ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK")),
         ),
     )
 

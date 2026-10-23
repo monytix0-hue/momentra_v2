@@ -130,6 +130,7 @@ interface ApiService {
     suspend fun listBusinessMoments(
         @Query("cursor") cursor: String? = null,
         @Query("limit") limit: Int = 20,
+        @Query("lifecycle") lifecycle: String = "active",
     ): SuccessEnvelope<CursorPageDto<BusinessMomentItemDto>>
 
     @GET("v1/companies")

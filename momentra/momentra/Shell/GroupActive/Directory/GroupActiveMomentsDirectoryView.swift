@@ -35,40 +35,157 @@ enum GroupMomentDirectoryBucket: String, CaseIterable, Identifiable {
         return .gatherings
     }
 
-    func gradients(at index: Int) -> [Color] {
-        let palettes: [[Color]]
+    var cardPalettes: [[Color]] {
         switch self {
         case .celebrations:
-            palettes = [
+            return [
                 [Color(hex: "#E879A8"), Color(hex: "#C084FC")],
                 [Color(hex: "#818CF8"), Color(hex: "#A78BFA")],
                 [Color(hex: "#F472B6"), Color(hex: "#FB7185")],
             ]
         case .gatherings:
-            palettes = [
+            return [
                 [Color(hex: "#FB923C"), Color(hex: "#F97316")],
                 [Color(hex: "#A78BFA"), Color(hex: "#6366F1")],
                 [Color(hex: "#FBBF24"), Color(hex: "#F59E0B")],
                 [Color(hex: "#FB7185"), Color(hex: "#F97316")],
             ]
         case .trips:
-            palettes = [
+            return [
                 [Color(hex: "#38BDF8"), Color(hex: "#0EA5E9")],
                 [Color(hex: "#6366F1"), Color(hex: "#3B82F6")],
                 [Color(hex: "#2DD4BF"), Color(hex: "#14B8A6")],
                 [Color(hex: "#22D3EE"), Color(hex: "#06B6D4")],
             ]
         case .plans:
-            palettes = [
+            return [
                 [Color(hex: "#4ADE80"), Color(hex: "#22C55E")],
                 [Color(hex: "#A3E635"), Color(hex: "#84CC16")],
             ]
         }
-        return palettes[index % palettes.count]
+    }
+
+    func gradients(at index: Int) -> [Color] {
+        cardPalettes[index % cardPalettes.count]
     }
 }
 
-/// Figma Active Moments directory — Group moment selector (1–4 large cards vs 5+ horizontal grids).
+enum MomentDirectoryKind {
+    case group
+    case business
+}
+
+private struct DirectoryBucket: Identifiable, Hashable {
+    let id: String
+    let label: String
+    let singular: String
+    let palettes: [[Color]]
+
+    func gradients(at index: Int) -> [Color] {
+        palettes[index % palettes.count]
+    }
+
+    static func == (lhs: DirectoryBucket, rhs: DirectoryBucket) -> Bool { lhs.id == rhs.id }
+
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+private struct DirectoryTheme {
+    let background: Color
+    let chrome: Color
+    let summaryFill: Color
+    let summaryValue: Color
+    let summaryLabel: Color
+    let tabSelectedFill: Color
+    let tabSelectedText: Color
+    let createGradient: [Color]
+    let footerDetail: String
+    let emptyOngoing: String
+    let accessibilityId: String
+    let buckets: [DirectoryBucket]
+    let classify: (String?) -> DirectoryBucket
+
+    static func make(_ kind: MomentDirectoryKind) -> DirectoryTheme {
+        switch kind {
+        case .group:
+            let buckets = GroupMomentDirectoryBucket.allCases.map { bucket in
+                DirectoryBucket(
+                    id: bucket.rawValue,
+                    label: bucket.label,
+                    singular: bucket.singular,
+                    palettes: bucket.cardPalettes
+                )
+            }
+            return DirectoryTheme(
+                background: GlobalTheme.surfaceContent,
+                chrome: Color(hex: "#1C1A24"),
+                summaryFill: Color(hex: "#E8E2D6"),
+                summaryValue: Color(hex: "#1A1625"),
+                summaryLabel: Color(hex: "#5C5668"),
+                tabSelectedFill: Color(hex: "#E8E2D6"),
+                tabSelectedText: Color(hex: "#1A1625"),
+                createGradient: [Color(hex: "#E8621A"), Color(hex: "#FDBA74")],
+                footerDetail: "Spin up another shared experience when you're ready.",
+                emptyOngoing: "Create a group moment to get started",
+                accessibilityId: "group.moment.directory",
+                buckets: buckets,
+                classify: { code in
+                    let match = GroupMomentDirectoryBucket.forTypeCode(code)
+                    return buckets.first { $0.id == match.rawValue } ?? buckets[0]
+                }
+            )
+        case .business:
+            let buckets = [
+                DirectoryBucket(id: "marketing", label: "Marketing", singular: "Marketing", palettes: [
+                    [Color(hex: "#818CF8"), Color(hex: "#6366F1")],
+                    [Color(hex: "#A78BFA"), Color(hex: "#818CF8")],
+                ]),
+                DirectoryBucket(id: "trading", label: "Trading", singular: "Trading", palettes: [
+                    [Color(hex: "#FBBF24"), Color(hex: "#F59E0B")],
+                    [Color(hex: "#F59E0B"), Color(hex: "#D97706")],
+                ]),
+                DirectoryBucket(id: "retail", label: "Retail", singular: "Retail", palettes: [
+                    [Color(hex: "#34D399"), Color(hex: "#10B981")],
+                    [Color(hex: "#6EE7B7"), Color(hex: "#34D399")],
+                ]),
+                DirectoryBucket(id: "manufacturing", label: "Manufacturing", singular: "Manufacturing", palettes: [
+                    [Color(hex: "#38BDF8"), Color(hex: "#0EA5E9")],
+                    [Color(hex: "#22D3EE"), Color(hex: "#0284C7")],
+                ]),
+                DirectoryBucket(id: "work", label: "Work", singular: "Work", palettes: [
+                    [Color(hex: "#94A3B8"), Color(hex: "#64748B")],
+                    [Color(hex: "#CBD5E1"), Color(hex: "#94A3B8")],
+                ]),
+            ]
+            return DirectoryTheme(
+                background: Color(hex: "#0C0F15"),
+                chrome: Color(hex: "#161B26"),
+                summaryFill: Color(hex: "#161B26"),
+                summaryValue: Color(hex: "#F1F5F9"),
+                summaryLabel: Color(hex: "#94A3B8"),
+                tabSelectedFill: Color(hex: "#E0E7FF"),
+                tabSelectedText: Color(hex: "#1E1B4B"),
+                createGradient: [Color(hex: "#818CF8"), Color(hex: "#A5B4FC")],
+                footerDetail: "Spin up another business moment when you're ready.",
+                emptyOngoing: "Create a business moment to get started",
+                accessibilityId: "business.moment.directory",
+                buckets: buckets,
+                classify: { code in
+                    let c = (code ?? "").uppercased()
+                    let id: String
+                    if c.contains("MARKETING") { id = "marketing" }
+                    else if c.contains("TRADING") || c.contains("DISTRIBUTION") { id = "trading" }
+                    else if c.contains("RETAIL") || c.contains("RESTAURANT") || c.contains("CONSUMER") || c.contains("FOOD") { id = "retail" }
+                    else if c.contains("MANUFACTURING") || c.contains("PRODUCTION") || c.contains("MADE_TO_ORDER") { id = "manufacturing" }
+                    else { id = "work" }
+                    return buckets.first { $0.id == id } ?? buckets[0]
+                }
+            )
+        }
+    }
+}
+
+/// Figma Active Moments directory — Group and Business moment selector.
 struct GroupActiveMomentsDirectoryView: View {
     enum LifecycleTab: String, CaseIterable, Identifiable {
         case ongoing = "Ongoing"
@@ -84,13 +201,16 @@ struct GroupActiveMomentsDirectoryView: View {
     var onOpenStory: (String) -> Void = { _ in }
     var onCreateMoment: () -> Void
     var initialCompletedTab: Bool = false
+    var kind: MomentDirectoryKind = .group
 
     @State private var query = ""
-    @State private var selectedBucket: GroupMomentDirectoryBucket?
+    @State private var selectedBucket: DirectoryBucket?
     @State private var lifecycleTab: LifecycleTab
     @State private var completedMoments: [MomentSummary] = []
     @State private var loadingCompleted = false
     @State private var completedError: String?
+
+    private var theme: DirectoryTheme { DirectoryTheme.make(kind) }
 
     init(
         moments: [MomentSummary],
@@ -100,7 +220,8 @@ struct GroupActiveMomentsDirectoryView: View {
         onSelectCompletedMoment: @escaping (MomentSummary) -> Void = { _ in },
         onOpenStory: @escaping (String) -> Void = { _ in },
         onCreateMoment: @escaping () -> Void,
-        initialCompletedTab: Bool = false
+        initialCompletedTab: Bool = false,
+        kind: MomentDirectoryKind = .group
     ) {
         self.moments = moments
         self.selectedMomentId = selectedMomentId
@@ -110,6 +231,7 @@ struct GroupActiveMomentsDirectoryView: View {
         self.onOpenStory = onOpenStory
         self.onCreateMoment = onCreateMoment
         self.initialCompletedTab = initialCompletedTab
+        self.kind = kind
         _lifecycleTab = State(initialValue: initialCompletedTab ? .completed : .ongoing)
     }
 
@@ -127,15 +249,15 @@ struct GroupActiveMomentsDirectoryView: View {
         source.filter { moment in
             let matchesQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 || moment.title.localizedCaseInsensitiveContains(query.trimmingCharacters(in: .whitespacesAndNewlines))
-            let bucket = GroupMomentDirectoryBucket.forTypeCode(moment.momentTypeCode)
+            let bucket = theme.classify(moment.momentTypeCode)
             let matchesBucket = selectedBucket == nil || bucket == selectedBucket
             return matchesQuery && matchesBucket
         }
     }
 
-    private var grouped: [(GroupMomentDirectoryBucket, [MomentSummary])] {
-        GroupMomentDirectoryBucket.allCases.compactMap { bucket in
-            let items = filtered.filter { GroupMomentDirectoryBucket.forTypeCode($0.momentTypeCode) == bucket }
+    private var grouped: [(DirectoryBucket, [MomentSummary])] {
+        theme.buckets.compactMap { bucket in
+            let items = filtered.filter { theme.classify($0.momentTypeCode) == bucket }
             return items.isEmpty ? nil : (bucket, items)
         }
     }
@@ -162,7 +284,7 @@ struct GroupActiveMomentsDirectoryView: View {
             if filtered.isEmpty { return "Complete a moment to reopen it or relive its Story" }
             return "Open to settle expenses · Story on each card"
         }
-        if filtered.isEmpty { return "Create a group moment to get started" }
+        if filtered.isEmpty { return theme.emptyOngoing }
         if sparse { return "Your live moment · ready to open" }
         return "Visual directory · all live"
     }
@@ -177,8 +299,8 @@ struct GroupActiveMomentsDirectoryView: View {
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(GlobalTheme.surfaceContent.ignoresSafeArea())
-        .accessibilityIdentifier("group.moment.directory")
+        .background(theme.background.ignoresSafeArea())
+        .accessibilityIdentifier(theme.accessibilityId)
         .task(id: lifecycleTab) {
             if lifecycleTab == .completed {
                 await loadCompleted()
@@ -195,12 +317,12 @@ struct GroupActiveMomentsDirectoryView: View {
                 } label: {
                     Text(tab.rawValue)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(lifecycleTab == tab ? Color(hex: "#1A1625") : MomentraBrandTokens.textOnDark.opacity(0.7))
+                        .foregroundStyle(lifecycleTab == tab ? theme.tabSelectedText : MomentraBrandTokens.textOnDark.opacity(0.7))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(
                             lifecycleTab == tab
-                                ? Color(hex: "#E8E2D6")
+                                ? theme.tabSelectedFill
                                 : Color.clear,
                             in: Capsule()
                         )
@@ -209,7 +331,7 @@ struct GroupActiveMomentsDirectoryView: View {
             }
         }
         .padding(4)
-        .background(Color(hex: "#1C1A24"), in: Capsule())
+        .background(theme.chrome, in: Capsule())
         .padding(.horizontal, 16)
         .padding(.bottom, 10)
     }
@@ -220,7 +342,11 @@ struct GroupActiveMomentsDirectoryView: View {
         completedError = nil
         defer { loadingCompleted = false }
         do {
-            completedMoments = try await APIClient.shared.listGroupMoments(limit: 50, lifecycle: "completed")
+            if kind == .business {
+                completedMoments = try await APIClient.shared.listBusinessMoments(limit: 50, lifecycle: "completed")
+            } else {
+                completedMoments = try await APIClient.shared.listGroupMoments(limit: 50, lifecycle: "completed")
+            }
         } catch {
             completedError = error.localizedDescription
             completedMoments = []
@@ -277,15 +403,15 @@ struct GroupActiveMomentsDirectoryView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
                 .font(.system(size: 28, weight: .bold))
-                .foregroundStyle(Color(hex: "#1A1625"))
+                .foregroundStyle(theme.summaryValue)
             Text(label)
                 .font(.system(size: 13))
-                .foregroundStyle(Color(hex: "#5C5668"))
+                .foregroundStyle(theme.summaryLabel)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .background(Color(hex: "#E8E2D6"), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(theme.summaryFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var searchRow: some View {
@@ -299,12 +425,12 @@ struct GroupActiveMomentsDirectoryView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(Color(hex: "#1C1A24"), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(theme.chrome, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             Image(systemName: "slider.horizontal.3")
                 .foregroundStyle(MomentraBrandTokens.textOnDark.opacity(0.7))
                 .frame(width: 44, height: 44)
-                .background(Color(hex: "#1C1A24"), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(theme.chrome, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .padding(.horizontal, 16)
         .padding(.top, 14)
@@ -314,8 +440,8 @@ struct GroupActiveMomentsDirectoryView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 chip("All", selected: selectedBucket == nil) { selectedBucket = nil }
-                ForEach(GroupMomentDirectoryBucket.allCases.filter { bucket in
-                    source.contains { GroupMomentDirectoryBucket.forTypeCode($0.momentTypeCode) == bucket }
+                ForEach(theme.buckets.filter { bucket in
+                    source.contains { theme.classify($0.momentTypeCode) == bucket }
                 }) { bucket in
                     chip(bucket.label, selected: selectedBucket == bucket) {
                         selectedBucket = selectedBucket == bucket ? nil : bucket
@@ -335,7 +461,7 @@ struct GroupActiveMomentsDirectoryView: View {
                 .foregroundStyle(selected ? Color.black : MomentraBrandTokens.textOnDark)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(selected ? Color.white : Color(hex: "#1C1A24"), in: Capsule())
+                .background(selected ? Color.white : theme.chrome, in: Capsule())
                 .overlay(Capsule().stroke(selected ? Color.white : Color(hex: "#3A3648"), lineWidth: 1))
         }
         .buttonStyle(.plain)
@@ -411,7 +537,7 @@ struct GroupActiveMomentsDirectoryView: View {
             Text("That's everything live")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(MomentraBrandTokens.textOnDark)
-            Text("Spin up another shared experience when you're ready.")
+            Text(theme.footerDetail)
                 .font(.system(size: 13))
                 .foregroundStyle(Color(hex: "#9A94A8"))
                 .multilineTextAlignment(.center)
@@ -423,7 +549,7 @@ struct GroupActiveMomentsDirectoryView: View {
                     .padding(.vertical, 14)
                     .background(
                         LinearGradient(
-                            colors: [Color(hex: "#E8621A"), Color(hex: "#FDBA74")],
+                            colors: theme.createGradient,
                             startPoint: .leading,
                             endPoint: .trailing
                         ),
@@ -435,10 +561,10 @@ struct GroupActiveMomentsDirectoryView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity)
-        .background(Color(hex: "#1C1A24"), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(theme.chrome, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
-    private func largeCard(moment: MomentSummary, bucket: GroupMomentDirectoryBucket, index: Int, height: CGFloat) -> some View {
+    private func largeCard(moment: MomentSummary, bucket: DirectoryBucket, index: Int, height: CGFloat) -> some View {
         let selected = moment.momentId == selectedMomentId
         let members = max(0, moment.participantCount)
         let meta = "\(members) member\(members == 1 ? "" : "s") · \(bucket.singular)"
@@ -449,20 +575,18 @@ struct GroupActiveMomentsDirectoryView: View {
                 HStack {
                     statusBadge
                     Spacer(minLength: 0)
-                    if isCompletedTab {
-                        Button {
-                            onOpenStory(moment.momentId)
-                            onDismiss()
-                        } label: {
-                            Text("Story")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color.black.opacity(0.35), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
+                    Button {
+                        onOpenStory(moment.momentId)
+                        onDismiss()
+                    } label: {
+                        Text("Story")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.black.opacity(0.35), in: Capsule())
                     }
+                    .buttonStyle(.plain)
                 }
                 Spacer(minLength: 0)
                 Text(moment.title)
@@ -488,7 +612,7 @@ struct GroupActiveMomentsDirectoryView: View {
         .buttonStyle(DirectoryCardPressStyle())
     }
 
-    private func compactCard(moment: MomentSummary, bucket: GroupMomentDirectoryBucket, index: Int) -> some View {
+    private func compactCard(moment: MomentSummary, bucket: DirectoryBucket, index: Int) -> some View {
         let selected = moment.momentId == selectedMomentId
         let members = max(0, moment.participantCount)
         return Button {
@@ -498,20 +622,18 @@ struct GroupActiveMomentsDirectoryView: View {
                 HStack {
                     statusBadge
                     Spacer(minLength: 0)
-                    if isCompletedTab {
-                        Button {
-                            onOpenStory(moment.momentId)
-                            onDismiss()
-                        } label: {
-                            Text("Story")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.black.opacity(0.35), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
+                    Button {
+                        onOpenStory(moment.momentId)
+                        onDismiss()
+                    } label: {
+                        Text("Story")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.black.opacity(0.35), in: Capsule())
                     }
+                    .buttonStyle(.plain)
                 }
                 Spacer(minLength: 0)
                 Text(moment.title)

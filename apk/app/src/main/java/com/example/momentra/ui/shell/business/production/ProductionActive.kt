@@ -79,6 +79,7 @@ fun ProductionActive(
     onRecord: suspend (ProductionEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
     modifier: Modifier = Modifier,
+    momentId: String? = null,
 ) {
     var activityOpen by remember { mutableStateOf(false) }
     CompositionLocalProvider(LocalJob provides (model.subtype == "MADE_TO_ORDER")) {
@@ -98,7 +99,7 @@ fun ProductionActive(
             OperatingTab.PULSE -> ProductionPulse(model, onViewAll = { activityOpen = true }, onDecide = onDecide)
             OperatingTab.MOMENTS -> ProductionMoments(model, onOpenQuickAdd)
             OperatingTab.LIFE -> ProductionLife(model)
-            OperatingTab.MEMORY -> ProductionMemory(model)
+            OperatingTab.MEMORY -> ProductionMemory(model, momentId)
             OperatingTab.QUICK_ADD -> Unit
         }
     }
@@ -127,7 +128,11 @@ private fun ProductionPulse(model: OperatingProjectionDto, onViewAll: () -> Unit
             Text("Toward the monthly target", color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
             Text(money(model, target?.progress), color = PlantInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 28.sp)
             Text("of ${money(model, target?.value)} target", color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
-            Meter("Target progress", fraction(target?.progress, target?.value), PlantBrand)
+            if (targetOpen(target?.coverage)) {
+                Meter("Target progress", fraction(target?.progress, target?.value), PlantBrand)
+            } else {
+                Text(target?.coverage ?: "not recorded", color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
+            }
             Meter("Budget used", fraction(budget?.spent, budget?.amount), PlantSuccess)
             Line("Budget remaining", money(model, budget?.remaining), PlantSuccess)
             Text("Validated sales count toward a revenue target. Collections do not. Production, orders, and deliveries count only for the measure you chose.", color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
@@ -177,7 +182,7 @@ private fun ProductionPulse(model: OperatingProjectionDto, onViewAll: () -> Unit
         SectionTitle("Finance")
         PlantCard {
             val finance = model.finance
-            Line("Qualifying revenue", money(model, model.target?.progress), PlantAccent)
+            Line("Net sales", money(model, finance?.sales), PlantAccent)
             Line("Received", money(model, finance?.received), PlantSuccess)
             Line("Still to collect", money(model, finance?.outstanding), Color(0xFFFBBF24))
             Line("Eligible cost", money(model, finance?.eligibleCost), PlantInk)
@@ -257,7 +262,11 @@ private fun ProductionMoments(model: OperatingProjectionDto, onOpenQuickAdd: () 
             Metric("Spent", money(model, model.budget?.spent), Modifier.weight(1f))
             Metric("Remaining", money(model, model.budget?.remaining), Modifier.weight(1f))
         }
-        Meter("Toward the monthly target", fraction(model.target?.progress, model.target?.value), PlantBrand)
+        if (targetOpen(model.target?.coverage)) {
+            Meter("Toward the monthly target", fraction(model.target?.progress, model.target?.value), PlantBrand)
+        } else {
+            Text(model.target?.coverage ?: "not recorded", color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
     }
     (model.boards?.moments ?: emptyList()).forEach { section ->
         BoardBlock(section, model)
@@ -278,6 +287,8 @@ private fun ProductionMoments(model: OperatingProjectionDto, onOpenQuickAdd: () 
     }
 }
 
+private fun targetOpen(coverage: String?): Boolean = coverage.isNullOrBlank()
+
 @Composable
 private fun ProductionLife(model: OperatingProjectionDto) {
     Header(model, "Life", "How production is moving today.")
@@ -288,13 +299,26 @@ private fun ProductionLife(model: OperatingProjectionDto) {
 }
 
 @Composable
-private fun ProductionMemory(model: OperatingProjectionDto) {
+private fun ProductionMemory(model: OperatingProjectionDto, momentId: String?) {
     Header(model, "Memory", "What this factory keeps from the month.")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Pill(periodLabel(model.startDate))
         Pill("Current")
     }
     (model.boards?.memory ?: emptyList()).forEach { BoardBlock(it, model) }
+    Text(
+        "Preview story",
+        color = PlantBg,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(PlantBrand)
+            .clickable { if (momentId != null) com.example.momentra.ui.shell.business.shared.OperatingChromeState.previewStoryId = momentId }
+            .padding(vertical = 14.dp),
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+    )
 }
 
 @Composable

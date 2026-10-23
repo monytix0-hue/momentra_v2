@@ -106,6 +106,16 @@ function chapterHtml(snapshot: StorySnapshot, chapter: StoryChapterId, screen: b
       ${insights}
     </section>`;
   }
+  if (chapter.startsWith('mc-') || chapter.startsWith('rf-') || chapter.startsWith('mf-')) {
+    const card = snapshot.highlights?.find((item) => item.id === chapter);
+    return `<section class="page" style="background:${bg};color:${fg}">
+      ${logo}
+      <div class="eyebrow">${esc(snapshot.display.coverEyebrow)}</div>
+      <h2>${esc(card?.title ?? chapter)}</h2>
+      <p class="open">${esc(card?.detail ?? snapshot.narrative.opening)}</p>
+      <div class="tiles">${metricTiles(snapshot)}</div>
+    </section>`;
+  }
   // close
   return `<section class="page close" style="background:${bg};color:${fg}">
     ${logo}

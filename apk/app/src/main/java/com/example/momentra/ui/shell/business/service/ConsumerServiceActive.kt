@@ -57,6 +57,7 @@ fun ConsumerServiceActive(
     onOpenQuickAdd: () -> Unit,
     onRecord: suspend (ServiceEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
+    momentId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var activityOpen by remember { mutableStateOf(false) }
@@ -76,7 +77,7 @@ fun ConsumerServiceActive(
             OperatingTab.PULSE -> ServicePulse(model, onViewAll = { activityOpen = true }, onOpenQuickAdd = onOpenQuickAdd)
             OperatingTab.MOMENTS -> ServiceMoments(model, onOpenQuickAdd)
             OperatingTab.LIFE -> ServiceLife(model)
-            OperatingTab.MEMORY -> ServiceMemory(model)
+            OperatingTab.MEMORY -> ServiceMemory(model, momentId)
             OperatingTab.QUICK_ADD -> Unit
         }
     }
@@ -110,7 +111,7 @@ private fun ServicePulse(model: OperatingProjectionDto, onViewAll: () -> Unit, o
             } else {
                 Text("No period budget set.", color = SvcSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
             }
-            Text("Finalized charges count toward the target. Bookings alone do not.", color = SvcSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            Text("A booking or a completion is not revenue until the charge is finalized.", color = SvcSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
         SectionTitle("Needs Attention")
         if (model.attention.isEmpty()) {
@@ -255,8 +256,20 @@ private fun ServiceLife(model: OperatingProjectionDto) {
 }
 
 @Composable
-private fun ServiceMemory(model: OperatingProjectionDto) {
+private fun ServiceMemory(model: OperatingProjectionDto, momentId: String? = null) {
     Header(model, "Memory", "What this service keeps from the month.")
+    Text(
+        "Preview story",
+        color = SvcBg,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(SvcBrand)
+            .clickable { if (momentId != null) com.example.momentra.ui.shell.business.shared.OperatingChromeState.previewStoryId = momentId }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Pill(periodLabel(model.startDate))
         Pill("Current")

@@ -450,6 +450,7 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
       events: [sale, credit],
     });
     assert.equal(view.finance?.sales, '750.0000');
+    assert.equal(view.target?.progress, '750.0000');
     assert.equal(view.finance?.outstanding, '750.0000');
     assert.equal(obligationRemaining(asTrading([sale, credit])[0]!, asTrading([sale, credit]), 'COLLECTION'), 750);
 
@@ -470,6 +471,47 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
       events: [sale, supplierReturn],
     });
     assert.equal(ignoreSupplier.finance?.sales, '1000.0000');
+    assert.equal(ignoreSupplier.target?.progress, '1000.0000');
+  });
+
+  it('Pulse REVENUE progress subtracts a trading 3000 and distribution 4500 credit note', () => {
+    const tradingSale = event('sale', 'SALE', {
+      amount: '10000.0000',
+      paymentStatus: 'COLLECTED',
+      paymentRelevance: 'RECEIVABLE',
+    });
+    const tradingCredit = event('ret', 'RETURN', {
+      amount: '3000.0000',
+      parentEventId: 'sale',
+      contract: { returnDirection: 'CUSTOMER', goodsOutcome: 'NOT_RETURNED', returnReason: 'Return' },
+    });
+    const trading = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('TRADING_WHOLESALE', '10000', '20000'),
+      role: 'FINANCE',
+      events: [tradingSale, tradingCredit],
+    });
+    assert.equal(trading.finance?.sales, '7000.0000');
+    assert.equal(trading.target?.progress, '7000.0000');
+
+    const distributionSale = event('sale', 'SALE', {
+      amount: '12000.0000',
+      paymentStatus: 'COLLECTED',
+      paymentRelevance: 'RECEIVABLE',
+    });
+    const distributionCredit = event('ret', 'RETURN', {
+      amount: '4500.0000',
+      parentEventId: 'sale',
+      contract: { returnDirection: 'CUSTOMER', goodsOutcome: 'TO_STOCK', returnReason: 'Return' },
+    });
+    const distribution = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('DISTRIBUTION_DEALERSHIP', '10000', '20000'),
+      role: 'FINANCE',
+      events: [distributionSale, distributionCredit],
+    });
+    assert.equal(distribution.finance?.sales, '7500.0000');
+    assert.equal(distribution.target?.progress, '7500.0000');
   });
 
   it('partial payment leaves purchase cost unchanged', () => {
@@ -826,5 +868,170 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
     assert.equal(dup?.rows.length, 0);
     assert.equal(view.boards.life.find((section) => section.code === 'L2')?.title, 'Buyers & Channels');
     assert.equal(view.boards.life.find((section) => section.code === 'L3')?.title, 'Money Moving');
+  });
+
+  it('stock accepts the product base unit and rejects a pack without a conversion', () => {
+    const product = event('prod', 'UPDATE', {
+      title: 'Widget',
+      master: { kind: 'PRODUCT', name: 'Widget', unit: 'pc', dimension: 'count' },
+    });
+    const base = validateTradingWrite(
+      write({
+        eventType: 'STOCK',
+        title: 'Widget',
+        quantity: '4',
+        lines: [{ itemName: 'Widget', quantity: '4', unit: 'pc', masterId: 'prod' }],
+        contract: { stockAction: 'ADD', stockReason: 'stocktake', ownership: 'OWNED' },
+      }),
+      asTrading([product])
+    );
+    assert.equal(base.ok, true);
+    const pack = validateTradingWrite(
+      write({
+        eventType: 'STOCK',
+        title: 'Widget',
+        quantity: '1',
+        lines: [{ itemName: 'Widget', quantity: '1', unit: 'pack', masterId: 'prod' }],
+        contract: { stockAction: 'ADD', stockReason: 'stocktake', ownership: 'OWNED' },
+      }),
+      asTrading([product])
+    );
+    assert.equal(pack.ok, false);
+  });
+
+  it('a sales order can be billed in part and a paid sale can still await delivery', () => {
+    const orderWrite = validateTradingWrite(
+      write({
+        eventType: 'ORDER',
+        title: 'Buyer order',
+        amount: '10000',
+        quantity: '10',
+        channelName: 'Wholesale',
+        counterpartyName: 'Buyer A',
+        lines: [{ itemName: 'Widget', quantity: '10', unit: 'pc' }],
+        contract: { orderStatus: 'PLACED', orderSide: 'SALES' },
+      }),
+      []
+    );
+    assert.equal(orderWrite.ok, true);
+    if (!orderWrite.ok) return;
+    const order = event('ord', 'ORDER', {
+      quantity: orderWrite.quantity,
+      counterpartyName: 'Buyer A',
+      contract: orderWrite.contract,
+    });
+    const first = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Part bill',
+        amount: '4000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer A',
+        parentEventId: 'ord',
+        contract: { entryMode: 'QUICK', paymentState: 'RECEIVED', goodsStatus: 'LATER' },
+      }),
+      asTrading([order])
+    );
+    assert.equal(first.ok, true);
+    if (!first.ok) return;
+    assert.equal(first.contract.goodsStatus, 'LATER');
+    assert.equal(first.paymentStatus, 'COLLECTED');
+    const second = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Rest',
+        amount: '7000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer A',
+        parentEventId: 'ord',
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', goodsStatus: 'DELIVERED' },
+        dueAt: '2026-10-30',
+      }),
+      asTrading([
+        order,
+        event('sale1', 'SALE', { amount: '4000.0000', parentEventId: 'ord', contract: first.contract }),
+      ])
+    );
+    assert.equal(second.ok, false);
+    const positions = tradingStockPositions(
+      asTrading([
+        event('open', 'STOCK', {
+          title: 'Widget',
+          quantity: '10',
+          contract: { stockAction: 'SET', stockReason: 'opening', ownership: 'OWNED' },
+        }),
+        event('sale', 'SALE', { title: 'Widget', quantity: '4', contract: { goodsStatus: 'DELIVERED', entryMode: 'QUICK', paymentState: 'RECEIVED' } }),
+      ])
+    );
+    assert.equal(positions[0]?.onHand, 10);
+  });
+
+  it('outgoing delivery moves stock and an open order stays in attention', () => {
+    const view = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('TRADING_WHOLESALE', '10000', '20000'),
+      role: 'FINANCE',
+      events: [
+        event('open', 'STOCK', {
+          title: 'Widget',
+          quantity: '10',
+          unit: 'pc',
+          contract: { stockAction: 'SET', stockReason: 'opening', ownership: 'OWNED' },
+        }),
+        event('sale', 'SALE', {
+          title: 'Widget',
+          amount: '1000.0000',
+          quantity: '4',
+          counterpartyName: 'Buyer A',
+          paymentStatus: 'COLLECTED',
+          paymentRelevance: 'RECEIVABLE',
+          contract: { entryMode: 'QUICK', paymentState: 'RECEIVED', goodsStatus: 'LATER' },
+        }),
+        event('drop', 'DELIVERY', {
+          title: 'Widget',
+          quantity: '4',
+          unit: 'pc',
+          parentEventId: 'sale',
+          contract: { shipmentStatus: 'DELIVERED' },
+        }),
+        event('ord', 'ORDER', {
+          title: 'Later order',
+          counterpartyName: 'Buyer B',
+          contract: { orderStatus: 'PLACED', orderSide: 'SALES' },
+        }),
+      ],
+    });
+    const stock = tradingStockPositions([
+      {
+        operatingEventId: 'open',
+        eventType: 'STOCK',
+        title: 'Widget',
+        amount: null,
+        paymentStatus: 'NONE',
+        approvalStatus: 'NONE',
+        occurredAt: '2026-10-10T10:00:00.000Z',
+        quantity: '10',
+        unit: 'pc',
+        contract: { stockAction: 'SET', stockReason: 'opening', ownership: 'OWNED' },
+      },
+      {
+        operatingEventId: 'drop',
+        eventType: 'DELIVERY',
+        title: 'Widget',
+        amount: null,
+        paymentStatus: 'NONE',
+        approvalStatus: 'NONE',
+        occurredAt: '2026-10-11T10:00:00.000Z',
+        parentEventId: 'sale',
+        quantity: '4',
+        unit: 'pc',
+        contract: { shipmentStatus: 'DELIVERED' },
+      },
+    ]);
+    assert.equal(stock[0]?.onHand, 6);
+    assert.ok(view.attention.some((item) => item.kind === 'PENDING_ORDER'));
+    assert.ok(view.attention.some((item) => item.kind === 'PENDING_DELIVERY'));
   });
 });

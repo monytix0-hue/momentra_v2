@@ -13,6 +13,7 @@ struct OperatingTargetPayload: Decodable {
     let value: String
     let progress: String
     let configured: Bool?
+    let coverage: String?
 }
 
 struct OperatingAttentionPayload: Decodable, Identifiable {
@@ -61,6 +62,8 @@ struct OperatingActivityPayload: Decodable, Identifiable {
     let quantity: String?
     let unit: String?
     let parentEventId: String?
+    let status: String?
+    let orderSide: String?
 }
 
 struct OperatingLifePayload: Decodable {
@@ -168,9 +171,14 @@ struct OperatingContractInput: Encodable {
     var originalCurrency: String? = nil
     var fxRate: String? = nil
     var convertedAmount: String? = nil
+    var orderSide: String? = nil
+    var goodsStatus: String? = nil
     var returnDirection: String? = nil
     var goodsOutcome: String? = nil
     var returnReason: String? = nil
+    var acceptedQuantity: String? = nil
+    var productionStatus: String? = nil
+    var deliveryStatus: String? = nil
 }
 
 struct MeBootstrap: Decodable {
@@ -366,6 +374,7 @@ private struct BusinessMomentItemPayload: Decodable {
     let momentTypeCode: String?
     let businessFamily: String?
     let companyId: String?
+    let participantCount: Int?
 }
 
 private struct ProjectionEnvelopePayload: Decodable {
@@ -950,9 +959,12 @@ final class APIClient {
         }
     }
 
-    func listBusinessMoments(limit: Int = 20) async throws -> [MomentSummary] {
+    func listBusinessMoments(limit: Int = 20, lifecycle: String = "active") async throws -> [MomentSummary] {
         let page: CursorPagePayload<BusinessMomentItemPayload> =
-            try await authorizedGet(path: "v1/business/moments", query: ["limit": String(limit)])
+            try await authorizedGet(
+                path: "v1/business/moments",
+                query: ["limit": String(limit), "lifecycle": lifecycle]
+            )
         return page.items.map {
             let family = ($0.momentTypeCode?.isEmpty == false) ? $0.momentTypeCode : $0.businessFamily
             return MomentSummary(
@@ -960,7 +972,8 @@ final class APIClient {
                 title: $0.title,
                 status: $0.status,
                 momentTypeCode: family,
-                companyId: $0.companyId
+                companyId: $0.companyId,
+                participantCount: $0.participantCount ?? 0
             )
         }
     }
@@ -5285,7 +5298,14 @@ final class APIClient {
         revisesEventId: String? = nil,
         dueAt: String? = nil,
         contract: OperatingContractInput? = nil,
-        lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil
+        lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil,
+        reportingMode: String? = nil,
+        metricCode: String? = nil,
+        budgetCategory: String? = nil,
+        activityStatus: String? = nil,
+        attributedSales: String? = nil,
+        revisionKind: String? = nil,
+        rejectedQuantity: String? = nil
     ) async throws -> RecordOperatingEventResult {
         struct Line: Encodable {
             let itemName: String
@@ -5316,6 +5336,13 @@ final class APIClient {
             let master: Master?
             let dueAt: String?
             let contract: OperatingContractInput?
+            let reportingMode: String?
+            let metricCode: String?
+            let budgetCategory: String?
+            let activityStatus: String?
+            let attributedSales: String?
+            let revisionKind: String?
+            let rejectedQuantity: String?
         }
         let fromItems = (lineItems ?? []).compactMap { row -> Line? in
             let name = row.itemName.trimmingCharacters(in: .whitespaces)
@@ -5347,7 +5374,14 @@ final class APIClient {
             lines: lines,
             master: master,
             dueAt: dueAt,
-            contract: contract
+            contract: contract,
+            reportingMode: reportingMode,
+            metricCode: metricCode,
+            budgetCategory: budgetCategory,
+            activityStatus: activityStatus,
+            attributedSales: attributedSales,
+            revisionKind: revisionKind,
+            rejectedQuantity: rejectedQuantity
         )
         if let revisesEventId, !revisesEventId.isEmpty {
             return try await authorizedPatch(

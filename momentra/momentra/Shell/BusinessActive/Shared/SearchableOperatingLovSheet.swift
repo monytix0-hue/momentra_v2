@@ -6,6 +6,7 @@ struct OperatingLovOption: Identifiable, Hashable {
     let kind: String
     let unit: String?
     let subtitle: String?
+    var conversionToBase: String? = nil
 }
 
 struct SearchableOperatingLovSheet: View {
@@ -14,6 +15,7 @@ struct SearchableOperatingLovSheet: View {
     let options: [OperatingLovOption]
     let canAdd: Bool
     var accent: Color = Color(hex: "#6DDCFF")
+    var unitChoices: [OperatingLovOption] = []
     var onSelect: (OperatingLovOption) -> Void
     /// name, base unit, optional conversionToBase for pack/box/carton
     var onAdd: ((String, String?, String?) -> Void)?
@@ -117,7 +119,20 @@ struct SearchableOperatingLovSheet: View {
                             .padding(10)
                             .background(Color(hex: "#1A2330"))
                             .clipShape(RoundedRectangle(cornerRadius: 10))
-                        if kind.uppercased() == "PRODUCT" || kind.uppercased() == "UOM" {
+                        if kind.uppercased() == "PRODUCT", !unitChoices.isEmpty {
+                            Menu {
+                                ForEach(unitChoices) { option in
+                                    Button(option.subtitle ?? option.name) { newUnit = option.name }
+                                }
+                            } label: {
+                                Text(newUnit.isEmpty ? "Base unit" : (unitChoices.first { $0.name == newUnit }?.subtitle ?? newUnit))
+                                    .font(.plusJakarta(size: 14))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(10)
+                                    .background(Color(hex: "#1A2330"))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                        } else if kind.uppercased() == "PRODUCT" || kind.uppercased() == "UOM" {
                             TextField(kind.uppercased() == "UOM" ? "Code / unit" : "Base UOM (required)", text: $newUnit)
                                 .padding(10)
                                 .background(Color(hex: "#1A2330"))
@@ -183,4 +198,24 @@ enum OperatingSeedUoms {
         ("kg", "kg"), ("g", "g"), ("tonne", "tonne"), ("L", "litre (L)"), ("mL", "mL"),
         ("m", "metre (m)"), ("cm", "cm"), ("foot", "foot"), ("sq ft", "sq ft"), ("sq m", "sq m"),
     ].map { OperatingLovOption(id: "seed-uom-\($0.0)", name: $0.0, kind: "UOM", unit: $0.0, subtitle: $0.1) }
+
+    static func dimension(_ code: String) -> String? {
+        switch code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "pc", "pair", "set", "pack", "box", "carton", "dozen", "piece (pc)", "dozen (12 pc)": return "count"
+        case "kg", "g", "tonne": return "mass"
+        case "l", "litre (l)", "ml": return "volume"
+        case "m", "metre (m)", "cm", "foot": return "length"
+        case "sq ft", "sq m": return "area"
+        default: return nil
+        }
+    }
+
+    static func compatible(_ code: String, base: String, conversion: String?) -> Bool {
+        guard let left = dimension(code), let right = dimension(base) else { return true }
+        if left != right { return false }
+        if ["pack", "box", "carton"].contains(code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) {
+            return (Double(conversion ?? "") ?? 0) > 0
+        }
+        return true
+    }
 }

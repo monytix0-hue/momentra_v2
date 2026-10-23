@@ -280,5 +280,5 @@ enum DistributionSheetKind: String, Identifiable {
         default: return nil
         }
     }
-    static let core: [DistributionSheetKind] = [.sale, .purchase, .spend, .payment, .collection, .update, .issue, .stock, .order, .shipment, .returnNote]
+    static let core: [DistributionSheetKind] = [.sale, .purchase, .spend, .payment, .collection, .budget, .update, .issue, .stock, .order, .shipment, .returnNote]
 }

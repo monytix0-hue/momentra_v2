@@ -29,7 +29,7 @@ interface MeGateway {
     suspend fun listGroupMomentCount(): Result<Int>
     suspend fun listPersonalMoments(limit: Int = 20): Result<List<MomentSummary>>
     suspend fun listGroupMoments(limit: Int = 20, lifecycle: String = "active"): Result<List<MomentSummary>>
-    suspend fun listBusinessMoments(limit: Int = 20): Result<List<MomentSummary>>
+    suspend fun listBusinessMoments(limit: Int = 20, lifecycle: String = "active"): Result<List<MomentSummary>>
     suspend fun hasLife360(): Result<Boolean>
 }
 
@@ -89,14 +89,15 @@ class MeRepository(
         }
     }.recoverCatching { e -> throw mapThrowable(e) }
 
-    override suspend fun listBusinessMoments(limit: Int): Result<List<MomentSummary>> = runCatching {
-        api.listBusinessMoments(limit = limit).data.items.map {
+    override suspend fun listBusinessMoments(limit: Int, lifecycle: String): Result<List<MomentSummary>> = runCatching {
+        api.listBusinessMoments(limit = limit, lifecycle = lifecycle).data.items.map {
             MomentSummary(
                 momentId = it.momentId,
                 title = it.title,
                 status = it.status,
                 momentTypeCode = it.momentTypeCode?.takeIf { code -> code.isNotBlank() } ?: it.businessFamily,
                 companyId = it.companyId,
+                participantCount = it.participantCount ?: 0,
             )
         }
     }.recoverCatching { e -> throw mapThrowable(e) }

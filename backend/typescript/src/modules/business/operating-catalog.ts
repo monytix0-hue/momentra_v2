@@ -4,6 +4,13 @@
  */
 
 import {
+  explicitAccepted,
+  isManufacturingSubtype,
+  manufacturingMeasure,
+  manufacturingStock,
+  type ManufacturingEvent,
+} from './operating-manufacturing';
+import {
   appointmentSummary,
   budgetAttention,
   customersNetworkDetail,
@@ -33,6 +40,14 @@ import {
   tradingStockPositions,
   obligationRemaining as tradingObligationRemaining,
 } from './operating-trading-contract';
+import {
+  channelCoverage,
+  isMarketingSubtype,
+  marketingAttention,
+  marketingProgress,
+  rollMarketingLedger,
+  MARKETING_METRICS,
+} from './operating-marketing';
 
 export const OPERATING_FAMILY_CODES = [
   'MARKETING_CAMPAIGNS',
@@ -91,7 +106,11 @@ export type QuickAddCode =
   | 'PRODUCTION'
   | 'CUSTOMER_ORDER'
   | 'DELIVERY'
-  | 'RETURN';
+  | 'RETURN'
+  | 'ACTIVITY'
+  | 'PROGRESS'
+  | 'INVOICE'
+  | 'REVISION';
 
 export type PaymentRelevance = 'NONE' | 'PAYABLE' | 'RECEIVABLE' | 'REIMBURSEMENT' | 'SETTLEMENT';
 
@@ -126,9 +145,13 @@ const QA = {
   SERVICE: qa('SERVICE', 'Record Service', false, true, 'RECEIVABLE', false, true),
   APPOINTMENT: qa('APPOINTMENT', 'Appointment / Job', false, false, 'NONE', false, false),
   PRODUCTION: qa('PRODUCTION', 'Record Production', false, true, 'NONE', false, true),
-  CUSTOMER_ORDER: qa('CUSTOMER_ORDER', 'Customer Order', false, false, 'RECEIVABLE', false, true),
+  CUSTOMER_ORDER: qa('CUSTOMER_ORDER', 'Customer Order', false, false, 'NONE', false, true),
   DELIVERY: qa('DELIVERY', 'Record Delivery', false, false, 'NONE', false, false),
   RETURN: qa('RETURN', 'Return / Credit Note', false, false, 'NONE', false, true),
+  ACTIVITY: qa('ACTIVITY', 'Add Activity', false, false, 'NONE', false, false),
+  PROGRESS: qa('PROGRESS', 'Update Progress', false, true, 'NONE', false, false),
+  INVOICE: qa('INVOICE', 'Record Invoice', false, false, 'RECEIVABLE', true, true),
+  REVISION: qa('REVISION', 'Budget / Target Revision', false, false, 'NONE', true, true),
 } satisfies Record<QuickAddCode, QuickAddDef>;
 
 function qa(
@@ -162,8 +185,7 @@ export interface OperatingFamily {
 }
 
 const MARKETING_ADDS: QuickAddCode[] = [
-  'SPEND', 'RESULT', 'PAYMENT', 'BUDGET', 'TARGET', 'UPDATE', 'ISSUE', 'APPROVAL',
-  'DELIVERABLE', 'VENDOR_COST', 'COMPLETE',
+  'ACTIVITY', 'PROGRESS', 'SPEND', 'PAYMENT', 'REVISION', 'APPROVAL', 'UPDATE', 'ISSUE', 'RESULT',
 ];
 
 export const OPERATING_FAMILIES: OperatingFamily[] = [
@@ -178,17 +200,17 @@ export const OPERATING_FAMILIES: OperatingFamily[] = [
         code: 'CLIENT_CAMPAIGN',
         label: 'Client Campaign',
         partyLabel: 'Client',
-        quickAdds: [...MARKETING_ADDS, 'SALE', 'COLLECTION'],
-        targetMetrics: ['REVENUE', 'LEADS', 'ORDERS', 'CUSTOM_COUNT', 'CLIENT_BILLING'],
-        requiresChannel: true,
+        quickAdds: [...MARKETING_ADDS, 'INVOICE', 'COLLECTION'],
+        targetMetrics: [...MARKETING_METRICS],
+        requiresChannel: false,
       },
       {
         code: 'OWN_BUSINESS_CAMPAIGN',
         label: 'Own Business Campaign',
         partyLabel: 'Brand',
-        quickAdds: [...MARKETING_ADDS, 'COLLECTION'],
-        targetMetrics: ['REVENUE', 'LEADS', 'ORDERS', 'CUSTOM_COUNT'],
-        requiresChannel: true,
+        quickAdds: [...MARKETING_ADDS],
+        targetMetrics: MARKETING_METRICS.filter((metric) => metric !== 'CLIENT_BILLING'),
+        requiresChannel: false,
       },
     ],
   },
@@ -228,25 +250,25 @@ export const OPERATING_FAMILIES: OperatingFamily[] = [
         code: 'RETAIL_STORE',
         label: 'Retail Store',
         partyLabel: 'Store',
-        quickAdds: ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK', 'ORDER'],
+        quickAdds: ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'TARGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK', 'ORDER'],
         targetMetrics: ['REVENUE', 'ORDERS', 'CUSTOM_COUNT'],
-        requiresChannel: false,
+        requiresChannel: true,
       },
       {
         code: 'RESTAURANT_FOOD',
         label: 'Restaurant / Food',
         partyLabel: 'Outlet',
-        quickAdds: ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK', 'ORDER'],
+        quickAdds: ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'TARGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK', 'ORDER'],
         targetMetrics: ['REVENUE', 'ORDERS', 'CUSTOM_COUNT'],
-        requiresChannel: false,
+        requiresChannel: true,
       },
       {
         code: 'CONSUMER_SERVICE',
         label: 'Consumer Service',
         partyLabel: 'Service',
-        quickAdds: ['SERVICE', 'APPOINTMENT', 'SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK'],
+        quickAdds: ['SERVICE', 'APPOINTMENT', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'TARGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK'],
         targetMetrics: ['REVENUE', 'ORDERS', 'CUSTOM_COUNT'],
-        requiresChannel: false,
+        requiresChannel: true,
       },
     ],
   },
@@ -262,7 +284,7 @@ export const OPERATING_FAMILIES: OperatingFamily[] = [
         label: 'Standard Production',
         partyLabel: 'Plant',
         quickAdds: ['PRODUCTION', 'PURCHASE', 'SPEND', 'SALE', 'CUSTOMER_ORDER', 'DELIVERY', 'PAYMENT', 'COLLECTION', 'BUDGET', 'TARGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK'],
-        targetMetrics: ['REVENUE', 'PRODUCTION_OUTPUT', 'UNITS_PRODUCED', 'VALUE_DISPATCHED'],
+        targetMetrics: ['REVENUE', 'PRODUCTION_OUTPUT', 'DELIVERY_COUNT', 'ORDERS'],
         requiresChannel: false,
       },
       {
@@ -270,7 +292,7 @@ export const OPERATING_FAMILIES: OperatingFamily[] = [
         label: 'Made-to-Order',
         partyLabel: 'Workshop',
         quickAdds: ['PRODUCTION', 'PURCHASE', 'SPEND', 'SALE', 'CUSTOMER_ORDER', 'DELIVERY', 'PAYMENT', 'COLLECTION', 'BUDGET', 'TARGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK'],
-        targetMetrics: ['REVENUE', 'ORDERS', 'DELIVERY_COUNT', 'PRODUCTION_OUTPUT', 'CUSTOM_COUNT'],
+        targetMetrics: ['REVENUE', 'PRODUCTION_OUTPUT', 'DELIVERY_COUNT', 'ORDERS'],
         requiresChannel: false,
       },
     ],
@@ -335,7 +357,7 @@ export function canSubmit(role: OperatingRole, def: QuickAddDef): boolean {
 
 /** Controlled money actions from a non-posting role wait for a different approver. */
 export function needsMakerChecker(role: OperatingRole, def: QuickAddDef): boolean {
-  if (def.code === 'APPROVAL' || def.code === 'BUDGET' || def.code === 'TARGET' || def.code === 'PAYMENT' || def.code === 'COLLECTION') {
+  if (def.code === 'APPROVAL' || def.code === 'BUDGET' || def.code === 'TARGET' || def.code === 'REVISION' || def.code === 'INVOICE' || def.code === 'PAYMENT' || def.code === 'COLLECTION') {
     return !AUTO_POST.has(role);
   }
   if (def.consumesBudget || def.paymentRelevance === 'RECEIVABLE') {
@@ -425,6 +447,11 @@ export function normalizeOperatingPreferences(
   if (sub.requiresChannel && channels.length === 0) {
     throw new Error('Select at least one channel.');
   }
+  const startDate = String(prefs.startDate ?? '').slice(0, 10);
+  const endDate = String(prefs.endDate ?? '').slice(0, 10);
+  if (familyCode === 'MARKETING_CAMPAIGNS' && (!startDate || !endDate)) {
+    throw new Error('Campaign start and end dates are required.');
+  }
   const participants: OperatingParticipant[] = [];
   if (Array.isArray(prefs.participants)) {
     for (const row of prefs.participants) {
@@ -463,8 +490,8 @@ export function normalizeOperatingPreferences(
     partyName,
     description: String(prefs.description ?? '').trim(),
     currency: String(prefs.currency ?? 'INR').toUpperCase(),
-    startDate: String(prefs.startDate ?? ''),
-    endDate: String(prefs.endDate ?? ''),
+    startDate: familyCode === 'MARKETING_CAMPAIGNS' ? startDate : String(prefs.startDate ?? ''),
+    endDate: familyCode === 'MARKETING_CAMPAIGNS' ? endDate : String(prefs.endDate ?? ''),
     location: String(prefs.location ?? '').trim(),
     activationPolicy: String(prefs.activationPolicy ?? '').toUpperCase() === 'APPROVAL_REQUIRED'
       ? 'APPROVAL_REQUIRED'
@@ -503,6 +530,7 @@ export interface OperatingEventRow {
   metric?: 'LEADS' | 'CONVERSIONS' | null;
   rejectedQuantity?: string | null;
   contract?: OperatingContract | null;
+  marketing?: import('./operating-marketing').MarketingFacts | null;
 }
 
 export interface OperatingLine {
@@ -549,7 +577,7 @@ export interface OperatingProjection {
   }>;
   location: string;
   budget: { amount: string; spent: string; remaining: string; configured: boolean } | null;
-  target: { metric: string; value: string; progress: string; configured: boolean } | null;
+  target: { metric: string; value: string; progress: string; configured: boolean; coverage?: string | null } | null;
   finance: OperatingFinanceTotals | null;
   continuity: OperatingContinuity;
   attention: Array<{
@@ -588,6 +616,7 @@ export interface OperatingProjection {
     unit: string | null;
     parentEventId: string | null;
     status: string | null;
+    orderSide: string | null;
   }>;
   life: { channels: string[]; openCommitments: number; resultProgress: string };
   memory: { revisions: Array<{ id: string; title: string; occurredAt: string }> };
@@ -656,23 +685,23 @@ function num(value: string | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function manufacturingTargetAmount(metric: string, eventType: string, amount: number): number {
-  switch (metric) {
-    case 'REVENUE':
-      return eventType === 'SALE' ? amount : 0;
-    case 'PRODUCTION_OUTPUT':
-    case 'UNITS_PRODUCED':
-    case 'CUSTOM_COUNT':
-      return eventType === 'PRODUCTION' ? amount : 0;
-    case 'VALUE_DISPATCHED':
-      return eventType === 'DELIVERY' ? amount : 0;
-    case 'ORDERS':
-      return eventType === 'CUSTOMER_ORDER' ? 1 : 0;
-    case 'DELIVERY_COUNT':
-      return eventType === 'DELIVERY' ? 1 : 0;
-    default:
-      return 0;
-  }
+function toManufacturing(row: OperatingEventRow): ManufacturingEvent {
+  return {
+    operatingEventId: row.operatingEventId,
+    eventType: row.eventType,
+    title: row.title,
+    amount: row.amount,
+    paymentStatus: row.paymentStatus,
+    approvalStatus: row.approvalStatus,
+    occurredAt: row.occurredAt,
+    parentEventId: row.parentEventId,
+    quantity: row.quantity,
+    unit: row.unit,
+    counterpartyName: row.counterpartyName,
+    lines: row.lines,
+    contract: row.contract,
+    rejectedQuantity: row.rejectedQuantity,
+  };
 }
 
 function money(value: number): string {
@@ -687,7 +716,7 @@ const PAYABLE_TYPES = new Set(['PURCHASE', 'SPEND', 'VENDOR_COST']);
 const SETTLED_STATUSES = new Set(['COLLECTED', 'PAID', 'SETTLED', 'CANCELLED']);
 const REQUIRED_PARENT: Record<string, readonly string[]> = {
   PAYMENT: ['PURCHASE', 'SPEND', 'VENDOR_COST'],
-  COLLECTION: ['SALE', 'SERVICE', 'CUSTOMER_ORDER'],
+  COLLECTION: ['SALE', 'SERVICE', 'CUSTOMER_ORDER', 'INVOICE'],
   SHIPMENT: ['ORDER', 'CUSTOMER_ORDER'],
   DELIVERY: ['ORDER', 'CUSTOMER_ORDER'],
 };
@@ -765,14 +794,8 @@ export function operatingContinuity(
     if (PAYABLE_TYPES.has(row.eventType)) {
       payable += obligationRemaining(row, events, new Set(['PAYMENT']));
     }
-    if (row.eventType === 'SALE' || row.eventType === 'SERVICE') {
+    if (row.eventType === 'SALE' || row.eventType === 'SERVICE' || row.eventType === 'INVOICE') {
       receivable += obligationRemaining(row, events, new Set(['COLLECTION']));
-    }
-    if (row.eventType === 'CUSTOMER_ORDER') {
-      const invoiced = events.some(
-        (child) => child.parentEventId === row.operatingEventId && child.eventType === 'SALE' && effective(child)
-      );
-      if (!invoiced) receivable += obligationRemaining(row, events, new Set(['COLLECTION']));
     }
   }
 
@@ -795,7 +818,9 @@ export function operatingContinuity(
   const rejected = rows
     .filter((row) => row.eventType === 'PRODUCTION')
     .reduce((total, row) => total + num(row.rejectedQuantity), 0);
-  const accepted = Math.max(0, produced - rejected);
+  const accepted = rows
+    .filter((row) => row.eventType === 'PRODUCTION')
+    .reduce((total, row) => total + (explicitAccepted(toManufacturing(row)) ?? 0), 0);
   const sold = rows.filter((row) => row.eventType === 'SALE').reduce((total, row) => total + num(row.quantity), 0);
   const unsoldAccepted = Math.max(0, accepted - sold);
 
@@ -830,9 +855,10 @@ export function operatingContinuity(
   let leads = 0;
   let conversions = 0;
   for (const row of rows) {
-    if (row.eventType !== 'RESULT') continue;
-    if (row.metric === 'LEADS') leads += countedUnits(row);
-    if (row.metric === 'CONVERSIONS') conversions += countedUnits(row);
+    const code = (row.marketing?.metricCode || row.metric || '').toUpperCase();
+    if (row.eventType !== 'RESULT' && row.eventType !== 'PROGRESS') continue;
+    if (code === 'LEADS') leads += countedUnits(row);
+    if (code === 'CONVERSIONS') conversions += countedUnits(row);
   }
 
   return {
@@ -965,14 +991,35 @@ export function projectOperatingMoment(args: {
       targetConfigured = true;
       revisions.push({ id: row.operatingEventId, title: row.title, occurredAt: row.occurredAt });
     }
-    if (def?.consumesBudget) spent += amount;
+    if (def?.consumesBudget && args.familyCode !== 'MARKETING_CAMPAIGNS') spent += amount;
     if (args.familyCode === 'MARKETING_CAMPAIGNS') {
-      if (row.eventType === 'RESULT' && row.metric !== 'LEADS' && row.metric !== 'CONVERSIONS') progress += amount;
+      // Rolled below so revisions, incremental, and cumulative series stay one ledger.
     } else if (args.familyCode === 'MANUFACTURING_PRODUCTION') {
-      progress += manufacturingTargetAmount(args.prefs.targetMetric, row.eventType, amount);
+      // Measured once below so unlike units are not added row by row.
     } else if (def?.countsTarget && row.eventType !== 'COLLECTION' && row.eventType !== 'PAYMENT') {
       progress += amount;
     }
+  }
+  if (args.familyCode === 'MARKETING_CAMPAIGNS') {
+    const rolled = rollMarketingLedger(pulseEvents, { budget: num(args.prefs.monthlyBudget), target: num(args.prefs.monthlyTarget) });
+    budget = rolled.budget;
+    target = rolled.target;
+    budgetConfigured = rolled.budgetConfigured;
+    targetConfigured = rolled.targetConfigured;
+    spent = rolled.spent;
+    revisions.splice(0, revisions.length, ...rolled.revisions);
+    const measured = marketingProgress(pulseEvents, args.prefs.targetMetric);
+    progress = measured.progress;
+  }
+  // Pulse recorded sales is net posted sales. Gross countsTarget amounts ignore credit notes.
+  if (args.familyCode === 'TRADING_DISTRIBUTION' && args.prefs.targetMetric.toUpperCase() === 'REVENUE') {
+    progress = netPostedSales(pulseEvents);
+  }
+  let manufacturingCoverage: string | null = null;
+  if (args.familyCode === 'MANUFACTURING_PRODUCTION') {
+    const measured = manufacturingMeasure(pulseEvents.map(toManufacturing), args.prefs.targetMetric);
+    progress = measured.progress;
+    manufacturingCoverage = measured.coverage;
   }
   const legacyAttention = pulseEvents
     .filter((row) => row.eventType === 'ISSUE' || row.approvalStatus === 'PENDING')
@@ -998,7 +1045,24 @@ export function projectOperatingMoment(args: {
           ...tradingAttention(pulseEvents, visible, canApprove(args.role), asOf),
           ...budgetAttention(spent, budget, budgetConfigured, visible),
         ])
-      : legacyAttention;
+      : isMarketingSubtype(args.prefs.subtype)
+        ? marketingAttention({
+            events: pulseEvents,
+            subtype: args.prefs.subtype,
+            visible,
+            canApprove: canApprove(args.role),
+            asOf,
+            budget,
+            spent,
+            budgetConfigured,
+            target,
+            progress,
+            targetConfigured,
+            progressCoverage: marketingProgress(pulseEvents, args.prefs.targetMetric).coverage,
+            startDate: args.prefs.startDate,
+            endDate: args.prefs.endDate,
+          })
+        : legacyAttention;
   const tradingReady = isTradingSubtype(args.prefs.subtype);
   const paymentReadiness = visible
     ? pulseEvents
@@ -1068,11 +1132,11 @@ export function projectOperatingMoment(args: {
       ? { amount: money(budget), spent: money(spent), remaining: money(budget - spent), configured: budgetConfigured }
       : null,
     target: visible
-      ? { metric: args.prefs.targetMetric, value: money(target), progress: money(progress), configured: targetConfigured }
+      ? { metric: args.prefs.targetMetric, value: money(target), progress: money(progress), configured: targetConfigured, coverage: manufacturingCoverage }
       : null,
     attention: [
       ...attention,
-      ...(isRetailSubtype(args.prefs.subtype) || isTradingSubtype(args.prefs.subtype)
+      ...(isRetailSubtype(args.prefs.subtype) || isTradingSubtype(args.prefs.subtype) || isMarketingSubtype(args.prefs.subtype)
         ? []
         : paymentReadiness.map((row) => ({
             id: `open-${row.id}`,
@@ -1096,12 +1160,13 @@ export function projectOperatingMoment(args: {
       unit: row.unit ?? row.lines?.[0]?.unit ?? null,
       parentEventId: row.parentEventId ?? null,
       status: row.contract?.appointmentStatus ?? row.contract?.orderStatus ?? null,
+      orderSide: row.contract?.orderSide ?? null,
     })),
     life: {
       channels: args.prefs.channels,
       openCommitments: pulseEvents.filter(
         (row) =>
-          (row.eventType === 'ORDER' || row.eventType === 'CUSTOMER_ORDER' || row.eventType === 'DELIVERABLE') &&
+          (row.eventType === 'ORDER' || row.eventType === 'CUSTOMER_ORDER' || row.eventType === 'DELIVERABLE' || row.eventType === 'ACTIVITY') &&
           row.approvalStatus !== 'REJECTED'
       ).length,
       resultProgress: visible ? money(progress) : '',
@@ -1131,22 +1196,12 @@ function emptyFacts(): Pick<OperatingBoardRow, 'channelName' | 'counterpartyName
   };
 }
 
-function financeTotals(
-  events: OperatingEventRow[],
-  visible: boolean,
-  continuity: OperatingContinuity
-): OperatingFinanceTotals | null {
-  if (!visible) return null;
+/** Posted SALE, SERVICE, and INVOICE minus linked customer credit notes. */
+function netPostedSales(events: OperatingEventRow[]): number {
   const rows = events.filter(effective);
-  const sum = (match: (row: OperatingEventRow) => boolean) =>
-    money(rows.filter(match).reduce((total, row) => total + num(row.amount), 0));
-  const grossSales = rows
-    .filter((row) => row.eventType === 'SALE' || row.eventType === 'SERVICE')
-    .reduce((total, row) => total + num(row.amount), 0);
-  // Net posted sales: subtract effective RETURN credit notes linked to a SALE/SERVICE.
-  const saleIds = new Set(
-    rows.filter((row) => row.eventType === 'SALE' || row.eventType === 'SERVICE').map((row) => row.operatingEventId)
-  );
+  const posted = rows.filter((row) => row.eventType === 'SALE' || row.eventType === 'SERVICE' || row.eventType === 'INVOICE');
+  const grossSales = posted.reduce((total, row) => total + num(row.amount), 0);
+  const saleIds = new Set(posted.map((row) => row.operatingEventId));
   const returned = rows
     .filter(
       (row) =>
@@ -1156,12 +1211,24 @@ function financeTotals(
         (row.contract?.returnDirection == null || row.contract.returnDirection === 'CUSTOMER')
     )
     .reduce((total, row) => total + num(row.amount), 0);
+  return Math.max(0, grossSales - returned);
+}
+
+function financeTotals(
+  events: OperatingEventRow[],
+  visible: boolean,
+  continuity: OperatingContinuity
+): OperatingFinanceTotals | null {
+  if (!visible) return null;
+  const rows = events.filter(effective);
+  const sum = (match: (row: OperatingEventRow) => boolean) =>
+    money(rows.filter(match).reduce((total, row) => total + num(row.amount), 0));
   return {
-    sales: money(Math.max(0, grossSales - returned)),
+    sales: money(netPostedSales(events)),
     received: money(
       rows.reduce((total, row) => {
         if (row.eventType === 'COLLECTION' && row.paymentStatus === 'COLLECTED') return total + num(row.amount);
-        if ((row.eventType === 'SALE' || row.eventType === 'SERVICE') && row.paymentStatus === 'COLLECTED') {
+        if ((row.eventType === 'SALE' || row.eventType === 'SERVICE' || row.eventType === 'INVOICE') && row.paymentStatus === 'COLLECTED') {
           const linked = events.some(
             (child) => child.parentEventId === row.operatingEventId && child.eventType === 'COLLECTION' && effective(child)
           );
@@ -1322,14 +1389,14 @@ function widgetLabels(familyCode: string): WidgetLabels {
 }
 
 function commitmentTypes(familyCode: string): string[] {
-  if (familyCode === 'MARKETING_CAMPAIGNS') return ['DELIVERABLE', 'COMPLETE'];
+  if (familyCode === 'MARKETING_CAMPAIGNS') return ['ACTIVITY'];
   if (familyCode === 'MANUFACTURING_PRODUCTION') return ['ORDER', 'CUSTOMER_ORDER', 'SHIPMENT'];
   if (familyCode === 'TRADING_DISTRIBUTION') return ['ORDER', 'SHIPMENT'];
   return ['ORDER'];
 }
 
 function executionTypes(familyCode: string): string[] {
-  if (familyCode === 'MARKETING_CAMPAIGNS') return ['RESULT', 'DELIVERABLE', 'UPDATE', 'ISSUE'];
+  if (familyCode === 'MARKETING_CAMPAIGNS') return ['ACTIVITY', 'PROGRESS', 'RESULT', 'UPDATE', 'ISSUE'];
   if (familyCode === 'MANUFACTURING_PRODUCTION') return ['ISSUE', 'STOCK', 'UPDATE', 'PRODUCTION', 'DELIVERY'];
   if (familyCode === 'RETAIL_CONSUMER') return ['ISSUE', 'STOCK', 'UPDATE', 'SERVICE', 'APPOINTMENT'];
   return ['ISSUE', 'STOCK', 'UPDATE'];
@@ -1407,7 +1474,63 @@ function operatingBoards(args: {
   ];
   if (isRetailSubtype(args.subtype)) decorateRetailBoards(moments, life, memory, args.events, visible, currency, args.asOf);
   if (isTradingSubtype(args.subtype)) decorateTradingBoards(moments, life, memory, args.events, visible, currency, args.asOf, network);
+  if (isMarketingSubtype(args.subtype)) decorateMarketingBoards(moments, life, args.prefs, args.events);
+  if (isManufacturingSubtype(args.subtype)) decorateManufacturingBoards(moments, args.events);
   return { moments, life, memory };
+}
+
+function decorateManufacturingBoards(moments: OperatingBoardSection[], events: OperatingEventRow[]): void {
+  const stock = moments.find((section) => section.code === 'stock');
+  const positions = manufacturingStock(events.map(toManufacturing));
+  if (stock && positions.length > 0) {
+    stock.detail = positions
+      .map((position) => {
+        const unit = position.unit ? ` ${position.unit}` : '';
+        return `${position.item} · ${Number(position.onHand.toFixed(2))}${unit} ${position.kind === 'FINISHED' ? 'finished' : 'on hand'}`;
+      })
+      .join(' · ');
+  }
+  const production = moments.find((section) => section.code === 'production');
+  if (production) {
+    const rows = events.filter((row) => row.eventType === 'PRODUCTION' && effective(row));
+    const accepted = rows.reduce((total, row) => total + (explicitAccepted(toManufacturing(row)) ?? 0), 0);
+    const recorded = rows.reduce((total, row) => total + recordedFrom(row), 0);
+    const acceptedKnown = rows.some((row) => explicitAccepted(toManufacturing(row)) != null);
+    production.coverage = acceptedKnown ? null : 'Acceptance not recorded';
+    production.detail = rows.length
+      ? `Recorded output ${Number(recorded.toFixed(2))}${acceptedKnown ? ` · accepted ${Number(accepted.toFixed(2))}` : ''}`
+      : production.detail;
+  }
+}
+
+function recordedFrom(row: OperatingEventRow): number {
+  if (row.quantity != null && row.quantity !== '') return num(row.quantity);
+  return num(row.amount);
+}
+
+function decorateMarketingBoards(
+  moments: OperatingBoardSection[],
+  life: OperatingBoardSection[],
+  prefs: OperatingPreferences,
+  events: OperatingEventRow[]
+): void {
+  const measured = marketingProgress(events, prefs.targetMetric);
+  const current = life.find((section) => section.code === 'L1');
+  if (current) {
+    current.coverage = measured.coverage;
+    current.detail = measured.coverage === 'N/A'
+      ? 'No compatible results yet.'
+      : `${prefs.targetMetric} · ${measured.coverage}`;
+  }
+  const network = moments.find((section) => section.code === 'M3');
+  if (network) network.coverage = channelCoverage(prefs.channels, events);
+  const commitments = moments.find((section) => section.code === 'M4');
+  if (commitments) {
+    const open = events.filter(
+      (row) => row.eventType === 'ACTIVITY' && row.approvalStatus !== 'REJECTED' && row.marketing?.activityStatus !== 'DONE'
+    );
+    if (open.length === 0 && commitments.rows.length === 0) commitments.detail = 'Nothing recorded yet.';
+  }
 }
 
 function decorateTradingBoards(
@@ -1672,10 +1795,13 @@ function familyMomentSections(
     ];
   }
   if (familyCode === 'MARKETING_CAMPAIGNS') {
-    return [
-      section('channels', 'Channel Activity', ['RESULT', 'DELIVERABLE']),
-      section('commitments', 'Open Commitments', ['DELIVERABLE', 'SPEND', 'VENDOR_COST']),
+    const sections = [
+      section('results', 'Results', ['RESULT', 'PROGRESS']),
+      section('spend', 'Spend', ['SPEND', 'VENDOR_COST']),
+      section('activity', 'Activity', ['ACTIVITY', 'UPDATE', 'ISSUE']),
     ];
+    if (subtype === 'CLIENT_CAMPAIGN') sections.push(section('invoices', 'Client Invoices', ['INVOICE', 'SALE']));
+    return sections;
   }
   return [];
 }
@@ -1773,7 +1899,7 @@ function channelSection(
 ): OperatingBoardSection {
   const sales = events.filter((row) => {
     if (!effective(row)) return false;
-    if (familyCode === 'MARKETING_CAMPAIGNS') return row.eventType === 'RESULT';
+    if (familyCode === 'MARKETING_CAMPAIGNS') return row.eventType === 'RESULT' || row.eventType === 'PROGRESS';
     return row.eventType === 'SALE' || row.eventType === 'SERVICE';
   });
   const known = new Set(channels);

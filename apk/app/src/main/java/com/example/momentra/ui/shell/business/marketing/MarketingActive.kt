@@ -59,6 +59,7 @@ fun MarketingActive(
     onOpenQuickAdd: () -> Unit,
     onRecord: suspend (MarketingEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
+    momentId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var activityOpen by remember { mutableStateOf(false) }
@@ -75,10 +76,10 @@ fun MarketingActive(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         when (tab) {
-            OperatingTab.PULSE -> MarketingPulse(model, onViewAll = { activityOpen = true }, onDecide = onDecide)
+            OperatingTab.PULSE -> MarketingPulse(model, onViewAll = { activityOpen = true }, onDecide = onDecide, onOpenQuickAdd = onOpenQuickAdd)
             OperatingTab.MOMENTS -> MarketingMoments(model, onOpenQuickAdd)
             OperatingTab.LIFE -> MarketingLife(model)
-            OperatingTab.MEMORY -> MarketingMemory(model)
+            OperatingTab.MEMORY -> MarketingMemory(model, momentId)
             OperatingTab.QUICK_ADD -> Unit
         }
     }
@@ -95,7 +96,12 @@ private fun pulseSubtitle(model: OperatingProjectionDto): String =
     else "Your campaign revenue plan, approved spend and ready money."
 
 @Composable
-private fun MarketingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit, onDecide: suspend (String, String) -> Unit) {
+private fun MarketingPulse(
+    model: OperatingProjectionDto,
+    onViewAll: () -> Unit,
+    onDecide: suspend (String, String) -> Unit,
+    onOpenQuickAdd: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     Header(model, "Pulse", pulseSubtitle(model))
     if (model.financeVisible) {
@@ -103,11 +109,12 @@ private fun MarketingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit,
         CampCard {
             val target = model.target
             val budget = model.budget
+            val measured = model.activity.any { it.eventType == "RESULT" || it.eventType == "PROGRESS" }
             Text("Accepted results", color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-            Text(money(model, target?.progress), color = CampInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 28.sp)
+            Text(if (measured) money(model, target?.progress) else "N/A", color = CampInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 28.sp)
             Text("of ${money(model, target?.value)} target", color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
-            Meter("Results toward target", fraction(target?.progress, target?.value), CampBrand)
-            ChannelTotals("Results by channel", model.activity.filter { it.eventType == "RESULT" }, model)
+            if (measured) Meter("Results toward target", fraction(target?.progress, target?.value), CampBrand)
+            ChannelTotals("Results by channel", model.activity.filter { it.eventType == "RESULT" || it.eventType == "PROGRESS" }, model)
             Meter("Budget used", fraction(budget?.spent, budget?.amount), CampSuccess)
             ChannelTotals("Spend by channel", model.activity.filter { it.eventType == "SPEND" || it.eventType == "VENDOR_COST" }, model)
             Line("Budget remaining", money(model, budget?.remaining), CampSuccess)
@@ -134,7 +141,7 @@ private fun MarketingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit,
                         )
                     }
                 }
-                val canDecide = item.kind == "APPROVAL" && (model.role == "OWNER_ADMIN" || model.role == "APPROVER")
+                val canDecide = (item.kind == "APPROVAL" || item.kind == "ATT-03" || item.cta == "approval") && (model.role == "OWNER_ADMIN" || model.role == "APPROVER")
                 if (canDecide) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Approve", color = CampSuccess, fontFamily = PlusJakartaSans, modifier = Modifier.clickable {
@@ -144,13 +151,23 @@ private fun MarketingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit,
                             scope.launch { onDecide(item.id, "REJECTED") }
                         })
                     }
+                } else if (!item.cta.isNullOrBlank() && !item.id.startsWith("open-")) {
+                    Text(
+                        com.example.momentra.ui.shell.business.shared.operatingAttentionCtaLabel(item),
+                        color = CampInk,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 13.sp,
+                        modifier = Modifier.clickable {
+                            com.example.momentra.ui.shell.business.shared.openOperatingAttention(item, model, onOpenQuickAdd)
+                        },
+                    )
                 }
             }
         }
         SectionTitle("Payment Readiness")
-        val toCollect = model.paymentReadiness.filter { it.relevance == "RECEIVABLE" }
+        val toCollect = if (model.subtype == "CLIENT_CAMPAIGN") model.paymentReadiness.filter { it.relevance == "RECEIVABLE" } else emptyList()
         val toPay = model.paymentReadiness.filter { it.relevance != "RECEIVABLE" }
-        ReadinessGroup("To collect", toCollect, model)
+        if (model.subtype == "CLIENT_CAMPAIGN") ReadinessGroup("To collect", toCollect, model)
         ReadinessGroup("To pay", toPay, model)
         if (model.paymentReadiness.isEmpty()) {
             CampCard { Text("No open payments or collections.", color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 14.sp) }
@@ -158,12 +175,13 @@ private fun MarketingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit,
         SectionTitle("Finance")
         CampCard {
             val finance = model.finance
-            Line("Accepted results", money(model, model.target?.progress), CampAccent)
+            val measured = model.activity.any { it.eventType == "RESULT" || it.eventType == "PROGRESS" }
+            Line("Accepted results", if (measured) money(model, model.target?.progress) else "N/A", CampAccent)
             if (model.subtype == "CLIENT_CAMPAIGN") {
                 Line("Client invoices", money(model, finance?.sales), CampAccent)
+                Line("Received", money(model, finance?.received), CampSuccess)
+                Line("Still to collect", money(model, finance?.outstanding), Color(0xFFFBBF24))
             }
-            Line("Received", money(model, finance?.received), CampSuccess)
-            Line("Still to collect", money(model, finance?.outstanding), Color(0xFFFBBF24))
             Line("Eligible cost", money(model, finance?.eligibleCost), CampInk)
             Line("Business cash paid", money(model, finance?.cashPaid), CampInk)
             Line("Still to pay", money(model, finance?.payable), Color(0xFFFBBF24))
@@ -275,8 +293,20 @@ private fun MarketingLife(model: OperatingProjectionDto) {
 }
 
 @Composable
-private fun MarketingMemory(model: OperatingProjectionDto) {
+private fun MarketingMemory(model: OperatingProjectionDto, momentId: String? = null) {
     Header(model, "Memory", "What this campaign keeps from the month.")
+    Text(
+        "Preview story",
+        color = CampBg,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(CampBrand)
+            .clickable { if (momentId != null) com.example.momentra.ui.shell.business.shared.OperatingChromeState.previewStoryId = momentId }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Pill(periodLabel(model.startDate))
         Pill("Current")
@@ -331,6 +361,9 @@ private fun BoardBlock(section: OperatingBoardSectionDto, model: OperatingProjec
     SectionTitle(section.title)
     CampCard {
         Text(com.example.momentra.ui.shell.business.shared.formatOperatingDetail(section.detail.ifBlank { "Nothing recorded yet." }, model.currency), color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        if (!section.coverage.isNullOrBlank()) {
+            Text(section.coverage, color = CampAccent, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+        }
         section.rows.forEach { row ->
             Column(Modifier.padding(vertical = 6.dp)) {
                 Text(row.title, color = CampInk, fontFamily = PlusJakartaSans, fontSize = 14.sp)

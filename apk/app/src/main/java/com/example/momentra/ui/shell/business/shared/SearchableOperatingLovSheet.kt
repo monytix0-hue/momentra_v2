@@ -33,6 +33,7 @@ data class OperatingLovOption(
     val kind: String,
     val unit: String? = null,
     val subtitle: String? = null,
+    val conversionToBase: String? = null,
 )
 
 object OperatingSeedUoms {
@@ -57,6 +58,25 @@ object OperatingSeedUoms {
     ).map { (code, label) ->
         OperatingLovOption(id = "seed-uom-$code", name = code, kind = "UOM", unit = code, subtitle = label)
     }
+
+    fun dimension(code: String): String? = when (code.trim().lowercase()) {
+        "pc", "pair", "set", "pack", "box", "carton", "dozen", "piece (pc)", "dozen (12 pc)" -> "count"
+        "kg", "g", "tonne" -> "mass"
+        "l", "litre (l)", "ml" -> "volume"
+        "m", "metre (m)", "cm", "foot" -> "length"
+        "sq ft", "sq m" -> "area"
+        else -> null
+    }
+
+    fun compatible(code: String, base: String, conversion: String?): Boolean {
+        val left = dimension(code) ?: return true
+        val right = dimension(base) ?: return true
+        if (left != right) return false
+        if (code.trim().lowercase() in setOf("pack", "box", "carton")) {
+            return (conversion?.toDoubleOrNull() ?: 0.0) > 0
+        }
+        return true
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +87,7 @@ fun SearchableOperatingLovSheet(
     options: List<OperatingLovOption>,
     canAdd: Boolean,
     accent: Color = Color(0xFF6DDCFF),
+    unitChoices: List<OperatingLovOption> = emptyList(),
     onSelect: (OperatingLovOption) -> Unit,
     /** name, base unit, optional conversionToBase */
     onAdd: ((String, String?, String?) -> Unit)? = null,
@@ -166,7 +187,27 @@ fun SearchableOperatingLovSheet(
                         placeholder = { Text("Name") },
                         singleLine = true,
                     )
-                    if (kind.equals("PRODUCT", ignoreCase = true) || kind.equals("UOM", ignoreCase = true)) {
+                    if (kind.equals("PRODUCT", ignoreCase = true) && unitChoices.isNotEmpty()) {
+                        Text("Base unit", color = Color(0xFF9AA3B2), fontSize = 12.sp)
+                        unitChoices.chunked(3).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                row.forEach { option ->
+                                    Text(
+                                        option.subtitle ?: option.name,
+                                        color = if (newUnit == option.name) Color(0xFF0E1620) else Color(0xFFE8EEF7),
+                                        fontSize = 12.sp,
+                                        modifier = Modifier
+                                            .background(
+                                                if (newUnit == option.name) accent else Color(0xFF1A2330),
+                                                RoundedCornerShape(8.dp),
+                                            )
+                                            .clickable { newUnit = option.name }
+                                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    )
+                                }
+                            }
+                        }
+                    } else if (kind.equals("PRODUCT", ignoreCase = true) || kind.equals("UOM", ignoreCase = true)) {
                         OutlinedTextField(
                             value = newUnit,
                             onValueChange = { newUnit = it },

@@ -26,6 +26,21 @@ function checksum(body: string): string {
   return createHash('sha256').update(body).digest('hex').slice(0, 32);
 }
 
+async function assertStoryAccess(client: PoolClient, ctx: RequestContext, momentId: string): Promise<void> {
+  const marketing = await client.query(
+    `SELECT 1 FROM business.business_system_setup
+     WHERE moment_id = $1 AND family_code IN ('MARKETING_CAMPAIGNS', 'RETAIL_CONSUMER', 'MANUFACTURING_PRODUCTION') AND status = 'ACTIVE'
+     LIMIT 1`,
+    [momentId]
+  );
+  if (marketing.rows[0]) {
+    const { assertCompanyMomentAccess } = await import('../business/membership');
+    await assertCompanyMomentAccess(client, ctx, momentId);
+    return;
+  }
+  await assertStoryAccess(client, ctx, momentId);
+}
+
 async function insertArtifact(
   client: PoolClient,
   storyId: string,
@@ -218,7 +233,7 @@ export async function getMomentStoryStatus(
   familyProfile: string | null;
   errorMessage: string | null;
 }> {
-  await assertGovernanceAllowed(client, ctx, { actionCode: 'GROUP_ACCESS', resourceType: 'MOMENT', momentId });
+  await assertStoryAccess(client, ctx, momentId);
   const ready = await client.query<{
     story_id: string;
     story_version: number;
@@ -276,7 +291,7 @@ export async function getMomentStory(
   snapshot: StorySnapshot;
   chapters: StoryChapterId[];
 }> {
-  await assertGovernanceAllowed(client, ctx, { actionCode: 'GROUP_ACCESS', resourceType: 'MOMENT', momentId });
+  await assertStoryAccess(client, ctx, momentId);
   // Story reads use a non-transaction connection, so a savepoint is illegal here.
   // Refresh on its own transaction: a failure rolls back and the existing READY story is still returned.
   try {
@@ -346,11 +361,7 @@ export async function getStoryArtifact(
     [storyId]
   );
   if (!story.rows[0]) throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Story not found.', 404);
-  await assertGovernanceAllowed(client, ctx, {
-    actionCode: 'GROUP_ACCESS',
-    resourceType: 'MOMENT',
-    momentId: story.rows[0].moment_id,
-  });
+  await assertStoryAccess(client, ctx, story.rows[0].moment_id);
   const art = await client.query<{ artifact_id: string; content_type: string; inline_body: string | null }>(
     `SELECT artifact_id, content_type, inline_body
      FROM core.moment_story_artifact
@@ -427,11 +438,7 @@ export async function createStoryShare(
   if (story.rows[0].status !== 'READY') {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Story is not ready to share.', 400);
   }
-  await assertGovernanceAllowed(client, ctx, {
-    actionCode: 'GROUP_ACCESS',
-    resourceType: 'MOMENT',
-    momentId: story.rows[0].moment_id,
-  });
+  await assertStoryAccess(client, ctx, story.rows[0].moment_id);
   const shareId = randomUUID();
   const shareToken = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '').slice(0, 8);
   await client.query(
@@ -553,11 +560,7 @@ export async function revokeStoryShare(
     [shareId]
   );
   if (!share.rows[0]) throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Share not found.', 404);
-  await assertGovernanceAllowed(client, ctx, {
-    actionCode: 'GROUP_ACCESS',
-    resourceType: 'MOMENT',
-    momentId: share.rows[0].moment_id,
-  });
+  await assertStoryAccess(client, ctx, share.rows[0].moment_id);
   const updated = await client.query<{ revoked_at: Date }>(
     `UPDATE core.moment_story_share SET revoked_at = now()
      WHERE share_id = $1 RETURNING revoked_at`,
@@ -580,7 +583,7 @@ export async function regenerateMomentStory(
   ctx: RequestContext,
   momentId: string
 ): Promise<{ storyId: string; storyVersion: number }> {
-  await assertGovernanceAllowed(client, ctx, { actionCode: 'GROUP_ACCESS', resourceType: 'MOMENT', momentId });
+  await assertStoryAccess(client, ctx, momentId);
   const completionId = randomUUID();
   return queueMomentStoryGeneration(client, ctx, {
     momentId,

@@ -439,6 +439,7 @@ class AppShellViewModel(
                         ?: "Group",
                     status = existing?.status ?: "ACTIVE",
                     momentTypeCode = existing?.momentTypeCode ?: current.selectedMomentTypeCode,
+                    companyId = existing?.companyId,
                     participantCount = existing?.participantCount ?: 0,
                 )
             }
@@ -747,6 +748,46 @@ class AppShellViewModel(
                 _state.update { it.copy(bootstrapStatus = BootstrapStatus.READY) }
             }
             refreshVisibleGroupTab(forcePrefetch = true)
+        }
+    }
+
+    /** Open a COMPLETED Business moment into the live shell. */
+    fun selectCompletedBusinessMoment(moment: MomentSummary) {
+        val status = if (moment.status.isBlank()) "COMPLETED" else moment.status
+        val summary = moment.copy(status = status)
+        _state.update {
+            val baseMoments = if (it.selectedContext == AppContext.BUSINESS) it.moments else emptyList()
+            val hasMoment = baseMoments.any { m -> m.momentId == summary.momentId }
+            val moments = if (hasMoment) {
+                baseMoments.map { m -> if (m.momentId == summary.momentId) summary else m }
+            } else {
+                baseMoments + summary
+            }
+            it.copy(
+                selectedContext = AppContext.BUSINESS,
+                moments = moments,
+                selectedMomentId = summary.momentId,
+                selectedMomentTitle = summary.title,
+                selectedMomentTypeCode = summary.momentTypeCode,
+                selectedMomentByContext = it.selectedMomentByContext + (AppContext.BUSINESS to summary.momentId),
+                bottomDestination = BottomDestination.PULSE,
+                lastNonCreateDestination = BottomDestination.PULSE,
+                tabByContext = it.tabByContext + (AppContext.BUSINESS to BottomDestination.PULSE),
+                momentExperience = MomentExperienceKind.ACTIVE,
+                contextContent = ShellContentState.Ready(null),
+                showMomentSwitcher = true,
+                groupMomentDirectoryHome = false,
+            )
+        }
+        persistContext(AppContext.BUSINESS)
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            meRepository.getBootstrap().onSuccess { boot ->
+                bootstrap = boot
+                applyBootstrapInventory(boot, networkRefresh = true, preserveMomentId = summary.momentId)
+                _state.update { it.copy(bootstrapStatus = BootstrapStatus.READY) }
+            }
+            refreshVisibleBusinessTab(forcePrefetch = true)
         }
     }
 

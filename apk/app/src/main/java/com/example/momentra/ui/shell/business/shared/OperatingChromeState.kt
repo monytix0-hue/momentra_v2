@@ -12,6 +12,7 @@ object OperatingChromeState {
     var participantNames by mutableStateOf<List<String>>(emptyList())
     var editing by mutableStateOf<OperatingActivityDto?>(null)
     var settling by mutableStateOf<OperatingPaymentDto?>(null)
+    var previewStoryId by mutableStateOf<String?>(null)
     var charging by mutableStateOf<OperatingActivityDto?>(null)
     var quickAddHint by mutableStateOf<String?>(null)
     var record: (suspend (OperatingCaptureDraft) -> Unit)? = null
@@ -34,7 +35,7 @@ fun openOperatingAttention(
         "charge" -> {
             model.activity.firstOrNull { it.id == sourceId }?.let { OperatingChromeState.charging = it }
         }
-        "stock", "budget", "shipment" -> {
+        "stock", "budget", "shipment", "activity" -> {
             OperatingChromeState.quickAddHint = item.cta
             onOpenQuickAdd?.invoke()
         }
@@ -53,6 +54,7 @@ fun operatingAttentionCtaLabel(item: OperatingAttentionDto): String = when (item
     "approval" -> "Review"
     "stock" -> "Review stock"
     "budget" -> "Review budget"
+    "activity" -> "Open activity"
     "shipment" -> "Record shipment"
     else -> "Open"
 }

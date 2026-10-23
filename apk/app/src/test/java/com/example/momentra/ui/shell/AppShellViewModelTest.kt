@@ -495,7 +495,7 @@ private open class FakeMeGateway(
         return Result.success(source.take(limit))
     }
 
-    override suspend fun listBusinessMoments(limit: Int): Result<List<MomentSummary>> =
+    override suspend fun listBusinessMoments(limit: Int, lifecycle: String): Result<List<MomentSummary>> =
         Result.success(businessMoments.take(limit))
 
     override suspend fun hasLife360(): Result<Boolean> =

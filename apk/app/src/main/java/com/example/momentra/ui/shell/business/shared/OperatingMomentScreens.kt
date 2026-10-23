@@ -51,6 +51,17 @@ private val TextPrimary = Color(0xFFE5E0EE)
 
 enum class OperatingTab { PULSE, MOMENTS, LIFE, MEMORY, QUICK_ADD }
 
+/** Last operating projection for a moment. Paint this before the ledger replay returns. */
+object OperatingProjectionCache {
+    private val stored = java.util.concurrent.ConcurrentHashMap<String, OperatingProjectionDto>()
+
+    fun peek(momentId: String): OperatingProjectionDto? = stored[momentId]
+
+    fun put(momentId: String, payload: OperatingProjectionDto) {
+        stored[momentId] = payload
+    }
+}
+
 fun operatingTabFor(destination: BottomDestination): OperatingTab = when (destination) {
     BottomDestination.MOMENTS -> OperatingTab.MOMENTS
     BottomDestination.LIFE -> OperatingTab.LIFE
@@ -78,7 +89,7 @@ fun OperatingMomentPage(
         RetiredBusinessMoment(momentTitle, onCreateMoment, modifier)
         return
     }
-    var projection by remember(momentId) { mutableStateOf<OperatingProjectionDto?>(null) }
+    var projection by remember(momentId) { mutableStateOf(OperatingProjectionCache.peek(momentId)) }
     var error by remember(momentId) { mutableStateOf<String?>(null) }
     var tick by remember(momentId) { mutableIntStateOf(0) }
     val repo = remember { BusinessSliceRepository() }
@@ -120,11 +131,14 @@ fun OperatingMomentPage(
     LaunchedEffect(momentId, refreshToken, tick) {
         repo.getOperating(momentId).fold(
             onSuccess = {
+                OperatingProjectionCache.put(momentId, it)
                 projection = it
                 OperatingChromeState.participantNames = it.participants
                 error = null
             },
-            onFailure = { error = it.message ?: "Could not load this moment" },
+            onFailure = {
+                if (projection == null) error = it.message ?: "Could not load this moment"
+            },
         )
     }
     val model = projection
@@ -137,6 +151,7 @@ fun OperatingMomentPage(
             model = model,
             tab = tab,
             onOpenQuickAdd = onOpenQuickAdd,
+            momentId = momentId,
             onRecord = { draft ->
                 repo.recordOperatingEvent(
                     momentId,
@@ -185,6 +200,7 @@ fun OperatingMomentPage(
             model = model,
             tab = tab,
             onOpenQuickAdd = onOpenQuickAdd,
+            momentId = momentId,
             onRecord = { draft ->
                 repo.recordOperatingEvent(
                     momentId,
@@ -233,6 +249,7 @@ fun OperatingMomentPage(
             model = model,
             tab = tab,
             onOpenQuickAdd = onOpenQuickAdd,
+            momentId = momentId,
             onRecord = { draft ->
                 repo.recordOperatingEvent(
                     momentId,
@@ -261,6 +278,12 @@ fun OperatingMomentPage(
                     draft.revisesEventId,
                     draft.dueAt,
                     draft.contract,
+                    reportingMode = draft.reportingMode,
+                    metricCode = draft.metricCode,
+                    budgetCategory = draft.budgetCategory,
+                    activityStatus = draft.activityStatus,
+                    attributedSales = draft.attributedSales,
+                    revisionKind = draft.revisionKind,
                 ).fold(
                     onSuccess = { tick += 1 },
                     onFailure = { error = it.message },
@@ -281,6 +304,7 @@ fun OperatingMomentPage(
             model = model,
             tab = tab,
             onOpenQuickAdd = onOpenQuickAdd,
+            momentId = momentId,
             onRecord = { draft ->
                 repo.recordOperatingEvent(
                     momentId,
@@ -309,6 +333,7 @@ fun OperatingMomentPage(
                     draft.revisesEventId,
                     draft.dueAt,
                     draft.contract,
+                    rejectedQuantity = draft.rejectedQuantity,
                 ).fold(
                     onSuccess = { tick += 1 },
                     onFailure = { error = it.message },
@@ -437,6 +462,7 @@ fun OperatingMomentPage(
             model = model,
             tab = tab,
             onOpenQuickAdd = onOpenQuickAdd,
+            momentId = momentId,
             onRecord = { draft ->
                 repo.recordOperatingEvent(
                     momentId,

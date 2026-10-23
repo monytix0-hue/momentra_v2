@@ -396,6 +396,17 @@ private fun moneyChapterEmpty(story: MomentStoryDto?): Boolean {
 }
 
 private fun resolveStoryChapters(story: MomentStoryDto?): List<String> {
+    if (story?.snapshot?.identity?.familyProfile == "MARKETING_CAMPAIGN" || story?.snapshot?.identity?.familyProfile == "RETAIL_FOOD_CONSUMER" || story?.snapshot?.identity?.familyProfile == "MANUFACTURING_MADE_TO_ORDER") {
+        val pages = story.snapshot?.chapters ?: story.chapters
+        if (!pages.isNullOrEmpty()) return pages
+        if (story.snapshot?.identity?.familyProfile == "MANUFACTURING_MADE_TO_ORDER") {
+            return listOf("mf-moment", "mf-motion", "mf-output", "mf-money", "mf-materials", "mf-people", "mf-attention", "mf-sofar")
+        }
+        if (story.snapshot?.identity?.familyProfile == "RETAIL_FOOD_CONSUMER") {
+            return listOf("rf-moment", "rf-motion", "rf-revenue", "rf-money", "rf-operations", "rf-people", "rf-attention", "rf-sofar")
+        }
+        return listOf("mc-moment", "mc-motion", "mc-results", "mc-money", "mc-channels", "mc-people", "mc-attention", "mc-sofar")
+    }
     val pages = mutableListOf("cover", "moment")
     if (!moneyChapterEmpty(story)) pages += listOf("money", "expenses")
     pages += "close"
@@ -470,7 +481,19 @@ private fun StoryChapterPage(chapter: String, story: MomentStoryDto?) {
         "moment", "memories" -> MomentChapter(snap)
         "expenses", "together", "alive" -> ExpenseRecordChapter(snap)
         "money" -> MoneyChapter(snap)
-        else -> CloseChapter(snap)
+        else -> if (chapter.startsWith("mc-") || chapter.startsWith("rf-") || chapter.startsWith("mf-")) MarketingStoryChapter(snap, chapter) else CloseChapter(snap)
+    }
+}
+
+@Composable
+private fun MarketingStoryChapter(snap: MomentStorySnapshotDto?, chapter: String) {
+    val card = snap?.highlights?.firstOrNull { it.id == chapter }
+    Column(
+        modifier = Modifier.fillMaxSize().background(StoryLight).padding(28.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(card?.title ?: "Campaign", color = StoryNight, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Text(card?.detail ?: snap?.narrative?.opening ?: "", color = StoryMutedViolet, fontSize = 16.sp)
     }
 }
 

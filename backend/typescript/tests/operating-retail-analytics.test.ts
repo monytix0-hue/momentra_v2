@@ -129,7 +129,7 @@ describe('retail functional analytics RF / ALL', () => {
     })))).length, 0);
   });
 
-  it('RF-02: itemized sale deducts tracked stock', () => {
+  it('RF-02: itemized sale does not move stock until a stock event', () => {
     const opening = event('open', 'STOCK', {
       title: 'SKU-A',
       quantity: '10',
@@ -157,7 +157,7 @@ describe('retail functional analytics RF / ALL', () => {
       contract: saleWrite.contract,
     });
     const positions = stockPositions(asRetail([opening, sale]));
-    assert.equal(positions.find((row) => row.item === 'SKU-A')?.onHand, 8);
+    assert.equal(positions.find((row) => row.item === 'SKU-A')?.onHand, 10);
   });
 
   it('RF-03/RF-04: partial collection reduces receivable without changing sales', () => {
@@ -588,5 +588,145 @@ describe('consumer service analytics CS / CS-L', () => {
     assert.ok(view.boards.life.some((section) => section.code === 'service-flow'));
     assert.ok(view.boards.moments.some((section) => section.code === 'customers'));
     assert.ok(view.boards.moments.some((section) => section.code === 'M4'));
+  });
+
+  it('RF-05 / RF-08: payment is not a second expense and a credit does not restock', () => {
+    const spend = event('rent', 'SPEND', {
+      amount: '5000.0000',
+      paymentStatus: 'PENDING',
+      paymentRelevance: 'PAYABLE',
+      counterpartyName: 'Landlord',
+      contract: { expenseCategory: 'Rent/lease', paymentState: 'PAY_LATER' },
+    });
+    const pay = event('pay', 'PAYMENT', {
+      amount: '5000.0000',
+      parentEventId: 'rent',
+      paymentStatus: 'PAID',
+      paymentRelevance: 'PAYABLE',
+      counterpartyName: 'Landlord',
+      contract: { allocations: [{ sourceId: 'rent', amount: '5000.0000' }] },
+    });
+    const view = projectOperatingMoment({
+      familyCode: 'RETAIL_CONSUMER',
+      prefs: prefs('RETAIL_STORE'),
+      role: 'FINANCE',
+      events: [spend, pay],
+    });
+    assert.equal(view.finance?.eligibleCost, '5000.0000');
+    assert.equal(view.finance?.sales, '0.0000');
+    const opening = event('open', 'STOCK', {
+      title: 'SKU-A',
+      quantity: '4',
+      contract: { stockAction: 'SET', stockReason: 'opening', declaredQuantity: '4' },
+    });
+    const credit = event('credit', 'RETURN', {
+      amount: '100.0000',
+      parentEventId: 'sale',
+      lines: [{ itemName: 'SKU-A', quantity: '1', unit: 'pcs', unitPrice: '100' }],
+      contract: { returnDirection: 'CUSTOMER', goodsOutcome: 'NOT_RETURNED' },
+    });
+    assert.equal(stockPositions(asRetail([opening, credit]))[0]?.onHand, 4);
+  });
+
+  it('RF-06 awaiting receipt does not increase stock', () => {
+    const purchase = event('buy', 'PURCHASE', {
+      amount: '800.0000',
+      counterpartyName: 'Mill',
+      lines: [{ itemName: 'Flour', quantity: '20', unit: 'kg', unitPrice: '40' }],
+      contract: { receiptState: 'AWAITING', paymentState: 'PAY_LATER' },
+    });
+    assert.equal(stockPositions(asRetail([purchase])).length, 0);
+  });
+
+  it('ALL-01 / ALL-03: channel and a named customer are required', () => {
+    const noChannel = validateRetailWrite(
+      write({ eventType: 'SALE', title: 'Sale', amount: '100', contract: { entryMode: 'QUICK', paymentState: 'RECEIVED' } }),
+      []
+    );
+    assert.equal(noChannel.ok, false);
+    const unpaid = validateRetailWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Sale',
+        amount: '100',
+        channelName: 'Marketplace',
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER' },
+      }),
+      []
+    );
+    assert.equal(unpaid.ok, false);
+    assert.throws(() => prefs('RETAIL_STORE').channels && normalizeOperatingPreferences('RETAIL_CONSUMER', {
+      subtype: 'RETAIL_STORE',
+      identityName: 'Store',
+      partyName: 'Store',
+      channels: [],
+      startDate: '2026-10-01',
+    }, { userId: 'u', displayName: 'Asha' }));
+  });
+
+  it('ALL-05: quick amount never moves stock', () => {
+    const sale = event('sale', 'SALE', {
+      amount: '500.0000',
+      paymentStatus: 'COLLECTED',
+      contract: { entryMode: 'QUICK', paymentState: 'RECEIVED' },
+    });
+    assert.equal(stockPositions(asRetail([sale])).length, 0);
+  });
+
+  it('RF order status revision keeps one order and posts no revenue', () => {
+    const order = event('ord', 'ORDER', { channelName: 'Store', contract: { orderStatus: 'PLACED' } });
+    const revised = validateRetailWrite(
+      write({
+        eventType: 'ORDER',
+        title: 'Order',
+        channelName: 'Store',
+        revisingId: 'ord',
+        contract: { orderStatus: 'COMPLETED' },
+      }),
+      asRetail([order])
+    );
+    assert.equal(revised.ok, true);
+    if (!revised.ok) return;
+    assert.equal(revised.amount, null);
+    assert.equal(revised.contract.orderStatus, 'COMPLETED');
+  });
+
+  it('CS-02 / CS-05: completion is not revenue and a later collection does not increase it', () => {
+    const booking = event('book', 'APPOINTMENT', {
+      title: 'Cut',
+      contract: { appointmentStatus: 'COMPLETED' },
+    });
+    const charge = event('charge', 'SERVICE', {
+      amount: '3000.0000',
+      paymentStatus: 'PENDING',
+      paymentRelevance: 'RECEIVABLE',
+      counterpartyName: 'Customer B',
+      channelName: 'Walk-in',
+      parentEventId: 'book',
+      contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER' },
+    });
+    const before = projectOperatingMoment({
+      familyCode: 'RETAIL_CONSUMER',
+      prefs: prefs('CONSUMER_SERVICE'),
+      role: 'FINANCE',
+      events: [booking],
+    });
+    assert.equal(before.finance?.sales, '0.0000');
+    const collect = event('cash', 'COLLECTION', {
+      amount: '1200.0000',
+      parentEventId: 'charge',
+      paymentStatus: 'COLLECTED',
+      paymentRelevance: 'RECEIVABLE',
+      counterpartyName: 'Customer B',
+      contract: { allocations: [{ sourceId: 'charge', amount: '1200.0000' }] },
+    });
+    const after = projectOperatingMoment({
+      familyCode: 'RETAIL_CONSUMER',
+      prefs: prefs('CONSUMER_SERVICE'),
+      role: 'FINANCE',
+      events: [booking, charge, collect],
+    });
+    assert.equal(after.finance?.sales, '3000.0000');
+    assert.equal(after.finance?.received, '1200.0000');
   });
 });

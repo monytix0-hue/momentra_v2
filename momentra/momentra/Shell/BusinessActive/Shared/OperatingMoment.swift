@@ -22,16 +22,15 @@ enum OperatingMomentCatalog {
     ]
 
     private static let marketingAdds = [
-        "SPEND", "RESULT", "PAYMENT", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL",
-        "DELIVERABLE", "VENDOR_COST", "COMPLETE",
+        "ACTIVITY", "PROGRESS", "SPEND", "PAYMENT", "REVISION", "APPROVAL", "UPDATE", "ISSUE", "RESULT",
     ]
 
     static func subtypes(_ kind: BusinessSetupKind) -> [OperatingSubtype] {
         switch kind {
         case .marketingCampaigns:
             return [
-                OperatingSubtype(code: "CLIENT_CAMPAIGN", label: "Client Campaign", partyLabel: "Client", targetMetrics: ["REVENUE", "LEADS", "ORDERS", "CUSTOM_COUNT", "CLIENT_BILLING"], requiresChannel: true, quickAdds: marketingAdds + ["COLLECTION"]),
-                OperatingSubtype(code: "OWN_BUSINESS_CAMPAIGN", label: "Own Business Campaign", partyLabel: "Brand", targetMetrics: ["REVENUE", "LEADS", "ORDERS", "CUSTOM_COUNT"], requiresChannel: true, quickAdds: marketingAdds + ["COLLECTION"]),
+                OperatingSubtype(code: "CLIENT_CAMPAIGN", label: "Client Campaign", partyLabel: "Client", targetMetrics: ["LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT", "CLIENT_BILLING"], requiresChannel: false, quickAdds: marketingAdds + ["INVOICE", "COLLECTION"]),
+                OperatingSubtype(code: "OWN_BUSINESS_CAMPAIGN", label: "Own Business Campaign", partyLabel: "Brand", targetMetrics: ["LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT"], requiresChannel: false, quickAdds: marketingAdds),
             ]
         case .tradingDistribution:
             return [
@@ -40,14 +39,14 @@ enum OperatingMomentCatalog {
             ]
         case .retailConsumer:
             return [
-                OperatingSubtype(code: "RETAIL_STORE", label: "Retail Store", partyLabel: "Store", targetMetrics: ["REVENUE", "ORDERS", "CUSTOM_COUNT"], requiresChannel: false, quickAdds: ["SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER"]),
-                OperatingSubtype(code: "RESTAURANT_FOOD", label: "Restaurant / Food", partyLabel: "Outlet", targetMetrics: ["REVENUE", "ORDERS", "CUSTOM_COUNT"], requiresChannel: false, quickAdds: ["SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER"]),
-                OperatingSubtype(code: "CONSUMER_SERVICE", label: "Consumer Service", partyLabel: "Service", targetMetrics: ["REVENUE", "ORDERS", "CUSTOM_COUNT"], requiresChannel: false, quickAdds: ["SERVICE", "APPOINTMENT", "SALE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL"]),
+                OperatingSubtype(code: "RETAIL_STORE", label: "Retail Store", partyLabel: "Store", targetMetrics: ["REVENUE", "ORDERS", "CUSTOM_COUNT"], requiresChannel: true, quickAdds: ["SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER"]),
+                OperatingSubtype(code: "RESTAURANT_FOOD", label: "Restaurant / Food", partyLabel: "Outlet", targetMetrics: ["REVENUE", "ORDERS", "CUSTOM_COUNT"], requiresChannel: true, quickAdds: ["SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER"]),
+                OperatingSubtype(code: "CONSUMER_SERVICE", label: "Consumer Service", partyLabel: "Service", targetMetrics: ["REVENUE", "ORDERS", "CUSTOM_COUNT"], requiresChannel: true, quickAdds: ["SERVICE", "APPOINTMENT", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK"]),
             ]
         case .manufacturingProduction:
             return [
-                OperatingSubtype(code: "STANDARD_PRODUCTION", label: "Standard Production", partyLabel: "Plant", targetMetrics: ["REVENUE", "PRODUCTION_OUTPUT", "UNITS_PRODUCED", "VALUE_DISPATCHED"], requiresChannel: false, quickAdds: ["PRODUCTION", "PURCHASE", "SPEND", "SALE", "CUSTOMER_ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK"]),
-                OperatingSubtype(code: "MADE_TO_ORDER", label: "Made-to-Order", partyLabel: "Workshop", targetMetrics: ["REVENUE", "ORDERS", "DELIVERY_COUNT", "PRODUCTION_OUTPUT", "CUSTOM_COUNT"], requiresChannel: false, quickAdds: ["PRODUCTION", "PURCHASE", "SPEND", "SALE", "CUSTOMER_ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK"]),
+                OperatingSubtype(code: "STANDARD_PRODUCTION", label: "Standard Production", partyLabel: "Plant", targetMetrics: ["REVENUE", "PRODUCTION_OUTPUT", "DELIVERY_COUNT", "ORDERS"], requiresChannel: false, quickAdds: ["PRODUCTION", "PURCHASE", "SPEND", "SALE", "CUSTOMER_ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK"]),
+                OperatingSubtype(code: "MADE_TO_ORDER", label: "Made-to-Order", partyLabel: "Workshop", targetMetrics: ["REVENUE", "PRODUCTION_OUTPUT", "DELIVERY_COUNT", "ORDERS"], requiresChannel: false, quickAdds: ["PRODUCTION", "PURCHASE", "SPEND", "SALE", "CUSTOMER_ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK"]),
             ]
         }
     }
@@ -101,6 +100,19 @@ enum OperatingMomentCatalog {
 
 enum OperatingTab {
     case pulse, moments, life, memory, quickAdd
+}
+
+/// Last operating projection for a moment. Paint this before the ledger replay returns.
+enum OperatingProjectionCache {
+    private static var stored: [String: OperatingProjectionPayload] = [:]
+
+    static func peek(_ momentId: String) -> OperatingProjectionPayload? {
+        stored[momentId]
+    }
+
+    static func put(_ momentId: String, _ payload: OperatingProjectionPayload) {
+        stored[momentId] = payload
+    }
 }
 
 struct OperatingMomentPage: View {
@@ -186,7 +198,9 @@ struct OperatingMomentPage: View {
                         note: nil,
                         quantity: nil,
                         unit: nil,
-                        parentEventId: row.id
+                        parentEventId: row.id,
+                        status: nil,
+                        orderSide: nil
                     ),
                     onSubmit: { draft in
                         guard let momentId else { return }
@@ -266,7 +280,8 @@ struct OperatingMomentPage: View {
                         guard let momentId else { return }
                         _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
                         tick += 1
-                    }
+                    },
+                    momentId: momentId
                 )
             } else if let projection, projection.subtype == "RESTAURANT_FOOD" {
                 RestaurantActiveView(
@@ -330,7 +345,13 @@ struct OperatingMomentPage: View {
                             revisesEventId: draft.revisesEventId,
                             dueAt: draft.dueAt,
                             contract: draft.contract,
-                            lineItems: draft.lineItems
+                            lineItems: draft.lineItems,
+                            reportingMode: draft.reportingMode,
+                            metricCode: draft.metricCode,
+                            budgetCategory: draft.budgetCategory,
+                            activityStatus: draft.activityStatus,
+                            attributedSales: draft.attributedSales,
+                            revisionKind: draft.revisionKind
                         )
                         tick += 1
                     },
@@ -338,7 +359,8 @@ struct OperatingMomentPage: View {
                         guard let momentId else { return }
                         _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
                         tick += 1
-                    }
+                    },
+                    momentId: momentId
                 )
             } else if let projection, projection.subtype == "STANDARD_PRODUCTION" || projection.subtype == "MADE_TO_ORDER" {
                 ProductionActiveView(
@@ -366,7 +388,8 @@ struct OperatingMomentPage: View {
                             revisesEventId: draft.revisesEventId,
                             dueAt: draft.dueAt,
                             contract: draft.contract,
-                            lineItems: draft.lineItems
+                            lineItems: draft.lineItems,
+                            rejectedQuantity: draft.rejectedQuantity
                         )
                         tick += 1
                     },
@@ -374,7 +397,8 @@ struct OperatingMomentPage: View {
                         guard let momentId else { return }
                         _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
                         tick += 1
-                    }
+                    },
+                    momentId: momentId
                 )
             } else if let projection, projection.subtype == "TRADING_WHOLESALE" {
                 TradingActiveView(
@@ -484,7 +508,8 @@ struct OperatingMomentPage: View {
                         guard let momentId else { return }
                         _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
                         tick += 1
-                    }
+                    },
+                    momentId: momentId
                 )
             } else {
                 generic
@@ -615,12 +640,22 @@ struct OperatingMomentPage: View {
 
     private func load() async {
         guard let momentId, !OperatingMomentCatalog.isRetired(momentTypeCode) else { return }
+        if projection == nil, let cached = OperatingProjectionCache.peek(momentId) {
+            projection = cached
+            chrome.participantNames = cached.participants ?? []
+        }
         do {
-            projection = try await APIClient.shared.getOperatingMoment(momentId: momentId)
-            chrome.participantNames = projection?.participants ?? []
+            let fresh = try await APIClient.shared.getOperatingMoment(momentId: momentId)
+            OperatingProjectionCache.put(momentId, fresh)
+            projection = fresh
+            chrome.participantNames = fresh.participants ?? []
             errorText = nil
+        } catch is CancellationError {
+            return
         } catch {
-            errorText = error.localizedDescription
+            if projection == nil {
+                errorText = error.localizedDescription
+            }
         }
     }
 }

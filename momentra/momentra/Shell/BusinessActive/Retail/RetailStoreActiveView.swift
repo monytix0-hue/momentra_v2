@@ -6,6 +6,7 @@ struct RetailStoreActiveView: View {
     var onOpenQuickAdd: () -> Void = {}
     var onRecord: (RetailEventDraft) async throws -> Void = { _ in }
     var onDecide: (String, String) async throws -> Void = { _, _ in }
+    var momentId: String? = nil
 
     @State private var activityOpen = false
 
@@ -41,6 +42,8 @@ struct RetailStoreActiveView: View {
                     } else {
                         Text("No sales target set for this period.").font(.plusJakarta(size: 13)).foregroundStyle(RetailStoreChrome.secondary)
                     }
+                    Text("A quick amount does not move stock. Orders are commitments, not sales.")
+                        .font(.plusJakarta(size: 12)).foregroundStyle(RetailStoreChrome.secondary)
                     if model.budget?.configured == true {
                         meter("Budget used", fraction(model.budget?.spent, model.budget?.amount), RetailStoreChrome.success)
                         line("Budget remaining", money(model.budget?.remaining), RetailStoreChrome.success)
@@ -137,6 +140,15 @@ struct RetailStoreActiveView: View {
     private var memory: some View {
         VStack(alignment: .leading, spacing: 16) {
             header("Memory", "What this store keeps from the month.")
+            Button("Preview story") {
+                if let momentId { OperatingChromeState.shared.previewStoryId = momentId }
+            }
+            .font(.plusJakarta(size: 14, weight: .semibold))
+            .foregroundStyle(RetailStoreChrome.bg)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(RetailStoreChrome.brand)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             HStack {
                 pill(period)
                 pill("Current")

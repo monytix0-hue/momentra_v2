@@ -6,6 +6,7 @@ struct RestaurantActiveView: View {
     var onOpenQuickAdd: () -> Void = {}
     var onRecord: (RestaurantEventDraft) async throws -> Void = { _ in }
     var onDecide: (String, String) async throws -> Void = { _, _ in }
+    var momentId: String? = nil
 
     @State private var activityOpen = false
 
@@ -41,6 +42,8 @@ struct RestaurantActiveView: View {
                     } else {
                         Text("No sales target set for this period.").font(.plusJakarta(size: 13)).foregroundStyle(RestaurantChrome.secondary)
                     }
+                    Text("An order is not a sale until a bill is posted.")
+                        .font(.plusJakarta(size: 12)).foregroundStyle(RestaurantChrome.secondary)
                     if model.budget?.configured == true {
                         meter("Budget used", fraction(model.budget?.spent, model.budget?.amount), RestaurantChrome.success)
                         line("Budget remaining", money(model.budget?.remaining), RestaurantChrome.success)
@@ -137,6 +140,15 @@ struct RestaurantActiveView: View {
     private var memory: some View {
         VStack(alignment: .leading, spacing: 16) {
             header("Memory", "What this restaurant keeps from the month.")
+            Button("Preview story") {
+                if let momentId { OperatingChromeState.shared.previewStoryId = momentId }
+            }
+            .font(.plusJakarta(size: 14, weight: .semibold))
+            .foregroundStyle(RestaurantChrome.bg)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(RestaurantChrome.brand)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             HStack {
                 pill(period)
                 pill("Current")

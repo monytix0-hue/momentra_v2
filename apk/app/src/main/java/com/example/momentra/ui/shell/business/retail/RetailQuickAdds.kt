@@ -77,9 +77,12 @@ private enum class RetailSheet(
     PAYMENT("Record Payment", "PAYMENT", true, false, true, "PENDING"),
     COLLECTION("Record Collection", "COLLECTION", true, true, false, "PENDING"),
     BUDGET("Revise Budget", "BUDGET", true, false, false, null),
-    UPDATE("Post Update", "UPDATE", false, false, false, null),
+    UPDATE("Issue / Approval / Update", "UPDATE", false, false, false, null),
     ISSUE("Report Issue", "ISSUE", false, false, false, null),
     STOCK("Stock Update", "STOCK", false, false, false, null),
+    ORDER("Order", "ORDER", false, true, false, null),
+    STATUS("Status / Assignment", "ORDER", false, false, false, null),
+    REVISION("Budget / Target Revision", "BUDGET", true, false, false, null),
     REIMBURSE("Record Reimbursement", "PAYMENT", true, false, true, "PENDING"),
     PERSON("Add person", "UPDATE", false, false, true, null),
     ROLE("Role & access", "UPDATE", false, false, true, null),
@@ -165,15 +168,16 @@ fun RetailQuickAddHub(
         )
     }
     val core = listOf(
-        RetailSheet.SALE to "Sale",
+        RetailSheet.SALE to "Record Sale",
         RetailSheet.PURCHASE to "Purchase",
-        RetailSheet.SPEND to "Expense",
-        RetailSheet.PAYMENT to "Payment",
         RetailSheet.COLLECTION to "Collection",
-        RetailSheet.UPDATE to "Update",
-        RetailSheet.ISSUE to "Issue",
-        RetailSheet.STOCK to "Stock Update",
-        RetailSheet.SUPPLIER to "Add Supplier",
+        RetailSheet.PAYMENT to "Payment",
+        RetailSheet.SPEND to "Expense",
+        RetailSheet.STOCK to "Stock",
+        RetailSheet.ORDER to "Order",
+        RetailSheet.STATUS to "Status",
+        RetailSheet.REVISION to "Budget / Target",
+        RetailSheet.UPDATE to "Issue / Update",
     ).filter { (kind, label) ->
         kind.eventType in allowed && label.contains(query, ignoreCase = true)
     }
@@ -281,7 +285,8 @@ private val RetailSheet.hubIcon: Int
         RetailSheet.BUDGET -> R.drawable.qa_budget
         RetailSheet.UPDATE -> R.drawable.qa_message
         RetailSheet.ISSUE -> R.drawable.qa_alert
-        RetailSheet.STOCK -> R.drawable.qa_package
+        RetailSheet.STOCK, RetailSheet.ORDER, RetailSheet.STATUS -> R.drawable.qa_package
+        RetailSheet.REVISION -> R.drawable.qa_budget
         RetailSheet.PERSON -> R.drawable.qa_user_plus
         RetailSheet.ROLE -> R.drawable.qa_users
         RetailSheet.INVITE -> R.drawable.qa_qr
@@ -334,6 +339,8 @@ private val RetailSheet.captureMode: String
         RetailSheet.UPDATE -> "UPDATE"
         RetailSheet.ISSUE -> "ISSUE"
         RetailSheet.STOCK -> "STOCK"
+        RetailSheet.ORDER, RetailSheet.STATUS -> "ORDER"
+        RetailSheet.REVISION -> "BUDGET"
         RetailSheet.REIMBURSE -> "REIMBURSE"
         RetailSheet.PERSON -> "PERSON"
         RetailSheet.ROLE -> "ROLE"

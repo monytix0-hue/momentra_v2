@@ -12,6 +12,7 @@ import {
   type OperatingFamilyCode,
 } from '../src/modules/business/operating-catalog';
 import { recordOperatingEventSchema } from '../src/modules/business/operating-service';
+import { validateMarketingWrite, marketingProgress } from '../src/modules/business/operating-marketing';
 
 describe('operating moment catalog', () => {
   it('hides finance totals from a team member and shows them to finance', () => {
@@ -28,6 +29,8 @@ describe('operating moment catalog', () => {
         monthlyBudget: '10000',
         monthlyTarget: '25',
         targetMetric: 'LEADS',
+        startDate: '2026-10-01',
+        endDate: '2026-10-31',
       },
       { userId: 'owner-1', displayName: 'Asha' }
     );
@@ -275,6 +278,7 @@ describe('operating moment catalog', () => {
         monthlyBudget: '0',
         monthlyTarget: '',
         targetMetric: 'REVENUE',
+        channels: ['Store'],
       },
       { userId: 'u', displayName: 'Asha' }
     );
@@ -344,6 +348,8 @@ describe('operating moment catalog', () => {
         monthlyBudget: '8000',
         monthlyTarget: '1000',
         targetMetric: 'REVENUE',
+        startDate: '2026-10-01',
+        endDate: '2026-10-31',
       },
       { userId: 'u', displayName: 'Asha' }
     );
@@ -394,11 +400,15 @@ describe('operating moment catalog', () => {
         monthlyBudget: '8000',
         monthlyTarget: '1000',
         targetMetric: 'REVENUE',
+        startDate: '2026-10-01',
+        endDate: '2026-10-31',
       },
       { userId: 'u', displayName: 'Asha' }
     );
     const ownView = projectOperatingMoment({ familyCode: 'MARKETING_CAMPAIGNS', prefs: own, role: 'OWNER_ADMIN', events: [] });
-    assert.equal(ownView.quickAdds.some((item) => item.code === 'COLLECTION'), true);
+    assert.equal(ownView.quickAdds.some((item) => item.code === 'COLLECTION'), false);
+    assert.equal(ownView.quickAdds.some((item) => item.code === 'INVOICE'), false);
+    assert.equal(ownView.quickAdds.some((item) => item.code === 'ACTIVITY'), true);
   });
 
   it('counts manufacturing progress from the selected metric and keeps collections out of revenue', () => {
@@ -437,7 +447,8 @@ describe('operating moment catalog', () => {
       { userId: 'u', displayName: 'Asha' }
     );
     const outputView = projectOperatingMoment({ familyCode: 'MANUFACTURING_PRODUCTION', prefs: output, role: 'OWNER_ADMIN', events });
-    assert.equal(outputView.target?.progress, '40.0000');
+    assert.equal(outputView.target?.progress, '0.0000');
+    assert.equal(outputView.target?.coverage, 'not recorded');
     assert.equal(outputView.finance.sales, '100.0000');
     assert.equal(revenueView.quickAdds.some((item) => item.code === 'CUSTOMER_ORDER'), true);
     assert.equal(revenueView.quickAdds.some((item) => item.code === 'STOCK'), true);
@@ -542,6 +553,8 @@ function momentView(
       monthlyTarget: target,
       targetMetric: 'REVENUE',
       channels: ['Store'],
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
     },
     { userId: 'u', displayName: 'Asha' }
   );
@@ -739,7 +752,8 @@ describe('operating allocation continuity', () => {
     assert.equal(view.budget?.remaining, '140000.0000');
     assert.equal(view.continuity.approvedUnspent, '20000.0000');
     assert.equal(view.continuity.receivable, '60000.0000');
-    assert.equal(view.quickAdds.some((item) => item.code === 'SALE'), true);
+    assert.equal(view.quickAdds.some((item) => item.code === 'INVOICE'), true);
+    assert.equal(view.quickAdds.some((item) => item.code === 'SALE'), false);
   });
 
   it('own campaign: budget 100000, spend 35000, 150 leads, 12 conversions', () => {
@@ -765,8 +779,10 @@ describe('operating allocation continuity', () => {
       posted('made', 'PRODUCTION', { quantity: '350', rejectedQuantity: '20' }),
       posted('sold', 'SALE', { quantity: '200' }),
     ]);
-    assert.equal(view.continuity.accepted, '330.0000');
-    assert.equal(view.continuity.unsoldAccepted, '130.0000');
+    assert.equal(view.continuity.accepted, '0.0000');
+    assert.equal(view.continuity.unsoldAccepted, '0.0000');
+    assert.equal(view.continuity.produced, '350.0000');
+    assert.equal(view.continuity.rejected, '20.0000');
   });
 
   it('made to order: order 100 / 200000, produce 80, deliver 60, invoice 120000, collect 50000', () => {
@@ -790,5 +806,189 @@ describe('operating allocation continuity', () => {
     assert.equal(view.continuity.pendingProduction, '20.0000');
     assert.equal(view.continuity.pendingDelivery, '40.0000');
     assert.equal(view.continuity.receivable, '70000.0000');
+  });
+});
+
+describe('marketing campaigns v3', () => {
+  it('MC-01 client invoice and collection stay out of the result target', () => {
+    const view = momentView('MARKETING_CAMPAIGNS', 'CLIENT_CAMPAIGN', [
+      posted('invoice', 'INVOICE', { amount: '100000', paymentRelevance: 'RECEIVABLE', paymentStatus: 'PENDING' }),
+      posted('collect', 'COLLECTION', { amount: '40000', parentEventId: 'invoice', paymentStatus: 'COLLECTED' }),
+      posted('result', 'RESULT', { amount: '1000' }),
+    ]);
+    assert.equal(view.target?.progress, '1000.0000');
+    assert.equal(view.finance?.sales, '100000.0000');
+    assert.equal(view.continuity.receivable, '60000.0000');
+    assert.equal(view.boards.moments.some((section) => section.code === 'invoices'), true);
+  });
+
+  it('MC-02 incremental progress sums and cumulative progress keeps the latest snapshot', () => {
+    const incremental = marketingProgress(
+      [
+        posted('a', 'PROGRESS', { quantity: '10', unit: 'leads', marketing: { reportingMode: 'INCREMENTAL', metricCode: 'LEADS', budgetCategory: null, paymentState: null, activityStatus: null, attributedSales: null, revisionKind: null } }),
+        posted('b', 'PROGRESS', { quantity: '5', unit: 'leads', marketing: { reportingMode: 'INCREMENTAL', metricCode: 'LEADS', budgetCategory: null, paymentState: null, activityStatus: null, attributedSales: null, revisionKind: null } }),
+      ],
+      'LEADS'
+    );
+    assert.equal(incremental.progress, 15);
+    assert.equal(incremental.coverage, '2 recorded');
+    const cumulative = marketingProgress(
+      [
+        posted('a', 'PROGRESS', { quantity: '10', unit: 'leads', occurredAt: '2026-10-01T00:00:00.000Z', marketing: { reportingMode: 'CUMULATIVE', metricCode: 'LEADS', budgetCategory: null, paymentState: null, activityStatus: null, attributedSales: null, revisionKind: null } }),
+        posted('b', 'PROGRESS', { quantity: '12', unit: 'leads', occurredAt: '2026-10-02T00:00:00.000Z', marketing: { reportingMode: 'CUMULATIVE', metricCode: 'LEADS', budgetCategory: null, paymentState: null, activityStatus: null, attributedSales: null, revisionKind: null } }),
+      ],
+      'LEADS'
+    );
+    assert.equal(cumulative.progress, 12);
+  });
+
+  it('MC-03 mixed units are N/A and do not invent a total', () => {
+    const mixed = marketingProgress(
+      [
+        posted('a', 'PROGRESS', { quantity: '10', unit: 'leads', marketing: { reportingMode: 'INCREMENTAL', metricCode: 'LEADS', budgetCategory: null, paymentState: null, activityStatus: null, attributedSales: null, revisionKind: null } }),
+        posted('b', 'PROGRESS', { quantity: '3', unit: 'people', marketing: { reportingMode: 'INCREMENTAL', metricCode: 'LEADS', budgetCategory: null, paymentState: null, activityStatus: null, attributedSales: null, revisionKind: null } }),
+      ],
+      'LEADS'
+    );
+    assert.equal(mixed.coverage, 'N/A');
+    assert.equal(mixed.progress, 0);
+  });
+
+  it('MC-04 own attributed sales never become revenue or a collection quick add', () => {
+    const view = momentView('MARKETING_CAMPAIGNS', 'OWN_BUSINESS_CAMPAIGN', [
+      posted('result', 'RESULT', {
+        amount: '500',
+        marketing: {
+          reportingMode: 'INCREMENTAL',
+          metricCode: 'REVENUE',
+          budgetCategory: null,
+          paymentState: null,
+          activityStatus: null,
+          attributedSales: '9000',
+          revisionKind: null,
+        },
+      }),
+    ]);
+    assert.equal(view.finance?.sales, '0.0000');
+    assert.equal(view.continuity.receivable, '0.0000');
+    assert.equal(view.quickAdds.some((item) => item.code === 'COLLECTION' || item.code === 'INVOICE'), false);
+  });
+
+  it('MC-05 blocks a collection larger than the open invoice and a payment larger than spend', () => {
+    const invoice = posted('invoice', 'INVOICE', { amount: '1000', paymentStatus: 'PENDING' });
+    assert.equal(
+      validateMarketingWrite(
+        {
+          eventType: 'COLLECTION',
+          subtype: 'CLIENT_CAMPAIGN',
+          amount: '1500',
+          quantity: null,
+          unit: null,
+          parentEventId: 'invoice',
+          metricCode: null,
+          reportingMode: null,
+          revisionKind: null,
+          activityStatus: null,
+          attributedSales: null,
+        },
+        [invoice]
+      ).ok,
+      false
+    );
+    const spend = posted('spend', 'SPEND', { amount: '800', paymentStatus: 'PENDING' });
+    assert.equal(
+      validateMarketingWrite(
+        {
+          eventType: 'PAYMENT',
+          subtype: 'CLIENT_CAMPAIGN',
+          amount: '900',
+          quantity: null,
+          unit: null,
+          parentEventId: 'spend',
+          metricCode: null,
+          reportingMode: null,
+          revisionKind: null,
+          activityStatus: null,
+          attributedSales: null,
+        },
+        [spend]
+      ).ok,
+      false
+    );
+  });
+
+  it('MC-06 progress requires an open activity and a revision replaces the budget', () => {
+    assert.equal(
+      validateMarketingWrite(
+        {
+          eventType: 'PROGRESS',
+          subtype: 'OWN_BUSINESS_CAMPAIGN',
+          amount: null,
+          quantity: '4',
+          unit: 'leads',
+          parentEventId: null,
+          metricCode: 'LEADS',
+          reportingMode: 'INCREMENTAL',
+          revisionKind: null,
+          activityStatus: null,
+          attributedSales: null,
+        },
+        []
+      ).ok,
+      false
+    );
+    const view = momentView('MARKETING_CAMPAIGNS', 'CLIENT_CAMPAIGN', [
+      posted('rev', 'REVISION', {
+        amount: '50000',
+        occurredAt: '2026-10-15T00:00:00.000Z',
+        marketing: {
+          reportingMode: null,
+          metricCode: null,
+          budgetCategory: null,
+          paymentState: null,
+          activityStatus: null,
+          attributedSales: null,
+          revisionKind: 'BUDGET',
+        },
+      }),
+      posted('spend', 'SPEND', { amount: '10000' }),
+    ], '200000', '1000');
+    assert.equal(view.budget?.amount, '50000.0000');
+    assert.equal(view.budget?.remaining, '40000.0000');
+  });
+
+  it('MC-07 own campaign cannot record an invoice', () => {
+    const blocked = validateMarketingWrite(
+      {
+        eventType: 'INVOICE',
+        subtype: 'OWN_BUSINESS_CAMPAIGN',
+        amount: '10',
+        quantity: null,
+        unit: null,
+        parentEventId: null,
+        metricCode: null,
+        reportingMode: null,
+        revisionKind: null,
+        activityStatus: null,
+        attributedSales: null,
+      },
+      []
+    );
+    assert.equal(blocked.ok, false);
+  });
+
+  it('MC-08 empty target coverage is N/A and overdue spend is ATT-04', () => {
+    const view = momentView('MARKETING_CAMPAIGNS', 'CLIENT_CAMPAIGN', [
+      posted('spend', 'SPEND', {
+        amount: '1000',
+        dueAt: '2020-01-01',
+        paymentRelevance: 'PAYABLE',
+        paymentStatus: 'PENDING',
+        counterpartyName: 'Studio',
+      }),
+    ]);
+    assert.equal(view.boards.life.find((section) => section.code === 'L1')?.coverage, 'N/A');
+    assert.equal(view.attention.some((item) => item.kind === 'ATT-04'), true);
+    assert.equal(view.attention.some((item) => item.kind === 'ATT-02'), false);
   });
 });

@@ -7,6 +7,7 @@ final class OperatingChromeState: ObservableObject {
     @Published var participantNames: [String] = []
     @Published var editing: OperatingActivityPayload?
     @Published var settling: OperatingPaymentPayload?
+    @Published var previewStoryId: String?
 }
 
 @MainActor
@@ -20,6 +21,7 @@ func operatingAttentionCtaLabel(_ item: OperatingAttentionPayload) -> String {
     case "booking": return "Open booking"
     case "charge": return "Record charge"
     case "budget": return "Review budget"
+    case "activity": return "Open activity"
     default: return "Open"
     }
 }
@@ -48,7 +50,7 @@ func openOperatingAttention(
             OperatingChromeState.shared.editing = row
             return
         }
-    case "stock", "shipment", "budget":
+    case "stock", "shipment", "budget", "activity":
         OperatingQuickAddHint.value = item.cta
         onOpenQuickAdd()
         return

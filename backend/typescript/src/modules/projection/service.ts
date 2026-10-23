@@ -2086,9 +2086,17 @@ export async function listBusinessMoments(
   client: PoolClient,
   ctx: RequestContext,
   cursor: string | undefined,
-  limit: number
+  limit: number,
+  lifecycle: 'active' | 'completed' = 'active'
 ): Promise<
-  CursorPage<{ momentId: string; title: string; status: string; businessFamily: string; companyId: string | null }>
+  CursorPage<{
+    momentId: string;
+    title: string;
+    status: string;
+    businessFamily: string;
+    companyId: string | null;
+    participantCount: number;
+  }>
 > {
   const safeLimit = Math.min(Math.max(limit, 1), 100);
   const params: unknown[] = [ctx.userId, safeLimit + 1];
@@ -2097,6 +2105,13 @@ export async function listBusinessMoments(
     cursorClause = 'AND m.updated_at < $3::timestamptz';
     params.push(cursor);
   }
+  const statusClause =
+    lifecycle === 'completed'
+      ? `m.status = 'COMPLETED'`
+      : `(
+         m.status = 'ACTIVE'
+         OR (m.status = 'DRAFT' AND m.created_by_user_id = $1)
+       )`;
   const rows = await client.query<{
     moment_id: string;
     title: string;
@@ -2104,8 +2119,14 @@ export async function listBusinessMoments(
     business_family: string;
     company_id: string | null;
     updated_at: Date;
+    participant_count: string;
   }>(
-    `SELECT m.moment_id, m.title, m.status, bmc.business_family, bmc.company_id, m.updated_at
+    `SELECT m.moment_id, m.title, m.status, bmc.business_family, bmc.company_id, m.updated_at,
+            (
+              SELECT COUNT(*)::text
+              FROM collaboration.moment_participant mpc
+              WHERE mpc.moment_id = m.moment_id AND mpc.status = 'ACTIVE'
+            ) AS participant_count
      FROM business.business_moment_context bmc
      JOIN core.moment m ON m.moment_id = bmc.moment_id
      LEFT JOIN business.company_membership cm
@@ -2119,10 +2140,7 @@ export async function listBusinessMoments(
            AND (mp.participant_id IS NOT NULL OR m.created_by_user_id = $1)
          )
        )
-       AND (
-         m.status = 'ACTIVE'
-         OR (m.status = 'DRAFT' AND m.created_by_user_id = $1)
-       ) ${cursorClause}
+       AND ${statusClause} ${cursorClause}
      ORDER BY m.updated_at DESC
      LIMIT $2`,
     params
@@ -2136,6 +2154,7 @@ export async function listBusinessMoments(
       status: r.status,
       businessFamily: r.business_family,
       companyId: r.company_id,
+      participantCount: Number(r.participant_count) || 0,
     })),
     nextCursor: hasMore ? slice[slice.length - 1].updated_at.toISOString() : null,
   };
