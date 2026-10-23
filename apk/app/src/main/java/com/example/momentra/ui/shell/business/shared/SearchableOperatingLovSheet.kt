@@ -19,6 +19,8 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -34,6 +36,7 @@ data class OperatingLovOption(
     val unit: String? = null,
     val subtitle: String? = null,
     val conversionToBase: String? = null,
+    val detailAmount: String? = null,
 )
 
 object OperatingSeedUoms {
@@ -88,6 +91,7 @@ fun SearchableOperatingLovSheet(
     canAdd: Boolean,
     accent: Color = Color(0xFF6DDCFF),
     unitChoices: List<OperatingLovOption> = emptyList(),
+    pageSize: Int? = null,
     onSelect: (OperatingLovOption) -> Unit,
     /** name, base unit, optional conversionToBase */
     onAdd: ((String, String?, String?) -> Unit)? = null,
@@ -99,6 +103,8 @@ fun SearchableOperatingLovSheet(
     var newName by remember { mutableStateOf("") }
     var newUnit by remember { mutableStateOf("") }
     var newConversion by remember { mutableStateOf("") }
+    var page by remember { mutableIntStateOf(1) }
+    LaunchedEffect(query) { page = 1 }
     val filtered = remember(query, options, kind) {
         val q = query.trim().lowercase()
         val base = options.filter { it.kind.equals(kind, ignoreCase = true) }
@@ -110,6 +116,7 @@ fun SearchableOperatingLovSheet(
         val q = query.trim().lowercase()
         if (q.isEmpty()) null else filtered.firstOrNull { it.name.equals(q, ignoreCase = true) }
     }
+    val visible = if (pageSize == null || pageSize <= 0) filtered else filtered.take(page * pageSize)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -144,7 +151,7 @@ fun SearchableOperatingLovSheet(
                 }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(filtered, key = { it.id }) { option ->
+                    items(visible, key = { it.id }) { option ->
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -158,6 +165,13 @@ fun SearchableOperatingLovSheet(
                             Text(option.name, color = Color(0xFFE8EEF7), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                             option.subtitle?.takeIf { it.isNotBlank() }?.let {
                                 Text(it, color = Color(0xFF9AA3B2), fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    if (visible.size < filtered.size) {
+                        item {
+                            TextButton(onClick = { page += 1 }) {
+                                Text("Show more", color = accent, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }

@@ -600,6 +600,8 @@ export interface OperatingProjection {
     counterpartyName: string | null;
     dueAt: string | null;
     dueBucket?: 'OVERDUE' | 'DUE_SOON' | 'OPEN' | null;
+    occurredAt: string | null;
+    total: string | null;
   }>;
   activity: Array<{
     id: string;
@@ -617,6 +619,7 @@ export interface OperatingProjection {
     parentEventId: string | null;
     status: string | null;
     orderSide: string | null;
+    estimatedAmount: string | null;
   }>;
   life: { channels: string[]; openCommitments: number; resultProgress: string };
   memory: { revisions: Array<{ id: string; title: string; occurredAt: string }> };
@@ -1086,6 +1089,8 @@ export function projectOperatingMoment(args: {
                 counterpartyName: row.counterpartyName,
                 dueAt: row.dueAt ?? null,
                 dueBucket: tradingReady ? tradingDueBucket(row.dueAt, asOf) : null,
+                occurredAt: row.occurredAt ?? null,
+                total: row.amount ?? null,
               };
         })
         .filter((row): row is NonNullable<typeof row> => row != null && num(row.amount) > 0)
@@ -1161,6 +1166,7 @@ export function projectOperatingMoment(args: {
       parentEventId: row.parentEventId ?? null,
       status: row.contract?.appointmentStatus ?? row.contract?.orderStatus ?? null,
       orderSide: row.contract?.orderSide ?? null,
+      estimatedAmount: row.eventType === 'ORDER' ? row.contract?.estimatedAmount ?? null : null,
     })),
     life: {
       channels: args.prefs.channels,
