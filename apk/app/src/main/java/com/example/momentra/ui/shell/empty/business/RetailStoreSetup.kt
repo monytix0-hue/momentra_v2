@@ -38,6 +38,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -52,6 +55,8 @@ import com.example.momentra.ui.shell.business.shared.OperatingSubtype
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import androidx.compose.ui.platform.testTag
 import com.example.momentra.ui.shell.shared.PersonLabel
+import com.example.momentra.analytics.AnalyticsScreens
+import com.example.momentra.analytics.trackWidget
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -657,6 +662,8 @@ fun RetailStoreSetup(
     var metric by remember { mutableStateOf(subtype.targetMetrics.firstOrNull() ?: "REVENUE") }
     var metricOpen by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf<String?>(null) }
+    var howItWorks by remember { mutableStateOf(false) }
+    var howItWorksViaCreate by remember { mutableStateOf(false) }
     val needsApprover = policy == "APPROVAL_REQUIRED" && invites.none { it.role == "APPROVER" }
     val ready = name.isNotBlank() &&
         companyName.isNotBlank() &&
@@ -997,6 +1004,31 @@ fun RetailStoreSetup(
                 fontSize = 16.sp,
             )
         }
+        val howCopy = TradingHowItWorksCopy.forSubtype(look.code)
+        if (howCopy != null) {
+            Text(
+                howCopy.context,
+                color = Secondary,
+                fontFamily = PlusJakartaSans,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
+            Text(
+                "See how it works",
+                color = look.brand,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clickable {
+                        howItWorksViaCreate = false
+                        howItWorks = true
+                        trackWidget(AnalyticsScreens.BUSINESS_SETUP_RUNWAY, "how_it_works_opened", look.code)
+                    }
+                    .padding(vertical = 8.dp)
+                    .semantics { role = Role.Button },
+            )
+        }
         Text(look.footer, color = Secondary, fontFamily = PlusJakartaSans, fontSize = 12.sp, lineHeight = 18.sp)
     }
 
@@ -1024,6 +1056,31 @@ fun RetailStoreSetup(
                 }
             },
         ) { DatePicker(state = state) }
+    }
+    if (howItWorks) {
+        TradingHowItWorksCopy.forSubtype(look.code)?.let { copy ->
+            TradingHowItWorksSheet(
+                copy = copy,
+                accent = look.brand,
+                ink = look.text,
+                actionInk = look.actionInk,
+                onExpand = {
+                    trackWidget(AnalyticsScreens.BUSINESS_SETUP_RUNWAY, "how_it_works_expanded", look.code)
+                },
+                onCreate = {
+                    howItWorksViaCreate = true
+                    trackWidget(AnalyticsScreens.BUSINESS_SETUP_RUNWAY, "how_it_works_create_clicked", look.code)
+                    howItWorks = false
+                },
+                onClose = {
+                    if (!howItWorksViaCreate) {
+                        trackWidget(AnalyticsScreens.BUSINESS_SETUP_RUNWAY, "how_it_works_closed", look.code)
+                    }
+                    howItWorksViaCreate = false
+                    howItWorks = false
+                },
+            )
+        }
     }
     }
 }

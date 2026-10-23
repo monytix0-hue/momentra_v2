@@ -37,6 +37,8 @@ struct OperatingPaymentPayload: Decodable, Identifiable {
     let counterpartyName: String?
     let dueAt: String?
     let dueBucket: String?
+    let occurredAt: String?
+    let total: String?
 }
 
 struct OperatingFinancePayload: Decodable {
@@ -64,6 +66,7 @@ struct OperatingActivityPayload: Decodable, Identifiable {
     let parentEventId: String?
     let status: String?
     let orderSide: String?
+    let estimatedAmount: String?
 }
 
 struct OperatingLifePayload: Decodable {

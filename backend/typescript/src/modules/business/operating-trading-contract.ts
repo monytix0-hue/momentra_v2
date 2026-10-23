@@ -894,16 +894,35 @@ export function tradingAttention(
       row.contract?.shipmentStatus !== 'DELIVERED' &&
       row.contract?.shipmentStatus !== 'CANCELLED';
     const openSaleGoods = row.eventType === 'SALE' && (row.contract?.goodsStatus === 'PARTIAL' || row.contract?.goodsStatus === 'LATER');
-    if (!openShipment && !openSaleGoods) continue;
-    if (cards.some((card) => card.sourceEventId === row.operatingEventId)) continue;
+    const openPurchaseGoods =
+      row.eventType === 'PURCHASE' &&
+      (row.contract?.receiptState === 'AWAITING' || row.contract?.receiptState === 'PART_RECEIVED');
+    if (!openShipment && !openSaleGoods && !openPurchaseGoods) continue;
+    if (
+      cards.some(
+        (card) =>
+          card.sourceEventId === row.operatingEventId &&
+          (card.kind === 'PENDING_DELIVERY' || card.kind === 'OVERDUE_DELIVERY')
+      )
+    ) {
+      continue;
+    }
+    const promised = day(row.contract?.promisedAt);
+    const overdue = Boolean(promised && promised < today);
     const party = row.counterpartyName || row.title;
+    const receipt = openPurchaseGoods;
+    const goodsWord = receipt ? 'receipt' : 'delivery';
     push({
-      id: `move-${row.operatingEventId}`,
-      title: openSaleGoods ? `${party} delivery is still open` : `${party} delivery is not complete`,
-      kind: 'PENDING_DELIVERY',
-      severity: 'LOW',
+      id: `${overdue ? 'goods-due' : 'move'}-${row.operatingEventId}`,
+      title: overdue
+        ? `${party} ${goodsWord} is overdue`
+        : openShipment && !openSaleGoods && !openPurchaseGoods
+          ? `${party} delivery is not complete`
+          : `${party} ${goodsWord} is still open`,
+      kind: overdue ? 'OVERDUE_DELIVERY' : 'PENDING_DELIVERY',
+      severity: overdue ? 'HIGH' : 'LOW',
       amount: null,
-      dueAt: row.contract?.promisedAt ?? row.dueAt ?? null,
+      dueAt: row.contract?.promisedAt ?? null,
       counterpartyName: row.counterpartyName ?? null,
       sourceEventId: row.operatingEventId,
       cta: 'shipment',

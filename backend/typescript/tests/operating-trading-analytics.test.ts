@@ -1034,4 +1034,114 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
     assert.ok(view.attention.some((item) => item.kind === 'PENDING_ORDER'));
     assert.ok(view.attention.some((item) => item.kind === 'PENDING_DELIVERY'));
   });
+
+  it('payment and goods due dates stay independent, and a later receipt does not add stock', () => {
+    const paid = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('TRADING_WHOLESALE', '10000', '20000'),
+      role: 'FINANCE',
+      events: [
+        event('sale', 'SALE', {
+          title: 'Widget',
+          amount: '1000.0000',
+          paymentStatus: 'COLLECTED',
+          paymentRelevance: 'RECEIVABLE',
+          counterpartyName: 'Buyer A',
+          contract: { entryMode: 'QUICK', paymentState: 'RECEIVED', goodsStatus: 'LATER', promisedAt: '2026-10-01' },
+        }),
+      ],
+      asOf: new Date('2026-10-18T00:00:00.000Z'),
+    });
+    assert.equal(paid.attention.some((item) => item.kind === 'OVERDUE_RECEIVABLE'), false);
+    assert.ok(paid.attention.some((item) => item.kind === 'OVERDUE_DELIVERY' && item.dueAt === '2026-10-01'));
+    const unpaid = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('DISTRIBUTION_DEALERSHIP', '10000', '20000'),
+      role: 'FINANCE',
+      events: [
+        event('sale', 'SALE', {
+          title: 'Dealer sale',
+          amount: '4500.0000',
+          paymentStatus: 'PENDING',
+          paymentRelevance: 'RECEIVABLE',
+          counterpartyName: 'Dealer A',
+          dueAt: '2026-10-01',
+          contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', goodsStatus: 'PARTIAL', promisedAt: '2026-10-02' },
+        }),
+      ],
+      asOf: new Date('2026-10-18T00:00:00.000Z'),
+    });
+    assert.ok(unpaid.attention.some((item) => item.kind === 'OVERDUE_RECEIVABLE'));
+    assert.ok(unpaid.attention.some((item) => item.kind === 'OVERDUE_DELIVERY'));
+    const purchase = validateTradingWrite(
+      write({
+        eventType: 'PURCHASE',
+        title: 'Later receipt',
+        amount: '800',
+        counterpartyName: 'Supplier B',
+        contract: { entryMode: 'QUICK', paymentState: 'PAID', receiptState: 'AWAITING', promisedAt: '2026-10-20', ownership: 'OWNED' },
+      }),
+      []
+    );
+    assert.equal(purchase.ok, true);
+    if (!purchase.ok) return;
+    assert.equal(purchase.contract.receiptState, 'AWAITING');
+    assert.equal(purchase.contract.promisedAt, '2026-10-20');
+    assert.equal(purchase.quantity, '0.0000');
+    const positions = tradingStockPositions(
+      asTrading([
+        event('buy', 'PURCHASE', {
+          title: 'Later receipt',
+          amount: '800.0000',
+          quantity: purchase.quantity,
+          contract: purchase.contract,
+        }),
+      ])
+    );
+    assert.equal(positions.length, 0);
+  });
+
+  it('a partly billed order stays open and a fully billed order does not', () => {
+    const view = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('TRADING_WHOLESALE', '10000', '20000'),
+      role: 'FINANCE',
+      events: [
+        event('open', 'ORDER', {
+          title: 'Open order',
+          counterpartyName: 'Buyer A',
+          contract: { orderStatus: 'PLACED', orderSide: 'SALES', estimatedAmount: '10000.0000' },
+        }),
+        event('part', 'SALE', {
+          title: 'Part bill',
+          amount: '4000.0000',
+          parentEventId: 'open',
+          paymentStatus: 'COLLECTED',
+          paymentRelevance: 'RECEIVABLE',
+        }),
+        event('done', 'ORDER', {
+          title: 'Filled order',
+          counterpartyName: 'Buyer B',
+          contract: { orderStatus: 'PLACED', orderSide: 'SALES', estimatedAmount: '1000.0000' },
+        }),
+        event('full', 'SALE', {
+          title: 'Full bill',
+          amount: '1000.0000',
+          parentEventId: 'done',
+          paymentStatus: 'COLLECTED',
+          paymentRelevance: 'RECEIVABLE',
+        }),
+      ],
+    });
+    const open = view.activity.find((row) => row.id === 'open');
+    const filled = view.activity.find((row) => row.id === 'done');
+    assert.equal(open?.estimatedAmount, '10000.0000');
+    assert.equal(filled?.estimatedAmount, '1000.0000');
+    const executed = (orderId: string) =>
+      view.activity
+        .filter((row) => row.parentEventId === orderId && row.eventType === 'SALE')
+        .reduce((total, row) => total + Number(row.amount ?? 0), 0);
+    assert.equal(executed('open') < Number(open?.estimatedAmount), true);
+    assert.equal(executed('done') >= Number(filled?.estimatedAmount), true);
+  });
 });

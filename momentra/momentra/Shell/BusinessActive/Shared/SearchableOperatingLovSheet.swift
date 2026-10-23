@@ -7,6 +7,7 @@ struct OperatingLovOption: Identifiable, Hashable {
     let unit: String?
     let subtitle: String?
     var conversionToBase: String? = nil
+    var detailAmount: String? = nil
 }
 
 struct SearchableOperatingLovSheet: View {
@@ -16,6 +17,7 @@ struct SearchableOperatingLovSheet: View {
     let canAdd: Bool
     var accent: Color = Color(hex: "#6DDCFF")
     var unitChoices: [OperatingLovOption] = []
+    var pageSize: Int? = nil
     var onSelect: (OperatingLovOption) -> Void
     /// name, base unit, optional conversionToBase for pack/box/carton
     var onAdd: ((String, String?, String?) -> Void)?
@@ -26,6 +28,7 @@ struct SearchableOperatingLovSheet: View {
     @State private var newName = ""
     @State private var newUnit = ""
     @State private var newConversion = ""
+    @State private var page = 1
 
     private var filtered: [OperatingLovOption] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -42,6 +45,11 @@ struct SearchableOperatingLovSheet: View {
         return filtered.first { $0.name.lowercased() == q }
     }
 
+    private var visible: [OperatingLovOption] {
+        guard let pageSize, pageSize > 0 else { return filtered }
+        return Array(filtered.prefix(page * pageSize))
+    }
+
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
@@ -53,6 +61,7 @@ struct SearchableOperatingLovSheet: View {
                 .padding(12)
                 .background(Color(hex: "#1A2330"))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
+                .onChange(of: query) { _, _ in page = 1 }
 
                 if filtered.isEmpty {
                     Text("No matching \(title.lowercased())")
@@ -75,7 +84,7 @@ struct SearchableOperatingLovSheet: View {
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 8) {
-                            ForEach(filtered) { option in
+                            ForEach(visible) { option in
                                 Button {
                                     onSelect(option)
                                     onDismiss()
@@ -96,6 +105,11 @@ struct SearchableOperatingLovSheet: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                                 }
                                 .buttonStyle(.plain)
+                            }
+                            if visible.count < filtered.count {
+                                Button("Show more") { page += 1 }
+                                    .font(.plusJakarta(size: 13, weight: .semibold))
+                                    .foregroundStyle(accent)
                             }
                         }
                     }

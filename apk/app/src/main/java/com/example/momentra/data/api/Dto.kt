@@ -1186,6 +1186,8 @@ data class OperatingPaymentDto(
     val counterpartyName: String? = null,
     val dueAt: String? = null,
     val dueBucket: String? = null,
+    val occurredAt: String? = null,
+    val total: String? = null,
 )
 
 data class OperatingFinanceDto(
@@ -1213,6 +1215,7 @@ data class OperatingActivityDto(
     val parentEventId: String? = null,
     val status: String? = null,
     val orderSide: String? = null,
+    val estimatedAmount: String? = null,
 )
 
 data class OperatingLifeDto(

@@ -40,6 +40,8 @@ struct RetailStoreSetupView: View {
     @State private var metric = "REVENUE"
     @State private var metricOpen = false
     @State private var localError: String?
+    @State private var howItWorks = false
+    @State private var howItWorksViaCreate = false
 
     private var spec: SetupSpec { SetupSpec.forCode(subtype.code) }
     private let currencies = [
@@ -100,6 +102,25 @@ struct RetailStoreSetupView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                     .disabled(createModel.state.submitting)
                     .accessibilityIdentifier("business.setup.submit")
+                if let howCopy = TradingHowItWorksCopy.forSubtype(subtype.code) {
+                    Text(howCopy.context)
+                        .font(.plusJakarta(size: 13))
+                        .foregroundStyle(spec.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("See how it works") {
+                        howItWorks = true
+                        trackWidget(
+                            screenName: AnalyticsScreens.businessSetupRunway,
+                            widgetName: "how_it_works_opened",
+                            action: subtype.code
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .font(.plusJakarta(size: 14, weight: .semibold))
+                    .foregroundStyle(spec.brand)
+                    .frame(minHeight: 44, alignment: .leading)
+                    .accessibilityLabel("See how it works")
+                }
                 Text(spec.footer)
                     .font(.plusJakarta(size: 12)).foregroundStyle(spec.secondary)
             }
@@ -141,6 +162,46 @@ struct RetailStoreSetupView: View {
                 Button("Done") { dateOpen = false }.padding(.bottom, 20)
             }
             .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $howItWorks, onDismiss: {
+            if howItWorksViaCreate {
+                howItWorksViaCreate = false
+            } else {
+                trackWidget(
+                    screenName: AnalyticsScreens.businessSetupRunway,
+                    widgetName: "how_it_works_closed",
+                    action: subtype.code
+                )
+            }
+        }) {
+            if let howCopy = TradingHowItWorksCopy.forSubtype(subtype.code) {
+                TradingHowItWorksSheet(
+                    copy: howCopy,
+                    accent: spec.brand,
+                    ink: spec.text,
+                    actionInk: spec.actionInk,
+                    onExpand: {
+                        trackWidget(
+                            screenName: AnalyticsScreens.businessSetupRunway,
+                            widgetName: "how_it_works_expanded",
+                            action: subtype.code
+                        )
+                    },
+                    onCreate: {
+                        howItWorksViaCreate = true
+                        trackWidget(
+                            screenName: AnalyticsScreens.businessSetupRunway,
+                            widgetName: "how_it_works_create_clicked",
+                            action: subtype.code
+                        )
+                        howItWorks = false
+                    },
+                    onClose: { howItWorks = false }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Color(hex: "#122235"))
+            }
         }
     }
 
