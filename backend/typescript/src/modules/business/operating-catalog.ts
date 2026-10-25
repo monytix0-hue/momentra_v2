@@ -40,6 +40,7 @@ import {
   tradingStockPositions,
   obligationRemaining as tradingObligationRemaining,
 } from './operating-trading-contract';
+import { accumulateGstPosition, type GstPosition } from './operating-gst';
 import {
   channelCoverage,
   isMarketingSubtype,
@@ -396,6 +397,13 @@ export interface OperatingPreferences {
   monthlyBudget: string;
   monthlyTarget: string;
   targetMetric: string;
+  gstTracking: string;
+  gstRegistration: string;
+  gstState: string;
+  gstin: string;
+  salePriceIncludesGst: string;
+  purchasePriceIncludesGst: string;
+  gstEffectiveFrom: string;
 }
 
 function asRole(value: unknown): OperatingRole | undefined {
@@ -449,8 +457,13 @@ export function normalizeOperatingPreferences(
   }
   const startDate = String(prefs.startDate ?? '').slice(0, 10);
   const endDate = String(prefs.endDate ?? '').slice(0, 10);
-  if (familyCode === 'MARKETING_CAMPAIGNS' && (!startDate || !endDate)) {
-    throw new Error('Campaign start and end dates are required.');
+  if (familyCode === 'MARKETING_CAMPAIGNS') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+      throw new Error('Campaign start date is required.');
+    }
+    if (endDate && (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < startDate)) {
+      throw new Error('Campaign end date must be on or after the start date.');
+    }
   }
   const participants: OperatingParticipant[] = [];
   if (Array.isArray(prefs.participants)) {
@@ -503,6 +516,42 @@ export function normalizeOperatingPreferences(
     monthlyBudget,
     monthlyTarget,
     targetMetric,
+    ...normalizeGstPreferences(familyCode, prefs),
+  };
+}
+
+function gstChoice(value: unknown, allowed: string[]): string {
+  const code = String(value ?? '').trim().toUpperCase();
+  return allowed.includes(code) ? code : '';
+}
+
+function normalizeGstPreferences(
+  familyCode: OperatingFamilyCode,
+  prefs: Record<string, unknown>
+): Pick<
+  OperatingPreferences,
+  'gstTracking' | 'gstRegistration' | 'gstState' | 'gstin' | 'salePriceIncludesGst' | 'purchasePriceIncludesGst' | 'gstEffectiveFrom'
+> {
+  if (familyCode !== 'TRADING_DISTRIBUTION') {
+    return {
+      gstTracking: '',
+      gstRegistration: '',
+      gstState: '',
+      gstin: '',
+      salePriceIncludesGst: '',
+      purchasePriceIncludesGst: '',
+      gstEffectiveFrom: '',
+    };
+  }
+  const effective = String(prefs.gstEffectiveFrom ?? '').trim();
+  return {
+    gstTracking: gstChoice(prefs.gstTracking, ['YES', 'NOT_NOW']),
+    gstRegistration: gstChoice(prefs.gstRegistration, ['REGULAR', 'COMPOSITION', 'UNREGISTERED', 'NOT_SURE']),
+    gstState: String(prefs.gstState ?? '').trim(),
+    gstin: String(prefs.gstin ?? '').trim(),
+    salePriceIncludesGst: gstChoice(prefs.salePriceIncludesGst, ['YES', 'NO']),
+    purchasePriceIncludesGst: gstChoice(prefs.purchasePriceIncludesGst, ['YES', 'NO']),
+    gstEffectiveFrom: /^\d{4}-\d{2}-\d{2}$/.test(effective) ? effective : '',
   };
 }
 
@@ -550,6 +599,19 @@ export interface OperatingMaster {
   conversionToBase?: string | null;
   tracked?: boolean | null;
   barcode?: string | null;
+  gstApplicable?: string | null;
+  gstClassification?: string | null;
+  gstRate?: string | null;
+  priceIncludesGst?: string | null;
+  salePriceIncludesGst?: string | null;
+  purchasePriceIncludesGst?: string | null;
+  gstEffectiveFrom?: string | null;
+  hsn?: string | null;
+  gstRegistration?: string | null;
+  businessState?: string | null;
+  billingState?: string | null;
+  deliveryState?: string | null;
+  gstin?: string | null;
 }
 
 export interface OperatingProjection {
@@ -574,6 +636,19 @@ export interface OperatingProjection {
     conversionToBase?: string | null;
     tracked?: boolean | null;
     barcode?: string | null;
+    gstApplicable?: string | null;
+    gstClassification?: string | null;
+    gstRate?: string | null;
+    priceIncludesGst?: string | null;
+    salePriceIncludesGst?: string | null;
+    purchasePriceIncludesGst?: string | null;
+    gstEffectiveFrom?: string | null;
+    hsn?: string | null;
+    gstRegistration?: string | null;
+    businessState?: string | null;
+    billingState?: string | null;
+    deliveryState?: string | null;
+    gstin?: string | null;
   }>;
   location: string;
   budget: { amount: string; spent: string; remaining: string; configured: boolean } | null;
@@ -629,6 +704,13 @@ export interface OperatingProjection {
     memory: OperatingBoardSection[];
   };
   quickAdds: Array<{ code: string; label: string; needsAmount: boolean }>;
+  gstTracking: string;
+  gstRegistration: string;
+  gstState: string;
+  gstEffectiveFrom: string;
+  salePriceIncludesGst: string;
+  purchasePriceIncludesGst: string;
+  gstPosition: GstPosition | null;
 }
 
 export interface OperatingBoardRow {
@@ -994,7 +1076,7 @@ export function projectOperatingMoment(args: {
       targetConfigured = true;
       revisions.push({ id: row.operatingEventId, title: row.title, occurredAt: row.occurredAt });
     }
-    if (def?.consumesBudget && args.familyCode !== 'MARKETING_CAMPAIGNS') spent += amount;
+    if (def?.consumesBudget && args.familyCode !== 'MARKETING_CAMPAIGNS') spent += recognizedValue(row);
     if (args.familyCode === 'MARKETING_CAMPAIGNS') {
       // Rolled below so revisions, incremental, and cumulative series stay one ledger.
     } else if (args.familyCode === 'MANUFACTURING_PRODUCTION') {
@@ -1129,6 +1211,19 @@ export function projectOperatingMoment(args: {
         conversionToBase: row.master!.conversionToBase ?? null,
         tracked: row.master!.tracked ?? null,
         barcode: row.master!.barcode ?? null,
+        gstApplicable: row.master!.gstApplicable ?? null,
+        gstClassification: row.master!.gstClassification ?? null,
+        gstRate: row.master!.gstRate ?? null,
+        priceIncludesGst: row.master!.priceIncludesGst ?? null,
+        salePriceIncludesGst: row.master!.salePriceIncludesGst ?? null,
+        purchasePriceIncludesGst: row.master!.purchasePriceIncludesGst ?? null,
+        gstEffectiveFrom: row.master!.gstEffectiveFrom ?? null,
+        hsn: row.master!.hsn ?? null,
+        gstRegistration: row.master!.gstRegistration ?? null,
+        businessState: row.master!.businessState ?? null,
+        billingState: row.master!.billingState ?? null,
+        deliveryState: row.master!.deliveryState ?? null,
+        gstin: row.master!.gstin ?? null,
       })),
     location: args.prefs.location,
     finance: financeTotals(pulseEvents, visible, continuity),
@@ -1189,6 +1284,28 @@ export function projectOperatingMoment(args: {
       asOf,
     }),
     quickAdds,
+    gstTracking: args.prefs.gstTracking,
+    gstRegistration: args.prefs.gstRegistration,
+    gstState: args.prefs.gstState,
+    gstEffectiveFrom: args.prefs.gstEffectiveFrom,
+    salePriceIncludesGst: args.prefs.salePriceIncludesGst,
+    purchasePriceIncludesGst: args.prefs.purchasePriceIncludesGst,
+    gstPosition:
+      visible && args.prefs.gstTracking === 'YES'
+        ? accumulateGstPosition(
+            pulseEvents.map((row) => ({
+              id: row.operatingEventId,
+              title: row.title,
+              eventType: row.eventType,
+              occurredAt: row.occurredAt,
+              approvalStatus: row.approvalStatus,
+              paymentStatus: row.paymentStatus,
+              gst: row.contract?.gst,
+              returnDirection: row.contract?.returnDirection,
+            })),
+            asOf.toISOString().slice(0, 7)
+          )
+        : null,
   };
 }
 
@@ -1203,10 +1320,23 @@ function emptyFacts(): Pick<OperatingBoardRow, 'channelName' | 'counterpartyName
 }
 
 /** Posted SALE, SERVICE, and INVOICE minus linked customer credit notes. */
+function recognizedValue(row: OperatingEventRow): number {
+  const taxable = row.contract?.gst?.taxableAmount;
+  if (taxable != null && taxable !== '') return num(taxable);
+  return num(row.amount);
+}
+
+function commercialAmount(row: OperatingEventRow): number {
+  if (row.eventType === 'SALE' || row.eventType === 'SERVICE' || row.eventType === 'INVOICE' || row.eventType === 'PURCHASE' || row.eventType === 'RETURN') {
+    return recognizedValue(row);
+  }
+  return num(row.amount);
+}
+
 function netPostedSales(events: OperatingEventRow[]): number {
   const rows = events.filter(effective);
   const posted = rows.filter((row) => row.eventType === 'SALE' || row.eventType === 'SERVICE' || row.eventType === 'INVOICE');
-  const grossSales = posted.reduce((total, row) => total + num(row.amount), 0);
+  const grossSales = posted.reduce((total, row) => total + recognizedValue(row), 0);
   const saleIds = new Set(posted.map((row) => row.operatingEventId));
   const returned = rows
     .filter(
@@ -1216,7 +1346,7 @@ function netPostedSales(events: OperatingEventRow[]): number {
         saleIds.has(row.parentEventId) &&
         (row.contract?.returnDirection == null || row.contract.returnDirection === 'CUSTOMER')
     )
-    .reduce((total, row) => total + num(row.amount), 0);
+    .reduce((total, row) => total + recognizedValue(row), 0);
   return Math.max(0, grossSales - returned);
 }
 
@@ -1227,8 +1357,6 @@ function financeTotals(
 ): OperatingFinanceTotals | null {
   if (!visible) return null;
   const rows = events.filter(effective);
-  const sum = (match: (row: OperatingEventRow) => boolean) =>
-    money(rows.filter(match).reduce((total, row) => total + num(row.amount), 0));
   return {
     sales: money(netPostedSales(events)),
     received: money(
@@ -1245,7 +1373,7 @@ function financeTotals(
     ),
     outstanding: continuity.receivable ?? money(0),
     payable: continuity.payable ?? money(0),
-    eligibleCost: sum((row) => quickAddDef(row.eventType)?.consumesBudget === true),
+    eligibleCost: money(rows.filter((row) => quickAddDef(row.eventType)?.consumesBudget === true).reduce((total, row) => total + recognizedValue(row), 0)),
     cashPaid: money(
       rows.reduce((total, row) => {
         if (row.eventType === 'PAYMENT' && row.paymentStatus === 'PAID') return total + num(row.amount);
@@ -1317,7 +1445,7 @@ function eventSection(
   if (rows.length > 0) {
     detail = `${rows.length} recorded`;
     if (visible) {
-      const total = matched.reduce((sum, row) => sum + num(row.amount), 0);
+      const total = matched.reduce((sum, row) => sum + commercialAmount(row), 0);
       if (total > 0) detail = `${detail} · ${money(total)} ${currency}`;
     }
   }
@@ -1917,7 +2045,7 @@ function channelSection(
       const metrics = [...new Set(matched.map((row) => row.metric || 'RESULT'))].join(', ');
       return `${channel} · ${metrics} · ${matched.length}`;
     }
-    const total = matched.reduce((sum, row) => sum + num(row.amount), 0);
+    const total = matched.reduce((sum, row) => sum + commercialAmount(row), 0);
     return visible && total > 0 ? `${channel} · ${matched.length} · ${money(total)} ${currency}` : `${channel} · ${matched.length}`;
   });
   return textSection('L2', title, lines);
@@ -1977,10 +2105,10 @@ function monthlyHistory(
     .map(([month, rows]) => {
       const sales = rows
         .filter((row) => row.eventType === 'SALE' || row.eventType === 'SERVICE')
-        .reduce((sum, row) => sum + num(row.amount), 0);
+        .reduce((sum, row) => sum + commercialAmount(row), 0);
       const costs = rows
         .filter((row) => quickAddDef(row.eventType)?.consumesBudget)
-        .reduce((sum, row) => sum + num(row.amount), 0);
+        .reduce((sum, row) => sum + commercialAmount(row), 0);
       const progress = month === current ? ' · Month in progress' : '';
       const moneyLine = visible ? ` · Sales ${money(sales)} ${currency} · Costs ${money(costs)} ${currency}` : '';
       return {

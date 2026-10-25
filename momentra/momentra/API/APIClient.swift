@@ -88,6 +88,19 @@ struct OperatingMasterPayload: Decodable, Identifiable {
     let conversionToBase: String?
     let tracked: Bool?
     let barcode: String?
+    let gstApplicable: String?
+    let gstClassification: String?
+    let gstRate: String?
+    let priceIncludesGst: String?
+    let salePriceIncludesGst: String?
+    let purchasePriceIncludesGst: String?
+    let gstEffectiveFrom: String?
+    let hsn: String?
+    let gstRegistration: String?
+    let businessState: String?
+    let billingState: String?
+    let deliveryState: String?
+    let gstin: String?
 }
 
 struct OperatingQuickAddPayload: Decodable, Identifiable {
@@ -137,6 +150,34 @@ struct OperatingProjectionPayload: Decodable {
     let memory: OperatingMemoryPayload?
     let boards: OperatingBoardsPayload?
     let quickAdds: [OperatingQuickAddPayload]?
+    let gstTracking: String?
+    let gstRegistration: String?
+    let gstState: String?
+    let salePriceIncludesGst: String?
+    let purchasePriceIncludesGst: String?
+    let gstPosition: GstPositionPayload?
+}
+
+struct GstPositionSourcePayload: Decodable, Identifiable {
+    let id: String
+    let title: String?
+    let eventType: String?
+    let gstTotal: String?
+    let invoiceTotal: String?
+}
+
+struct GstPositionPayload: Decodable {
+    let outputGst: String?
+    let inputGst: String?
+    let difference: String?
+    let cgstSales: String?
+    let sgstSales: String?
+    let igstSales: String?
+    let cgstPurchases: String?
+    let sgstPurchases: String?
+    let igstPurchases: String?
+    let asOfMonth: String?
+    let sources: [GstPositionSourcePayload]?
 }
 
 struct RecordOperatingEventResult: Decodable {
@@ -179,6 +220,8 @@ struct OperatingContractInput: Encodable {
     var returnDirection: String? = nil
     var goodsOutcome: String? = nil
     var returnReason: String? = nil
+    var gstRate: String? = nil
+    var taxJurisdiction: String? = nil
     var acceptedQuantity: String? = nil
     var productionStatus: String? = nil
     var deliveryStatus: String? = nil
@@ -5308,7 +5351,20 @@ final class APIClient {
         activityStatus: String? = nil,
         attributedSales: String? = nil,
         revisionKind: String? = nil,
-        rejectedQuantity: String? = nil
+        rejectedQuantity: String? = nil,
+        masterGstApplicable: String? = nil,
+        masterGstClassification: String? = nil,
+        masterGstRate: String? = nil,
+        masterPriceIncludesGst: String? = nil,
+        masterSalePriceIncludesGst: String? = nil,
+        masterPurchasePriceIncludesGst: String? = nil,
+        masterGstEffectiveFrom: String? = nil,
+        masterHsn: String? = nil,
+        masterGstRegistration: String? = nil,
+        masterBusinessState: String? = nil,
+        masterBillingState: String? = nil,
+        masterDeliveryState: String? = nil,
+        masterGstin: String? = nil
     ) async throws -> RecordOperatingEventResult {
         struct Line: Encodable {
             let itemName: String
@@ -5322,6 +5378,19 @@ final class APIClient {
             let name: String
             let unit: String?
             let conversionToBase: String?
+            let gstApplicable: String?
+            let gstClassification: String?
+            let gstRate: String?
+            let priceIncludesGst: String?
+            let salePriceIncludesGst: String?
+            let purchasePriceIncludesGst: String?
+            let gstEffectiveFrom: String?
+            let hsn: String?
+            let gstRegistration: String?
+            let businessState: String?
+            let billingState: String?
+            let deliveryState: String?
+            let gstin: String?
         }
         struct Body: Encodable {
             let eventType: String
@@ -5360,7 +5429,7 @@ final class APIClient {
             return nil
         }()
         let master = masterKind?.isEmpty == false
-            ? Master(kind: masterKind!, name: title, unit: unit, conversionToBase: conversionToBase)
+            ? Master(kind: masterKind!, name: title, unit: unit, conversionToBase: conversionToBase, gstApplicable: masterGstApplicable, gstClassification: masterGstClassification, gstRate: masterGstRate, priceIncludesGst: masterPriceIncludesGst, salePriceIncludesGst: masterSalePriceIncludesGst, purchasePriceIncludesGst: masterPurchasePriceIncludesGst, gstEffectiveFrom: masterGstEffectiveFrom, hsn: masterHsn, gstRegistration: masterGstRegistration, businessState: masterBusinessState, billingState: masterBillingState, deliveryState: masterDeliveryState, gstin: masterGstin)
             : nil
         let body = Body(
             eventType: eventType,

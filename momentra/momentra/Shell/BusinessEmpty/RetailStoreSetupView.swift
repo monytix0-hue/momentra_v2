@@ -22,6 +22,13 @@ struct RetailStoreSetupView: View {
     @State private var end: Date? = nil
     @State private var dateOpen = false
     @State private var editingEnd = false
+    @State private var gstOpen = false
+    @State private var gstTracking = "NOT_NOW"
+    @State private var gstRegistration = "REGULAR"
+    @State private var gstState = ""
+    @State private var salePriceIncludesGst = "NO"
+    @State private var purchasePriceIncludesGst = "NO"
+    @State private var gstEffectiveFrom = ""
     @State private var details = ""
     @State private var location = ""
     @State private var invites: [StoreInvite] = []
@@ -83,6 +90,7 @@ struct RetailStoreSetupView: View {
                 people
                 if !spec.partySection.isEmpty { counterparties }
                 plan
+                if spec.code == "TRADING_WHOLESALE" || spec.code == "DISTRIBUTION_DEALERSHIP" { gstSetup }
                 review
                 if ready {
                     pill("Ready to start", fill: spec.statusFill, ink: spec.statusInk)
@@ -473,12 +481,52 @@ struct RetailStoreSetupView: View {
         }
     }
 
+    private var gstSetup: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("GST & Tax Details").font(.plusJakarta(size: 16, weight: .semibold)).foregroundStyle(spec.text)
+            Text("Set up GST once to make buying and selling easier.").font(.plusJakarta(size: 13)).foregroundStyle(spec.secondary)
+            Button(gstOpen ? "Hide GST setup" : "Set up GST (optional)") { gstOpen.toggle() }
+                .font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(spec.accent)
+            if gstOpen {
+                Text("Do you want to track GST in this Moment?").font(.plusJakarta(size: 14)).foregroundStyle(spec.text)
+                Picker("Track GST", selection: $gstTracking) {
+                    Text("Yes").tag("YES")
+                    Text("Not now").tag("NOT_NOW")
+                }.pickerStyle(.segmented)
+                Text("Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.")
+                    .font(.plusJakarta(size: 12)).foregroundStyle(spec.secondary)
+                if gstTracking == "YES" {
+                    Picker("Registration", selection: $gstRegistration) {
+                        Text("Regular").tag("REGULAR")
+                        Text("Composition").tag("COMPOSITION")
+                        Text("Unregistered").tag("UNREGISTERED")
+                        Text("Not sure").tag("NOT_SURE")
+                    }
+                    TextField("Which state is your business registered in?", text: $gstState)
+                    Picker("Selling prices", selection: $salePriceIncludesGst) {
+                        Text("Prices include GST").tag("YES")
+                        Text("GST is added separately").tag("NO")
+                    }
+                    Picker("Purchase prices", selection: $purchasePriceIncludesGst) {
+                        Text("Prices include GST").tag("YES")
+                        Text("GST is added separately").tag("NO")
+                    }
+                    Text("Your GSTIN stays the one entered above. It is stored as a reference only.")
+                        .font(.plusJakarta(size: 12)).foregroundStyle(spec.secondary)
+                    TextField("Effective from YYYY-MM-DD", text: $gstEffectiveFrom)
+                }
+            }
+        }
+        .padding(16)
+        .background(spec.card, in: RoundedRectangle(cornerRadius: 18))
+    }
+
     private var review: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Review your setup").font(.plusJakarta(size: 20, weight: .semibold)).foregroundStyle(spec.text)
             VStack(alignment: .leading, spacing: 4) {
                 Text(name.isEmpty ? spec.nameHint : name).font(.plusJakarta(size: 14)).foregroundStyle(spec.text)
-                Text("\(spec.reviewKind) · \(currency) · From \(dayLabel(start))").font(.plusJakarta(size: 12)).foregroundStyle(spec.secondary)
+                Text("\(spec.reviewKind) · \(currency) · From \(dayLabel(start))\(end.map { " to \(dayLabel($0))" } ?? " · Still open")").font(.plusJakarta(size: 12)).foregroundStyle(spec.secondary)
             }
             reviewLine("Company", companyName.trimmingCharacters(in: .whitespaces).isEmpty ? "Not set" : companyName)
             reviewLine("GSTIN", gstin.trimmingCharacters(in: .whitespaces).isEmpty ? "Not added" : gstin)
@@ -603,6 +651,12 @@ struct RetailStoreSetupView: View {
             "targetMetric": metric,
             "companyName": company,
             "gstin": gstin.trimmingCharacters(in: .whitespaces),
+            "gstTracking": (spec.code == "TRADING_WHOLESALE" || spec.code == "DISTRIBUTION_DEALERSHIP") ? gstTracking : "",
+            "gstRegistration": gstRegistration,
+            "gstState": gstState.trimmingCharacters(in: .whitespaces),
+            "salePriceIncludesGst": salePriceIncludesGst,
+            "purchasePriceIncludesGst": purchasePriceIncludesGst,
+            "gstEffectiveFrom": gstEffectiveFrom.trimmingCharacters(in: .whitespaces),
         ]
         onActivate(prefs, trimmed)
     }

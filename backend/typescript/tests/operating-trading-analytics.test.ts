@@ -1144,4 +1144,474 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
     assert.equal(executed('open') < Number(open?.estimatedAmount), true);
     assert.equal(executed('done') >= Number(filled?.estimatedAmount), true);
   });
+
+  it('posts GST snapshots for inclusive and exclusive prices and shows an indicative position', () => {
+    const gst = {
+      enabled: true,
+      businessState: 'Karnataka',
+      saleIncludesGst: false as boolean | null,
+      purchaseIncludesGst: true as boolean | null,
+    };
+    const gstPrefs = normalizeOperatingPreferences(
+      'TRADING_DISTRIBUTION',
+      {
+        subtype: 'TRADING_WHOLESALE',
+        identityName: 'Trade',
+        partyName: 'Trade',
+        monthlyBudget: '500000',
+        monthlyTarget: '500000',
+        targetMetric: 'REVENUE',
+        channels: ['Wholesale'],
+        startDate: '2026-10-01',
+        gstTracking: 'YES',
+        gstRegistration: 'REGULAR',
+        gstState: 'Karnataka',
+        salePriceIncludesGst: 'NO',
+        purchasePriceIncludesGst: 'YES',
+      },
+      { userId: 'u', displayName: 'Asha' }
+    );
+    const exclusive = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Exclusive sale',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer',
+        dueAt: '2026-10-31',
+        gst,
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'EXCLUSIVE', gstRate: '4', taxJurisdiction: 'INTRA' },
+      }),
+      []
+    );
+    assert.equal(exclusive.ok, true);
+    if (!exclusive.ok) return;
+    assert.equal(exclusive.amount, '1040.0000');
+    assert.equal(exclusive.contract.gst?.taxableAmount, '1000.0000');
+    assert.equal(exclusive.contract.gst?.gstTotal, '40.0000');
+    assert.equal(exclusive.contract.gst?.cgstAmount, '20.0000');
+    assert.equal(exclusive.contract.gst?.sgstAmount, '20.0000');
+    assert.equal(exclusive.contract.gst?.igstAmount, '0.0000');
+
+    const inclusiveSale = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Inclusive sale',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer',
+        dueAt: '2026-10-31',
+        gst,
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'INCLUSIVE', gstRate: '4', taxJurisdiction: 'INTER' },
+      }),
+      []
+    );
+    assert.equal(inclusiveSale.ok, true);
+    if (!inclusiveSale.ok) return;
+    assert.equal(inclusiveSale.amount, '1000.0000');
+    assert.equal(inclusiveSale.contract.gst?.taxableAmount, '961.5400');
+    assert.equal(inclusiveSale.contract.gst?.gstTotal, '38.4600');
+    assert.equal(inclusiveSale.contract.gst?.igstAmount, '38.4600');
+
+    const purchase = validateTradingWrite(
+      write({
+        eventType: 'PURCHASE',
+        title: 'Inclusive purchase',
+        amount: '1000',
+        counterpartyName: 'Supplier',
+        dueAt: '2026-10-31',
+        gst,
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'INCLUSIVE', gstRate: '4', taxJurisdiction: 'INTRA' },
+      }),
+      []
+    );
+    assert.equal(purchase.ok, true);
+    if (!purchase.ok) return;
+    assert.equal(purchase.contract.gst?.gstTotal, '38.4600');
+    assert.equal(purchase.amount, '1000.0000');
+
+    const missingRate = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'No rate',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer',
+        dueAt: '2026-10-31',
+        gst,
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'EXCLUSIVE', taxJurisdiction: 'INTRA' },
+      }),
+      []
+    );
+    assert.equal(missingRate.ok, false);
+
+    const postedSale = event('sale', 'SALE', {
+      title: 'Exclusive sale',
+      amount: exclusive.amount,
+      paymentStatus: 'PENDING',
+      paymentRelevance: 'RECEIVABLE',
+      counterpartyName: 'Buyer',
+      contract: exclusive.contract,
+    });
+    const postedBuy = event('buy', 'PURCHASE', {
+      title: 'Inclusive purchase',
+      amount: purchase.amount,
+      paymentStatus: 'PENDING',
+      paymentRelevance: 'PAYABLE',
+      counterpartyName: 'Supplier',
+      contract: purchase.contract,
+    });
+    const view = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: gstPrefs,
+      role: 'OWNER_ADMIN',
+      events: [postedSale, postedBuy],
+    });
+    assert.equal(view.gstPosition?.outputGst, '40.0000');
+    assert.equal(view.gstPosition?.inputGst, '38.4600');
+    assert.equal(view.gstPosition?.difference, '1.5400');
+    assert.equal(view.finance?.sales, '1000.0000');
+    assert.equal(view.finance?.outstanding, '1040.0000');
+    assert.equal(view.target?.progress, '1000.0000');
+
+    const collected = validateTradingWrite(
+      write({
+        eventType: 'COLLECTION',
+        title: 'Part collect',
+        amount: '400',
+        counterpartyName: 'Buyer',
+        parentEventId: 'sale',
+        gst,
+      }),
+      asTrading([postedSale])
+    );
+    assert.equal(collected.ok, true);
+    assert.equal(postedSale.contract?.gst?.gstTotal, '40.0000');
+    assert.equal(postedSale.contract?.gst?.invoiceTotal, '1040.0000');
+
+    const delivered = validateTradingWrite(
+      write({
+        eventType: 'DELIVERY',
+        title: 'Dispatch',
+        quantity: '1',
+        parentEventId: 'sale',
+        gst,
+        contract: { shipmentStatus: 'DELIVERED' },
+      }),
+      asTrading([postedSale])
+    );
+    assert.equal(delivered.ok, true);
+    if (delivered.ok) assert.equal(delivered.contract.gst ?? null, null);
+    assert.equal(postedSale.contract?.gst?.gstTotal, '40.0000');
+
+    const credit = validateTradingWrite(
+      write({
+        eventType: 'RETURN',
+        title: 'Credit note',
+        amount: '1040',
+        parentEventId: 'sale',
+        quantity: '1',
+        gst,
+        contract: { returnDirection: 'CUSTOMER', goodsOutcome: 'TO_STOCK', returnReason: 'Returned' },
+      }),
+      asTrading([postedSale])
+    );
+    assert.equal(credit.ok, true);
+    if (!credit.ok) return;
+    assert.equal(credit.contract.gst?.gstTotal, '40.0000');
+    assert.equal(credit.contract.gst?.taxableAmount, '1000.0000');
+    const adjusted = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: gstPrefs,
+      role: 'OWNER_ADMIN',
+      events: [
+        postedSale,
+        postedBuy,
+        event('credit', 'RETURN', {
+          title: 'Credit note',
+          amount: credit.amount,
+          parentEventId: 'sale',
+          contract: credit.contract,
+        }),
+      ],
+    });
+    assert.equal(adjusted.gstPosition?.outputGst, '0.0000');
+    assert.equal(adjusted.gstPosition?.inputGst, '38.4600');
+    assert.equal(adjusted.gstPosition?.difference, '-38.4600');
+    assert.equal(adjusted.gstPosition?.sources.length, 3);
+
+    const hidden = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('TRADING_WHOLESALE', '500000', '500000'),
+      role: 'OWNER_ADMIN',
+      events: [postedSale, postedBuy],
+    });
+    assert.equal(hidden.gstPosition, null);
+  });
+
+  it('calculates v11.1 line GST, keeps estimates off the position, and leaves history unchanged', () => {
+    const gst = {
+      enabled: true,
+      businessState: 'Karnataka',
+      saleIncludesGst: false as boolean | null,
+      purchaseIncludesGst: false as boolean | null,
+      registration: 'REGULAR',
+    };
+    const gstPrefs = normalizeOperatingPreferences(
+      'TRADING_DISTRIBUTION',
+      {
+        subtype: 'TRADING_WHOLESALE',
+        identityName: 'Trade',
+        partyName: 'Trade',
+        monthlyBudget: '500000',
+        monthlyTarget: '500000',
+        targetMetric: 'REVENUE',
+        channels: ['Wholesale'],
+        startDate: '2026-10-01',
+        gstTracking: 'YES',
+        gstRegistration: 'REGULAR',
+        gstState: 'Karnataka',
+        salePriceIncludesGst: 'NO',
+        purchasePriceIncludesGst: 'NO',
+        gstEffectiveFrom: '2026-10-01',
+      },
+      { userId: 'u', displayName: 'Asha' }
+    );
+    const plain = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'No GST',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer',
+        dueAt: '2026-10-31',
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'NOT_CONFIGURED' },
+      }),
+      []
+    );
+    assert.equal(plain.ok, true);
+    if (!plain.ok) return;
+    assert.equal(plain.amount, '1000.0000');
+    assert.equal(plain.contract.gst ?? null, null);
+
+    const added = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Added sale',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer',
+        dueAt: '2026-10-31',
+        gst,
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'EXCLUSIVE', gstRate: '5', taxJurisdiction: 'INTRA' },
+      }),
+      []
+    );
+    assert.equal(added.ok, true);
+    if (!added.ok) return;
+    assert.equal(added.amount, '1050.0000');
+    assert.equal(added.contract.gst?.taxableAmount, '1000.0000');
+    assert.equal(added.contract.gst?.gstTotal, '50.0000');
+    assert.equal(added.contract.gst?.cgstAmount, '25.0000');
+    assert.equal(added.contract.gst?.sgstAmount, '25.0000');
+    assert.equal(added.contract.gst?.invoiceTotal, '1050.0000');
+    assert.equal(added.contract.gst?.taxStatus, 'CALCULATED');
+    assert.equal(added.contract.gst?.gstLines.length, 1);
+
+    const included = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Included sale',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer',
+        dueAt: '2026-10-31',
+        gst,
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'INCLUSIVE', gstRate: '5', taxJurisdiction: 'INTER' },
+      }),
+      []
+    );
+    assert.equal(included.ok, true);
+    if (!included.ok) return;
+    assert.equal(included.amount, '1000.0000');
+    assert.equal(included.contract.gst?.taxableAmount, '952.3800');
+    assert.equal(included.contract.gst?.igstAmount, '47.6200');
+    assert.equal(included.contract.gst?.gstTotal, '47.6200');
+
+    const addedBuy = validateTradingWrite(
+      write({
+        eventType: 'PURCHASE',
+        title: 'Added purchase',
+        amount: '1000',
+        counterpartyName: 'Supplier',
+        dueAt: '2026-10-31',
+        gst,
+        contract: { entryMode: 'QUICK', paymentState: 'PART_PAID', receivedAmount: '400', taxMode: 'EXCLUSIVE', gstRate: '5', taxJurisdiction: 'INTRA' },
+      }),
+      []
+    );
+    assert.equal(addedBuy.ok, true);
+    if (!addedBuy.ok) return;
+    assert.equal(addedBuy.amount, '1050.0000');
+    assert.equal(addedBuy.contract.gst?.gstTotal, '50.0000');
+    assert.equal(addedBuy.contract.receivedAmount, '400.0000');
+
+    const includedBuy = validateTradingWrite(
+      write({
+        eventType: 'PURCHASE',
+        title: 'Included purchase',
+        amount: '1000',
+        counterpartyName: 'Supplier',
+        dueAt: '2026-10-31',
+        gst,
+        contract: { entryMode: 'QUICK', paymentState: 'PART_PAID', receivedAmount: '400', taxMode: 'INCLUSIVE', gstRate: '5', taxJurisdiction: 'INTRA' },
+      }),
+      []
+    );
+    assert.equal(includedBuy.ok, true);
+    if (!includedBuy.ok) return;
+    assert.equal(includedBuy.amount, '1000.0000');
+    assert.equal(includedBuy.contract.gst?.gstTotal, '47.6200');
+    assert.equal(includedBuy.contract.receivedAmount, '400.0000');
+    assert.equal((Number(includedBuy.amount) - Number(includedBuy.contract.receivedAmount)).toFixed(4), '600.0000');
+
+    const mixed = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Mixed sale',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer',
+        dueAt: '2026-10-31',
+        gst,
+        lines: [
+          { itemName: 'Added', quantity: '1', unit: 'pc', unitPrice: '1000', taxMode: 'EXCLUSIVE', gstRate: '5' },
+          { itemName: 'Included', quantity: '1', unit: 'pc', unitPrice: '1000', taxMode: 'INCLUSIVE', gstRate: '12' },
+        ],
+        contract: { entryMode: 'ITEMIZED', paymentState: 'PAY_LATER', taxJurisdiction: 'INTRA' },
+      }),
+      []
+    );
+    assert.equal(mixed.ok, true);
+    if (!mixed.ok) return;
+    const lines = mixed.contract.gst?.gstLines ?? [];
+    assert.equal(lines.length, 2);
+    assert.equal(lines[0]?.gstTotal, '50.0000');
+    assert.equal(lines[1]?.taxableAmount, '892.8600');
+    assert.equal(lines[1]?.gstTotal, '107.1400');
+    assert.equal(mixed.contract.gst?.taxableAmount, '1892.8600');
+    assert.equal(mixed.contract.gst?.gstTotal, '157.1400');
+    assert.equal(mixed.contract.gst?.invoiceTotal, '2050.0000');
+    assert.equal(mixed.amount, '2050.0000');
+
+    const posted = event('sale5', 'SALE', {
+      title: 'Added sale',
+      amount: added.amount,
+      paymentStatus: 'PENDING',
+      paymentRelevance: 'RECEIVABLE',
+      counterpartyName: 'Buyer',
+      contract: added.contract,
+    });
+    const postedBuy = event('buy5', 'PURCHASE', {
+      title: 'Added purchase',
+      amount: addedBuy.amount,
+      paymentStatus: 'PENDING',
+      paymentRelevance: 'PAYABLE',
+      counterpartyName: 'Supplier',
+      contract: addedBuy.contract,
+    });
+    const collected = validateTradingWrite(
+      write({ eventType: 'COLLECTION', title: 'Collect', amount: '400', counterpartyName: 'Buyer', parentEventId: 'sale5', gst }),
+      asTrading([posted])
+    );
+    assert.equal(collected.ok, true);
+    assert.equal(posted.contract?.gst?.gstTotal, '50.0000');
+    const delivered = validateTradingWrite(
+      write({ eventType: 'DELIVERY', title: 'Dispatch', quantity: '1', parentEventId: 'sale5', gst, contract: { shipmentStatus: 'DELIVERED' } }),
+      asTrading([posted])
+    );
+    assert.equal(delivered.ok, true);
+    if (delivered.ok) assert.equal(delivered.contract.gst ?? null, null);
+    const paid = validateTradingWrite(
+      write({ eventType: 'PAYMENT', title: 'Pay', amount: '400', counterpartyName: 'Supplier', parentEventId: 'buy5', gst }),
+      asTrading([postedBuy])
+    );
+    assert.equal(paid.ok, true);
+    assert.equal(postedBuy.contract?.gst?.gstTotal, '50.0000');
+    if (paid.ok) assert.equal(paid.contract.gst ?? null, null);
+
+    const credit = validateTradingWrite(
+      write({
+        eventType: 'RETURN',
+        title: 'Credit',
+        amount: '1050',
+        parentEventId: 'sale5',
+        quantity: '1',
+        gst,
+        contract: { returnDirection: 'CUSTOMER', goodsOutcome: 'TO_STOCK', returnReason: 'Returned' },
+      }),
+      asTrading([posted])
+    );
+    assert.equal(credit.ok, true);
+    if (!credit.ok) return;
+    assert.equal(credit.contract.gst?.gstTotal, '50.0000');
+    assert.equal(credit.contract.gst?.taxableAmount, '1000.0000');
+    assert.equal(posted.contract?.gst?.gstRate, '5.0000');
+
+    const order = validateTradingWrite(
+      write({
+        eventType: 'ORDER',
+        title: 'Sales order',
+        amount: '1000',
+        channelName: 'Wholesale',
+        gst,
+        contract: { orderSide: 'SALES', taxMode: 'EXCLUSIVE', gstRate: '5', taxJurisdiction: 'INTRA' },
+      }),
+      []
+    );
+    assert.equal(order.ok, true);
+    if (!order.ok) return;
+    assert.equal(order.contract.gst ?? null, null);
+    assert.equal(order.contract.gstEstimate?.gstTotal, '50.0000');
+    assert.equal(order.amount, null);
+
+    const view = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: gstPrefs,
+      role: 'OWNER_ADMIN',
+      events: [
+        posted,
+        postedBuy,
+        event('pay5', 'PAYMENT', {
+          title: 'Part pay',
+          amount: '400.0000',
+          parentEventId: 'buy5',
+          paymentStatus: 'PAID',
+          paymentRelevance: 'PAYABLE',
+          counterpartyName: 'Supplier',
+        }),
+        event('order5', 'ORDER', { title: 'Sales order', amount: null, contract: order.contract }),
+      ],
+    });
+    assert.equal(view.gstPosition?.outputGst, '50.0000');
+    assert.equal(view.gstPosition?.inputGst, '50.0000');
+    assert.equal(view.finance?.sales, '1000.0000');
+    assert.equal(view.finance?.payable, '650.0000');
+    assert.equal(view.gstPosition?.sources.some((source) => source.eventType === 'ORDER'), false);
+    assert.equal(view.gstEffectiveFrom, '2026-10-01');
+
+    const hidden = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('TRADING_WHOLESALE', '500000', '500000'),
+      role: 'OWNER_ADMIN',
+      events: [posted, postedBuy],
+    });
+    assert.equal(hidden.gstPosition, null);
+  });
 });

@@ -337,6 +337,49 @@ describe('operating moment catalog', () => {
     assert.equal(dispatches?.rows[0]?.title, 'In transit · Dispatch');
   });
 
+  it('activates a marketing campaign with an end date or still open', () => {
+    const base = {
+      subtype: 'CLIENT_CAMPAIGN',
+      identityName: 'Launch',
+      partyName: 'Client',
+      channels: ['Email'],
+      monthlyBudget: '8000',
+      monthlyTarget: '1000',
+      targetMetric: 'LEADS',
+      startDate: '2026-10-24',
+    };
+    const dated = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      { ...base, endDate: '2026-10-31' },
+      { userId: 'u', displayName: 'Asha' }
+    );
+    assert.equal(dated.startDate, '2026-10-24');
+    assert.equal(dated.endDate, '2026-10-31');
+    const open = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      { ...base, endDate: '' },
+      { userId: 'u', displayName: 'Asha' }
+    );
+    assert.equal(open.startDate, '2026-10-24');
+    assert.equal(open.endDate, '');
+    assert.throws(
+      () => normalizeOperatingPreferences(
+        'MARKETING_CAMPAIGNS',
+        { ...base, endDate: '2026-10-01' },
+        { userId: 'u', displayName: 'Asha' }
+      ),
+      /on or after the start date/
+    );
+    assert.throws(
+      () => normalizeOperatingPreferences(
+        'MARKETING_CAMPAIGNS',
+        { ...base, startDate: '' },
+        { userId: 'u', displayName: 'Asha' }
+      ),
+      /start date is required/
+    );
+  });
+
   it('counts only campaign results toward the marketing target and offers collection on an own-business campaign', () => {
     const prefs = normalizeOperatingPreferences(
       'MARKETING_CAMPAIGNS',

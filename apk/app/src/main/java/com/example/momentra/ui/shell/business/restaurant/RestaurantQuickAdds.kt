@@ -251,18 +251,20 @@ fun RestaurantQuickAddHub(
         }
     }
     if (mastersOpen) {
-        OperatingCaptureSheet(
-            title = "Masters",
-            icon = R.drawable.qa_shield,
-            eventType = "UPDATE",
-            mode = "MASTERS",
-            model = model,
-            onDismiss = { mastersOpen = false },
-            onSubmit = { draft ->
-                onRecord(draft.toRestaurant())
-                mastersOpen = false
-            },
-        )
+        OperatingSheetScrim(onDismiss = { mastersOpen = false }) {
+            OperatingCaptureSheet(
+                title = "Masters",
+                icon = R.drawable.qa_shield,
+                eventType = "UPDATE",
+                mode = "MASTERS",
+                model = model,
+                onDismiss = { mastersOpen = false },
+                onSubmit = { draft ->
+                    onRecord(draft.toRestaurant())
+                    mastersOpen = false
+                },
+            )
+        }
     }
     if (approvalOpen) {
         OperatingSheetScrim(onDismiss = { approvalOpen = false }) {

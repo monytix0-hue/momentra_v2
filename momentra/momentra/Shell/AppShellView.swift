@@ -1,5 +1,12 @@
 import SwiftUI
 
+private enum BusinessQuickAddFollowUp {
+    case kind(BusinessQuickAddKind)
+    case members
+    case newMoment
+    case companySettings
+}
+
 struct AppShellView: View {
     let identity: ShellIdentity
     @ObservedObject var model: AppShellModel
@@ -37,6 +44,7 @@ struct AppShellView: View {
     @State private var businessInvoiceSheetPresented = false
     @State private var businessMembersSheetPresented = false
     @State private var businessQuickAddPresented = false
+    @State private var businessQuickAddFollowUp: BusinessQuickAddFollowUp?
     @State private var businessGapQa: BusinessQuickAddKind? = nil
     @State private var lifeOpsQa: LifeOpsQuickAddKind? = nil
     @State private var futureQa: FutureQuickAddKind? = nil
@@ -618,7 +626,23 @@ struct AppShellView: View {
                 )
             }
         }
-        .sheet(isPresented: $businessQuickAddPresented) {
+        .sheet(isPresented: $businessQuickAddPresented, onDismiss: {
+            let followUp = businessQuickAddFollowUp
+            businessQuickAddFollowUp = nil
+            switch followUp {
+            case .kind(let kind):
+                presentBusinessKind(kind)
+            case .members:
+                businessMembersSheetPresented = true
+            case .newMoment:
+                model.selectBottomDestination(.create)
+            case .companySettings:
+                reopenCompanySettings = true
+                companyMenuOpen = true
+            case nil:
+                break
+            }
+        }) {
             BusinessQuickAddHub(
                 hasActiveMoment: model.selectedMomentId != nil,
                 hasCompany: model.selectedCompany != nil,
@@ -630,35 +654,37 @@ struct AppShellView: View {
                     selectedMomentTypeCode: model.selectedMomentTypeCode
                 ),
                 companyId: model.selectedCompany?.companyId,
-                onClose: { businessQuickAddPresented = false },
-                onTile: { kind in
+                onClose: {
+                    businessQuickAddFollowUp = nil
                     businessQuickAddPresented = false
-                    presentBusinessKind(kind)
                 },
-                            onNewMoment: {
+                onTile: { kind in
+                    businessQuickAddFollowUp = .kind(kind)
                     businessQuickAddPresented = false
-                    model.selectBottomDestination(.create)
+                },
+                onNewMoment: {
+                    businessQuickAddFollowUp = .newMoment
+                    businessQuickAddPresented = false
                 },
                 onOpenCompanySettings: {
+                    businessQuickAddFollowUp = .companySettings
                     businessQuickAddPresented = false
-                    reopenCompanySettings = true
-                    companyMenuOpen = true
                 },
                 onExpense: {
+                    businessQuickAddFollowUp = .kind(.expense)
                     businessQuickAddPresented = false
-                    businessExpenseSheetPresented = true
                 },
                 onRevenue: {
+                    businessQuickAddFollowUp = .kind(.revenue)
                     businessQuickAddPresented = false
-                    businessRevenueSheetPresented = true
                 },
                 onInvoice: {
+                    businessQuickAddFollowUp = .kind(.invoice)
                     businessQuickAddPresented = false
-                    businessInvoiceSheetPresented = true
                 },
                 onMembers: {
+                    businessQuickAddFollowUp = .members
                     businessQuickAddPresented = false
-                    businessMembersSheetPresented = true
                 }
             )
             .id(model.selectedMomentId ?? "")

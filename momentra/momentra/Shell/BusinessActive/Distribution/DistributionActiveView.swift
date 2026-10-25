@@ -8,20 +8,27 @@ struct DistributionActiveView: View {
     var onDecide: (String, String) async throws -> Void = { _, _ in }
 
     @State private var activityOpen = false
+    @State private var gstDetailsOpen = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                switch tab {
-                case .pulse: pulse
-                case .moments: moments
-                case .life: life
-                case .memory: memory
-                case .quickAdd: DistributionQuickAddHub(model: model, onRecord: onRecord, onDecide: onDecide)
+        Group {
+            if tab == .quickAdd {
+                DistributionQuickAddHub(model: model, onRecord: onRecord, onDecide: onDecide)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        switch tab {
+                        case .pulse: pulse
+                        case .moments: moments
+                        case .life: life
+                        case .memory: memory
+                        case .quickAdd: EmptyView()
+                        }
+                    }
+                    .padding(.horizontal, 17)
+                    .padding(.vertical, 20)
                 }
             }
-            .padding(.horizontal, 17)
-            .padding(.vertical, 20)
         }
         .background(DistributionChrome.bg)
         .sheet(isPresented: $activityOpen) { activitySheet }
@@ -66,6 +73,42 @@ struct DistributionActiveView: View {
                     line("Eligible cost", money(model.finance?.eligibleCost), DistributionChrome.ink)
                     line("Business cash paid", money(model.finance?.cashPaid), DistributionChrome.ink)
                     line("Still to pay", money(model.finance?.payable), Color(hex: "#FBBF24"))
+                }
+                if let position = model.gstPosition {
+                    sectionTitle("GST Position")
+                    card {
+                        Text("Estimated GST from recorded sales and purchases").font(.plusJakarta(size: 13)).foregroundStyle(DistributionChrome.secondary)
+                        Text(position.asOfMonth ?? "").font(.plusJakarta(size: 12)).foregroundStyle(DistributionChrome.secondary)
+                        if (position.sources ?? []).isEmpty {
+                            Text("No GST transactions recorded for this period.").foregroundStyle(DistributionChrome.ink)
+                        } else {
+                            line("GST on sales", money(position.outputGst), DistributionChrome.accent)
+                            line("GST on purchases", money(position.inputGst), DistributionChrome.ink)
+                            let negative = (position.difference ?? "").hasPrefix("-")
+                            Text(negative
+                                 ? "Estimated excess purchase GST: \(money(position.difference?.replacingOccurrences(of: "-", with: "")))"
+                                 : "Estimated difference: \(money(position.difference)) payable before adjustments")
+                                .foregroundStyle(DistributionChrome.ink)
+                            Button(gstDetailsOpen ? "Hide GST details" : "View GST details") { gstDetailsOpen.toggle() }
+                                .font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(DistributionChrome.accent)
+                            if gstDetailsOpen {
+                                line("CGST on sales", money(position.cgstSales), DistributionChrome.secondary)
+                                line("SGST on sales", money(position.sgstSales), DistributionChrome.secondary)
+                                line("IGST on sales", money(position.igstSales), DistributionChrome.secondary)
+                                line("CGST on purchases", money(position.cgstPurchases), DistributionChrome.secondary)
+                                line("SGST on purchases", money(position.sgstPurchases), DistributionChrome.secondary)
+                                line("IGST on purchases", money(position.igstPurchases), DistributionChrome.secondary)
+                                Text("Recorded purchase GST is not eligible input tax credit.")
+                                    .font(.plusJakarta(size: 12)).foregroundStyle(DistributionChrome.secondary)
+                                ForEach(position.sources ?? []) { source in
+                                    Text("\(source.title ?? "") · \(source.eventType ?? "") · \(money(source.gstTotal))")
+                                        .font(.plusJakarta(size: 12)).foregroundStyle(DistributionChrome.secondary)
+                                }
+                            }
+                        }
+                        Text("Indicative GST position — not a GST return or verified amount payable")
+                            .font(.plusJakarta(size: 12)).foregroundStyle(DistributionChrome.secondary)
+                    }
                 }
             } else {
                 card {
@@ -387,6 +430,19 @@ struct DistributionEventDraft {
     var dueAt: String? = nil
     var contract: OperatingContractInput? = nil
     var lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil
+    var masterGstApplicable: String? = nil
+    var masterGstClassification: String? = nil
+    var masterGstRate: String? = nil
+    var masterPriceIncludesGst: String? = nil
+    var masterSalePriceIncludesGst: String? = nil
+    var masterPurchasePriceIncludesGst: String? = nil
+    var masterGstEffectiveFrom: String? = nil
+    var masterHsn: String? = nil
+    var masterGstRegistration: String? = nil
+    var masterBusinessState: String? = nil
+    var masterBillingState: String? = nil
+    var masterDeliveryState: String? = nil
+    var masterGstin: String? = nil
 }
 
 extension OperatingCaptureDraft {
@@ -410,7 +466,20 @@ extension OperatingCaptureDraft {
             conversionToBase: conversionToBase,
             dueAt: dueAt,
             contract: contract,
-            lineItems: lineItems
+            lineItems: lineItems,
+            masterGstApplicable: masterGstApplicable,
+            masterGstClassification: masterGstClassification,
+            masterGstRate: masterGstRate,
+            masterPriceIncludesGst: masterPriceIncludesGst,
+            masterSalePriceIncludesGst: masterSalePriceIncludesGst,
+            masterPurchasePriceIncludesGst: masterPurchasePriceIncludesGst,
+            masterGstEffectiveFrom: masterGstEffectiveFrom,
+            masterHsn: masterHsn,
+            masterGstRegistration: masterGstRegistration,
+            masterBusinessState: masterBusinessState,
+            masterBillingState: masterBillingState,
+            masterDeliveryState: masterDeliveryState,
+            masterGstin: masterGstin
         )
     }
 }

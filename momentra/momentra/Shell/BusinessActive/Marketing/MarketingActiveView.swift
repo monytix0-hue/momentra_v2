@@ -11,21 +11,30 @@ struct MarketingActiveView: View {
     @State private var activityOpen = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                switch tab {
-                case .pulse: pulse
-                case .moments: moments
-                case .life: life
-                case .memory: memory
-                case .quickAdd: MarketingQuickAddHub(model: model, onRecord: onRecord, onDecide: onDecide)
+        VStack(spacing: 0) {
+            if tab == .quickAdd {
+                MarketingQuickAddHub(model: model, onRecord: onRecord, onDecide: onDecide)
+            } else {
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            switch tab {
+                            case .pulse: pulse
+                            case .moments: moments
+                            case .life: life
+                            case .memory: memory
+                            case .quickAdd: EmptyView()
+                            }
+                        }
+                        .padding(.horizontal, 17)
+                        .padding(.vertical, 20)
+                    }
                 }
+                .sheet(isPresented: $activityOpen) { activitySheet }
             }
-            .padding(.horizontal, 17)
-            .padding(.vertical, 20)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(MarketingChrome.bg)
-        .sheet(isPresented: $activityOpen) { activitySheet }
     }
 
     private var pulse: some View {

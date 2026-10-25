@@ -94,6 +94,19 @@ data class OperatingCaptureDraft(
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
     val masterId: String? = null,
     val rejectedQuantity: String? = null,
+    val masterGstApplicable: String? = null,
+    val masterGstClassification: String? = null,
+    val masterGstRate: String? = null,
+    val masterPriceIncludesGst: String? = null,
+    val masterSalePriceIncludesGst: String? = null,
+    val masterPurchasePriceIncludesGst: String? = null,
+    val masterGstEffectiveFrom: String? = null,
+    val masterHsn: String? = null,
+    val masterGstRegistration: String? = null,
+    val masterBusinessState: String? = null,
+    val masterBillingState: String? = null,
+    val masterDeliveryState: String? = null,
+    val masterGstin: String? = null,
 )
 
 private val dayFormat = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH)
@@ -138,135 +151,108 @@ fun OperatingSheetScrim(onDismiss: () -> Unit, content: @Composable () -> Unit) 
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun OperatingCaptureSheet(
-    title: String,
-    icon: Int,
-    eventType: String,
-    mode: String,
-    model: OperatingProjectionDto,
-    channelLabel: String = "Channel",
-    variant: String = "",
-    onDismiss: () -> Unit,
-    onSubmit: suspend (OperatingCaptureDraft) -> Unit,
-    onDecide: (suspend (String, String) -> Unit)? = null,
-    seed: OperatingActivityDto? = null,
-    /** kind, name, unit, optional conversionToBase */
-    onCreateMaster: (suspend (String, String, String?, String?) -> Unit)? = null,
+private class CaptureForm(
+    channel: String,
+    choice: String,
+    unit: String,
+    masterKind: String,
+    receiptState: String,
+    detail: String,
 ) {
-    val currency = model.currency?.ifBlank { null } ?: "INR"
-    var eventDate by remember { mutableStateOf(LocalDate.now()) }
-    var dateOpen by remember { mutableStateOf(false) }
-    var dueDate by remember { mutableStateOf(LocalDate.now()) }
-    var dueDateOpen by remember { mutableStateOf(false) }
-    var goodsDueDate by remember { mutableStateOf(LocalDate.now()) }
-    var goodsDueOpen by remember { mutableStateOf(false) }
-    val dueDateText = dueDate.format(dayFormat)
-    val goodsDueText = goodsDueDate.format(dayFormat)
-    val dateText = eventDate.format(dayFormat)
-    val actor = contextLine(model)
-    var amount by remember { mutableStateOf("") }
-    var channel by remember { mutableStateOf(model.life?.channels?.firstOrNull().orEmpty()) }
-    var party by remember { mutableStateOf("") }
-    var purpose by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
-    var choice by remember(mode, variant) {
-        mutableStateOf(
-            when {
-                (variant == "trading" || variant == "distribution" || variant == "restaurant" || variant == "service") &&
-                    mode in setOf("PURCHASE", "SPEND") -> "Pay later"
-                (variant == "trading" || variant == "distribution" || variant == "restaurant" || variant == "service") &&
-                    mode in setOf("SALE", "SERVICE") -> "Received"
-                variant == "restaurant" && mode == "ORDER" -> "Preparing"
-                variant == "service" && mode == "APPOINTMENT" -> "Scheduled"
-                variant == "trading" && mode == "ORDER" -> "Placed"
-                variant == "trading" && mode == "SHIPMENT" -> "In transit"
-                variant == "distribution" && mode == "ORDER" -> "Placed"
-                variant == "distribution" && mode == "SHIPMENT" -> "In transit"
-                (variant == "client" || variant == "own") && mode == "RESULT" -> "Accepted"
-                (variant == "client" || variant == "own") && mode == "SPEND" -> "Pending / unpaid"
-                variant == "client" && mode == "COLLECTION" -> "Mark Received / Collect"
-                variant == "own" && mode == "COLLECTION" -> "Linked campaign receipt"
-                variant == "client" && mode == "TARGET" -> "Extend launch outcome"
-                variant == "own" && mode == "TARGET" -> "Leads"
-                (variant == "client" || variant == "own") && mode == "DELIVERABLE" -> "Deliverable"
-                (variant == "client" || variant == "own") && mode == "COMPLETE" -> "Complete"
-                (variant == "client" || variant == "own") && mode == "PARTNER" -> "Partner"
-                (variant == "standard" || variant == "job") && mode == "SALE" -> "Received"
-                (variant == "standard" || variant == "job") && mode == "ORDER" -> "Open"
-                (variant == "standard" || variant == "job") && mode == "DELIVERY" -> "Delivered"
-                (variant == "standard" || variant == "job") && mode == "STOCK" -> "Add"
-                (variant == "standard" || variant == "job") && mode == "PURCHASE" -> "Pay later"
-                (variant == "standard" || variant == "job") && mode == "SPEND" -> "Paid"
-                (variant == "standard" || variant == "job") && mode == "UPDATE" -> "Update"
-                (variant == "standard" || variant == "job") && mode == "PRODUCTION" -> "Completed"
-                else -> defaultChoice(mode)
-            },
-        )
+    var eventDate by mutableStateOf(LocalDate.now())
+    var dateOpen by mutableStateOf(false)
+    var dueDate by mutableStateOf(LocalDate.now())
+    var dueDateOpen by mutableStateOf(false)
+    var goodsDueDate by mutableStateOf(LocalDate.now())
+    var goodsDueOpen by mutableStateOf(false)
+    var amount by mutableStateOf("")
+    var channel by mutableStateOf(channel)
+    var party by mutableStateOf("")
+    var purpose by mutableStateOf("")
+    var note by mutableStateOf("")
+    var choice by mutableStateOf(choice)
+    var moreOpen by mutableStateOf(false)
+    var error by mutableStateOf<String?>(null)
+    var link by mutableStateOf("")
+    var itemName by mutableStateOf("")
+    var quantity by mutableStateOf("")
+    var quantityReceived by mutableStateOf("")
+    var unit by mutableStateOf(unit)
+    var unitPrice by mutableStateOf("")
+    var parentId by mutableStateOf("")
+    var masterKind by mutableStateOf(masterKind)
+    var entryMode by mutableStateOf("Quick amount")
+    var receiptState by mutableStateOf(receiptState)
+    var ownership by mutableStateOf("Owned")
+    var stockAction by mutableStateOf("Set current stock")
+    var stockReason by mutableStateOf("Stocktake")
+    var receivedAmount by mutableStateOf("")
+    var productMasterId by mutableStateOf<String?>(null)
+    var lovKind by mutableStateOf<String?>(null)
+    var localMasters by mutableStateOf<List<OperatingLovOption>>(emptyList())
+    var taxMode by mutableStateOf("Not configured")
+    var taxAmount by mutableStateOf("")
+    var gstRate by mutableStateOf("")
+    var supplyChoice by mutableStateOf("")
+    var gstDetailsOpen by mutableStateOf(false)
+    var gstApplicable by mutableStateOf("Not sure")
+    var gstClassification by mutableStateOf("Taxable")
+    var hsn by mutableStateOf("")
+    var masterPriceIncludes by mutableStateOf("Use business default")
+    var masterSaleIncludes by mutableStateOf("Use business default")
+    var masterPurchaseIncludes by mutableStateOf("Use business default")
+    var gstEffectiveFrom by mutableStateOf("")
+    var partyGstRegistration by mutableStateOf("Not sure")
+    var businessState by mutableStateOf("")
+    var billingState by mutableStateOf("")
+    var deliveryState by mutableStateOf("")
+    var partyGstin by mutableStateOf("")
+    var originalCurrency by mutableStateOf("")
+    var fxRate by mutableStateOf("")
+    var returnDirection by mutableStateOf("Customer return")
+    var goodsOutcome by mutableStateOf("To stock")
+    var goodsStatusLabel by mutableStateOf("Deliver later")
+    var orderSideLabel by mutableStateOf("Sales order")
+    var movementLabel by mutableStateOf("Outgoing sale")
+    var returnReason by mutableStateOf("")
+    var expenseCategory by mutableStateOf("")
+    var detail by mutableStateOf(detail)
+
+    val dateText: String get() = eventDate.format(dayFormat)
+    val dueDateText: String get() = dueDate.format(dayFormat)
+    val goodsDueText: String get() = goodsDueDate.format(dayFormat)
+
+    fun applySeed(row: OperatingActivityDto) {
+        amount = row.amount.orEmpty()
+        party = row.counterpartyName.orEmpty()
+        channel = row.channelName ?: channel
+        note = row.note.orEmpty()
+        purpose = row.title
+        itemName = row.title
+        quantity = row.quantity.orEmpty()
+        unit = row.unit ?: unit
+        parentId = row.parentEventId.orEmpty()
     }
-    var moreOpen by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    val typed = amount.toBigDecimalOrNull()
-    val channels = model.life?.channels.orEmpty()
-    val restaurant = variant == "restaurant"
-    val service = variant == "service"
-    val trading = variant == "trading"
-    val distribution = variant == "distribution"
-    val client = variant == "client"
-    val own = variant == "own"
-    val marketing = client || own
-    val standard = variant == "standard"
-    val job = variant == "job"
-    val production = standard || job
-    var link by remember { mutableStateOf("") }
-    var itemName by remember { mutableStateOf("") }
-    var quantity by remember { mutableStateOf("") }
-    var quantityReceived by remember { mutableStateOf("") }
-    var unit by remember {
-        mutableStateOf(
-            if (variant == "trading" || variant == "distribution" || model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")) "pc" else "piece",
-        )
-    }
-    var unitPrice by remember { mutableStateOf("") }
-    var parentId by remember { mutableStateOf("") }
-    var masterKind by remember { mutableStateOf(masterKinds(model.subtype).first()) }
-    var entryMode by remember { mutableStateOf("Quick amount") }
-    var receiptState by remember {
-        mutableStateOf(if (variant == "trading" || variant == "distribution") "Fully received" else "Received")
-    }
-    var ownership by remember { mutableStateOf("Owned") }
-    var stockAction by remember { mutableStateOf("Set current stock") }
-    var stockReason by remember { mutableStateOf("Stocktake") }
-    var receivedAmount by remember { mutableStateOf("") }
-    val contractFamily = restaurant || service || trading || distribution || model.subtype in setOf(
-        "RETAIL_STORE", "RESTAURANT_FOOD", "CONSUMER_SERVICE", "TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP",
-    )
-    val lovTrade = trading || distribution || model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")
-    var productMasterId by remember { mutableStateOf<String?>(null) }
-    var lovKind by remember { mutableStateOf<String?>(null) }
-    var localMasters by remember { mutableStateOf<List<OperatingLovOption>>(emptyList()) }
-    var taxMode by remember { mutableStateOf("Not configured") }
-    var taxAmount by remember { mutableStateOf("") }
-    var originalCurrency by remember { mutableStateOf("") }
-    var fxRate by remember { mutableStateOf("") }
-    var returnDirection by remember { mutableStateOf("Customer return") }
-    var goodsOutcome by remember { mutableStateOf("To stock") }
-    var goodsStatusLabel by remember { mutableStateOf("Deliver later") }
-    var orderSideLabel by remember { mutableStateOf("Sales order") }
-    var movementLabel by remember { mutableStateOf("Outgoing sale") }
-    var returnReason by remember { mutableStateOf("") }
-    var expenseCategory by remember { mutableStateOf("") }
-    fun applyLov(kind: String, option: OperatingLovOption) {
+
+    fun applyLov(kind: String, option: OperatingLovOption, mode: String, model: OperatingProjectionDto) {
         when (kind) {
             "PRODUCT" -> {
                 itemName = option.name
                 if (mode == "STOCK") purpose = option.name
                 productMasterId = option.id.takeUnless { it.startsWith("local-") || it.startsWith("seed-") }
                 option.unit?.takeIf { it.isNotBlank() }?.let { unit = it }
+                model.masters.orEmpty().firstOrNull { it.id == option.id }?.let { master ->
+                    displayGstRate(master.gstRate)?.let { gstRate = it }
+                    when (master.priceIncludesGst) {
+                        "YES" -> taxMode = "Inclusive"
+                        "NO" -> taxMode = "Exclusive"
+                    }
+                }
             }
-            "BUYER", "CUSTOMER", "SUPPLIER" -> party = option.name
+            "BUYER", "CUSTOMER", "SUPPLIER" -> {
+                party = option.name
+                applyPartySupply(option.name, model)
+            }
             "CHANNEL" -> channel = option.name
             "EXPENSE_CATEGORY" -> expenseCategory = option.name
             "UOM" -> unit = option.name
@@ -289,21 +275,119 @@ fun OperatingCaptureSheet(
             }
         }
     }
+
+    private fun applyPartySupply(name: String, model: OperatingProjectionDto) {
+        val party = model.masters.orEmpty().firstOrNull {
+            it.name.equals(name, ignoreCase = true) && it.kind.uppercase() in setOf("CUSTOMER", "BUYER", "SUPPLIER")
+        } ?: return
+        val business = model.gstState.orEmpty().trim()
+        val supply = listOf(party.deliveryState, party.billingState, party.businessState)
+            .firstOrNull { !it.isNullOrBlank() }
+            .orEmpty()
+            .trim()
+        if (business.isBlank() || supply.isBlank()) return
+        supplyChoice = if (supply.equals(business, ignoreCase = true)) "INTRA" else "INTER"
+    }
+}
+
+private fun displayGstRate(raw: String?): String? {
+    val value = raw?.trim().orEmpty()
+    if (value.isEmpty()) return null
+    return value.toBigDecimalOrNull()?.stripTrailingZeros()?.toPlainString() ?: value
+}
+
+private fun initialCaptureChoice(mode: String, variant: String): String = when {
+    (variant == "trading" || variant == "distribution" || variant == "restaurant" || variant == "service") &&
+        mode in setOf("PURCHASE", "SPEND") -> "Pay later"
+    (variant == "trading" || variant == "distribution" || variant == "restaurant" || variant == "service") &&
+        mode in setOf("SALE", "SERVICE") -> "Received"
+    variant == "restaurant" && mode == "ORDER" -> "Preparing"
+    variant == "service" && mode == "APPOINTMENT" -> "Scheduled"
+    variant == "trading" && mode == "ORDER" -> "Placed"
+    variant == "trading" && mode == "SHIPMENT" -> "In transit"
+    variant == "distribution" && mode == "ORDER" -> "Placed"
+    variant == "distribution" && mode == "SHIPMENT" -> "In transit"
+    (variant == "client" || variant == "own") && mode == "RESULT" -> "Accepted"
+    (variant == "client" || variant == "own") && mode == "SPEND" -> "Pending / unpaid"
+    variant == "client" && mode == "COLLECTION" -> "Mark Received / Collect"
+    variant == "own" && mode == "COLLECTION" -> "Linked campaign receipt"
+    variant == "client" && mode == "TARGET" -> "Extend launch outcome"
+    variant == "own" && mode == "TARGET" -> "Leads"
+    (variant == "client" || variant == "own") && mode == "DELIVERABLE" -> "Deliverable"
+    (variant == "client" || variant == "own") && mode == "COMPLETE" -> "Complete"
+    (variant == "client" || variant == "own") && mode == "PARTNER" -> "Partner"
+    (variant == "standard" || variant == "job") && mode == "SALE" -> "Received"
+    (variant == "standard" || variant == "job") && mode == "ORDER" -> "Open"
+    (variant == "standard" || variant == "job") && mode == "DELIVERY" -> "Delivered"
+    (variant == "standard" || variant == "job") && mode == "STOCK" -> "Add"
+    (variant == "standard" || variant == "job") && mode == "PURCHASE" -> "Pay later"
+    (variant == "standard" || variant == "job") && mode == "SPEND" -> "Paid"
+    (variant == "standard" || variant == "job") && mode == "UPDATE" -> "Update"
+    (variant == "standard" || variant == "job") && mode == "PRODUCTION" -> "Completed"
+    else -> defaultChoice(mode)
+}
+
+private fun initialCaptureDetail(mode: String, variant: String): String =
+    if ((variant == "client" || variant == "own") && mode == "DELIVERABLE") "Due" else ""
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OperatingCaptureSheet(
+    title: String,
+    icon: Int,
+    eventType: String,
+    mode: String,
+    model: OperatingProjectionDto,
+    channelLabel: String = "Channel",
+    variant: String = "",
+    onDismiss: () -> Unit,
+    onSubmit: suspend (OperatingCaptureDraft) -> Unit,
+    onDecide: (suspend (String, String) -> Unit)? = null,
+    seed: OperatingActivityDto? = null,
+    /** kind, name, unit, optional conversionToBase */
+    onCreateMaster: (suspend (String, String, String?, String?) -> Unit)? = null,
+) {
+    val currency = model.currency?.ifBlank { null } ?: "INR"
+    val actor = contextLine(model)
+    val channels = model.life?.channels.orEmpty()
+    val restaurant = variant == "restaurant"
+    val service = variant == "service"
+    val trading = variant == "trading"
+    val distribution = variant == "distribution"
+    val client = variant == "client"
+    val own = variant == "own"
+    val marketing = client || own
+    val standard = variant == "standard"
+    val job = variant == "job"
+    val production = standard || job
+    val contractFamily = restaurant || service || trading || distribution || model.subtype in setOf(
+        "RETAIL_STORE", "RESTAURANT_FOOD", "CONSUMER_SERVICE", "TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP",
+    )
+    val lovTrade = trading || distribution || model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")
+    val form = remember {
+        CaptureForm(
+            channel = model.life?.channels?.firstOrNull().orEmpty(),
+            choice = initialCaptureChoice(mode, variant),
+            unit = if (variant == "trading" || variant == "distribution" || model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")) "pc" else "piece",
+            masterKind = masterKinds(model.subtype).first(),
+            receiptState = if (variant == "trading" || variant == "distribution") "Fully received" else "Received",
+            detail = initialCaptureDetail(mode, variant),
+        )
+    }
+    LaunchedEffect(mode, variant) {
+        form.choice = initialCaptureChoice(mode, variant)
+        form.detail = initialCaptureDetail(mode, variant)
+        if (lovTrade && model.gstTracking == "YES") {
+            val includes = if (mode == "PURCHASE") model.purchasePriceIncludesGst else model.salePriceIncludesGst
+            if (includes == "YES") form.taxMode = "Inclusive"
+            if (includes == "NO") form.taxMode = "Exclusive"
+        }
+    }
     LaunchedEffect(seed?.id, seed?.parentEventId) {
         val row = seed ?: return@LaunchedEffect
-        amount = row.amount.orEmpty()
-        party = row.counterpartyName.orEmpty()
-        channel = row.channelName ?: channel
-        note = row.note.orEmpty()
-        purpose = row.title
-        itemName = row.title
-        quantity = row.quantity.orEmpty()
-        unit = row.unit ?: unit
-        parentId = row.parentEventId.orEmpty()
+        form.applySeed(row)
     }
-    var detail by remember(mode, variant) {
-        mutableStateOf(if ((variant == "client" || variant == "own") && mode == "DELIVERABLE") "Due" else "")
-    }
+    val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxSize()) {
         Column(
@@ -343,1173 +427,1486 @@ fun OperatingCaptureSheet(
             }
             Text(actor, color = SheetAccent, fontFamily = PlusJakartaSans, fontSize = 12.sp)
             Text(statusLine(mode), color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-
             when (mode) {
-                "SALE", "SERVICE" -> if (production && mode == "SALE") {
-                    AmountBlock("Amount", currency, amount, "Quick amount posts revenue and no SKU quantity") { amount = it }
-                    if (channels.isNotEmpty()) ChoiceBlock("Buyer / channel", channels, channel) { channel = it }
-                    else EditField("Buyer", party, "Required when a balance remains") { party = it }
-                    ReadField("Sale date", dateText) { dateOpen = true }
-                    ChoiceBlock("Payment state", listOf("Received", "Part paid", "Pay later"), choice) { choice = it }
-                    if (choice == "Part paid") EditField("Received now", receivedAmount, "Required") { receivedAmount = it }
-                    model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
-                        TextButton(onClick = { parentId = row.id }) { Text(if (parentId == row.id) "Order ${row.title}" else row.title, color = Color.White) }
-                    }
-                    Text("A sale is not a delivery.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                } else if (contractFamily) {
-                    if (lovTrade) {
-                        val linked = model.activity.firstOrNull { it.id == parentId }?.title.orEmpty()
-                        LovField("Sales order", linked, "None · optional") { lovKind = "SALES_ORDER" }
-                    }
-                    ChoiceBlock("Entry", listOf("Quick amount", "Itemized"), entryMode) { entryMode = it }
-                    if (entryMode == "Itemized") {
-                        if (lovTrade) {
-                            LovItemLine(itemName, quantity, unit, unitPrice, { lovKind = "PRODUCT" }, { lovKind = "UOM" }, { quantity = it }, { unitPrice = it })
-                        } else {
-                            ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
-                        }
-                    } else {
-                        AmountBlock("Sale amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    }
-                    if (lovTrade) LovField(channelLabel, channel, "channel") { lovKind = "CHANNEL" }
-                    else if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, channel) { channel = it }
-                    else EditField(channelLabel, channel, "Required when channel tracking is on") { channel = it }
-                    FieldRow {
-                        ReadField("Sale date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                        ReadField("Receipt actor", actor.substringBefore(" ·"), Modifier.weight(1f))
-                    }
-                    ChoiceBlock("Payment state", listOf("Received", "Part paid", "Pay later"), choice) { choice = it }
-                    if (choice == "Part paid") EditField("Received amount", receivedAmount, "Less than the total") { receivedAmount = it }
-                    if (choice != "Received") {
-                        if (lovTrade) LovField(if (distribution) "Buyer / dealer" else "Buyer", party, "buyer") { lovKind = "BUYER" }
-                        else EditField("Customer", party, "Required when a balance remains") { party = it }
-                        ReadField(if (lovTrade) "Payment due date" else "Due date", dueDateText) { dueDateOpen = true }
-                    }
-                    if (lovTrade) {
-                        ChoiceBlock("Goods", listOf("Fully delivered", "Partially delivered", "Deliver later"), goodsStatusLabel) { goodsStatusLabel = it }
-                        if (goodsStatusLabel == "Partially delivered") {
-                            EditField("Delivered quantity", quantity, "Does not change stock") { quantity = it }
-                        }
-                        if (goodsStatusLabel != "Fully delivered") {
-                            ReadField("Delivery due date", goodsDueText) { goodsDueOpen = true }
-                        }
-                        Text("Goods status does not post stock. Dispatch stays a delivery.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    }
-                    Text(
-                        if (trading || distribution) {
-                            "A quick amount does not change stock. Itemized sales do not deduct stock until dispatch."
-                        } else {
-                            "One sale and its linked receipt. This is not a separate collection."
-                        },
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                    MoreDetails(moreOpen, if (lovTrade) "Tax, FX, note, and reference. Optional." else "Note and reference. Optional.") { moreOpen = !moreOpen }
-                    if (moreOpen) {
-                        if (lovTrade) {
-                            TaxFxFields(currency, taxMode, taxAmount, originalCurrency, fxRate, { taxMode = it }, { taxAmount = it }, { originalCurrency = it }, { fxRate = it })
-                        }
-                        NoteField("Note", note, "Optional") { note = it }
-                    }
-                    SummaryCard("After save", saleSummary(model, currency, typed, choice == "Received"))
-                } else {
-                    ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
-                    AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, channel) { channel = it }
-                    FieldRow {
-                        ReadField("Date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                        ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                    }
-                    ChoiceBlock("Money received", listOf("Received", "Pending"), choice) { choice = it }
-                    Text("One sale and its receipt. A collection is a separate event.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    MoreDetails(moreOpen, "Note, reference and evidence. Optional.") { moreOpen = !moreOpen }
-                    if (moreOpen) NoteField("Note", note, "Optional") { note = it }
-                    SummaryCard("After save", saleSummary(model, currency, typed, choice == "Received"))
-                }
-                "PURCHASE", "VENDOR" -> if (production && mode == "PURCHASE") {
-                    AmountBlock("Amount", currency, amount, "Counted once toward budget and payables") { amount = it }
-                    FieldRow {
-                        EditField("Supplier", party, "Required", Modifier.weight(1f)) { party = it }
-                        ReadField("Purchase date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    EditField("Material", itemName, "Optional item") { itemName = it }
-                    FieldRow {
-                        EditField("Qty", quantity, "Qty", Modifier.weight(1f)) { quantity = it }
-                        EditField("Unit", unit, "kg", Modifier.weight(1f)) { unit = it }
-                    }
-                    ChoiceBlock("Materials received", listOf("Received", "Part received", "Awaiting"), receiptState) { receiptState = it }
-                    if (receiptState == "Part received") EditField("Quantity received", quantityReceived, "Required") { quantityReceived = it }
-                    ChoiceBlock("Payment state", listOf("Paid", "Part paid", "Pay later"), choice) { choice = it }
-                    Text("Stock increases only for the quantity you mark as received.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                } else if (marketing && mode == "VENDOR") {
-                    ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
-                    AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    EditField("Counterparty", party, "Required") { party = it }
-                    EditField("Purpose", purpose, "What this covers") { purpose = it }
-                    ChoiceBlock("Paid / pending", listOf("Pending / unpaid", "Paid"), choice) { choice = it }
-                    Text("Pending approval. Submission is not payment.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    SummaryCard("After approval", purchaseSummary(model, currency, typed, choice.startsWith("Pending")))
-                } else if (contractFamily) {
-                    if (lovTrade) {
-                        val linked = model.activity.firstOrNull { it.id == parentId }?.title.orEmpty()
-                        LovField("Purchase order", linked, "None · optional") { lovKind = "PURCHASE_ORDER" }
-                        LovItemLine(itemName, quantity, unit, unitPrice, { lovKind = "PRODUCT" }, { lovKind = "UOM" }, { quantity = it }, { unitPrice = it })
-                    } else {
-                        ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
-                    }
-                    AmountBlock("Amount", currency, amount, "Positive amount, or leave blank when items have prices") { amount = it }
-                    if (lovTrade) LovField(if (distribution) "Principal / supplier" else "Supplier", party, "supplier") { lovKind = "SUPPLIER" }
-                    else EditField(if (distribution) "Principal / supplier" else "Supplier", party, "Required") { party = it }
-                    ReadField("Purchase date", dateText) { dateOpen = true }
-                    if (lovTrade) {
-                        ChoiceBlock("Goods receipt", listOf("Fully received", "Partially received", "Receive later"), receiptState) { receiptState = it }
-                        if (receiptState != "Fully received") {
-                            ReadField("Receipt due date", goodsDueText) { goodsDueOpen = true }
-                        }
-                    } else {
-                        ChoiceBlock("Goods receipt", listOf("Received", "Part received", "Awaiting receipt"), receiptState) { receiptState = it }
-                    }
-                    if (receiptState == "Part received" || receiptState == "Partially received") {
-                        EditField("Quantity received", quantityReceived, "Less than ordered qty") { quantityReceived = it }
-                    }
-                    if (trading || distribution) {
-                        ChoiceBlock("Ownership", listOf("Owned", "Consignment"), ownership) { ownership = it }
-                        Text("Consignment is not owned stock.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    }
-                    ChoiceBlock("Payment state", listOf("Paid", "Part paid", "Pay later"), choice) { choice = it }
-                    if (choice == "Part paid") EditField("Amount paid", receivedAmount, "Less than the total") { receivedAmount = it }
-                    if (choice != "Paid") ReadField(if (lovTrade) "Payment due date" else "Due date", dueDateText) { dueDateOpen = true }
-                    Text("Purchase obligation is not payment. Stock moves only for received quantity.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    MoreDetails(moreOpen, if (lovTrade) "Tax, FX, and note. Optional." else "Note. Optional.") { moreOpen = !moreOpen }
-                    if (moreOpen) {
-                        if (lovTrade) {
-                            TaxFxFields(currency, taxMode, taxAmount, originalCurrency, fxRate, { taxMode = it }, { taxAmount = it }, { originalCurrency = it }, { fxRate = it })
-                        }
-                        NoteField("Note", note, "Optional") { note = it }
-                    }
-                    SummaryCard("After save", purchaseSummary(model, currency, typed, choice != "Paid"))
-                } else {
-                    ItemLine(itemName, quantity, unit, unitPrice, { itemName = it }, { quantity = it }, { unit = it }, { unitPrice = it }, model.masters.orEmpty())
-                    AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    FieldRow {
-                        EditField("Supplier · Optional", party, "Name", Modifier.weight(1f)) { party = it }
-                        ReadField("Date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    EditField("Purpose", purpose, "What was bought") { purpose = it }
-                    ChoiceBlock("Payment state", listOf("Pending / unpaid", "Paid"), choice) { choice = it }
-                    Text("Pending approval. Submission is not payment.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    MoreDetails(moreOpen, "Due date, reference and evidence. Optional.") { moreOpen = !moreOpen }
-                    if (moreOpen) NoteField("Note", note, "Optional") { note = it }
-                    SummaryCard("After approval", purchaseSummary(model, currency, typed, choice.startsWith("Pending")))
-                }
-                "SPEND" -> if (production) {
-                    AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    FieldRow {
-                        EditField("Purpose", purpose, "What this was for", Modifier.weight(1f)) { purpose = it }
-                        ReadField("Expense date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    ChoiceBlock("Funding source", listOf("Business", "Personal"), choice) { choice = it }
-                    EditField("Paid by", party, actor.substringBefore(" ·")) { party = it }
-                    ChoiceBlock("Claim after approval?", listOf("Yes · Reimburse", "No"), detail) { detail = it }
-                    Text(
-                        "A personal claim is reimbursed later. It is not a second expense.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                    MoreDetails(moreOpen, "Reference and note. Optional.") { moreOpen = !moreOpen }
-                    if (moreOpen) NoteField("Note", note, "Optional") { note = it }
-                    SummaryCard("After approval", spendSummary(model, currency, typed))
-                } else if (marketing) {
-                    AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    EditField("Purpose / Category", purpose, "What this was for") { purpose = it }
-                    EditField("Paid by", party, actor.substringBefore(" ·")) { party = it }
-                    if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, channel) { channel = it }
-                    ChoiceBlock("Paid / pending", listOf("Pending / unpaid", "Paid"), choice) { choice = it }
-                    SummaryCard("After approval", spendSummary(model, currency, typed))
-                } else if (lovTrade) {
-                    AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    LovField("Expense category", expenseCategory, "category") { lovKind = "EXPENSE_CATEGORY" }
-                    FieldRow {
-                        EditField("Purpose", purpose, "What this was for", Modifier.weight(1f)) { purpose = it }
-                        ReadField("Expense date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    ChoiceBlock("Payment state", listOf("Paid", "Part paid", "Pay later"), choice) { choice = it }
-                    if (choice != "Paid") {
-                        EditField("Payee", party, "Required") { party = it }
-                        ReadField("Due date", dueDateText) { dueDateOpen = true }
-                    }
-                    if (choice == "Part paid") EditField("Amount paid", receivedAmount, "Less than the total") { receivedAmount = it }
-                    MoreDetails(moreOpen, "Note. Optional.") { moreOpen = !moreOpen }
-                    if (moreOpen) NoteField("Note", note, "Optional") { note = it }
-                    SummaryCard("After save", spendSummary(model, currency, typed))
-                } else {
-                    AmountBlock("Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    FieldRow {
-                        EditField("Purpose", purpose, "What this was for", Modifier.weight(1f)) { purpose = it }
-                        ReadField(if (restaurant || service) "Expense date" else "Date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    ChoiceBlock("Funding source", listOf("Business", "Personal"), choice) { choice = it }
-                    EditField("Paid by", party, actor.substringBefore(" ·")) { party = it }
-                    if (service) {
-                        Text(
-                            "A personal claim is reimbursed later. It is not a second expense.",
-                            color = SheetMuted,
-                            fontFamily = PlusJakartaSans,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    MoreDetails(moreOpen, "Reference and note. Optional.") { moreOpen = !moreOpen }
-                    if (moreOpen) NoteField("Note", note, "Optional") { note = it }
-                    SummaryCard("After approval", spendSummary(model, currency, typed))
-                }
-                "PAYMENT", "REIMBURSE" -> if (marketing && mode == "PAYMENT") {
-                    OpenRecords(mode, model.paymentReadiness, parentId) { row ->
-                        parentId = row.id
-                        row.counterpartyName?.takeIf { it.isNotBlank() }?.let { party = it }
-                    }
-                    AmountBlock("Payment amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    EditField("Who paid", detail, "Payer") { detail = it }
-                    EditField("Paid to", party, "Required") { party = it }
-                    EditField("Purpose / reference", purpose, "Required") { purpose = it }
-                    ReadField("Date", dateText) { dateOpen = true }
-                    Text("Manual confirmation only. This is not a live transfer.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                } else {
-                    if (lovTrade && mode == "PAYMENT") {
-                        val selected = model.paymentReadiness.firstOrNull { it.id == parentId }?.title.orEmpty()
-                        LovField("Unpaid purchase or expense", selected, if (model.paymentReadiness.none { it.relevance == "PAYABLE" }) "Nothing is open" else "Search open records") {
-                            lovKind = "OBLIGATION"
-                        }
-                    } else {
-                        OpenRecords(mode, model.paymentReadiness, parentId) { row ->
-                            parentId = row.id
-                            row.counterpartyName?.takeIf { it.isNotBlank() }?.let { party = it }
-                        }
-                    }
-                    AmountBlock(if (mode == "REIMBURSE") "Reimbursement amount" else "Amount", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    EditField(
-                        when {
-                            (service || trading || distribution) && mode == "REIMBURSE" -> "Business payer"
-                            mode == "REIMBURSE" -> "Payee"
-                            else -> "Paid to"
-                        },
-                        party,
-                        "Name",
-                    ) { party = it }
-                    ReadField(if ((restaurant || service || trading || distribution) && mode == "REIMBURSE") "Recorded date" else "Date", dateText) { dateOpen = true }
-                    NoteField("Reference · Optional", note, "Optional") { note = it }
-                    SummaryCard(
-                        "After save",
-                        listOf("Business paid moves by the amount you enter.", "This settles an existing claim. It is not a second expense."),
-                    )
-                }
-                "COLLECTION" -> if (production) {
-                    OpenRecords(mode, model.paymentReadiness, parentId) { row ->
-                        parentId = row.id
-                        row.counterpartyName?.takeIf { it.isNotBlank() }?.let { party = it }
-                    }
-                    if (channels.isNotEmpty()) {
-                        ChoiceBlock("Received from", channels, channel) { channel = it }
-                    } else {
-                        EditField("Received from", party, "Required") { party = it }
-                    }
-                    AmountBlock("Amount received", currency, amount, "Positive amount") { amount = it }
-                    FieldRow {
-                        ReadField("Received by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                        ReadField("Date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    NoteField("Note", note, "Optional") { note = it }
-                    Text("Records the receipt. This is not a live transfer.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    SummaryCard("After mark received", collectionSummary(model, currency, typed))
-                } else if (client) {
-                    OpenRecords(mode, model.paymentReadiness, parentId) { row ->
-                        parentId = row.id
-                        row.counterpartyName?.takeIf { it.isNotBlank() }?.let { party = it }
-                    }
-                    ChoiceBlock("Collection path", listOf("Mark Received / Collect", "Create Receivable"), choice) { choice = it }
-                    Text(
-                        "Mark Received records a receipt. Create Receivable records the obligation.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                    AmountBlock("Amount received", currency, amount, "Positive amount") { amount = it }
-                    EditField("Received from", party, "Required") { party = it }
-                    FieldRow {
-                        ReadField("Received by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                        ReadField("Date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    EditField("Purpose / reference", purpose, "Required") { purpose = it }
-                    SummaryCard("After mark received", collectionSummary(model, currency, typed))
-                } else if (own) {
-                    OpenRecords(mode, model.paymentReadiness, parentId) { row ->
-                        parentId = row.id
-                        row.counterpartyName?.takeIf { it.isNotBlank() }?.let { party = it }
-                    }
-                    ChoiceBlock("Received from", listOf("Linked campaign receipt", "Other campaign receipt"), choice) { choice = it }
-                    Text(
-                        "Campaign-linked receipt only. No client billing or receivable.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                    AmountBlock("Amount received", currency, amount, "Positive amount") { amount = it }
-                    FieldRow {
-                        ReadField("Received by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                        ReadField("Date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    EditField("Purpose / reference", purpose, "Required") { purpose = it }
-                    SummaryCard("After mark received", collectionSummary(model, currency, typed))
-                } else {
-                    if (lovTrade) {
-                        val selected = model.paymentReadiness.firstOrNull { it.id == parentId }?.title.orEmpty()
-                        LovField("Unpaid sale", selected, if (model.paymentReadiness.none { it.relevance == "RECEIVABLE" }) "Nothing is open" else "Search open records") {
-                            lovKind = "OBLIGATION"
-                        }
-                    } else {
-                        OpenRecords(mode, model.paymentReadiness, parentId) { row ->
-                            parentId = row.id
-                            row.counterpartyName?.takeIf { it.isNotBlank() }?.let { party = it }
-                        }
-                    }
-                    if (channels.isNotEmpty()) ChoiceBlock(if (distribution) "Buyer / dealer" else "Received from", channels, channel) { channel = it }
-                    AmountBlock("Amount received", currency, amount, "Positive amount") { amount = it }
-                    FieldRow {
-                        ReadField("Received by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                        ReadField("Date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    NoteField("Note · Optional", note, "Optional") { note = it }
-                    SummaryCard("After mark received", collectionSummary(model, currency, typed))
-                }
-                "BUDGET", "TARGET" -> if (production && mode == "BUDGET") {
-                    ReadField("Plan month", dateText) { dateOpen = true }
-                    ChoiceBlock("Revise", listOf("Budget", "Target"), choice) { choice = it }
-                    SummaryCard(
-                        "Current plan",
-                        listOf(
-                            "Budget ${formatMoney(money(model.budget?.amount), currency)} · Target ${formatMoney(money(model.target?.value), currency)}",
-                            "The current plan stays active until this revision is approved.",
-                        ),
-                    )
-                    AmountBlock(if (choice == "Target") "Proposed target" else "Proposed budget", currency, amount, "Proposal only") { amount = it }
-                    EditField("Revision reason", purpose, "Required") { purpose = it }
-                    SummaryCard("After approval", budgetSummary(model, currency, typed))
-                } else if (client && mode == "TARGET") {
-                    ReadField("Campaign", model.title.orEmpty().ifBlank { "This campaign" })
-                    EditField("Metric", purpose, "Required") { purpose = it }
-                    ChoiceBlock(
-                        "Revision reason",
-                        listOf("Extend launch outcome", "Change launch scope", "Correct planning error"),
-                        choice,
-                    ) { choice = it }
-                    NoteField("Revision note", note, "Required") { note = it }
-                    ReadField("Effective date", dateText) { dateOpen = true }
-                    AmountBlock("Proposed target", currency, amount, "Proposal only") { amount = it }
-                    SummaryCard(
-                        "Current plan",
-                        listOf("The current target stays active until this revision is approved."),
-                    )
-                } else if (own && mode == "TARGET") {
-                    ReadField("Effective date", dateText) { dateOpen = true }
-                    ChoiceBlock(
-                        "Target measure",
-                        listOf("Leads", "Revenue / Sales", "Orders / Conversions", "Custom Count"),
-                        choice,
-                    ) { choice = it }
-                    AmountBlock("Proposed target", currency, amount, "Positive value") { amount = it }
-                    EditField("Revision reason", purpose, "Required") { purpose = it }
-                    SummaryCard(
-                        "Current plan",
-                        listOf("The current target stays active until this revision is approved."),
-                    )
-                } else if (marketing && mode == "BUDGET") {
-                    ReadField("Plan month", dateText) { dateOpen = true }
-                    SummaryCard(
-                        "Current plan",
-                        listOf(
-                            "Budget ${formatMoney(money(model.budget?.amount), currency)} · Used ${formatMoney(money(model.budget?.spent), currency)}",
-                            "The current plan stays active until this revision is approved.",
-                        ),
-                    )
-                    AmountBlock("Proposed budget", currency, amount, "Proposed only. The current plan stays active until approval.") { amount = it }
-                    EditField("Revision reason", purpose, "Required") { purpose = it }
-                    SummaryCard("After approval", budgetSummary(model, currency, typed))
-                } else if (lovTrade && mode == "BUDGET") {
-                    ReadField("Plan month", dateText) { dateOpen = true }
-                    if (model.budget?.configured == true) {
-                        SummaryCard(
-                            "Current plan",
-                            listOf(
-                                "Budget ${formatMoney(money(model.budget?.amount), currency)} · Used ${formatMoney(money(model.budget?.spent), currency)}",
-                                "The current plan stays active until this revision is approved.",
-                            ),
-                        )
-                    } else {
-                        Text(
-                            "No budget yet. A proposal stays inactive until it is approved.",
-                            color = SheetMuted,
-                            fontFamily = PlusJakartaSans,
-                            fontSize = 13.sp,
-                        )
-                    }
-                    AmountBlock("Proposed budget", currency, amount, "Proposal only") { amount = it }
-                    EditField("Revision reason", purpose, "Why this changes") { purpose = it }
-                    SummaryCard("After approval", budgetSummary(model, currency, typed))
-                } else {
-                    ReadField(if (mode == "TARGET") "Plan" else "Plan month", dateText) { dateOpen = true }
-                    SummaryCard(
-                        "Current plan",
-                        listOf(
-                            "Budget ${formatMoney(money(model.budget?.amount), currency)} · Used ${formatMoney(money(model.budget?.spent), currency)}",
-                            "The current plan stays active until this revision is approved.",
-                        ),
-                    )
-                    AmountBlock(if (mode == "TARGET") "Proposed target" else "Proposed budget", currency, amount, "Proposal only") { amount = it }
-                    EditField("Revision reason", purpose, "Why this changes") { purpose = it }
-                    SummaryCard("After approval", budgetSummary(model, currency, typed))
-                }
-                "ORDER" -> if (production) {
-                    EditField("Buyer", party, "Required") { party = it }
-                    EditField("Quantity", quantity, "Required") { quantity = it }
-                    EditField("Unit", unit, "pcs") { unit = it }
-                    AmountBlock("Order value · Optional", currency, amount, "Leave blank when the order is unpriced") { amount = it }
-                    ReadField("Order date", dateText) { dateOpen = true }
-                    Text("An order is not revenue, cash, stock, or a receivable.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                } else when {
-                    restaurant || model.subtype == "RETAIL_STORE" -> {
-                        if (channels.isNotEmpty()) ChoiceBlock("Order channel", channels, channel) { channel = it }
-                        else EditField("Order channel", channel, "Required") { channel = it }
-                        ChoiceBlock("Order status", listOf("Placed", "Preparing", "Completed", "Cancelled"), choice.ifBlank { "Placed" }) { choice = it }
-                        model.activity.filter { it.eventType == "ORDER" }.forEach { row ->
-                            TextButton(onClick = { parentId = row.id }) {
-                                Text(if (parentId == row.id) "Updating ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans, fontSize = 13.sp)
-                            }
-                        }
-                        EditField("Guest or customer", party, "Optional") { party = it }
-                        AmountBlock("Estimated amount", currency, amount, "Pipeline only") { amount = it }
-                        ReadField("Order time", dateText) { dateOpen = true }
-                        Text("An order is not a sale until you bill it.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    }
-                    lovTrade -> {
-                        ChoiceBlock("Order", listOf("Sales order", "Purchase order"), orderSideLabel) { orderSideLabel = it }
-                        if (lovTrade) {
-                            LovItemLine(itemName, quantity, unit, unitPrice, { lovKind = "PRODUCT" }, { lovKind = "UOM" }, { quantity = it }, { unitPrice = it })
-                        }
-                        LovField(if (orderSideLabel == "Purchase order") "Supplier" else "Buyer", party, "party") {
-                            lovKind = if (orderSideLabel == "Purchase order") "SUPPLIER" else "BUYER"
-                        }
-                        LovField("Channel", channel, "channel") { lovKind = "CHANNEL" }
-                        ChoiceBlock("Status", listOf("Placed", "Preparing", "Completed", "Cancelled"), choice.ifBlank { "Placed" }) { choice = it }
-                        AmountBlock("Estimated amount", currency, amount, "Commitment only") { amount = it }
-                        EditField("Promised date", link, "YYYY-MM-DD") { link = it }
-                        Text("An order is not a sale or a purchase until you bill it.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    }
-                    distribution -> {
-                        EditField("Buyer / dealer", party, "Required") { party = it }
-                        EditField("Order / dispatch reference", purpose, "Required") { purpose = it }
-                        ChoiceBlock(
-                            "Fulfillment status",
-                            listOf("Open", "In progress", "Dispatched", "Completed", "Cancelled", "Delayed", "Blocked"),
-                            choice,
-                        ) { choice = it }
-                        NoteField("Fulfillment note", note, "Optional") { note = it }
-                        AmountBlock("Value · Optional", currency, amount, "Leave blank if there is no amount") { amount = it }
-                        FieldRow {
-                            ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                            ReadField("Draft time", dateText, Modifier.weight(1f)) { dateOpen = true }
-                        }
-                        SummaryCard(
-                            "After save",
-                            listOf("Saves a dispatch note.", "This does not create a sale or a money record."),
-                        )
-                    }
-                    trading -> {
-                        EditField("Buyer / order reference", purpose, "Who and which order") { purpose = it }
-                        ChoiceBlock(
-                            "Dispatch status",
-                            listOf("Pending", "Ready for dispatch", "In progress", "Delayed", "Blocked", "Completed"),
-                            choice,
-                        ) { choice = it }
-                        NoteField("Dispatch note", note, "What changed") { note = it }
-                        FieldRow {
-                            ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                            ReadField("Draft time", dateText, Modifier.weight(1f)) { dateOpen = true }
-                        }
-                        SummaryCard(
-                            "After save",
-                            listOf("Saves an operational note.", "Money totals stay unchanged."),
-                        )
-                    }
-                    else -> {
-                        NoteField("Order", purpose, "What happened") { purpose = it }
-                        EditField("Name", party, "Who this is for") { party = it }
-                        FieldRow {
-                            ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                            ReadField("Draft time", dateText, Modifier.weight(1f)) { dateOpen = true }
-                        }
-                        SummaryCard("After save", listOf("Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."))
-                    }
-                }
-                "SHIPMENT" -> if (lovTrade) {
-                    ChoiceBlock("Movement", listOf("Outgoing sale", "Incoming purchase"), movementLabel) {
-                        movementLabel = it
-                        parentId = ""
-                    }
-                    val sourceType = if (movementLabel == "Incoming purchase") "PURCHASE" else "SALE"
-                    val sources = model.activity.filter { it.eventType == sourceType }
-                    Text(
-                        if (sources.isEmpty()) {
-                            if (sourceType == "SALE") "No posted sale to deliver." else "No posted purchase to receive."
-                        } else "Source",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                    sources.take(8).forEach { row ->
-                        TextButton(onClick = {
-                            parentId = row.id
-                            purpose = row.title
-                            row.counterpartyName?.takeIf { it.isNotBlank() }?.let { party = it }
-                            row.quantity?.takeIf { it.isNotBlank() }?.let { quantity = it }
-                            row.unit?.takeIf { it.isNotBlank() }?.let { unit = it }
-                        }) {
-                            Text(if (parentId == row.id) "Using ${row.title}" else row.title, color = Color.White, fontSize = 13.sp)
-                        }
-                    }
-                    EditField("Quantity", quantity, "Required") { quantity = it }
-                    LovField("Unit", unit, "UOM") { lovKind = "UOM" }
-                    ChoiceBlock("Status", listOf("Placed", "In transit", "Delivered", "Cancelled"), choice.ifBlank { "In transit" }) { choice = it }
-                    Text("Delivery moves goods against the source. It does not create another sale or purchase.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                } else if (distribution) {
-                    EditField("Shipment / delivery reference", purpose, "Required") { purpose = it }
-                    ChoiceBlock(
-                        "Delivery status",
-                        listOf("Delivered", "Out for delivery", "Delayed", "Blocked", "Cancelled"),
-                        choice,
-                    ) { choice = it }
-                    NoteField("Delivery note", note, "Required") { note = it }
-                    EditField("Dealer", party, "Required") { party = it }
-                    EditField("Linked dispatch", link, "Optional") { link = it }
-                    AmountBlock("Value · Optional", currency, amount, "Leave blank if there is no amount") { amount = it }
-                    SummaryCard(
-                        "After save",
-                        listOf("Saves a delivery note.", "Money totals stay unchanged."),
-                    )
-                } else if (trading) {
-                    EditField("Shipment / delivery reference", purpose, "Which shipment") { purpose = it }
-                    ChoiceBlock(
-                        "Delivery status",
-                        listOf("Pending", "Out for delivery", "Delayed", "Blocked", "Delivered"),
-                        choice,
-                    ) { choice = it }
-                    NoteField("Delivery note", note, "What changed") { note = it }
-                    FieldRow {
-                        ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                        ReadField("Draft time", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    SummaryCard(
-                        "After save",
-                        listOf("Saves a shipment note.", "Money totals stay unchanged."),
-                    )
-                } else {
-                    NoteField("Shipment", purpose, "What happened") { purpose = it }
-                    EditField("Name", party, "Who this is for") { party = it }
-                    FieldRow {
-                        ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                        ReadField("Draft time", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    SummaryCard("After save", listOf("Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."))
-                }
-                "APPOINTMENT" -> if (service) {
-                    EditField("Service", purpose, "Required") { purpose = it }
-                    ReadField("Appointment time", dateText) { dateOpen = true }
-                    EditField("Guest or customer", party, "Optional for a walk-in") { party = it }
-                    EditField("Assigned person", detail, "Optional") { detail = it }
-                    model.activity.filter { it.eventType == "APPOINTMENT" }.forEach { row ->
-                        TextButton(onClick = { parentId = row.id }) {
-                            Text(if (parentId == row.id) "Updating ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans, fontSize = 13.sp)
-                        }
-                    }
-                    if (parentId.isNotBlank() || seed?.id?.isNotBlank() == true) {
-                        ChoiceBlock("Action", listOf("Reschedule", "Cancel", "No-show", "Start", "Complete"), choice) { choice = it }
-                    }
-                    Text(
-                        "Booking, starting, and completing do not post revenue. Finalize a charge separately.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                } else {
-                    NoteField("Appointment", purpose, "What happened") { purpose = it }
-                    EditField("Name", party, "Who this is for") { party = it }
-                    FieldRow {
-                        ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                        ReadField("Draft time", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    SummaryCard("After save", listOf("Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."))
-                }
-                "UPDATE", "DELIVERY", "DELIVERABLE", "COMPLETE", "RESULT", "PRODUCTION" -> if (lovTrade && mode == "UPDATE") {
-                    EditField("Update", purpose, "What happened") { purpose = it }
-                    ReadField("Date", dateText) { dateOpen = true }
-                    Text("Saved as activity. Money totals stay unchanged.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                } else if (production && mode == "PRODUCTION") {
-                    ChoiceBlock("Output", listOf("Quick output", "Detailed batch"), entryMode) { entryMode = it }
-                    AmountBlock("Output quantity", currency, amount, "Recorded output. This is not accepted stock.") { amount = it }
-                    FieldRow {
-                        EditField("Unit", detail, "Required", Modifier.weight(1f)) { detail = it }
-                        ReadField("Date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    EditField(if (entryMode == "Detailed batch") "Finished product" else "Output context", purpose, "Required for a detailed batch") { purpose = it }
-                    if (entryMode == "Detailed batch") {
-                        EditField("Accepted quantity", quantity, "Required to add finished stock") { quantity = it }
-                        EditField("Rejected quantity", note, "Optional") { note = it }
-                        ChoiceBlock("Status", listOf("Planned", "In progress", "Completed"), choice) { choice = it }
-                    }
-                    model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
-                        TextButton(onClick = { parentId = row.id }) { Text(row.title, color = Color.White) }
-                    }
-                    Text("Quick output does not create a finished SKU.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                } else if (production && mode == "UPDATE") {
-                    ChoiceBlock("Record", listOf("Update", "Issue", "Approval", "Budget", "Target"), choice) { choice = it }
-                    if (choice == "Budget" || choice == "Target") {
-                        AmountBlock(if (choice == "Target") "Proposed target" else "Proposed budget", currency, amount, "Effective when approved") { amount = it }
-                    }
-                    NoteField("What happened", purpose, "Required") { purpose = it }
-                } else if (production && mode == "DELIVERY") {
-                    Text("Customer order", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
-                        TextButton(onClick = { parentId = row.id }) { Text(if (parentId == row.id) "Selected ${row.title}" else row.title, color = Color.White) }
-                    }
-                    ChoiceBlock("Delivery", listOf("Quick status", "Itemized"), entryMode) { entryMode = it }
-                    ChoiceBlock("Status", listOf("Planned", "Dispatched", "Delivered", "Accepted", "Returned"), choice) { choice = it }
-                    if (entryMode == "Itemized") {
-                        EditField("Delivered quantity", quantity, "Cannot exceed the open order") { quantity = it }
-                        EditField("Unit", unit, "pcs") { unit = it }
-                    }
-                    ReadField("Delivery date", dateText) { dateOpen = true }
-                    Text("A status-only delivery does not post a quantity or a sale.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                } else if (marketing && mode == "RESULT") {
-                    AmountBlock("Value", currency, amount, "Positive amount · 2 decimal places") { amount = it }
-                    if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, channel) { channel = it }
-                    FieldRow {
-                        ReadField("Result date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                        EditField("Metric", purpose, "What was measured", Modifier.weight(1f)) { purpose = it }
-                    }
-                    ChoiceBlock("Status", listOf("Accepted", "Pending"), choice) { choice = it }
-                    MoreDetails(moreOpen, "Optional note, evidence link or source context.") { moreOpen = !moreOpen }
-                    if (moreOpen) NoteField("Note", note, "Optional") { note = it }
-                    Text(
-                        "Accepted Result counts toward target, not its Receipt.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                } else if (marketing && mode == "UPDATE") {
-                    NoteField("Update text", purpose, "Required") { purpose = it }
-                    EditField("Linked operational context", note, "Optional") { note = it }
-                    FieldRow {
-                        ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                        ReadField("Draft time", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    SummaryCard("After save", listOf("Saved as campaign activity.", "Money totals stay unchanged."))
-                } else if (marketing && mode == "DELIVERABLE") {
-                    EditField("Deliverable / milestone name", purpose, "Required") { purpose = it }
-                    ChoiceBlock("Type", listOf("Deliverable", "Milestone"), choice) { choice = it }
-                    EditField("Owner", party, "Required") { party = it }
-                    FieldRow {
-                        ReadField("Due date", dateText, Modifier.weight(1f)) { dateOpen = true }
-                        Column(Modifier.weight(1f)) {
-                            ChoiceBlock("Status", listOf("Launched", "Due", "Complete", "Blocked"), detail) { detail = it }
-                        }
-                    }
-                    if (channels.isNotEmpty()) ChoiceBlock("Channel", channels, channel) { channel = it }
-                    EditField("Dependency", note, "Optional") { note = it }
-                    Text("Launched, Due, Complete, or Blocked. Closing retains obligations.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                } else if (marketing && mode == "COMPLETE") {
-                    EditField("Result / deliverable reference", purpose, "Required") { purpose = it }
-                    ChoiceBlock("Completion status", listOf("Assigned", "In review", "Blocked", "Complete", "Partial"), choice) { choice = it }
-                    NoteField("Completion note", note, "Required") { note = it }
-                    ReadField("Completion date", dateText) { dateOpen = true }
-                    Text(
-                        "Completion does not add revenue or a receipt.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                } else {
-                    if (mode == "RESULT" || mode == "PRODUCTION") {
-                        AmountBlock(if (mode == "PRODUCTION") "Output" else "Result", currency, amount, "Amount for this record") { amount = it }
-                        if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, channel) { channel = it }
-                    }
-                    NoteField(
-                        when {
-                            (service || trading || distribution) && mode == "UPDATE" -> "Update text"
-                            restaurant && mode == "UPDATE" -> "Update"
-                            else -> textLabel(mode)
-                        },
-                        purpose,
-                        "What happened",
-                    ) { purpose = it }
-                    if ((restaurant || service || trading || distribution) && mode == "UPDATE") {
-                        EditField(if (service || trading || distribution) "Linked operational context" else "Linked context", note, "Optional") { note = it }
-                    }
-                    if (mode == "DELIVERY") {
-                        EditField("Name", party, "Who this is for") { party = it }
-                    }
-                    FieldRow {
-                        ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                        ReadField("Draft time", dateText, Modifier.weight(1f)) { dateOpen = true }
-                    }
-                    SummaryCard(
-                        "After save",
-                        when {
-                            (trading || distribution) && mode == "UPDATE" -> listOf("Saved as activity on this business.", "Money totals stay unchanged.")
-                            service && mode == "UPDATE" -> listOf("Saved as activity on this service.", "Money totals stay unchanged.")
-                            restaurant && mode == "UPDATE" -> listOf("Saved as activity on this restaurant.", "Money totals stay unchanged.")
-                            else -> listOf("Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount.")
-                        },
-                    )
-                }
-                "ISSUE" -> {
-                    NoteField("Issue", purpose, "What needs attention") { purpose = it }
-                    ChoiceBlock("Priority", listOf("Low", "Normal", "High"), choice) { choice = it }
-                    EditField("Owner", party, actor.substringBefore(" ·")) { party = it }
-                    if (restaurant || service || trading || distribution || marketing || production) {
-                        ReadField("Due date", dateText) { dateOpen = true }
-                        EditField("Operational context", note, "Optional") { note = it }
-                    }
-                    SummaryCard(
-                        "After save",
-                        listOf("Opens an attention item.", "Money totals stay unchanged."),
-                    )
-                }
-                "STOCK" -> if (contractFamily && (trading || distribution || restaurant || service)) {
-                    if (lovTrade) LovField("Item", purpose, "product") { lovKind = "PRODUCT" }
-                    else EditField("Item", purpose, "Product or SKU") { purpose = it }
-                    ChoiceBlock("Action", listOf("Set current stock", "Add", "Reduce"), stockAction) { stockAction = it }
-                    EditField("Quantity", quantity, "Required") { quantity = it }
-                    if (lovTrade) LovField("Unit", unit, "UOM") { lovKind = "UOM" }
-                    else EditField("Unit", unit, "pcs, kg, L") { unit = it }
-                    ChoiceBlock("Reason", listOf("Opening count", "Stocktake", "Damage", "Waste", "Return", "Correction"), stockReason) { stockReason = it }
-                    if (trading || distribution) {
-                        ChoiceBlock("Ownership", listOf("Owned", "Consignment"), ownership) { ownership = it }
-                    }
-                    EditField("Reorder point", detail, "Optional") { detail = it }
-                    Text("Set replaces the count. Add and reduce move it. This is not a purchase.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                } else if (production) {
-                    EditField("Item", purpose, "Required") { purpose = it }
-                    ChoiceBlock("Action", listOf("Set", "Add", "Reduce"), choice) { choice = it }
-                    ChoiceBlock("Reason", listOf("opening", "stocktake", "damage", "waste", "return", "correction"), note) { note = it }
-                    FieldRow {
-                        EditField("Quantity", quantity, "Required", Modifier.weight(1f)) { quantity = it }
-                        EditField("Unit", unit, "kg", Modifier.weight(1f)) { unit = it }
-                    }
-                    Text("Damage is not an expense or a sale.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                } else {
-                    EditField(if (distribution) "Availability context" else "Stock context", purpose, "What changed") { purpose = it }
-                    ChoiceBlock(
-                        if (distribution) "Availability status" else "Stock status",
-                        when {
-                            distribution -> listOf("Available", "Needs check", "Limited availability")
-                            trading -> listOf("Available", "Needs check", "Low availability")
-                            else -> listOf("In stock", "Needs check", "Low stock")
-                        },
-                        choice,
-                    ) { choice = it }
-                    NoteField(if (distribution) "Availability note" else "Stock note", note, if (trading || distribution) "Required" else "What you saw") { note = it }
-                    if (trading || distribution) {
-                        FieldRow {
-                            ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
-                            ReadField("Draft time", dateText, Modifier.weight(1f)) { dateOpen = true }
-                        }
-                    } else {
-                        ReadField("Recorded by", actor.substringBefore(" ·"))
-                    }
-                    SummaryCard("After save", listOf("Saves an operational signal.", "No purchase, sale, or money record is created."))
-                }
-                "RETURN" -> {
-                    val customerReturn = returnDirection.startsWith("Customer")
-                    val sourceType = if (customerReturn) "SALE" else "PURCHASE"
-                    ChoiceBlock("Return type", listOf("Customer return", "Supplier return"), returnDirection) {
-                        returnDirection = it
-                        parentId = ""
-                    }
-                    val sources = model.activity
-                        .filter { it.eventType == sourceType && it.approvalStatus != "REJECTED" && it.approvalStatus?.startsWith("PENDING") != true }
-                        .take(25)
-                    Text(
-                        if (sources.isEmpty()) {
-                            if (customerReturn) "No posted sale to return against." else "No posted purchase to return against."
-                        } else if (customerReturn) "Source sale" else "Source purchase",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                    sources.forEach { row ->
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (parentId == row.id) SheetHigh else Color.Transparent)
-                                .border(1.dp, if (parentId == row.id) SheetAccent else SheetBorder, RoundedCornerShape(12.dp))
-                                .clickable {
-                                    parentId = row.id
-                                    if (amount.isBlank()) row.amount?.takeIf { it.isNotBlank() }?.let { amount = it }
-                                    row.counterpartyName?.takeIf { it.isNotBlank() }?.let { party = it }
-                                }
-                                .padding(10.dp),
-                        ) {
-                            Text(row.title, color = SheetInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text(
-                                listOfNotNull(row.counterpartyName, row.amount, row.occurredAt.take(10)).filter { it.isNotBlank() }.joinToString(" · "),
-                                color = SheetMuted,
-                                fontFamily = PlusJakartaSans,
-                                fontSize = 12.sp,
-                            )
-                        }
-                    }
-                    AmountBlock("Credit amount", currency, amount, "Positive amount · cannot exceed the source") { amount = it }
-                    ChoiceBlock("Goods", listOf("To stock", "Not returned", "Pending inspection"), goodsOutcome) { goodsOutcome = it }
-                    EditField("Reason", returnReason, "Required") { returnReason = it.take(80) }
-                    ChoiceBlock("Items", listOf("Quick amount", "Itemized"), entryMode) { entryMode = it }
-                    if (entryMode == "Itemized") {
-                        LovItemLine(itemName, quantity, unit, unitPrice, { lovKind = "PRODUCT" }, { lovKind = "UOM" }, { quantity = it }, { unitPrice = it }, showPrice = false)
-                    } else if (goodsOutcome == "To stock") {
-                        FieldRow {
-                            EditField("Qty returned", quantity, "Required", Modifier.weight(1f)) { quantity = it }
-                            LovField("UOM", unit, "UOM", Modifier.weight(1f)) { lovKind = "UOM" }
-                        }
-                    }
-                    ReadField("Return date", dateText) { dateOpen = true }
-                    NoteField("Note · Optional", note, "Optional") { note = it }
-                    Text(
-                        "A return is a credit against the source. Stock moves only when goods go to stock.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                    SummaryCard(
-                        "After save",
-                        listOf(
-                            if (customerReturn) "Credits the customer against the source sale." else "Credits the supplier against the source purchase.",
-                            "No refund is paid by this record.",
-                        ),
-                    )
-                }
-                "PERSON", "ROLE", "INVITE" -> {
-                    EditField("Name", party, "Person") { party = it }
-                    EditField(
-                        when {
-                            restaurant -> "Restaurant-facing role"
-                            service -> "Service-facing role"
-                            trading -> "Trade-facing role"
-                            distribution -> "Distribution-facing role"
-                            marketing -> "Campaign-facing role"
-                            production -> "Manufacturing role"
-                            else -> "Role"
-                        },
-                        purpose,
-                        "How they work here",
-                    ) { purpose = it }
-                    ChoiceBlock("Access", OperatingMomentCatalog.roles.map { it.second }, choice) { choice = it }
-                    if (restaurant || service || trading || distribution || marketing || production) EditField("Scope", note, "Optional") { note = it }
-                    Text("A job label is not a grant. Access applies after the invitation is accepted.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                }
-                "SUPPLIER", "PARTNER" -> if (production && mode == "PARTNER") {
-                    EditField("Supplier name", party, "Required") { party = it }
-                    Text("Enter a supplier name to enable Save.", color = SheetAccent, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                    EditField("What they supply", purpose, "Optional") { purpose = it }
-                    EditField("Payment terms", note, "Optional") { note = it }
-                    AmountBlock("Opening due · Optional", currency, amount, "Leave blank if nothing is owed") { amount = it }
-                    if (channels.isNotEmpty()) ChoiceBlock("Channel", channels, channel) { channel = it }
-                    Text("Saving creates no purchase or expense.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                } else if (marketing && mode == "PARTNER") {
-                    EditField(if (own) "Partner / counterparty" else "Name", party, "Required") { party = it }
-                    Text(
-                        "Enter a name to enable Save.",
-                        color = SheetAccent,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                    if (client) {
-                        ChoiceBlock("Relationship", listOf("Client", "Vendor", "Creator", "Platform", "Partner"), choice) { choice = it }
-                        EditField("Purpose", purpose, "Optional") { purpose = it }
-                    }
-                    if (channels.isNotEmpty()) {
-                        ChoiceBlock(if (own) "Accepted channel" else "Channel", channels, channel) { channel = it }
-                    }
-                    Text(
-                        if (own) "Saving creates no spend event." else "Saving creates no purchase or expense.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 12.sp,
-                    )
-                } else {
-                    EditField(
-                        when {
-                            distribution -> "Principal / supplier name"
-                            restaurant || service || trading -> "Supplier name"
-                            else -> "Name"
-                        },
-                        party,
-                        "Name",
-                    ) { party = it }
-                    if (restaurant || service || trading || distribution) {
-                        Text(
-                            when {
-                                service -> "A name is required to save this relationship."
-                                distribution -> "Enter principal / supplier name to enable Save."
-                                else -> "Enter a supplier name to enable Save."
-                            },
-                            color = SheetAccent,
-                            fontFamily = PlusJakartaSans,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    EditField(
-                        if (distribution) "Goods supplied" else "What they supply",
-                        purpose,
-                        when {
-                            restaurant -> "Ingredients or packaging"
-                            trading || distribution -> "Stock or packaging"
-                            else -> "Goods or service"
-                        },
-                    ) { purpose = it }
-                    ChoiceBlock("Payment terms", listOf("Due on receipt", "7 days", "30 days"), choice) { choice = it }
-                    AmountBlock("Opening due", currency, amount, "Leave at 0 if nothing is owed") { amount = it }
-                    if (channels.isNotEmpty()) ChoiceBlock(if (restaurant || service || trading || distribution) "Where you sell" else "Channel", channels, channel) { channel = it }
-                    Text("Saving creates the relationship. It does not create a purchase or an expense.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                }
-                "MASTERS" -> {
-                    ChoiceBlock("Master", masterKinds(model.subtype), masterKind) { masterKind = it }
-                    EditField("Name", itemName, "Required") { itemName = it }
-                    if (masterKind in setOf("PRODUCT", "MATERIAL", "CONSUMABLE")) {
-                        ChoiceBlock("Unit", listOf("piece", "kg", "litre", "count"), unit) { unit = it }
-                    }
-                    EditField("Detail", purpose, "Optional") { purpose = it }
-                    Text("Saving adds a selectable record. It does not create a sale or a cost.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-                }
-                "APPROVAL" -> ApprovalBody(
-                    model,
-                    currency,
-                    choice,
-                    note,
-                    { choice = it },
-                    { note = it },
-                    onDecide,
-                    if (marketing) listOf("Approve", "Reject", "Return") else listOf("Approve", "Reject"),
-                )
-                else -> NoteField("Note", purpose, "What happened") { purpose = it }
+                "SALE", "SERVICE" -> SaleServiceCapture(form, mode, model, currency, channels, channelLabel, actor, production, contractFamily, lovTrade, trading, distribution)
+                "PURCHASE", "VENDOR" -> PurchaseVendorCapture(form, mode, model, currency, production, contractFamily, lovTrade, trading, distribution, marketing)
+                "SPEND" -> SpendCapture(form, model, currency, channels, channelLabel, actor, production, lovTrade, marketing, restaurant, service)
+                "PAYMENT", "REIMBURSE" -> PaymentReimburseCapture(form, mode, model, currency, lovTrade, trading, distribution, marketing, restaurant, service)
+                "COLLECTION" -> CollectionCapture(form, mode, model, currency, channels, actor, production, lovTrade, distribution, client, own)
+                "BUDGET", "TARGET" -> BudgetTargetCapture(form, mode, model, currency, production, lovTrade, marketing, client, own)
+                "ORDER" -> OrderCapture(form, model, currency, channels, actor, production, lovTrade, trading, distribution, restaurant)
+                "SHIPMENT" -> ShipmentCapture(form, model, currency, actor, lovTrade, trading, distribution)
+                "APPOINTMENT" -> AppointmentCapture(form, model, actor, service, seed)
+                "UPDATE", "DELIVERY", "DELIVERABLE", "COMPLETE", "RESULT", "PRODUCTION" -> ActivityCapture(form, mode, model, currency, channels, channelLabel, actor, production, lovTrade, trading, distribution, marketing, restaurant, service)
+                "ISSUE" -> IssueCapture(form, actor, production, trading, distribution, marketing, restaurant, service)
+                "STOCK" -> StockCapture(form, actor, production, contractFamily, lovTrade, trading, distribution, restaurant, service)
+                "RETURN" -> ReturnCapture(form, model, currency)
+                "PERSON", "ROLE", "INVITE" -> PersonCapture(form, production, trading, distribution, marketing, restaurant, service)
+                "SUPPLIER", "PARTNER" -> SupplierPartnerCapture(form, mode, currency, channels, production, trading, distribution, marketing, restaurant, service, client, own)
+                "MASTERS" -> MastersCapture(form, model)
+                "APPROVAL" -> ApprovalCapture(form, model, currency, marketing, onDecide)
+                else -> FallbackNoteCapture(form)
             }
-            if (error != null) Text(error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            if (form.error != null) Text(form.error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .border(1.dp, SheetBorder, RoundedCornerShape(0.dp))
-                .padding(horizontal = 17.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(footerLine(mode, restaurant, service, trading, distribution, marketing, client, production, job), color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-            val action = actionLabel(mode, choice, restaurant, service, trading, distribution, marketing, client, production)
-            val enabled = when {
-                mode == "RETURN" -> parentId.isNotBlank() && returnReason.isNotBlank()
-                lovTrade && mode == "SPEND" -> expenseCategory.isNotBlank() && amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && (choice == "Paid" || party.isNotBlank())
-                lovTrade && mode == "SALE" -> {
-                    val amountOk = if (entryMode.equals("Itemized", ignoreCase = true)) itemName.isNotBlank() else amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
-                    amountOk && channel.isNotBlank() && (choice == "Received" || party.isNotBlank())
-                }
-                lovTrade && mode == "STOCK" -> purpose.isNotBlank() && quantity.isNotBlank()
-                lovTrade && mode == "UPDATE" -> purpose.isNotBlank()
-                lovTrade && mode == "ISSUE" -> purpose.isNotBlank()
-                lovTrade && mode == "ORDER" -> party.isNotBlank() || channel.isNotBlank()
-                lovTrade && mode == "SHIPMENT" -> parentId.isNotBlank() && quantity.isNotBlank()
-                lovTrade && mode == "BUDGET" -> purpose.isNotBlank() && amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
-                lovTrade && (mode == "COLLECTION" || mode == "PAYMENT") -> {
-                    val entered = amount.toBigDecimalOrNull()
-                    val cap = model.paymentReadiness.firstOrNull { it.id == parentId }?.amount?.toBigDecimalOrNull()
-                    entered != null && entered > BigDecimal.ZERO && parentId.isNotBlank() && (cap == null || entered <= cap)
-                }
-                mode == "SUPPLIER" || mode == "PARTNER" -> party.isNotBlank()
-                marketing && mode == "VENDOR" -> party.isNotBlank()
-                client && mode == "COLLECTION" -> party.isNotBlank() && purpose.isNotBlank()
-                own && mode == "COLLECTION" -> purpose.isNotBlank()
-                client && mode == "TARGET" -> purpose.isNotBlank() && note.isNotBlank()
-                own && mode == "TARGET" -> purpose.isNotBlank()
-                marketing && mode == "BUDGET" -> purpose.isNotBlank()
-                marketing && mode == "DELIVERABLE" -> purpose.isNotBlank() && party.isNotBlank()
-                marketing && mode == "COMPLETE" -> purpose.isNotBlank() && note.isNotBlank()
-                marketing && mode == "PAYMENT" -> party.isNotBlank() && purpose.isNotBlank()
-                marketing && mode == "ISSUE" -> purpose.isNotBlank() && party.isNotBlank()
-                production && mode == "SALE" -> amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && (choice == "Received" || party.isNotBlank() || channel.isNotBlank())
-                production && mode == "PURCHASE" -> party.isNotBlank() && amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
-                production && mode == "ORDER" -> party.isNotBlank() && quantity.isNotBlank()
-                production && mode == "DELIVERY" -> parentId.isNotBlank() && (entryMode != "Itemized" || quantity.isNotBlank())
-                production && mode == "STOCK" -> purpose.isNotBlank() && quantity.isNotBlank()
-                production && mode == "PRODUCTION" -> amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && detail.isNotBlank() && (entryMode != "Detailed batch" || purpose.isNotBlank())
-                production && mode == "UPDATE" -> purpose.isNotBlank() || choice == "Budget" || choice == "Target"
-                production && mode == "BUDGET" -> purpose.isNotBlank()
-                production && mode == "ISSUE" -> purpose.isNotBlank() && party.isNotBlank()
-                production && mode == "UPDATE" -> purpose.isNotBlank()
-                else -> true
+        CaptureSheetFooter(form, mode, eventType, title, model, restaurant, service, trading, distribution, marketing, client, own, production, job, standard, lovTrade, seed, onDecide, onDismiss, onSubmit, scope)
+    }
+    CaptureDateDialogs(form)
+    CaptureLovHost(form, model, mode, channels, distribution, onCreateMaster, scope)
+}
+
+@Composable
+private fun SaleServiceCapture(
+    form: CaptureForm,
+    mode: String,
+    model: OperatingProjectionDto,
+    currency: String,
+    channels: List<String>,
+    channelLabel: String,
+    actor: String,
+    production: Boolean,
+    contractFamily: Boolean,
+    lovTrade: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
+) {
+    val typed = form.amount.toBigDecimalOrNull()
+    if (production && mode == "SALE") {
+        AmountBlock("Amount", currency, form.amount, "Quick amount posts revenue and no SKU quantity") { form.amount = it }
+        if (channels.isNotEmpty()) ChoiceBlock("Buyer / channel", channels, form.channel) { form.channel = it }
+        else EditField("Buyer", form.party, "Required when a balance remains") { form.party = it }
+        ReadField("Sale date", form.dateText) { form.dateOpen = true }
+        ChoiceBlock("Payment state", listOf("Received", "Part paid", "Pay later"), form.choice) { form.choice = it }
+        if (form.choice == "Part paid") EditField("Received now", form.receivedAmount, "Required") { form.receivedAmount = it }
+        model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
+            TextButton(onClick = { form.parentId = row.id }) { Text(if (form.parentId == row.id) "Order ${row.title}" else row.title, color = Color.White) }
+        }
+        Text("A sale is not a delivery.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (contractFamily) {
+        if (lovTrade) {
+            val linked = model.activity.firstOrNull { it.id == form.parentId }?.title.orEmpty()
+            LovField("Sales order", linked, "None · optional") { form.lovKind = "SALES_ORDER" }
+        }
+        ChoiceBlock("Entry", listOf("Quick amount", "Itemized"), form.entryMode) { form.entryMode = it }
+        if (form.entryMode == "Itemized") {
+            if (lovTrade) {
+                LovItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.lovKind = "PRODUCT" }, { form.lovKind = "UOM" }, { form.quantity = it }, { form.unitPrice = it })
+            } else {
+                ItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.itemName = it }, { form.quantity = it }, { form.unit = it }, { form.unitPrice = it }, model.masters.orEmpty())
             }
+        } else {
+            AmountBlock("Sale amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+        }
+        GstPriceFields(form, model, purchase = false)
+        if (lovTrade) LovField(channelLabel, form.channel, "channel") { form.lovKind = "CHANNEL" }
+        else if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
+        else EditField(channelLabel, form.channel, "Required when channel tracking is on") { form.channel = it }
+        FieldRow {
+            ReadField("Sale date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+            ReadField("Receipt actor", actor.substringBefore(" ·"), Modifier.weight(1f))
+        }
+        ChoiceBlock("Payment state", listOf("Received", "Part paid", "Pay later"), form.choice) { form.choice = it }
+        if (form.choice == "Part paid") EditField("Received amount", form.receivedAmount, "Less than the total") { form.receivedAmount = it }
+        if (form.choice != "Received") {
+            if (lovTrade) LovField(if (distribution) "Buyer / dealer" else "Buyer", form.party, "buyer") { form.lovKind = "BUYER" }
+            else EditField("Customer", form.party, "Required when a balance remains") { form.party = it }
+            ReadField(if (lovTrade) "Payment due date" else "Due date", form.dueDateText) { form.dueDateOpen = true }
+        }
+        if (lovTrade) {
+            ChoiceBlock("Goods", listOf("Fully delivered", "Partially delivered", "Deliver later"), form.goodsStatusLabel) { form.goodsStatusLabel = it }
+            if (form.goodsStatusLabel == "Partially delivered") {
+                EditField("Delivered quantity", form.quantity, "Does not change stock") { form.quantity = it }
+            }
+            if (form.goodsStatusLabel != "Fully delivered") {
+                ReadField("Delivery due date", form.goodsDueText) { form.goodsDueOpen = true }
+            }
+            Text("Goods status does not post stock. Dispatch stays a delivery.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
+        Text(
+            if (trading || distribution) {
+                "A quick amount does not change stock. Itemized sales do not deduct stock until dispatch."
+            } else {
+                "One sale and its linked receipt. This is not a separate collection."
+            },
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+        MoreDetails(form.moreOpen, if (lovTrade) "Tax, FX, note, and reference. Optional." else "Note and reference. Optional.") { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) {
+            if (lovTrade) {
+                TaxFxFields(currency, form.taxMode, form.taxAmount, form.originalCurrency, form.fxRate, { form.taxMode = it }, { form.taxAmount = it }, { form.originalCurrency = it }, { form.fxRate = it }, hideTax = model.gstTracking == "YES")
+            }
+            NoteField("Note", form.note, "Optional") { form.note = it }
+        }
+        SummaryCard("After save", saleSummary(model, currency, typed, form.choice == "Received"))
+    } else {
+        ItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.itemName = it }, { form.quantity = it }, { form.unit = it }, { form.unitPrice = it }, model.masters.orEmpty())
+        AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+        if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
+        FieldRow {
+            ReadField("Date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+            ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
+        }
+        ChoiceBlock("Money received", listOf("Received", "Pending"), form.choice) { form.choice = it }
+        Text("One sale and its receipt. A collection is a separate event.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        MoreDetails(form.moreOpen, "Note, reference and evidence. Optional.") { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        SummaryCard("After save", saleSummary(model, currency, typed, form.choice == "Received"))
+    }
+}
+
+@Composable
+private fun PurchaseVendorCapture(
+    form: CaptureForm,
+    mode: String,
+    model: OperatingProjectionDto,
+    currency: String,
+    production: Boolean,
+    contractFamily: Boolean,
+    lovTrade: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
+    marketing: Boolean,
+) {
+    val typed = form.amount.toBigDecimalOrNull()
+    if (production && mode == "PURCHASE") {
+        AmountBlock("Amount", currency, form.amount, "Counted once toward budget and payables") { form.amount = it }
+        FieldRow {
+            EditField("Supplier", form.party, "Required", Modifier.weight(1f)) { form.party = it }
+            ReadField("Purchase date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        EditField("Material", form.itemName, "Optional item") { form.itemName = it }
+        FieldRow {
+            EditField("Qty", form.quantity, "Qty", Modifier.weight(1f)) { form.quantity = it }
+            EditField("Unit", form.unit, "kg", Modifier.weight(1f)) { form.unit = it }
+        }
+        ChoiceBlock("Materials received", listOf("Received", "Part received", "Awaiting"), form.receiptState) { form.receiptState = it }
+        if (form.receiptState == "Part received") EditField("Quantity received", form.quantityReceived, "Required") { form.quantityReceived = it }
+        ChoiceBlock("Payment state", listOf("Paid", "Part paid", "Pay later"), form.choice) { form.choice = it }
+        Text("Stock increases only for the quantity you mark as received.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (marketing && mode == "VENDOR") {
+        ItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.itemName = it }, { form.quantity = it }, { form.unit = it }, { form.unitPrice = it }, model.masters.orEmpty())
+        AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+        EditField("Counterparty", form.party, "Required") { form.party = it }
+        EditField("Purpose", form.purpose, "What this covers") { form.purpose = it }
+        ChoiceBlock("Paid / pending", listOf("Pending / unpaid", "Paid"), form.choice) { form.choice = it }
+        Text("Pending approval. Submission is not payment.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        SummaryCard("After approval", purchaseSummary(model, currency, typed, form.choice.startsWith("Pending")))
+    } else if (contractFamily) {
+        if (lovTrade) {
+            val linked = model.activity.firstOrNull { it.id == form.parentId }?.title.orEmpty()
+            LovField("Purchase order", linked, "None · optional") { form.lovKind = "PURCHASE_ORDER" }
+            LovItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.lovKind = "PRODUCT" }, { form.lovKind = "UOM" }, { form.quantity = it }, { form.unitPrice = it })
+        } else {
+            ItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.itemName = it }, { form.quantity = it }, { form.unit = it }, { form.unitPrice = it }, model.masters.orEmpty())
+        }
+        AmountBlock("Amount", currency, form.amount, "Positive amount, or leave blank when items have prices") { form.amount = it }
+        GstPriceFields(form, model, purchase = true)
+        if (lovTrade) LovField(if (distribution) "Principal / supplier" else "Supplier", form.party, "supplier") { form.lovKind = "SUPPLIER" }
+        else EditField(if (distribution) "Principal / supplier" else "Supplier", form.party, "Required") { form.party = it }
+        ReadField("Purchase date", form.dateText) { form.dateOpen = true }
+        if (lovTrade) {
+            ChoiceBlock("Goods receipt", listOf("Fully received", "Partially received", "Receive later"), form.receiptState) { form.receiptState = it }
+            if (form.receiptState != "Fully received") {
+                ReadField("Receipt due date", form.goodsDueText) { form.goodsDueOpen = true }
+            }
+        } else {
+            ChoiceBlock("Goods receipt", listOf("Received", "Part received", "Awaiting receipt"), form.receiptState) { form.receiptState = it }
+        }
+        if (form.receiptState == "Part received" || form.receiptState == "Partially received") {
+            EditField("Quantity received", form.quantityReceived, "Less than ordered qty") { form.quantityReceived = it }
+        }
+        if (trading || distribution) {
+            ChoiceBlock("Ownership", listOf("Owned", "Consignment"), form.ownership) { form.ownership = it }
+            Text("Consignment is not owned stock.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
+        ChoiceBlock("Payment state", listOf("Paid", "Part paid", "Pay later"), form.choice) { form.choice = it }
+        if (form.choice == "Part paid") EditField("Amount paid", form.receivedAmount, "Less than the total") { form.receivedAmount = it }
+        if (form.choice != "Paid") ReadField(if (lovTrade) "Payment due date" else "Due date", form.dueDateText) { form.dueDateOpen = true }
+        Text("Purchase obligation is not payment. Stock moves only for received quantity.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        MoreDetails(form.moreOpen, if (lovTrade) "Tax, FX, and note. Optional." else "Note. Optional.") { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) {
+            if (lovTrade) {
+                TaxFxFields(currency, form.taxMode, form.taxAmount, form.originalCurrency, form.fxRate, { form.taxMode = it }, { form.taxAmount = it }, { form.originalCurrency = it }, { form.fxRate = it }, hideTax = model.gstTracking == "YES")
+            }
+            NoteField("Note", form.note, "Optional") { form.note = it }
+        }
+        SummaryCard("After save", purchaseSummary(model, currency, typed, form.choice != "Paid"))
+    } else {
+        ItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.itemName = it }, { form.quantity = it }, { form.unit = it }, { form.unitPrice = it }, model.masters.orEmpty())
+        AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+        FieldRow {
+            EditField("Supplier · Optional", form.party, "Name", Modifier.weight(1f)) { form.party = it }
+            ReadField("Date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        EditField("Purpose", form.purpose, "What was bought") { form.purpose = it }
+        ChoiceBlock("Payment state", listOf("Pending / unpaid", "Paid"), form.choice) { form.choice = it }
+        Text("Pending approval. Submission is not payment.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        MoreDetails(form.moreOpen, "Due date, reference and evidence. Optional.") { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        SummaryCard("After approval", purchaseSummary(model, currency, typed, form.choice.startsWith("Pending")))
+    }
+}
+
+@Composable
+private fun SpendCapture(
+    form: CaptureForm,
+    model: OperatingProjectionDto,
+    currency: String,
+    channels: List<String>,
+    channelLabel: String,
+    actor: String,
+    production: Boolean,
+    lovTrade: Boolean,
+    marketing: Boolean,
+    restaurant: Boolean,
+    service: Boolean,
+) {
+    val typed = form.amount.toBigDecimalOrNull()
+    if (production) {
+        AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+        FieldRow {
+            EditField("Purpose", form.purpose, "What this was for", Modifier.weight(1f)) { form.purpose = it }
+            ReadField("Expense date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        ChoiceBlock("Funding source", listOf("Business", "Personal"), form.choice) { form.choice = it }
+        EditField("Paid by", form.party, actor.substringBefore(" ·")) { form.party = it }
+        ChoiceBlock("Claim after approval?", listOf("Yes · Reimburse", "No"), form.detail) { form.detail = it }
+        Text(
+            "A personal claim is reimbursed later. It is not a second expense.",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+        MoreDetails(form.moreOpen, "Reference and note. Optional.") { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        SummaryCard("After approval", spendSummary(model, currency, typed))
+    } else if (marketing) {
+        AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+        EditField("Purpose / Category", form.purpose, "What this was for") { form.purpose = it }
+        EditField("Paid by", form.party, actor.substringBefore(" ·")) { form.party = it }
+        if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
+        ChoiceBlock("Paid / pending", listOf("Pending / unpaid", "Paid"), form.choice) { form.choice = it }
+        SummaryCard("After approval", spendSummary(model, currency, typed))
+    } else if (lovTrade) {
+        AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+        LovField("Expense category", form.expenseCategory, "category") { form.lovKind = "EXPENSE_CATEGORY" }
+        FieldRow {
+            EditField("Purpose", form.purpose, "What this was for", Modifier.weight(1f)) { form.purpose = it }
+            ReadField("Expense date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        ChoiceBlock("Payment state", listOf("Paid", "Part paid", "Pay later"), form.choice) { form.choice = it }
+        if (form.choice != "Paid") {
+            EditField("Payee", form.party, "Required") { form.party = it }
+            ReadField("Due date", form.dueDateText) { form.dueDateOpen = true }
+        }
+        if (form.choice == "Part paid") EditField("Amount paid", form.receivedAmount, "Less than the total") { form.receivedAmount = it }
+        MoreDetails(form.moreOpen, "Note. Optional.") { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        SummaryCard("After save", spendSummary(model, currency, typed))
+    } else {
+        AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+        FieldRow {
+            EditField("Purpose", form.purpose, "What this was for", Modifier.weight(1f)) { form.purpose = it }
+            ReadField(if (restaurant || service) "Expense date" else "Date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        ChoiceBlock("Funding source", listOf("Business", "Personal"), form.choice) { form.choice = it }
+        EditField("Paid by", form.party, actor.substringBefore(" ·")) { form.party = it }
+        if (service) {
             Text(
-                action,
-                color = if (enabled) SheetOnBrand else SheetMuted,
+                "A personal claim is reimbursed later. It is not a second expense.",
+                color = SheetMuted,
                 fontFamily = PlusJakartaSans,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (enabled) SheetBrand else Color(0xFF353A59))
-                    .clickable(enabled = enabled) {
-                        if (mode == "APPROVAL") {
-                            val item = model.attention.firstOrNull { it.kind == "APPROVAL" }
-                            val decide = onDecide
-                            if (item == null || decide == null) {
-                                error = "Nothing is waiting."
-                                return@clickable
-                            }
-                            if ((choice == "Reject" || choice == "Return") && note.isBlank()) {
-                                error = "A reason is required."
-                                return@clickable
-                            }
-                            error = null
-                            scope.launch {
-                                decide(item.id, if (choice == "Approve") "APPROVED" else "REJECTED")
-                                onDismiss()
-                            }
-                            return@clickable
-                        }
-                        if (lovTrade && mode in setOf("SALE", "PURCHASE") && originalCurrency.isNotBlank()) {
-                            val rate = fxRate.toBigDecimalOrNull()
-                            if (rate == null || rate <= BigDecimal.ZERO) {
-                                error = "Enter an FX rate for the original currency."
-                                return@clickable
-                            }
-                        }
-                        val draftNote = if (distribution && mode == "SHIPMENT" && link.isNotBlank()) {
-                            listOf(note, link).filter { it.isNotBlank() }.joinToString(" · ")
-                        } else {
-                            note
-                        }
-                        val unpaidDue = when (mode) {
-                            "SALE", "SERVICE" -> choice != "Received"
-                            "PURCHASE", "SPEND" -> choice != "Paid"
-                            else -> false
-                        }
-                        val draft = buildDraft(
-                            mode, eventType, title, amount, channel, party, purpose, draftNote, choice,
-                            occurredAtValue(eventDate), trading, distribution, client, own, detail,
-                            standard, job, link, itemName, quantity, unit, unitPrice, parentId,
-                            seed?.id, masterKind, model.paymentReadiness,
-                            retail = model.subtype in setOf(
-                                "RETAIL_STORE",
-                                "RESTAURANT_FOOD",
-                                "CONSUMER_SERVICE",
-                                "TRADING_WHOLESALE",
-                                "DISTRIBUTION_DEALERSHIP",
-                            ) || trading || distribution,
-                            restaurant = restaurant,
-                            service = service,
-                            entryMode = entryMode,
-                            receiptState = receiptState,
-                            ownership = ownership,
-                            stockActionLabel = stockAction,
-                            stockReasonLabel = stockReason,
-                            receivedAmount = receivedAmount,
-                            productMasterId = productMasterId,
-                            taxModeLabel = taxMode,
-                            taxAmount = taxAmount,
-                            originalCurrency = originalCurrency,
-                            fxRate = fxRate,
-                            returnDirectionLabel = returnDirection,
-                            goodsOutcomeLabel = goodsOutcome,
-                            returnReason = returnReason,
-                            expenseCategory = expenseCategory,
-                            lovTrade = lovTrade,
-                            quantityReceived = quantityReceived,
-                            orderSideLabel = orderSideLabel,
-                            goodsStatusLabel = goodsStatusLabel,
-                            goodsDueDay = goodsDueDate.toString(),
-                            dueAtDay = when {
-                                mode == "ISSUE" -> eventDate.toString()
-                                unpaidDue -> dueDate.toString()
-                                else -> link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }
-                            },
-                        )
-                        if (draft == null) {
-                            error = requiredMessage(mode)
-                            return@clickable
-                        }
-                        error = null
-                        scope.launch {
-                            try {
-                                onSubmit(draft)
-                            } catch (failure: Exception) {
-                                error = failure.message?.takeIf { it.isNotBlank() } ?: "Could not save."
-                            }
-                        }
-                    }
-                    .padding(vertical = 15.dp),
+                fontSize = 12.sp,
             )
         }
+        MoreDetails(form.moreOpen, "Reference and note. Optional.") { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        SummaryCard("After approval", spendSummary(model, currency, typed))
     }
-    if (dateOpen) {
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = localDateToUtcMillis(eventDate))
+}
+
+@Composable
+private fun PaymentReimburseCapture(
+    form: CaptureForm,
+    mode: String,
+    model: OperatingProjectionDto,
+    currency: String,
+    lovTrade: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
+    marketing: Boolean,
+    restaurant: Boolean,
+    service: Boolean,
+) {
+    if (marketing && mode == "PAYMENT") {
+        OpenRecords(mode, model.paymentReadiness, form.parentId) { row ->
+            form.parentId = row.id
+            row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
+        }
+        AmountBlock("Payment amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+        EditField("Who paid", form.detail, "Payer") { form.detail = it }
+        EditField("Paid to", form.party, "Required") { form.party = it }
+        EditField("Purpose / reference", form.purpose, "Required") { form.purpose = it }
+        ReadField("Date", form.dateText) { form.dateOpen = true }
+        Text("Manual confirmation only. This is not a live transfer.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else {
+        if (lovTrade && mode == "PAYMENT") {
+            val selected = model.paymentReadiness.firstOrNull { it.id == form.parentId }?.title.orEmpty()
+            LovField("Unpaid purchase or expense", selected, if (model.paymentReadiness.none { it.relevance == "PAYABLE" }) "Nothing is open" else "Search open records") {
+                form.lovKind = "OBLIGATION"
+            }
+        } else {
+            OpenRecords(mode, model.paymentReadiness, form.parentId) { row ->
+                form.parentId = row.id
+                row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
+            }
+        }
+        AmountBlock(if (mode == "REIMBURSE") "Reimbursement amount" else "Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+        EditField(
+            when {
+                (service || trading || distribution) && mode == "REIMBURSE" -> "Business payer"
+                mode == "REIMBURSE" -> "Payee"
+                else -> "Paid to"
+            },
+            form.party,
+            "Name",
+        ) { form.party = it }
+        ReadField(if ((restaurant || service || trading || distribution) && mode == "REIMBURSE") "Recorded date" else "Date", form.dateText) { form.dateOpen = true }
+        NoteField("Reference · Optional", form.note, "Optional") { form.note = it }
+        SummaryCard(
+            "After save",
+            listOf("Business paid moves by the amount you enter.", "This settles an existing claim. It is not a second expense."),
+        )
+    }
+}
+
+@Composable
+private fun CollectionCapture(
+    form: CaptureForm,
+    mode: String,
+    model: OperatingProjectionDto,
+    currency: String,
+    channels: List<String>,
+    actor: String,
+    production: Boolean,
+    lovTrade: Boolean,
+    distribution: Boolean,
+    client: Boolean,
+    own: Boolean,
+) {
+    val typed = form.amount.toBigDecimalOrNull()
+    if (production) {
+        OpenRecords(mode, model.paymentReadiness, form.parentId) { row ->
+            form.parentId = row.id
+            row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
+        }
+        if (channels.isNotEmpty()) {
+            ChoiceBlock("Received from", channels, form.channel) { form.channel = it }
+        } else {
+            EditField("Received from", form.party, "Required") { form.party = it }
+        }
+        AmountBlock("Amount received", currency, form.amount, "Positive amount") { form.amount = it }
+        FieldRow {
+            ReadField("Received by", actor.substringBefore(" ·"), Modifier.weight(1f))
+            ReadField("Date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        NoteField("Note", form.note, "Optional") { form.note = it }
+        Text("Records the receipt. This is not a live transfer.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        SummaryCard("After mark received", collectionSummary(model, currency, typed))
+    } else if (client) {
+        OpenRecords(mode, model.paymentReadiness, form.parentId) { row ->
+            form.parentId = row.id
+            row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
+        }
+        ChoiceBlock("Collection path", listOf("Mark Received / Collect", "Create Receivable"), form.choice) { form.choice = it }
+        Text(
+            "Mark Received records a receipt. Create Receivable records the obligation.",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+        AmountBlock("Amount received", currency, form.amount, "Positive amount") { form.amount = it }
+        EditField("Received from", form.party, "Required") { form.party = it }
+        FieldRow {
+            ReadField("Received by", actor.substringBefore(" ·"), Modifier.weight(1f))
+            ReadField("Date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        EditField("Purpose / reference", form.purpose, "Required") { form.purpose = it }
+        SummaryCard("After mark received", collectionSummary(model, currency, typed))
+    } else if (own) {
+        OpenRecords(mode, model.paymentReadiness, form.parentId) { row ->
+            form.parentId = row.id
+            row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
+        }
+        ChoiceBlock("Received from", listOf("Linked campaign receipt", "Other campaign receipt"), form.choice) { form.choice = it }
+        Text(
+            "Campaign-linked receipt only. No client billing or receivable.",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+        AmountBlock("Amount received", currency, form.amount, "Positive amount") { form.amount = it }
+        FieldRow {
+            ReadField("Received by", actor.substringBefore(" ·"), Modifier.weight(1f))
+            ReadField("Date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        EditField("Purpose / reference", form.purpose, "Required") { form.purpose = it }
+        SummaryCard("After mark received", collectionSummary(model, currency, typed))
+    } else {
+        if (lovTrade) {
+            val selected = model.paymentReadiness.firstOrNull { it.id == form.parentId }?.title.orEmpty()
+            LovField("Unpaid sale", selected, if (model.paymentReadiness.none { it.relevance == "RECEIVABLE" }) "Nothing is open" else "Search open records") {
+                form.lovKind = "OBLIGATION"
+            }
+        } else {
+            OpenRecords(mode, model.paymentReadiness, form.parentId) { row ->
+                form.parentId = row.id
+                row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
+            }
+        }
+        if (channels.isNotEmpty()) ChoiceBlock(if (distribution) "Buyer / dealer" else "Received from", channels, form.channel) { form.channel = it }
+        AmountBlock("Amount received", currency, form.amount, "Positive amount") { form.amount = it }
+        FieldRow {
+            ReadField("Received by", actor.substringBefore(" ·"), Modifier.weight(1f))
+            ReadField("Date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        NoteField("Note · Optional", form.note, "Optional") { form.note = it }
+        SummaryCard("After mark received", collectionSummary(model, currency, typed))
+    }
+}
+
+@Composable
+private fun BudgetTargetCapture(
+    form: CaptureForm,
+    mode: String,
+    model: OperatingProjectionDto,
+    currency: String,
+    production: Boolean,
+    lovTrade: Boolean,
+    marketing: Boolean,
+    client: Boolean,
+    own: Boolean,
+) {
+    val typed = form.amount.toBigDecimalOrNull()
+    if (production && mode == "BUDGET") {
+        ReadField("Plan month", form.dateText) { form.dateOpen = true }
+        ChoiceBlock("Revise", listOf("Budget", "Target"), form.choice) { form.choice = it }
+        SummaryCard(
+            "Current plan",
+            listOf(
+                "Budget ${formatMoney(money(model.budget?.amount), currency)} · Target ${formatMoney(money(model.target?.value), currency)}",
+                "The current plan stays active until this revision is approved.",
+            ),
+        )
+        AmountBlock(if (form.choice == "Target") "Proposed target" else "Proposed budget", currency, form.amount, "Proposal only") { form.amount = it }
+        EditField("Revision reason", form.purpose, "Required") { form.purpose = it }
+        SummaryCard("After approval", budgetSummary(model, currency, typed))
+    } else if (client && mode == "TARGET") {
+        ReadField("Campaign", model.title.orEmpty().ifBlank { "This campaign" })
+        EditField("Metric", form.purpose, "Required") { form.purpose = it }
+        ChoiceBlock(
+            "Revision reason",
+            listOf("Extend launch outcome", "Change launch scope", "Correct planning error"),
+            form.choice,
+        ) { form.choice = it }
+        NoteField("Revision note", form.note, "Required") { form.note = it }
+        ReadField("Effective date", form.dateText) { form.dateOpen = true }
+        AmountBlock("Proposed target", currency, form.amount, "Proposal only") { form.amount = it }
+        SummaryCard(
+            "Current plan",
+            listOf("The current target stays active until this revision is approved."),
+        )
+    } else if (own && mode == "TARGET") {
+        ReadField("Effective date", form.dateText) { form.dateOpen = true }
+        ChoiceBlock(
+            "Target measure",
+            listOf("Leads", "Revenue / Sales", "Orders / Conversions", "Custom Count"),
+            form.choice,
+        ) { form.choice = it }
+        AmountBlock("Proposed target", currency, form.amount, "Positive value") { form.amount = it }
+        EditField("Revision reason", form.purpose, "Required") { form.purpose = it }
+        SummaryCard(
+            "Current plan",
+            listOf("The current target stays active until this revision is approved."),
+        )
+    } else if (marketing && mode == "BUDGET") {
+        ReadField("Plan month", form.dateText) { form.dateOpen = true }
+        SummaryCard(
+            "Current plan",
+            listOf(
+                "Budget ${formatMoney(money(model.budget?.amount), currency)} · Used ${formatMoney(money(model.budget?.spent), currency)}",
+                "The current plan stays active until this revision is approved.",
+            ),
+        )
+        AmountBlock("Proposed budget", currency, form.amount, "Proposed only. The current plan stays active until approval.") { form.amount = it }
+        EditField("Revision reason", form.purpose, "Required") { form.purpose = it }
+        SummaryCard("After approval", budgetSummary(model, currency, typed))
+    } else if (lovTrade && mode == "BUDGET") {
+        ReadField("Plan month", form.dateText) { form.dateOpen = true }
+        if (model.budget?.configured == true) {
+            SummaryCard(
+                "Current plan",
+                listOf(
+                    "Budget ${formatMoney(money(model.budget?.amount), currency)} · Used ${formatMoney(money(model.budget?.spent), currency)}",
+                    "The current plan stays active until this revision is approved.",
+                ),
+            )
+        } else {
+            Text(
+                "No budget yet. A proposal stays inactive until it is approved.",
+                color = SheetMuted,
+                fontFamily = PlusJakartaSans,
+                fontSize = 13.sp,
+            )
+        }
+        AmountBlock("Proposed budget", currency, form.amount, "Proposal only") { form.amount = it }
+        EditField("Revision reason", form.purpose, "Why this changes") { form.purpose = it }
+        SummaryCard("After approval", budgetSummary(model, currency, typed))
+    } else {
+        ReadField(if (mode == "TARGET") "Plan" else "Plan month", form.dateText) { form.dateOpen = true }
+        SummaryCard(
+            "Current plan",
+            listOf(
+                "Budget ${formatMoney(money(model.budget?.amount), currency)} · Used ${formatMoney(money(model.budget?.spent), currency)}",
+                "The current plan stays active until this revision is approved.",
+            ),
+        )
+        AmountBlock(if (mode == "TARGET") "Proposed target" else "Proposed budget", currency, form.amount, "Proposal only") { form.amount = it }
+        EditField("Revision reason", form.purpose, "Why this changes") { form.purpose = it }
+        SummaryCard("After approval", budgetSummary(model, currency, typed))
+    }
+}
+
+@Composable
+private fun OrderCapture(
+    form: CaptureForm,
+    model: OperatingProjectionDto,
+    currency: String,
+    channels: List<String>,
+    actor: String,
+    production: Boolean,
+    lovTrade: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
+    restaurant: Boolean,
+) {
+    if (production) {
+        EditField("Buyer", form.party, "Required") { form.party = it }
+        EditField("Quantity", form.quantity, "Required") { form.quantity = it }
+        EditField("Unit", form.unit, "pcs") { form.unit = it }
+        AmountBlock("Order value · Optional", currency, form.amount, "Leave blank when the order is unpriced") { form.amount = it }
+        ReadField("Order date", form.dateText) { form.dateOpen = true }
+        Text("An order is not revenue, cash, stock, or a receivable.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else when {
+        restaurant || model.subtype == "RETAIL_STORE" -> {
+            if (channels.isNotEmpty()) ChoiceBlock("Order channel", channels, form.channel) { form.channel = it }
+            else EditField("Order channel", form.channel, "Required") { form.channel = it }
+            ChoiceBlock("Order status", listOf("Placed", "Preparing", "Completed", "Cancelled"), form.choice.ifBlank { "Placed" }) { form.choice = it }
+            model.activity.filter { it.eventType == "ORDER" }.forEach { row ->
+                TextButton(onClick = { form.parentId = row.id }) {
+                    Text(if (form.parentId == row.id) "Updating ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans, fontSize = 13.sp)
+                }
+            }
+            EditField("Guest or customer", form.party, "Optional") { form.party = it }
+            AmountBlock("Estimated amount", currency, form.amount, "Pipeline only") { form.amount = it }
+            ReadField("Order time", form.dateText) { form.dateOpen = true }
+            Text("An order is not a sale until you bill it.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
+        lovTrade -> {
+            ChoiceBlock("Order", listOf("Sales order", "Purchase order"), form.orderSideLabel) { form.orderSideLabel = it }
+            if (lovTrade) {
+                LovItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.lovKind = "PRODUCT" }, { form.lovKind = "UOM" }, { form.quantity = it }, { form.unitPrice = it })
+            }
+            LovField(if (form.orderSideLabel == "Purchase order") "Supplier" else "Buyer", form.party, "party") {
+                form.lovKind = if (form.orderSideLabel == "Purchase order") "SUPPLIER" else "BUYER"
+            }
+            LovField("Channel", form.channel, "channel") { form.lovKind = "CHANNEL" }
+            ChoiceBlock("Status", listOf("Placed", "Preparing", "Completed", "Cancelled"), form.choice.ifBlank { "Placed" }) { form.choice = it }
+            AmountBlock("Estimated amount", currency, form.amount, "Commitment only") { form.amount = it }
+            EditField("Promised date", form.link, "YYYY-MM-DD") { form.link = it }
+            Text("An order is not a sale or a purchase until you bill it.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
+        distribution -> {
+            EditField("Buyer / dealer", form.party, "Required") { form.party = it }
+            EditField("Order / dispatch reference", form.purpose, "Required") { form.purpose = it }
+            ChoiceBlock(
+                "Fulfillment status",
+                listOf("Open", "In progress", "Dispatched", "Completed", "Cancelled", "Delayed", "Blocked"),
+                form.choice,
+            ) { form.choice = it }
+            NoteField("Fulfillment note", form.note, "Optional") { form.note = it }
+            AmountBlock("Value · Optional", currency, form.amount, "Leave blank if there is no amount") { form.amount = it }
+            FieldRow {
+                ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
+                ReadField("Draft time", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+            }
+            SummaryCard(
+                "After save",
+                listOf("Saves a dispatch note.", "This does not create a sale or a money record."),
+            )
+        }
+        trading -> {
+            EditField("Buyer / order reference", form.purpose, "Who and which order") { form.purpose = it }
+            ChoiceBlock(
+                "Dispatch status",
+                listOf("Pending", "Ready for dispatch", "In progress", "Delayed", "Blocked", "Completed"),
+                form.choice,
+            ) { form.choice = it }
+            NoteField("Dispatch note", form.note, "What changed") { form.note = it }
+            FieldRow {
+                ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
+                ReadField("Draft time", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+            }
+            SummaryCard(
+                "After save",
+                listOf("Saves an operational note.", "Money totals stay unchanged."),
+            )
+        }
+        else -> {
+            NoteField("Order", form.purpose, "What happened") { form.purpose = it }
+            EditField("Name", form.party, "Who this is for") { form.party = it }
+            FieldRow {
+                ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
+                ReadField("Draft time", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+            }
+            SummaryCard("After save", listOf("Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."))
+        }
+    }
+}
+
+@Composable
+private fun ShipmentCapture(
+    form: CaptureForm,
+    model: OperatingProjectionDto,
+    currency: String,
+    actor: String,
+    lovTrade: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
+) {
+    if (lovTrade) {
+        ChoiceBlock("Movement", listOf("Outgoing sale", "Incoming purchase"), form.movementLabel) {
+            form.movementLabel = it
+            form.parentId = ""
+        }
+        val sourceType = if (form.movementLabel == "Incoming purchase") "PURCHASE" else "SALE"
+        val sources = model.activity.filter { it.eventType == sourceType }
+        Text(
+            if (sources.isEmpty()) {
+                if (sourceType == "SALE") "No posted sale to deliver." else "No posted purchase to receive."
+            } else "Source",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+        sources.take(8).forEach { row ->
+            TextButton(onClick = {
+                form.parentId = row.id
+                form.purpose = row.title
+                row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
+                row.quantity?.takeIf { it.isNotBlank() }?.let { form.quantity = it }
+                row.unit?.takeIf { it.isNotBlank() }?.let { form.unit = it }
+            }) {
+                Text(if (form.parentId == row.id) "Using ${row.title}" else row.title, color = Color.White, fontSize = 13.sp)
+            }
+        }
+        EditField("Quantity", form.quantity, "Required") { form.quantity = it }
+        LovField("Unit", form.unit, "UOM") { form.lovKind = "UOM" }
+        ChoiceBlock("Status", listOf("Placed", "In transit", "Delivered", "Cancelled"), form.choice.ifBlank { "In transit" }) { form.choice = it }
+        Text("Delivery moves goods against the source. It does not create another sale or purchase.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (distribution) {
+        EditField("Shipment / delivery reference", form.purpose, "Required") { form.purpose = it }
+        ChoiceBlock(
+            "Delivery status",
+            listOf("Delivered", "Out for delivery", "Delayed", "Blocked", "Cancelled"),
+            form.choice,
+        ) { form.choice = it }
+        NoteField("Delivery note", form.note, "Required") { form.note = it }
+        EditField("Dealer", form.party, "Required") { form.party = it }
+        EditField("Linked dispatch", form.link, "Optional") { form.link = it }
+        AmountBlock("Value · Optional", currency, form.amount, "Leave blank if there is no amount") { form.amount = it }
+        SummaryCard(
+            "After save",
+            listOf("Saves a delivery note.", "Money totals stay unchanged."),
+        )
+    } else if (trading) {
+        EditField("Shipment / delivery reference", form.purpose, "Which shipment") { form.purpose = it }
+        ChoiceBlock(
+            "Delivery status",
+            listOf("Pending", "Out for delivery", "Delayed", "Blocked", "Delivered"),
+            form.choice,
+        ) { form.choice = it }
+        NoteField("Delivery note", form.note, "What changed") { form.note = it }
+        FieldRow {
+            ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
+            ReadField("Draft time", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        SummaryCard(
+            "After save",
+            listOf("Saves a shipment note.", "Money totals stay unchanged."),
+        )
+    } else {
+        NoteField("Shipment", form.purpose, "What happened") { form.purpose = it }
+        EditField("Name", form.party, "Who this is for") { form.party = it }
+        FieldRow {
+            ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
+            ReadField("Draft time", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        SummaryCard("After save", listOf("Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."))
+    }
+}
+
+@Composable
+private fun AppointmentCapture(
+    form: CaptureForm,
+    model: OperatingProjectionDto,
+    actor: String,
+    service: Boolean,
+    seed: OperatingActivityDto?,
+) {
+    if (service) {
+        EditField("Service", form.purpose, "Required") { form.purpose = it }
+        ReadField("Appointment time", form.dateText) { form.dateOpen = true }
+        EditField("Guest or customer", form.party, "Optional for a walk-in") { form.party = it }
+        EditField("Assigned person", form.detail, "Optional") { form.detail = it }
+        model.activity.filter { it.eventType == "APPOINTMENT" }.forEach { row ->
+            TextButton(onClick = { form.parentId = row.id }) {
+                Text(if (form.parentId == row.id) "Updating ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans, fontSize = 13.sp)
+            }
+        }
+        if (form.parentId.isNotBlank() || seed?.id?.isNotBlank() == true) {
+            ChoiceBlock("Action", listOf("Reschedule", "Cancel", "No-show", "Start", "Complete"), form.choice) { form.choice = it }
+        }
+        Text(
+            "Booking, starting, and completing do not post revenue. Finalize a charge separately.",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+    } else {
+        NoteField("Appointment", form.purpose, "What happened") { form.purpose = it }
+        EditField("Name", form.party, "Who this is for") { form.party = it }
+        FieldRow {
+            ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
+            ReadField("Draft time", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        SummaryCard("After save", listOf("Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."))
+    }
+}
+
+@Composable
+private fun ActivityCapture(
+    form: CaptureForm,
+    mode: String,
+    model: OperatingProjectionDto,
+    currency: String,
+    channels: List<String>,
+    channelLabel: String,
+    actor: String,
+    production: Boolean,
+    lovTrade: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
+    marketing: Boolean,
+    restaurant: Boolean,
+    service: Boolean,
+) {
+    if (lovTrade && mode == "UPDATE") {
+        EditField("Update", form.purpose, "What happened") { form.purpose = it }
+        ReadField("Date", form.dateText) { form.dateOpen = true }
+        Text("Saved as activity. Money totals stay unchanged.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (production && mode == "PRODUCTION") {
+        ChoiceBlock("Output", listOf("Quick output", "Detailed batch"), form.entryMode) { form.entryMode = it }
+        AmountBlock("Output quantity", currency, form.amount, "Recorded output. This is not accepted stock.") { form.amount = it }
+        FieldRow {
+            EditField("Unit", form.detail, "Required", Modifier.weight(1f)) { form.detail = it }
+            ReadField("Date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        EditField(if (form.entryMode == "Detailed batch") "Finished product" else "Output context", form.purpose, "Required for a detailed batch") { form.purpose = it }
+        if (form.entryMode == "Detailed batch") {
+            EditField("Accepted quantity", form.quantity, "Required to add finished stock") { form.quantity = it }
+            EditField("Rejected quantity", form.note, "Optional") { form.note = it }
+            ChoiceBlock("Status", listOf("Planned", "In progress", "Completed"), form.choice) { form.choice = it }
+        }
+        model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
+            TextButton(onClick = { form.parentId = row.id }) { Text(row.title, color = Color.White) }
+        }
+        Text("Quick output does not create a finished SKU.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (production && mode == "UPDATE") {
+        ChoiceBlock("Record", listOf("Update", "Issue", "Approval", "Budget", "Target"), form.choice) { form.choice = it }
+        if (form.choice == "Budget" || form.choice == "Target") {
+            AmountBlock(if (form.choice == "Target") "Proposed target" else "Proposed budget", currency, form.amount, "Effective when approved") { form.amount = it }
+        }
+        NoteField("What happened", form.purpose, "Required") { form.purpose = it }
+    } else if (production && mode == "DELIVERY") {
+        Text("Customer order", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
+            TextButton(onClick = { form.parentId = row.id }) { Text(if (form.parentId == row.id) "Selected ${row.title}" else row.title, color = Color.White) }
+        }
+        ChoiceBlock("Delivery", listOf("Quick status", "Itemized"), form.entryMode) { form.entryMode = it }
+        ChoiceBlock("Status", listOf("Planned", "Dispatched", "Delivered", "Accepted", "Returned"), form.choice) { form.choice = it }
+        if (form.entryMode == "Itemized") {
+            EditField("Delivered quantity", form.quantity, "Cannot exceed the open order") { form.quantity = it }
+            EditField("Unit", form.unit, "pcs") { form.unit = it }
+        }
+        ReadField("Delivery date", form.dateText) { form.dateOpen = true }
+        Text("A status-only delivery does not post a quantity or a sale.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (marketing && mode == "RESULT") {
+        AmountBlock("Value", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+        if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
+        FieldRow {
+            ReadField("Result date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+            EditField("Metric", form.purpose, "What was measured", Modifier.weight(1f)) { form.purpose = it }
+        }
+        ChoiceBlock("Status", listOf("Accepted", "Pending"), form.choice) { form.choice = it }
+        MoreDetails(form.moreOpen, "Optional note, evidence link or source context.") { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        Text(
+            "Accepted Result counts toward target, not its Receipt.",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+    } else if (marketing && mode == "UPDATE") {
+        NoteField("Update text", form.purpose, "Required") { form.purpose = it }
+        EditField("Linked operational context", form.note, "Optional") { form.note = it }
+        FieldRow {
+            ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
+            ReadField("Draft time", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        SummaryCard("After save", listOf("Saved as campaign activity.", "Money totals stay unchanged."))
+    } else if (marketing && mode == "DELIVERABLE") {
+        EditField("Deliverable / milestone name", form.purpose, "Required") { form.purpose = it }
+        ChoiceBlock("Type", listOf("Deliverable", "Milestone"), form.choice) { form.choice = it }
+        EditField("Owner", form.party, "Required") { form.party = it }
+        FieldRow {
+            ReadField("Due date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+            Column(Modifier.weight(1f)) {
+                ChoiceBlock("Status", listOf("Launched", "Due", "Complete", "Blocked"), form.detail) { form.detail = it }
+            }
+        }
+        if (channels.isNotEmpty()) ChoiceBlock("Channel", channels, form.channel) { form.channel = it }
+        EditField("Dependency", form.note, "Optional") { form.note = it }
+        Text("Launched, Due, Complete, or Blocked. Closing retains obligations.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (marketing && mode == "COMPLETE") {
+        EditField("Result / deliverable reference", form.purpose, "Required") { form.purpose = it }
+        ChoiceBlock("Completion status", listOf("Assigned", "In review", "Blocked", "Complete", "Partial"), form.choice) { form.choice = it }
+        NoteField("Completion note", form.note, "Required") { form.note = it }
+        ReadField("Completion date", form.dateText) { form.dateOpen = true }
+        Text(
+            "Completion does not add revenue or a receipt.",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+    } else {
+        if (mode == "RESULT" || mode == "PRODUCTION") {
+            AmountBlock(if (mode == "PRODUCTION") "Output" else "Result", currency, form.amount, "Amount for this record") { form.amount = it }
+            if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
+        }
+        NoteField(
+            when {
+                (service || trading || distribution) && mode == "UPDATE" -> "Update text"
+                restaurant && mode == "UPDATE" -> "Update"
+                else -> textLabel(mode)
+            },
+            form.purpose,
+            "What happened",
+        ) { form.purpose = it }
+        if ((restaurant || service || trading || distribution) && mode == "UPDATE") {
+            EditField(if (service || trading || distribution) "Linked operational context" else "Linked context", form.note, "Optional") { form.note = it }
+        }
+        if (mode == "DELIVERY") {
+            EditField("Name", form.party, "Who this is for") { form.party = it }
+        }
+        FieldRow {
+            ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
+            ReadField("Draft time", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+        }
+        SummaryCard(
+            "After save",
+            when {
+                (trading || distribution) && mode == "UPDATE" -> listOf("Saved as activity on this business.", "Money totals stay unchanged.")
+                service && mode == "UPDATE" -> listOf("Saved as activity on this service.", "Money totals stay unchanged.")
+                restaurant && mode == "UPDATE" -> listOf("Saved as activity on this restaurant.", "Money totals stay unchanged.")
+                else -> listOf("Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount.")
+            },
+        )
+    }
+}
+
+@Composable
+private fun IssueCapture(
+    form: CaptureForm,
+    actor: String,
+    production: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
+    marketing: Boolean,
+    restaurant: Boolean,
+    service: Boolean,
+) {
+    NoteField("Issue", form.purpose, "What needs attention") { form.purpose = it }
+        ChoiceBlock("Priority", listOf("Low", "Normal", "High"), form.choice) { form.choice = it }
+        EditField("Owner", form.party, actor.substringBefore(" ·")) { form.party = it }
+        if (restaurant || service || trading || distribution || marketing || production) {
+            ReadField("Due date", form.dateText) { form.dateOpen = true }
+            EditField("Operational context", form.note, "Optional") { form.note = it }
+        }
+        SummaryCard(
+            "After save",
+            listOf("Opens an attention item.", "Money totals stay unchanged."),
+        )
+}
+
+@Composable
+private fun StockCapture(
+    form: CaptureForm,
+    actor: String,
+    production: Boolean,
+    contractFamily: Boolean,
+    lovTrade: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
+    restaurant: Boolean,
+    service: Boolean,
+) {
+    if (contractFamily && (trading || distribution || restaurant || service)) {
+        if (lovTrade) LovField("Item", form.purpose, "product") { form.lovKind = "PRODUCT" }
+        else EditField("Item", form.purpose, "Product or SKU") { form.purpose = it }
+        ChoiceBlock("Action", listOf("Set current stock", "Add", "Reduce"), form.stockAction) { form.stockAction = it }
+        EditField("Quantity", form.quantity, "Required") { form.quantity = it }
+        if (lovTrade) LovField("Unit", form.unit, "UOM") { form.lovKind = "UOM" }
+        else EditField("Unit", form.unit, "pcs, kg, L") { form.unit = it }
+        ChoiceBlock("Reason", listOf("Opening count", "Stocktake", "Damage", "Waste", "Return", "Correction"), form.stockReason) { form.stockReason = it }
+        if (trading || distribution) {
+            ChoiceBlock("Ownership", listOf("Owned", "Consignment"), form.ownership) { form.ownership = it }
+        }
+        EditField("Reorder point", form.detail, "Optional") { form.detail = it }
+        Text("Set replaces the count. Add and reduce move it. This is not a purchase.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (production) {
+        EditField("Item", form.purpose, "Required") { form.purpose = it }
+        ChoiceBlock("Action", listOf("Set", "Add", "Reduce"), form.choice) { form.choice = it }
+        ChoiceBlock("Reason", listOf("opening", "stocktake", "damage", "waste", "return", "correction"), form.note) { form.note = it }
+        FieldRow {
+            EditField("Quantity", form.quantity, "Required", Modifier.weight(1f)) { form.quantity = it }
+            EditField("Unit", form.unit, "kg", Modifier.weight(1f)) { form.unit = it }
+        }
+        Text("Damage is not an expense or a sale.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else {
+        EditField(if (distribution) "Availability context" else "Stock context", form.purpose, "What changed") { form.purpose = it }
+        ChoiceBlock(
+            if (distribution) "Availability status" else "Stock status",
+            when {
+                distribution -> listOf("Available", "Needs check", "Limited availability")
+                trading -> listOf("Available", "Needs check", "Low availability")
+                else -> listOf("In stock", "Needs check", "Low stock")
+            },
+            form.choice,
+        ) { form.choice = it }
+        NoteField(if (distribution) "Availability note" else "Stock note", form.note, if (trading || distribution) "Required" else "What you saw") { form.note = it }
+        if (trading || distribution) {
+            FieldRow {
+                ReadField("Recorded by", actor.substringBefore(" ·"), Modifier.weight(1f))
+                ReadField("Draft time", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+            }
+        } else {
+            ReadField("Recorded by", actor.substringBefore(" ·"))
+        }
+        SummaryCard("After save", listOf("Saves an operational signal.", "No purchase, sale, or money record is created."))
+    }
+}
+
+@Composable
+private fun ReturnCapture(
+    form: CaptureForm,
+    model: OperatingProjectionDto,
+    currency: String,
+) {
+    val customerReturn = form.returnDirection.startsWith("Customer")
+        val sourceType = if (customerReturn) "SALE" else "PURCHASE"
+        ChoiceBlock("Return type", listOf("Customer return", "Supplier return"), form.returnDirection) {
+            form.returnDirection = it
+            form.parentId = ""
+        }
+        val sources = model.activity
+            .filter { it.eventType == sourceType && it.approvalStatus != "REJECTED" && it.approvalStatus?.startsWith("PENDING") != true }
+            .take(25)
+        Text(
+            if (sources.isEmpty()) {
+                if (customerReturn) "No posted sale to return against." else "No posted purchase to return against."
+            } else if (customerReturn) "Source sale" else "Source purchase",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+        sources.forEach { row ->
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (form.parentId == row.id) SheetHigh else Color.Transparent)
+                    .border(1.dp, if (form.parentId == row.id) SheetAccent else SheetBorder, RoundedCornerShape(12.dp))
+                    .clickable {
+                        form.parentId = row.id
+                        if (form.amount.isBlank()) row.amount?.takeIf { it.isNotBlank() }?.let { form.amount = it }
+                        row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
+                    }
+                    .padding(10.dp),
+            ) {
+                Text(row.title, color = SheetInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Text(
+                    listOfNotNull(row.counterpartyName, row.amount, row.occurredAt.take(10)).filter { it.isNotBlank() }.joinToString(" · "),
+                    color = SheetMuted,
+                    fontFamily = PlusJakartaSans,
+                    fontSize = 12.sp,
+                )
+            }
+        }
+        AmountBlock("Credit amount", currency, form.amount, "Positive amount · cannot exceed the source") { form.amount = it }
+        ChoiceBlock("Goods", listOf("To stock", "Not returned", "Pending inspection"), form.goodsOutcome) { form.goodsOutcome = it }
+        EditField("Reason", form.returnReason, "Required") { form.returnReason = it.take(80) }
+        ChoiceBlock("Items", listOf("Quick amount", "Itemized"), form.entryMode) { form.entryMode = it }
+        if (form.entryMode == "Itemized") {
+            LovItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.lovKind = "PRODUCT" }, { form.lovKind = "UOM" }, { form.quantity = it }, { form.unitPrice = it }, showPrice = false)
+        } else if (form.goodsOutcome == "To stock") {
+            FieldRow {
+                EditField("Qty returned", form.quantity, "Required", Modifier.weight(1f)) { form.quantity = it }
+                LovField("UOM", form.unit, "UOM", Modifier.weight(1f)) { form.lovKind = "UOM" }
+            }
+        }
+        ReadField("Return date", form.dateText) { form.dateOpen = true }
+        NoteField("Note · Optional", form.note, "Optional") { form.note = it }
+        Text(
+            "A return is a credit against the source. Stock moves only when goods go to stock.",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+        SummaryCard(
+            "After save",
+            listOf(
+                if (customerReturn) "Credits the customer against the source sale." else "Credits the supplier against the source purchase.",
+                "No refund is paid by this record.",
+            ),
+        )
+}
+
+@Composable
+private fun PersonCapture(
+    form: CaptureForm,
+    production: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
+    marketing: Boolean,
+    restaurant: Boolean,
+    service: Boolean,
+) {
+    EditField("Name", form.party, "Person") { form.party = it }
+        EditField(
+            when {
+                restaurant -> "Restaurant-facing role"
+                service -> "Service-facing role"
+                trading -> "Trade-facing role"
+                distribution -> "Distribution-facing role"
+                marketing -> "Campaign-facing role"
+                production -> "Manufacturing role"
+                else -> "Role"
+            },
+            form.purpose,
+            "How they work here",
+        ) { form.purpose = it }
+        ChoiceBlock("Access", OperatingMomentCatalog.roles.map { it.second }, form.choice) { form.choice = it }
+        if (restaurant || service || trading || distribution || marketing || production) EditField("Scope", form.note, "Optional") { form.note = it }
+        Text("A job label is not a grant. Access applies after the invitation is accepted.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+}
+
+@Composable
+private fun SupplierPartnerCapture(
+    form: CaptureForm,
+    mode: String,
+    currency: String,
+    channels: List<String>,
+    production: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
+    marketing: Boolean,
+    restaurant: Boolean,
+    service: Boolean,
+    client: Boolean,
+    own: Boolean,
+) {
+    if (production && mode == "PARTNER") {
+        EditField("Supplier name", form.party, "Required") { form.party = it }
+        Text("Enter a supplier name to enable Save.", color = SheetAccent, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        EditField("What they supply", form.purpose, "Optional") { form.purpose = it }
+        EditField("Payment terms", form.note, "Optional") { form.note = it }
+        AmountBlock("Opening due · Optional", currency, form.amount, "Leave blank if nothing is owed") { form.amount = it }
+        if (channels.isNotEmpty()) ChoiceBlock("Channel", channels, form.channel) { form.channel = it }
+        Text("Saving creates no purchase or expense.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (marketing && mode == "PARTNER") {
+        EditField(if (own) "Partner / counterparty" else "Name", form.party, "Required") { form.party = it }
+        Text(
+            "Enter a name to enable Save.",
+            color = SheetAccent,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+        if (client) {
+            ChoiceBlock("Relationship", listOf("Client", "Vendor", "Creator", "Platform", "Partner"), form.choice) { form.choice = it }
+            EditField("Purpose", form.purpose, "Optional") { form.purpose = it }
+        }
+        if (channels.isNotEmpty()) {
+            ChoiceBlock(if (own) "Accepted channel" else "Channel", channels, form.channel) { form.channel = it }
+        }
+        Text(
+            if (own) "Saving creates no spend event." else "Saving creates no purchase or expense.",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+    } else {
+        EditField(
+            when {
+                distribution -> "Principal / supplier name"
+                restaurant || service || trading -> "Supplier name"
+                else -> "Name"
+            },
+            form.party,
+            "Name",
+        ) { form.party = it }
+        if (restaurant || service || trading || distribution) {
+            Text(
+                when {
+                    service -> "A name is required to save this relationship."
+                    distribution -> "Enter principal / supplier name to enable Save."
+                    else -> "Enter a supplier name to enable Save."
+                },
+                color = SheetAccent,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
+        }
+        EditField(
+            if (distribution) "Goods supplied" else "What they supply",
+            form.purpose,
+            when {
+                restaurant -> "Ingredients or packaging"
+                trading || distribution -> "Stock or packaging"
+                else -> "Goods or service"
+            },
+        ) { form.purpose = it }
+        ChoiceBlock("Payment terms", listOf("Due on receipt", "7 days", "30 days"), form.choice) { form.choice = it }
+        AmountBlock("Opening due", currency, form.amount, "Leave at 0 if nothing is owed") { form.amount = it }
+        if (channels.isNotEmpty()) ChoiceBlock(if (restaurant || service || trading || distribution) "Where you sell" else "Channel", channels, form.channel) { form.channel = it }
+        Text("Saving creates the relationship. It does not create a purchase or an expense.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun MastersCapture(
+    form: CaptureForm,
+    model: OperatingProjectionDto,
+) {
+    ChoiceBlock("Master", masterKinds(model.subtype), form.masterKind) { form.masterKind = it }
+        EditField("Name", form.itemName, "Required") { form.itemName = it }
+        if (form.masterKind in setOf("PRODUCT", "MATERIAL", "CONSUMABLE")) {
+            ChoiceBlock("Unit", listOf("piece", "kg", "litre", "count"), form.unit) { form.unit = it }
+        }
+        EditField("Detail", form.purpose, "Optional") { form.purpose = it }
+        MasterGstFields(form, model)
+        Text("Saving adds a selectable record. It does not create a sale or a cost.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+}
+
+@Composable
+private fun ApprovalCapture(
+    form: CaptureForm,
+    model: OperatingProjectionDto,
+    currency: String,
+    marketing: Boolean,
+    onDecide: (suspend (String, String) -> Unit)?,
+) {
+    ApprovalBody(
+        model,
+        currency,
+        form.choice,
+        form.note,
+        { form.choice = it },
+        { form.note = it },
+        onDecide,
+        if (marketing) listOf("Approve", "Reject", "Return") else listOf("Approve", "Reject"),
+    )
+}
+
+@Composable
+private fun FallbackNoteCapture(
+    form: CaptureForm,
+) {
+    NoteField("Note", form.purpose, "What happened") { form.purpose = it }
+}
+
+@Composable
+private fun CaptureSheetFooter(
+    form: CaptureForm,
+    mode: String,
+    eventType: String,
+    title: String,
+    model: OperatingProjectionDto,
+    restaurant: Boolean,
+    service: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
+    marketing: Boolean,
+    client: Boolean,
+    own: Boolean,
+    production: Boolean,
+    job: Boolean,
+    standard: Boolean,
+    lovTrade: Boolean,
+    seed: OperatingActivityDto?,
+    onDecide: (suspend (String, String) -> Unit)?,
+    onDismiss: () -> Unit,
+    onSubmit: suspend (OperatingCaptureDraft) -> Unit,
+    scope: kotlinx.coroutines.CoroutineScope,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .border(1.dp, SheetBorder, RoundedCornerShape(0.dp))
+            .padding(horizontal = 17.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(footerLine(mode, restaurant, service, trading, distribution, marketing, client, production, job), color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        val action = actionLabel(mode, form.choice, restaurant, service, trading, distribution, marketing, client, production)
+        val enabled = when {
+            mode == "RETURN" -> form.parentId.isNotBlank() && form.returnReason.isNotBlank()
+            lovTrade && mode == "SPEND" -> form.expenseCategory.isNotBlank() && form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && (form.choice == "Paid" || form.party.isNotBlank())
+            lovTrade && mode == "SALE" -> {
+                val amountOk = if (form.entryMode.equals("Itemized", ignoreCase = true)) form.itemName.isNotBlank() else form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
+                amountOk && form.channel.isNotBlank() && (form.choice == "Received" || form.party.isNotBlank())
+            }
+            lovTrade && mode == "STOCK" -> form.purpose.isNotBlank() && form.quantity.isNotBlank()
+            lovTrade && mode == "UPDATE" -> form.purpose.isNotBlank()
+            lovTrade && mode == "ISSUE" -> form.purpose.isNotBlank()
+            lovTrade && mode == "ORDER" -> form.party.isNotBlank() || form.channel.isNotBlank()
+            lovTrade && mode == "SHIPMENT" -> form.parentId.isNotBlank() && form.quantity.isNotBlank()
+            lovTrade && mode == "BUDGET" -> form.purpose.isNotBlank() && form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
+            lovTrade && (mode == "COLLECTION" || mode == "PAYMENT") -> {
+                val entered = form.amount.toBigDecimalOrNull()
+                val cap = model.paymentReadiness.firstOrNull { it.id == form.parentId }?.amount?.toBigDecimalOrNull()
+                entered != null && entered > BigDecimal.ZERO && form.parentId.isNotBlank() && (cap == null || entered <= cap)
+            }
+            mode == "SUPPLIER" || mode == "PARTNER" -> form.party.isNotBlank()
+            marketing && mode == "VENDOR" -> form.party.isNotBlank()
+            client && mode == "COLLECTION" -> form.party.isNotBlank() && form.purpose.isNotBlank()
+            own && mode == "COLLECTION" -> form.purpose.isNotBlank()
+            client && mode == "TARGET" -> form.purpose.isNotBlank() && form.note.isNotBlank()
+            own && mode == "TARGET" -> form.purpose.isNotBlank()
+            marketing && mode == "BUDGET" -> form.purpose.isNotBlank()
+            marketing && mode == "DELIVERABLE" -> form.purpose.isNotBlank() && form.party.isNotBlank()
+            marketing && mode == "COMPLETE" -> form.purpose.isNotBlank() && form.note.isNotBlank()
+            marketing && mode == "PAYMENT" -> form.party.isNotBlank() && form.purpose.isNotBlank()
+            marketing && mode == "ISSUE" -> form.purpose.isNotBlank() && form.party.isNotBlank()
+            production && mode == "SALE" -> form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && (form.choice == "Received" || form.party.isNotBlank() || form.channel.isNotBlank())
+            production && mode == "PURCHASE" -> form.party.isNotBlank() && form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
+            production && mode == "ORDER" -> form.party.isNotBlank() && form.quantity.isNotBlank()
+            production && mode == "DELIVERY" -> form.parentId.isNotBlank() && (form.entryMode != "Itemized" || form.quantity.isNotBlank())
+            production && mode == "STOCK" -> form.purpose.isNotBlank() && form.quantity.isNotBlank()
+            production && mode == "PRODUCTION" -> form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && form.detail.isNotBlank() && (form.entryMode != "Detailed batch" || form.purpose.isNotBlank())
+            production && mode == "UPDATE" -> form.purpose.isNotBlank() || form.choice == "Budget" || form.choice == "Target"
+            production && mode == "BUDGET" -> form.purpose.isNotBlank()
+            production && mode == "ISSUE" -> form.purpose.isNotBlank() && form.party.isNotBlank()
+            production && mode == "UPDATE" -> form.purpose.isNotBlank()
+            else -> true
+        }
+        Text(
+            action,
+            color = if (enabled) SheetOnBrand else SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (enabled) SheetBrand else Color(0xFF353A59))
+                .clickable(enabled = enabled) {
+                    if (mode == "APPROVAL") {
+                        val item = model.attention.firstOrNull { it.kind == "APPROVAL" }
+                        val decide = onDecide
+                        if (item == null || decide == null) {
+                            form.error = "Nothing is waiting."
+                            return@clickable
+                        }
+                        if ((form.choice == "Reject" || form.choice == "Return") && form.note.isBlank()) {
+                            form.error = "A reason is required."
+                            return@clickable
+                        }
+                        form.error = null
+                        scope.launch {
+                            decide(item.id, if (form.choice == "Approve") "APPROVED" else "REJECTED")
+                            onDismiss()
+                        }
+                        return@clickable
+                    }
+                    if (lovTrade && mode in setOf("SALE", "PURCHASE") && form.originalCurrency.isNotBlank()) {
+                        val rate = form.fxRate.toBigDecimalOrNull()
+                        if (rate == null || rate <= BigDecimal.ZERO) {
+                            form.error = "Enter an FX rate for the original currency."
+                            return@clickable
+                        }
+                    }
+                    val draftNote = if (distribution && mode == "SHIPMENT" && form.link.isNotBlank()) {
+                        listOf(form.note, form.link).filter { it.isNotBlank() }.joinToString(" · ")
+                    } else {
+                        form.note
+                    }
+                    val unpaidDue = when (mode) {
+                        "SALE", "SERVICE" -> form.choice != "Received"
+                        "PURCHASE", "SPEND" -> form.choice != "Paid"
+                        else -> false
+                    }
+                    val draft = buildDraft(
+                        mode, eventType, title, form.amount, form.channel, form.party, form.purpose, draftNote, form.choice,
+                        occurredAtValue(form.eventDate), trading, distribution, client, own, form.detail,
+                        standard, job, form.link, form.itemName, form.quantity, form.unit, form.unitPrice, form.parentId,
+                        seed?.id, form.masterKind, model.paymentReadiness,
+                        retail = model.subtype in setOf(
+                            "RETAIL_STORE",
+                            "RESTAURANT_FOOD",
+                            "CONSUMER_SERVICE",
+                            "TRADING_WHOLESALE",
+                            "DISTRIBUTION_DEALERSHIP",
+                        ) || trading || distribution,
+                        restaurant = restaurant,
+                        service = service,
+                        entryMode = form.entryMode,
+                        receiptState = form.receiptState,
+                        ownership = form.ownership,
+                        stockActionLabel = form.stockAction,
+                        stockReasonLabel = form.stockReason,
+                        receivedAmount = form.receivedAmount,
+                        productMasterId = form.productMasterId,
+                        taxModeLabel = form.taxMode,
+                        taxAmount = form.taxAmount,
+                        originalCurrency = form.originalCurrency,
+                        fxRate = form.fxRate,
+                        returnDirectionLabel = form.returnDirection,
+                        goodsOutcomeLabel = form.goodsOutcome,
+                        returnReason = form.returnReason,
+                        expenseCategory = form.expenseCategory,
+                        lovTrade = lovTrade,
+                        quantityReceived = form.quantityReceived,
+                        orderSideLabel = form.orderSideLabel,
+                        goodsStatusLabel = form.goodsStatusLabel,
+                        goodsDueDay = form.goodsDueDate.toString(),
+                        gstRate = form.gstRate,
+                        supplyChoice = form.supplyChoice,
+                        gstOn = model.gstTracking == "YES" && (trading || distribution),
+                        gstApplicable = form.gstApplicable,
+                        gstClassification = form.gstClassification,
+                        hsn = form.hsn,
+                        masterPriceIncludes = form.masterSaleIncludes,
+                        masterPurchaseIncludes = form.masterPurchaseIncludes,
+                        gstEffectiveFrom = form.gstEffectiveFrom,
+                        partyGstRegistration = form.partyGstRegistration,
+                        businessState = form.businessState,
+                        billingState = form.billingState,
+                        deliveryState = form.deliveryState,
+                        partyGstin = form.partyGstin,
+                        dueAtDay = when {
+                            mode == "ISSUE" -> form.eventDate.toString()
+                            unpaidDue -> form.dueDate.toString()
+                            else -> form.link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }
+                        },
+                    )
+                    if (draft == null) {
+                        form.error = requiredMessage(mode)
+                        return@clickable
+                    }
+                    form.error = null
+                    scope.launch {
+                        try {
+                            onSubmit(draft)
+                        } catch (failure: Exception) {
+                            form.error = failure.message?.takeIf { it.isNotBlank() } ?: "Could not save."
+                        }
+                    }
+                }
+                .padding(vertical = 15.dp),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CaptureDateDialogs(form: CaptureForm) {
+    if (form.dateOpen) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = localDateToUtcMillis(form.eventDate))
         DatePickerDialog(
-            onDismissRequest = { dateOpen = false },
+            onDismissRequest = { form.dateOpen = false },
             confirmButton = {
                 TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let { eventDate = utcMillisToLocalDate(it) }
-                    dateOpen = false
+                    pickerState.selectedDateMillis?.let { form.eventDate = utcMillisToLocalDate(it) }
+                    form.dateOpen = false
                 }) { Text("OK") }
             },
             dismissButton = {
-                TextButton(onClick = { dateOpen = false }) { Text("Cancel") }
+                TextButton(onClick = { form.dateOpen = false }) { Text("Cancel") }
             },
         ) {
             DatePicker(state = pickerState)
         }
     }
-    if (dueDateOpen) {
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = localDateToUtcMillis(dueDate))
+    if (form.dueDateOpen) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = localDateToUtcMillis(form.dueDate))
         DatePickerDialog(
-            onDismissRequest = { dueDateOpen = false },
+            onDismissRequest = { form.dueDateOpen = false },
             confirmButton = {
                 TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let { dueDate = utcMillisToLocalDate(it) }
-                    dueDateOpen = false
+                    pickerState.selectedDateMillis?.let { form.dueDate = utcMillisToLocalDate(it) }
+                    form.dueDateOpen = false
                 }) { Text("OK") }
             },
             dismissButton = {
-                TextButton(onClick = { dueDateOpen = false }) { Text("Cancel") }
+                TextButton(onClick = { form.dueDateOpen = false }) { Text("Cancel") }
             },
         ) {
             DatePicker(state = pickerState)
         }
     }
-    if (goodsDueOpen) {
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = localDateToUtcMillis(goodsDueDate))
+    if (form.goodsDueOpen) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = localDateToUtcMillis(form.goodsDueDate))
         DatePickerDialog(
-            onDismissRequest = { goodsDueOpen = false },
+            onDismissRequest = { form.goodsDueOpen = false },
             confirmButton = {
                 TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let { goodsDueDate = utcMillisToLocalDate(it) }
-                    goodsDueOpen = false
+                    pickerState.selectedDateMillis?.let { form.goodsDueDate = utcMillisToLocalDate(it) }
+                    form.goodsDueOpen = false
                 }) { Text("OK") }
             },
             dismissButton = {
-                TextButton(onClick = { goodsDueOpen = false }) { Text("Cancel") }
+                TextButton(onClick = { form.goodsDueOpen = false }) { Text("Cancel") }
             },
         ) {
             DatePicker(state = pickerState)
         }
     }
-    lovKind?.let { kind ->
+}
+
+@Composable
+private fun CaptureLovHost(
+    form: CaptureForm,
+    model: OperatingProjectionDto,
+    mode: String,
+    channels: List<String>,
+    distribution: Boolean,
+    onCreateMaster: (suspend (String, String, String?, String?) -> Unit)?,
+    scope: kotlinx.coroutines.CoroutineScope,
+) {
+    form.lovKind?.let { kind ->
         val pickerKind = kind.uppercase()
         SearchableOperatingLovSheet(
             title = lovTitle(kind),
@@ -1518,12 +1915,12 @@ fun OperatingCaptureSheet(
             options = when (pickerKind) {
                 "SALES_ORDER", "PURCHASE_ORDER" -> orderLovOptions(model, pickerKind)
                 "OBLIGATION" -> obligationLovOptions(mode, model)
-                else -> lovOptions(kind, model.masters.orEmpty(), channels, localMasters).let { rows ->
+                else -> lovOptions(kind, model.masters.orEmpty(), channels, form.localMasters).let { rows ->
                     if (!kind.equals("UOM", ignoreCase = true)) rows
                     else {
-                        val base = model.masters.orEmpty().firstOrNull { it.id == productMasterId }?.unit
-                            ?: localMasters.firstOrNull { it.kind.equals("PRODUCT", true) && (it.name == itemName || it.name == purpose) }?.unit
-                        val conversion = model.masters.orEmpty().firstOrNull { it.id == productMasterId }?.conversionToBase
+                        val base = model.masters.orEmpty().firstOrNull { it.id == form.productMasterId }?.unit
+                            ?: form.localMasters.firstOrNull { it.kind.equals("PRODUCT", true) && (it.name == form.itemName || it.name == form.purpose) }?.unit
+                        val conversion = model.masters.orEmpty().firstOrNull { it.id == form.productMasterId }?.conversionToBase
                         if (base.isNullOrBlank()) rows else rows.filter { OperatingSeedUoms.compatible(it.name, base, conversion) }
                     }
                 }
@@ -1531,7 +1928,7 @@ fun OperatingCaptureSheet(
             canAdd = onCreateMaster != null && pickerKind !in setOf("UOM", "SALES_ORDER", "PURCHASE_ORDER", "OBLIGATION"),
             unitChoices = if (kind.equals("PRODUCT", ignoreCase = true)) OperatingSeedUoms.all else emptyList(),
             accent = if (distribution) Color(0xFF66C7A4) else Color(0xFF6DDCFF),
-            onSelect = { option -> applyLov(kind, option) },
+            onSelect = { option -> form.applyLov(kind, option, mode, model) },
             onAdd = { name, unitArg, conversion ->
                 val created = OperatingLovOption(
                     id = "local-$kind-${name.lowercase()}",
@@ -1540,11 +1937,11 @@ fun OperatingCaptureSheet(
                     unit = unitArg ?: if (kind == "UOM") name else null,
                     subtitle = unitArg,
                 )
-                localMasters = localMasters + created
-                applyLov(kind, created)
+                form.localMasters = form.localMasters + created
+                form.applyLov(kind, created, mode, model)
                 onCreateMaster?.let { create -> scope.launch { create(kind, name, unitArg, conversion) } }
             },
-            onDismiss = { lovKind = null },
+            onDismiss = { form.lovKind = null },
         )
     }
 }
@@ -1988,6 +2385,20 @@ private fun buildDraft(
     orderSideLabel: String = "Sales order",
     goodsStatusLabel: String = "Deliver later",
     goodsDueDay: String? = null,
+    gstRate: String = "",
+    supplyChoice: String = "",
+    gstOn: Boolean = false,
+    gstApplicable: String = "",
+    gstClassification: String = "",
+    hsn: String = "",
+    masterPriceIncludes: String = "",
+    masterPurchaseIncludes: String = "",
+    gstEffectiveFrom: String = "",
+    partyGstRegistration: String = "",
+    businessState: String = "",
+    billingState: String = "",
+    deliveryState: String = "",
+    partyGstin: String = "",
 ): OperatingCaptureDraft? {
     if (mode == "MASTERS") {
         if (itemName.isBlank()) return null
@@ -2239,7 +2650,9 @@ private fun buildDraft(
             declaredQuantity = if (mode == "STOCK" && stockActionCode == "SET") quantity.ifBlank { null } else null,
             expenseCategory = if (lovTrade && mode == "SPEND") expenseCategory.trim().ifBlank { null } else null,
             taxMode = if (taxApplies) taxCode else null,
-            taxAmount = if (taxApplies && taxCode != "NOT_CONFIGURED") taxAmount.ifBlank { null } else null,
+            taxAmount = if (taxApplies && taxCode != "NOT_CONFIGURED" && !gstOn) taxAmount.ifBlank { null } else null,
+            gstRate = if (gstOn && taxApplies) gstRate.filter { it.isDigit() || it == '.' }.ifBlank { null } else null,
+            taxJurisdiction = if (gstOn && taxApplies) supplyChoice.takeIf { it == "INTRA" || it == "INTER" } else null,
             originalCurrency = if (fxApplies) originalCurrency.trim().uppercase() else null,
             fxRate = if (fxApplies) fxRate.ifBlank { null } else null,
             returnDirection = if (mode == "RETURN") {
@@ -2278,11 +2691,46 @@ private fun buildDraft(
         parentEventId = if (mode == "ORDER" || mode == "APPOINTMENT") null else parentId.ifBlank { null },
         revisesEventId = if ((mode == "ORDER" || mode == "APPOINTMENT") && parentId.isNotBlank()) parentId else revisesEventId?.takeIf { it.isNotBlank() },
         masterKind = if (mode == "MASTERS") masterKind.ifBlank { null } else null,
+        masterGstApplicable = if (mode == "MASTERS") when (gstApplicable) {
+            "Yes" -> "YES"
+            "No" -> "NO"
+            "Not sure" -> "NOT_SURE"
+            else -> null
+        } else null,
+        masterGstClassification = if (mode == "MASTERS") when (gstClassification) {
+            "Taxable" -> "TAXABLE"
+            "Exempt" -> "EXEMPT"
+            "Nil-rated" -> "NIL"
+            "Non-GST" -> "NON_GST"
+            else -> null
+        } else null,
+        masterGstRate = if (mode == "MASTERS") gstRate.filter { it.isDigit() || it == '.' }.ifBlank { null } else null,
+        masterPriceIncludesGst = if (mode == "MASTERS") priceModeCode(masterPriceIncludes) else null,
+        masterSalePriceIncludesGst = if (mode == "MASTERS") priceModeCode(masterPriceIncludes) else null,
+        masterPurchasePriceIncludesGst = if (mode == "MASTERS") priceModeCode(masterPurchaseIncludes) else null,
+        masterGstEffectiveFrom = if (mode == "MASTERS") gstEffectiveFrom.trim().takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}""")) } else null,
+        masterHsn = if (mode == "MASTERS") hsn.trim().ifBlank { null } else null,
+        masterGstRegistration = if (mode == "MASTERS") when (partyGstRegistration) {
+            "Registered" -> "REGISTERED"
+            "Unregistered" -> "UNREGISTERED"
+            "Not sure" -> "NOT_SURE"
+            else -> null
+        } else null,
+        masterBusinessState = if (mode == "MASTERS") businessState.trim().ifBlank { null } else null,
+        masterBillingState = if (mode == "MASTERS") billingState.trim().ifBlank { null } else null,
+        masterDeliveryState = if (mode == "MASTERS") deliveryState.trim().ifBlank { null } else null,
+        masterGstin = if (mode == "MASTERS") partyGstin.trim().ifBlank { null } else null,
         dueAt = dueAtDay?.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }
             ?: link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) },
         contract = retailContract,
         masterId = if (lineItemName.isNotBlank()) productMasterId?.takeIf { it.isNotBlank() } else null,
     )
+}
+
+private fun priceModeCode(label: String): String? = when (label) {
+    "GST included in price", "Prices include GST" -> "YES"
+    "GST added separately" -> "NO"
+    else -> null
 }
 
 private fun saleSummary(model: OperatingProjectionDto, currency: String, typed: BigDecimal?, received: Boolean): List<String> {
@@ -2613,6 +3061,135 @@ private fun LovItemLine(
     }
 }
 
+private data class GstPreview(
+    val taxable: BigDecimal,
+    val cgst: BigDecimal,
+    val sgst: BigDecimal,
+    val igst: BigDecimal,
+    val gst: BigDecimal,
+    val invoice: BigDecimal,
+)
+
+private fun previewGst(form: CaptureForm): GstPreview? {
+    val rate = form.gstRate.toBigDecimalOrNull() ?: return null
+    if (rate.signum() <= 0) return null
+    val qty = form.quantity.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: BigDecimal.ONE
+    val price = form.unitPrice.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
+    val entered = if (price != null) qty.multiply(price) else form.amount.toBigDecimalOrNull() ?: return null
+    if (entered.signum() <= 0) return null
+    val moneyScale = 2
+    val inclusive = form.taxMode == "Inclusive"
+    val taxable: BigDecimal
+    val gst: BigDecimal
+    val invoice: BigDecimal
+    if (inclusive) {
+        invoice = entered.setScale(moneyScale, RoundingMode.HALF_UP)
+        taxable = invoice.divide(BigDecimal.ONE.add(rate.movePointLeft(2)), moneyScale, RoundingMode.HALF_UP)
+        gst = invoice.subtract(taxable)
+    } else {
+        taxable = entered.setScale(moneyScale, RoundingMode.HALF_UP)
+        gst = taxable.multiply(rate).movePointLeft(2).setScale(moneyScale, RoundingMode.HALF_UP)
+        invoice = taxable.add(gst)
+    }
+    val intra = form.supplyChoice == "INTRA"
+    val cgst = if (intra) gst.divide(BigDecimal(2), moneyScale, RoundingMode.HALF_UP) else BigDecimal.ZERO.setScale(moneyScale)
+    val sgst = if (intra) gst.subtract(cgst) else BigDecimal.ZERO.setScale(moneyScale)
+    val igst = if (form.supplyChoice == "INTER") gst else BigDecimal.ZERO.setScale(moneyScale)
+    return GstPreview(taxable, cgst, sgst, igst, gst, invoice)
+}
+
+@Composable
+private fun GstPriceFields(form: CaptureForm, model: OperatingProjectionDto, purchase: Boolean) {
+    if (model.gstTracking != "YES") return
+    val included = "GST included in price"
+    val added = "GST added separately"
+    val selected = when (form.taxMode) {
+        "Inclusive" -> included
+        "Exclusive" -> added
+        else -> ""
+    }
+    ChoiceBlock(if (purchase) "Purchase price" else "Sale price", listOf(included, added), selected) {
+        form.taxMode = if (it == included) "Inclusive" else "Exclusive"
+    }
+    EditField("GST rate %", form.gstRate, "From the product, or type a rate") {
+        form.gstRate = it.filter { c -> c.isDigit() || c == '.' }
+    }
+    ChoiceBlock(
+        "Supply",
+        listOf("Inside your state", "Outside your state"),
+        when (form.supplyChoice) {
+            "INTRA" -> "Inside your state"
+            "INTER" -> "Outside your state"
+            else -> ""
+        },
+    ) { form.supplyChoice = if (it.startsWith("Inside")) "INTRA" else "INTER" }
+    if (form.supplyChoice.isBlank()) {
+        Text("Confirm whether this supply is inside your state or outside it.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    }
+    val preview = previewGst(form)
+    val modeLabel = if (form.taxMode == "Inclusive") "Included in price" else "Added separately"
+    val rateLabel = form.gstRate.ifBlank { "—" }
+    Text(
+        if (form.gstDetailsOpen) "GST $rateLabel% · $modeLabel · Hide" else "GST $rateLabel% · $modeLabel · View",
+        color = SheetAccent,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.clickable { form.gstDetailsOpen = !form.gstDetailsOpen },
+    )
+    if (purchase && preview != null) {
+        Text("Supplier invoice total ${formatMoney(preview.invoice, model.currency ?: "INR")}", color = SheetInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Text("Amount paid stays separate from this invoice total.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    }
+    if (form.gstDetailsOpen && preview != null) {
+        Text("Taxable ${formatMoney(preview.taxable, model.currency ?: "INR")}", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        if (form.supplyChoice == "INTER") {
+            Text("IGST ${formatMoney(preview.igst, model.currency ?: "INR")}", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        } else if (form.supplyChoice == "INTRA") {
+            Text("CGST ${formatMoney(preview.cgst, model.currency ?: "INR")} · SGST ${formatMoney(preview.sgst, model.currency ?: "INR")}", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
+        Text("GST ${formatMoney(preview.gst, model.currency ?: "INR")} · Invoice ${formatMoney(preview.invoice, model.currency ?: "INR")}", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        Text("Place of supply ${if (form.supplyChoice == "INTER") "outside your state" else if (form.supplyChoice == "INTRA") "inside your state" else "not confirmed"}", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (preview == null) {
+        Text("A missing rate is not treated as 0%.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun MasterGstFields(form: CaptureForm, model: OperatingProjectionDto) {
+    val trading = model.subtype == "TRADING_WHOLESALE" || model.subtype == "DISTRIBUTION_DEALERSHIP"
+    if (!trading || model.gstTracking != "YES") return
+    val product = form.masterKind in setOf("PRODUCT", "MATERIAL", "CONSUMABLE")
+    val party = form.masterKind in setOf("CUSTOMER", "BUYER", "SUPPLIER")
+    if (!product && !party) return
+    if (party) {
+        EditField("Delivery location", form.deliveryState, "Where goods usually go") { form.deliveryState = it }
+    }
+    Text(
+        if (product) "Add GST Details (optional)" else "GST & Business Location",
+        color = SheetAccent,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.clickable { form.gstDetailsOpen = !form.gstDetailsOpen },
+    )
+    if (!form.gstDetailsOpen) return
+    if (product) {
+        Text("Set the product’s GST rate for automatic calculations.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        ChoiceBlock("GST applicable", listOf("Yes", "No", "Not sure"), form.gstApplicable) { form.gstApplicable = it }
+        ChoiceBlock("Classification", listOf("Taxable", "Exempt", "Nil-rated", "Non-GST"), form.gstClassification) { form.gstClassification = it }
+        EditField("GST rate %", form.gstRate, "Your rate") { form.gstRate = it.filter { c -> c.isDigit() || c == '.' } }
+        ChoiceBlock("Selling prices", listOf("Use business default", "GST included in price", "GST added separately"), form.masterSaleIncludes) { form.masterSaleIncludes = it }
+        ChoiceBlock("Purchase prices", listOf("Use business default", "GST included in price", "GST added separately"), form.masterPurchaseIncludes) { form.masterPurchaseIncludes = it }
+        EditField("Effective from", form.gstEffectiveFrom, "YYYY-MM-DD optional") { form.gstEffectiveFrom = it.take(10) }
+        EditField("HSN Code (Optional)", form.hsn, "Add the product’s HSN code if you know it") { form.hsn = it.take(16) }
+    } else {
+        Text("Save their tax details for future transactions.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        ChoiceBlock("GST registration", listOf("Registered", "Unregistered", "Not sure"), form.partyGstRegistration) { form.partyGstRegistration = it }
+        EditField("Business state", form.businessState, "State") { form.businessState = it }
+        EditField("Billing state", form.billingState, "State") { form.billingState = it }
+        EditField("GSTIN (Optional)", form.partyGstin, "Add their GST number if you have it") { form.partyGstin = it.take(15) }
+    }
+}
+
 @Composable
 private fun TaxFxFields(
     currency: String,
@@ -2624,10 +3201,13 @@ private fun TaxFxFields(
     onTaxAmount: (String) -> Unit,
     onOriginalCurrency: (String) -> Unit,
     onFxRate: (String) -> Unit,
+    hideTax: Boolean = false,
 ) {
-    ChoiceBlock("Tax", listOf("Not configured", "Inclusive", "Exclusive"), taxMode, onTaxMode)
-    if (taxMode != "Not configured") {
-        EditField("Tax amount", taxAmount, "0.00") { onTaxAmount(it.filter { c -> c.isDigit() || c == '.' }) }
+    if (!hideTax) {
+        ChoiceBlock("Tax", listOf("Not configured", "Inclusive", "Exclusive"), taxMode, onTaxMode)
+        if (taxMode != "Not configured") {
+            EditField("Tax amount", taxAmount, "0.00") { onTaxAmount(it.filter { c -> c.isDigit() || c == '.' }) }
+        }
     }
     FieldRow {
         EditField("Original currency", originalCurrency, "USD", Modifier.weight(1f)) {

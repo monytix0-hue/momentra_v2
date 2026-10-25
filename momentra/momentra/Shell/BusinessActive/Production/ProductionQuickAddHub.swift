@@ -6,10 +6,21 @@ struct ProductionQuickAddHub: View {
     var onDecide: (String, String) async throws -> Void
 
     @State private var query = ""
-    @State private var sheet: ProductionSheetKind?
-    @State private var approvalOpen = false
+    @State private var presented: HubSheet?
     @State private var errorText: String?
-    @State private var mastersOpen = false
+
+    private enum HubSheet: Identifiable {
+        case action(ProductionSheetKind)
+        case masters
+        case approval
+        var id: String {
+            switch self {
+            case .action(let kind): return "action-\(kind.id)"
+            case .masters: return "masters"
+            case .approval: return "approval"
+            }
+        }
+    }
     @Environment(\.productionChrome) private var chrome
 
     private var allowed: Set<String> { Set((model.quickAdds ?? []).map(\.code)) }
@@ -18,6 +29,8 @@ struct ProductionQuickAddHub: View {
     private var job: Bool { model.subtype == "MADE_TO_ORDER" }
 
     var body: some View {
+        ZStack {
+        ScrollView {
         VStack(alignment: .leading, spacing: 12) {
             Text("Quick Adds").font(.plusJakarta(size: 28, weight: .semibold)).foregroundStyle(chrome.ink)
             Text("Record what happened · \(model.title ?? "")").font(.plusJakarta(size: 13)).foregroundStyle(chrome.secondary)
@@ -35,7 +48,7 @@ struct ProductionQuickAddHub: View {
                     .font(.plusJakarta(size: 13))
                     .foregroundStyle(chrome.secondary)
                 if job ? allowed.contains("CUSTOMER_ORDER") : allowed.contains("PRODUCTION") {
-                    Button { sheet = job ? .customerOrder : .production } label: {
+                    Button { presented = .action(job ? .customerOrder : .production) } label: {
                         HStack(spacing: 6) {
                             Image("qa_plus").renderingMode(.template).resizable().scaledToFit().frame(width: 14, height: 14)
                             Text(job ? "Record Customer Order" : "Record production")
@@ -65,7 +78,7 @@ struct ProductionQuickAddHub: View {
             Text("Core actions · \(core.count)").font(.plusJakarta(size: 12)).foregroundStyle(chrome.secondary)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(core) { kind in
-                    Button { sheet = kind } label: {
+                    Button { presented = .action(kind) } label: {
                         VStack(spacing: 8) {
                             Image(kind.icon).renderingMode(.template).resizable().scaledToFit().frame(width: 28, height: 28)
                             Text(kind.label).font(.plusJakarta(size: 13, weight: .semibold)).multilineTextAlignment(.center)
@@ -79,96 +92,90 @@ struct ProductionQuickAddHub: View {
                     }
                 }
             }
-            Button("Masters") { mastersOpen = true }.font(.plusJakarta(size: 15, weight: .semibold))
+            Button("Masters") { presented = .masters }.font(.plusJakarta(size: 15, weight: .semibold))
             Text("Support & management").font(.plusJakarta(size: 12)).foregroundStyle(chrome.secondary)
             supportGrid
             if approver {
-                Button("Review approvals") { approvalOpen = true }
+                Button("Review approvals") { presented = .approval }
                     .font(.plusJakarta(size: 15, weight: .semibold))
                     .foregroundStyle(chrome.accent)
             }
             if let errorText { Text(errorText).foregroundStyle(Color(hex: "#F87171")) }
         }
-        .sheet(isPresented: $mastersOpen) {
-            OperatingCaptureSheet(
-                title: "Masters",
-                icon: "qa_shield",
-                eventType: "UPDATE",
-                mode: "MASTERS",
-                model: model,
-                onSubmit: { draft in
-                    try await onRecord(ProductionEventDraft(
-                        eventType: draft.eventType,
-                        title: draft.title,
-                        amount: draft.amount,
-                        note: draft.note,
-                        channelName: draft.channelName,
-                        counterpartyName: draft.counterpartyName,
-                        paymentStatus: draft.paymentStatus,
-                        occurredAt: draft.occurredAt,
-                        quantity: draft.quantity,
-                        unit: draft.unit,
-                        unitPrice: draft.unitPrice,
-                        itemName: draft.itemName,
-                        parentEventId: draft.parentEventId,
-                        revisesEventId: draft.revisesEventId,
-                        masterKind: draft.masterKind,
-                        dueAt: draft.dueAt,
-                        contract: draft.contract,
-                        lineItems: draft.lineItems,
-                        rejectedQuantity: draft.rejectedQuantity
-                    ))
-                },
-                onDecide: onDecide
-            )
+        .padding(.horizontal, 17)
+        .padding(.vertical, 20)
         }
-        .sheet(item: $sheet) { kind in
-            OperatingCaptureSheet(
-                title: kind.sheetTitle,
-                icon: kind.icon,
-                eventType: kind.eventType,
-                mode: kind.captureMode,
-                model: model,
-                channelLabel: "Channel",
-                variant: job ? "job" : "standard",
-                onSubmit: { draft in
-                    try await onRecord(ProductionEventDraft(
-                        eventType: draft.eventType,
-                        title: draft.title,
-                        amount: draft.amount,
-                        note: draft.note,
-                        channelName: draft.channelName,
-                        counterpartyName: draft.counterpartyName,
-                        paymentStatus: draft.paymentStatus,
-                        occurredAt: draft.occurredAt,
-                        quantity: draft.quantity,
-                        unit: draft.unit,
-                        unitPrice: draft.unitPrice,
-                        itemName: draft.itemName,
-                        parentEventId: draft.parentEventId,
-                        revisesEventId: draft.revisesEventId,
-                        masterKind: draft.masterKind,
-                        dueAt: draft.dueAt,
-                        contract: draft.contract,
-                        lineItems: draft.lineItems,
-                        rejectedQuantity: draft.rejectedQuantity
-                    ))
-                },
-                onDecide: onDecide
-            )
+        if let presented {
+            captureForm(presented)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .sheet(isPresented: $approvalOpen) {
-            OperatingCaptureSheet(
-                title: "Review Approval",
-                icon: "qa_shield",
-                eventType: "APPROVAL",
-                mode: "APPROVAL",
-                model: model,
-                variant: job ? "job" : "standard",
-                onSubmit: { _ in },
-                onDecide: onDecide
-            )
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder private func captureForm(_ item: HubSheet) -> some View {
+        switch item {
+            case .masters:
+                OperatingCaptureSheet(
+                    title: "Masters",
+                    icon: "qa_shield",
+                    eventType: "UPDATE",
+                    mode: "MASTERS",
+                    model: model,
+                    onSubmit: { draft in try await onRecord(productionDraft(draft)) },
+                    onDecide: onDecide,
+                    onDismiss: { presented = nil }
+                )
+            case .action(let kind):
+                OperatingCaptureSheet(
+                    title: kind.sheetTitle,
+                    icon: kind.icon,
+                    eventType: kind.eventType,
+                    mode: kind.captureMode,
+                    model: model,
+                    channelLabel: "Channel",
+                    variant: job ? "job" : "standard",
+                    onSubmit: { draft in try await onRecord(productionDraft(draft)) },
+                    onDecide: onDecide,
+                    onDismiss: { presented = nil }
+                )
+            case .approval:
+                OperatingCaptureSheet(
+                    title: "Review Approval",
+                    icon: "qa_shield",
+                    eventType: "APPROVAL",
+                    mode: "APPROVAL",
+                    model: model,
+                    variant: job ? "job" : "standard",
+                    onSubmit: { _ in },
+                    onDecide: onDecide,
+                    onDismiss: { presented = nil }
+                )
+        }
+    }
+
+    private func productionDraft(_ draft: OperatingCaptureDraft) -> ProductionEventDraft {
+        ProductionEventDraft(
+            eventType: draft.eventType,
+            title: draft.title,
+            amount: draft.amount,
+            note: draft.note,
+            channelName: draft.channelName,
+            counterpartyName: draft.counterpartyName,
+            paymentStatus: draft.paymentStatus,
+            occurredAt: draft.occurredAt,
+            quantity: draft.quantity,
+            unit: draft.unit,
+            unitPrice: draft.unitPrice,
+            itemName: draft.itemName,
+            parentEventId: draft.parentEventId,
+            revisesEventId: draft.revisesEventId,
+            masterKind: draft.masterKind,
+            dueAt: draft.dueAt,
+            contract: draft.contract,
+            lineItems: draft.lineItems,
+            rejectedQuantity: draft.rejectedQuantity
+        )
     }
 
     private var supportGrid: some View {
@@ -183,8 +190,8 @@ struct ProductionQuickAddHub: View {
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 Button {
-                    if item.0 == "Approval review", item.2 == nil { approvalOpen = true }
-                    else if let kind = item.1, item.2 == nil { sheet = kind }
+                    if item.0 == "Approval review", item.2 == nil { presented = .approval }
+                    else if let kind = item.1, item.2 == nil { presented = .action(kind) }
                 } label: {
                     VStack(spacing: 8) {
                         Image(item.1?.icon ?? "qa_shield")

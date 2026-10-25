@@ -3,6 +3,8 @@
  * Orders and bookings stay commitments. Only a posted sale or finalized charge is revenue.
  */
 
+import { parseGstSnapshot } from './operating-gst';
+
 export const RETAIL_SUBTYPES = ['RETAIL_STORE', 'RESTAURANT_FOOD', 'CONSUMER_SERVICE'] as const;
 
 export const EXPENSE_CATEGORIES = [
@@ -89,6 +91,13 @@ export interface OperatingContract {
   promisedAt?: string | null;
   taxMode?: 'INCLUSIVE' | 'EXCLUSIVE' | 'NOT_CONFIGURED' | null;
   taxAmount?: string | null;
+  gstRate?: string | null;
+  discount?: string | null;
+  taxJurisdiction?: 'INTRA' | 'INTER' | null;
+  placeOfSupply?: string | null;
+  taxStatus?: 'CALCULATED' | 'NOT_CONFIGURED' | null;
+  gst?: import('./operating-gst').GstSnapshot | null;
+  gstEstimate?: import('./operating-gst').GstSnapshot | null;
   originalCurrency?: string | null;
   fxRate?: string | null;
   convertedAmount?: string | null;
@@ -107,6 +116,9 @@ export interface RetailLine {
   unitPrice?: string | null;
   masterId?: string | null;
   baseQuantity?: string | null;
+  discount?: string | null;
+  taxMode?: 'INCLUSIVE' | 'EXCLUSIVE' | null;
+  gstRate?: string | null;
 }
 
 export interface RetailEvent {
@@ -134,6 +146,19 @@ export interface RetailEvent {
     conversionToBase?: string | null;
     tracked?: boolean | null;
     barcode?: string | null;
+    gstApplicable?: string | null;
+    gstClassification?: string | null;
+    gstRate?: string | null;
+    priceIncludesGst?: string | null;
+    salePriceIncludesGst?: string | null;
+    purchasePriceIncludesGst?: string | null;
+    gstEffectiveFrom?: string | null;
+    hsn?: string | null;
+    gstRegistration?: string | null;
+    businessState?: string | null;
+    billingState?: string | null;
+    deliveryState?: string | null;
+    gstin?: string | null;
   } | null;
 }
 
@@ -276,6 +301,13 @@ export function parseOperatingContract(raw: unknown): OperatingContract | null {
         ? rec.taxMode
         : null,
     taxAmount: rec.taxAmount == null ? null : String(rec.taxAmount),
+    gstRate: rec.gstRate == null ? null : String(rec.gstRate),
+    discount: rec.discount == null ? null : String(rec.discount),
+    taxJurisdiction: rec.taxJurisdiction === 'INTRA' || rec.taxJurisdiction === 'INTER' ? rec.taxJurisdiction : null,
+    placeOfSupply: rec.placeOfSupply == null ? null : String(rec.placeOfSupply),
+    taxStatus: rec.taxStatus === 'CALCULATED' || rec.taxStatus === 'NOT_CONFIGURED' ? rec.taxStatus : null,
+    gst: parseGstSnapshot(rec.gst),
+    gstEstimate: parseGstSnapshot(rec.gstEstimate),
     originalCurrency: rec.originalCurrency == null ? null : String(rec.originalCurrency).toUpperCase(),
     fxRate: rec.fxRate == null ? null : String(rec.fxRate),
     convertedAmount: rec.convertedAmount == null ? null : String(rec.convertedAmount),
