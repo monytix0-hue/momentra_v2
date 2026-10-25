@@ -92,5 +92,7 @@ object OperatingMomentCatalog {
         "subtype", "identityName", "partyName", "description", "currency", "startDate", "endDate", "location", "activationPolicy",
         "gstTracking", "gstRegistration", "gstState", "gstin", "salePriceIncludesGst", "purchasePriceIncludesGst", "gstEffectiveFrom",
         "participants", "counterparties", "channels", "tradeReach", "monthlyBudget", "monthlyTarget", "targetMetric",
+        "clientFee", "offering", "creativeApprovalRequired", "reportingCadence",
+        "conversionNumerator", "conversionDenominator", "conversionDefinitionVersion", "campaignStatus",
     )
 }

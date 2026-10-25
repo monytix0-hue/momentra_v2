@@ -10,6 +10,7 @@ import {
 } from './operating-catalog';
 import {
   assertOperatingActivate,
+  insertReportingCadenceActivity,
   momentTypeForActivate,
   normalizeOperatingPreferences,
 } from './operating-service';
@@ -177,6 +178,9 @@ export async function activateBusinessSetup(
     [body.companyId, ctx.userId, moment.momentId, catalog.familyCode, title, JSON.stringify(preferences)]
   );
   const setupId = inserted.rows[0]!.business_system_setup_id;
+  if (catalog.familyCode === 'MARKETING_CAMPAIGNS') {
+    await insertReportingCadenceActivity(client, ctx, moment.momentId, body.companyId, normalized);
+  }
 
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'BusinessSetupActivated',

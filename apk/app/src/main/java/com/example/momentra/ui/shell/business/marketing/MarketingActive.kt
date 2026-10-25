@@ -111,8 +111,26 @@ private fun MarketingPulse(
             val budget = model.budget
             val measured = model.activity.any { it.eventType == "RESULT" || it.eventType == "PROGRESS" }
             Text("Accepted results", color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-            Text(if (measured) money(model, target?.progress) else "N/A", color = CampInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 28.sp)
-            Text("of ${money(model, target?.value)} target", color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
+            Text(
+                if (target?.configured == false || !measured) "N/A" else money(model, target?.progress),
+                color = CampInk,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 28.sp,
+            )
+            Text(
+                if (target?.configured == false) "Target not set" else "of ${money(model, target?.value)} target",
+                color = CampSecondary,
+                fontFamily = PlusJakartaSans,
+                fontSize = 13.sp,
+            )
+            model.marketing?.pacing?.let { Text(it, color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp) }
+            Text(
+                "CPL ${model.marketing?.cpl ?: "N/A"}",
+                color = CampSecondary,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
             if (measured) Meter("Results toward target", fraction(target?.progress, target?.value), CampBrand)
             ChannelTotals("Results by channel", model.activity.filter { it.eventType == "RESULT" || it.eventType == "PROGRESS" }, model)
             Meter("Budget used", fraction(budget?.spent, budget?.amount), CampSuccess)

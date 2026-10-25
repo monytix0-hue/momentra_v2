@@ -134,6 +134,12 @@ class BusinessSliceRepository(
         attributedSales: String? = null,
         revisionKind: String? = null,
         rejectedQuantity: String? = null,
+        costBasis: String? = null,
+        overlapDeduped: Boolean? = null,
+        creativeVersion: String? = null,
+        resultSource: String? = null,
+        idempotencyKey: String? = null,
+        effectiveFrom: String? = null,
     ): Result<Unit> = runCatching {
         val body = RecordOperatingEventBody(
             eventType = eventType,
@@ -159,6 +165,12 @@ class BusinessSliceRepository(
             attributedSales = attributedSales,
             revisionKind = revisionKind,
             rejectedQuantity = rejectedQuantity,
+            costBasis = costBasis,
+            overlapDeduped = overlapDeduped,
+            creativeVersion = creativeVersion,
+            resultSource = resultSource,
+            idempotencyKey = idempotencyKey,
+            effectiveFrom = effectiveFrom,
         )
         if (revisesEventId.isNullOrBlank()) {
             api.recordOperatingEvent(momentId, UUID.randomUUID().toString(), body)

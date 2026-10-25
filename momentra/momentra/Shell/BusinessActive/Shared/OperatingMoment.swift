@@ -68,6 +68,8 @@ enum OperatingMomentCatalog {
         "subtype", "identityName", "partyName", "description", "currency", "startDate", "endDate", "location", "activationPolicy",
         "gstTracking", "gstRegistration", "gstState", "gstin", "salePriceIncludesGst", "purchasePriceIncludesGst", "gstEffectiveFrom",
         "participants", "counterparties", "channels", "tradeReach", "monthlyBudget", "monthlyTarget", "targetMetric",
+        "clientFee", "offering", "creativeApprovalRequired", "reportingCadence",
+        "conversionNumerator", "conversionDenominator", "conversionDefinitionVersion", "campaignStatus",
     ]
 
     static func label(_ code: String) -> String {
@@ -353,7 +355,12 @@ struct OperatingMomentPage: View {
                             budgetCategory: draft.budgetCategory,
                             activityStatus: draft.activityStatus,
                             attributedSales: draft.attributedSales,
-                            revisionKind: draft.revisionKind
+                            revisionKind: draft.revisionKind,
+                            costBasis: draft.costBasis,
+                            overlapDeduped: draft.overlapDeduped,
+                            creativeVersion: draft.creativeVersion,
+                            resultSource: draft.resultSource,
+                            idempotencyKey: draft.idempotencyKey
                         )
                         tick += 1
                     },

@@ -1377,7 +1377,8 @@ v1Router.post('/business/moments/:momentId/operating-events', requireIdempotency
           client,
           ctx,
           momentId,
-          b as operatingService.RecordOperatingEventInput
+          b as operatingService.RecordOperatingEventInput,
+          req.idempotencyKey
         );
         return { result: r, resourceId: r.eventId };
       },

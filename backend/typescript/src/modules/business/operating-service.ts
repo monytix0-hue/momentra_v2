@@ -30,7 +30,7 @@ import {
 } from './operating-retail-contract';
 import { isTradingSubtype, validateTradingWrite } from './operating-trading-contract';
 import { uomDimension } from './operating-trading-lov';
-import { isMarketingSubtype, parseMarketingFacts, validateMarketingWrite } from './operating-marketing';
+import { isMarketingSubtype, observationDelta, parseMarketingFacts, validateMarketingWrite } from './operating-marketing';
 import { isManufacturingSubtype, validateManufacturingWrite } from './operating-manufacturing';
 
 const amountSchema = z.string().regex(/^\d+(\.\d{1,4})?$/);
@@ -94,10 +94,23 @@ export const recordOperatingEventSchema = z
     metricCode: z.string().max(40).optional(),
     budgetCategory: z.string().max(80).optional(),
     paymentState: z.enum(['PAID', 'PART_PAID', 'PAY_LATER']).optional(),
-    activityStatus: z.enum(['OPEN', 'DONE']).optional(),
+    activityStatus: z.enum(['OPEN', 'DONE', 'IN_PROGRESS', 'BLOCKED', 'POSTPONED', 'COMPLETED', 'CANCELLED']).optional(),
     attributedSales: amountSchema.optional(),
     revisionKind: z.enum(['BUDGET', 'TARGET', 'CATEGORY']).optional(),
     effectiveAt: z.string().max(40).optional(),
+    costBasis: z.enum(['AGENCY', 'REIMBURSABLE']).optional(),
+    overlapDeduped: z.boolean().optional(),
+    resultSource: z.string().max(160).optional(),
+    periodEnd: z.string().max(40).optional(),
+    creativeVersion: z.string().max(40).optional(),
+    effectiveFrom: z.string().max(40).optional(),
+    evidenceUrl: z.string().max(500).optional(),
+    plannedStart: z.string().max(40).optional(),
+    blockedById: z.string().max(80).optional(),
+    bookingReference: z.string().max(80).optional(),
+    deliverableType: z.string().max(80).optional(),
+    repeatRule: z.string().max(80).optional(),
+    idempotencyKey: z.string().max(80).optional(),
     rejectedQuantity: amountSchema.optional(),
     contract: z
       .object({
@@ -359,7 +372,8 @@ export async function recordOperatingEvent(
   client: PoolClient,
   ctx: RequestContext,
   momentId: string,
-  body: RecordOperatingEventInput
+  body: RecordOperatingEventInput,
+  idempotencyKey?: string
 ): Promise<{ eventId: string; approvalStatus: string; projection: OperatingProjection }> {
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
   if (!isOperatingFamily(scope.businessFamily)) {
@@ -410,6 +424,17 @@ export async function recordOperatingEvent(
   );
   let amount = body.amount ?? (lineTotal > 0 ? lineTotal.toFixed(4) : null);
   const existing = await loadEvents(client, momentId);
+  const idempotency = (body.idempotencyKey ?? idempotencyKey ?? '').trim();
+  if (idempotency && isMarketingSubtype(prefs.subtype)) {
+    const prior = existing.find((row) => row.marketing?.idempotencyKey === idempotency);
+    if (prior) {
+      const projection = await getOperatingProjection(client, ctx, momentId);
+      if ('retired' in projection && projection.retired) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, 'Operating projection unavailable.', 400);
+      }
+      return { eventId: prior.operatingEventId, approvalStatus: prior.approvalStatus, projection: projection as OperatingProjection };
+    }
+  }
   const retailGoverned =
     isRetailSubtype(prefs.subtype) &&
     ['SALE', 'SERVICE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'STOCK', 'ORDER', 'APPOINTMENT'].includes(def.code);
@@ -547,6 +572,9 @@ export async function recordOperatingEvent(
           revisionKind: body.revisionKind ?? null,
           activityStatus: body.activityStatus ?? null,
           attributedSales: body.attributedSales ?? null,
+          costBasis: body.costBasis ?? null,
+          creativeVersion: body.creativeVersion ?? null,
+          idempotencyKey: idempotency || null,
         },
         existing
       );
@@ -565,6 +593,45 @@ export async function recordOperatingEvent(
   if (body.attributedSales) payload.attributedSales = body.attributedSales;
   if (body.revisionKind) payload.revisionKind = body.revisionKind;
   if (body.effectiveAt) payload.effectiveAt = body.effectiveAt;
+  if (body.effectiveFrom || body.effectiveAt) payload.effectiveFrom = (body.effectiveFrom ?? body.effectiveAt ?? '').slice(0, 10);
+  if (body.costBasis) payload.costBasis = body.costBasis;
+  if (body.overlapDeduped) payload.overlapDeduped = true;
+  if (body.resultSource) payload.resultSource = body.resultSource;
+  if (body.periodEnd) payload.periodEnd = body.periodEnd.slice(0, 10);
+  if (body.creativeVersion) payload.creativeVersion = body.creativeVersion;
+  if (body.evidenceUrl) payload.evidenceUrl = body.evidenceUrl;
+  if (body.plannedStart) payload.plannedStart = body.plannedStart;
+  if (body.blockedById) payload.blockedById = body.blockedById;
+  if (body.bookingReference) payload.bookingReference = body.bookingReference;
+  if (body.deliverableType) payload.deliverableType = body.deliverableType;
+  if (body.repeatRule) payload.repeatRule = body.repeatRule;
+  if (idempotency) payload.idempotencyKey = idempotency;
+  if (isMarketingSubtype(prefs.subtype) && (def.code === 'RESULT' || def.code === 'PROGRESS') && (body.reportingMode ?? 'INCREMENTAL') === 'CUMULATIVE') {
+    const delta = observationDelta(existing, {
+      operatingEventId: 'next',
+      eventType: def.code,
+      title: body.title,
+      amount,
+      quantity,
+      unit: body.unit ?? null,
+      channelName: body.channelName ?? null,
+      paymentStatus,
+      approvalStatus,
+      occurredAt: body.occurredAt ?? new Date().toISOString(),
+      metric: body.metric ?? null,
+      marketing: {
+        reportingMode: 'CUMULATIVE',
+        metricCode: body.metricCode ?? body.metric ?? null,
+        budgetCategory: null,
+        paymentState: null,
+        activityStatus: null,
+        attributedSales: null,
+        revisionKind: null,
+        resultSource: body.resultSource ?? null,
+      },
+    });
+    payload.normalizedDelta = delta.toFixed(4);
+  }
   if (body.rejectedQuantity) payload.rejectedQuantity = body.rejectedQuantity;
   if (body.lines?.length) payload.lines = body.lines;
   if (body.unit) payload.unit = body.unit;
@@ -988,6 +1055,38 @@ export function assertOperatingActivate(familyCode: string): void {
   if (!isOperatingFamily(familyCode)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, `Unknown business setup: ${familyCode}`, 400);
   }
+}
+
+export async function insertReportingCadenceActivity(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  companyId: string,
+  prefs: OperatingPreferences
+): Promise<void> {
+  if (prefs.subtype !== 'CLIENT_CAMPAIGN' || !prefs.reportingCadence) return;
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(prefs.startDate) ? prefs.startDate : new Date().toISOString().slice(0, 10);
+  const shift = prefs.reportingCadence === 'WEEKLY' ? 7 : prefs.reportingCadence === 'MONTHLY' ? 30 : 14;
+  const due = new Date(`${start}T00:00:00Z`);
+  due.setUTCDate(due.getUTCDate() + shift);
+  const dueAt = due.toISOString().slice(0, 10);
+  await client.query(
+    `INSERT INTO business.operating_event (
+       moment_id, company_id, actor_user_id, event_type, title, note, currency_code,
+       payment_relevance, payment_status, approval_status, submitted_by_user_id, occurred_at, payload
+     ) VALUES (
+       $1,$2,$3,'ACTIVITY',$4,$5,$6,'NONE','NONE','NONE',$3, now(), $7::jsonb
+     )`,
+    [
+      momentId,
+      companyId,
+      ctx.userId,
+      'Client report',
+      `${prefs.reportingCadence.toLowerCase()} reporting reminder. This does not submit a report.`,
+      prefs.currency || 'INR',
+      JSON.stringify({ activityStatus: 'OPEN', dueAt, reportingCadence: prefs.reportingCadence }),
+    ]
+  );
 }
 
 export function momentTypeForActivate(familyCode: string, requested: string | undefined, subtype: string): string {

@@ -284,6 +284,11 @@ fun OperatingMomentPage(
                     activityStatus = draft.activityStatus,
                     attributedSales = draft.attributedSales,
                     revisionKind = draft.revisionKind,
+                    costBasis = draft.costBasis,
+                    overlapDeduped = draft.overlapDeduped,
+                    creativeVersion = draft.creativeVersion,
+                    resultSource = draft.resultSource,
+                    idempotencyKey = draft.idempotencyKey,
                 ).fold(
                     onSuccess = { tick += 1 },
                     onFailure = { error = it.message },

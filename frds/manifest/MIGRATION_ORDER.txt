@@ -95,3 +95,4 @@ V094__operating_moments.sql
 V095__business_moment_without_company.sql
 V096__participant_any_moment.sql
 V097__operating_event_allocation.sql
+V098__operating_event_idempotency.sql
