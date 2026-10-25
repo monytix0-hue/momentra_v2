@@ -58,6 +58,9 @@ export const recordOperatingEventSchema = z
           unitPrice: amountSchema.nullish(),
           masterId: z.string().max(80).nullish(),
           baseQuantity: amountSchema.nullish(),
+          discount: amountSchema.nullish(),
+          taxMode: z.enum(['INCLUSIVE', 'EXCLUSIVE']).nullish(),
+          gstRate: amountSchema.nullish(),
         })
       )
       .max(12)
@@ -71,6 +74,19 @@ export const recordOperatingEventSchema = z
         conversionToBase: amountSchema.nullish(),
         tracked: z.boolean().nullish(),
         barcode: z.string().max(80).nullish(),
+        gstApplicable: z.enum(['YES', 'NO', 'NOT_SURE']).nullish(),
+        gstClassification: z.enum(['TAXABLE', 'EXEMPT', 'NIL', 'NON_GST']).nullish(),
+        gstRate: amountSchema.nullish(),
+        priceIncludesGst: z.enum(['YES', 'NO']).nullish(),
+        salePriceIncludesGst: z.enum(['YES', 'NO']).nullish(),
+        purchasePriceIncludesGst: z.enum(['YES', 'NO']).nullish(),
+        gstEffectiveFrom: z.string().max(10).nullish(),
+        hsn: z.string().max(16).nullish(),
+        gstRegistration: z.enum(['REGISTERED', 'UNREGISTERED', 'NOT_SURE']).nullish(),
+        businessState: z.string().max(80).nullish(),
+        billingState: z.string().max(80).nullish(),
+        deliveryState: z.string().max(80).nullish(),
+        gstin: z.string().max(20).nullish(),
       })
       .nullish(),
     metric: z.enum(['LEADS', 'CONVERSIONS']).optional(),
@@ -114,6 +130,10 @@ export const recordOperatingEventSchema = z
         promisedAt: z.string().max(40).nullish(),
         taxMode: z.enum(['INCLUSIVE', 'EXCLUSIVE', 'NOT_CONFIGURED']).nullish(),
         taxAmount: amountSchema.nullish(),
+        gstRate: amountSchema.nullish(),
+        discount: amountSchema.nullish(),
+        taxJurisdiction: z.enum(['INTRA', 'INTER']).nullish(),
+        placeOfSupply: z.string().max(80).nullish(),
         originalCurrency: z.string().max(8).nullish(),
         fxRate: amountSchema.nullish(),
         convertedAmount: amountSchema.nullish(),
@@ -205,6 +225,9 @@ async function loadEvents(client: PoolClient, momentId: string): Promise<Operati
             unitPrice: rec.unitPrice == null ? null : String(rec.unitPrice),
             masterId: rec.masterId == null ? null : String(rec.masterId),
             baseQuantity: rec.baseQuantity == null ? null : String(rec.baseQuantity),
+            discount: rec.discount == null ? null : String(rec.discount),
+            taxMode: rec.taxMode === 'INCLUSIVE' || rec.taxMode === 'EXCLUSIVE' ? rec.taxMode : null,
+            gstRate: rec.gstRate == null ? null : String(rec.gstRate),
           }];
         })
       : [];
@@ -219,6 +242,19 @@ async function loadEvents(client: PoolClient, momentId: string): Promise<Operati
           conversionToBase: masterRec.conversionToBase == null ? null : String(masterRec.conversionToBase),
           tracked: masterRec.tracked === true ? true : masterRec.tracked === false ? false : null,
           barcode: masterRec.barcode == null ? null : String(masterRec.barcode),
+          gstApplicable: masterRec.gstApplicable == null ? null : String(masterRec.gstApplicable),
+          gstClassification: masterRec.gstClassification == null ? null : String(masterRec.gstClassification),
+          gstRate: masterRec.gstRate == null ? null : String(masterRec.gstRate),
+          priceIncludesGst: masterRec.priceIncludesGst == null ? null : String(masterRec.priceIncludesGst),
+          salePriceIncludesGst: masterRec.salePriceIncludesGst == null ? null : String(masterRec.salePriceIncludesGst),
+          purchasePriceIncludesGst: masterRec.purchasePriceIncludesGst == null ? null : String(masterRec.purchasePriceIncludesGst),
+          gstEffectiveFrom: masterRec.gstEffectiveFrom == null ? null : String(masterRec.gstEffectiveFrom),
+          hsn: masterRec.hsn == null ? null : String(masterRec.hsn),
+          gstRegistration: masterRec.gstRegistration == null ? null : String(masterRec.gstRegistration),
+          businessState: masterRec.businessState == null ? null : String(masterRec.businessState),
+          billingState: masterRec.billingState == null ? null : String(masterRec.billingState),
+          deliveryState: masterRec.deliveryState == null ? null : String(masterRec.deliveryState),
+          gstin: masterRec.gstin == null ? null : String(masterRec.gstin),
         }
       : null;
     return {
@@ -252,6 +288,17 @@ async function loadEvents(client: PoolClient, momentId: string): Promise<Operati
 
 function prefsOf(raw: OperatingPreferences | Record<string, unknown>): OperatingPreferences {
   return raw as OperatingPreferences;
+}
+
+function tradingGstContext(prefs: OperatingPreferences) {
+  const yesNo = (value: string | undefined): boolean | null => (value === 'YES' ? true : value === 'NO' ? false : null);
+  return {
+    enabled: prefs.gstTracking === 'YES' && prefs.gstRegistration === 'REGULAR',
+    businessState: prefs.gstState ?? '',
+    saleIncludesGst: yesNo(prefs.salePriceIncludesGst),
+    purchaseIncludesGst: yesNo(prefs.purchasePriceIncludesGst),
+    registration: prefs.gstRegistration ?? '',
+  };
 }
 
 export async function viewerRole(
@@ -412,6 +459,7 @@ export async function recordOperatingEvent(
             lines: body.lines,
             contract: writeContract,
             channelTracking: (prefs.channels?.length ?? 0) > 0,
+            gst: tradingGstContext(prefs),
           },
           existing
         )
@@ -770,6 +818,7 @@ export async function reviseOperatingEvent(
         contract: parseOperatingContract(body.contract) ?? current.contract ?? undefined,
         revisingId: eventId,
         channelTracking: (prefs.channels?.length ?? 0) > 0,
+        gst: tradingGstContext(prefs),
       },
       existing
     );

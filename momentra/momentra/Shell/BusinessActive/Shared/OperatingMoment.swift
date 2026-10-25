@@ -65,7 +65,8 @@ enum OperatingMomentCatalog {
     }
 
     static let preferenceKeys: Set<String> = [
-        "subtype", "identityName", "partyName", "description", "currency", "startDate", "location", "activationPolicy",
+        "subtype", "identityName", "partyName", "description", "currency", "startDate", "endDate", "location", "activationPolicy",
+        "gstTracking", "gstRegistration", "gstState", "gstin", "salePriceIncludesGst", "purchasePriceIncludesGst", "gstEffectiveFrom",
         "participants", "counterparties", "channels", "tradeReach", "monthlyBudget", "monthlyTarget", "targetMetric",
     ]
 
@@ -428,7 +429,20 @@ struct OperatingMomentPage: View {
                             revisesEventId: draft.revisesEventId,
                             dueAt: draft.dueAt,
                             contract: draft.contract,
-                            lineItems: draft.lineItems
+                            lineItems: draft.lineItems,
+                            masterGstApplicable: draft.masterGstApplicable,
+                            masterGstClassification: draft.masterGstClassification,
+                            masterGstRate: draft.masterGstRate,
+                            masterPriceIncludesGst: draft.masterPriceIncludesGst,
+                            masterSalePriceIncludesGst: draft.masterSalePriceIncludesGst,
+                            masterPurchasePriceIncludesGst: draft.masterPurchasePriceIncludesGst,
+                            masterGstEffectiveFrom: draft.masterGstEffectiveFrom,
+                            masterHsn: draft.masterHsn,
+                            masterGstRegistration: draft.masterGstRegistration,
+                            masterBusinessState: draft.masterBusinessState,
+                            masterBillingState: draft.masterBillingState,
+                            masterDeliveryState: draft.masterDeliveryState,
+                            masterGstin: draft.masterGstin
                         )
                         tick += 1
                     },
@@ -465,7 +479,20 @@ struct OperatingMomentPage: View {
                             revisesEventId: draft.revisesEventId,
                             dueAt: draft.dueAt,
                             contract: draft.contract,
-                            lineItems: draft.lineItems
+                            lineItems: draft.lineItems,
+                            masterGstApplicable: draft.masterGstApplicable,
+                            masterGstClassification: draft.masterGstClassification,
+                            masterGstRate: draft.masterGstRate,
+                            masterPriceIncludesGst: draft.masterPriceIncludesGst,
+                            masterSalePriceIncludesGst: draft.masterSalePriceIncludesGst,
+                            masterPurchasePriceIncludesGst: draft.masterPurchasePriceIncludesGst,
+                            masterGstEffectiveFrom: draft.masterGstEffectiveFrom,
+                            masterHsn: draft.masterHsn,
+                            masterGstRegistration: draft.masterGstRegistration,
+                            masterBusinessState: draft.masterBusinessState,
+                            masterBillingState: draft.masterBillingState,
+                            masterDeliveryState: draft.masterDeliveryState,
+                            masterGstin: draft.masterGstin
                         )
                         tick += 1
                     },

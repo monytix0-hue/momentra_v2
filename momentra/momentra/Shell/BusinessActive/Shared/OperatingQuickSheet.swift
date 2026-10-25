@@ -28,6 +28,19 @@ struct OperatingCaptureDraft {
     var revisionKind: String? = nil
     var lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil
     var rejectedQuantity: String? = nil
+    var masterGstApplicable: String? = nil
+    var masterGstClassification: String? = nil
+    var masterGstRate: String? = nil
+    var masterPriceIncludesGst: String? = nil
+    var masterSalePriceIncludesGst: String? = nil
+    var masterPurchasePriceIncludesGst: String? = nil
+    var masterGstEffectiveFrom: String? = nil
+    var masterHsn: String? = nil
+    var masterGstRegistration: String? = nil
+    var masterBusinessState: String? = nil
+    var masterBillingState: String? = nil
+    var masterDeliveryState: String? = nil
+    var masterGstin: String? = nil
 }
 
 private struct RetailDraftLine: Identifiable {
@@ -52,6 +65,22 @@ func operatingCaptureMode(eventType: String, title: String) -> String {
     return eventType
 }
 
+private enum CapturePicker: Identifiable {
+    case date
+    case due
+    case goodsDue
+    case lov(String)
+
+    var id: String {
+        switch self {
+        case .date: return "date"
+        case .due: return "due"
+        case .goodsDue: return "goods"
+        case .lov(let kind): return "lov-\(kind)"
+        }
+    }
+}
+
 struct OperatingCaptureSheet: View {
     let title: String
     let icon: String
@@ -63,6 +92,7 @@ struct OperatingCaptureSheet: View {
     var seed: OperatingActivityPayload? = nil
     var onSubmit: (OperatingCaptureDraft) async throws -> Void
     var onDecide: ((String, String) async throws -> Void)?
+    var onDismiss: (() -> Void)? = nil
     /// kind, name, unit, optional conversionToBase
     var onCreateMaster: ((String, String, String?, String?) async throws -> Void)? = nil
 
@@ -85,11 +115,9 @@ struct OperatingCaptureSheet: View {
     @State private var moreOpen = false
     @State private var errorText: String?
     @State private var eventDate = Date()
-    @State private var dateOpen = false
+    @State private var picker: CapturePicker?
     @State private var dueDate = Date()
-    @State private var dueDateOpen = false
     @State private var goodsDueDate = Date()
-    @State private var goodsDueOpen = false
     @State private var itemName = ""
     @State private var quantity = ""
     @State private var rejectedQuantity = ""
@@ -110,9 +138,24 @@ struct OperatingCaptureSheet: View {
     @State private var clientKey = UUID().uuidString
     @State private var savedLines: [RetailDraftLine] = []
     @State private var productMasterId: String?
-    @State private var lovKind: String?
     @State private var localMasters: [OperatingLovOption] = []
     @State private var taxMode = "Not configured"
+    @State private var gstRate = ""
+    @State private var supplyChoice = ""
+    @State private var gstDetailsOpen = false
+    @State private var gstApplicable = "Not sure"
+    @State private var gstClassification = "Taxable"
+    @State private var hsn = ""
+    @State private var masterPriceIncludes = "Use business default"
+    @State private var masterSaleIncludes = "Use business default"
+    @State private var masterPurchaseIncludes = "Use business default"
+    @State private var gstEffectiveFrom = ""
+    @State private var gstPreviewOpen = false
+    @State private var partyGstRegistration = "Not sure"
+    @State private var businessState = ""
+    @State private var billingState = ""
+    @State private var deliveryState = ""
+    @State private var partyGstin = ""
     @State private var taxAmount = ""
     @State private var originalCurrency = ""
     @State private var fxRate = ""
@@ -198,7 +241,7 @@ struct OperatingCaptureSheet: View {
                             .foregroundStyle(Color(hex: "#E5E0EE"))
                         Text(title).font(.plusJakarta(size: 20, weight: .semibold)).foregroundStyle(Color(hex: "#E5E0EE"))
                         Spacer()
-                        Button("Close  ×") { dismiss() }
+                        Button("Close  ×") { close() }
                             .font(.plusJakarta(size: 12))
                             .foregroundStyle(Color(hex: "#C9C4D8"))
                             .padding(8)
@@ -236,96 +279,48 @@ struct OperatingCaptureSheet: View {
         .presentationDragIndicator(.hidden)
         .presentationCornerRadius(28)
         .presentationBackground(Color(hex: "#3A3842"))
-        .sheet(isPresented: $dateOpen) {
-            NavigationStack {
-                DatePicker("Date", selection: $eventDate, displayedComponents: .date)
-                    .datePickerStyle(.graphical)
-                    .labelsHidden()
-                    .padding()
-                    .navigationTitle("Date")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { dateOpen = false }
+        .sheet(item: $picker) { picker in
+            switch picker {
+            case .date:
+                datePickerSheet("Date", selection: $eventDate)
+            case .due:
+                datePickerSheet("Due date", selection: $dueDate)
+            case .goodsDue:
+                datePickerSheet("Goods due", selection: $goodsDueDate)
+            case .lov(let kind):
+                SearchableOperatingLovSheet(
+                    title: lovTitle(kind),
+                    kind: kind,
+                    options: lovOptions(kind),
+                    canAdd: canAddMaster && !["UOM", "SALES_ORDER", "PURCHASE_ORDER", "OBLIGATION"].contains(kind.uppercased()),
+                    accent: lovAccent,
+                    unitChoices: kind.uppercased() == "PRODUCT" ? OperatingSeedUoms.all : [],
+                    pageSize: ["SALES_ORDER", "PURCHASE_ORDER", "OBLIGATION"].contains(kind.uppercased()) ? 20 : nil,
+                    onSelect: { applyLovSelection(kind, $0) },
+                    onAdd: { name, unitValue, conversion in
+                        Task {
+                            do {
+                                try await onCreateMaster?(kind, name, unitValue, conversion)
+                                let option = OperatingLovOption(
+                                    id: "local-\(UUID().uuidString)",
+                                    name: name,
+                                    kind: kind,
+                                    unit: unitValue,
+                                    subtitle: unitValue,
+                                    conversionToBase: conversion
+                                )
+                                localMasters.insert(option, at: 0)
+                                applyLovSelection(kind, option)
+                            } catch {
+                                errorText = error.localizedDescription
+                            }
                         }
-                    }
+                    },
+                    onDismiss: { self.picker = nil }
+                )
+                .presentationDetents([.medium, .large])
+                .preferredColorScheme(.dark)
             }
-            .presentationDetents([.medium, .large])
-            .presentationBackground(Color(hex: "#3A3842"))
-            .preferredColorScheme(.dark)
-        }
-        .sheet(isPresented: $dueDateOpen) {
-            NavigationStack {
-                DatePicker("Due date", selection: $dueDate, displayedComponents: .date)
-                    .datePickerStyle(.graphical)
-                    .labelsHidden()
-                    .padding()
-                    .navigationTitle("Due date")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { dueDateOpen = false }
-                        }
-                    }
-            }
-            .presentationDetents([.medium, .large])
-            .presentationBackground(Color(hex: "#3A3842"))
-            .preferredColorScheme(.dark)
-        }
-        .sheet(isPresented: $goodsDueOpen) {
-            NavigationStack {
-                DatePicker("Goods due", selection: $goodsDueDate, displayedComponents: .date)
-                    .datePickerStyle(.graphical)
-                    .labelsHidden()
-                    .padding()
-                    .navigationTitle("Goods due")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { goodsDueOpen = false }
-                        }
-                    }
-            }
-            .presentationDetents([.medium, .large])
-            .presentationBackground(Color(hex: "#3A3842"))
-            .preferredColorScheme(.dark)
-        }
-        .sheet(item: Binding(
-            get: { lovKind.map { LovSheetToken(kind: $0) } },
-            set: { lovKind = $0?.kind }
-        )) { token in
-            SearchableOperatingLovSheet(
-                title: lovTitle(token.kind),
-                kind: token.kind,
-                options: lovOptions(token.kind),
-                canAdd: canAddMaster && !["UOM", "SALES_ORDER", "PURCHASE_ORDER", "OBLIGATION"].contains(token.kind.uppercased()),
-                accent: lovAccent,
-                unitChoices: token.kind.uppercased() == "PRODUCT" ? OperatingSeedUoms.all : [],
-                pageSize: ["SALES_ORDER", "PURCHASE_ORDER", "OBLIGATION"].contains(token.kind.uppercased()) ? 20 : nil,
-                onSelect: { applyLovSelection(token.kind, $0) },
-                onAdd: { name, unitValue, conversion in
-                    Task {
-                        do {
-                            try await onCreateMaster?(token.kind, name, unitValue, conversion)
-                            let option = OperatingLovOption(
-                                id: "local-\(UUID().uuidString)",
-                                name: name,
-                                kind: token.kind,
-                                unit: unitValue,
-                                subtitle: unitValue,
-                                conversionToBase: conversion
-                            )
-                            localMasters.insert(option, at: 0)
-                            applyLovSelection(token.kind, option)
-                        } catch {
-                            errorText = error.localizedDescription
-                        }
-                    }
-                },
-                onDismiss: { lovKind = nil }
-            )
-            .presentationDetents([.medium, .large])
-            .preferredColorScheme(.dark)
         }
         .onAppear {
             channel = channels.first ?? ""
@@ -334,6 +329,11 @@ struct OperatingCaptureSheet: View {
             if production && mode == "DELIVERY" { entryMode = "Quick status" }
             if production && mode == "STOCK" && note.isEmpty { note = "opening" }
             choice = defaultChoice
+            if model.gstTracking == "YES" {
+                let includes = mode == "PURCHASE" ? model.purchasePriceIncludesGst : model.salePriceIncludesGst
+                if includes == "YES" { taxMode = "Inclusive" }
+                if includes == "NO" { taxMode = "Exclusive" }
+            }
             if let seed {
                 amount = seed.amount ?? ""
                 party = seed.counterpartyName ?? ""
@@ -350,9 +350,23 @@ struct OperatingCaptureSheet: View {
         }
     }
 
-    private struct LovSheetToken: Identifiable {
-        let kind: String
-        var id: String { kind }
+    private func datePickerSheet(_ title: String, selection: Binding<Date>) -> some View {
+        NavigationStack {
+            DatePicker(title, selection: selection, displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .labelsHidden()
+                .padding()
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { picker = nil }
+                    }
+                }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationBackground(Color(hex: "#3A3842"))
+        .preferredColorScheme(.dark)
     }
 
     private func lovOptions(_ kind: String) -> [OperatingLovOption] {
@@ -406,8 +420,14 @@ struct OperatingCaptureSheet: View {
             productMasterId = option.id.hasPrefix("seed-") || option.id.hasPrefix("local-") ? nil : option.id
             if let unitName = option.unit, !unitName.isEmpty { unit = unitName }
             if mode == "STOCK" { purpose = option.name }
+            if let master = (model.masters ?? []).first(where: { $0.id == option.id }) {
+                if let rate = displayGstRate(master.gstRate) { gstRate = rate }
+                if master.priceIncludesGst == "YES" { taxMode = "Inclusive" }
+                if master.priceIncludesGst == "NO" { taxMode = "Exclusive" }
+            }
         case "BUYER", "CUSTOMER", "SUPPLIER":
             party = option.name
+            applyPartySupply(option.name)
         case "CHANNEL":
             channel = option.name
         case "EXPENSE_CATEGORY":
@@ -434,8 +454,26 @@ struct OperatingCaptureSheet: View {
         }
     }
 
+    private func displayGstRate(_ raw: String?) -> String? {
+        guard let raw, !raw.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        guard let value = Decimal(string: raw) else { return raw }
+        return NSDecimalNumber(decimal: value).stringValue
+    }
+
+    private func applyPartySupply(_ name: String) {
+        guard let party = (model.masters ?? []).first(where: {
+            $0.name.caseInsensitiveCompare(name) == .orderedSame && ["CUSTOMER", "BUYER", "SUPPLIER"].contains($0.kind.uppercased())
+        }) else { return }
+        let business = (model.gstState ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let supply = [party.deliveryState, party.billingState, party.businessState]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty } ?? ""
+        guard !business.isEmpty, !supply.isEmpty else { return }
+        supplyChoice = supply.caseInsensitiveCompare(business) == .orderedSame ? "INTRA" : "INTER"
+    }
+
     @ViewBuilder private func lovField(_ label: String, value: String, kind: String, placeholder: String) -> some View {
-        Button { lovKind = kind } label: {
+        Button { picker = .lov(kind) } label: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(label).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
                 Text(value.isEmpty ? placeholder : value)
@@ -453,449 +491,511 @@ struct OperatingCaptureSheet: View {
     @ViewBuilder private var fields: some View {
         switch mode {
         case "SALE", "SERVICE":
-            lineEditor
-            if production && mode == "SALE" {
-                amountBlock("Amount", hint: "Quick amount posts revenue and no SKU quantity")
-                if !channels.isEmpty {
-                    choiceBlock("Buyer / channel", options: channels, selected: channel) { channel = $0 }
-                } else {
-                    editField("Buyer", text: $party, placeholder: "Required when a balance remains")
-                }
-                dateField("Sale date")
-                choiceBlock("Payment state", options: ["Received", "Part paid", "Pay later"], selected: choice) { choice = $0 }
-                if choice == "Part paid" { editField("Received now", text: $receivedAmount, placeholder: "Required") }
-                orderLink("Linked order · Optional")
-                Text("A sale is not a delivery. Dispatch stays a separate record.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                summary("After save", saleLines)
-            } else {
-            amountBlock("Amount", hint: "Positive amount · 2 decimal places")
-            if !channels.isEmpty { choiceBlock(channelLabel, options: channels, selected: channel) { channel = $0 } }
-            if distribution && mode == "SALE" { editField("Buyer / dealer", text: $party, placeholder: "Required") }
-            HStack(spacing: 12) { dateField(restaurant || service || trading || distribution ? "Sale date" : "Date"); readField(restaurant || service || trading || distribution ? "Receipt actor" : "Recorded by", actorName) }
-            choiceBlock(trading ? "Received status" : "Money received", options: ["Received", "Pending"], selected: choice) { choice = $0 }
-            Text(distribution ? "One sale and its linked receipt. This is not a separate collection." : (trading ? "One sale and its linked receipt. This is not a second collection." : (service ? "One sale and its linked receipt. This is not a second sale or collection." : (restaurant ? "One sale and its linked receipt. This is not a separate collection." : "One sale and its receipt. A collection is a separate event."))))
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            moreButton(distribution ? "Note and reference. Optional." : (trading ? "Buyer, reference, and shipment context. Optional." : (service ? "Customer, note and evidence. Optional." : "Note, reference and evidence. Optional.")))
-            if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
-            summary("After save", saleLines)
-            }
+            saleServiceFields
         case "PURCHASE", "VENDOR":
-            lineEditor
-            if production && mode == "PURCHASE" {
-                amountBlock("Amount", hint: "Counted once toward budget and payables")
-                HStack(spacing: 12) { editField("Supplier", text: $party, placeholder: "Required"); dateField("Purchase date") }
-                editField("Material", text: $itemName, placeholder: "Optional item")
-                HStack(spacing: 8) {
-                    editField("Qty", text: $quantity, placeholder: "Qty")
-                    editField("Unit", text: $unit, placeholder: "kg")
-                }
-                choiceBlock("Materials received", options: ["Received", "Part received", "Awaiting"], selected: receiptState) { receiptState = $0 }
-                if receiptState == "Part received" { editField("Quantity received", text: $quantityReceived, placeholder: "Required") }
-                choiceBlock("Payment state", options: ["Paid", "Part paid", "Pay later"], selected: choice) { choice = $0 }
-                if choice == "Part paid" { editField("Paid now", text: $receivedAmount, placeholder: "Required") }
-                Text("Stock increases only for the quantity you mark as received.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else if marketing && mode == "VENDOR" {
-                amountBlock("Amount", hint: "Positive amount · 2 decimal places")
-                editField("Counterparty", text: $party, placeholder: "Required")
-                editField("Purpose", text: $purpose, placeholder: "What this covers")
-                choiceBlock("Paid / pending", options: ["Pending / unpaid", "Paid"], selected: choice) { choice = $0 }
-                Text("Pending approval. Submission is not payment.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                summary("After approval", purchaseLines)
-            } else {
-            amountBlock("Amount", hint: "Positive amount · 2 decimal places")
-            HStack(spacing: 12) { editField(distribution ? "Principal · Optional" : "Supplier · Optional", text: $party, placeholder: "Name"); dateField(restaurant || service || trading || distribution ? "Purchase date" : "Date") }
-            editField("Purpose", text: $purpose, placeholder: "What was bought")
-            choiceBlock("Payment state", options: ["Pending / unpaid", "Paid"], selected: choice) { choice = $0 }
-            Text("Pending approval. Submission is not payment.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            moreButton("Due date, reference and evidence. Optional.")
-            if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
-            summary("After approval", purchaseLines)
-            }
+            purchaseVendorFields
         case "SPEND":
-            if production {
-                amountBlock("Amount", hint: "Eligible cost once")
-                editField("Purpose", text: $purpose, placeholder: "What this was for")
-                dateField("Expense date")
-                choiceBlock("Payment state", options: ["Paid", "Pay later"], selected: choice) { choice = $0 }
-                if choice != "Paid" { editField("Payee", text: $party, placeholder: "Required") }
-                Text("A payment later is not a second expense.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else if marketing {
-                amountBlock("Amount", hint: "Positive amount · 2 decimal places")
-                editField("Purpose / Category", text: $purpose, placeholder: "What this was for")
-                editField("Paid by", text: $party, placeholder: actorName)
-                if !channels.isEmpty { choiceBlock(channelLabel, options: channels, selected: channel) { channel = $0 } }
-                choiceBlock("Paid / pending", options: ["Pending / unpaid", "Paid"], selected: choice) { choice = $0 }
-                summary("After approval", spendLines)
-            } else {
-            amountBlock("Amount", hint: "Positive amount · 2 decimal places")
-            HStack(spacing: 12) { editField("Purpose", text: $purpose, placeholder: "What this was for"); dateField(restaurant || service || trading || distribution ? "Expense date" : "Date") }
-            choiceBlock("Funding source", options: ["Business", "Personal"], selected: choice) { choice = $0 }
-            editField("Paid by", text: $party, placeholder: actorName)
-            if service || trading || distribution {
-                Text("A personal claim is reimbursed later. It is not a second expense.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            }
-            moreButton("Reference and note. Optional.")
-            if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
-            summary("After approval", spendLines)
-            }
+            spendFields
         case "PAYMENT", "REIMBURSE":
-            obligationPicker
-            if marketing && mode == "PAYMENT" {
-                amountBlock("Payment amount", hint: "Positive amount · 2 decimal places")
-                editField("Who paid", text: $detail, placeholder: "Payer")
-                editField("Paid to", text: $party, placeholder: "Required")
-                editField("Purpose / reference", text: $purpose, placeholder: "Required")
-                dateField("Date")
-                Text("Manual confirmation only. This is not a live transfer.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else {
-            amountBlock(mode == "REIMBURSE" ? "Reimbursement amount" : "Amount", hint: "Positive amount · 2 decimal places")
-            editField((service || trading || distribution) && mode == "REIMBURSE" ? "Business payer" : (mode == "REIMBURSE" ? "Payee" : "Paid to"), text: $party, placeholder: "Name")
-            dateField((restaurant || service || trading || distribution) && mode == "REIMBURSE" ? "Recorded date" : "Date")
-            editField("Reference · Optional", text: $note, placeholder: "Optional")
-            summary("After save", ["Business paid moves by the amount you enter.", "This settles an existing claim. It is not a second expense."])
-            }
+            paymentFields
         case "COLLECTION":
-            obligationPicker
-            if production {
-                if !channels.isEmpty {
-                    choiceBlock("Received from", options: channels, selected: channel) { channel = $0 }
-                } else {
-                    editField("Received from", text: $party, placeholder: "Required")
-                }
-                amountBlock("Amount received", hint: "Positive amount")
-                HStack(spacing: 12) { readField("Received by", actorName); dateField("Date") }
-                editField("Note", text: $note, placeholder: "Optional")
-                Text("Records the receipt. This is not a live transfer.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                summary("After mark received", collectionLines)
-            } else if client {
-                choiceBlock("Collection path", options: ["Mark Received / Collect", "Create Receivable"], selected: choice) { choice = $0 }
-                Text("Mark Received records a receipt. Create Receivable records the obligation.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                amountBlock("Amount received", hint: "Positive amount")
-                editField("Received from", text: $party, placeholder: "Required")
-                HStack(spacing: 12) { readField("Received by", actorName); dateField("Date") }
-                editField("Purpose / reference", text: $purpose, placeholder: "Required")
-                summary("After mark received", collectionLines)
-            } else if own {
-                choiceBlock("Received from", options: ["Linked campaign receipt", "Other campaign receipt"], selected: choice) { choice = $0 }
-                Text("Campaign-linked receipt only. No client billing or receivable.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                amountBlock("Amount received", hint: "Positive amount")
-                HStack(spacing: 12) { readField("Received by", actorName); dateField("Date") }
-                editField("Purpose / reference", text: $purpose, placeholder: "Required")
-                summary("After mark received", collectionLines)
+            collectionFields
+        case "BUDGET", "TARGET":
+            budgetTargetFields
+        case "ISSUE":
+            issueFields
+        case "STOCK":
+            stockFields
+        case "ORDER":
+            orderFields
+        case "SHIPMENT":
+            shipmentFields
+        case "APPOINTMENT":
+            appointmentFields
+        case "PERSON", "ROLE", "INVITE":
+            personFields
+        case "SUPPLIER", "PARTNER":
+            supplierFields
+        case "MASTERS":
+            mastersFields
+        case "APPROVAL":
+            approvalFields
+        default:
+            fallbackFields
+        }
+    }
+
+    @ViewBuilder private var saleServiceFields: some View {
+        lineEditor
+        if production && mode == "SALE" {
+            amountBlock("Amount", hint: "Quick amount posts revenue and no SKU quantity")
+            if !channels.isEmpty {
+                choiceBlock("Buyer / channel", options: channels, selected: channel) { channel = $0 }
             } else {
-            if !channels.isEmpty { choiceBlock(distribution ? "Buyer / dealer" : "Received from", options: channels, selected: channel) { channel = $0 } }
+                editField("Buyer", text: $party, placeholder: "Required when a balance remains")
+            }
+            dateField("Sale date")
+            choiceBlock("Payment state", options: ["Received", "Part paid", "Pay later"], selected: choice) { choice = $0 }
+            if choice == "Part paid" { editField("Received now", text: $receivedAmount, placeholder: "Required") }
+            orderLink("Linked order · Optional")
+            Text("A sale is not a delivery. Dispatch stays a separate record.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            summary("After save", saleLines)
+        } else {
+        amountBlock("Amount", hint: "Positive amount · 2 decimal places")
+        if !channels.isEmpty { choiceBlock(channelLabel, options: channels, selected: channel) { channel = $0 } }
+        if distribution && mode == "SALE" { editField("Buyer / dealer", text: $party, placeholder: "Required") }
+        HStack(spacing: 12) { dateField(restaurant || service || trading || distribution ? "Sale date" : "Date"); readField(restaurant || service || trading || distribution ? "Receipt actor" : "Recorded by", actorName) }
+        choiceBlock(trading ? "Received status" : "Money received", options: ["Received", "Pending"], selected: choice) { choice = $0 }
+        Text(distribution ? "One sale and its linked receipt. This is not a separate collection." : (trading ? "One sale and its linked receipt. This is not a second collection." : (service ? "One sale and its linked receipt. This is not a second sale or collection." : (restaurant ? "One sale and its linked receipt. This is not a separate collection." : "One sale and its receipt. A collection is a separate event."))))
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        moreButton(distribution ? "Note and reference. Optional." : (trading ? "Buyer, reference, and shipment context. Optional." : (service ? "Customer, note and evidence. Optional." : "Note, reference and evidence. Optional.")))
+        if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
+        summary("After save", saleLines)
+        }
+    }
+
+    @ViewBuilder private var purchaseVendorFields: some View {
+        lineEditor
+        if production && mode == "PURCHASE" {
+            amountBlock("Amount", hint: "Counted once toward budget and payables")
+            HStack(spacing: 12) { editField("Supplier", text: $party, placeholder: "Required"); dateField("Purchase date") }
+            editField("Material", text: $itemName, placeholder: "Optional item")
+            HStack(spacing: 8) {
+                editField("Qty", text: $quantity, placeholder: "Qty")
+                editField("Unit", text: $unit, placeholder: "kg")
+            }
+            choiceBlock("Materials received", options: ["Received", "Part received", "Awaiting"], selected: receiptState) { receiptState = $0 }
+            if receiptState == "Part received" { editField("Quantity received", text: $quantityReceived, placeholder: "Required") }
+            choiceBlock("Payment state", options: ["Paid", "Part paid", "Pay later"], selected: choice) { choice = $0 }
+            if choice == "Part paid" { editField("Paid now", text: $receivedAmount, placeholder: "Required") }
+            Text("Stock increases only for the quantity you mark as received.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else if marketing && mode == "VENDOR" {
+            amountBlock("Amount", hint: "Positive amount · 2 decimal places")
+            editField("Counterparty", text: $party, placeholder: "Required")
+            editField("Purpose", text: $purpose, placeholder: "What this covers")
+            choiceBlock("Paid / pending", options: ["Pending / unpaid", "Paid"], selected: choice) { choice = $0 }
+            Text("Pending approval. Submission is not payment.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            summary("After approval", purchaseLines)
+        } else {
+        amountBlock("Amount", hint: "Positive amount · 2 decimal places")
+        HStack(spacing: 12) { editField(distribution ? "Principal · Optional" : "Supplier · Optional", text: $party, placeholder: "Name"); dateField(restaurant || service || trading || distribution ? "Purchase date" : "Date") }
+        editField("Purpose", text: $purpose, placeholder: "What was bought")
+        choiceBlock("Payment state", options: ["Pending / unpaid", "Paid"], selected: choice) { choice = $0 }
+        Text("Pending approval. Submission is not payment.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        moreButton("Due date, reference and evidence. Optional.")
+        if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
+        summary("After approval", purchaseLines)
+        }
+    }
+
+    @ViewBuilder private var spendFields: some View {
+        if production {
+            amountBlock("Amount", hint: "Eligible cost once")
+            editField("Purpose", text: $purpose, placeholder: "What this was for")
+            dateField("Expense date")
+            choiceBlock("Payment state", options: ["Paid", "Pay later"], selected: choice) { choice = $0 }
+            if choice != "Paid" { editField("Payee", text: $party, placeholder: "Required") }
+            Text("A payment later is not a second expense.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else if marketing {
+            amountBlock("Amount", hint: "Positive amount · 2 decimal places")
+            editField("Purpose / Category", text: $purpose, placeholder: "What this was for")
+            editField("Paid by", text: $party, placeholder: actorName)
+            if !channels.isEmpty { choiceBlock(channelLabel, options: channels, selected: channel) { channel = $0 } }
+            choiceBlock("Paid / pending", options: ["Pending / unpaid", "Paid"], selected: choice) { choice = $0 }
+            summary("After approval", spendLines)
+        } else {
+        amountBlock("Amount", hint: "Positive amount · 2 decimal places")
+        HStack(spacing: 12) { editField("Purpose", text: $purpose, placeholder: "What this was for"); dateField(restaurant || service || trading || distribution ? "Expense date" : "Date") }
+        choiceBlock("Funding source", options: ["Business", "Personal"], selected: choice) { choice = $0 }
+        editField("Paid by", text: $party, placeholder: actorName)
+        if service || trading || distribution {
+            Text("A personal claim is reimbursed later. It is not a second expense.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        }
+        moreButton("Reference and note. Optional.")
+        if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
+        summary("After approval", spendLines)
+        }
+    }
+
+    @ViewBuilder private var paymentFields: some View {
+        obligationPicker
+        if marketing && mode == "PAYMENT" {
+            amountBlock("Payment amount", hint: "Positive amount · 2 decimal places")
+            editField("Who paid", text: $detail, placeholder: "Payer")
+            editField("Paid to", text: $party, placeholder: "Required")
+            editField("Purpose / reference", text: $purpose, placeholder: "Required")
+            dateField("Date")
+            Text("Manual confirmation only. This is not a live transfer.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else {
+        amountBlock(mode == "REIMBURSE" ? "Reimbursement amount" : "Amount", hint: "Positive amount · 2 decimal places")
+        editField((service || trading || distribution) && mode == "REIMBURSE" ? "Business payer" : (mode == "REIMBURSE" ? "Payee" : "Paid to"), text: $party, placeholder: "Name")
+        dateField((restaurant || service || trading || distribution) && mode == "REIMBURSE" ? "Recorded date" : "Date")
+        editField("Reference · Optional", text: $note, placeholder: "Optional")
+        summary("After save", ["Business paid moves by the amount you enter.", "This settles an existing claim. It is not a second expense."])
+        }
+    }
+
+    @ViewBuilder private var collectionFields: some View {
+        obligationPicker
+        if production {
+            if !channels.isEmpty {
+                choiceBlock("Received from", options: channels, selected: channel) { channel = $0 }
+            } else {
+                editField("Received from", text: $party, placeholder: "Required")
+            }
             amountBlock("Amount received", hint: "Positive amount")
             HStack(spacing: 12) { readField("Received by", actorName); dateField("Date") }
-            editField("Note · Optional", text: $note, placeholder: "Optional")
+            editField("Note", text: $note, placeholder: "Optional")
+            Text("Records the receipt. This is not a live transfer.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
             summary("After mark received", collectionLines)
-            }
-        case "BUDGET", "TARGET":
-            if production && mode == "BUDGET" {
-                dateField("Plan month")
-                choiceBlock("Revise", options: ["Budget", "Target"], selected: choice) { choice = $0 }
-                summary("Current plan", [
-                    "Budget \(money(model.budget?.amount)) · Target \(money(model.target?.value))",
-                    "The current plan stays active until this revision is approved.",
-                ])
-                amountBlock(choice == "Target" ? "Proposed target" : "Proposed budget", hint: "Proposal only")
-                editField("Revision reason", text: $purpose, placeholder: "Required")
-                summary("After approval", budgetLines)
-            } else if client && mode == "TARGET" {
-                readField("Campaign", model.title?.isEmpty == false ? model.title! : "This campaign")
-                editField("Metric", text: $purpose, placeholder: "Required")
-                choiceBlock("Revision reason", options: ["Extend launch outcome", "Change launch scope", "Correct planning error"], selected: choice) { choice = $0 }
-                editField("Revision note", text: $note, placeholder: "Required")
-                dateField("Effective date")
-                amountBlock("Proposed target", hint: "Proposal only")
-                summary("Current plan", ["The current target stays active until this revision is approved."])
-            } else if own && mode == "TARGET" {
-                dateField("Effective date")
-                choiceBlock("Target measure", options: ["Leads", "Revenue / Sales", "Orders / Conversions", "Custom Count"], selected: choice) { choice = $0 }
-                amountBlock("Proposed target", hint: "Positive value")
-                editField("Revision reason", text: $purpose, placeholder: "Required")
-                summary("Current plan", ["The current target stays active until this revision is approved."])
-            } else if marketing && mode == "BUDGET" {
-                dateField("Plan month")
-                summary("Current plan", [
-                    "Budget \(money(model.budget?.amount)) · Used \(money(model.budget?.spent))",
-                    "The current plan stays active until this revision is approved.",
-                ])
-                amountBlock("Proposed budget", hint: "Proposed only. The current plan stays active until approval.")
-                editField("Revision reason", text: $purpose, placeholder: "Required")
-                summary("After approval", budgetLines)
-            } else if tradingFamily && mode == "BUDGET" {
-                dateField("Plan month")
-                if model.budget?.configured == true {
-                    summary("Current plan", [
-                        "Budget \(money(model.budget?.amount)) · Used \(money(model.budget?.spent))",
-                        "The current plan stays active until this revision is approved.",
-                    ])
-                } else {
-                    Text("No budget yet. A proposal stays inactive until it is approved.")
-                        .font(.plusJakarta(size: 13)).foregroundStyle(Color(hex: "#C9C4D8"))
-                }
-                amountBlock("Proposed budget", hint: "Proposal only")
-                editField("Revision reason", text: $purpose, placeholder: "Why this changes")
-                summary("After approval", budgetLines)
-            } else {
-            dateField(mode == "TARGET" ? "Plan" : "Plan month")
+        } else if client {
+            choiceBlock("Collection path", options: ["Mark Received / Collect", "Create Receivable"], selected: choice) { choice = $0 }
+            Text("Mark Received records a receipt. Create Receivable records the obligation.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            amountBlock("Amount received", hint: "Positive amount")
+            editField("Received from", text: $party, placeholder: "Required")
+            HStack(spacing: 12) { readField("Received by", actorName); dateField("Date") }
+            editField("Purpose / reference", text: $purpose, placeholder: "Required")
+            summary("After mark received", collectionLines)
+        } else if own {
+            choiceBlock("Received from", options: ["Linked campaign receipt", "Other campaign receipt"], selected: choice) { choice = $0 }
+            Text("Campaign-linked receipt only. No client billing or receivable.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            amountBlock("Amount received", hint: "Positive amount")
+            HStack(spacing: 12) { readField("Received by", actorName); dateField("Date") }
+            editField("Purpose / reference", text: $purpose, placeholder: "Required")
+            summary("After mark received", collectionLines)
+        } else {
+        if !channels.isEmpty { choiceBlock(distribution ? "Buyer / dealer" : "Received from", options: channels, selected: channel) { channel = $0 } }
+        amountBlock("Amount received", hint: "Positive amount")
+        HStack(spacing: 12) { readField("Received by", actorName); dateField("Date") }
+        editField("Note · Optional", text: $note, placeholder: "Optional")
+        summary("After mark received", collectionLines)
+        }
+    }
+
+    @ViewBuilder private var budgetTargetFields: some View {
+        if production && mode == "BUDGET" {
+            dateField("Plan month")
+            choiceBlock("Revise", options: ["Budget", "Target"], selected: choice) { choice = $0 }
+            summary("Current plan", [
+                "Budget \(money(model.budget?.amount)) · Target \(money(model.target?.value))",
+                "The current plan stays active until this revision is approved.",
+            ])
+            amountBlock(choice == "Target" ? "Proposed target" : "Proposed budget", hint: "Proposal only")
+            editField("Revision reason", text: $purpose, placeholder: "Required")
+            summary("After approval", budgetLines)
+        } else if client && mode == "TARGET" {
+            readField("Campaign", model.title?.isEmpty == false ? model.title! : "This campaign")
+            editField("Metric", text: $purpose, placeholder: "Required")
+            choiceBlock("Revision reason", options: ["Extend launch outcome", "Change launch scope", "Correct planning error"], selected: choice) { choice = $0 }
+            editField("Revision note", text: $note, placeholder: "Required")
+            dateField("Effective date")
+            amountBlock("Proposed target", hint: "Proposal only")
+            summary("Current plan", ["The current target stays active until this revision is approved."])
+        } else if own && mode == "TARGET" {
+            dateField("Effective date")
+            choiceBlock("Target measure", options: ["Leads", "Revenue / Sales", "Orders / Conversions", "Custom Count"], selected: choice) { choice = $0 }
+            amountBlock("Proposed target", hint: "Positive value")
+            editField("Revision reason", text: $purpose, placeholder: "Required")
+            summary("Current plan", ["The current target stays active until this revision is approved."])
+        } else if marketing && mode == "BUDGET" {
+            dateField("Plan month")
             summary("Current plan", [
                 "Budget \(money(model.budget?.amount)) · Used \(money(model.budget?.spent))",
                 "The current plan stays active until this revision is approved.",
             ])
-            amountBlock(mode == "TARGET" ? "Proposed target" : "Proposed budget", hint: "Proposal only")
+            amountBlock("Proposed budget", hint: "Proposed only. The current plan stays active until approval.")
+            editField("Revision reason", text: $purpose, placeholder: "Required")
+            summary("After approval", budgetLines)
+        } else if tradingFamily && mode == "BUDGET" {
+            dateField("Plan month")
+            if model.budget?.configured == true {
+                summary("Current plan", [
+                    "Budget \(money(model.budget?.amount)) · Used \(money(model.budget?.spent))",
+                    "The current plan stays active until this revision is approved.",
+                ])
+            } else {
+                Text("No budget yet. A proposal stays inactive until it is approved.")
+                    .font(.plusJakarta(size: 13)).foregroundStyle(Color(hex: "#C9C4D8"))
+            }
+            amountBlock("Proposed budget", hint: "Proposal only")
             editField("Revision reason", text: $purpose, placeholder: "Why this changes")
             summary("After approval", budgetLines)
-            }
-        case "ISSUE":
-            editField("Issue", text: $purpose, placeholder: "What needs attention")
-            choiceBlock("Priority", options: ["Low", "Normal", "High"], selected: choice) { choice = $0 }
-            editField("Owner", text: $party, placeholder: actorName)
-            if restaurant || service || trading || distribution || marketing || production {
-                dateField("Due date")
-                editField("Operational context", text: $note, placeholder: "Optional")
-            }
-            summary("After save", ["Opens an attention item.", "Money totals stay unchanged."])
-        case "STOCK":
-            if production {
-                editField("Item", text: $purpose, placeholder: "Required")
-                choiceBlock("Action", options: ["Set", "Add", "Reduce"], selected: choice) { choice = $0 }
-                choiceBlock("Reason", options: ["opening", "stocktake", "damage", "waste", "return", "correction"], selected: note) { note = $0 }
-                HStack(spacing: 12) { editField("Quantity", text: $quantity, placeholder: "Required"); editField("Unit", text: $unit, placeholder: "kg") }
-                Text("Damage is not an expense or a sale.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else {
-            editField(distribution ? "Availability context" : "Stock context", text: $purpose, placeholder: "What changed")
-            choiceBlock(distribution ? "Availability status" : "Stock status", options: distribution ? ["Available", "Needs check", "Limited availability"] : (trading ? ["Available", "Needs check", "Low availability"] : ["In stock", "Needs check", "Low stock"]), selected: choice) { choice = $0 }
-            editField(distribution ? "Availability note" : "Stock note", text: $note, placeholder: trading || distribution ? "Required" : "What you saw")
-            if trading || distribution {
-                HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
-            } else {
-                readField("Recorded by", actorName)
-            }
-            summary("After save", ["Saves an operational signal.", "No purchase, sale, or money record is created."])
-            }
-        case "ORDER":
-            if production {
-                editField("Buyer", text: $party, placeholder: "Required")
-                editField("Quantity", text: $quantity, placeholder: "Required")
-                editField("Unit", text: $unit, placeholder: "pcs")
-                amountBlock("Order value · Optional", hint: "Leave blank when the order is unpriced")
-                dateField("Order date")
-                Text("An order is not revenue, cash, stock, or a receivable. A deposit is a separate collection.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else if restaurant {
-                editField("Order / context", text: $purpose, placeholder: "What changed")
-                choiceBlock("Order status", options: ["Preparing", "Ready", "Handoff delayed"], selected: choice) { choice = $0 }
-                editField("Operational note", text: $note, placeholder: "Optional")
-                editField("Customer", text: $party, placeholder: "Optional")
-                HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
-                summary("After save", ["Saves an operational note.", "This does not create a sale or a money record."])
-            } else if distribution {
-                editField("Buyer / dealer", text: $party, placeholder: "Required")
-                editField("Order / dispatch reference", text: $purpose, placeholder: "Required")
-                choiceBlock("Fulfillment status", options: ["Open", "In progress", "Dispatched", "Completed", "Cancelled", "Delayed", "Blocked"], selected: choice) { choice = $0 }
-                editField("Fulfillment note", text: $note, placeholder: "Optional")
-                amountBlock("Value · Optional", hint: "Leave blank if there is no amount")
-                HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
-                summary("After save", ["Saves a dispatch note.", "This does not create a sale or a money record."])
-            } else if trading {
-                editField("Buyer / order reference", text: $purpose, placeholder: "Who and which order")
-                choiceBlock("Dispatch status", options: ["Pending", "Ready for dispatch", "In progress", "Delayed", "Blocked", "Completed"], selected: choice) { choice = $0 }
-                editField("Dispatch note", text: $note, placeholder: "What changed")
-                HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
-                summary("After save", ["Saves an operational note.", "Money totals stay unchanged."])
-            } else {
-                editField("Order", text: $purpose, placeholder: "What happened")
-                editField("Name", text: $party, placeholder: "Who this is for")
-                HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
-                summary("After save", ["Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."])
-            }
-        case "SHIPMENT":
-            if distribution {
-                editField("Shipment / delivery reference", text: $purpose, placeholder: "Required")
-                choiceBlock("Delivery status", options: ["Delivered", "Out for delivery", "Delayed", "Blocked", "Cancelled"], selected: choice) { choice = $0 }
-                editField("Delivery note", text: $note, placeholder: "Required")
-                editField("Dealer", text: $party, placeholder: "Required")
-                editField("Linked dispatch", text: $link, placeholder: "Optional")
-                amountBlock("Value · Optional", hint: "Leave blank if there is no amount")
-                summary("After save", ["Saves a delivery note.", "Money totals stay unchanged."])
-            } else if trading {
-                editField("Shipment / delivery reference", text: $purpose, placeholder: "Which shipment")
-                choiceBlock("Delivery status", options: ["Pending", "Out for delivery", "Delayed", "Blocked", "Delivered"], selected: choice) { choice = $0 }
-                editField("Delivery note", text: $note, placeholder: "What changed")
-                HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
-                summary("After save", ["Saves a shipment note.", "Money totals stay unchanged."])
-            } else {
-                editField("Shipment", text: $purpose, placeholder: "What happened")
-                editField("Name", text: $party, placeholder: "Who this is for")
-                HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
-                summary("After save", ["Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."])
-            }
-        case "APPOINTMENT":
-            if service {
-                editField("Job / context", text: $purpose, placeholder: "What the job is")
-                if !channels.isEmpty { choiceBlock(channelLabel, options: channels, selected: channel) { channel = $0 } }
-                HStack(spacing: 12) { dateField("Appointment date"); editField("Professional", text: $party, placeholder: "Who is assigned") }
-                choiceBlock("Job status", options: ["Scheduled", "Completed"], selected: choice) { choice = $0 }
-                Text("Job status is operational only. Completing a job does not create revenue or a receivable.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                moreButton("Customer. Optional.")
-                if moreOpen { editField("Customer", text: $note, placeholder: "Optional") }
-                summary("After save", ["Saves the job as activity.", "Revenue and collections stay unchanged."])
-            } else {
-                editField("Appointment", text: $purpose, placeholder: "What happened")
-                editField("Name", text: $party, placeholder: "Who this is for")
-                HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
-                summary("After save", ["Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."])
-            }
-        case "PERSON", "ROLE", "INVITE":
-            editField("Name", text: $party, placeholder: "Person")
-            editField(restaurant ? "Restaurant-facing role" : (service ? "Service-facing role" : (trading ? "Trade-facing role" : (distribution ? "Distribution-facing role" : (marketing ? "Campaign-facing role" : (production ? "Manufacturing role" : "Role"))))), text: $purpose, placeholder: "How they work here")
-            choiceBlock("Access", options: OperatingMomentCatalog.roles.map(\.1), selected: choice) { choice = $0 }
-            if restaurant || service || trading || distribution || marketing || production { editField("Scope", text: $note, placeholder: "Optional") }
-            Text("A job label is not a grant. Access applies after the invitation is accepted.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-        case "SUPPLIER", "PARTNER":
-            if production && mode == "PARTNER" {
-                editField("Supplier name", text: $party, placeholder: "Required")
-                Text("Enter a supplier name to enable Save.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#B7B8FF"))
-                editField("What they supply", text: $purpose, placeholder: "Optional")
-                editField("Payment terms", text: $note, placeholder: "Optional")
-                amountBlock("Opening due · Optional", hint: "Leave blank if nothing is owed")
-                if !channels.isEmpty { choiceBlock("Channel", options: channels, selected: channel) { channel = $0 } }
-                Text("Saving creates no purchase or expense.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else if marketing && mode == "PARTNER" {
-                editField(own ? "Partner / counterparty" : "Name", text: $party, placeholder: "Required")
-                Text("Enter a name to enable Save.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#B7B8FF"))
-                if client {
-                    choiceBlock("Relationship", options: ["Client", "Vendor", "Creator", "Platform", "Partner"], selected: choice) { choice = $0 }
-                    editField("Purpose", text: $purpose, placeholder: "Optional")
-                }
-                if !channels.isEmpty { choiceBlock(own ? "Accepted channel" : "Channel", options: channels, selected: channel) { channel = $0 } }
-                Text(own ? "Saving creates no spend event." : "Saving creates no purchase or expense.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else {
-            editField(distribution ? "Principal / supplier name" : (restaurant || service || trading ? "Supplier name" : "Name"), text: $party, placeholder: "Name")
-            if restaurant || service || trading || distribution {
-                Text(service ? "A name is required to save this relationship." : (distribution ? "Enter principal / supplier name to enable Save." : "Enter a supplier name to enable Save."))
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#E8C547"))
-            }
-            editField(distribution ? "Goods supplied" : "What they supply", text: $purpose, placeholder: restaurant ? "Ingredients or packaging" : (trading || distribution ? "Stock or packaging" : "Goods or service"))
-            choiceBlock("Payment terms", options: ["Due on receipt", "7 days", "30 days"], selected: choice) { choice = $0 }
-            amountBlock("Opening due", hint: "Leave at 0 if nothing is owed")
-            if !channels.isEmpty { choiceBlock(restaurant || service || trading || distribution ? "Where you sell" : "Channel", options: channels, selected: channel) { channel = $0 } }
-            Text("Saving creates the relationship. It does not create a purchase or an expense.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            }
-        case "MASTERS":
-            choiceBlock("Master", options: masterKinds, selected: masterKind) { masterKind = $0 }
-            editField("Name", text: $itemName, placeholder: "Required")
-            if ["PRODUCT", "MATERIAL", "CONSUMABLE"].contains(masterKind) {
-                choiceBlock("Unit", options: ["piece", "kg", "litre", "count"], selected: unit) { unit = $0 }
-            }
-            editField("Detail", text: $purpose, placeholder: "Optional")
-            Text("Saving adds a selectable record. It does not create a sale or a cost.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-        case "APPROVAL":
-            approvalFields
-        default:
-            if production && mode == "PRODUCTION" {
-                choiceBlock("Output", options: ["Quick output", "Detailed batch"], selected: entryMode) { entryMode = $0 }
-                amountBlock("Output quantity", hint: "Recorded output. This is not accepted stock.")
-                HStack(spacing: 12) { editField("Unit", text: $detail, placeholder: "Required"); dateField("Date") }
-                editField(entryMode == "Detailed batch" ? "Finished product" : "Output context", text: $purpose, placeholder: "Required for a detailed batch")
-                if entryMode == "Detailed batch" {
-                    editField("Accepted quantity", text: $quantity, placeholder: "Required to add finished stock")
-                    editField("Rejected quantity", text: $rejectedQuantity, placeholder: "Optional")
-                    choiceBlock("Status", options: ["Planned", "In progress", "Completed"], selected: choice) { choice = $0 }
-                }
-                orderLink(job ? "Linked order · Optional" : "Linked order · Optional")
-                Text("Quick output does not create a finished SKU. Unlike units are never added.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else if production && mode == "UPDATE" {
-                choiceBlock("Record", options: ["Update", "Issue", "Approval", "Budget", "Target"], selected: noteKind) { noteKind = $0 }
-                if noteKind == "Budget" || noteKind == "Target" {
-                    amountBlock(noteKind == "Target" ? "Proposed target" : "Proposed budget", hint: "Effective when approved")
-                    editField("Reason", text: $purpose, placeholder: "Required")
-                    dateField("Effective date")
-                } else {
-                    editField("What happened", text: $purpose, placeholder: "Required")
-                    dateField("Date")
-                }
-            } else if production && mode == "DELIVERY" {
-                orderLink("Customer order")
-                choiceBlock("Delivery", options: ["Quick status", "Itemized"], selected: entryMode) { entryMode = $0 }
-                choiceBlock("Status", options: ["Planned", "Dispatched", "Delivered", "Accepted", "Returned"], selected: choice) { choice = $0 }
-                if entryMode == "Itemized" {
-                    editField("Delivered quantity", text: $quantity, placeholder: "Cannot exceed the open order")
-                    editField("Unit", text: $unit, placeholder: "pcs")
-                }
-                dateField("Delivery date")
-                Text("A status-only delivery changes status and does not post a quantity or a sale.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else if marketing && mode == "RESULT" {
-                amountBlock("Value", hint: "Positive amount · 2 decimal places")
-                if !channels.isEmpty { choiceBlock(channelLabel, options: channels, selected: channel) { channel = $0 } }
-                HStack(spacing: 12) { dateField("Result date"); editField("Metric", text: $purpose, placeholder: "What was measured") }
-                choiceBlock("Status", options: ["Accepted", "Pending"], selected: choice) { choice = $0 }
-                moreButton("Optional note, evidence link or source context.")
-                if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
-                Text("Accepted Result counts toward target, not its Receipt.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else if marketing && mode == "UPDATE" {
-                editField("Update text", text: $purpose, placeholder: "Required")
-                editField("Linked operational context", text: $note, placeholder: "Optional")
-                HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
-                summary("After save", ["Saved as campaign activity.", "Money totals stay unchanged."])
-            } else if marketing && mode == "DELIVERABLE" {
-                editField("Deliverable / milestone name", text: $purpose, placeholder: "Required")
-                choiceBlock("Type", options: ["Deliverable", "Milestone"], selected: choice) { choice = $0 }
-                editField("Owner", text: $party, placeholder: "Required")
-                HStack(spacing: 12) { dateField("Due date"); choiceBlock("Status", options: ["Launched", "Due", "Complete", "Blocked"], selected: detail) { detail = $0 } }
-                if !channels.isEmpty { choiceBlock("Channel", options: channels, selected: channel) { channel = $0 } }
-                editField("Dependency", text: $note, placeholder: "Optional")
-                Text("Launched, Due, Complete, or Blocked. Closing retains obligations.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else if marketing && mode == "COMPLETE" {
-                editField("Result / deliverable reference", text: $purpose, placeholder: "Required")
-                choiceBlock("Completion status", options: ["Assigned", "In review", "Blocked", "Complete", "Partial"], selected: choice) { choice = $0 }
-                editField("Completion note", text: $note, placeholder: "Required")
-                dateField("Completion date")
-                Text("Completion does not add revenue or a receipt.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else {
-            if mode == "RESULT" || mode == "PRODUCTION" {
-                amountBlock(mode == "PRODUCTION" ? "Output" : "Result", hint: "Amount for this record")
-                if !channels.isEmpty { choiceBlock(channelLabel, options: channels, selected: channel) { channel = $0 } }
-            }
-            editField((service || trading || distribution) && mode == "UPDATE" ? "Update text" : (restaurant && mode == "UPDATE" ? "Update" : textLabel), text: $purpose, placeholder: "What happened")
-            if (restaurant || service || trading || distribution) && mode == "UPDATE" {
-                editField(service || trading || distribution ? "Linked operational context" : "Linked context", text: $note, placeholder: "Optional")
-            }
-            if ["DELIVERY"].contains(mode) {
-                editField("Name", text: $party, placeholder: "Who this is for")
-            }
-            HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
-            summary(
-                "After save",
-                (trading || distribution) && mode == "UPDATE"
-                    ? ["Saved as activity on this business.", "Money totals stay unchanged."]
-                    : (service && mode == "UPDATE"
-                    ? ["Saved as activity on this service.", "Money totals stay unchanged."]
-                    : (restaurant && mode == "UPDATE"
-                        ? ["Saved as activity on this restaurant.", "Money totals stay unchanged."]
-                        : ["Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."]))
-            )
-            }
+        } else {
+        dateField(mode == "TARGET" ? "Plan" : "Plan month")
+        summary("Current plan", [
+            "Budget \(money(model.budget?.amount)) · Used \(money(model.budget?.spent))",
+            "The current plan stays active until this revision is approved.",
+        ])
+        amountBlock(mode == "TARGET" ? "Proposed target" : "Proposed budget", hint: "Proposal only")
+        editField("Revision reason", text: $purpose, placeholder: "Why this changes")
+        summary("After approval", budgetLines)
         }
     }
+
+    @ViewBuilder private var issueFields: some View {
+        editField("Issue", text: $purpose, placeholder: "What needs attention")
+        choiceBlock("Priority", options: ["Low", "Normal", "High"], selected: choice) { choice = $0 }
+        editField("Owner", text: $party, placeholder: actorName)
+        if restaurant || service || trading || distribution || marketing || production {
+            dateField("Due date")
+            editField("Operational context", text: $note, placeholder: "Optional")
+        }
+        summary("After save", ["Opens an attention item.", "Money totals stay unchanged."])
+    }
+
+    @ViewBuilder private var stockFields: some View {
+        if production {
+            editField("Item", text: $purpose, placeholder: "Required")
+            choiceBlock("Action", options: ["Set", "Add", "Reduce"], selected: choice) { choice = $0 }
+            choiceBlock("Reason", options: ["opening", "stocktake", "damage", "waste", "return", "correction"], selected: note) { note = $0 }
+            HStack(spacing: 12) { editField("Quantity", text: $quantity, placeholder: "Required"); editField("Unit", text: $unit, placeholder: "kg") }
+            Text("Damage is not an expense or a sale.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else {
+        editField(distribution ? "Availability context" : "Stock context", text: $purpose, placeholder: "What changed")
+        choiceBlock(distribution ? "Availability status" : "Stock status", options: distribution ? ["Available", "Needs check", "Limited availability"] : (trading ? ["Available", "Needs check", "Low availability"] : ["In stock", "Needs check", "Low stock"]), selected: choice) { choice = $0 }
+        editField(distribution ? "Availability note" : "Stock note", text: $note, placeholder: trading || distribution ? "Required" : "What you saw")
+        if trading || distribution {
+            HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
+        } else {
+            readField("Recorded by", actorName)
+        }
+        summary("After save", ["Saves an operational signal.", "No purchase, sale, or money record is created."])
+        }
+    }
+
+    @ViewBuilder private var orderFields: some View {
+        if production {
+            editField("Buyer", text: $party, placeholder: "Required")
+            editField("Quantity", text: $quantity, placeholder: "Required")
+            editField("Unit", text: $unit, placeholder: "pcs")
+            amountBlock("Order value · Optional", hint: "Leave blank when the order is unpriced")
+            dateField("Order date")
+            Text("An order is not revenue, cash, stock, or a receivable. A deposit is a separate collection.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else if restaurant {
+            editField("Order / context", text: $purpose, placeholder: "What changed")
+            choiceBlock("Order status", options: ["Preparing", "Ready", "Handoff delayed"], selected: choice) { choice = $0 }
+            editField("Operational note", text: $note, placeholder: "Optional")
+            editField("Customer", text: $party, placeholder: "Optional")
+            HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
+            summary("After save", ["Saves an operational note.", "This does not create a sale or a money record."])
+        } else if distribution {
+            editField("Buyer / dealer", text: $party, placeholder: "Required")
+            editField("Order / dispatch reference", text: $purpose, placeholder: "Required")
+            choiceBlock("Fulfillment status", options: ["Open", "In progress", "Dispatched", "Completed", "Cancelled", "Delayed", "Blocked"], selected: choice) { choice = $0 }
+            editField("Fulfillment note", text: $note, placeholder: "Optional")
+            amountBlock("Value · Optional", hint: "Leave blank if there is no amount")
+            HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
+            summary("After save", ["Saves a dispatch note.", "This does not create a sale or a money record."])
+        } else if trading {
+            editField("Buyer / order reference", text: $purpose, placeholder: "Who and which order")
+            choiceBlock("Dispatch status", options: ["Pending", "Ready for dispatch", "In progress", "Delayed", "Blocked", "Completed"], selected: choice) { choice = $0 }
+            editField("Dispatch note", text: $note, placeholder: "What changed")
+            HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
+            summary("After save", ["Saves an operational note.", "Money totals stay unchanged."])
+        } else {
+            editField("Order", text: $purpose, placeholder: "What happened")
+            editField("Name", text: $party, placeholder: "Who this is for")
+            HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
+            summary("After save", ["Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."])
+        }
+    }
+
+    @ViewBuilder private var shipmentFields: some View {
+        if distribution {
+            editField("Shipment / delivery reference", text: $purpose, placeholder: "Required")
+            choiceBlock("Delivery status", options: ["Delivered", "Out for delivery", "Delayed", "Blocked", "Cancelled"], selected: choice) { choice = $0 }
+            editField("Delivery note", text: $note, placeholder: "Required")
+            editField("Dealer", text: $party, placeholder: "Required")
+            editField("Linked dispatch", text: $link, placeholder: "Optional")
+            amountBlock("Value · Optional", hint: "Leave blank if there is no amount")
+            summary("After save", ["Saves a delivery note.", "Money totals stay unchanged."])
+        } else if trading {
+            editField("Shipment / delivery reference", text: $purpose, placeholder: "Which shipment")
+            choiceBlock("Delivery status", options: ["Pending", "Out for delivery", "Delayed", "Blocked", "Delivered"], selected: choice) { choice = $0 }
+            editField("Delivery note", text: $note, placeholder: "What changed")
+            HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
+            summary("After save", ["Saves a shipment note.", "Money totals stay unchanged."])
+        } else {
+            editField("Shipment", text: $purpose, placeholder: "What happened")
+            editField("Name", text: $party, placeholder: "Who this is for")
+            HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
+            summary("After save", ["Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."])
+        }
+    }
+
+    @ViewBuilder private var appointmentFields: some View {
+        if service {
+            editField("Job / context", text: $purpose, placeholder: "What the job is")
+            if !channels.isEmpty { choiceBlock(channelLabel, options: channels, selected: channel) { channel = $0 } }
+            HStack(spacing: 12) { dateField("Appointment date"); editField("Professional", text: $party, placeholder: "Who is assigned") }
+            choiceBlock("Job status", options: ["Scheduled", "Completed"], selected: choice) { choice = $0 }
+            Text("Job status is operational only. Completing a job does not create revenue or a receivable.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            moreButton("Customer. Optional.")
+            if moreOpen { editField("Customer", text: $note, placeholder: "Optional") }
+            summary("After save", ["Saves the job as activity.", "Revenue and collections stay unchanged."])
+        } else {
+            editField("Appointment", text: $purpose, placeholder: "What happened")
+            editField("Name", text: $party, placeholder: "Who this is for")
+            HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
+            summary("After save", ["Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."])
+        }
+    }
+
+    @ViewBuilder private var personFields: some View {
+        editField("Name", text: $party, placeholder: "Person")
+        editField(restaurant ? "Restaurant-facing role" : (service ? "Service-facing role" : (trading ? "Trade-facing role" : (distribution ? "Distribution-facing role" : (marketing ? "Campaign-facing role" : (production ? "Manufacturing role" : "Role"))))), text: $purpose, placeholder: "How they work here")
+        choiceBlock("Access", options: OperatingMomentCatalog.roles.map(\.1), selected: choice) { choice = $0 }
+        if restaurant || service || trading || distribution || marketing || production { editField("Scope", text: $note, placeholder: "Optional") }
+        Text("A job label is not a grant. Access applies after the invitation is accepted.")
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+    }
+
+    @ViewBuilder private var supplierFields: some View {
+        if production && mode == "PARTNER" {
+            editField("Supplier name", text: $party, placeholder: "Required")
+            Text("Enter a supplier name to enable Save.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#B7B8FF"))
+            editField("What they supply", text: $purpose, placeholder: "Optional")
+            editField("Payment terms", text: $note, placeholder: "Optional")
+            amountBlock("Opening due · Optional", hint: "Leave blank if nothing is owed")
+            if !channels.isEmpty { choiceBlock("Channel", options: channels, selected: channel) { channel = $0 } }
+            Text("Saving creates no purchase or expense.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else if marketing && mode == "PARTNER" {
+            editField(own ? "Partner / counterparty" : "Name", text: $party, placeholder: "Required")
+            Text("Enter a name to enable Save.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#B7B8FF"))
+            if client {
+                choiceBlock("Relationship", options: ["Client", "Vendor", "Creator", "Platform", "Partner"], selected: choice) { choice = $0 }
+                editField("Purpose", text: $purpose, placeholder: "Optional")
+            }
+            if !channels.isEmpty { choiceBlock(own ? "Accepted channel" : "Channel", options: channels, selected: channel) { channel = $0 } }
+            Text(own ? "Saving creates no spend event." : "Saving creates no purchase or expense.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else {
+        editField(distribution ? "Principal / supplier name" : (restaurant || service || trading ? "Supplier name" : "Name"), text: $party, placeholder: "Name")
+        if restaurant || service || trading || distribution {
+            Text(service ? "A name is required to save this relationship." : (distribution ? "Enter principal / supplier name to enable Save." : "Enter a supplier name to enable Save."))
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#E8C547"))
+        }
+        editField(distribution ? "Goods supplied" : "What they supply", text: $purpose, placeholder: restaurant ? "Ingredients or packaging" : (trading || distribution ? "Stock or packaging" : "Goods or service"))
+        choiceBlock("Payment terms", options: ["Due on receipt", "7 days", "30 days"], selected: choice) { choice = $0 }
+        amountBlock("Opening due", hint: "Leave at 0 if nothing is owed")
+        if !channels.isEmpty { choiceBlock(restaurant || service || trading || distribution ? "Where you sell" : "Channel", options: channels, selected: channel) { channel = $0 } }
+        Text("Saving creates the relationship. It does not create a purchase or an expense.")
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        }
+    }
+
+    @ViewBuilder private var mastersFields: some View {
+        choiceBlock("Master", options: masterKinds, selected: masterKind) { masterKind = $0 }
+        editField("Name", text: $itemName, placeholder: "Required")
+        if ["PRODUCT", "MATERIAL", "CONSUMABLE"].contains(masterKind) {
+            choiceBlock("Unit", options: ["piece", "kg", "litre", "count"], selected: unit) { unit = $0 }
+        }
+        editField("Detail", text: $purpose, placeholder: "Optional")
+        masterGstFields
+        Text("Saving adds a selectable record. It does not create a sale or a cost.")
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+    }
+
+    @ViewBuilder private var fallbackFields: some View {
+        if production && mode == "PRODUCTION" {
+            choiceBlock("Output", options: ["Quick output", "Detailed batch"], selected: entryMode) { entryMode = $0 }
+            amountBlock("Output quantity", hint: "Recorded output. This is not accepted stock.")
+            HStack(spacing: 12) { editField("Unit", text: $detail, placeholder: "Required"); dateField("Date") }
+            editField(entryMode == "Detailed batch" ? "Finished product" : "Output context", text: $purpose, placeholder: "Required for a detailed batch")
+            if entryMode == "Detailed batch" {
+                editField("Accepted quantity", text: $quantity, placeholder: "Required to add finished stock")
+                editField("Rejected quantity", text: $rejectedQuantity, placeholder: "Optional")
+                choiceBlock("Status", options: ["Planned", "In progress", "Completed"], selected: choice) { choice = $0 }
+            }
+            orderLink(job ? "Linked order · Optional" : "Linked order · Optional")
+            Text("Quick output does not create a finished SKU. Unlike units are never added.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else if production && mode == "UPDATE" {
+            choiceBlock("Record", options: ["Update", "Issue", "Approval", "Budget", "Target"], selected: noteKind) { noteKind = $0 }
+            if noteKind == "Budget" || noteKind == "Target" {
+                amountBlock(noteKind == "Target" ? "Proposed target" : "Proposed budget", hint: "Effective when approved")
+                editField("Reason", text: $purpose, placeholder: "Required")
+                dateField("Effective date")
+            } else {
+                editField("What happened", text: $purpose, placeholder: "Required")
+                dateField("Date")
+            }
+        } else if production && mode == "DELIVERY" {
+            orderLink("Customer order")
+            choiceBlock("Delivery", options: ["Quick status", "Itemized"], selected: entryMode) { entryMode = $0 }
+            choiceBlock("Status", options: ["Planned", "Dispatched", "Delivered", "Accepted", "Returned"], selected: choice) { choice = $0 }
+            if entryMode == "Itemized" {
+                editField("Delivered quantity", text: $quantity, placeholder: "Cannot exceed the open order")
+                editField("Unit", text: $unit, placeholder: "pcs")
+            }
+            dateField("Delivery date")
+            Text("A status-only delivery changes status and does not post a quantity or a sale.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else if marketing && mode == "RESULT" {
+            amountBlock("Value", hint: "Positive amount · 2 decimal places")
+            if !channels.isEmpty { choiceBlock(channelLabel, options: channels, selected: channel) { channel = $0 } }
+            HStack(spacing: 12) { dateField("Result date"); editField("Metric", text: $purpose, placeholder: "What was measured") }
+            choiceBlock("Status", options: ["Accepted", "Pending"], selected: choice) { choice = $0 }
+            moreButton("Optional note, evidence link or source context.")
+            if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
+            Text("Accepted Result counts toward target, not its Receipt.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else if marketing && mode == "UPDATE" {
+            editField("Update text", text: $purpose, placeholder: "Required")
+            editField("Linked operational context", text: $note, placeholder: "Optional")
+            HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
+            summary("After save", ["Saved as campaign activity.", "Money totals stay unchanged."])
+        } else if marketing && mode == "DELIVERABLE" {
+            editField("Deliverable / milestone name", text: $purpose, placeholder: "Required")
+            choiceBlock("Type", options: ["Deliverable", "Milestone"], selected: choice) { choice = $0 }
+            editField("Owner", text: $party, placeholder: "Required")
+            HStack(spacing: 12) { dateField("Due date"); choiceBlock("Status", options: ["Launched", "Due", "Complete", "Blocked"], selected: detail) { detail = $0 } }
+            if !channels.isEmpty { choiceBlock("Channel", options: channels, selected: channel) { channel = $0 } }
+            editField("Dependency", text: $note, placeholder: "Optional")
+            Text("Launched, Due, Complete, or Blocked. Closing retains obligations.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else if marketing && mode == "COMPLETE" {
+            editField("Result / deliverable reference", text: $purpose, placeholder: "Required")
+            choiceBlock("Completion status", options: ["Assigned", "In review", "Blocked", "Complete", "Partial"], selected: choice) { choice = $0 }
+            editField("Completion note", text: $note, placeholder: "Required")
+            dateField("Completion date")
+            Text("Completion does not add revenue or a receipt.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else {
+        if mode == "RESULT" || mode == "PRODUCTION" {
+            amountBlock(mode == "PRODUCTION" ? "Output" : "Result", hint: "Amount for this record")
+            if !channels.isEmpty { choiceBlock(channelLabel, options: channels, selected: channel) { channel = $0 } }
+        }
+        editField((service || trading || distribution) && mode == "UPDATE" ? "Update text" : (restaurant && mode == "UPDATE" ? "Update" : textLabel), text: $purpose, placeholder: "What happened")
+        if (restaurant || service || trading || distribution) && mode == "UPDATE" {
+            editField(service || trading || distribution ? "Linked operational context" : "Linked context", text: $note, placeholder: "Optional")
+        }
+        if ["DELIVERY"].contains(mode) {
+            editField("Name", text: $party, placeholder: "Who this is for")
+        }
+        HStack(spacing: 12) { readField("Recorded by", actorName); dateField("Draft time") }
+        summary(
+            "After save",
+            (trading || distribution) && mode == "UPDATE"
+                ? ["Saved as activity on this business.", "Money totals stay unchanged."]
+                : (service && mode == "UPDATE"
+                ? ["Saved as activity on this service.", "Money totals stay unchanged."]
+                : (restaurant && mode == "UPDATE"
+                    ? ["Saved as activity on this restaurant.", "Money totals stay unchanged."]
+                    : ["Saved as activity on this business.", "Money totals stay as they are unless this record carries an amount."]))
+        )
+        }
+    }
+
 
     @ViewBuilder private var approvalFields: some View {
         let pending = (model.attention ?? []).filter { $0.kind == "APPROVAL" }
@@ -1097,6 +1197,14 @@ struct OperatingCaptureSheet: View {
         return true
     }
 
+    private func close() {
+        if let onDismiss {
+            onDismiss()
+        } else {
+            dismiss()
+        }
+    }
+
     private func save() async {
         if mode == "APPROVAL" {
             guard let item = (model.attention ?? []).first(where: { $0.kind == "APPROVAL" }), let onDecide else {
@@ -1109,7 +1217,7 @@ struct OperatingCaptureSheet: View {
             }
             do {
                 try await onDecide(item.id, choice == "Approve" ? "APPROVED" : "REJECTED")
-                dismiss()
+                close()
             } catch {
                 errorText = error.localizedDescription
             }
@@ -1121,7 +1229,7 @@ struct OperatingCaptureSheet: View {
         }
         do {
             try await onSubmit(draft)
-            dismiss()
+            close()
         } catch {
             errorText = error.localizedDescription
         }
@@ -1169,7 +1277,7 @@ struct OperatingCaptureSheet: View {
             let saved = model.masters ?? []
             if !saved.isEmpty {
                 Text("Saved items").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                ForEach(saved) { master in
+                ForEach(Array(saved.enumerated()), id: \.offset) { _, master in
                     Button(master.name) {
                         itemName = master.name
                         if let unitName = master.unit, !unitName.isEmpty { unit = unitName }
@@ -1193,7 +1301,7 @@ struct OperatingCaptureSheet: View {
     }
 
     @ViewBuilder private var taxFxMore: some View {
-        if tradingFamily {
+        if tradingFamily && model.gstTracking != "YES" {
             choiceBlock("Tax mode", options: ["Not configured", "Inclusive", "Exclusive"], selected: taxMode) { taxMode = $0 }
             if taxMode != "Not configured" {
                 editField("Tax amount", text: $taxAmount, placeholder: taxMode == "Inclusive" ? "Optional · display only" : "Optional")
@@ -1201,9 +1309,132 @@ struct OperatingCaptureSheet: View {
                 Text("No tax amount is stored until tax mode is configured.")
                     .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
             }
+        }
+        if tradingFamily {
             editField("Original currency", text: $originalCurrency, placeholder: "Leave blank for moment currency")
             if !originalCurrency.trimmingCharacters(in: .whitespaces).isEmpty {
                 editField("FX rate", text: $fxRate, placeholder: "Required to convert")
+            }
+        }
+    }
+
+    @ViewBuilder private func gstPriceFields(purchase: Bool) -> some View {
+        if model.gstTracking == "YES" && tradingFamily {
+            let included = "GST included in price"
+            let added = "GST added separately"
+            choiceBlock(purchase ? "Purchase price" : "Sale price", options: [included, added], selected: taxMode == "Inclusive" ? included : (taxMode == "Exclusive" ? added : "")) {
+                taxMode = $0 == included ? "Inclusive" : "Exclusive"
+            }
+            editField("GST rate %", text: $gstRate, placeholder: "From the product, or type a rate")
+            choiceBlock("Supply", options: ["Inside your state", "Outside your state"], selected: supplyChoice == "INTRA" ? "Inside your state" : (supplyChoice == "INTER" ? "Outside your state" : "")) {
+                supplyChoice = $0.hasPrefix("Inside") ? "INTRA" : "INTER"
+            }
+            if supplyChoice.isEmpty {
+                Text("Confirm whether this supply is inside your state or outside it.")
+                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            }
+            let preview = gstPreview()
+            let modeLabel = taxMode == "Inclusive" ? "Included in price" : "Added separately"
+            Button("GST \(gstRate.isEmpty ? "—" : gstRate)% · \(modeLabel) · \(gstPreviewOpen ? "Hide" : "View")") { gstPreviewOpen.toggle() }
+                .font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(Color(hex: "#E8C547"))
+            if purchase, let preview {
+                Text("Supplier invoice total \(moneyLabel(preview.invoice))")
+                    .font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(Color(hex: "#E5E0EE"))
+                Text("Amount paid stays separate from this invoice total.")
+                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            }
+            if gstPreviewOpen, let preview {
+                Text("Taxable \(moneyLabel(preview.taxable))").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+                if supplyChoice == "INTER" {
+                    Text("IGST \(moneyLabel(preview.igst))").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+                } else if supplyChoice == "INTRA" {
+                    Text("CGST \(moneyLabel(preview.cgst)) · SGST \(moneyLabel(preview.sgst))").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+                }
+                Text("GST \(moneyLabel(preview.gst)) · Invoice \(moneyLabel(preview.invoice))").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            } else if preview == nil {
+                Text("A missing rate is not treated as 0%.")
+                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            }
+        }
+    }
+
+    private func moneyLabel(_ value: Decimal) -> String {
+        let number = NSDecimalNumber(decimal: value)
+        return String(format: "₹%.2f", number.doubleValue)
+    }
+
+    private func gstPreview() -> (taxable: Decimal, cgst: Decimal, sgst: Decimal, igst: Decimal, gst: Decimal, invoice: Decimal)? {
+        guard let rate = Decimal(string: gstRate), rate > 0 else { return nil }
+        let qty = Decimal(string: quantity).flatMap { $0 > 0 ? $0 : nil } ?? 1
+        let price = Decimal(string: unitPrice).flatMap { $0 > 0 ? $0 : nil }
+        let entered = price.map { qty * $0 } ?? Decimal(string: amount)
+        guard let entered, entered > 0 else { return nil }
+        var taxable = Decimal()
+        var gst = Decimal()
+        var invoice = Decimal()
+        if taxMode == "Inclusive" {
+            invoice = entered.roundMoney()
+            let divisor = Decimal(1) + (rate / 100)
+            var value = invoice / divisor
+            var rounded = Decimal()
+            NSDecimalRound(&rounded, &value, 2, .plain)
+            taxable = rounded
+            gst = invoice - taxable
+        } else {
+            taxable = entered.roundMoney()
+            var raw = taxable * rate / 100
+            var rounded = Decimal()
+            NSDecimalRound(&rounded, &raw, 2, .plain)
+            gst = rounded
+            invoice = taxable + gst
+        }
+        let cgst: Decimal
+        let sgst: Decimal
+        let igst: Decimal
+        if supplyChoice == "INTRA" {
+            var half = gst / 2
+            var rounded = Decimal()
+            NSDecimalRound(&rounded, &half, 2, .plain)
+            cgst = rounded
+            sgst = gst - cgst
+            igst = 0
+        } else if supplyChoice == "INTER" {
+            cgst = 0
+            sgst = 0
+            igst = gst
+        } else {
+            cgst = 0
+            sgst = 0
+            igst = 0
+        }
+        return (taxable, cgst, sgst, igst, gst, invoice)
+    }
+
+    @ViewBuilder private var masterGstFields: some View {
+        let product = ["PRODUCT", "MATERIAL", "CONSUMABLE"].contains(masterKind)
+        let party = ["CUSTOMER", "BUYER", "SUPPLIER"].contains(masterKind)
+        if tradingFamily && model.gstTracking == "YES" && (product || party) {
+            if party {
+                editField("Delivery location", text: $deliveryState, placeholder: "Where goods usually go")
+            }
+            Button(gstDetailsOpen ? "Hide GST details" : (product ? "Add GST Details (optional)" : "GST & Business Location")) { gstDetailsOpen.toggle() }
+                .font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(Color(hex: "#E8C547"))
+            if gstDetailsOpen && product {
+                Text("Set the product’s GST rate for automatic calculations.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+                choiceBlock("GST applicable", options: ["Yes", "No", "Not sure"], selected: gstApplicable) { gstApplicable = $0 }
+                choiceBlock("Classification", options: ["Taxable", "Exempt", "Nil-rated", "Non-GST"], selected: gstClassification) { gstClassification = $0 }
+                editField("GST rate %", text: $gstRate, placeholder: "Your rate")
+                choiceBlock("Selling prices", options: ["Use business default", "GST included in price", "GST added separately"], selected: masterSaleIncludes) { masterSaleIncludes = $0 }
+                choiceBlock("Purchase prices", options: ["Use business default", "GST included in price", "GST added separately"], selected: masterPurchaseIncludes) { masterPurchaseIncludes = $0 }
+                editField("Effective from", text: $gstEffectiveFrom, placeholder: "YYYY-MM-DD optional")
+                editField("HSN Code (Optional)", text: $hsn, placeholder: "Add the product’s HSN code if you know it")
+            }
+            if gstDetailsOpen && party {
+                Text("Save their tax details for future transactions.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+                choiceBlock("GST registration", options: ["Registered", "Unregistered", "Not sure"], selected: partyGstRegistration) { partyGstRegistration = $0 }
+                editField("Business state", text: $businessState, placeholder: "State")
+                editField("Billing state", text: $billingState, placeholder: "State")
+                editField("GSTIN (Optional)", text: $partyGstin, placeholder: "Add their GST number if you have it")
             }
         }
     }
@@ -1219,7 +1450,7 @@ struct OperatingCaptureSheet: View {
         } else {
             Text(mode == "COLLECTION" ? "Unpaid sales" : "Unpaid purchases and expenses")
                 .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            ForEach(openObligations) { row in
+            ForEach(Array(openObligations.enumerated()), id: \.offset) { _, row in
                 Button {
                     parentId = row.id
                     if let name = row.counterpartyName, !name.isEmpty { party = name }
@@ -1243,298 +1474,345 @@ struct OperatingCaptureSheet: View {
     @ViewBuilder private var retailFields: some View {
         switch mode {
         case "SALE", "SERVICE":
-            if tradingFamily { lovField("Sales order", value: linkedOrderTitle, kind: "SALES_ORDER", placeholder: "None · optional") }
-            choiceBlock("Entry", options: ["Quick amount", "Itemized"], selected: entryMode) { entryMode = $0 }
-            if entryMode == "Itemized" {
-                lineEditor
-                Button("Add another item") {
-                    let name = itemName.trimmingCharacters(in: .whitespaces)
-                    if !name.isEmpty {
-                        savedLines.append(RetailDraftLine(itemName: name, quantity: quantity, unit: unit, unitPrice: unitPrice, masterId: productMasterId))
-                        itemName = ""; quantity = ""; unitPrice = ""; productMasterId = nil
-                    }
-                }
-                .font(.plusJakarta(size: 13, weight: .semibold)).foregroundStyle(Color(hex: "#B7B8FF"))
-                ForEach(savedLines) { line in
-                    Text("\(line.itemName) · \(line.quantity) \(line.unit)").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                }
-            }
-            if entryMode == "Quick amount" { amountBlock("Sale amount", hint: "Positive amount · 2 decimal places") }
-            if tradingFamily {
-                lovField(mode == "SERVICE" ? "Service channel" : "Sales channel", value: channel, kind: "CHANNEL", placeholder: "Required")
-            } else if channels.isEmpty {
-                editField(mode == "SERVICE" ? "Service channel" : "Sales channel", text: $channel, placeholder: "Required")
-            } else {
-                choiceBlock(mode == "SERVICE" ? "Service channel" : "Sales channel", options: channels, selected: channel) { channel = $0 }
-            }
-            dateField(mode == "SERVICE" ? "Charge date" : "Sale date")
-            choiceBlock("Payment state", options: ["Received", "Part paid", "Pay later"], selected: choice) { choice = $0 }
-            if choice == "Part paid" { editField("Received amount", text: $receivedAmount, placeholder: "Less than the total") }
-            if choice != "Received" {
-                if tradingFamily {
-                    lovField(distribution ? "Buyer / dealer" : "Buyer", value: party, kind: "BUYER", placeholder: "Required when a balance remains")
-                } else {
-                    editField("Customer", text: $party, placeholder: "Required when a balance remains")
-                }
-            }
-            if mode == "SERVICE" {
-                let bookings = (model.activity ?? []).filter { $0.eventType == "APPOINTMENT" }
-                if !bookings.isEmpty {
-                    Text("Link a booking").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                    ForEach(bookings.prefix(6)) { row in
-                        Button(row.title) { parentId = row.id }
-                            .font(.plusJakarta(size: 13))
-                            .foregroundStyle(parentId == row.id ? Color(hex: "#2F009C") : Color(hex: "#E5E0EE"))
-                    }
-                }
-            }
-            Text(mode == "SERVICE" ? "A finalized charge is the sale. A booking is not revenue." : (tradingFamily ? "A quick amount does not change stock. Itemized sales do not deduct stock until dispatch." : "A quick amount does not change stock. Itemized lines do."))
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            if tradingFamily {
-                choiceBlock("Goods", options: ["Fully delivered", "Partially delivered", "Deliver later"], selected: goodsStatus) { goodsStatus = $0 }
-                if goodsStatus == "Partially delivered" {
-                    editField("Delivered quantity", text: $quantity, placeholder: "Does not change stock")
-                }
-                if goodsStatus != "Fully delivered" { goodsDueField("Delivery due date") }
-                Text("Goods status does not post stock. Dispatch stays a delivery.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            }
-            if choice != "Received" { dueDateField(tradingFamily ? "Payment due date" : "Due date") }
-            moreButton("Tax, FX, and note. Optional.")
-            if moreOpen {
-                taxFxMore
-                editField("Note", text: $note, placeholder: "Optional")
-            }
+            retailSaleFields
         case "PURCHASE":
-            if tradingFamily { lovField("Purchase order", value: linkedOrderTitle, kind: "PURCHASE_ORDER", placeholder: "None · optional") }
-            lineEditor
-            amountBlock("Amount", hint: "Positive amount, or leave blank when items have prices")
-            if tradingFamily {
-                lovField(distribution ? "Principal / supplier" : "Supplier", value: party, kind: "SUPPLIER", placeholder: "Required")
-            } else {
-                editField("Supplier", text: $party, placeholder: "Required")
-            }
-            dateField("Purchase date")
-            if tradingFamily {
-                choiceBlock("Goods receipt", options: ["Fully received", "Partially received", "Receive later"], selected: receiptState) { receiptState = $0 }
-                if receiptState != "Fully received" { goodsDueField("Receipt due date") }
-            } else {
-                choiceBlock("Goods receipt", options: ["Received", "Part received", "Awaiting receipt"], selected: receiptState) { receiptState = $0 }
-            }
-            if receiptState == "Part received" || receiptState == "Partially received" {
-                editField("Quantity received", text: $quantityReceived, placeholder: "Less than ordered qty")
-            }
-            if tradingFamily {
-                choiceBlock("Ownership", options: ["Owned", "Consignment"], selected: ownership) { ownership = $0 }
-                Text("Consignment is not owned stock.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            }
-            choiceBlock("Payment state", options: ["Paid", "Part paid", "Pay later"], selected: choice) { choice = $0 }
-            if choice == "Part paid" { editField("Amount paid", text: $receivedAmount, placeholder: "Less than the total") }
-            if choice != "Paid" { dueDateField(tradingFamily ? "Payment due date" : "Due date") }
-            moreButton("Tax, FX, and note. Optional.")
-            if moreOpen {
-                taxFxMore
-                editField("Note", text: $note, placeholder: "Optional")
-            }
+            retailPurchaseFields
         case "SPEND":
-            if tradingFamily {
-                lovField("Category", value: expenseCategory, kind: "EXPENSE_CATEGORY", placeholder: "Required")
-            } else {
-                choiceBlock("Category", options: expenseCategories, selected: expenseCategory) { expenseCategory = $0 }
-            }
-            amountBlock("Amount", hint: "Positive amount")
-            dateField("Expense date")
-            choiceBlock("Payment state", options: ["Paid", "Part paid", "Pay later"], selected: choice) { choice = $0 }
-            if choice != "Paid" {
-                editField("Payee", text: $party, placeholder: "Required")
-                dueDateField("Due date")
-            }
-            if choice == "Part paid" { editField("Amount paid", text: $receivedAmount, placeholder: "Less than the total") }
-            moreButton("Note. Optional.")
-            if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
+            retailSpendFields
         case "COLLECTION", "PAYMENT":
-            obligationPicker
-            amountBlock(mode == "COLLECTION" ? "Collection amount" : "Payment amount", hint: "Cannot exceed the open balance")
-            editField(mode == "COLLECTION" ? "Customer or platform" : "Supplier or payee", text: $party, placeholder: "Name")
-            dateField(mode == "COLLECTION" ? "Collection date" : "Payment date")
-            Text(mode == "COLLECTION" ? "This reduces what is owed. It does not increase sales." : "This reduces what you owe. It does not repeat the cost.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            moreButton("Reference. Optional.")
-            if moreOpen { editField("Reference", text: $note, placeholder: "Optional") }
+            retailCollectionFields
         case "STOCK":
-            if tradingFamily {
-                lovField("Item", value: purpose, kind: "PRODUCT", placeholder: "Product or supply")
-            } else {
-                editField("Item", text: $purpose, placeholder: "Product, ingredient, or supply")
-            }
-            choiceBlock("Action", options: ["Set current stock", "Add", "Reduce"], selected: stockAction) { stockAction = $0 }
-            editField("Quantity", text: $quantity, placeholder: "Required")
-            if tradingFamily {
-                lovField("Unit", value: unit, kind: "UOM", placeholder: "pc")
-            } else {
-                editField("Unit", text: $unit, placeholder: "pcs, kg, L")
-            }
-            choiceBlock("Reason", options: ["Opening count", "Stocktake", "Damage", "Waste", "Return", "Correction"], selected: stockReason) { stockReason = $0 }
-            if tradingFamily {
-                choiceBlock("Ownership", options: ["Owned", "Consignment"], selected: ownership) { ownership = $0 }
-            }
-            editField("Reorder point", text: $detail, placeholder: "Optional")
-            Text("Set replaces the count. Add and reduce move it. This is not a purchase.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            retailStockFields
         case "ORDER":
-            if tradingFamily {
-                choiceBlock("Order", options: ["Sales order", "Purchase order"], selected: orderSide) { orderSide = $0 }
-                lineEditor
-                lovField(orderSide == "Purchase order" ? (distribution ? "Principal / supplier" : "Supplier") : (distribution ? "Buyer / dealer" : "Buyer"), value: party, kind: orderSide == "Purchase order" ? "SUPPLIER" : "BUYER", placeholder: "Required")
-                lovField("Channel", value: channel, kind: "CHANNEL", placeholder: "Optional if the party is set")
-                choiceBlock("Status", options: ["Placed", "Preparing", "Completed", "Cancelled"], selected: orderStatus) { orderStatus = $0 }
-                editField("Estimated amount", text: $amount, placeholder: "Commitment only")
-                editField("Promised date", text: $link, placeholder: "YYYY-MM-DD")
-                Text("An order is not a sale or a purchase until you bill it. Ordered, executed, and remaining stay on the order.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else {
-            if channels.isEmpty {
-                editField("Order channel", text: $channel, placeholder: "Required")
-            } else {
-                choiceBlock("Order channel", options: channels, selected: channel) { channel = $0 }
-            }
-            choiceBlock("Status", options: ["Placed", "Preparing", "Completed", "Cancelled"], selected: orderStatus) { orderStatus = $0 }
-            let openOrders = (model.activity ?? []).filter { $0.eventType == "ORDER" }
-            if !openOrders.isEmpty {
-                Text("Update an existing order").font(.plusJakarta(size: 12, weight: .semibold)).foregroundStyle(Color(hex: "#C9C4D8"))
-                ForEach(openOrders) { row in
-                    Button(parentId == row.id ? "Updating \(row.title)" : row.title) { parentId = row.id }
-                        .font(.plusJakarta(size: 13, weight: .semibold))
-                        .foregroundStyle(Color(hex: "#F4F1FA"))
-                }
-            }
-            editField("Guest or customer", text: $party, placeholder: "Optional")
-            editField("Estimated amount", text: $amount, placeholder: "Pipeline only")
-            dateField("Order time")
-            Text("An order is not a sale until you bill it.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            moreButton("Note. Optional.")
-            if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
-            }
+            retailOrderFields
         case "SHIPMENT", "DELIVERY":
-            if tradingFamily {
-                choiceBlock("Movement", options: ["Outgoing sale", "Incoming purchase"], selected: movement) {
-                    movement = $0
-                    parentId = ""
-                }
-                let sourceType = movement == "Incoming purchase" ? "PURCHASE" : "SALE"
-                let sources = (model.activity ?? []).filter { $0.eventType == sourceType }
-                if sources.isEmpty {
-                    Text(sourceType == "SALE" ? "No posted sale to deliver." : "No posted purchase to receive.")
-                        .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                } else {
-                    Text("Source").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                    ForEach(sources.prefix(8)) { row in
-                        Button {
-                            parentId = row.id
-                            purpose = row.title
-                            if let name = row.counterpartyName, !name.isEmpty { party = name }
-                            if let qty = row.quantity, !qty.isEmpty { quantity = qty }
-                            if let unitName = row.unit, !unitName.isEmpty { unit = unitName }
-                        } label: {
-                            Text(parentId == row.id ? "Using \(row.title)" : row.title)
-                                .font(.plusJakarta(size: 13, weight: .semibold))
-                                .foregroundStyle(Color(hex: "#E5E0EE"))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                editField("Quantity", text: $quantity, placeholder: "Required")
-                lovField("Unit", value: unit, kind: "UOM", placeholder: "pc")
-                choiceBlock("Status", options: ["Placed", "In transit", "Delivered", "Cancelled"], selected: choice) { choice = $0 }
-                Text("Delivery moves goods against the source. It does not create another sale or purchase.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else {
-            editField(mode == "DELIVERY" ? "Delivery reference" : "Shipment reference", text: $purpose, placeholder: "Required")
-            editField("Quantity", text: $quantity, placeholder: "Required")
-            choiceBlock("Status", options: ["Placed", "In transit", "Delivered", "Cancelled"], selected: choice) {
-                choice = $0
-            }
-            editField("Buyer or dealer", text: $party, placeholder: "Optional")
-            editField("Linked order id", text: $parentId, placeholder: "Optional")
-            editField("Promised date", text: $link, placeholder: "YYYY-MM-DD")
-            moreButton("Note. Optional.")
-            if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
-            Text("Shipment and delivery are fulfilment only. They are not sales.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            }
+            retailShipmentFields
         case "RETURN":
-            choiceBlock("Direction", options: ["Customer", "Supplier"], selected: returnDirection) { returnDirection = $0 }
-            let sources = (model.activity ?? []).filter {
-                ($0.eventType == "SALE" && returnDirection == "Customer") || ($0.eventType == "PURCHASE" && returnDirection == "Supplier")
-            }
-            if sources.isEmpty {
-                Text(returnDirection == "Customer" ? "No open sale to credit." : "No open purchase to credit.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            } else {
-                Text("Source").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                ForEach(sources.prefix(8)) { row in
-                    Button {
-                        parentId = row.id
-                        if let name = row.counterpartyName, !name.isEmpty { party = name }
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(row.title).font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(Color(hex: "#E5E0EE"))
-                            Text([row.counterpartyName, row.amount].compactMap { $0 }.joined(separator: " · "))
-                                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                        .background(parentId == row.id ? Color(hex: "#35333E") : Color.clear)
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(parentId == row.id ? lovAccent : Color(hex: "#938EA1"), lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            lineEditor
-            amountBlock("Credit amount", hint: "Cannot exceed the source amount")
-            choiceBlock("Goods outcome", options: ["To stock", "Not returned", "Pending inspection"], selected: goodsOutcome) { goodsOutcome = $0 }
-            editField("Reason", text: $returnReason, placeholder: "Required")
-            Text("Only “To stock” increases owned on-hand. Returns do not invent revenue or cost.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            retailReturnFields
         case "APPOINTMENT":
-            editField("Service", text: $purpose, placeholder: "Required")
-            dateField("Appointment time")
-            editField("Guest or customer", text: $party, placeholder: "Optional for a walk-in")
-            editField("Assigned person", text: $detail, placeholder: "Optional")
-            let openBookings = (model.activity ?? []).filter { $0.eventType == "APPOINTMENT" }
-            if !openBookings.isEmpty {
-                Text("Update an existing booking").font(.plusJakarta(size: 12, weight: .semibold)).foregroundStyle(Color(hex: "#C9C4D8"))
-                ForEach(openBookings) { row in
-                    Button(parentId == row.id ? "Updating \(row.title)" : row.title) { parentId = row.id }
-                        .font(.plusJakarta(size: 13, weight: .semibold))
-                        .foregroundStyle(Color(hex: "#F4F1FA"))
-                }
-            }
-            if seed != nil || !parentId.isEmpty {
-                choiceBlock("Action", options: ["Reschedule", "Cancel", "No-show", "Start", "Complete"], selected: bookingAction) { bookingAction = $0 }
-            }
-            Text("Booking, starting, and completing do not post revenue. Finalize a charge separately.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            moreButton("Reason. Optional.")
-            if moreOpen { editField("Reason", text: $note, placeholder: "Optional") }
+            retailAppointmentFields
         case "UPDATE":
-            editField("Update", text: $purpose, placeholder: "What happened")
-            dateField("Date")
-            Text("Saved as activity. Money totals stay unchanged.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            retailUpdateFields
         case "ISSUE":
-            editField("Issue", text: $purpose, placeholder: "What needs attention")
-            choiceBlock("Priority", options: ["Low", "Normal", "High"], selected: choice) { choice = $0 }
-            editField("Owner", text: $party, placeholder: actorName)
-            dateField("Due date")
-            Text("Opens an attention item. Money totals stay unchanged.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            retailIssueFields
         default:
             EmptyView()
         }
     }
+
+    @ViewBuilder private var retailSaleFields: some View {
+        if tradingFamily { lovField("Sales order", value: linkedOrderTitle, kind: "SALES_ORDER", placeholder: "None · optional") }
+        choiceBlock("Entry", options: ["Quick amount", "Itemized"], selected: entryMode) { entryMode = $0 }
+        if entryMode == "Itemized" {
+            lineEditor
+            Button("Add another item") {
+                let name = itemName.trimmingCharacters(in: .whitespaces)
+                if !name.isEmpty {
+                    savedLines.append(RetailDraftLine(itemName: name, quantity: quantity, unit: unit, unitPrice: unitPrice, masterId: productMasterId))
+                    itemName = ""; quantity = ""; unitPrice = ""; productMasterId = nil
+                }
+            }
+            .font(.plusJakarta(size: 13, weight: .semibold)).foregroundStyle(Color(hex: "#B7B8FF"))
+            ForEach(savedLines) { line in
+                Text("\(line.itemName) · \(line.quantity) \(line.unit)").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            }
+        }
+        if entryMode == "Quick amount" { amountBlock("Sale amount", hint: "Positive amount · 2 decimal places") }
+        gstPriceFields(purchase: false)
+        if tradingFamily {
+            lovField(mode == "SERVICE" ? "Service channel" : "Sales channel", value: channel, kind: "CHANNEL", placeholder: "Required")
+        } else if channels.isEmpty {
+            editField(mode == "SERVICE" ? "Service channel" : "Sales channel", text: $channel, placeholder: "Required")
+        } else {
+            choiceBlock(mode == "SERVICE" ? "Service channel" : "Sales channel", options: channels, selected: channel) { channel = $0 }
+        }
+        dateField(mode == "SERVICE" ? "Charge date" : "Sale date")
+        choiceBlock("Payment state", options: ["Received", "Part paid", "Pay later"], selected: choice) { choice = $0 }
+        if choice == "Part paid" { editField("Received amount", text: $receivedAmount, placeholder: "Less than the total") }
+        if choice != "Received" {
+            if tradingFamily {
+                lovField(distribution ? "Buyer / dealer" : "Buyer", value: party, kind: "BUYER", placeholder: "Required when a balance remains")
+            } else {
+                editField("Customer", text: $party, placeholder: "Required when a balance remains")
+            }
+        }
+        if mode == "SERVICE" {
+            let bookings = (model.activity ?? []).filter { $0.eventType == "APPOINTMENT" }
+            if !bookings.isEmpty {
+                Text("Link a booking").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+                ForEach(Array(bookings.prefix(6).enumerated()), id: \.offset) { _, row in
+                    Button(row.title) { parentId = row.id }
+                        .font(.plusJakarta(size: 13))
+                        .foregroundStyle(parentId == row.id ? Color(hex: "#2F009C") : Color(hex: "#E5E0EE"))
+                }
+            }
+        }
+        Text(mode == "SERVICE" ? "A finalized charge is the sale. A booking is not revenue." : (tradingFamily ? "A quick amount does not change stock. Itemized sales do not deduct stock until dispatch." : "A quick amount does not change stock. Itemized lines do."))
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        if tradingFamily {
+            choiceBlock("Goods", options: ["Fully delivered", "Partially delivered", "Deliver later"], selected: goodsStatus) { goodsStatus = $0 }
+            if goodsStatus == "Partially delivered" {
+                editField("Delivered quantity", text: $quantity, placeholder: "Does not change stock")
+            }
+            if goodsStatus != "Fully delivered" { goodsDueField("Delivery due date") }
+            Text("Goods status does not post stock. Dispatch stays a delivery.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        }
+        if choice != "Received" { dueDateField(tradingFamily ? "Payment due date" : "Due date") }
+        moreButton("Tax, FX, and note. Optional.")
+        if moreOpen {
+            taxFxMore
+            editField("Note", text: $note, placeholder: "Optional")
+        }
+    }
+
+    @ViewBuilder private var retailPurchaseFields: some View {
+        if tradingFamily { lovField("Purchase order", value: linkedOrderTitle, kind: "PURCHASE_ORDER", placeholder: "None · optional") }
+        lineEditor
+        amountBlock("Amount", hint: "Positive amount, or leave blank when items have prices")
+        gstPriceFields(purchase: true)
+        if tradingFamily {
+            lovField(distribution ? "Principal / supplier" : "Supplier", value: party, kind: "SUPPLIER", placeholder: "Required")
+        } else {
+            editField("Supplier", text: $party, placeholder: "Required")
+        }
+        dateField("Purchase date")
+        if tradingFamily {
+            choiceBlock("Goods receipt", options: ["Fully received", "Partially received", "Receive later"], selected: receiptState) { receiptState = $0 }
+            if receiptState != "Fully received" { goodsDueField("Receipt due date") }
+        } else {
+            choiceBlock("Goods receipt", options: ["Received", "Part received", "Awaiting receipt"], selected: receiptState) { receiptState = $0 }
+        }
+        if receiptState == "Part received" || receiptState == "Partially received" {
+            editField("Quantity received", text: $quantityReceived, placeholder: "Less than ordered qty")
+        }
+        if tradingFamily {
+            choiceBlock("Ownership", options: ["Owned", "Consignment"], selected: ownership) { ownership = $0 }
+            Text("Consignment is not owned stock.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        }
+        choiceBlock("Payment state", options: ["Paid", "Part paid", "Pay later"], selected: choice) { choice = $0 }
+        if choice == "Part paid" { editField("Amount paid", text: $receivedAmount, placeholder: "Less than the total") }
+        if choice != "Paid" { dueDateField(tradingFamily ? "Payment due date" : "Due date") }
+        moreButton("Tax, FX, and note. Optional.")
+        if moreOpen {
+            taxFxMore
+            editField("Note", text: $note, placeholder: "Optional")
+        }
+    }
+
+    @ViewBuilder private var retailSpendFields: some View {
+        if tradingFamily {
+            lovField("Category", value: expenseCategory, kind: "EXPENSE_CATEGORY", placeholder: "Required")
+        } else {
+            choiceBlock("Category", options: expenseCategories, selected: expenseCategory) { expenseCategory = $0 }
+        }
+        amountBlock("Amount", hint: "Positive amount")
+        dateField("Expense date")
+        choiceBlock("Payment state", options: ["Paid", "Part paid", "Pay later"], selected: choice) { choice = $0 }
+        if choice != "Paid" {
+            editField("Payee", text: $party, placeholder: "Required")
+            dueDateField("Due date")
+        }
+        if choice == "Part paid" { editField("Amount paid", text: $receivedAmount, placeholder: "Less than the total") }
+        moreButton("Note. Optional.")
+        if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
+    }
+
+    @ViewBuilder private var retailCollectionFields: some View {
+        obligationPicker
+        amountBlock(mode == "COLLECTION" ? "Collection amount" : "Payment amount", hint: "Cannot exceed the open balance")
+        editField(mode == "COLLECTION" ? "Customer or platform" : "Supplier or payee", text: $party, placeholder: "Name")
+        dateField(mode == "COLLECTION" ? "Collection date" : "Payment date")
+        Text(mode == "COLLECTION" ? "This reduces what is owed. It does not increase sales." : "This reduces what you owe. It does not repeat the cost.")
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        moreButton("Reference. Optional.")
+        if moreOpen { editField("Reference", text: $note, placeholder: "Optional") }
+    }
+
+    @ViewBuilder private var retailStockFields: some View {
+        if tradingFamily {
+            lovField("Item", value: purpose, kind: "PRODUCT", placeholder: "Product or supply")
+        } else {
+            editField("Item", text: $purpose, placeholder: "Product, ingredient, or supply")
+        }
+        choiceBlock("Action", options: ["Set current stock", "Add", "Reduce"], selected: stockAction) { stockAction = $0 }
+        editField("Quantity", text: $quantity, placeholder: "Required")
+        if tradingFamily {
+            lovField("Unit", value: unit, kind: "UOM", placeholder: "pc")
+        } else {
+            editField("Unit", text: $unit, placeholder: "pcs, kg, L")
+        }
+        choiceBlock("Reason", options: ["Opening count", "Stocktake", "Damage", "Waste", "Return", "Correction"], selected: stockReason) { stockReason = $0 }
+        if tradingFamily {
+            choiceBlock("Ownership", options: ["Owned", "Consignment"], selected: ownership) { ownership = $0 }
+        }
+        editField("Reorder point", text: $detail, placeholder: "Optional")
+        Text("Set replaces the count. Add and reduce move it. This is not a purchase.")
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+    }
+
+    @ViewBuilder private var retailOrderFields: some View {
+        if tradingFamily {
+            choiceBlock("Order", options: ["Sales order", "Purchase order"], selected: orderSide) { orderSide = $0 }
+            lineEditor
+            lovField(orderSide == "Purchase order" ? (distribution ? "Principal / supplier" : "Supplier") : (distribution ? "Buyer / dealer" : "Buyer"), value: party, kind: orderSide == "Purchase order" ? "SUPPLIER" : "BUYER", placeholder: "Required")
+            lovField("Channel", value: channel, kind: "CHANNEL", placeholder: "Optional if the party is set")
+            choiceBlock("Status", options: ["Placed", "Preparing", "Completed", "Cancelled"], selected: orderStatus) { orderStatus = $0 }
+            editField("Estimated amount", text: $amount, placeholder: "Commitment only")
+            editField("Promised date", text: $link, placeholder: "YYYY-MM-DD")
+            Text("An order is not a sale or a purchase until you bill it. Ordered, executed, and remaining stay on the order.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else {
+        if channels.isEmpty {
+            editField("Order channel", text: $channel, placeholder: "Required")
+        } else {
+            choiceBlock("Order channel", options: channels, selected: channel) { channel = $0 }
+        }
+        choiceBlock("Status", options: ["Placed", "Preparing", "Completed", "Cancelled"], selected: orderStatus) { orderStatus = $0 }
+        let openOrders = (model.activity ?? []).filter { $0.eventType == "ORDER" }
+        if !openOrders.isEmpty {
+            Text("Update an existing order").font(.plusJakarta(size: 12, weight: .semibold)).foregroundStyle(Color(hex: "#C9C4D8"))
+            ForEach(Array(openOrders.enumerated()), id: \.offset) { _, row in
+                Button(parentId == row.id ? "Updating \(row.title)" : row.title) { parentId = row.id }
+                    .font(.plusJakarta(size: 13, weight: .semibold))
+                    .foregroundStyle(Color(hex: "#F4F1FA"))
+            }
+        }
+        editField("Guest or customer", text: $party, placeholder: "Optional")
+        editField("Estimated amount", text: $amount, placeholder: "Pipeline only")
+        dateField("Order time")
+        Text("An order is not a sale until you bill it.")
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        moreButton("Note. Optional.")
+        if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
+        }
+    }
+
+    @ViewBuilder private var retailShipmentFields: some View {
+        if tradingFamily {
+            choiceBlock("Movement", options: ["Outgoing sale", "Incoming purchase"], selected: movement) {
+                movement = $0
+                parentId = ""
+            }
+            let sourceType = movement == "Incoming purchase" ? "PURCHASE" : "SALE"
+            let sources = (model.activity ?? []).filter { $0.eventType == sourceType }
+            if sources.isEmpty {
+                Text(sourceType == "SALE" ? "No posted sale to deliver." : "No posted purchase to receive.")
+                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            } else {
+                Text("Source").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+                ForEach(Array(sources.prefix(8).enumerated()), id: \.offset) { _, row in
+                    Button {
+                        parentId = row.id
+                        purpose = row.title
+                        if let name = row.counterpartyName, !name.isEmpty { party = name }
+                        if let qty = row.quantity, !qty.isEmpty { quantity = qty }
+                        if let unitName = row.unit, !unitName.isEmpty { unit = unitName }
+                    } label: {
+                        Text(parentId == row.id ? "Using \(row.title)" : row.title)
+                            .font(.plusJakarta(size: 13, weight: .semibold))
+                            .foregroundStyle(Color(hex: "#E5E0EE"))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            editField("Quantity", text: $quantity, placeholder: "Required")
+            lovField("Unit", value: unit, kind: "UOM", placeholder: "pc")
+            choiceBlock("Status", options: ["Placed", "In transit", "Delivered", "Cancelled"], selected: choice) { choice = $0 }
+            Text("Delivery moves goods against the source. It does not create another sale or purchase.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else {
+        editField(mode == "DELIVERY" ? "Delivery reference" : "Shipment reference", text: $purpose, placeholder: "Required")
+        editField("Quantity", text: $quantity, placeholder: "Required")
+        choiceBlock("Status", options: ["Placed", "In transit", "Delivered", "Cancelled"], selected: choice) {
+            choice = $0
+        }
+        editField("Buyer or dealer", text: $party, placeholder: "Optional")
+        editField("Linked order id", text: $parentId, placeholder: "Optional")
+        editField("Promised date", text: $link, placeholder: "YYYY-MM-DD")
+        moreButton("Note. Optional.")
+        if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
+        Text("Shipment and delivery are fulfilment only. They are not sales.")
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        }
+    }
+
+    @ViewBuilder private var retailReturnFields: some View {
+        choiceBlock("Direction", options: ["Customer", "Supplier"], selected: returnDirection) { returnDirection = $0 }
+        let sources = (model.activity ?? []).filter {
+            ($0.eventType == "SALE" && returnDirection == "Customer") || ($0.eventType == "PURCHASE" && returnDirection == "Supplier")
+        }
+        if sources.isEmpty {
+            Text(returnDirection == "Customer" ? "No open sale to credit." : "No open purchase to credit.")
+                .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else {
+            Text("Source").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            ForEach(Array(sources.prefix(8).enumerated()), id: \.offset) { _, row in
+                Button {
+                    parentId = row.id
+                    if let name = row.counterpartyName, !name.isEmpty { party = name }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(row.title).font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(Color(hex: "#E5E0EE"))
+                        Text([row.counterpartyName, row.amount].compactMap { $0 }.joined(separator: " · "))
+                            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(parentId == row.id ? Color(hex: "#35333E") : Color.clear)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(parentId == row.id ? lovAccent : Color(hex: "#938EA1"), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        lineEditor
+        amountBlock("Credit amount", hint: "Cannot exceed the source amount")
+        choiceBlock("Goods outcome", options: ["To stock", "Not returned", "Pending inspection"], selected: goodsOutcome) { goodsOutcome = $0 }
+        editField("Reason", text: $returnReason, placeholder: "Required")
+        Text("Only “To stock” increases owned on-hand. Returns do not invent revenue or cost.")
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+    }
+
+    @ViewBuilder private var retailAppointmentFields: some View {
+        editField("Service", text: $purpose, placeholder: "Required")
+        dateField("Appointment time")
+        editField("Guest or customer", text: $party, placeholder: "Optional for a walk-in")
+        editField("Assigned person", text: $detail, placeholder: "Optional")
+        let openBookings = (model.activity ?? []).filter { $0.eventType == "APPOINTMENT" }
+        if !openBookings.isEmpty {
+            Text("Update an existing booking").font(.plusJakarta(size: 12, weight: .semibold)).foregroundStyle(Color(hex: "#C9C4D8"))
+            ForEach(Array(openBookings.enumerated()), id: \.offset) { _, row in
+                Button(parentId == row.id ? "Updating \(row.title)" : row.title) { parentId = row.id }
+                    .font(.plusJakarta(size: 13, weight: .semibold))
+                    .foregroundStyle(Color(hex: "#F4F1FA"))
+            }
+        }
+        if seed != nil || !parentId.isEmpty {
+            choiceBlock("Action", options: ["Reschedule", "Cancel", "No-show", "Start", "Complete"], selected: bookingAction) { bookingAction = $0 }
+        }
+        Text("Booking, starting, and completing do not post revenue. Finalize a charge separately.")
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        moreButton("Reason. Optional.")
+        if moreOpen { editField("Reason", text: $note, placeholder: "Optional") }
+    }
+
+    @ViewBuilder private var retailUpdateFields: some View {
+        editField("Update", text: $purpose, placeholder: "What happened")
+        dateField("Date")
+        Text("Saved as activity. Money totals stay unchanged.")
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+    }
+
+    @ViewBuilder private var retailIssueFields: some View {
+        editField("Issue", text: $purpose, placeholder: "What needs attention")
+        choiceBlock("Priority", options: ["Low", "Normal", "High"], selected: choice) { choice = $0 }
+        editField("Owner", text: $party, placeholder: actorName)
+        dateField("Due date")
+        Text("Opens an attention item. Money totals stay unchanged.")
+            .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+    }
+
 
     private func buildDraft() -> OperatingCaptureDraft? {
         if contractFamily && contractModes.contains(mode) { return retailDraft() }
@@ -1823,14 +2101,16 @@ struct OperatingCaptureSheet: View {
             shipmentStatus: shipmentCode,
             promisedAt: goodsDeadline ?? ((mode == "ORDER" || mode == "SHIPMENT" || mode == "DELIVERY") && !promised.isEmpty ? promised : nil),
             taxMode: taxModeCode,
-            taxAmount: taxModeCode == "NOT_CONFIGURED" || taxAmount.isEmpty ? nil : taxAmount,
+            taxAmount: model.gstTracking == "YES" || taxModeCode == "NOT_CONFIGURED" || taxAmount.isEmpty ? nil : taxAmount,
             originalCurrency: fxCurrency.isEmpty ? nil : fxCurrency,
             fxRate: fxCurrency.isEmpty || fxRate.isEmpty ? nil : fxRate,
             orderSide: mode == "ORDER" && tradingFamily ? (orderSide == "Purchase order" ? "PURCHASE" : "SALES") : nil,
             goodsStatus: tradingFamily && (mode == "SALE" || mode == "SERVICE") ? (goodsStatus == "Fully delivered" ? "DELIVERED" : (goodsStatus == "Partially delivered" ? "PARTIAL" : "LATER")) : nil,
             returnDirection: mode == "RETURN" ? (returnDirection == "Supplier" ? "SUPPLIER" : "CUSTOMER") : nil,
             goodsOutcome: goodsOutcomeCode,
-            returnReason: mode == "RETURN" ? returnReason.trimmingCharacters(in: .whitespaces) : nil
+            returnReason: mode == "RETURN" ? returnReason.trimmingCharacters(in: .whitespaces) : nil,
+            gstRate: model.gstTracking == "YES" && taxModeCode != nil ? (gstRate.isEmpty ? nil : gstRate) : nil,
+            taxJurisdiction: model.gstTracking == "YES" && taxModeCode != nil && (supplyChoice == "INTRA" || supplyChoice == "INTER") ? supplyChoice : nil
         )
         return OperatingCaptureDraft(
             eventType: mode == "UPDATE" && noteKind == "Issue" ? "ISSUE" : (mode == "UPDATE" && noteKind == "Approval" ? "APPROVAL" : eventType),
@@ -1847,7 +2127,20 @@ struct OperatingCaptureSheet: View {
             revisesEventId: (mode == "ORDER" || mode == "APPOINTMENT") && !parentId.isEmpty ? parentId : seed?.id,
             dueAt: mode == "ISSUE" ? isoDay(eventDate) : retailDueAt,
             contract: contract,
-            lineItems: lines.isEmpty ? nil : lines
+            lineItems: lines.isEmpty ? nil : lines,
+            masterGstApplicable: mode == "MASTERS" ? (gstApplicable == "Yes" ? "YES" : (gstApplicable == "No" ? "NO" : (gstApplicable == "Not sure" ? "NOT_SURE" : nil))) : nil,
+            masterGstClassification: mode == "MASTERS" ? (gstClassification == "Taxable" ? "TAXABLE" : (gstClassification == "Exempt" ? "EXEMPT" : (gstClassification == "Nil-rated" ? "NIL" : (gstClassification == "Non-GST" ? "NON_GST" : nil)))) : nil,
+            masterGstRate: mode == "MASTERS" && !gstRate.isEmpty ? gstRate : nil,
+            masterPriceIncludesGst: mode == "MASTERS" ? priceModeCode(masterSaleIncludes) : nil,
+            masterSalePriceIncludesGst: mode == "MASTERS" ? priceModeCode(masterSaleIncludes) : nil,
+            masterPurchasePriceIncludesGst: mode == "MASTERS" ? priceModeCode(masterPurchaseIncludes) : nil,
+            masterGstEffectiveFrom: mode == "MASTERS" && gstEffectiveFrom.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil ? gstEffectiveFrom : nil,
+            masterHsn: mode == "MASTERS" && !hsn.trimmingCharacters(in: .whitespaces).isEmpty ? hsn : nil,
+            masterGstRegistration: mode == "MASTERS" ? (partyGstRegistration == "Registered" ? "REGISTERED" : (partyGstRegistration == "Unregistered" ? "UNREGISTERED" : (partyGstRegistration == "Not sure" ? "NOT_SURE" : nil))) : nil,
+            masterBusinessState: mode == "MASTERS" ? businessState : nil,
+            masterBillingState: mode == "MASTERS" ? billingState : nil,
+            masterDeliveryState: mode == "MASTERS" ? deliveryState : nil,
+            masterGstin: mode == "MASTERS" ? partyGstin : nil
         )
     }
 
@@ -1884,7 +2177,7 @@ struct OperatingCaptureSheet: View {
             Text("No open customer order on this moment yet.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
         } else {
             Text(label).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-            ForEach(orders) { row in
+            ForEach(Array(orders.enumerated()), id: \.offset) { _, row in
                 Button(row.title) { parentId = row.id }
                     .font(.plusJakarta(size: 14, weight: .semibold))
                     .foregroundStyle(parentId == row.id ? Color(hex: "#0E2A22") : chromeInk)
@@ -2130,7 +2423,7 @@ struct OperatingCaptureSheet: View {
             if eventType == "PROGRESS" {
                 let open = (model.activity ?? []).filter { $0.eventType == "ACTIVITY" && $0.approvalStatus != "REJECTED" }
                 Text("Open activity").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
-                ForEach(open) { row in
+                ForEach(Array(open.enumerated()), id: \.offset) { _, row in
                     Button(row.title) { parentId = row.id }
                         .font(.plusJakarta(size: 14, weight: .semibold))
                         .foregroundStyle(parentId == row.id ? Color(hex: "#2F009C") : Color(hex: "#E5E0EE"))
@@ -2248,7 +2541,7 @@ struct OperatingCaptureSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
             FlowLayout(spacing: 6) {
-                ForEach(options, id: \.self) { option in
+                ForEach(Array(options.enumerated()), id: \.offset) { _, option in
                     let on = option == selected
                     Button(on ? "✓ \(option)" : option) { onSelect(option) }
                         .font(.plusJakarta(size: 12, weight: .medium))
@@ -2264,7 +2557,7 @@ struct OperatingCaptureSheet: View {
     }
 
     private func dateField(_ label: String) -> some View {
-        Button { dateOpen = true } label: { readField(label, dateText) }
+        Button { picker = .date } label: { readField(label, dateText) }
             .buttonStyle(.plain)
     }
 
@@ -2276,7 +2569,7 @@ struct OperatingCaptureSheet: View {
     }
 
     private func dueDateField(_ label: String) -> some View {
-        Button { dueDateOpen = true } label: { readField(label, dueDateText) }
+        Button { picker = .due } label: { readField(label, dueDateText) }
             .buttonStyle(.plain)
     }
 
@@ -2288,7 +2581,7 @@ struct OperatingCaptureSheet: View {
     }
 
     private func goodsDueField(_ label: String) -> some View {
-        Button { goodsDueOpen = true } label: { readField(label, goodsDueText) }
+        Button { picker = .goodsDue } label: { readField(label, goodsDueText) }
             .buttonStyle(.plain)
     }
 
@@ -2391,5 +2684,22 @@ struct OperatingCaptureSheet: View {
         .background(Color(hex: "#35333E"))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#938EA1"), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func priceModeCode(_ label: String) -> String? {
+        switch label {
+        case "GST included in price", "Prices include GST": return "YES"
+        case "GST added separately": return "NO"
+        default: return nil
+        }
+    }
+}
+
+private extension Decimal {
+    func roundMoney() -> Decimal {
+        var input = self
+        var output = Decimal()
+        NSDecimalRound(&output, &input, 2, .plain)
+        return output
     }
 }

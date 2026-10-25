@@ -137,6 +137,41 @@ private fun DistributionPulse(model: OperatingProjectionDto, onViewAll: () -> Un
             Line("Business cash paid", money(model, finance?.cashPaid), DistInk)
             Line("Still to pay", money(model, finance?.payable), Color(0xFFFBBF24))
         }
+        val position = model.gstPosition
+        if (position != null) {
+            var open by remember { mutableStateOf(false) }
+            SectionTitle("GST Position")
+            DistCard {
+                Text("Estimated GST from recorded sales and purchases", color = DistSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
+                Text(position.asOfMonth.orEmpty(), color = DistSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                if (position.sources.isEmpty()) {
+                    Text("No GST transactions recorded for this period.", color = DistInk, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+                } else {
+                    Line("GST on sales", money(model, position.outputGst), DistAccent)
+                    Line("GST on purchases", money(model, position.inputGst), DistInk)
+                    val negative = position.difference.orEmpty().trim().startsWith("-")
+                    Text(
+                        if (negative) "Estimated excess purchase GST: ${money(model, position.difference?.removePrefix("-"))}"
+                        else "Estimated difference: ${money(model, position.difference)} payable before adjustments",
+                        color = DistInk, fontFamily = PlusJakartaSans, fontSize = 14.sp,
+                    )
+                    Text("View GST details", color = DistAccent, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { open = !open })
+                    if (open) {
+                        Line("CGST on sales", money(model, position.cgstSales), DistSecondary)
+                        Line("SGST on sales", money(model, position.sgstSales), DistSecondary)
+                        Line("IGST on sales", money(model, position.igstSales), DistSecondary)
+                        Line("CGST on purchases", money(model, position.cgstPurchases), DistSecondary)
+                        Line("SGST on purchases", money(model, position.sgstPurchases), DistSecondary)
+                        Line("IGST on purchases", money(model, position.igstPurchases), DistSecondary)
+                        Text("Recorded purchase GST is not eligible input tax credit.", color = DistSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                        position.sources.forEach { source ->
+                            Text("${source.title.orEmpty()} · ${money(model, source.gstTotal)}", color = DistSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                        }
+                    }
+                }
+                Text("Indicative GST position — not a GST return or verified amount payable", color = DistSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            }
+        }
     } else {
         StaffPulse(model, onOpenQuickAdd)
     }

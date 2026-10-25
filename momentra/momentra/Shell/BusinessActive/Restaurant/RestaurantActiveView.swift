@@ -11,18 +11,24 @@ struct RestaurantActiveView: View {
     @State private var activityOpen = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                switch tab {
-                case .pulse: pulse
-                case .moments: moments
-                case .life: life
-                case .memory: memory
-                case .quickAdd: RestaurantQuickAddHub(model: model, onRecord: onRecord, onDecide: onDecide)
+        Group {
+            if tab == .quickAdd {
+                RestaurantQuickAddHub(model: model, onRecord: onRecord, onDecide: onDecide)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        switch tab {
+                        case .pulse: pulse
+                        case .moments: moments
+                        case .life: life
+                        case .memory: memory
+                        case .quickAdd: EmptyView()
+                        }
+                    }
+                    .padding(.horizontal, 17)
+                    .padding(.vertical, 20)
                 }
             }
-            .padding(.horizontal, 17)
-            .padding(.vertical, 20)
         }
         .background(RestaurantChrome.bg)
         .sheet(isPresented: $activityOpen) { activitySheet }

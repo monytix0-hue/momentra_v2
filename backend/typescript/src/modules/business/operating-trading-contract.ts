@@ -19,11 +19,20 @@ import {
   type StockPosition,
 } from './operating-retail-contract';
 import { lineBaseQuantity, toBaseQuantity, type MasterMeta } from './operating-trading-lov';
+import { computeGstLine, rollGstLines, scaleGstSnapshot, type GstSnapshot } from './operating-gst';
 
 export const TRADING_SUBTYPES = ['TRADING_WHOLESALE', 'DISTRIBUTION_DEALERSHIP'] as const;
 
 export type TradingEvent = RetailEvent;
-export type TradingWrite = RetailWrite & { channelTracking?: boolean };
+export interface TradingGstContext {
+  enabled: boolean;
+  businessState: string;
+  saleIncludesGst: boolean | null;
+  purchaseIncludesGst: boolean | null;
+  registration: string;
+}
+
+export type TradingWrite = RetailWrite & { channelTracking?: boolean; gst?: TradingGstContext | null };
 export type TradingAttention = RetailAttention;
 export type TradingLine = RetailLine;
 
@@ -57,6 +66,103 @@ function itemKey(value: string): string {
 
 function fail(message: string): { ok: false; message: string } {
   return { ok: false, message };
+}
+
+function masterRecord(line: TradingLine, existing: TradingEvent[]) {
+  if (line.masterId) {
+    const byId = existing.find((row) => row.operatingEventId === line.masterId && row.master);
+    if (byId?.master) return byId.master;
+  }
+  const name = line.itemName.trim().toLowerCase();
+  if (!name) return null;
+  return existing.find((row) => row.master && row.master.name.trim().toLowerCase() === name)?.master ?? null;
+}
+
+function partyState(name: string | null | undefined, existing: TradingEvent[]): string {
+  const key = String(name ?? '').trim().toLowerCase();
+  if (!key) return '';
+  const party = existing.find((row) => {
+    const kind = String(row.master?.kind ?? '').toUpperCase();
+    return ['CUSTOMER', 'BUYER', 'SUPPLIER'].includes(kind) && row.master?.name.trim().toLowerCase() === key;
+  });
+  return String(party?.master?.deliveryState || party?.master?.billingState || party?.master?.businessState || '').trim();
+}
+
+function applyPostedGst(
+  input: TradingWrite,
+  existing: TradingEvent[],
+  contract: OperatingContract,
+  side: 'SALE' | 'PURCHASE',
+  entered: number,
+  lines: TradingLine[]
+): { ok: true; amount: number } | { ok: false; message: string } {
+  if (!input.gst?.enabled) {
+    if (input.gst) contract.taxStatus = 'NOT_CONFIGURED';
+    return { ok: true, amount: entered };
+  }
+  const preference = side === 'SALE' ? input.gst.saleIncludesGst : input.gst.purchaseIncludesGst;
+  const businessState = input.gst.businessState.trim().toLowerCase();
+  const supplyState = (contract.placeOfSupply || partyState(input.counterpartyName, existing)).trim();
+  let jurisdiction = contract.taxJurisdiction ?? null;
+  if (!jurisdiction && businessState && supplyState) {
+    jurisdiction = supplyState.toLowerCase() === businessState ? 'INTRA' : 'INTER';
+  }
+  if (!jurisdiction) return fail('Confirm whether this supply is inside your state or outside it.');
+  contract.taxJurisdiction = jurisdiction;
+  contract.placeOfSupply = supplyState || contract.placeOfSupply || input.gst.businessState;
+
+  const pricedLines = lines.filter((line) => num(line.unitPrice) > 0 && num(line.quantity) > 0);
+  const sources = pricedLines.length > 0
+    ? pricedLines.map((line) => ({ line, master: masterRecord(line, existing) }))
+    : [{ line: { itemName: input.title, quantity: '1', unitPrice: String(entered), unit: null }, master: null }];
+
+  const gstLines = [];
+  for (const source of sources) {
+    const master = source.master;
+    const applicable = String(master?.gstApplicable ?? '').toUpperCase();
+    const classification = String(master?.gstClassification ?? '').toUpperCase();
+    const exempt = applicable === 'NO' || ['EXEMPT', 'NIL', 'NON_GST'].includes(classification);
+    const rate = exempt ? 0 : num(source.line.gstRate || contract.gstRate || master?.gstRate);
+    if (!exempt && !(rate > 0)) return fail('Choose a GST rate before saving. A missing rate is not 0%.');
+    const sideOverride = side === 'SALE' ? master?.salePriceIncludesGst : master?.purchasePriceIncludesGst;
+    const override = String(sideOverride || master?.priceIncludesGst || '').toUpperCase();
+    const lineMode = source.line.taxMode;
+    const inclusive = lineMode === 'INCLUSIVE'
+      ? true
+      : lineMode === 'EXCLUSIVE'
+        ? false
+        : contract.taxMode === 'INCLUSIVE'
+          ? true
+          : contract.taxMode === 'EXCLUSIVE'
+            ? false
+            : override === 'YES'
+              ? true
+              : override === 'NO'
+                ? false
+                : preference;
+    if (inclusive == null) return fail('Choose whether the price includes GST.');
+    const lineDiscount = num(source.line.discount);
+    gstLines.push({
+      quantity: num(source.line.quantity) || 1,
+      unitPrice: num(source.line.unitPrice),
+      discount: lineDiscount > 0 ? lineDiscount : pricedLines.length > 0 ? 0 : num(contract.discount),
+      ratePercent: rate,
+      inclusive,
+    });
+  }
+  const place = contract.placeOfSupply ?? '';
+  const registration = String(input.gst.registration ?? '');
+  const snapshot: GstSnapshot = gstLines.length === 1
+    ? computeGstLine(gstLines[0]!, jurisdiction, place, registration)
+    : rollGstLines(gstLines, jurisdiction, place, registration);
+  if (pricedLines.length <= 1 && num(contract.discount) > 0 && gstLines.length === 1) {
+    // discount already applied on the single quick line
+  }
+  contract.gst = snapshot;
+  contract.taxStatus = 'CALCULATED';
+  contract.taxMode = snapshot.priceIncludesGst ? 'INCLUSIVE' : 'EXCLUSIVE';
+  contract.taxAmount = snapshot.gstTotal;
+  return { ok: true, amount: num(snapshot.invoiceTotal) };
 }
 
 function lineTotal(lines: TradingLine[] | null | undefined): number {
@@ -209,6 +315,10 @@ function validateSale(
     amount = lineTotal(lines);
   }
   if (!(amount > 0)) return fail('Amount is required.');
+  const commercial = amount;
+  const priced = applyPostedGst(input, existing, contract, 'SALE', amount, lines);
+  if (!priced.ok) return priced;
+  amount = priced.amount;
   const taxFx = applyTaxAndFx(contract, amount);
   if (taxFx && !taxFx.ok) return taxFx;
   const state = contract.paymentState;
@@ -226,7 +336,8 @@ function validateSale(
       const cap = num(parent.contract?.estimatedAmount);
       if (cap > 0) {
         const used = postedAgainst(parent.operatingEventId, ['SALE'], existing);
-        if (used + amount - cap > 0.00005) return fail('That is more than the order still open.');
+        const headroom = cap - used;
+        if (commercial - headroom > 0.00005 && amount - headroom > 0.00005) return fail('That is more than the order still open.');
       }
     } else if (!['SHIPMENT', 'DELIVERY'].includes(parent.eventType)) {
       return fail('That record cannot be linked here.');
@@ -256,8 +367,12 @@ function validatePurchase(
 ): RetailWriteResult | { ok: false; message: string } {
   if (!namedParty(input.counterpartyName)) return fail('Supplier is required.');
   const lines = input.lines ?? [];
-  const amount = lines.length > 0 && lineTotal(lines) > 0 ? lineTotal(lines) : num(input.amount);
+  let amount = lines.length > 0 && lineTotal(lines) > 0 ? lineTotal(lines) : num(input.amount);
   if (!(amount > 0)) return fail('Amount is required.');
+  const commercial = amount;
+  const priced = applyPostedGst(input, existing, contract, 'PURCHASE', amount, lines);
+  if (!priced.ok) return priced;
+  amount = priced.amount;
   // Quick cost never asserts physical receipt (v6 / D3).
   if (contract.entryMode === 'QUICK' || lines.length === 0) {
     contract.receiptState = 'AWAITING';
@@ -293,7 +408,8 @@ function validatePurchase(
     const cap = num(parent.contract?.estimatedAmount);
     if (cap > 0) {
       const used = postedAgainst(parent.operatingEventId, ['PURCHASE'], existing);
-      if (used + amount - cap > 0.00005) return fail('That is more than the order still open.');
+      const headroom = cap - used;
+      if (commercial - headroom > 0.00005 && amount - headroom > 0.00005) return fail('That is more than the order still open.');
     }
     parentEventId = parent.operatingEventId;
   }
@@ -435,6 +551,18 @@ function validateOrder(
   }
   // Order amount is a commitment estimate — never revenue until billed as SALE or PURCHASE.
   if (input.amount) contract.estimatedAmount = input.amount;
+  if (input.gst?.enabled) {
+    const savedGst = contract.gst ?? null;
+    const savedTax = contract.taxAmount ?? null;
+    const savedMode = contract.taxMode ?? null;
+    const savedStatus = contract.taxStatus ?? null;
+    const preview = applyPostedGst(input, existing, contract, contract.orderSide === 'PURCHASE' ? 'PURCHASE' : 'SALE', num(input.amount), input.lines ?? []);
+    if (preview.ok && contract.gst) contract.gstEstimate = contract.gst;
+    contract.gst = savedGst;
+    contract.taxAmount = savedTax;
+    contract.taxMode = savedMode;
+    contract.taxStatus = savedStatus;
+  }
   if (input.dueAt) contract.promisedAt = input.dueAt;
   const lineQty = (input.lines ?? []).reduce((total, line) => total + lineBaseQuantity(line, productForLine(line, existing)), 0);
   return {
@@ -509,6 +637,7 @@ function validateReturn(
   const ceiling = Math.max(open, 0);
   if (!(ceiling > 0)) return fail('Nothing remains open on that source.');
   if (amount - ceiling > 0.00005) return fail('Return cannot exceed the remaining open amount.');
+  if (source.contract?.gst) contract.gst = scaleGstSnapshot(source.contract.gst, amount);
   const qty = num(input.quantity);
   if (contract.goodsOutcome === 'TO_STOCK' && !(qty > 0) && !(input.lines?.length)) {
     return fail('Quantity is required when goods return to stock.');

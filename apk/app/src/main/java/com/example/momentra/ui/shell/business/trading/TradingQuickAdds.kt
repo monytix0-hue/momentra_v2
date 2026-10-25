@@ -65,6 +65,19 @@ data class TradingEventDraft(
     val dueAt: String? = null,
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
     val masterId: String? = null,
+    val masterGstApplicable: String? = null,
+    val masterGstClassification: String? = null,
+    val masterGstRate: String? = null,
+    val masterPriceIncludesGst: String? = null,
+    val masterSalePriceIncludesGst: String? = null,
+    val masterPurchasePriceIncludesGst: String? = null,
+    val masterGstEffectiveFrom: String? = null,
+    val masterHsn: String? = null,
+    val masterGstRegistration: String? = null,
+    val masterBusinessState: String? = null,
+    val masterBillingState: String? = null,
+    val masterDeliveryState: String? = null,
+    val masterGstin: String? = null,
 )
 
 private enum class TradingSheet(
@@ -283,18 +296,20 @@ fun TradingQuickAddHub(
         }
     }
     if (mastersOpen) {
-        OperatingCaptureSheet(
-            title = "Masters",
-            icon = R.drawable.qa_shield,
-            eventType = "UPDATE",
-            mode = "MASTERS",
-            model = model,
-            onDismiss = { mastersOpen = false },
-            onSubmit = { draft ->
-                onRecord(draft.toTrading())
-                mastersOpen = false
-            },
-        )
+        OperatingSheetScrim(onDismiss = { mastersOpen = false }) {
+            OperatingCaptureSheet(
+                title = "Masters",
+                icon = R.drawable.qa_shield,
+                eventType = "UPDATE",
+                mode = "MASTERS",
+                model = model,
+                onDismiss = { mastersOpen = false },
+                onSubmit = { draft ->
+                    onRecord(draft.toTrading())
+                    mastersOpen = false
+                },
+            )
+        }
     }
     if (approvalOpen) {
         OperatingSheetScrim(onDismiss = { approvalOpen = false }) {
@@ -411,4 +426,17 @@ private fun OperatingCaptureDraft.toTrading() = TradingEventDraft(
     dueAt = dueAt,
     contract = contract,
     masterId = masterId,
+    masterGstApplicable = masterGstApplicable,
+    masterGstClassification = masterGstClassification,
+    masterGstRate = masterGstRate,
+    masterPriceIncludesGst = masterPriceIncludesGst,
+    masterSalePriceIncludesGst = masterSalePriceIncludesGst,
+    masterPurchasePriceIncludesGst = masterPurchasePriceIncludesGst,
+    masterGstEffectiveFrom = masterGstEffectiveFrom,
+    masterHsn = masterHsn,
+    masterGstRegistration = masterGstRegistration,
+    masterBusinessState = masterBusinessState,
+    masterBillingState = masterBillingState,
+    masterDeliveryState = masterDeliveryState,
+    masterGstin = masterGstin,
 )

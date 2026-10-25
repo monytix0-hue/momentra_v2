@@ -663,6 +663,13 @@ fun RetailStoreSetup(
     var metricOpen by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf<String?>(null) }
     var howItWorks by remember { mutableStateOf(false) }
+    var gstOpen by remember { mutableStateOf(false) }
+    var gstTracking by remember { mutableStateOf("NOT_NOW") }
+    var gstRegistration by remember { mutableStateOf("REGULAR") }
+    var gstState by remember { mutableStateOf("") }
+    var salePriceIncludesGst by remember { mutableStateOf("NO") }
+    var purchasePriceIncludesGst by remember { mutableStateOf("NO") }
+    var gstEffectiveFrom by remember { mutableStateOf("") }
     var howItWorksViaCreate by remember { mutableStateOf(false) }
     val needsApprover = policy == "APPROVAL_REQUIRED" && invites.none { it.role == "APPROVER" }
     val ready = name.isNotBlank() &&
@@ -928,11 +935,55 @@ fun RetailStoreSetup(
             }
             if (ready) Pill("Budget and sales target look good", SuccessBg, Success)
         }
+        if (look.code == "TRADING_WHOLESALE" || look.code == "DISTRIBUTION_DEALERSHIP") {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Card).border(1.dp, Border, RoundedCornerShape(18.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("GST & Tax Details", color = Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Text("Set up GST once to make buying and selling easier.", color = Secondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
+                Text(
+                    if (gstOpen) "Hide GST setup" else "Set up GST (optional)",
+                    color = Accent,
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable { gstOpen = !gstOpen },
+                )
+                if (gstOpen) {
+                    Text("Do you want to track GST in this Moment?", color = Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("YES" to "Yes", "NOT_NOW" to "Not now").forEach { (code, label) ->
+                            Text(label, color = if (gstTracking == code) Accent else Ink, modifier = Modifier.clickable { gstTracking = code }.padding(vertical = 6.dp))
+                        }
+                    }
+                    Text("Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.", color = Secondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                    if (gstTracking == "YES") {
+                        Text("How is your business registered for GST?", color = Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+                        listOf("REGULAR" to "Regular", "COMPOSITION" to "Composition", "UNREGISTERED" to "Unregistered", "NOT_SURE" to "Not sure").forEach { (code, label) ->
+                            Text(label, color = if (gstRegistration == code) Accent else Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp, modifier = Modifier.clickable { gstRegistration = code }.padding(vertical = 4.dp))
+                        }
+                        FieldEditor("Which state is your business registered in?", gstState, "State", R.drawable.rs_setup_pin) { gstState = it }
+                        Text("How do you usually enter selling prices?", color = Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+                        listOf("YES" to "Prices include GST", "NO" to "GST is added separately").forEach { (code, label) ->
+                            Text(label, color = if (salePriceIncludesGst == code) Accent else Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp, modifier = Modifier.clickable { salePriceIncludesGst = code }.padding(vertical = 4.dp))
+                        }
+                        Text("How do you usually enter purchase prices?", color = Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+                        listOf("YES" to "Prices include GST", "NO" to "GST is added separately").forEach { (code, label) ->
+                            Text(label, color = if (purchasePriceIncludesGst == code) Accent else Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp, modifier = Modifier.clickable { purchasePriceIncludesGst = code }.padding(vertical = 4.dp))
+                        }
+                        Text("Your GSTIN stays the one entered above. It is stored as a reference only.", color = Secondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                        FieldEditor("Effective from (optional)", gstEffectiveFrom, "YYYY-MM-DD", R.drawable.rs_setup_pin) { gstEffectiveFrom = it.take(10) }
+                    }
+                }
+            }
+        }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Selected).border(1.dp, Border, RoundedCornerShape(18.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Review your setup", color = Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, lineHeight = 28.sp)
             Column {
                 Text(name.ifBlank { look.nameHint }, color = Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp)
-                Text("${look.reviewKind} · $currency · From ${start.format(dayFormat)}", color = Secondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                Text(
+                    "${look.reviewKind} · $currency · From ${start.format(dayFormat)}${end?.let { " to ${it.format(dayFormat)}" } ?: " · Still open"}",
+                    color = Secondary,
+                    fontFamily = PlusJakartaSans,
+                    fontSize = 12.sp,
+                )
             }
             ReviewLine("Company", companyName.ifBlank { "Not set" })
             ReviewLine("GSTIN", gstin.ifBlank { "Not added" })
@@ -990,6 +1041,12 @@ fun RetailStoreSetup(
                             "targetMetric" to metric,
                             "companyName" to companyName.trim(),
                             "gstin" to gstin.trim(),
+                            "gstTracking" to if (look.code == "TRADING_WHOLESALE" || look.code == "DISTRIBUTION_DEALERSHIP") gstTracking else "",
+                            "gstRegistration" to gstRegistration,
+                            "gstState" to gstState.trim(),
+                            "salePriceIncludesGst" to salePriceIncludesGst,
+                            "purchasePriceIncludesGst" to purchasePriceIncludesGst,
+                            "gstEffectiveFrom" to gstEffectiveFrom.trim(),
                         ),
                         trimmed,
                     )

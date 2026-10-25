@@ -89,7 +89,8 @@ object OperatingMomentCatalog {
     }
 
     val preferenceKeys = setOf(
-        "subtype", "identityName", "partyName", "description", "currency", "startDate", "location", "activationPolicy",
+        "subtype", "identityName", "partyName", "description", "currency", "startDate", "endDate", "location", "activationPolicy",
+        "gstTracking", "gstRegistration", "gstState", "gstin", "salePriceIncludesGst", "purchasePriceIncludesGst", "gstEffectiveFrom",
         "participants", "counterparties", "channels", "tradeReach", "monthlyBudget", "monthlyTarget", "targetMetric",
     )
 }

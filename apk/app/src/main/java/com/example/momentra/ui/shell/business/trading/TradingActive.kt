@@ -136,7 +136,11 @@ private fun TradingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit, o
             Line("Eligible cost", money(model, finance?.eligibleCost), TradeInk)
             Line("Business cash paid", money(model, finance?.cashPaid), TradeInk)
             Line("Still to pay", money(model, finance?.payable), Color(0xFFFBBF24))
+            if (model.gstTracking == "YES") {
+                Text("Recorded sales exclude GST. Amounts still to collect or pay include GST.", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            }
         }
+        GstPositionCard(model)
     } else {
         StaffPulse(model, onOpenQuickAdd)
     }
@@ -430,6 +434,56 @@ private fun Meter(label: String, fraction: Float, color: Color) {
         Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(4.dp)).background(TradeBorder)) {
             Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).height(6.dp).background(color))
         }
+    }
+}
+
+@Composable
+private fun GstPositionCard(model: OperatingProjectionDto) {
+    val position = model.gstPosition ?: return
+    var open by remember { mutableStateOf(false) }
+    SectionTitle("GST Position")
+    TradeCard {
+        Text("Estimated GST from recorded sales and purchases", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
+        Text(position.asOfMonth.orEmpty(), color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        if (position.sources.isEmpty()) {
+            Text("No GST transactions recorded for this period.", color = TradeInk, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+        } else {
+            Line("GST on sales", money(model, position.outputGst), TradeAccent)
+            Line("GST on purchases", money(model, position.inputGst), TradeInk)
+            val negative = position.difference.orEmpty().trim().startsWith("-")
+            Text(
+                if (negative) "Estimated excess purchase GST: ${money(model, position.difference?.removePrefix("-"))}"
+                else "Estimated difference: ${money(model, position.difference)} payable before adjustments",
+                color = TradeInk,
+                fontFamily = PlusJakartaSans,
+                fontSize = 14.sp,
+            )
+            Text(
+                "View GST details",
+                color = TradeAccent,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable { open = !open },
+            )
+            if (open) {
+                Line("CGST on sales", money(model, position.cgstSales), TradeSecondary)
+                Line("SGST on sales", money(model, position.sgstSales), TradeSecondary)
+                Line("IGST on sales", money(model, position.igstSales), TradeSecondary)
+                Line("CGST on purchases", money(model, position.cgstPurchases), TradeSecondary)
+                Line("SGST on purchases", money(model, position.sgstPurchases), TradeSecondary)
+                Line("IGST on purchases", money(model, position.igstPurchases), TradeSecondary)
+                Text("Recorded purchase GST is not eligible input tax credit.", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                position.sources.forEach { source ->
+                    Text(
+                        "${source.title.orEmpty()} · ${source.eventType.orEmpty()} · ${money(model, source.gstTotal)}",
+                        color = TradeSecondary,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+        }
+        Text("Indicative GST position — not a GST return or verified amount payable", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     }
 }
 

@@ -1273,6 +1273,37 @@ data class OperatingProjectionDto(
     val memory: OperatingMemoryDto? = null,
     val boards: OperatingBoardsDto? = null,
     val quickAdds: List<OperatingQuickAddDto> = emptyList(),
+    val gstTracking: String? = null,
+    val gstRegistration: String? = null,
+    val gstState: String? = null,
+    val salePriceIncludesGst: String? = null,
+    val purchasePriceIncludesGst: String? = null,
+    val gstPosition: GstPositionDto? = null,
+)
+
+data class GstPositionSourceDto(
+    val id: String = "",
+    val title: String = "",
+    val eventType: String = "",
+    val occurredAt: String = "",
+    val taxableAmount: String? = null,
+    val gstTotal: String? = null,
+    val direction: String? = null,
+)
+
+data class GstPositionDto(
+    val outputGst: String? = null,
+    val inputGst: String? = null,
+    val difference: String? = null,
+    val cgstSales: String? = null,
+    val sgstSales: String? = null,
+    val igstSales: String? = null,
+    val cgstPurchases: String? = null,
+    val sgstPurchases: String? = null,
+    val igstPurchases: String? = null,
+    val adjustmentGst: String? = null,
+    val asOfMonth: String? = null,
+    val sources: List<GstPositionSourceDto> = emptyList(),
 )
 
 data class OperatingMasterDto(
@@ -1284,6 +1315,19 @@ data class OperatingMasterDto(
     val conversionToBase: String? = null,
     val tracked: Boolean? = null,
     val barcode: String? = null,
+    val gstApplicable: String? = null,
+    val gstClassification: String? = null,
+    val gstRate: String? = null,
+    val priceIncludesGst: String? = null,
+    val salePriceIncludesGst: String? = null,
+    val purchasePriceIncludesGst: String? = null,
+    val gstEffectiveFrom: String? = null,
+    val hsn: String? = null,
+    val gstRegistration: String? = null,
+    val businessState: String? = null,
+    val billingState: String? = null,
+    val deliveryState: String? = null,
+    val gstin: String? = null,
 )
 
 data class OperatingLineBody(
@@ -1303,6 +1347,19 @@ data class OperatingMasterBody(
     val conversionToBase: String? = null,
     val tracked: Boolean? = null,
     val barcode: String? = null,
+    val gstApplicable: String? = null,
+    val gstClassification: String? = null,
+    val gstRate: String? = null,
+    val priceIncludesGst: String? = null,
+    val salePriceIncludesGst: String? = null,
+    val purchasePriceIncludesGst: String? = null,
+    val gstEffectiveFrom: String? = null,
+    val hsn: String? = null,
+    val gstRegistration: String? = null,
+    val businessState: String? = null,
+    val billingState: String? = null,
+    val deliveryState: String? = null,
+    val gstin: String? = null,
 )
 
 data class OperatingAllocationBody(
@@ -1332,6 +1389,10 @@ data class OperatingContractBody(
     val declaredQuantity: String? = null,
     val taxMode: String? = null,
     val taxAmount: String? = null,
+    val gstRate: String? = null,
+    val discount: String? = null,
+    val taxJurisdiction: String? = null,
+    val placeOfSupply: String? = null,
     val originalCurrency: String? = null,
     val fxRate: String? = null,
     val convertedAmount: String? = null,

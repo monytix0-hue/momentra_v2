@@ -6,10 +6,21 @@ struct MarketingQuickAddHub: View {
     var onDecide: (String, String) async throws -> Void
 
     @State private var query = ""
-    @State private var sheet: MarketingSheetKind?
-    @State private var approvalOpen = false
+    @State private var presented: HubSheet?
     @State private var errorText: String?
-    @State private var mastersOpen = false
+
+    private enum HubSheet: Identifiable {
+        case action(MarketingSheetKind)
+        case masters
+        case approval
+        var id: String {
+            switch self {
+            case .action(let kind): return "action-\(kind.id)"
+            case .masters: return "masters"
+            case .approval: return "approval"
+            }
+        }
+    }
 
     private var allowed: Set<String> { Set((model.quickAdds ?? []).map(\.code)) }
     private var owner: Bool { model.role == "OWNER_ADMIN" }
@@ -17,6 +28,15 @@ struct MarketingQuickAddHub: View {
     private var client: Bool { model.subtype != "OWN_BUSINESS_CAMPAIGN" }
 
     var body: some View {
+        if let presented {
+            captureForm(presented)
+        } else {
+            tileList
+        }
+    }
+
+    private var tileList: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 12) {
             Text("Quick Adds").font(.plusJakarta(size: 28, weight: .semibold)).foregroundStyle(MarketingChrome.ink)
             Text("Record what happened · \(model.title ?? "")").font(.plusJakarta(size: 13)).foregroundStyle(MarketingChrome.secondary)
@@ -50,7 +70,7 @@ struct MarketingQuickAddHub: View {
                     }
                 }
                 if allowed.contains("SPEND") {
-                    Button { sheet = .spend } label: {
+                    Button { presented = .action(.spend) } label: {
                         HStack(spacing: 6) {
                             Image("qa_plus").renderingMode(.template).resizable().scaledToFit().frame(width: 14, height: 14)
                             Text("Record Spend")
@@ -82,122 +102,92 @@ struct MarketingQuickAddHub: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             let core = MarketingSheetKind.core.filter { allowed.contains($0.eventType) && matches($0.label) }
             Text("Core actions · \(core.count)").font(.plusJakarta(size: 12)).foregroundStyle(MarketingChrome.secondary)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                ForEach(core) { kind in
-                    Button { sheet = kind } label: {
-                        VStack(spacing: 8) {
-                            Image(kind.icon(client)).renderingMode(.template).resizable().scaledToFit().frame(width: 28, height: 28)
-                            Text(kind.label).font(.plusJakarta(size: 13, weight: .semibold)).multilineTextAlignment(.center)
-                        }
-                        .foregroundStyle(MarketingChrome.ink)
-                        .frame(maxWidth: .infinity, minHeight: 104)
-                        .padding(12)
-                        .background(MarketingChrome.card)
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(MarketingChrome.border, lineWidth: 1))
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
-                }
+            tileRows(core) { kind in
+                actionTile(kind.label, icon: kind.icon(client), locked: nil) { presented = .action(kind) }
             }
-            Button("Masters") { mastersOpen = true }.font(.plusJakarta(size: 15, weight: .semibold))
+            Button("Masters") { presented = .masters }.font(.plusJakarta(size: 15, weight: .semibold))
             Text("Support & management").font(.plusJakarta(size: 12)).foregroundStyle(MarketingChrome.secondary)
             supportGrid
             if approver {
-                Button("Review approvals") { approvalOpen = true }
+                Button("Review approvals") { presented = .approval }
                     .font(.plusJakarta(size: 15, weight: .semibold))
                     .foregroundStyle(MarketingChrome.accent)
             }
             if let errorText { Text(errorText).foregroundStyle(Color(hex: "#F87171")) }
         }
-        .sheet(isPresented: $mastersOpen) {
-            OperatingCaptureSheet(
-                title: "Masters",
-                icon: "qa_shield",
-                eventType: "UPDATE",
-                mode: "MASTERS",
-                model: model,
-                onSubmit: { draft in
-                    try await onRecord(MarketingEventDraft(
-                        eventType: draft.eventType,
-                        title: draft.title,
-                        amount: draft.amount,
-                        note: draft.note,
-                        channelName: draft.channelName,
-                        counterpartyName: draft.counterpartyName,
-                        paymentStatus: draft.paymentStatus,
-                        occurredAt: draft.occurredAt,
-                        quantity: draft.quantity,
-                        unit: draft.unit,
-                        unitPrice: draft.unitPrice,
-                        itemName: draft.itemName,
-                        parentEventId: draft.parentEventId,
-                        revisesEventId: draft.revisesEventId,
-                        masterKind: draft.masterKind,
-                        dueAt: draft.dueAt,
-                        contract: draft.contract,
-                        lineItems: draft.lineItems,
-                        reportingMode: draft.reportingMode,
-                        metricCode: draft.metricCode,
-                        budgetCategory: draft.budgetCategory,
-                        activityStatus: draft.activityStatus,
-                        attributedSales: draft.attributedSales,
-                        revisionKind: draft.revisionKind
-                    ))
-                },
-                onDecide: onDecide
-            )
+        .padding(.horizontal, 17)
+        .padding(.vertical, 20)
         }
-        .sheet(item: $sheet) { kind in
-            OperatingCaptureSheet(
-                title: kind.sheetTitle(client),
-                icon: kind.icon(client),
-                eventType: kind.eventType,
-                mode: kind.captureMode,
-                model: model,
-                channelLabel: "Channel",
-                variant: client ? "client" : "own",
-                onSubmit: { draft in
-                    try await onRecord(MarketingEventDraft(
-                        eventType: draft.eventType,
-                        title: draft.title,
-                        amount: draft.amount,
-                        note: draft.note,
-                        channelName: draft.channelName,
-                        counterpartyName: draft.counterpartyName,
-                        paymentStatus: draft.paymentStatus,
-                        occurredAt: draft.occurredAt,
-                        quantity: draft.quantity,
-                        unit: draft.unit,
-                        unitPrice: draft.unitPrice,
-                        itemName: draft.itemName,
-                        parentEventId: draft.parentEventId,
-                        revisesEventId: draft.revisesEventId,
-                        masterKind: draft.masterKind,
-                        dueAt: draft.dueAt,
-                        contract: draft.contract,
-                        lineItems: draft.lineItems,
-                        reportingMode: draft.reportingMode,
-                        metricCode: draft.metricCode,
-                        budgetCategory: draft.budgetCategory,
-                        activityStatus: draft.activityStatus,
-                        attributedSales: draft.attributedSales,
-                        revisionKind: draft.revisionKind
-                    ))
-                },
-                onDecide: onDecide
-            )
+    }
+
+    @ViewBuilder private func captureForm(_ item: HubSheet) -> some View {
+        switch item {
+            case .masters:
+                OperatingCaptureSheet(
+                    title: "Masters",
+                    icon: "qa_shield",
+                    eventType: "UPDATE",
+                    mode: "MASTERS",
+                    model: model,
+                    onSubmit: { draft in try await onRecord(marketingDraft(draft)) },
+                    onDecide: onDecide,
+                    onDismiss: { presented = nil }
+                )
+            case .action(let kind):
+                OperatingCaptureSheet(
+                    title: kind.sheetTitle(client),
+                    icon: kind.icon(client),
+                    eventType: kind.eventType,
+                    mode: kind.captureMode,
+                    model: model,
+                    channelLabel: "Channel",
+                    variant: client ? "client" : "own",
+                    onSubmit: { draft in try await onRecord(marketingDraft(draft)) },
+                    onDecide: onDecide,
+                    onDismiss: { presented = nil }
+                )
+            case .approval:
+                OperatingCaptureSheet(
+                    title: "Review Approval",
+                    icon: "qa_shield",
+                    eventType: "APPROVAL",
+                    mode: "APPROVAL",
+                    model: model,
+                    variant: client ? "client" : "own",
+                    onSubmit: { _ in },
+                    onDecide: onDecide,
+                    onDismiss: { presented = nil }
+                )
         }
-        .sheet(isPresented: $approvalOpen) {
-            OperatingCaptureSheet(
-                title: "Review Approval",
-                icon: "qa_shield",
-                eventType: "APPROVAL",
-                mode: "APPROVAL",
-                model: model,
-                variant: client ? "client" : "own",
-                onSubmit: { _ in },
-                onDecide: onDecide
-            )
-        }
+    }
+
+    private func marketingDraft(_ draft: OperatingCaptureDraft) -> MarketingEventDraft {
+        MarketingEventDraft(
+            eventType: draft.eventType,
+            title: draft.title,
+            amount: draft.amount,
+            note: draft.note,
+            channelName: draft.channelName,
+            counterpartyName: draft.counterpartyName,
+            paymentStatus: draft.paymentStatus,
+            occurredAt: draft.occurredAt,
+            quantity: draft.quantity,
+            unit: draft.unit,
+            unitPrice: draft.unitPrice,
+            itemName: draft.itemName,
+            parentEventId: draft.parentEventId,
+            revisesEventId: draft.revisesEventId,
+            masterKind: draft.masterKind,
+            dueAt: draft.dueAt,
+            contract: draft.contract,
+            lineItems: draft.lineItems,
+            reportingMode: draft.reportingMode,
+            metricCode: draft.metricCode,
+            budgetCategory: draft.budgetCategory,
+            activityStatus: draft.activityStatus,
+            attributedSales: draft.attributedSales,
+            revisionKind: draft.revisionKind
+        )
     }
 
     private var supportGrid: some View {
@@ -209,30 +199,52 @@ struct MarketingQuickAddHub: View {
             ("People & Roles", .role, owner ? nil : "Owner only"),
             ("Partners & Channels", .partner, owner ? nil : "Owner only"),
         ]).filter { matches($0.0) }
-        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                Button {
-                    if item.0 == "Approval review", item.2 == nil { approvalOpen = true }
-                    else if let kind = item.1, item.2 == nil { sheet = kind }
-                } label: {
-                    VStack(spacing: 8) {
-                        Image(item.1?.icon(client) ?? "qa_shield")
-                            .renderingMode(.template).resizable().scaledToFit().frame(width: 28, height: 28)
-                        Text(item.0).font(.plusJakarta(size: 12, weight: .semibold)).multilineTextAlignment(.center)
-                        if let lock = item.2 {
-                            Text(lock).font(.plusJakarta(size: 10))
-                        }
-                    }
-                    .foregroundStyle(item.2 == nil ? MarketingChrome.ink : MarketingChrome.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 104)
-                    .padding(12)
-                    .background(MarketingChrome.card)
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(MarketingChrome.border, lineWidth: 1))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-                .disabled(item.2 != nil)
+        return tileRows(items) { item in
+            actionTile(item.0, icon: item.1?.icon(client) ?? "qa_shield", locked: item.2) {
+                if item.0 == "Approval review", item.2 == nil { presented = .approval }
+                else if let kind = item.1, item.2 == nil { presented = .action(kind) }
             }
         }
+    }
+
+    private func tileRows<Item>(_ items: [Item], tile: @escaping (Item) -> some View) -> some View {
+        let rows = stride(from: 0, to: items.count, by: 3).map { start in
+            Array(items[start..<min(start + 3, items.count)])
+        }
+        return VStack(spacing: 8) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(alignment: .top, spacing: 8) {
+                    ForEach(Array(row.enumerated()), id: \.offset) { _, item in
+                        tile(item)
+                    }
+                    if row.count < 3 {
+                        ForEach(0..<(3 - row.count), id: \.self) { _ in
+                            Color.clear.frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func actionTile(_ title: String, icon: String, locked: String?, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(icon).renderingMode(.template).resizable().scaledToFit().frame(width: 28, height: 28)
+                Text(title).font(.plusJakarta(size: 13, weight: .semibold)).multilineTextAlignment(.center)
+                if let locked {
+                    Text(locked).font(.plusJakarta(size: 10))
+                }
+            }
+            .foregroundStyle(locked == nil ? MarketingChrome.ink : MarketingChrome.secondary)
+            .frame(maxWidth: .infinity, minHeight: 104)
+            .padding(12)
+            .background(MarketingChrome.card)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(MarketingChrome.border, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+        .disabled(locked != nil)
     }
 
     private func matches(_ label: String) -> Bool {

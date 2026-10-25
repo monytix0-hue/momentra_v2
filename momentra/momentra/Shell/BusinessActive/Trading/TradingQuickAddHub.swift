@@ -6,16 +6,29 @@ struct TradingQuickAddHub: View {
     var onDecide: (String, String) async throws -> Void
 
     @State private var query = ""
-    @State private var sheet: TradingSheetKind?
-    @State private var approvalOpen = false
+    @State private var presented: HubSheet?
     @State private var errorText: String?
-    @State private var mastersOpen = false
+
+    private enum HubSheet: Identifiable {
+        case action(TradingSheetKind)
+        case masters
+        case approval
+        var id: String {
+            switch self {
+            case .action(let kind): return "action-\(kind.id)"
+            case .masters: return "masters"
+            case .approval: return "approval"
+            }
+        }
+    }
 
     private var allowed: Set<String> { Set((model.quickAdds ?? []).map(\.code)) }
     private var owner: Bool { model.role == "OWNER_ADMIN" }
     private var approver: Bool { model.role == "APPROVER" || owner }
 
     var body: some View {
+        ZStack {
+        ScrollView {
         VStack(alignment: .leading, spacing: 12) {
             Text("Quick Adds").font(.plusJakarta(size: 28, weight: .semibold)).foregroundStyle(TradingChrome.ink)
             Text("Record what happened · \(model.title ?? "")").font(.plusJakarta(size: 13)).foregroundStyle(TradingChrome.secondary)
@@ -28,7 +41,7 @@ struct TradingQuickAddHub: View {
                 Text("Capture a sale, a cost, or a note while it is still clear.")
                     .font(.plusJakarta(size: 13)).foregroundStyle(TradingChrome.secondary)
                 if allowed.contains("SALE") {
-                    Button { sheet = .sale } label: {
+                    Button { presented = .action(.sale) } label: {
                         HStack(spacing: 6) {
                             Image("qa_plus").renderingMode(.template).resizable().scaledToFit().frame(width: 14, height: 14)
                             Text("Record Sale")
@@ -58,7 +71,7 @@ struct TradingQuickAddHub: View {
             Text("Core actions · \(core.count)").font(.plusJakarta(size: 12)).foregroundStyle(TradingChrome.secondary)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(core) { kind in
-                    Button { sheet = kind } label: {
+                    Button { presented = .action(kind) } label: {
                         VStack(spacing: 8) {
                             Image(kind.icon).renderingMode(.template).resizable().scaledToFit().frame(width: 28, height: 28)
                             Text(kind.label).font(.plusJakarta(size: 13, weight: .semibold)).multilineTextAlignment(.center)
@@ -72,69 +85,83 @@ struct TradingQuickAddHub: View {
                     }
                 }
             }
-            Button("Masters") { mastersOpen = true }.font(.plusJakarta(size: 15, weight: .semibold))
+            Button("Masters") { presented = .masters }.font(.plusJakarta(size: 15, weight: .semibold))
             Text("Support & management").font(.plusJakarta(size: 12)).foregroundStyle(TradingChrome.secondary)
             supportGrid
             if let errorText { Text(errorText).foregroundStyle(Color(hex: "#F87171")) }
         }
-        .sheet(isPresented: $mastersOpen) {
-            OperatingCaptureSheet(
-                title: "Masters",
-                icon: "qa_shield",
-                eventType: "UPDATE",
-                mode: "MASTERS",
-                model: model,
-                onSubmit: { draft in try await onRecord(draft.toTrading()) },
-                onDecide: onDecide
-            )
-        }
-        .sheet(item: $sheet) { kind in
-            OperatingCaptureSheet(
-                title: kind.title,
-                icon: kind.icon,
-                eventType: kind.eventType,
-                mode: operatingCaptureMode(eventType: kind.eventType, title: kind.title),
-                model: model,
-                channelLabel: kind == .sale ? "Sales channel" : (kind == .collection ? "Received from" : "Channel"),
-                variant: "trading",
-                onSubmit: { draft in try await onRecord(draft.toTrading()) },
-                onDecide: onDecide,
-                onCreateMaster: { kind, name, unit, conversion in
-                    try await onRecord(TradingEventDraft(
-                        eventType: "UPDATE",
-                        title: name,
-                        amount: nil,
-                        note: nil,
-                        channelName: nil,
-                        counterpartyName: nil,
-                        paymentStatus: nil,
-                        unit: unit,
-                        masterKind: kind,
-                        conversionToBase: conversion
-                    ))
-                }
-            )
+        .padding(.horizontal, 17)
+        .padding(.vertical, 20)
         }
         .onAppear {
             switch OperatingQuickAddHint.value {
-            case "shipment": sheet = .shipment
-            case "stock": sheet = .stock
-            case "budget": sheet = .budget
+            case "shipment": presented = .action(.shipment)
+            case "stock": presented = .action(.stock)
+            case "budget": presented = .action(.budget)
             default: break
             }
             OperatingQuickAddHint.value = nil
         }
-        .sheet(isPresented: $approvalOpen) {
-            OperatingCaptureSheet(
-                title: "Review Approval",
-                icon: "qa_shield",
-                eventType: "APPROVAL",
-                mode: "APPROVAL",
-                model: model,
-                variant: "trading",
-                onSubmit: { _ in },
-                onDecide: onDecide
-            )
+        if let presented {
+            captureForm(presented)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder private func captureForm(_ item: HubSheet) -> some View {
+        switch item {
+            case .masters:
+                OperatingCaptureSheet(
+                    title: "Masters",
+                    icon: "qa_shield",
+                    eventType: "UPDATE",
+                    mode: "MASTERS",
+                    model: model,
+                    onSubmit: { draft in try await onRecord(draft.toTrading()) },
+                    onDecide: onDecide,
+                    onDismiss: { presented = nil }
+                )
+            case .action(let kind):
+                OperatingCaptureSheet(
+                    title: kind.title,
+                    icon: kind.icon,
+                    eventType: kind.eventType,
+                    mode: operatingCaptureMode(eventType: kind.eventType, title: kind.title),
+                    model: model,
+                    channelLabel: kind == .sale ? "Sales channel" : (kind == .collection ? "Received from" : "Channel"),
+                    variant: "trading",
+                    onSubmit: { draft in try await onRecord(draft.toTrading()) },
+                    onDecide: onDecide,
+                    onDismiss: { presented = nil },
+                    onCreateMaster: { kind, name, unit, conversion in
+                        try await onRecord(TradingEventDraft(
+                            eventType: "UPDATE",
+                            title: name,
+                            amount: nil,
+                            note: nil,
+                            channelName: nil,
+                            counterpartyName: nil,
+                            paymentStatus: nil,
+                            unit: unit,
+                            masterKind: kind,
+                            conversionToBase: conversion
+                        ))
+                    }
+                )
+            case .approval:
+                OperatingCaptureSheet(
+                    title: "Review Approval",
+                    icon: "qa_shield",
+                    eventType: "APPROVAL",
+                    mode: "APPROVAL",
+                    model: model,
+                    variant: "trading",
+                    onSubmit: { _ in },
+                    onDecide: onDecide,
+                    onDismiss: { presented = nil }
+                )
         }
     }
 
@@ -150,8 +177,8 @@ struct TradingQuickAddHub: View {
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 Button {
-                    if item.0 == "Approval review", item.2 == nil { approvalOpen = true }
-                    else if let kind = item.1, item.2 == nil { sheet = kind }
+                    if item.0 == "Approval review", item.2 == nil { presented = .approval }
+                    else if let kind = item.1, item.2 == nil { presented = .action(kind) }
                 } label: {
                     VStack(spacing: 8) {
                         Image(item.0 == "Approval review" ? "qa_shield" : (item.1?.icon ?? "qa_shield"))
