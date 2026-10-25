@@ -44,7 +44,9 @@ import { accumulateGstPosition, type GstPosition } from './operating-gst';
 import {
   channelCoverage,
   isMarketingSubtype,
+  activityClosed,
   marketingAttention,
+  marketingCpl,
   marketingProgress,
   rollMarketingLedger,
   MARKETING_METRICS,
@@ -404,6 +406,14 @@ export interface OperatingPreferences {
   salePriceIncludesGst: string;
   purchasePriceIncludesGst: string;
   gstEffectiveFrom: string;
+  clientFee: string;
+  offering: string;
+  creativeApprovalRequired: string;
+  reportingCadence: string;
+  conversionNumerator: string;
+  conversionDenominator: string;
+  conversionDefinitionVersion: string;
+  campaignStatus: string;
 }
 
 function asRole(value: unknown): OperatingRole | undefined {
@@ -437,7 +447,9 @@ export function normalizeOperatingPreferences(
   if (!partyName) throw new Error(`${sub.partyLabel} name is required.`);
   const monthlyBudget = positiveAmount(prefs.monthlyBudget) ?? '';
   const monthlyTarget = positiveAmount(prefs.monthlyTarget) ?? '';
-  if (familyCode !== 'RETAIL_CONSUMER') {
+  if (familyCode === 'MARKETING_CAMPAIGNS') {
+    if (!monthlyBudget) throw new Error('Monthly budget must be a positive amount.');
+  } else if (familyCode !== 'RETAIL_CONSUMER') {
     if (!monthlyBudget) throw new Error('Monthly budget must be a positive amount.');
     if (!monthlyTarget) throw new Error('Monthly target must be a positive amount.');
   }
@@ -517,6 +529,47 @@ export function normalizeOperatingPreferences(
     monthlyTarget,
     targetMetric,
     ...normalizeGstPreferences(familyCode, prefs),
+    ...normalizeMarketingPreferences(familyCode, subtype, prefs),
+  };
+}
+
+function normalizeMarketingPreferences(
+  familyCode: OperatingFamilyCode,
+  subtype: string,
+  prefs: Record<string, unknown>
+): Pick<
+  OperatingPreferences,
+  | 'clientFee'
+  | 'offering'
+  | 'creativeApprovalRequired'
+  | 'reportingCadence'
+  | 'conversionNumerator'
+  | 'conversionDenominator'
+  | 'conversionDefinitionVersion'
+  | 'campaignStatus'
+> {
+  const empty = {
+    clientFee: '',
+    offering: '',
+    creativeApprovalRequired: '',
+    reportingCadence: '',
+    conversionNumerator: '',
+    conversionDenominator: '',
+    conversionDefinitionVersion: '',
+    campaignStatus: 'OPEN',
+  };
+  if (familyCode !== 'MARKETING_CAMPAIGNS') return empty;
+  const client = subtype === 'CLIENT_CAMPAIGN';
+  const cadence = String(prefs.reportingCadence ?? '').trim().toUpperCase();
+  return {
+    clientFee: client ? positiveAmount(prefs.clientFee) ?? '' : '',
+    offering: String(prefs.offering ?? '').trim(),
+    creativeApprovalRequired: String(prefs.creativeApprovalRequired ?? '').toUpperCase() === 'YES' ? 'YES' : '',
+    reportingCadence: client && ['WEEKLY', 'MONTHLY', 'CUSTOM'].includes(cadence) ? cadence : '',
+    conversionNumerator: String(prefs.conversionNumerator ?? '').trim(),
+    conversionDenominator: String(prefs.conversionDenominator ?? '').trim(),
+    conversionDefinitionVersion: String(prefs.conversionDefinitionVersion ?? '').trim(),
+    campaignStatus: String(prefs.campaignStatus ?? '').toUpperCase() === 'CLOSED' ? 'CLOSED' : 'OPEN',
   };
 }
 
@@ -711,6 +764,20 @@ export interface OperatingProjection {
   salePriceIncludesGst: string;
   purchasePriceIncludesGst: string;
   gstPosition: GstPosition | null;
+  marketing: MarketingInsight | null;
+}
+
+export interface MarketingInsight {
+  cpl: string | null;
+  pacing: string | null;
+  coverage: string;
+  reimbursable: string;
+  clientContribution: string | null;
+  campaignStatus: string;
+  clientFee: string;
+  offering: string;
+  creativeApprovalRequired: string;
+  reportingCadence: string;
 }
 
 export interface OperatingBoardRow {
@@ -1085,8 +1152,13 @@ export function projectOperatingMoment(args: {
       progress += amount;
     }
   }
+  let marketingCoverage = 'N/A';
   if (args.familyCode === 'MARKETING_CAMPAIGNS') {
-    const rolled = rollMarketingLedger(pulseEvents, { budget: num(args.prefs.monthlyBudget), target: num(args.prefs.monthlyTarget) });
+    const rolled = rollMarketingLedger(
+      pulseEvents,
+      { budget: num(args.prefs.monthlyBudget), target: num(args.prefs.monthlyTarget) },
+      asOf.toISOString().slice(0, 10)
+    );
     budget = rolled.budget;
     target = rolled.target;
     budgetConfigured = rolled.budgetConfigured;
@@ -1095,6 +1167,7 @@ export function projectOperatingMoment(args: {
     revisions.splice(0, revisions.length, ...rolled.revisions);
     const measured = marketingProgress(pulseEvents, args.prefs.targetMetric);
     progress = measured.progress;
+    marketingCoverage = measured.coverage;
   }
   // Pulse recorded sales is net posted sales. Gross countsTarget amounts ignore credit notes.
   if (args.familyCode === 'TRADING_DISTRIBUTION' && args.prefs.targetMetric.toUpperCase() === 'REVENUE') {
@@ -1183,6 +1256,42 @@ export function projectOperatingMoment(args: {
         })
     : [];
   const continuity = operatingContinuity(pulseEvents, args.familyCode, visible);
+  const ownCampaign = args.prefs.subtype === 'OWN_BUSINESS_CAMPAIGN';
+  const clientCampaign = args.prefs.subtype === 'CLIENT_CAMPAIGN';
+  if (args.familyCode === 'MARKETING_CAMPAIGNS') {
+    continuity.costPerLead = visible ? marketingCpl(pulseEvents) : null;
+    if (ownCampaign) continuity.receivable = visible ? '0.0000' : null;
+  }
+  const visibleReadiness = ownCampaign
+    ? paymentReadiness.filter((row) => row.relevance !== 'RECEIVABLE')
+    : paymentReadiness;
+  const finance = financeTotals(pulseEvents, visible, continuity);
+  if (ownCampaign && finance) {
+    finance.sales = '0.0000';
+    finance.received = '0.0000';
+    finance.outstanding = '0.0000';
+  }
+  if (args.familyCode === 'MARKETING_CAMPAIGNS' && finance) {
+    finance.eligibleCost = money(spent);
+  }
+  const marketingInsight: MarketingInsight | null = args.familyCode === 'MARKETING_CAMPAIGNS'
+    ? {
+        cpl: visible ? marketingCpl(pulseEvents) : null,
+        pacing: marketingPacing(args.prefs.startDate, args.prefs.endDate, asOf, progress, target, targetConfigured),
+        coverage: marketingCoverage,
+        reimbursable: money(
+          pulseEvents
+            .filter((row) => effective(row) && (row.eventType === 'SPEND' || row.eventType === 'VENDOR_COST') && row.marketing?.costBasis === 'REIMBURSABLE')
+            .reduce((total, row) => total + num(row.amount), 0)
+        ),
+        clientContribution: clientCampaign && visible ? money(netPostedSales(pulseEvents) - spent) : null,
+        campaignStatus: args.prefs.campaignStatus || 'OPEN',
+        clientFee: args.prefs.clientFee,
+        offering: args.prefs.offering,
+        creativeApprovalRequired: args.prefs.creativeApprovalRequired,
+        reportingCadence: args.prefs.reportingCadence,
+      }
+    : null;
   const quickAdds = (sub?.quickAdds ?? [])
     .map((code) => QA[code])
     .filter((def) => canSubmit(args.role, def))
@@ -1226,13 +1335,19 @@ export function projectOperatingMoment(args: {
         gstin: row.master!.gstin ?? null,
       })),
     location: args.prefs.location,
-    finance: financeTotals(pulseEvents, visible, continuity),
+    finance,
     continuity,
     budget: visible
       ? { amount: money(budget), spent: money(spent), remaining: money(budget - spent), configured: budgetConfigured }
       : null,
     target: visible
-      ? { metric: args.prefs.targetMetric, value: money(target), progress: money(progress), configured: targetConfigured, coverage: manufacturingCoverage }
+      ? {
+          metric: args.prefs.targetMetric,
+          value: money(target),
+          progress: money(progress),
+          configured: targetConfigured,
+          coverage: args.familyCode === 'MARKETING_CAMPAIGNS' ? marketingCoverage : manufacturingCoverage,
+        }
       : null,
     attention: [
       ...attention,
@@ -1244,7 +1359,7 @@ export function projectOperatingMoment(args: {
             kind: row.relevance === 'RECEIVABLE' ? 'RECEIVABLE' : 'PAYABLE',
           }))),
     ],
-    paymentReadiness,
+    paymentReadiness: visibleReadiness,
     activity: pulseEvents.map((row) => ({
       id: row.operatingEventId,
       title: displayTitle(row),
@@ -1306,7 +1421,28 @@ export function projectOperatingMoment(args: {
             asOf.toISOString().slice(0, 7)
           )
         : null,
+    marketing: marketingInsight,
   };
+}
+
+function marketingPacing(
+  startDate: string,
+  endDate: string,
+  asOf: Date,
+  progress: number,
+  target: number,
+  targetConfigured: boolean
+): string | null {
+  const start = startDate.slice(0, 10);
+  const end = endDate.slice(0, 10);
+  if (!targetConfigured || !/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || end <= start) return null;
+  const span = Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000);
+  if (!(span > 0)) return null;
+  const today = asOf.toISOString().slice(0, 10);
+  const elapsed = Math.max(0, Math.min(span, Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000)));
+  const timePct = Math.round((elapsed / span) * 100);
+  const resultPct = target > 0 ? Math.round((progress / target) * 100) : 0;
+  return `Linear benchmark · ${timePct}% of time · ${resultPct}% of target`;
 }
 
 function emptyFacts(): Pick<OperatingBoardRow, 'channelName' | 'counterpartyName' | 'paymentStatus' | 'approvalStatus' | 'note'> {
@@ -1583,7 +1719,14 @@ function operatingBoards(args: {
     peopleToday(lifeEvents, prefs),
     ...familyLifeSections(familyCode, args.subtype, lifeEvents, visible, currency),
   ];
-  const monthly = monthlyHistory(pulseEvents, visible, currency);
+  const monthly = monthlyHistory(
+    pulseEvents,
+    visible,
+    currency,
+    familyCode === 'MARKETING_CAMPAIGNS'
+      ? { budget: num(prefs.monthlyBudget), target: num(prefs.monthlyTarget) }
+      : undefined
+  );
   const revisionRows = args.revisions.map((row) => ({
     id: row.id,
     title: row.title,
@@ -1608,7 +1751,7 @@ function operatingBoards(args: {
   ];
   if (isRetailSubtype(args.subtype)) decorateRetailBoards(moments, life, memory, args.events, visible, currency, args.asOf);
   if (isTradingSubtype(args.subtype)) decorateTradingBoards(moments, life, memory, args.events, visible, currency, args.asOf, network);
-  if (isMarketingSubtype(args.subtype)) decorateMarketingBoards(moments, life, args.prefs, args.events);
+  if (isMarketingSubtype(args.subtype)) decorateMarketingBoards(moments, life, memory, args.prefs, args.events);
   if (isManufacturingSubtype(args.subtype)) decorateManufacturingBoards(moments, args.events);
   return { moments, life, memory };
 }
@@ -1645,6 +1788,7 @@ function recordedFrom(row: OperatingEventRow): number {
 function decorateMarketingBoards(
   moments: OperatingBoardSection[],
   life: OperatingBoardSection[],
+  memory: OperatingBoardSection[],
   prefs: OperatingPreferences,
   events: OperatingEventRow[]
 ): void {
@@ -1661,9 +1805,16 @@ function decorateMarketingBoards(
   const commitments = moments.find((section) => section.code === 'M4');
   if (commitments) {
     const open = events.filter(
-      (row) => row.eventType === 'ACTIVITY' && row.approvalStatus !== 'REJECTED' && row.marketing?.activityStatus !== 'DONE'
+      (row) => row.eventType === 'ACTIVITY' && row.approvalStatus !== 'REJECTED' && !activityClosed(row.marketing?.activityStatus)
     );
     if (open.length === 0 && commitments.rows.length === 0) commitments.detail = 'Nothing recorded yet.';
+  }
+  if (prefs.subtype === 'OWN_BUSINESS_CAMPAIGN') {
+    const hide = new Set(['SALE', 'INVOICE', 'COLLECTION']);
+    for (const section of [...life, ...memory]) {
+      if (section.code !== 'L3' && section.code !== 'ME2') continue;
+      section.rows = section.rows.filter((row) => !hide.has(row.eventType));
+    }
   }
 }
 
@@ -2088,7 +2239,8 @@ function actorName(row: OperatingEventRow, prefs: OperatingPreferences): string 
 function monthlyHistory(
   events: OperatingEventRow[],
   visible: boolean,
-  currency: string
+  currency: string,
+  marketingPlan?: { budget: number; target: number }
 ): OperatingBoardRow[] {
   const groups = new Map<string, OperatingEventRow[]>();
   for (const row of events) {
@@ -2110,7 +2262,11 @@ function monthlyHistory(
         .filter((row) => quickAddDef(row.eventType)?.consumesBudget)
         .reduce((sum, row) => sum + commercialAmount(row), 0);
       const progress = month === current ? ' · Month in progress' : '';
-      const moneyLine = visible ? ` · Sales ${money(sales)} ${currency} · Costs ${money(costs)} ${currency}` : '';
+      const asOfBudget = marketingPlan
+        ? rollMarketingLedger(events, marketingPlan, `${month}-31`).budget
+        : null;
+      const budgetLine = visible && asOfBudget != null ? ` · Budget ${money(asOfBudget)} ${currency}` : '';
+      const moneyLine = visible ? ` · Sales ${money(sales)} ${currency} · Costs ${money(costs)} ${currency}${budgetLine}` : '';
       return {
         id: `month-${month}`,
         title: `${month}${progress}${moneyLine}`,

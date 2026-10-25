@@ -59,14 +59,32 @@ export function isMarketingSubtype(subtype: string | null | undefined): boolean 
   return code === 'CLIENT_CAMPAIGN' || code === 'OWN_BUSINESS_CAMPAIGN';
 }
 
+export type MarketingActivityStatus =
+  | 'OPEN'
+  | 'DONE'
+  | 'IN_PROGRESS'
+  | 'BLOCKED'
+  | 'POSTPONED'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
 export interface MarketingFacts {
   reportingMode: 'INCREMENTAL' | 'CUMULATIVE' | null;
   metricCode: string | null;
   budgetCategory: string | null;
   paymentState: 'PAID' | 'PART_PAID' | 'PAY_LATER' | null;
-  activityStatus: 'OPEN' | 'DONE' | null;
+  activityStatus: MarketingActivityStatus | null;
   attributedSales: string | null;
   revisionKind: 'BUDGET' | 'TARGET' | 'CATEGORY' | null;
+  costBasis?: 'AGENCY' | 'REIMBURSABLE' | null;
+  normalizedDelta?: string | null;
+  overlapDeduped?: boolean;
+  resultSource?: string | null;
+  periodEnd?: string | null;
+  creativeVersion?: string | null;
+  effectiveFrom?: string | null;
+  evidenceUrl?: string | null;
+  idempotencyKey?: string | null;
 }
 
 export interface MarketingEvent {
@@ -104,6 +122,24 @@ function day(value: string | null | undefined): string {
   return String(value ?? '').slice(0, 10);
 }
 
+const ACTIVITY_STATUSES = new Set<MarketingActivityStatus>([
+  'OPEN',
+  'DONE',
+  'IN_PROGRESS',
+  'BLOCKED',
+  'POSTPONED',
+  'COMPLETED',
+  'CANCELLED',
+]);
+
+export function activityClosed(status: string | null | undefined): boolean {
+  return status === 'DONE' || status === 'COMPLETED' || status === 'CANCELLED';
+}
+
+function activityStatusOf(value: string): MarketingActivityStatus | null {
+  return ACTIVITY_STATUSES.has(value as MarketingActivityStatus) ? (value as MarketingActivityStatus) : null;
+}
+
 export function parseMarketingFacts(raw: unknown, metric: string | null): MarketingFacts | null {
   if (!raw || typeof raw !== 'object') {
     if (!metric) return null;
@@ -128,9 +164,18 @@ export function parseMarketingFacts(raw: unknown, metric: string | null): Market
     metricCode: metricCode || null,
     budgetCategory: rec.budgetCategory == null ? null : String(rec.budgetCategory).toUpperCase(),
     paymentState: state === 'PAID' || state === 'PART_PAID' || state === 'PAY_LATER' ? state : null,
-    activityStatus: activity === 'OPEN' || activity === 'DONE' ? activity : null,
+    activityStatus: activityStatusOf(activity),
     attributedSales: rec.attributedSales == null || rec.attributedSales === '' ? null : String(rec.attributedSales),
     revisionKind: revision === 'BUDGET' || revision === 'TARGET' || revision === 'CATEGORY' ? revision : null,
+    costBasis: rec.costBasis === 'REIMBURSABLE' ? 'REIMBURSABLE' : rec.costBasis === 'AGENCY' ? 'AGENCY' : null,
+    normalizedDelta: rec.normalizedDelta == null || rec.normalizedDelta === '' ? null : String(rec.normalizedDelta),
+    overlapDeduped: rec.overlapDeduped === true,
+    resultSource: rec.resultSource == null || rec.resultSource === '' ? null : String(rec.resultSource),
+    periodEnd: rec.periodEnd == null ? null : String(rec.periodEnd).slice(0, 10),
+    creativeVersion: rec.creativeVersion == null || rec.creativeVersion === '' ? null : String(rec.creativeVersion),
+    effectiveFrom: rec.effectiveFrom == null ? null : String(rec.effectiveFrom).slice(0, 10),
+    evidenceUrl: rec.evidenceUrl == null || rec.evidenceUrl === '' ? null : String(rec.evidenceUrl),
+    idempotencyKey: rec.idempotencyKey == null || rec.idempotencyKey === '' ? null : String(rec.idempotencyKey),
   };
 }
 
@@ -160,17 +205,52 @@ function measure(row: MarketingEvent): number {
   return num(row.amount);
 }
 
+/** Sum of normalized deltas. A later cumulative snapshot contributes only the increase. */
 export function seriesValue(rows: MarketingEvent[]): number {
-  const ordered = [...rows].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
-  let incremental = 0;
-  let cumulative: number | null = null;
+  const ordered = [...rows].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.operatingEventId.localeCompare(b.operatingEventId));
+  const seen = new Set<string>();
+  let total = 0;
+  let priorCumulative: number | null = null;
   for (const row of ordered) {
-    const mode = factsOf(row).reportingMode ?? 'INCREMENTAL';
+    const facts = factsOf(row);
+    const key = facts.idempotencyKey;
+    if (key) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    if (facts.normalizedDelta != null && facts.normalizedDelta !== '') {
+      total += num(facts.normalizedDelta);
+      if ((facts.reportingMode ?? 'INCREMENTAL') === 'CUMULATIVE') priorCumulative = measure(row);
+      continue;
+    }
     const value = measure(row);
-    if (mode === 'CUMULATIVE') cumulative = value;
-    else incremental += value;
+    if ((facts.reportingMode ?? 'INCREMENTAL') === 'CUMULATIVE') {
+      const delta = priorCumulative == null ? value : value - priorCumulative;
+      if (delta >= 0) total += delta;
+      priorCumulative = value;
+    } else {
+      total += value;
+    }
   }
-  return cumulative != null ? cumulative : incremental;
+  return total;
+}
+
+export function observationDelta(prior: MarketingEvent[], row: MarketingEvent): number {
+  const facts = factsOf(row);
+  if (facts.idempotencyKey && prior.some((item) => factsOf(item).idempotencyKey === facts.idempotencyKey)) return 0;
+  if ((facts.reportingMode ?? 'INCREMENTAL') !== 'CUMULATIVE') return measure(row);
+  const same = prior
+    .filter((item) => effective(item) && (item.eventType === 'RESULT' || item.eventType === 'PROGRESS'))
+    .filter((item) => metricOf(item) === metricOf(row))
+    .filter((item) => (item.unit ?? '') === (row.unit ?? ''))
+    .filter((item) => (item.channelName ?? '') === (row.channelName ?? ''))
+    .filter((item) => (factsOf(item).resultSource ?? '') === (facts.resultSource ?? ''))
+    .filter((item) => (factsOf(item).reportingMode ?? 'INCREMENTAL') === 'CUMULATIVE')
+    .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+  const previous = same.length ? measure(same[same.length - 1]!) : null;
+  const value = measure(row);
+  if (previous == null) return value;
+  return value >= previous ? value - previous : 0;
 }
 
 /** Compatible observations only. Empty coverage is N/A, never a fabricated zero result. */
@@ -188,6 +268,11 @@ export function marketingProgress(events: MarketingEvent[], targetMetric: string
   if (rows.length === 0) return { progress: 0, coverage: 'N/A' };
   const units = new Set(rows.map((row) => (row.unit ?? '').trim().toLowerCase()).filter(Boolean));
   if (units.size > 1) return { progress: 0, coverage: 'N/A' };
+  if (metric === 'REACH') {
+    const channels = new Set(rows.map((row) => row.channelName ?? ''));
+    const deduped = rows.every((row) => factsOf(row).overlapDeduped === true);
+    if (channels.size > 1 && !deduped) return { progress: 0, coverage: 'N/A' };
+  }
   const groups = new Map<string, MarketingEvent[]>();
   for (const row of rows) {
     const key = `${metricOf(row)}|${(row.unit ?? '').trim().toLowerCase()}|${row.channelName ?? ''}`;
@@ -198,15 +283,23 @@ export function marketingProgress(events: MarketingEvent[], targetMetric: string
   return { progress: total, coverage: `${rows.length} recorded` };
 }
 
+function inForce(row: MarketingEvent, asOf: string | null): boolean {
+  if (!asOf) return true;
+  const from = factsOf(row).effectiveFrom || day(row.occurredAt);
+  return !from || from <= asOf;
+}
+
 export function rollMarketingLedger(
   events: MarketingEvent[],
-  seed: { budget: number; target: number }
+  seed: { budget: number; target: number },
+  asOf: string | null = null
 ): {
   budget: number;
   target: number;
   budgetConfigured: boolean;
   targetConfigured: boolean;
   spent: number;
+  reimbursable: number;
   revisions: Array<{ id: string; title: string; occurredAt: string }>;
 } {
   let budget = seed.budget;
@@ -216,6 +309,7 @@ export function rollMarketingLedger(
   const revisions: Array<{ id: string; title: string; occurredAt: string }> = [];
   const ordered = [...events].filter(effective).sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
   for (const row of ordered) {
+    if ((row.eventType === 'BUDGET' || row.eventType === 'TARGET' || row.eventType === 'REVISION') && !inForce(row, asOf)) continue;
     const amount = num(row.amount);
     if (row.eventType === 'BUDGET' && amount > 0) {
       budget = amount;
@@ -238,10 +332,16 @@ export function rollMarketingLedger(
     }
   }
   const spent = ordered.reduce((total, row) => {
-    if (row.eventType === 'SPEND' || row.eventType === 'VENDOR_COST') return total + num(row.amount);
-    return total;
+    if (row.eventType !== 'SPEND' && row.eventType !== 'VENDOR_COST') return total;
+    if (factsOf(row).costBasis === 'REIMBURSABLE') return total;
+    return total + num(row.amount);
   }, 0);
-  return { budget, target, budgetConfigured, targetConfigured, spent, revisions };
+  const reimbursable = ordered.reduce((total, row) => {
+    if (row.eventType !== 'SPEND' && row.eventType !== 'VENDOR_COST') return total;
+    if (factsOf(row).costBasis !== 'REIMBURSABLE') return total;
+    return total + num(row.amount);
+  }, 0);
+  return { budget, target, budgetConfigured, targetConfigured, spent, reimbursable, revisions };
 }
 
 function obligationRemaining(row: MarketingEvent, events: MarketingEvent[], childType: 'PAYMENT' | 'COLLECTION'): number {
@@ -303,7 +403,33 @@ export function marketingAttention(args: {
   }> = [];
   const client = args.subtype === 'CLIENT_CAMPAIGN';
   for (const row of args.events) {
-    if (row.eventType !== 'ACTIVITY' || !effective(row) || factsOf(row).activityStatus === 'DONE') continue;
+    if (row.eventType !== 'ACTIVITY' || !effective(row) || activityClosed(factsOf(row).activityStatus)) continue;
+    if (factsOf(row).activityStatus === 'BLOCKED') {
+      cards.push({
+        id: `blocked-${row.operatingEventId}`,
+        title: `Blocked · ${row.title}`,
+        kind: 'ATT-10',
+        severity: 'HIGH',
+        amount: null,
+        dueAt: day(row.dueAt) || null,
+        counterpartyName: row.counterpartyName ?? null,
+        sourceEventId: row.operatingEventId,
+        cta: 'activity',
+      });
+    }
+    if (client && row.title.toLowerCase().startsWith('client report') && !activityClosed(factsOf(row).activityStatus)) {
+      cards.push({
+        id: `report-${row.operatingEventId}`,
+        title: `Client report due · ${row.title}`,
+        kind: 'ATT-11',
+        severity: 'MEDIUM',
+        amount: null,
+        dueAt: day(row.dueAt) || null,
+        counterpartyName: row.counterpartyName ?? null,
+        sourceEventId: row.operatingEventId,
+        cta: 'activity',
+      });
+    }
     const due = day(row.dueAt);
     if (!due) continue;
     if (due < today) {
@@ -454,8 +580,11 @@ export interface MarketingWrite {
   metricCode: string | null;
   reportingMode: 'INCREMENTAL' | 'CUMULATIVE' | null;
   revisionKind: 'BUDGET' | 'TARGET' | 'CATEGORY' | null;
-  activityStatus: 'OPEN' | 'DONE' | null;
+  activityStatus: MarketingActivityStatus | null;
   attributedSales: string | null;
+  costBasis?: 'AGENCY' | 'REIMBURSABLE' | null;
+  creativeVersion?: string | null;
+  idempotencyKey?: string | null;
 }
 
 export function validateMarketingWrite(
@@ -465,6 +594,15 @@ export function validateMarketingWrite(
   const client = input.subtype === 'CLIENT_CAMPAIGN';
   if ((input.eventType === 'INVOICE' || input.eventType === 'COLLECTION') && !client) {
     return { ok: false, message: 'Own-business campaigns do not book invoices or collections.' };
+  }
+  if (!client && input.costBasis === 'REIMBURSABLE') {
+    return { ok: false, message: 'Own-business campaigns do not record client-reimbursable spend.' };
+  }
+  if (input.idempotencyKey && existing.some((row) => factsOf(row).idempotencyKey === input.idempotencyKey)) {
+    return { ok: true };
+  }
+  if (input.eventType === 'PROGRESS' && input.attributedSales) {
+    return { ok: false, message: 'Progress does not post a result.' };
   }
   if (input.eventType === 'INVOICE' && !(num(input.amount) > 0)) {
     return { ok: false, message: 'Invoice amount is required.' };
@@ -484,7 +622,7 @@ export function validateMarketingWrite(
     if (!parent || parent.eventType !== 'ACTIVITY' || !effective(parent)) {
       return { ok: false, message: 'Progress belongs to an open activity.' };
     }
-    if (factsOf(parent).activityStatus === 'DONE') {
+    if (activityClosed(factsOf(parent).activityStatus)) {
       return { ok: false, message: 'That activity is already done.' };
     }
     if (!(num(input.quantity) > 0) && !(num(input.amount) > 0)) {
@@ -517,6 +655,52 @@ export function validateMarketingWrite(
     }
   }
   return { ok: true };
+}
+
+const FINANCIAL_EVENTS = new Set(['SPEND', 'VENDOR_COST', 'PAYMENT', 'INVOICE', 'COLLECTION', 'SALE']);
+
+export function marketingModeLocked(events: MarketingEvent[]): boolean {
+  return events.some((row) => effective(row) && FINANCIAL_EVENTS.has(row.eventType));
+}
+
+export function assertMarketingSubtypeStable(
+  previous: string,
+  next: string,
+  events: MarketingEvent[]
+): { ok: true } | { ok: false; message: string } {
+  if (previous.toUpperCase() === next.toUpperCase()) return { ok: true };
+  if (!marketingModeLocked(events)) return { ok: true };
+  return { ok: false, message: 'The campaign mode cannot change after money has been posted.' };
+}
+
+export function creativeVersionApproved(events: MarketingEvent[], version: string): boolean {
+  const wanted = version.trim();
+  if (!wanted) return false;
+  return events.some(
+    (row) =>
+      row.eventType === 'APPROVAL' &&
+      row.approvalStatus === 'APPROVED' &&
+      effective(row) &&
+      factsOf(row).creativeVersion === wanted
+  );
+}
+
+export function marketingCpl(events: MarketingEvent[]): string | null {
+  const rows = events.filter(effective);
+  const spendRows = rows.filter(
+    (row) => (row.eventType === 'SPEND' || row.eventType === 'VENDOR_COST') && factsOf(row).costBasis !== 'REIMBURSABLE'
+  );
+  const leadRows = rows.filter(
+    (row) => (row.eventType === 'RESULT' || row.eventType === 'PROGRESS') && metricOf(row) === 'LEADS'
+  );
+  const channels = new Set([...spendRows, ...leadRows].map((row) => row.channelName ?? ''));
+  if (channels.size > 1) return null;
+  const measured = marketingProgress(events, 'LEADS');
+  if (measured.coverage === 'N/A') return null;
+  const leads = measured.progress;
+  if (!(leads > 0)) return null;
+  const spend = spendRows.reduce((total, row) => total + num(row.amount), 0);
+  return (spend / leads).toFixed(2);
 }
 
 export function channelCoverage(channels: string[], events: MarketingEvent[]): string {

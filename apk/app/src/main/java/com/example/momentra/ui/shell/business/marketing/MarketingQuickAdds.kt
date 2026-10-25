@@ -67,6 +67,11 @@ data class MarketingEventDraft(
     val activityStatus: String? = null,
     val attributedSales: String? = null,
     val revisionKind: String? = null,
+    val costBasis: String? = null,
+    val overlapDeduped: Boolean? = null,
+    val creativeVersion: String? = null,
+    val resultSource: String? = null,
+    val idempotencyKey: String? = null,
 )
 
 private enum class MarketingSheet(
@@ -446,9 +451,14 @@ private fun OperatingCaptureDraft.toMarketing(activities: List<com.example.momen
     masterKind = masterKind,
     dueAt = dueAt,
     contract = contract,
-    reportingMode = if (eventType == "PROGRESS" || eventType == "RESULT") "INCREMENTAL" else null,
-    metricCode = if (eventType == "PROGRESS" || eventType == "RESULT") "LEADS" else null,
+    reportingMode = reportingMode ?: if (eventType == "PROGRESS" || eventType == "RESULT") "INCREMENTAL" else null,
+    metricCode = metricCode ?: if (eventType == "PROGRESS" || eventType == "RESULT") "LEADS" else null,
     budgetCategory = if (eventType == "SPEND" || eventType == "INVOICE") "DIGITAL_ADS" else null,
-    activityStatus = if (eventType == "ACTIVITY") "OPEN" else null,
-    revisionKind = if (eventType == "REVISION") "BUDGET" else null,
+    activityStatus = activityStatus ?: if (eventType == "ACTIVITY") "IN_PROGRESS" else null,
+    revisionKind = revisionKind ?: if (eventType == "REVISION") "BUDGET" else null,
+    costBasis = costBasis,
+    overlapDeduped = overlapDeduped,
+    creativeVersion = creativeVersion,
+    resultSource = resultSource,
+    idempotencyKey = idempotencyKey,
 )

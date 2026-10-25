@@ -107,6 +107,17 @@ data class OperatingCaptureDraft(
     val masterBillingState: String? = null,
     val masterDeliveryState: String? = null,
     val masterGstin: String? = null,
+    val reportingMode: String? = null,
+    val metricCode: String? = null,
+    val budgetCategory: String? = null,
+    val activityStatus: String? = null,
+    val attributedSales: String? = null,
+    val revisionKind: String? = null,
+    val costBasis: String? = null,
+    val overlapDeduped: Boolean? = null,
+    val creativeVersion: String? = null,
+    val resultSource: String? = null,
+    val idempotencyKey: String? = null,
 )
 
 private val dayFormat = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH)
@@ -207,6 +218,14 @@ private class CaptureForm(
     var billingState by mutableStateOf("")
     var deliveryState by mutableStateOf("")
     var partyGstin by mutableStateOf("")
+    var reportingMode by mutableStateOf("Incremental")
+    var metricCode by mutableStateOf("LEADS")
+    var activityStatus by mutableStateOf("IN_PROGRESS")
+    var costBasis by mutableStateOf("Agency borne")
+    var overlapDeduped by mutableStateOf(false)
+    var creativeVersion by mutableStateOf("1")
+    var resultSource by mutableStateOf("")
+    var idempotencyKey by mutableStateOf(java.util.UUID.randomUUID().toString())
     var originalCurrency by mutableStateOf("")
     var fxRate by mutableStateOf("")
     var returnDirection by mutableStateOf("Customer return")
@@ -688,6 +707,9 @@ private fun SpendCapture(
         EditField("Paid by", form.party, actor.substringBefore(" ·")) { form.party = it }
         if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
         ChoiceBlock("Paid / pending", listOf("Pending / unpaid", "Paid"), form.choice) { form.choice = it }
+        if (model.subtype == "CLIENT_CAMPAIGN") {
+            ChoiceBlock("Who bears the cost", listOf("Agency borne", "Client reimbursable"), form.costBasis) { form.costBasis = it }
+        }
         SummaryCard("After approval", spendSummary(model, currency, typed))
     } else if (lovTrade) {
         AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
@@ -1260,7 +1282,14 @@ private fun ActivityCapture(
             ReadField("Result date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
             EditField("Metric", form.purpose, "What was measured", Modifier.weight(1f)) { form.purpose = it }
         }
+        ChoiceBlock("Reporting", listOf("Incremental", "Cumulative"), form.reportingMode) { form.reportingMode = it }
+        ChoiceBlock("Metric", listOf("LEADS", "CONVERSIONS", "REACH", "ENGAGEMENT", "ORDERS"), form.metricCode) { form.metricCode = it }
         ChoiceBlock("Status", listOf("Accepted", "Pending"), form.choice) { form.choice = it }
+        EditField("Source", form.resultSource, "Where this result was observed") { form.resultSource = it }
+        ChoiceBlock("Overlap", listOf("Channel figure", "Deduplicated reach"), if (form.overlapDeduped) "Deduplicated reach" else "Channel figure") {
+            form.overlapDeduped = it == "Deduplicated reach"
+        }
+        Text("Attributed sales stay an observation. They are not revenue.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         MoreDetails(form.moreOpen, "Optional note, evidence link or source context.") { form.moreOpen = !form.moreOpen }
         if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
         Text(
@@ -1270,6 +1299,11 @@ private fun ActivityCapture(
             fontSize = 12.sp,
         )
     } else if (marketing && mode == "UPDATE") {
+        ChoiceBlock(
+            "Status",
+            listOf("In progress", "Blocked", "Postponed", "Completed", "Cancelled"),
+            form.activityStatus,
+        ) { form.activityStatus = it }
         NoteField("Update text", form.purpose, "Required") { form.purpose = it }
         EditField("Linked operational context", form.note, "Optional") { form.note = it }
         FieldRow {
@@ -1816,6 +1850,14 @@ private fun CaptureSheetFooter(
                         billingState = form.billingState,
                         deliveryState = form.deliveryState,
                         partyGstin = form.partyGstin,
+                        reportingMode = form.reportingMode,
+                        metricCode = form.metricCode,
+                        activityStatus = form.activityStatus,
+                        costBasis = form.costBasis,
+                        overlapDeduped = form.overlapDeduped,
+                        creativeVersion = form.creativeVersion,
+                        resultSource = form.resultSource,
+                        idempotencyKey = form.idempotencyKey,
                         dueAtDay = when {
                             mode == "ISSUE" -> form.eventDate.toString()
                             unpaidDue -> form.dueDate.toString()
@@ -2399,6 +2441,14 @@ private fun buildDraft(
     billingState: String = "",
     deliveryState: String = "",
     partyGstin: String = "",
+    reportingMode: String = "INCREMENTAL",
+    metricCode: String = "LEADS",
+    activityStatus: String = "IN_PROGRESS",
+    costBasis: String = "Agency borne",
+    overlapDeduped: Boolean = false,
+    creativeVersion: String = "1",
+    resultSource: String = "",
+    idempotencyKey: String = "",
 ): OperatingCaptureDraft? {
     if (mode == "MASTERS") {
         if (itemName.isBlank()) return null
@@ -2720,6 +2770,25 @@ private fun buildDraft(
         masterBillingState = if (mode == "MASTERS") billingState.trim().ifBlank { null } else null,
         masterDeliveryState = if (mode == "MASTERS") deliveryState.trim().ifBlank { null } else null,
         masterGstin = if (mode == "MASTERS") partyGstin.trim().ifBlank { null } else null,
+        reportingMode = if (marketing && (mode == "RESULT" || mode == "UPDATE")) {
+            if (reportingMode == "Cumulative") "CUMULATIVE" else "INCREMENTAL"
+        } else null,
+        metricCode = if (marketing && mode == "RESULT") metricCode else null,
+        activityStatus = if (marketing && mode == "UPDATE") when (activityStatus) {
+            "Blocked" -> "BLOCKED"
+            "Postponed" -> "POSTPONED"
+            "Completed" -> "COMPLETED"
+            "Cancelled" -> "CANCELLED"
+            else -> "IN_PROGRESS"
+        } else null,
+        costBasis = if (marketing && mode == "SPEND" && client) {
+            if (costBasis == "Client reimbursable") "REIMBURSABLE" else "AGENCY"
+        } else null,
+        overlapDeduped = if (marketing && mode == "RESULT") overlapDeduped else null,
+        creativeVersion = if (marketing && mode == "APPROVAL") creativeVersion.ifBlank { "1" } else null,
+        resultSource = if (marketing && mode == "RESULT") resultSource.ifBlank { null } else null,
+        revisionKind = if (marketing && mode == "BUDGET") "BUDGET" else null,
+        idempotencyKey = if (marketing) idempotencyKey else null,
         dueAt = dueAtDay?.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }
             ?: link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) },
         contract = retailContract,

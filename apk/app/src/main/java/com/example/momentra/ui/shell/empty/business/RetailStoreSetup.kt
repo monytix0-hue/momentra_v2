@@ -661,6 +661,14 @@ fun RetailStoreSetup(
     var target by remember { mutableStateOf("") }
     var metric by remember { mutableStateOf(subtype.targetMetrics.firstOrNull() ?: "REVENUE") }
     var metricOpen by remember { mutableStateOf(false) }
+    var clientFee by remember { mutableStateOf("") }
+    var offering by remember { mutableStateOf("") }
+    var creativeApproval by remember { mutableStateOf(false) }
+    var cadence by remember { mutableStateOf("") }
+    var conversionNumerator by remember { mutableStateOf("") }
+    var conversionDenominator by remember { mutableStateOf("") }
+    val marketingSetup = look.code == "CLIENT_CAMPAIGN" || look.code == "OWN_BUSINESS_CAMPAIGN"
+    val clientCampaign = look.code == "CLIENT_CAMPAIGN"
     var localError by remember { mutableStateOf<String?>(null) }
     var howItWorks by remember { mutableStateOf(false) }
     var gstOpen by remember { mutableStateOf(false) }
@@ -676,7 +684,7 @@ fun RetailStoreSetup(
         companyName.isNotBlank() &&
         (look.channelsOptional || selectedChannels.isNotEmpty()) &&
         budget.toDoubleOrNull()?.let { it > 0 } == true &&
-        target.toDoubleOrNull()?.let { it > 0 } == true &&
+        (marketingSetup && target.isBlank() || target.toDoubleOrNull()?.let { it > 0 } == true) &&
         !needsApprover
     LaunchedEffect(name) {
         if (!companyEdited) companyName = name
@@ -696,6 +704,10 @@ fun RetailStoreSetup(
             partyKind = look.partyKinds.firstOrNull()?.first ?: "SUPPLIER"
         }
         if (metric !in look.targetMetrics) metric = look.targetMetrics.firstOrNull() ?: "REVENUE"
+        if (look.code != "CLIENT_CAMPAIGN") {
+            clientFee = ""
+            cadence = ""
+        }
     }
 
     CompositionLocalProvider(LocalLook provides look) {
@@ -920,7 +932,12 @@ fun RetailStoreSetup(
             )
             ChoiceRow("Month", start.format(monthFormat), R.drawable.rs_setup_calendar) { dateTarget = "start" }
             FieldEditor("Monthly budget", budget, "Amount", R.drawable.rs_setup_pencil) { budget = it.filter { ch -> ch.isDigit() || ch == '.' } }
-            FieldEditor("Monthly sales target", target, "Amount", R.drawable.rs_setup_pencil) { target = it.filter { ch -> ch.isDigit() || ch == '.' } }
+            FieldEditor(
+                if (marketingSetup) "Target (optional until you choose a measure)" else "Monthly sales target",
+                target,
+                "Amount",
+                R.drawable.rs_setup_pencil,
+            ) { target = it.filter { ch -> ch.isDigit() || ch == '.' } }
             if (look.targetMetrics.size > 1) {
                 ChoiceRow("How the target is measured", metricLabel(metric, look.targetMetrics), R.drawable.rs_setup_chevron) { metricOpen = !metricOpen }
                 if (metricOpen) {
@@ -928,6 +945,28 @@ fun RetailStoreSetup(
                         Text(metricLabel(code, look.targetMetrics), color = if (code == metric) Accent else Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp, modifier = Modifier.clickable { metric = code; metricOpen = false }.padding(vertical = 6.dp))
                     }
                 }
+            }
+            if (marketingSetup) {
+                FieldEditor("Offering", offering, "Optional product or service", R.drawable.rs_setup_pencil) { offering = it }
+                ChoiceRow("Creative approval", if (creativeApproval) "Required" else "Not required", R.drawable.rs_setup_chevron) {
+                    creativeApproval = !creativeApproval
+                }
+                if (metric == "CONVERSIONS") {
+                    FieldEditor("Conversion numerator", conversionNumerator, "What counts as a conversion", R.drawable.rs_setup_pencil) { conversionNumerator = it }
+                    FieldEditor("Conversion denominator", conversionDenominator, "What it is divided by", R.drawable.rs_setup_pencil) { conversionDenominator = it }
+                }
+            }
+            if (clientCampaign) {
+                FieldEditor("Client fee", clientFee, "Stored only. This is not an invoice.", R.drawable.rs_setup_pencil) { clientFee = it.filter { ch -> ch.isDigit() || ch == '.' } }
+                ChoiceRow("Reporting cadence", cadence.ifBlank { "None" }, R.drawable.rs_setup_chevron) {
+                    cadence = when (cadence) {
+                        "" -> "WEEKLY"
+                        "WEEKLY" -> "MONTHLY"
+                        "MONTHLY" -> "CUSTOM"
+                        else -> ""
+                    }
+                }
+                Text("A cadence adds one due activity. It does not file a report.", color = Secondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
             }
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Selected).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("How your target is counted", color = Accent, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
@@ -1014,7 +1053,7 @@ fun RetailStoreSetup(
                         companyName.isBlank() -> "Add a company name."
                         !look.channelsOptional && selectedChannels.isEmpty() -> "Choose at least one."
                         budget.toDoubleOrNull()?.let { it > 0 } != true -> "Enter a monthly budget above zero."
-                        target.toDoubleOrNull()?.let { it > 0 } != true -> "Enter a monthly sales target above zero."
+                        !(marketingSetup && target.isBlank()) && target.toDoubleOrNull()?.let { it > 0 } != true -> "Enter a monthly sales target above zero."
                         needsApprover -> "Add someone who can approve, or choose no approval needed."
                         else -> null
                     }
@@ -1039,6 +1078,14 @@ fun RetailStoreSetup(
                             "monthlyBudget" to budget.trim(),
                             "monthlyTarget" to target.trim(),
                             "targetMetric" to metric,
+                            "clientFee" to if (clientCampaign) clientFee.trim() else "",
+                            "offering" to if (marketingSetup) offering.trim() else "",
+                            "creativeApprovalRequired" to if (marketingSetup && creativeApproval) "YES" else "",
+                            "reportingCadence" to if (clientCampaign) cadence else "",
+                            "conversionNumerator" to if (marketingSetup) conversionNumerator.trim() else "",
+                            "conversionDenominator" to if (marketingSetup) conversionDenominator.trim() else "",
+                            "conversionDefinitionVersion" to if (marketingSetup && conversionNumerator.isNotBlank()) "1" else "",
+                            "campaignStatus" to "OPEN",
                             "companyName" to companyName.trim(),
                             "gstin" to gstin.trim(),
                             "gstTracking" to if (look.code == "TRADING_WHOLESALE" || look.code == "DISTRIBUTION_DEALERSHIP") gstTracking else "",

@@ -47,8 +47,14 @@ struct MarketingActiveView: View {
                 card {
                     Text("Accepted results").font(.plusJakarta(size: 12)).foregroundStyle(MarketingChrome.secondary)
                     let measured = (model.activity ?? []).contains { $0.eventType == "RESULT" || $0.eventType == "PROGRESS" }
-                    Text(measured ? money(model.target?.progress) : "N/A").font(.plusJakarta(size: 28, weight: .semibold)).foregroundStyle(MarketingChrome.ink)
-                    Text("of \(money(model.target?.value)) target").font(.plusJakarta(size: 13)).foregroundStyle(MarketingChrome.secondary)
+                    Text(model.target?.configured == false || !measured ? "N/A" : money(model.target?.progress))
+                        .font(.plusJakarta(size: 28, weight: .semibold)).foregroundStyle(MarketingChrome.ink)
+                    Text(model.target?.configured == false ? "Target not set" : "of \(money(model.target?.value)) target")
+                        .font(.plusJakarta(size: 13)).foregroundStyle(MarketingChrome.secondary)
+                    if let pacing = model.marketing?.pacing, !pacing.isEmpty {
+                        Text(pacing).font(.plusJakarta(size: 12)).foregroundStyle(MarketingChrome.secondary)
+                    }
+                    Text("CPL \(model.marketing?.cpl ?? "N/A")").font(.plusJakarta(size: 12)).foregroundStyle(MarketingChrome.secondary)
                     if measured {
                         meter("Results toward target", fraction(model.target?.progress, model.target?.value), MarketingChrome.brand)
                     }
@@ -102,6 +108,12 @@ struct MarketingActiveView: View {
                     line("Eligible cost", money(model.finance?.eligibleCost), MarketingChrome.ink)
                     line("Business cash paid", money(model.finance?.cashPaid), MarketingChrome.ink)
                     line("Still to pay", money(model.finance?.payable), Color(hex: "#FBBF24"))
+                    if model.subtype == "CLIENT_CAMPAIGN", let contribution = model.marketing?.clientContribution {
+                        line("Client contribution", money(contribution), MarketingChrome.ink)
+                    }
+                    if let reimbursable = model.marketing?.reimbursable, reimbursable != "0.0000" {
+                        line("Client reimbursable", money(reimbursable), MarketingChrome.secondary)
+                    }
                 }
             } else {
                 Text("The campaign today, with the work you're allowed to see.")

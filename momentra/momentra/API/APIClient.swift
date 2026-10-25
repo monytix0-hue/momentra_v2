@@ -156,6 +156,20 @@ struct OperatingProjectionPayload: Decodable {
     let salePriceIncludesGst: String?
     let purchasePriceIncludesGst: String?
     let gstPosition: GstPositionPayload?
+    let marketing: MarketingInsightPayload?
+}
+
+struct MarketingInsightPayload: Decodable {
+    let cpl: String?
+    let pacing: String?
+    let coverage: String?
+    let reimbursable: String?
+    let clientContribution: String?
+    let campaignStatus: String?
+    let clientFee: String?
+    let offering: String?
+    let creativeApprovalRequired: String?
+    let reportingCadence: String?
 }
 
 struct GstPositionSourcePayload: Decodable, Identifiable {
@@ -5352,6 +5366,11 @@ final class APIClient {
         attributedSales: String? = nil,
         revisionKind: String? = nil,
         rejectedQuantity: String? = nil,
+        costBasis: String? = nil,
+        overlapDeduped: Bool? = nil,
+        creativeVersion: String? = nil,
+        resultSource: String? = nil,
+        idempotencyKey: String? = nil,
         masterGstApplicable: String? = nil,
         masterGstClassification: String? = nil,
         masterGstRate: String? = nil,
@@ -5415,6 +5434,11 @@ final class APIClient {
             let attributedSales: String?
             let revisionKind: String?
             let rejectedQuantity: String?
+            let costBasis: String?
+            let overlapDeduped: Bool?
+            let creativeVersion: String?
+            let resultSource: String?
+            let idempotencyKey: String?
         }
         let fromItems = (lineItems ?? []).compactMap { row -> Line? in
             let name = row.itemName.trimmingCharacters(in: .whitespaces)
@@ -5453,7 +5477,12 @@ final class APIClient {
             activityStatus: activityStatus,
             attributedSales: attributedSales,
             revisionKind: revisionKind,
-            rejectedQuantity: rejectedQuantity
+            rejectedQuantity: rejectedQuantity,
+            costBasis: costBasis,
+            overlapDeduped: overlapDeduped,
+            creativeVersion: creativeVersion,
+            resultSource: resultSource,
+            idempotencyKey: idempotencyKey
         )
         if let revisesEventId, !revisesEventId.isEmpty {
             return try await authorizedPatch(

@@ -12,7 +12,15 @@ import {
   type OperatingFamilyCode,
 } from '../src/modules/business/operating-catalog';
 import { recordOperatingEventSchema } from '../src/modules/business/operating-service';
-import { validateMarketingWrite, marketingProgress } from '../src/modules/business/operating-marketing';
+import {
+  assertMarketingSubtypeStable,
+  creativeVersionApproved,
+  marketingCpl,
+  marketingProgress,
+  observationDelta,
+  seriesValue,
+  validateMarketingWrite,
+} from '../src/modules/business/operating-marketing';
 
 describe('operating moment catalog', () => {
   it('hides finance totals from a team member and shows them to finance', () => {
@@ -1033,5 +1041,166 @@ describe('marketing campaigns v3', () => {
     assert.equal(view.boards.life.find((section) => section.code === 'L1')?.coverage, 'N/A');
     assert.equal(view.attention.some((item) => item.kind === 'ATT-04'), true);
     assert.equal(view.attention.some((item) => item.kind === 'ATT-02'), false);
+  });
+});
+
+describe('marketing campaigns v4.2 modes', () => {
+  const facts = {
+    reportingMode: null,
+    metricCode: null,
+    budgetCategory: null,
+    paymentState: null,
+    activityStatus: null,
+    attributedSales: null,
+    revisionKind: null,
+  } as const;
+
+  it('keeps an own campaign free of client receivables and keeps a closed payable', () => {
+    const prefs = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'OWN_BUSINESS_CAMPAIGN',
+        identityName: 'Own launch',
+        partyName: 'House brand',
+        monthlyBudget: '30000',
+        startDate: '2026-10-01',
+        clientFee: '9000',
+        reportingCadence: 'WEEKLY',
+        campaignStatus: 'CLOSED',
+      },
+      { userId: 'u', displayName: 'Asha' }
+    );
+    assert.equal(prefs.clientFee, '');
+    assert.equal(prefs.reportingCadence, '');
+    assert.equal(prefs.monthlyTarget, '');
+    assert.equal(prefs.campaignStatus, 'CLOSED');
+    const view = projectOperatingMoment({
+      familyCode: 'MARKETING_CAMPAIGNS',
+      prefs,
+      role: 'OWNER_ADMIN',
+      events: [
+        posted('buy', 'SPEND', { amount: '10000', paymentRelevance: 'PAYABLE', paymentStatus: 'PENDING' }),
+        posted('pay', 'PAYMENT', { amount: '4000', parentEventId: 'buy', paymentStatus: 'PAID' }),
+        posted('invoice', 'INVOICE', { amount: '50000', paymentRelevance: 'RECEIVABLE', paymentStatus: 'PENDING' }),
+      ],
+    });
+    assert.equal(view.budget?.spent, '10000.0000');
+    assert.equal(view.budget?.remaining, '20000.0000');
+    assert.equal(view.finance?.sales, '0.0000');
+    assert.equal(view.finance?.outstanding, '0.0000');
+    assert.equal(view.continuity.payable, '6000.0000');
+    assert.equal(view.paymentReadiness.some((row) => row.relevance === 'RECEIVABLE'), false);
+    assert.equal(view.paymentReadiness.some((row) => row.id === 'buy'), true);
+    assert.equal(view.quickAdds.some((item) => item.code === 'INVOICE' || item.code === 'COLLECTION'), false);
+  });
+
+  it('normalizes a cumulative series, CPL, reach, and a repeated key', () => {
+    const first = posted('a', 'RESULT', {
+      quantity: '80',
+      unit: 'leads',
+      channelName: 'Search',
+      occurredAt: '2026-10-01T00:00:00.000Z',
+      marketing: { ...facts, reportingMode: 'CUMULATIVE', metricCode: 'LEADS', idempotencyKey: 'lead-1' },
+    });
+    const second = posted('b', 'RESULT', {
+      quantity: '120',
+      unit: 'leads',
+      channelName: 'Search',
+      occurredAt: '2026-10-08T00:00:00.000Z',
+      marketing: { ...facts, reportingMode: 'CUMULATIVE', metricCode: 'LEADS' },
+    });
+    assert.equal(observationDelta([first], second), 40);
+    assert.equal(marketingProgress([first, second], 'LEADS').progress, 120);
+    const repeat = posted('b2', 'RESULT', {
+      quantity: '120',
+      unit: 'leads',
+      channelName: 'Search',
+      occurredAt: '2026-10-08T00:00:00.000Z',
+      marketing: { ...facts, reportingMode: 'CUMULATIVE', metricCode: 'LEADS', idempotencyKey: 'lead-1', normalizedDelta: '40' },
+    });
+    assert.equal(seriesValue([first, repeat]), 80);
+    const spend = posted('spend', 'SPEND', { amount: '10000', channelName: 'Search', occurredAt: '2026-10-01T00:00:00.000Z' });
+    assert.equal(marketingCpl([spend, first]), '125.00');
+    assert.equal(marketingCpl([spend]), null);
+    const reachA = posted('r1', 'RESULT', { quantity: '10', channelName: 'Search', marketing: { ...facts, metricCode: 'REACH' } });
+    const reachB = posted('r2', 'RESULT', { quantity: '12', channelName: 'Social', marketing: { ...facts, metricCode: 'REACH' } });
+    assert.equal(marketingProgress([reachA, reachB], 'REACH').coverage, 'N/A');
+  });
+
+  it('flags a blocked activity and keeps an earlier budget when a later revision starts next month', () => {
+    const view = momentView(
+      'MARKETING_CAMPAIGNS',
+      'CLIENT_CAMPAIGN',
+      [
+        posted('act', 'ACTIVITY', {
+          title: 'Shoot',
+          dueAt: '2026-10-01',
+          marketing: { ...facts, activityStatus: 'BLOCKED' },
+        }),
+        posted('rev', 'REVISION', {
+          amount: '50000',
+          occurredAt: '2026-11-02T00:00:00.000Z',
+          marketing: { ...facts, revisionKind: 'BUDGET', effectiveFrom: '2026-11-01' },
+        }),
+      ],
+      '30000',
+      '100'
+    );
+    assert.equal(view.attention.some((item) => item.kind === 'ATT-10'), true);
+    assert.equal(view.budget?.amount, '30000.0000');
+    const october = view.boards.memory.find((section) => section.code === 'ME1')?.rows.find((row) => row.title.startsWith('2026-10'));
+    const november = view.boards.memory.find((section) => section.code === 'ME1')?.rows.find((row) => row.title.startsWith('2026-11'));
+    assert.match(october?.title ?? '', /Budget 30000\.0000/);
+    assert.match(november?.title ?? '', /Budget 50000\.0000/);
+    assert.equal(
+      creativeVersionApproved(
+        [
+          posted('ok', 'APPROVAL', { approvalStatus: 'APPROVED', marketing: { ...facts, creativeVersion: '1' } }),
+          posted('next', 'APPROVAL', { approvalStatus: 'PENDING', marketing: { ...facts, creativeVersion: '2' } }),
+        ],
+        '2'
+      ),
+      false
+    );
+    assert.equal(
+      assertMarketingSubtypeStable('CLIENT_CAMPAIGN', 'OWN_BUSINESS_CAMPAIGN', [
+        posted('spend', 'SPEND', { amount: '10' }),
+      ]).ok,
+      false
+    );
+  });
+
+  it('rejects own invoice, collection, and reimbursable spend', () => {
+    const own = {
+      subtype: 'OWN_BUSINESS_CAMPAIGN',
+      amount: '10',
+      quantity: null,
+      unit: null,
+      parentEventId: null,
+      metricCode: null,
+      reportingMode: null,
+      revisionKind: null,
+      activityStatus: null,
+      attributedSales: null,
+    };
+    assert.equal(validateMarketingWrite({ ...own, eventType: 'INVOICE' }, []).ok, false);
+    assert.equal(validateMarketingWrite({ ...own, eventType: 'COLLECTION', parentEventId: 'x' }, []).ok, false);
+    assert.equal(validateMarketingWrite({ ...own, eventType: 'SPEND', costBasis: 'REIMBURSABLE' }, []).ok, false);
+    const clientPrefs = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'CLIENT_CAMPAIGN',
+        identityName: 'Client launch',
+        partyName: 'Northwind',
+        monthlyBudget: '30000',
+        startDate: '2026-10-01',
+        clientFee: '50000',
+        reportingCadence: 'MONTHLY',
+      },
+      { userId: 'u', displayName: 'Asha' }
+    );
+    assert.equal(clientPrefs.clientFee, '50000.0000');
+    assert.equal(clientPrefs.reportingCadence, 'MONTHLY');
+    assert.equal(clientPrefs.partyName, 'Northwind');
   });
 });

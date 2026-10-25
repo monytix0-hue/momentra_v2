@@ -44,6 +44,12 @@ struct RetailStoreSetupView: View {
     @State private var partyKind = "SUPPLIER"
     @State private var budget = ""
     @State private var target = ""
+    @State private var clientFee = ""
+    @State private var offering = ""
+    @State private var creativeApproval = false
+    @State private var cadence = ""
+    @State private var conversionNumerator = ""
+    @State private var conversionDenominator = ""
     @State private var metric = "REVENUE"
     @State private var metricOpen = false
     @State private var localError: String?
@@ -63,13 +69,14 @@ struct RetailStoreSetupView: View {
         ("APPROVAL_REQUIRED", "Someone must approve"),
     ]
     private var owner: String { PersonLabel.personName(ownerName, fallback: "You") }
+    private var marketingSetup: Bool { spec.code == "CLIENT_CAMPAIGN" || spec.code == "OWN_BUSINESS_CAMPAIGN" }
     private var needsApprover: Bool { policy == "APPROVAL_REQUIRED" && !invites.contains { $0.role == "APPROVER" } }
     private var ready: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty &&
         !companyName.trimmingCharacters(in: .whitespaces).isEmpty &&
         (spec.channelsOptional || !selectedChannels.isEmpty) &&
         (Double(budget) ?? 0) > 0 &&
-        (Double(target) ?? 0) > 0 &&
+        ((marketingSetup && target.trimmingCharacters(in: .whitespaces).isEmpty) || (Double(target) ?? 0) > 0) &&
         !needsApprover &&
         !createModel.state.submitting
     }
@@ -144,6 +151,10 @@ struct RetailStoreSetupView: View {
             }
             if !spec.targetMetrics.contains(metric) {
                 metric = spec.targetMetrics.first ?? "REVENUE"
+            }
+            if spec.code != "CLIENT_CAMPAIGN" {
+                clientFee = ""
+                cadence = ""
             }
         }
         .onAppear { applyCompanySeed() }
@@ -457,7 +468,27 @@ struct RetailStoreSetupView: View {
                 .font(.plusJakarta(size: 12)).foregroundStyle(spec.secondary)
             choice("Month", monthLabel(start), icon: "rs_setup_calendar") { editingEnd = false; dateOpen = true }
             editor("Monthly budget", text: $budget, placeholder: "Amount", icon: "rs_setup_pencil")
-            editor("Monthly sales target", text: $target, placeholder: "Amount", icon: "rs_setup_pencil")
+            editor(marketingSetup ? "Target (optional until you choose a measure)" : "Monthly sales target", text: $target, placeholder: "Amount", icon: "rs_setup_pencil")
+            if marketingSetup {
+                editor("Offering", text: $offering, placeholder: "Optional product or service", icon: "rs_setup_pencil")
+                Toggle("Creative approval required", isOn: $creativeApproval)
+                    .font(.plusJakarta(size: 14)).foregroundStyle(spec.text)
+                if metric == "CONVERSIONS" {
+                    editor("Conversion numerator", text: $conversionNumerator, placeholder: "What counts as a conversion", icon: "rs_setup_pencil")
+                    editor("Conversion denominator", text: $conversionDenominator, placeholder: "What it is divided by", icon: "rs_setup_pencil")
+                }
+            }
+            if spec.code == "CLIENT_CAMPAIGN" {
+                editor("Client fee", text: $clientFee, placeholder: "Stored only. This is not an invoice.", icon: "rs_setup_pencil")
+                Picker("Reporting cadence", selection: $cadence) {
+                    Text("None").tag("")
+                    Text("Weekly").tag("WEEKLY")
+                    Text("Monthly").tag("MONTHLY")
+                    Text("Custom").tag("CUSTOM")
+                }
+                Text("A cadence adds one due activity. It does not file a report.")
+                    .font(.plusJakarta(size: 12)).foregroundStyle(spec.secondary)
+            }
             if spec.targetMetrics.count > 1 {
                 choice("How the target is measured", metricLabel(metric), icon: "rs_setup_chevron") { metricOpen.toggle() }
                 if metricOpen {
@@ -628,7 +659,8 @@ struct RetailStoreSetupView: View {
         if company.isEmpty { localError = "Add a company name."; return }
         if !spec.channelsOptional && selectedChannels.isEmpty { localError = "Choose at least one."; return }
         if (Double(budget) ?? 0) <= 0 { localError = "Enter a monthly budget above zero."; return }
-        if (Double(target) ?? 0) <= 0 { localError = "Enter a monthly sales target above zero."; return }
+        let targetBlank = marketingSetup && target.trimmingCharacters(in: .whitespaces).isEmpty
+        if !targetBlank && (Double(target) ?? 0) <= 0 { localError = "Enter a monthly sales target above zero."; return }
         if needsApprover { localError = "Add someone who can approve, or choose no approval needed."; return }
         localError = nil
         let participants: [[String: String]] = invites.map { ["displayName": $0.name, "role": $0.role] }
@@ -649,6 +681,14 @@ struct RetailStoreSetupView: View {
             "monthlyBudget": budget.trimmingCharacters(in: .whitespaces),
             "monthlyTarget": target.trimmingCharacters(in: .whitespaces),
             "targetMetric": metric,
+            "clientFee": spec.code == "CLIENT_CAMPAIGN" ? clientFee.trimmingCharacters(in: .whitespaces) : "",
+            "offering": marketingSetup ? offering.trimmingCharacters(in: .whitespaces) : "",
+            "creativeApprovalRequired": marketingSetup && creativeApproval ? "YES" : "",
+            "reportingCadence": spec.code == "CLIENT_CAMPAIGN" ? cadence : "",
+            "conversionNumerator": marketingSetup ? conversionNumerator.trimmingCharacters(in: .whitespaces) : "",
+            "conversionDenominator": marketingSetup ? conversionDenominator.trimmingCharacters(in: .whitespaces) : "",
+            "conversionDefinitionVersion": marketingSetup && !conversionNumerator.trimmingCharacters(in: .whitespaces).isEmpty ? "1" : "",
+            "campaignStatus": "OPEN",
             "companyName": company,
             "gstin": gstin.trimmingCharacters(in: .whitespaces),
             "gstTracking": (spec.code == "TRADING_WHOLESALE" || spec.code == "DISTRIBUTION_DEALERSHIP") ? gstTracking : "",

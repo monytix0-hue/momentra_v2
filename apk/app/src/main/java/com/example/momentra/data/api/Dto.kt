@@ -1279,6 +1279,7 @@ data class OperatingProjectionDto(
     val salePriceIncludesGst: String? = null,
     val purchasePriceIncludesGst: String? = null,
     val gstPosition: GstPositionDto? = null,
+    val marketing: MarketingInsightDto? = null,
 )
 
 data class GstPositionSourceDto(
@@ -1430,6 +1431,25 @@ data class RecordOperatingEventBody(
     val attributedSales: String? = null,
     val revisionKind: String? = null,
     val rejectedQuantity: String? = null,
+    val costBasis: String? = null,
+    val overlapDeduped: Boolean? = null,
+    val creativeVersion: String? = null,
+    val resultSource: String? = null,
+    val idempotencyKey: String? = null,
+    val effectiveFrom: String? = null,
+)
+
+data class MarketingInsightDto(
+    val cpl: String? = null,
+    val pacing: String? = null,
+    val coverage: String? = null,
+    val reimbursable: String? = null,
+    val clientContribution: String? = null,
+    val campaignStatus: String? = null,
+    val clientFee: String? = null,
+    val offering: String? = null,
+    val creativeApprovalRequired: String? = null,
+    val reportingCadence: String? = null,
 )
 
 data class RecordOperatingEventResultDto(

@@ -26,6 +26,11 @@ struct OperatingCaptureDraft {
     var activityStatus: String? = nil
     var attributedSales: String? = nil
     var revisionKind: String? = nil
+    var costBasis: String? = nil
+    var overlapDeduped: Bool? = nil
+    var creativeVersion: String? = nil
+    var resultSource: String? = nil
+    var idempotencyKey: String? = nil
     var lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil
     var rejectedQuantity: String? = nil
     var masterGstApplicable: String? = nil
@@ -101,7 +106,12 @@ struct OperatingCaptureSheet: View {
     @State private var metricCode = "LEADS"
     @State private var budgetCategory = "DIGITAL_ADS"
     @State private var revisionKind = "BUDGET"
-    @State private var activityStatus = "OPEN"
+    @State private var activityStatus = "IN_PROGRESS"
+    @State private var costBasis = "AGENCY"
+    @State private var overlapDeduped = false
+    @State private var creativeVersion = "1"
+    @State private var resultSource = ""
+    @State private var idempotencyKey = UUID().uuidString
     @State private var attributedSales = ""
     @State private var amount = ""
     @State private var channel = ""
@@ -2413,6 +2423,11 @@ struct OperatingCaptureSheet: View {
             activityStatus: activityStatus,
             attributedSales: attributedSales.isEmpty ? nil : attributedSales,
             revisionKind: revisionKind,
+            costBasis: costBasis,
+            overlapDeduped: overlapDeduped,
+            creativeVersion: creativeVersion,
+            resultSource: resultSource.isEmpty ? nil : resultSource,
+            idempotencyKey: idempotencyKey,
             lineItems: lineItems,
             rejectedQuantity: rejectedQuantity
         )
@@ -2450,9 +2465,27 @@ struct OperatingCaptureSheet: View {
             }
             if eventType == "ACTIVITY" {
                 Picker("Status", selection: $activityStatus) {
-                    Text("Open").tag("OPEN")
-                    Text("Done").tag("DONE")
-                }.pickerStyle(.segmented)
+                    Text("In progress").tag("IN_PROGRESS")
+                    Text("Blocked").tag("BLOCKED")
+                    Text("Postponed").tag("POSTPONED")
+                    Text("Completed").tag("COMPLETED")
+                    Text("Cancelled").tag("CANCELLED")
+                }
+            }
+            if eventType == "SPEND" && model.subtype == "CLIENT_CAMPAIGN" {
+                Picker("Who bears the cost", selection: $costBasis) {
+                    Text("Agency borne").tag("AGENCY")
+                    Text("Client reimbursable").tag("REIMBURSABLE")
+                }
+            }
+            if eventType == "RESULT" {
+                TextField("Source", text: $resultSource)
+                Toggle("Deduplicated reach", isOn: $overlapDeduped)
+                Text("Attributed sales stay an observation. They are not revenue.")
+                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            }
+            if eventType == "APPROVAL" {
+                TextField("Creative version", text: $creativeVersion)
             }
             if eventType == "REVISION" {
                 Picker("Revision", selection: $revisionKind) {
