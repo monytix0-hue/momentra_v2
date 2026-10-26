@@ -170,6 +170,9 @@ struct MarketingInsightPayload: Decodable {
     let offering: String?
     let creativeApprovalRequired: String?
     let reportingCadence: String?
+    let orderAchievement: String?
+    let salesAchievement: String?
+    let roas: String?
 }
 
 struct GstPositionSourcePayload: Decodable, Identifiable {
@@ -5371,6 +5374,10 @@ final class APIClient {
         creativeVersion: String? = nil,
         resultSource: String? = nil,
         idempotencyKey: String? = nil,
+        effectiveFrom: String? = nil,
+        periodStart: String? = nil,
+        periodEnd: String? = nil,
+        supersedesEventId: String? = nil,
         masterGstApplicable: String? = nil,
         masterGstClassification: String? = nil,
         masterGstRate: String? = nil,
@@ -5439,6 +5446,10 @@ final class APIClient {
             let creativeVersion: String?
             let resultSource: String?
             let idempotencyKey: String?
+            let effectiveFrom: String?
+            let periodStart: String?
+            let periodEnd: String?
+            let supersedesEventId: String?
         }
         let fromItems = (lineItems ?? []).compactMap { row -> Line? in
             let name = row.itemName.trimmingCharacters(in: .whitespaces)
@@ -5482,7 +5493,11 @@ final class APIClient {
             overlapDeduped: overlapDeduped,
             creativeVersion: creativeVersion,
             resultSource: resultSource,
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            effectiveFrom: effectiveFrom,
+            periodStart: periodStart,
+            periodEnd: periodEnd,
+            supersedesEventId: supersedesEventId
         )
         if let revisesEventId, !revisesEventId.isEmpty {
             return try await authorizedPatch(

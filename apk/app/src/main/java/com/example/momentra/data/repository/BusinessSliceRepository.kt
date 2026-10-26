@@ -140,6 +140,9 @@ class BusinessSliceRepository(
         resultSource: String? = null,
         idempotencyKey: String? = null,
         effectiveFrom: String? = null,
+        periodStart: String? = null,
+        periodEnd: String? = null,
+        supersedesEventId: String? = null,
     ): Result<Unit> = runCatching {
         val body = RecordOperatingEventBody(
             eventType = eventType,
@@ -171,6 +174,9 @@ class BusinessSliceRepository(
             resultSource = resultSource,
             idempotencyKey = idempotencyKey,
             effectiveFrom = effectiveFrom,
+            periodStart = periodStart,
+            periodEnd = periodEnd,
+            supersedesEventId = supersedesEventId,
         )
         if (revisesEventId.isNullOrBlank()) {
             api.recordOperatingEvent(momentId, UUID.randomUUID().toString(), body)

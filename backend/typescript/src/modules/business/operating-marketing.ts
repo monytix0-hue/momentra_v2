@@ -80,7 +80,9 @@ export interface MarketingFacts {
   normalizedDelta?: string | null;
   overlapDeduped?: boolean;
   resultSource?: string | null;
+  periodStart?: string | null;
   periodEnd?: string | null;
+  supersedesEventId?: string | null;
   creativeVersion?: string | null;
   effectiveFrom?: string | null;
   evidenceUrl?: string | null;
@@ -171,7 +173,9 @@ export function parseMarketingFacts(raw: unknown, metric: string | null): Market
     normalizedDelta: rec.normalizedDelta == null || rec.normalizedDelta === '' ? null : String(rec.normalizedDelta),
     overlapDeduped: rec.overlapDeduped === true,
     resultSource: rec.resultSource == null || rec.resultSource === '' ? null : String(rec.resultSource),
+    periodStart: rec.periodStart == null ? null : String(rec.periodStart).slice(0, 10),
     periodEnd: rec.periodEnd == null ? null : String(rec.periodEnd).slice(0, 10),
+    supersedesEventId: rec.supersedesEventId == null || rec.supersedesEventId === '' ? null : String(rec.supersedesEventId),
     creativeVersion: rec.creativeVersion == null || rec.creativeVersion === '' ? null : String(rec.creativeVersion),
     effectiveFrom: rec.effectiveFrom == null ? null : String(rec.effectiveFrom).slice(0, 10),
     evidenceUrl: rec.evidenceUrl == null || rec.evidenceUrl === '' ? null : String(rec.evidenceUrl),
@@ -205,13 +209,29 @@ function measure(row: MarketingEvent): number {
   return num(row.amount);
 }
 
+function supersededIds(rows: MarketingEvent[]): Set<string> {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    const id = factsOf(row).supersedesEventId;
+    if (id && rows.some((item) => item.operatingEventId === id)) ids.add(id);
+  }
+  return ids;
+}
+
+function measuredProgress(row: MarketingEvent): boolean {
+  if (row.eventType !== 'PROGRESS') return true;
+  return num(row.quantity) > 0 || num(row.amount) > 0;
+}
+
 /** Sum of normalized deltas. A later cumulative snapshot contributes only the increase. */
 export function seriesValue(rows: MarketingEvent[]): number {
   const ordered = [...rows].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.operatingEventId.localeCompare(b.operatingEventId));
+  const replaced = supersededIds(ordered);
   const seen = new Set<string>();
   let total = 0;
   let priorCumulative: number | null = null;
   for (const row of ordered) {
+    if (replaced.has(row.operatingEventId)) continue;
     const facts = factsOf(row);
     const key = facts.idempotencyKey;
     if (key) {
@@ -246,6 +266,8 @@ export function observationDelta(prior: MarketingEvent[], row: MarketingEvent): 
     .filter((item) => (item.channelName ?? '') === (row.channelName ?? ''))
     .filter((item) => (factsOf(item).resultSource ?? '') === (facts.resultSource ?? ''))
     .filter((item) => (factsOf(item).reportingMode ?? 'INCREMENTAL') === 'CUMULATIVE')
+    .filter((item) => item.operatingEventId !== facts.supersedesEventId)
+    .filter((item) => !supersededIds(prior).has(item.operatingEventId))
     .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
   const previous = same.length ? measure(same[same.length - 1]!) : null;
   const value = measure(row);
@@ -259,6 +281,7 @@ export function marketingProgress(events: MarketingEvent[], targetMetric: string
   const rows = events.filter((row) => {
     if (!effective(row)) return false;
     if (row.eventType !== 'RESULT' && row.eventType !== 'PROGRESS') return false;
+    if (!measuredProgress(row)) return false;
     const code = metricOf(row);
     if (metric === 'REVENUE' || metric === 'CLIENT_BILLING') {
       return code !== 'LEADS' && code !== 'CONVERSIONS';
@@ -292,7 +315,8 @@ function inForce(row: MarketingEvent, asOf: string | null): boolean {
 export function rollMarketingLedger(
   events: MarketingEvent[],
   seed: { budget: number; target: number },
-  asOf: string | null = null
+  asOf: string | null = null,
+  primaryMetric = ''
 ): {
   budget: number;
   target: number;
@@ -300,12 +324,15 @@ export function rollMarketingLedger(
   targetConfigured: boolean;
   spent: number;
   reimbursable: number;
+  supportingTargets: Record<string, number>;
   revisions: Array<{ id: string; title: string; occurredAt: string }>;
 } {
   let budget = seed.budget;
   let target = seed.target;
   let budgetConfigured = budget > 0;
   let targetConfigured = target > 0;
+  const supportingTargets: Record<string, number> = {};
+  const primary = primaryMetric.toUpperCase();
   const revisions: Array<{ id: string; title: string; occurredAt: string }> = [];
   const ordered = [...events].filter(effective).sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
   for (const row of ordered) {
@@ -316,15 +343,23 @@ export function rollMarketingLedger(
       budgetConfigured = true;
       revisions.push({ id: row.operatingEventId, title: row.title, occurredAt: row.occurredAt });
     } else if (row.eventType === 'TARGET' && amount > 0) {
-      target = amount;
-      targetConfigured = true;
       revisions.push({ id: row.operatingEventId, title: row.title, occurredAt: row.occurredAt });
+      const metric = metricOf(row);
+      if (metric && primary && metric !== primary) supportingTargets[metric] = amount;
+      else {
+        target = amount;
+        targetConfigured = true;
+      }
     } else if (row.eventType === 'REVISION') {
       const kind = factsOf(row).revisionKind ?? 'BUDGET';
       revisions.push({ id: row.operatingEventId, title: row.title, occurredAt: row.occurredAt });
       if (kind === 'TARGET' && amount > 0) {
-        target = amount;
-        targetConfigured = true;
+        const metric = metricOf(row);
+        if (metric && primary && metric !== primary) supportingTargets[metric] = amount;
+        else {
+          target = amount;
+          targetConfigured = true;
+        }
       } else if (kind === 'BUDGET' && amount > 0) {
         budget = amount;
         budgetConfigured = true;
@@ -341,7 +376,7 @@ export function rollMarketingLedger(
     if (factsOf(row).costBasis !== 'REIMBURSABLE') return total;
     return total + num(row.amount);
   }, 0);
-  return { budget, target, budgetConfigured, targetConfigured, spent, reimbursable, revisions };
+  return { budget, target, budgetConfigured, targetConfigured, spent, reimbursable, supportingTargets, revisions };
 }
 
 function obligationRemaining(row: MarketingEvent, events: MarketingEvent[], childType: 'PAYMENT' | 'COLLECTION'): number {
@@ -359,7 +394,21 @@ function daysAfter(earlier: string, later: string): number {
   return Math.round((end - start) / 86400000);
 }
 
-/** ATT-01–ATT-09 from the v3 Needs Attention contract. */
+function currentActivityStatus(row: MarketingEvent, events: MarketingEvent[]): MarketingActivityStatus | null {
+  const updates = events
+    .filter(
+      (item) =>
+        item.eventType === 'PROGRESS' &&
+        item.parentEventId === row.operatingEventId &&
+        effective(item) &&
+        factsOf(item).activityStatus
+    )
+    .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+  const latest = updates.length ? factsOf(updates[updates.length - 1]!).activityStatus : null;
+  return latest ?? factsOf(row).activityStatus;
+}
+
+/** ATT-01–ATT-09 from the v3 Needs Attention contract. ATT-10 and ATT-11 keep their shipped meanings. */
 export function marketingAttention(args: {
   events: MarketingEvent[];
   subtype: string;
@@ -375,6 +424,7 @@ export function marketingAttention(args: {
   progressCoverage: string;
   startDate: string | null;
   endDate: string | null;
+  campaignStatus?: string | null;
 }): Array<{
   id: string;
   title: string;
@@ -403,8 +453,9 @@ export function marketingAttention(args: {
   }> = [];
   const client = args.subtype === 'CLIENT_CAMPAIGN';
   for (const row of args.events) {
-    if (row.eventType !== 'ACTIVITY' || !effective(row) || activityClosed(factsOf(row).activityStatus)) continue;
-    if (factsOf(row).activityStatus === 'BLOCKED') {
+    const status = currentActivityStatus(row, args.events);
+    if (row.eventType !== 'ACTIVITY' || !effective(row) || activityClosed(status)) continue;
+    if (status === 'BLOCKED') {
       cards.push({
         id: `blocked-${row.operatingEventId}`,
         title: `Blocked · ${row.title}`,
@@ -417,7 +468,7 @@ export function marketingAttention(args: {
         cta: 'activity',
       });
     }
-    if (client && row.title.toLowerCase().startsWith('client report') && !activityClosed(factsOf(row).activityStatus)) {
+    if (client && row.title.toLowerCase().startsWith('client report') && !activityClosed(status)) {
       cards.push({
         id: `report-${row.operatingEventId}`,
         title: `Client report due · ${row.title}`,
@@ -566,6 +617,43 @@ export function marketingAttention(args: {
       });
     }
   }
+  if ((args.campaignStatus ?? '').toUpperCase() === 'CLOSED') {
+    for (const row of args.events) {
+      if (!effective(row)) continue;
+      const openActivity = row.eventType === 'ACTIVITY' && !activityClosed(currentActivityStatus(row, args.events));
+      const pending = row.approvalStatus === 'PENDING';
+      const payable = (row.eventType === 'SPEND' || row.eventType === 'VENDOR_COST') && obligationRemaining(row, args.events, 'PAYMENT') > 0;
+      const receivable = client && (row.eventType === 'INVOICE' || row.eventType === 'SALE') && obligationRemaining(row, args.events, 'COLLECTION') > 0;
+      if (!openActivity && !pending && !payable && !receivable) continue;
+      cards.push({
+        id: `close-${row.operatingEventId}`,
+        title: `Still open · ${row.title}`,
+        kind: 'ATT-12',
+        severity: 'HIGH',
+        amount: args.visible && (payable || receivable) ? money(obligationRemaining(row, args.events, payable ? 'PAYMENT' : 'COLLECTION')) : null,
+        dueAt: day(row.dueAt) || null,
+        counterpartyName: row.counterpartyName ?? null,
+        sourceEventId: row.operatingEventId,
+        cta: payable ? 'pay' : receivable ? 'collect' : 'activity',
+      });
+    }
+  }
+  for (const row of args.events) {
+    if (row.eventType !== 'RESULT' || !effective(row)) continue;
+    const facts = factsOf(row);
+    if (facts.resultSource && facts.periodEnd) continue;
+    cards.push({
+      id: `evidence-${row.operatingEventId}`,
+      title: `Result evidence · ${row.title}`,
+      kind: 'ATT-13',
+      severity: 'MEDIUM',
+      amount: null,
+      dueAt: null,
+      counterpartyName: null,
+      sourceEventId: row.operatingEventId,
+      cta: 'result',
+    });
+  }
   const rank: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
   return cards.sort((a, b) => (rank[a.severity] ?? 9) - (rank[b.severity] ?? 9) || a.kind.localeCompare(b.kind));
 }
@@ -585,6 +673,46 @@ export interface MarketingWrite {
   costBasis?: 'AGENCY' | 'REIMBURSABLE' | null;
   creativeVersion?: string | null;
   idempotencyKey?: string | null;
+  counterpartyName?: string | null;
+  campaignClient?: string | null;
+  channelName?: string | null;
+  resultSource?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  supersedesEventId?: string | null;
+}
+
+function sameCumulativeSeries(input: MarketingWrite, row: MarketingEvent): boolean {
+  if (!effective(row) || (row.eventType !== 'RESULT' && row.eventType !== 'PROGRESS')) return false;
+  if ((factsOf(row).reportingMode ?? 'INCREMENTAL') !== 'CUMULATIVE') return false;
+  if ((input.reportingMode ?? 'INCREMENTAL') !== 'CUMULATIVE') return false;
+  const metric = (input.metricCode ?? '').toUpperCase();
+  if (metric && metricOf(row) !== metric) return false;
+  if ((input.unit ?? '') !== (row.unit ?? '')) return false;
+  if ((input.channelName ?? '') !== (row.channelName ?? '')) return false;
+  if ((input.resultSource ?? '') !== (factsOf(row).resultSource ?? '')) return false;
+  return true;
+}
+
+function overlappingResult(
+  input: MarketingWrite,
+  existing: MarketingEvent[]
+): { ok: true } | { ok: false; message: string } {
+  const start = (input.periodStart ?? '').slice(0, 10);
+  const end = (input.periodEnd ?? '').slice(0, 10);
+  if (!start || !end) return { ok: true };
+  const clashes = existing.filter((row) => {
+    if (!sameCumulativeSeries(input, row)) return false;
+    const facts = factsOf(row);
+    const otherStart = facts.periodStart ?? '';
+    const otherEnd = facts.periodEnd ?? '';
+    if (!otherStart || !otherEnd) return false;
+    return start <= otherEnd && otherStart <= end;
+  });
+  if (clashes.some((row) => row.operatingEventId !== input.supersedesEventId)) {
+    return { ok: false, message: 'That result overlaps a posted period. Correct the earlier snapshot.' };
+  }
+  return { ok: true };
 }
 
 export function validateMarketingWrite(
@@ -607,6 +735,11 @@ export function validateMarketingWrite(
   if (input.eventType === 'INVOICE' && !(num(input.amount) > 0)) {
     return { ok: false, message: 'Invoice amount is required.' };
   }
+  if (input.eventType === 'INVOICE' && input.campaignClient && input.counterpartyName) {
+    if (input.counterpartyName.trim().toLowerCase() !== input.campaignClient.trim().toLowerCase()) {
+      return { ok: false, message: 'Invoice the campaign client.' };
+    }
+  }
   if (input.eventType === 'RESULT' && input.attributedSales && !client) {
     // Informational only. Never a reason to reject, and never a receivable.
   }
@@ -622,12 +755,16 @@ export function validateMarketingWrite(
     if (!parent || parent.eventType !== 'ACTIVITY' || !effective(parent)) {
       return { ok: false, message: 'Progress belongs to an open activity.' };
     }
-    if (activityClosed(factsOf(parent).activityStatus)) {
+    if (activityClosed(currentActivityStatus(parent, existing))) {
       return { ok: false, message: 'That activity is already done.' };
     }
-    if (!(num(input.quantity) > 0) && !(num(input.amount) > 0)) {
-      return { ok: false, message: 'Progress needs a quantity or amount.' };
+    const statusOnly = !(num(input.quantity) > 0) && !(num(input.amount) > 0);
+    if (statusOnly && !input.activityStatus) {
+      return { ok: false, message: 'Progress needs a status or a measured result.' };
     }
+    if (!statusOnly) {
+    const overlap = overlappingResult(input, existing);
+    if (!overlap.ok) return overlap;
     const prior = existing.filter(
       (row) =>
         row.eventType === 'PROGRESS' &&
@@ -640,6 +777,11 @@ export function validateMarketingWrite(
     if (nextUnit && units.size > 0 && !units.has(nextUnit)) {
       return { ok: false, message: 'Do not mix units in one progress series.' };
     }
+    }
+  }
+  if (input.eventType === 'RESULT') {
+    const overlap = overlappingResult(input, existing);
+    if (!overlap.ok) return overlap;
   }
   if (input.eventType === 'PAYMENT' || input.eventType === 'COLLECTION') {
     if (!input.parentEventId) return { ok: false, message: 'Choose the open record this settles.' };
@@ -652,6 +794,11 @@ export function validateMarketingWrite(
     const open = obligationRemaining(parent, existing, child);
     if (num(input.amount) - open > 0.00005) {
       return { ok: false, message: 'That is more than the amount still open.' };
+    }
+    const party = (input.counterpartyName ?? '').trim();
+    const parentParty = (parent.counterpartyName ?? '').trim();
+    if (party && parentParty && party.toLowerCase() !== parentParty.toLowerCase()) {
+      return { ok: false, message: 'Use the party already on that record.' };
     }
   }
   return { ok: true };
@@ -701,6 +848,66 @@ export function marketingCpl(events: MarketingEvent[]): string | null {
   if (!(leads > 0)) return null;
   const spend = spendRows.reduce((total, row) => total + num(row.amount), 0);
   return (spend / leads).toFixed(2);
+}
+
+export function marketingAchievement(actual: number, target: number | null, covered: boolean): string | null {
+  if (!covered || target == null || !(target > 0)) return null;
+  return ((actual / target) * 100).toFixed(2);
+}
+
+export function attributedSalesTotal(events: MarketingEvent[]): number | null {
+  const rows = events.filter(
+    (row) => effective(row) && (row.eventType === 'RESULT' || row.eventType === 'PROGRESS') && factsOf(row).attributedSales != null
+  );
+  if (rows.length === 0) return null;
+  const groups = new Map<string, MarketingEvent[]>();
+  for (const row of rows) {
+    const facts = factsOf(row);
+    const key = `${row.channelName ?? ''}|${facts.resultSource ?? ''}`;
+    const standIn: MarketingEvent = {
+      ...row,
+      amount: facts.attributedSales ?? null,
+      quantity: null,
+      marketing: { ...facts, metricCode: 'REVENUE' },
+    };
+    groups.set(key, [...(groups.get(key) ?? []), standIn]);
+  }
+  let total = 0;
+  for (const group of groups.values()) total += seriesValue(group);
+  return total;
+}
+
+export function marketingRoas(events: MarketingEvent[]): string | null {
+  const rows = events.filter(effective);
+  const spend = rows
+    .filter((row) => (row.eventType === 'SPEND' || row.eventType === 'VENDOR_COST') && factsOf(row).costBasis !== 'REIMBURSABLE')
+    .reduce((total, row) => total + num(row.amount), 0);
+  const sales = attributedSalesTotal(rows);
+  if (!(spend > 0) || sales == null) return null;
+  return (sales / spend).toFixed(2);
+}
+
+export function marketingMetricTarget(
+  primaryMetric: string,
+  primaryValue: number,
+  primaryConfigured: boolean,
+  supporting: Record<string, number>,
+  metric: string
+): number | null {
+  const code = metric.toUpperCase();
+  if (primaryMetric.toUpperCase() === code && primaryConfigured) return primaryValue;
+  return supporting[code] ?? null;
+}
+
+/** Marketing has no tax ledger. A missing or unconfigured rate is never stored as 0%. */
+export function marketingTaxSnapshot(args: {
+  gstEnabled: boolean;
+  amount: string | null;
+  gstRate?: string | null;
+}): { amount: string | null; gst: null } {
+  const rate = args.gstRate == null || String(args.gstRate).trim() === '' ? null : Number(args.gstRate);
+  if (!args.gstEnabled || rate == null || !(rate > 0)) return { amount: args.amount, gst: null };
+  return { amount: args.amount, gst: null };
 }
 
 export function channelCoverage(channels: string[], events: MarketingEvent[]): string {

@@ -17,6 +17,8 @@ import {
   creativeVersionApproved,
   marketingCpl,
   marketingProgress,
+  marketingRoas,
+  marketingTaxSnapshot,
   observationDelta,
   seriesValue,
   validateMarketingWrite,
@@ -1202,5 +1204,247 @@ describe('marketing campaigns v4.2 modes', () => {
     assert.equal(clientPrefs.clientFee, '50000.0000');
     assert.equal(clientPrefs.reportingCadence, 'MONTHLY');
     assert.equal(clientPrefs.partyName, 'Northwind');
+  });
+});
+
+describe('marketing campaigns v5 sequential', () => {
+  const blank = {
+    reportingMode: null,
+    metricCode: null,
+    budgetCategory: null,
+    paymentState: null,
+    activityStatus: null,
+    attributedSales: null,
+    revisionKind: null,
+  } as const;
+  const asOf = new Date('2026-11-24T00:00:00.000Z');
+
+  it('reproduces the client campaign ledger after the November revision', () => {
+    const prefs = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'CLIENT_CAMPAIGN',
+        identityName: 'Skyline',
+        partyName: 'Northstar',
+        monthlyBudget: '500000',
+        monthlyTarget: '300',
+        targetMetric: 'LEADS',
+        startDate: '2026-11-01',
+        endDate: '2026-11-30',
+      },
+      { userId: 'u', displayName: 'Asha' }
+    );
+    const view = projectOperatingMoment({
+      familyCode: 'MARKETING_CAMPAIGNS',
+      prefs,
+      role: 'OWNER_ADMIN',
+      asOf,
+      events: [
+        posted('rev', 'REVISION', {
+          amount: '550000',
+          occurredAt: '2026-11-23T00:00:00.000Z',
+          marketing: { ...blank, revisionKind: 'BUDGET', effectiveFrom: '2026-11-23' },
+        }),
+        posted('spend', 'SPEND', {
+          amount: '350000',
+          paymentRelevance: 'PAYABLE',
+          paymentStatus: 'PENDING',
+          counterpartyName: 'Press',
+          occurredAt: '2026-11-20T00:00:00.000Z',
+        }),
+        posted('pay-a', 'PAYMENT', { amount: '100000', parentEventId: 'spend', paymentStatus: 'PAID', counterpartyName: 'Press', occurredAt: '2026-11-21T00:00:00.000Z' }),
+        posted('pay-b', 'PAYMENT', { amount: '70000', parentEventId: 'spend', paymentStatus: 'PAID', counterpartyName: 'Press', occurredAt: '2026-11-22T00:00:00.000Z' }),
+        posted('inv-a', 'INVOICE', { amount: '400000', paymentRelevance: 'RECEIVABLE', paymentStatus: 'PENDING', counterpartyName: 'Northstar', occurredAt: '2026-11-18T00:00:00.000Z' }),
+        posted('inv-b', 'INVOICE', { amount: '250000', paymentRelevance: 'RECEIVABLE', paymentStatus: 'PENDING', counterpartyName: 'Northstar', occurredAt: '2026-11-19T00:00:00.000Z' }),
+        posted('col-a', 'COLLECTION', { amount: '150000', parentEventId: 'inv-a', paymentStatus: 'COLLECTED', occurredAt: '2026-11-21T00:00:00.000Z' }),
+        posted('col-b', 'COLLECTION', { amount: '250000', parentEventId: 'inv-b', paymentStatus: 'COLLECTED', occurredAt: '2026-11-22T00:00:00.000Z' }),
+        posted('leads-a', 'RESULT', {
+          quantity: '170',
+          unit: 'leads',
+          occurredAt: '2026-11-20T00:00:00.000Z',
+          marketing: { ...blank, reportingMode: 'INCREMENTAL', metricCode: 'LEADS' },
+        }),
+        posted('leads-b', 'RESULT', {
+          quantity: '30',
+          unit: 'leads',
+          occurredAt: '2026-11-22T00:00:00.000Z',
+          marketing: { ...blank, reportingMode: 'INCREMENTAL', metricCode: 'LEADS' },
+        }),
+      ],
+    });
+    assert.equal(view.budget?.amount, '550000.0000');
+    assert.equal(view.budget?.spent, '350000.0000');
+    assert.equal(((Number(view.budget?.spent) / Number(view.budget?.amount)) * 100).toFixed(2), '63.64');
+    assert.equal(view.continuity.payable, '180000.0000');
+    assert.equal(view.finance?.sales, '650000.0000');
+    assert.equal(view.continuity.receivable, '250000.0000');
+    assert.equal(view.activity.filter((row) => row.eventType === 'INVOICE').length, 2);
+    assert.equal(view.target?.progress, '200.0000');
+    assert.equal(((Number(view.target?.progress) / Number(view.target?.value)) * 100).toFixed(2), '66.67');
+    assert.equal(view.marketing?.cpl, '1750.00');
+  });
+
+  it('keeps own orders and attributed sales on separate targets and shows ROAS', () => {
+    const prefs = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'OWN_BUSINESS_CAMPAIGN',
+        identityName: 'Festive',
+        partyName: 'Harbor',
+        monthlyBudget: '120000',
+        monthlyTarget: '180',
+        targetMetric: 'ORDERS',
+        startDate: '2026-11-01',
+      },
+      { userId: 'u', displayName: 'Asha' }
+    );
+    const events = [
+      posted('rev', 'REVISION', {
+        amount: '140000',
+        occurredAt: '2026-11-23T00:00:00.000Z',
+        marketing: { ...blank, revisionKind: 'BUDGET', effectiveFrom: '2026-11-23' },
+      }),
+      posted('sales-target', 'TARGET', {
+        amount: '400000',
+        occurredAt: '2026-11-01T00:00:00.000Z',
+        marketing: { ...blank, metricCode: 'REVENUE' },
+      }),
+      posted('spend', 'SPEND', { amount: '90000', paymentRelevance: 'PAYABLE', paymentStatus: 'PENDING' }),
+      posted('pay', 'PAYMENT', { amount: '45000', parentEventId: 'spend', paymentStatus: 'PAID' }),
+      posted('orders', 'RESULT', {
+        quantity: '180',
+        unit: 'orders',
+        marketing: { ...blank, reportingMode: 'INCREMENTAL', metricCode: 'ORDERS', attributedSales: '390000' },
+      }),
+    ];
+    const view = projectOperatingMoment({
+      familyCode: 'MARKETING_CAMPAIGNS',
+      prefs,
+      role: 'OWNER_ADMIN',
+      asOf,
+      events,
+    });
+    assert.equal(view.budget?.amount, '140000.0000');
+    assert.equal(((Number(view.budget?.spent) / Number(view.budget?.amount)) * 100).toFixed(2), '64.29');
+    assert.equal(view.continuity.payable, '45000.0000');
+    assert.equal(view.finance?.sales, '0.0000');
+    assert.equal(view.finance?.outstanding, '0.0000');
+    assert.equal(view.continuity.receivable, '0.0000');
+    assert.equal(view.target?.value, '180.0000');
+    assert.equal(view.marketing?.orderAchievement, '100.00');
+    assert.equal(view.marketing?.salesAchievement, '97.50');
+    assert.equal(view.marketing?.roas, '4.33');
+    assert.equal(marketingRoas(events), '4.33');
+  });
+
+  it('rejects an overlapping cumulative result unless it replaces the earlier snapshot', () => {
+    const first = posted('a', 'RESULT', {
+      quantity: '170',
+      unit: 'leads',
+      occurredAt: '2026-11-20T00:00:00.000Z',
+      marketing: { ...blank, reportingMode: 'CUMULATIVE', metricCode: 'LEADS', periodStart: '2026-11-01', periodEnd: '2026-11-20' },
+    });
+    const base = {
+      eventType: 'RESULT',
+      subtype: 'CLIENT_CAMPAIGN',
+      amount: null,
+      quantity: '200',
+      unit: 'leads',
+      parentEventId: null,
+      metricCode: 'LEADS',
+      reportingMode: 'CUMULATIVE' as const,
+      revisionKind: null,
+      activityStatus: null,
+      attributedSales: null,
+      periodStart: '2026-11-10',
+      periodEnd: '2026-11-30',
+    };
+    assert.equal(validateMarketingWrite(base, [first]).ok, false);
+    assert.equal(validateMarketingWrite({ ...base, supersedesEventId: 'a' }, [first]).ok, true);
+    const replacement = posted('b', 'RESULT', {
+      quantity: '200',
+      unit: 'leads',
+      occurredAt: '2026-11-30T00:00:00.000Z',
+      marketing: {
+        ...blank,
+        reportingMode: 'CUMULATIVE',
+        metricCode: 'LEADS',
+        periodStart: '2026-11-10',
+        periodEnd: '2026-11-30',
+        supersedesEventId: 'a',
+      },
+    });
+    assert.equal(marketingProgress([first, replacement], 'LEADS').progress, 200);
+  });
+
+  it('keeps a status-only progress update out of achievement and leaves a closed payable visible', () => {
+    const activity = posted('act', 'ACTIVITY', { title: 'Creative', marketing: { ...blank, activityStatus: 'IN_PROGRESS' } });
+    const status = posted('step', 'PROGRESS', {
+      parentEventId: 'act',
+      marketing: { ...blank, activityStatus: 'COMPLETED' },
+    });
+    assert.equal(
+      validateMarketingWrite(
+        {
+          eventType: 'PROGRESS',
+          subtype: 'CLIENT_CAMPAIGN',
+          amount: null,
+          quantity: null,
+          unit: null,
+          parentEventId: 'act',
+          metricCode: null,
+          reportingMode: null,
+          revisionKind: null,
+          activityStatus: 'COMPLETED',
+          attributedSales: null,
+        },
+        [activity]
+      ).ok,
+      true
+    );
+    assert.equal(marketingProgress([activity, status, posted('leads', 'RESULT', { quantity: '10', unit: 'leads', marketing: { ...blank, metricCode: 'LEADS', reportingMode: 'INCREMENTAL' } })], 'LEADS').progress, 10);
+    const prefs = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'CLIENT_CAMPAIGN',
+        identityName: 'Closeout',
+        partyName: 'Northstar',
+        monthlyBudget: '10000',
+        startDate: '2026-11-01',
+        campaignStatus: 'CLOSED',
+      },
+      { userId: 'u', displayName: 'Asha' }
+    );
+    const view = projectOperatingMoment({
+      familyCode: 'MARKETING_CAMPAIGNS',
+      prefs,
+      role: 'OWNER_ADMIN',
+      asOf,
+      events: [posted('spend', 'SPEND', { amount: '4000', paymentRelevance: 'PAYABLE', paymentStatus: 'PENDING', title: 'Print' })],
+    });
+    assert.equal(view.continuity.payable, '4000.0000');
+    assert.equal(view.paymentReadiness.some((row) => row.id === 'spend'), true);
+    assert.equal(view.attention.some((item) => item.kind === 'ATT-12'), true);
+    const tax = marketingTaxSnapshot({ gstEnabled: false, amount: '1000.0000', gstRate: '0' });
+    assert.equal(tax.amount, '1000.0000');
+    assert.equal(tax.gst, null);
+    const again = validateMarketingWrite(
+      {
+        eventType: 'SPEND',
+        subtype: 'CLIENT_CAMPAIGN',
+        amount: '10',
+        quantity: null,
+        unit: null,
+        parentEventId: null,
+        metricCode: null,
+        reportingMode: null,
+        revisionKind: null,
+        activityStatus: null,
+        attributedSales: null,
+        idempotencyKey: 'spend-1',
+      },
+      [posted('spend', 'SPEND', { amount: '10', marketing: { ...blank, idempotencyKey: 'spend-1' } })]
+    );
+    assert.equal(again.ok, true);
   });
 });

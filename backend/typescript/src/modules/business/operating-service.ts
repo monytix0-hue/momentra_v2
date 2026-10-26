@@ -30,7 +30,7 @@ import {
 } from './operating-retail-contract';
 import { isTradingSubtype, validateTradingWrite } from './operating-trading-contract';
 import { uomDimension } from './operating-trading-lov';
-import { isMarketingSubtype, observationDelta, parseMarketingFacts, validateMarketingWrite } from './operating-marketing';
+import { isMarketingSubtype, marketingTaxSnapshot, observationDelta, parseMarketingFacts, validateMarketingWrite } from './operating-marketing';
 import { isManufacturingSubtype, validateManufacturingWrite } from './operating-manufacturing';
 
 const amountSchema = z.string().regex(/^\d+(\.\d{1,4})?$/);
@@ -101,7 +101,9 @@ export const recordOperatingEventSchema = z
     costBasis: z.enum(['AGENCY', 'REIMBURSABLE']).optional(),
     overlapDeduped: z.boolean().optional(),
     resultSource: z.string().max(160).optional(),
+    periodStart: z.string().max(40).optional(),
     periodEnd: z.string().max(40).optional(),
+    supersedesEventId: z.string().max(80).optional(),
     creativeVersion: z.string().max(40).optional(),
     effectiveFrom: z.string().max(40).optional(),
     evidenceUrl: z.string().max(500).optional(),
@@ -568,9 +570,17 @@ export async function recordOperatingEvent(
       throw new AppError(ErrorCode.VALIDATION_FAILED, allocation.message, 400);
     }
     if (isMarketingSubtype(prefs.subtype)) {
+      const postedType = def.code === 'INVOICE' && body.eventType.toUpperCase() === 'SALE' ? 'INVOICE' : def.code;
+      if (postedType === 'INVOICE' && !body.counterpartyName) body.counterpartyName = prefs.partyName;
+      const tax = marketingTaxSnapshot({
+        gstEnabled: tradingGstContext(prefs).enabled,
+        amount,
+        gstRate: body.contract?.gstRate ?? null,
+      });
+      amount = tax.amount;
       const checked = validateMarketingWrite(
         {
-          eventType: def.code === 'INVOICE' && body.eventType.toUpperCase() === 'SALE' ? 'INVOICE' : def.code,
+          eventType: postedType,
           subtype: prefs.subtype,
           amount,
           quantity: body.quantity ?? null,
@@ -584,6 +594,13 @@ export async function recordOperatingEvent(
           costBasis: body.costBasis ?? null,
           creativeVersion: body.creativeVersion ?? null,
           idempotencyKey: idempotency || null,
+          counterpartyName: body.counterpartyName ?? null,
+          campaignClient: prefs.partyName,
+          channelName: body.channelName ?? null,
+          resultSource: body.resultSource ?? null,
+          periodStart: body.periodStart ?? null,
+          periodEnd: body.periodEnd ?? null,
+          supersedesEventId: body.supersedesEventId ?? null,
         },
         existing
       );
@@ -606,7 +623,9 @@ export async function recordOperatingEvent(
   if (body.costBasis) payload.costBasis = body.costBasis;
   if (body.overlapDeduped) payload.overlapDeduped = true;
   if (body.resultSource) payload.resultSource = body.resultSource;
+  if (body.periodStart) payload.periodStart = body.periodStart.slice(0, 10);
   if (body.periodEnd) payload.periodEnd = body.periodEnd.slice(0, 10);
+  if (body.supersedesEventId) payload.supersedesEventId = body.supersedesEventId;
   if (body.creativeVersion) payload.creativeVersion = body.creativeVersion;
   if (body.evidenceUrl) payload.evidenceUrl = body.evidenceUrl;
   if (body.plannedStart) payload.plannedStart = body.plannedStart;
@@ -637,6 +656,9 @@ export async function recordOperatingEvent(
         attributedSales: null,
         revisionKind: null,
         resultSource: body.resultSource ?? null,
+        periodStart: body.periodStart?.slice(0, 10) ?? null,
+        periodEnd: body.periodEnd?.slice(0, 10) ?? null,
+        supersedesEventId: body.supersedesEventId ?? null,
       },
     });
     payload.normalizedDelta = delta.toFixed(4);

@@ -55,6 +55,15 @@ struct MarketingActiveView: View {
                         Text(pacing).font(.plusJakarta(size: 12)).foregroundStyle(MarketingChrome.secondary)
                     }
                     Text("CPL \(model.marketing?.cpl ?? "N/A")").font(.plusJakarta(size: 12)).foregroundStyle(MarketingChrome.secondary)
+                    if let orders = model.marketing?.orderAchievement {
+                        Text("Orders \(orders)%").font(.plusJakarta(size: 12)).foregroundStyle(MarketingChrome.secondary)
+                    }
+                    if let sales = model.marketing?.salesAchievement {
+                        Text("Attributed sales \(sales)%").font(.plusJakarta(size: 12)).foregroundStyle(MarketingChrome.secondary)
+                    }
+                    if let roas = model.marketing?.roas {
+                        Text("ROAS \(roas)x").font(.plusJakarta(size: 12)).foregroundStyle(MarketingChrome.secondary)
+                    }
                     if measured {
                         meter("Results toward target", fraction(model.target?.progress, model.target?.value), MarketingChrome.brand)
                     }
@@ -447,4 +456,8 @@ struct MarketingEventDraft {
     var creativeVersion: String? = nil
     var resultSource: String? = nil
     var idempotencyKey: String? = nil
+    var effectiveFrom: String? = nil
+    var periodStart: String? = nil
+    var periodEnd: String? = nil
+    var supersedesEventId: String? = nil
 }

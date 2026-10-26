@@ -45,9 +45,13 @@ import {
   channelCoverage,
   isMarketingSubtype,
   activityClosed,
+  attributedSalesTotal,
+  marketingAchievement,
   marketingAttention,
   marketingCpl,
+  marketingMetricTarget,
   marketingProgress,
+  marketingRoas,
   rollMarketingLedger,
   MARKETING_METRICS,
 } from './operating-marketing';
@@ -779,6 +783,9 @@ export interface MarketingInsight {
   offering: string;
   creativeApprovalRequired: string;
   reportingCadence: string;
+  orderAchievement: string | null;
+  salesAchievement: string | null;
+  roas: string | null;
 }
 
 export interface OperatingBoardRow {
@@ -1154,17 +1161,20 @@ export function projectOperatingMoment(args: {
     }
   }
   let marketingCoverage = 'N/A';
+  let marketingSupporting: Record<string, number> = {};
   if (args.familyCode === 'MARKETING_CAMPAIGNS') {
     const rolled = rollMarketingLedger(
       pulseEvents,
       { budget: num(args.prefs.monthlyBudget), target: num(args.prefs.monthlyTarget) },
-      asOf.toISOString().slice(0, 10)
+      asOf.toISOString().slice(0, 10),
+      args.prefs.targetMetric
     );
     budget = rolled.budget;
     target = rolled.target;
     budgetConfigured = rolled.budgetConfigured;
     targetConfigured = rolled.targetConfigured;
     spent = rolled.spent;
+    marketingSupporting = rolled.supportingTargets;
     revisions.splice(0, revisions.length, ...rolled.revisions);
     const measured = marketingProgress(pulseEvents, args.prefs.targetMetric);
     progress = measured.progress;
@@ -1220,6 +1230,7 @@ export function projectOperatingMoment(args: {
             progressCoverage: marketingProgress(pulseEvents, args.prefs.targetMetric).coverage,
             startDate: args.prefs.startDate,
             endDate: args.prefs.endDate,
+            campaignStatus: args.prefs.campaignStatus,
           })
         : legacyAttention;
   const tradingReady = isTradingSubtype(args.prefs.subtype);
@@ -1291,6 +1302,25 @@ export function projectOperatingMoment(args: {
         offering: args.prefs.offering,
         creativeApprovalRequired: args.prefs.creativeApprovalRequired,
         reportingCadence: args.prefs.reportingCadence,
+        orderAchievement: (() => {
+          const orders = marketingProgress(pulseEvents, 'ORDERS');
+          return marketingAchievement(
+            orders.progress,
+            marketingMetricTarget(args.prefs.targetMetric, target, targetConfigured, marketingSupporting, 'ORDERS'),
+            orders.coverage !== 'N/A'
+          );
+        })(),
+        salesAchievement: (() => {
+          const observed = attributedSalesTotal(pulseEvents);
+          const revenue = marketingProgress(pulseEvents, 'REVENUE');
+          const actual = observed != null ? observed : revenue.coverage === 'N/A' ? null : revenue.progress;
+          return marketingAchievement(
+            actual ?? 0,
+            marketingMetricTarget(args.prefs.targetMetric, target, targetConfigured, marketingSupporting, 'REVENUE'),
+            actual != null
+          );
+        })(),
+        roas: visible ? marketingRoas(pulseEvents) : null,
       }
     : null;
   const quickAdds = (sub?.quickAdds ?? [])

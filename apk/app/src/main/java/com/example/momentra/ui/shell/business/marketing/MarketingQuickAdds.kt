@@ -72,6 +72,10 @@ data class MarketingEventDraft(
     val creativeVersion: String? = null,
     val resultSource: String? = null,
     val idempotencyKey: String? = null,
+    val effectiveFrom: String? = null,
+    val periodStart: String? = null,
+    val periodEnd: String? = null,
+    val supersedesEventId: String? = null,
 )
 
 private enum class MarketingSheet(
@@ -286,7 +290,7 @@ fun MarketingQuickAddHub(
                 variant = if (client) "client" else "own",
                 onDismiss = { sheet = null },
                 onSubmit = { draft ->
-                    onRecord(draft.toMarketing(model.activity))
+                    onRecord(draft.toMarketing())
                     sheet = null
                 },
                 onDecide = onDecide,
@@ -431,7 +435,7 @@ private fun MarketingSheet.sheetTitle(client: Boolean): String = when (this) {
     MarketingSheet.PARTNER, MarketingSheet.CHANNELS -> if (client) "Client / Partners / Channels" else "Partners & Channels"
 }
 
-private fun OperatingCaptureDraft.toMarketing(activities: List<com.example.momentra.data.api.OperatingActivityDto> = emptyList()) = MarketingEventDraft(
+private fun OperatingCaptureDraft.toMarketing() = MarketingEventDraft(
     eventType = eventType,
     title = title,
     amount = amount,
@@ -444,15 +448,13 @@ private fun OperatingCaptureDraft.toMarketing(activities: List<com.example.momen
     unit = unit,
     unitPrice = unitPrice,
     itemName = itemName,
-    parentEventId = parentEventId ?: activities.firstOrNull {
-        eventType == "PROGRESS" && it.eventType == "ACTIVITY" && it.approvalStatus != "REJECTED"
-    }?.id,
+    parentEventId = parentEventId,
     revisesEventId = revisesEventId,
     masterKind = masterKind,
     dueAt = dueAt,
     contract = contract,
-    reportingMode = reportingMode ?: if (eventType == "PROGRESS" || eventType == "RESULT") "INCREMENTAL" else null,
-    metricCode = metricCode ?: if (eventType == "PROGRESS" || eventType == "RESULT") "LEADS" else null,
+    reportingMode = reportingMode ?: if (eventType == "RESULT" || (eventType == "PROGRESS" && !amount.isNullOrBlank())) "INCREMENTAL" else null,
+    metricCode = metricCode ?: if (eventType == "RESULT" || (eventType == "PROGRESS" && !amount.isNullOrBlank())) "LEADS" else null,
     budgetCategory = if (eventType == "SPEND" || eventType == "INVOICE") "DIGITAL_ADS" else null,
     activityStatus = activityStatus ?: if (eventType == "ACTIVITY") "IN_PROGRESS" else null,
     revisionKind = revisionKind ?: if (eventType == "REVISION") "BUDGET" else null,
@@ -461,4 +463,8 @@ private fun OperatingCaptureDraft.toMarketing(activities: List<com.example.momen
     creativeVersion = creativeVersion,
     resultSource = resultSource,
     idempotencyKey = idempotencyKey,
+    effectiveFrom = effectiveFrom,
+    periodStart = periodStart,
+    periodEnd = periodEnd,
+    supersedesEventId = supersedesEventId,
 )
