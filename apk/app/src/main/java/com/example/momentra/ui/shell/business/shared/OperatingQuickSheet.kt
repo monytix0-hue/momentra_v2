@@ -118,6 +118,10 @@ data class OperatingCaptureDraft(
     val creativeVersion: String? = null,
     val resultSource: String? = null,
     val idempotencyKey: String? = null,
+    val effectiveFrom: String? = null,
+    val periodStart: String? = null,
+    val periodEnd: String? = null,
+    val supersedesEventId: String? = null,
 )
 
 private val dayFormat = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH)
@@ -225,6 +229,9 @@ private class CaptureForm(
     var overlapDeduped by mutableStateOf(false)
     var creativeVersion by mutableStateOf("1")
     var resultSource by mutableStateOf("")
+    var periodStart by mutableStateOf("")
+    var periodEnd by mutableStateOf("")
+    var supersedesId by mutableStateOf("")
     var idempotencyKey by mutableStateOf(java.util.UUID.randomUUID().toString())
     var originalCurrency by mutableStateOf("")
     var fxRate by mutableStateOf("")
@@ -447,7 +454,7 @@ fun OperatingCaptureSheet(
             Text(actor, color = SheetAccent, fontFamily = PlusJakartaSans, fontSize = 12.sp)
             Text(statusLine(mode), color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
             when (mode) {
-                "SALE", "SERVICE" -> SaleServiceCapture(form, mode, model, currency, channels, channelLabel, actor, production, contractFamily, lovTrade, trading, distribution)
+                "SALE", "SERVICE" -> SaleServiceCapture(form, mode, model, currency, channels, channelLabel, actor, production, contractFamily, lovTrade, trading, distribution, marketing)
                 "PURCHASE", "VENDOR" -> PurchaseVendorCapture(form, mode, model, currency, production, contractFamily, lovTrade, trading, distribution, marketing)
                 "SPEND" -> SpendCapture(form, model, currency, channels, channelLabel, actor, production, lovTrade, marketing, restaurant, service)
                 "PAYMENT", "REIMBURSE" -> PaymentReimburseCapture(form, mode, model, currency, lovTrade, trading, distribution, marketing, restaurant, service)
@@ -456,7 +463,7 @@ fun OperatingCaptureSheet(
                 "ORDER" -> OrderCapture(form, model, currency, channels, actor, production, lovTrade, trading, distribution, restaurant)
                 "SHIPMENT" -> ShipmentCapture(form, model, currency, actor, lovTrade, trading, distribution)
                 "APPOINTMENT" -> AppointmentCapture(form, model, actor, service, seed)
-                "UPDATE", "DELIVERY", "DELIVERABLE", "COMPLETE", "RESULT", "PRODUCTION" -> ActivityCapture(form, mode, model, currency, channels, channelLabel, actor, production, lovTrade, trading, distribution, marketing, restaurant, service)
+                "UPDATE", "DELIVERY", "DELIVERABLE", "COMPLETE", "RESULT", "PRODUCTION" -> ActivityCapture(form, mode, model, currency, channels, channelLabel, actor, production, lovTrade, trading, distribution, marketing, restaurant, service, eventType)
                 "ISSUE" -> IssueCapture(form, actor, production, trading, distribution, marketing, restaurant, service)
                 "STOCK" -> StockCapture(form, actor, production, contractFamily, lovTrade, trading, distribution, restaurant, service)
                 "RETURN" -> ReturnCapture(form, model, currency)
@@ -488,9 +495,18 @@ private fun SaleServiceCapture(
     lovTrade: Boolean,
     trading: Boolean,
     distribution: Boolean,
+    marketing: Boolean = false,
 ) {
     val typed = form.amount.toBigDecimalOrNull()
-    if (production && mode == "SALE") {
+    if (marketing && mode == "SALE") {
+        androidx.compose.runtime.LaunchedEffect(model.partyName) {
+            form.party = model.partyName.orEmpty()
+        }
+        ReadField("Client", model.partyName.orEmpty().ifBlank { "Set the client in setup" })
+        AmountBlock("Invoice amount", currency, form.amount, "Positive amount") { form.amount = it }
+        ReadField("Invoice date", form.dateText) { form.dateOpen = true }
+        Text("This invoice uses the campaign client.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (production && mode == "SALE") {
         AmountBlock("Amount", currency, form.amount, "Quick amount posts revenue and no SKU quantity") { form.amount = it }
         if (channels.isNotEmpty()) ChoiceBlock("Buyer / channel", channels, form.channel) { form.channel = it }
         else EditField("Buyer", form.party, "Required when a balance remains") { form.party = it }
@@ -765,8 +781,15 @@ private fun PaymentReimburseCapture(
     service: Boolean,
 ) {
     if (marketing && mode == "PAYMENT") {
-        OpenRecords(mode, model.paymentReadiness, form.parentId) { row ->
+        OpenRecords(
+            mode,
+            model.paymentReadiness,
+            form.parentId,
+            title = "Open payables",
+            empty = "Record a spend before paying a vendor.",
+        ) { row ->
             form.parentId = row.id
+            if (form.amount.isBlank()) row.amount?.let { form.amount = it }
             row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
         }
         AmountBlock("Payment amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
@@ -840,8 +863,15 @@ private fun CollectionCapture(
         Text("Records the receipt. This is not a live transfer.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         SummaryCard("After mark received", collectionSummary(model, currency, typed))
     } else if (client) {
-        OpenRecords(mode, model.paymentReadiness, form.parentId) { row ->
+        OpenRecords(
+            mode,
+            model.paymentReadiness,
+            form.parentId,
+            title = "Open client invoices",
+            empty = "Record an invoice before collecting.",
+        ) { row ->
             form.parentId = row.id
+            if (form.amount.isBlank()) row.amount?.let { form.amount = it }
             row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
         }
         ChoiceBlock("Collection path", listOf("Mark Received / Collect", "Create Receivable"), form.choice) { form.choice = it }
@@ -1243,6 +1273,7 @@ private fun ActivityCapture(
     marketing: Boolean,
     restaurant: Boolean,
     service: Boolean,
+    eventType: String = "",
 ) {
     if (lovTrade && mode == "UPDATE") {
         EditField("Update", form.purpose, "What happened") { form.purpose = it }
@@ -1286,6 +1317,19 @@ private fun ActivityCapture(
         }
         ReadField("Delivery date", form.dateText) { form.dateOpen = true }
         Text("A status-only delivery does not post a quantity or a sale.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (marketing && mode == "RESULT" && eventType == "PROGRESS") {
+        val open = model.activity.filter { it.eventType == "ACTIVITY" && it.approvalStatus != "REJECTED" && it.approvalStatus != "PENDING" }
+        Text(if (open.isEmpty()) "Add an activity before updating progress." else "Open activity", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        open.forEach { row ->
+            TextButton(onClick = { form.parentId = row.id }) {
+                Text(if (form.parentId == row.id) "Selected ${row.title}" else row.title, color = Color.White)
+            }
+        }
+        ChoiceBlock("Status", listOf("In progress", "Blocked", "Postponed", "Completed", "Cancelled"), form.activityStatus) { form.activityStatus = it }
+        AmountBlock("Result quantity", currency, form.amount, "Leave blank to update status only") { form.amount = it }
+        ChoiceBlock("Reporting", listOf("Incremental", "Cumulative"), form.reportingMode) { form.reportingMode = it }
+        ChoiceBlock("Metric", listOf("LEADS", "CONVERSIONS", "REACH", "ENGAGEMENT", "ORDERS"), form.metricCode) { form.metricCode = it }
+        Text("A status update does not add to the target.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     } else if (marketing && mode == "RESULT") {
         AmountBlock("Value", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
         if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
@@ -1297,6 +1341,17 @@ private fun ActivityCapture(
         ChoiceBlock("Metric", listOf("LEADS", "CONVERSIONS", "REACH", "ENGAGEMENT", "ORDERS"), form.metricCode) { form.metricCode = it }
         ChoiceBlock("Status", listOf("Accepted", "Pending"), form.choice) { form.choice = it }
         EditField("Source", form.resultSource, "Where this result was observed") { form.resultSource = it }
+        EditField("Period start", form.periodStart, "YYYY-MM-DD") { form.periodStart = it }
+        EditField("Period end", form.periodEnd, "YYYY-MM-DD") { form.periodEnd = it }
+        val earlier = model.activity.filter { it.eventType == "RESULT" && it.approvalStatus != "REJECTED" }
+        if (earlier.isNotEmpty()) {
+            Text("Correct an earlier result", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            earlier.forEach { row ->
+                TextButton(onClick = { form.supersedesId = if (form.supersedesId == row.id) "" else row.id }) {
+                    Text(if (form.supersedesId == row.id) "Replaces ${row.title}" else row.title, color = Color.White)
+                }
+            }
+        }
         ChoiceBlock("Overlap", listOf("Channel figure", "Deduplicated reach"), if (form.overlapDeduped) "Deduplicated reach" else "Channel figure") {
             form.overlapDeduped = it == "Deduplicated reach"
         }
@@ -1869,6 +1924,10 @@ private fun CaptureSheetFooter(
                         creativeVersion = form.creativeVersion,
                         resultSource = form.resultSource,
                         idempotencyKey = form.idempotencyKey,
+                        periodStart = form.periodStart,
+                        periodEnd = form.periodEnd,
+                        supersedesId = form.supersedesId,
+                        effectiveDay = form.eventDate.toString(),
                         dueAtDay = when {
                             mode == "ISSUE" -> form.eventDate.toString()
                             unpaidDue -> form.dueDate.toString()
@@ -2478,6 +2537,10 @@ private fun buildDraft(
     creativeVersion: String = "1",
     resultSource: String = "",
     idempotencyKey: String = "",
+    periodStart: String = "",
+    periodEnd: String = "",
+    supersedesId: String = "",
+    effectiveDay: String = "",
 ): OperatingCaptureDraft? {
     if (mode == "MASTERS") {
         if (itemName.isBlank()) return null
@@ -2521,7 +2584,8 @@ private fun buildDraft(
             idempotencyKey = idempotencyKey.ifBlank { null },
         )
     }
-    val needsAmount = mode in setOf("SALE", "SERVICE", "PURCHASE", "VENDOR", "SPEND", "PAYMENT", "REIMBURSE", "COLLECTION", "BUDGET", "TARGET", "RESULT", "PRODUCTION", "RETURN")
+    val statusOnlyProgress = marketing && eventType == "PROGRESS" && amount.isBlank()
+    val needsAmount = mode in setOf("SALE", "SERVICE", "PURCHASE", "VENDOR", "SPEND", "PAYMENT", "REIMBURSE", "COLLECTION", "BUDGET", "TARGET", "RESULT", "PRODUCTION", "RETURN") && !statusOnlyProgress
     val computed = quantity.toBigDecimalOrNull()?.multiply(unitPrice.toBigDecimalOrNull() ?: BigDecimal.ZERO)
     val resolvedAmount = amount.ifBlank {
         computed?.takeIf { it > BigDecimal.ZERO }?.setScale(2, RoundingMode.HALF_UP)?.toPlainString() ?: ""
@@ -2538,7 +2602,8 @@ private fun buildDraft(
     if (lovTrade && mode == "ORDER" && party.isBlank() && channel.isBlank()) return null
     if (lovTrade && mode == "SHIPMENT" && (parentId.isBlank() || quantity.isBlank())) return null
     if (lovTrade && mode in setOf("UPDATE", "ISSUE") && purpose.isBlank()) return null
-    if (marketing && mode == "RESULT" && purpose.isBlank()) return null
+    if (marketing && mode == "RESULT" && eventType != "PROGRESS" && purpose.isBlank()) return null
+    if (marketing && eventType == "PROGRESS" && parentId.isBlank()) return null
     if (marketing && mode == "VENDOR" && party.isBlank()) return null
     if (client && mode == "COLLECTION" && (party.isBlank() || purpose.isBlank())) return null
     if (own && mode == "COLLECTION" && purpose.isBlank()) return null
@@ -2817,11 +2882,11 @@ private fun buildDraft(
         masterBillingState = if (mode == "MASTERS") billingState.trim().ifBlank { null } else null,
         masterDeliveryState = if (mode == "MASTERS") deliveryState.trim().ifBlank { null } else null,
         masterGstin = if (mode == "MASTERS") partyGstin.trim().ifBlank { null } else null,
-        reportingMode = if (marketing && (mode == "RESULT" || mode == "UPDATE")) {
+        reportingMode = if (marketing && mode == "RESULT" && !statusOnlyProgress) {
             if (reportingMode == "Cumulative") "CUMULATIVE" else "INCREMENTAL"
         } else null,
-        metricCode = if (marketing && mode == "RESULT") metricCode else null,
-        activityStatus = if (marketing && mode == "UPDATE") when (activityStatus) {
+        metricCode = if (marketing && mode == "RESULT" && !statusOnlyProgress) metricCode else null,
+        activityStatus = if (marketing && (mode == "UPDATE" || eventType == "PROGRESS")) when (activityStatus) {
             "Blocked" -> "BLOCKED"
             "Postponed" -> "POSTPONED"
             "Completed" -> "COMPLETED"
@@ -2833,8 +2898,12 @@ private fun buildDraft(
         } else null,
         overlapDeduped = if (marketing && mode == "RESULT") overlapDeduped else null,
         creativeVersion = if (marketing && mode == "APPROVAL") creativeVersion.ifBlank { "1" } else null,
-        resultSource = if (marketing && mode == "RESULT") resultSource.ifBlank { null } else null,
-        revisionKind = if (marketing && mode == "BUDGET") "BUDGET" else null,
+        resultSource = if (marketing && mode == "RESULT" && eventType != "PROGRESS") resultSource.ifBlank { null } else null,
+        revisionKind = if (marketing && mode == "BUDGET") "BUDGET" else if (marketing && mode == "TARGET") "TARGET" else null,
+        effectiveFrom = if (marketing && mode in setOf("BUDGET", "TARGET")) effectiveDay.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}""")) } else null,
+        periodStart = if (marketing && mode == "RESULT" && eventType != "PROGRESS") periodStart.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}""")) } else null,
+        periodEnd = if (marketing && mode == "RESULT" && eventType != "PROGRESS") periodEnd.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}""")) } else null,
+        supersedesEventId = if (marketing && mode == "RESULT") supersedesId.ifBlank { null } else null,
         idempotencyKey = if (marketing || retail || restaurant || service || standard || job) idempotencyKey else null,
         dueAt = dueAtDay?.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }
             ?: link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) },
@@ -3386,6 +3455,8 @@ private fun OpenRecords(
     mode: String,
     readiness: List<OperatingPaymentDto>,
     selected: String,
+    title: String? = null,
+    empty: String? = null,
     onPick: (OperatingPaymentDto) -> Unit,
 ) {
     val rows = readiness.filter { row ->
@@ -3393,8 +3464,10 @@ private fun OpenRecords(
     }
     Text(
         if (rows.isEmpty()) {
-            if (mode == "COLLECTION") "No unpaid sale is open." else "No unpaid purchase or expense is open."
-        } else if (mode == "COLLECTION") "Unpaid sales" else "Unpaid purchases and expenses",
+            empty ?: if (mode == "COLLECTION") "No unpaid sale is open." else "No unpaid purchase or expense is open."
+        } else {
+            title ?: if (mode == "COLLECTION") "Unpaid sales" else "Unpaid purchases and expenses"
+        },
         color = SheetMuted,
         fontFamily = PlusJakartaSans,
         fontSize = 12.sp,

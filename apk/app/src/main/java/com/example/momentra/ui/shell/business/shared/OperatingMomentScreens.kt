@@ -289,6 +289,10 @@ fun OperatingMomentPage(
                     creativeVersion = draft.creativeVersion,
                     resultSource = draft.resultSource,
                     idempotencyKey = draft.idempotencyKey,
+                    effectiveFrom = draft.effectiveFrom,
+                    periodStart = draft.periodStart,
+                    periodEnd = draft.periodEnd,
+                    supersedesEventId = draft.supersedesEventId,
                 ).fold(
                     onSuccess = { tick += 1 },
                     onFailure = { error = it.message },

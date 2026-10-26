@@ -1439,6 +1439,9 @@ data class RecordOperatingEventBody(
     val resultSource: String? = null,
     val idempotencyKey: String? = null,
     val effectiveFrom: String? = null,
+    val periodStart: String? = null,
+    val periodEnd: String? = null,
+    val supersedesEventId: String? = null,
 )
 
 data class MarketingInsightDto(
@@ -1452,6 +1455,9 @@ data class MarketingInsightDto(
     val offering: String? = null,
     val creativeApprovalRequired: String? = null,
     val reportingCadence: String? = null,
+    val orderAchievement: String? = null,
+    val salesAchievement: String? = null,
+    val roas: String? = null,
 )
 
 data class RecordOperatingEventResultDto(

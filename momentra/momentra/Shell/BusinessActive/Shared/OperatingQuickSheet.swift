@@ -31,6 +31,10 @@ struct OperatingCaptureDraft {
     var creativeVersion: String? = nil
     var resultSource: String? = nil
     var idempotencyKey: String? = nil
+    var effectiveFrom: String? = nil
+    var periodStart: String? = nil
+    var periodEnd: String? = nil
+    var supersedesEventId: String? = nil
     var lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil
     var rejectedQuantity: String? = nil
     var masterGstApplicable: String? = nil
@@ -111,6 +115,9 @@ struct OperatingCaptureSheet: View {
     @State private var overlapDeduped = false
     @State private var creativeVersion = "1"
     @State private var resultSource = ""
+    @State private var periodStart = ""
+    @State private var periodEnd = ""
+    @State private var supersedesId = ""
     @State private var idempotencyKey = UUID().uuidString
     @State private var attributedSales = ""
     @State private var amount = ""
@@ -1456,14 +1463,15 @@ struct OperatingCaptureSheet: View {
             let selected = openObligations.first { $0.id == parentId }?.title ?? ""
             lovField(label, value: selected, kind: "OBLIGATION", placeholder: openObligations.isEmpty ? "Nothing is open" : "Search open records")
         } else if openObligations.isEmpty {
-            Text(mode == "COLLECTION" ? "No unpaid sale is open." : "No unpaid purchase or expense is open.")
+            Text(marketing && mode == "PAYMENT" ? "Record a spend before paying a vendor." : marketing && mode == "COLLECTION" ? "Record an invoice before collecting." : mode == "COLLECTION" ? "No unpaid sale is open." : "No unpaid purchase or expense is open.")
                 .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
         } else {
-            Text(mode == "COLLECTION" ? "Unpaid sales" : "Unpaid purchases and expenses")
+            Text(marketing && mode == "COLLECTION" ? "Open client invoices" : marketing && mode == "PAYMENT" ? "Open payables" : mode == "COLLECTION" ? "Unpaid sales" : "Unpaid purchases and expenses")
                 .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
             ForEach(Array(openObligations.enumerated()), id: \.offset) { _, row in
                 Button {
                     parentId = row.id
+                    if amount.trimmingCharacters(in: .whitespaces).isEmpty, let open = row.amount, !open.isEmpty { amount = open }
                     if let name = row.counterpartyName, !name.isEmpty { party = name }
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
@@ -1835,7 +1843,8 @@ struct OperatingCaptureSheet: View {
         if production && ["PRODUCTION", "PURCHASE", "SPEND", "SALE", "ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "STOCK", "BUDGET", "UPDATE", "ISSUE"].contains(mode) {
             return productionGovernedDraft()
         }
-        let needsAmount = ["SALE", "SERVICE", "PURCHASE", "VENDOR", "SPEND", "PAYMENT", "REIMBURSE", "COLLECTION", "BUDGET", "TARGET", "RESULT", "PRODUCTION"].contains(mode)
+        let statusOnlyProgress = marketing && eventType == "PROGRESS" && amount.trimmingCharacters(in: .whitespaces).isEmpty
+        let needsAmount = ["SALE", "SERVICE", "PURCHASE", "VENDOR", "SPEND", "PAYMENT", "REIMBURSE", "COLLECTION", "BUDGET", "TARGET", "RESULT", "PRODUCTION"].contains(mode) && !statusOnlyProgress
         let value = Decimal(string: amount) ?? 0
         if needsAmount, value <= 0 { return nil }
         let needsText = ["UPDATE", "ISSUE", "STOCK", "ORDER", "SHIPMENT", "DELIVERY", "APPOINTMENT", "DELIVERABLE", "COMPLETE"].contains(mode)
@@ -1845,7 +1854,8 @@ struct OperatingCaptureSheet: View {
         if distribution, mode == "SALE", party.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
         if distribution, mode == "ORDER", purpose.trimmingCharacters(in: .whitespaces).isEmpty || party.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
         if distribution, mode == "SHIPMENT", purpose.trimmingCharacters(in: .whitespaces).isEmpty || note.trimmingCharacters(in: .whitespaces).isEmpty || party.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
-        if marketing, mode == "RESULT", purpose.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+        if marketing, mode == "RESULT", eventType != "PROGRESS", purpose.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+        if marketing, eventType == "PROGRESS", parentId.isEmpty { return nil }
         if marketing, mode == "VENDOR", party.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
         if client, mode == "COLLECTION", party.trimmingCharacters(in: .whitespaces).isEmpty || purpose.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
         if own, mode == "COLLECTION", purpose.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
@@ -2430,16 +2440,43 @@ struct OperatingCaptureSheet: View {
             creativeVersion: creativeVersion,
             resultSource: resultSource.isEmpty ? nil : resultSource,
             idempotencyKey: idempotencyKey,
+            effectiveFrom: marketing && ["BUDGET", "TARGET", "REVISION"].contains(eventType) ? isoDay(eventDate) : nil,
+            periodStart: marketing && eventType == "RESULT" ? isoDayText(periodStart) : nil,
+            periodEnd: marketing && eventType == "RESULT" ? isoDayText(periodEnd) : nil,
+            supersedesEventId: marketing && eventType == "RESULT" && !supersedesId.isEmpty ? supersedesId : nil,
             lineItems: lineItems,
             rejectedQuantity: rejectedQuantity
         )
     }
 
+    private func isoDay(_ date: Date) -> String {
+        let format = DateFormatter()
+        format.calendar = Calendar(identifier: .gregorian)
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.timeZone = TimeZone(secondsFromGMT: 0)
+        format.dateFormat = "yyyy-MM-dd"
+        return format.string(from: date)
+    }
+
+    private func isoDayText(_ raw: String) -> String? {
+        let text = raw.trimmingCharacters(in: .whitespaces)
+        guard text.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil else { return nil }
+        return text
+    }
+
     private var marketingFields: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if eventType == "INVOICE" {
+                Text("Client").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+                Text((model.partyName?.isEmpty == false) ? model.partyName! : "Set the client in setup")
+                    .font(.plusJakarta(size: 16, weight: .semibold)).foregroundStyle(Color(hex: "#E5E0EE"))
+                Text("This invoice uses the campaign client.")
+                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            }
             if eventType == "PROGRESS" {
                 let open = (model.activity ?? []).filter { $0.eventType == "ACTIVITY" && $0.approvalStatus != "REJECTED" }
-                Text("Open activity").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+                Text(open.isEmpty ? "Add an activity before updating progress." : "Open activity").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+                Text("Leave the amount blank to update status only.").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
                 ForEach(Array(open.enumerated()), id: \.offset) { _, row in
                     Button(row.title) { parentId = row.id }
                         .font(.plusJakarta(size: 14, weight: .semibold))
@@ -2465,7 +2502,7 @@ struct OperatingCaptureSheet: View {
                     ForEach(["DIGITAL_ADS", "SOCIAL_CONTENT", "INFLUENCER", "EMAIL_DIRECT", "PRINT", "RADIO_AUDIO", "OUTDOOR", "EVENTS", "OUTREACH", "CREATIVE", "RESEARCH", "OTHER"], id: \.self) { Text($0).tag($0) }
                 }
             }
-            if eventType == "ACTIVITY" {
+            if eventType == "ACTIVITY" || eventType == "PROGRESS" {
                 Picker("Status", selection: $activityStatus) {
                     Text("In progress").tag("IN_PROGRESS")
                     Text("Blocked").tag("BLOCKED")
@@ -2480,8 +2517,21 @@ struct OperatingCaptureSheet: View {
                     Text("Client reimbursable").tag("REIMBURSABLE")
                 }
             }
-            if eventType == "RESULT" {
+                if eventType == "RESULT" {
                 TextField("Source", text: $resultSource)
+                TextField("Period start YYYY-MM-DD", text: $periodStart)
+                TextField("Period end YYYY-MM-DD", text: $periodEnd)
+                let earlier = (model.activity ?? []).filter { $0.eventType == "RESULT" && $0.approvalStatus != "REJECTED" }
+                if !earlier.isEmpty {
+                    Text("Correct an earlier result").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+                    ForEach(Array(earlier.enumerated()), id: \.offset) { _, row in
+                        Button(supersedesId == row.id ? "Replaces \(row.title)" : row.title) {
+                            supersedesId = supersedesId == row.id ? "" : row.id
+                        }
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#E5E0EE"))
+                    }
+                }
                 Toggle("Deduplicated reach", isOn: $overlapDeduped)
                 Text("Attributed sales stay an observation. They are not revenue.")
                     .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))

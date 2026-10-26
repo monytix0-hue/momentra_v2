@@ -131,6 +131,9 @@ private fun MarketingPulse(
                 fontFamily = PlusJakartaSans,
                 fontSize = 12.sp,
             )
+            model.marketing?.orderAchievement?.let { Text("Orders $it%", color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp) }
+            model.marketing?.salesAchievement?.let { Text("Attributed sales $it%", color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp) }
+            model.marketing?.roas?.let { Text("ROAS ${it}x", color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp) }
             if (measured) Meter("Results toward target", fraction(target?.progress, target?.value), CampBrand)
             ChannelTotals("Results by channel", model.activity.filter { it.eventType == "RESULT" || it.eventType == "PROGRESS" }, model)
             Meter("Budget used", fraction(budget?.spent, budget?.amount), CampSuccess)
