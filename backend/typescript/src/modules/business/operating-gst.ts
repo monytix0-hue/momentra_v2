@@ -324,7 +324,14 @@ export function accumulateGstPosition(rows: Array<{
     if (row.approvalStatus === 'PENDING' || row.approvalStatus === 'REJECTED' || row.paymentStatus === 'CANCELLED') continue;
     const gst = row.gst;
     if (!gst || gst.taxStatus === 'NOT_CONFIGURED') continue;
-    if (row.eventType !== 'SALE' && row.eventType !== 'PURCHASE' && row.eventType !== 'RETURN') continue;
+    if (
+      row.eventType !== 'SALE' &&
+      row.eventType !== 'SERVICE' &&
+      row.eventType !== 'INVOICE' &&
+      row.eventType !== 'PURCHASE' &&
+      row.eventType !== 'SPEND' &&
+      row.eventType !== 'RETURN'
+    ) continue;
     const total = Number(gst.gstTotal);
     let direction: GstPositionSource['direction'] = 'OUTPUT';
     if (row.eventType === 'SALE' || row.eventType === 'SERVICE' || row.eventType === 'INVOICE') {
