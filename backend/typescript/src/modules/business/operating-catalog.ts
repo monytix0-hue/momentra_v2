@@ -585,7 +585,7 @@ function normalizeGstPreferences(
   OperatingPreferences,
   'gstTracking' | 'gstRegistration' | 'gstState' | 'gstin' | 'salePriceIncludesGst' | 'purchasePriceIncludesGst' | 'gstEffectiveFrom'
 > {
-  if (familyCode !== 'TRADING_DISTRIBUTION') {
+  if (familyCode !== 'TRADING_DISTRIBUTION' && familyCode !== 'RETAIL_CONSUMER' && familyCode !== 'MANUFACTURING_PRODUCTION') {
     return {
       gstTracking: '',
       gstRegistration: '',
@@ -633,6 +633,7 @@ export interface OperatingEventRow {
   rejectedQuantity?: string | null;
   contract?: OperatingContract | null;
   marketing?: import('./operating-marketing').MarketingFacts | null;
+  idempotencyKey?: string | null;
 }
 
 export interface OperatingLine {
@@ -1497,7 +1498,7 @@ function financeTotals(
     sales: money(netPostedSales(events)),
     received: money(
       rows.reduce((total, row) => {
-        if (row.eventType === 'COLLECTION' && row.paymentStatus === 'COLLECTED') return total + num(row.amount);
+        if (row.eventType === 'COLLECTION' && row.paymentStatus === 'COLLECTED' && row.contract?.advanceApplied !== true) return total + num(row.amount);
         if ((row.eventType === 'SALE' || row.eventType === 'SERVICE' || row.eventType === 'INVOICE') && row.paymentStatus === 'COLLECTED') {
           const linked = events.some(
             (child) => child.parentEventId === row.operatingEventId && child.eventType === 'COLLECTION' && effective(child)

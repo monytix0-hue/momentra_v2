@@ -76,6 +76,15 @@ struct RetailStoreActiveView: View {
                     line("Business cash paid", money(model.finance?.cashPaid), .white)
                     line("Still to pay", money(model.finance?.payable), Color(hex: "#FBBF24"))
                 }
+                if model.gstTracking == "YES", let position = model.gstPosition {
+                    sectionTitle("GST Position")
+                    card {
+                        Text("Indicative only. This is not a tax filing or an ITC claim.").font(.plusJakarta(size: 12)).foregroundStyle(RetailStoreChrome.secondary)
+                        line("GST on sales", money(position.outputGst), RetailStoreChrome.accent)
+                        line("GST on purchases", money(position.inputGst), .white)
+                        line("Estimated difference", money(position.difference), Color(hex: "#FBBF24"))
+                    }
+                }
             } else {
                 card {
                     Text("Finance totals stay with Finance, Approver, and Owner.")

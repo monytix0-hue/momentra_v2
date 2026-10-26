@@ -76,6 +76,15 @@ struct ConsumerServiceActiveView: View {
                     line("Business cash paid", money(model.finance?.cashPaid), ServiceChrome.ink)
                     line("Still to pay", money(model.finance?.payable), Color(hex: "#FBBF24"))
                 }
+                if model.gstTracking == "YES", let position = model.gstPosition {
+                    sectionTitle("GST Position")
+                    card {
+                        Text("Indicative only. This is not a tax filing or an ITC claim.").font(.plusJakarta(size: 12)).foregroundStyle(ServiceChrome.secondary)
+                        line("GST on sales", money(position.outputGst), ServiceChrome.accent)
+                        line("GST on purchases", money(position.inputGst), ServiceChrome.ink)
+                        line("Estimated difference", money(position.difference), Color(hex: "#FBBF24"))
+                    }
+                }
             } else {
                 card {
                     Text("Finance totals stay with Finance, Approver, and Owner.")

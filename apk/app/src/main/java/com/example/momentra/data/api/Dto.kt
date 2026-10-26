@@ -1405,6 +1405,8 @@ data class OperatingContractBody(
     val acceptedQuantity: String? = null,
     val productionStatus: String? = null,
     val deliveryStatus: String? = null,
+    val quotationStatus: String? = null,
+    val scrapQuantity: String? = null,
 )
 
 data class RecordOperatingEventBody(

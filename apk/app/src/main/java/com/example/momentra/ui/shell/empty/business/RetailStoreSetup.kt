@@ -974,7 +974,7 @@ fun RetailStoreSetup(
             }
             if (ready) Pill("Budget and sales target look good", SuccessBg, Success)
         }
-        if (look.code == "TRADING_WHOLESALE" || look.code == "DISTRIBUTION_DEALERSHIP") {
+        if (look.code == "TRADING_WHOLESALE" || look.code == "DISTRIBUTION_DEALERSHIP" || look.code == "RETAIL_STORE" || look.code == "RESTAURANT_FOOD" || look.code == "CONSUMER_SERVICE" || look.code == "STANDARD_PRODUCTION" || look.code == "MADE_TO_ORDER") {
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Card).border(1.dp, Border, RoundedCornerShape(18.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("GST & Tax Details", color = Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 Text("Set up GST once to make buying and selling easier.", color = Secondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
@@ -1088,7 +1088,7 @@ fun RetailStoreSetup(
                             "campaignStatus" to "OPEN",
                             "companyName" to companyName.trim(),
                             "gstin" to gstin.trim(),
-                            "gstTracking" to if (look.code == "TRADING_WHOLESALE" || look.code == "DISTRIBUTION_DEALERSHIP") gstTracking else "",
+                            "gstTracking" to if (look.code == "TRADING_WHOLESALE" || look.code == "DISTRIBUTION_DEALERSHIP" || look.code == "RETAIL_STORE" || look.code == "RESTAURANT_FOOD" || look.code == "CONSUMER_SERVICE" || look.code == "STANDARD_PRODUCTION" || look.code == "MADE_TO_ORDER") gstTracking else "",
                             "gstRegistration" to gstRegistration,
                             "gstState" to gstState.trim(),
                             "salePriceIncludesGst" to salePriceIncludesGst,

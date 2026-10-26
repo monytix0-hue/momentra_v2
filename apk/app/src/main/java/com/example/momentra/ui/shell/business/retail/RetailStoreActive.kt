@@ -138,6 +138,15 @@ private fun RetailPulse(model: OperatingProjectionDto, onViewAll: () -> Unit, on
             Line("Business cash paid", money(model, finance?.cashPaid), Color.White)
             Line("Still to pay", money(model, finance?.payable), Color(0xFFFBBF24))
         }
+        if (model.gstTracking == "YES" && model.gstPosition != null) {
+            SectionTitle("GST Position")
+            StoreCard {
+                Text("Indicative only. This is not a tax filing or an ITC claim.", color = StoreSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                Line("GST on sales", money(model, model.gstPosition?.outputGst), StoreAccent)
+                Line("GST on purchases", money(model, model.gstPosition?.inputGst), Color.White)
+                Line("Estimated difference", money(model, model.gstPosition?.difference), Color(0xFFFBBF24))
+            }
+        }
     } else {
         StaffPulse(model, onOpenQuickAdd)
     }

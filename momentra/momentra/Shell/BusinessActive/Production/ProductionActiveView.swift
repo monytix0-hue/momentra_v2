@@ -91,6 +91,15 @@ struct ProductionActiveView: View {
                     line("Business cash paid", money(model.finance?.cashPaid), chrome.ink)
                     line("Still to pay", money(model.finance?.payable), Color(hex: "#FBBF24"))
                 }
+                if model.gstTracking == "YES", let position = model.gstPosition {
+                    sectionTitle("GST Position")
+                    card {
+                        Text("Indicative only. This is not a tax filing or an ITC claim.").font(.plusJakarta(size: 12)).foregroundStyle(chrome.secondary)
+                        line("GST on sales", money(position.outputGst), chrome.accent)
+                        line("GST on purchases", money(position.inputGst), chrome.ink)
+                        line("Estimated difference", money(position.difference), Color(hex: "#FBBF24"))
+                    }
+                }
             } else {
                 Text("Production status, with the work you're allowed to see.")
                     .font(.plusJakarta(size: 14)).foregroundStyle(chrome.secondary)
