@@ -97,7 +97,7 @@ struct RetailStoreSetupView: View {
                 people
                 if !spec.partySection.isEmpty { counterparties }
                 plan
-                if spec.code == "TRADING_WHOLESALE" || spec.code == "DISTRIBUTION_DEALERSHIP" { gstSetup }
+                if ["TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP", "RETAIL_STORE", "RESTAURANT_FOOD", "CONSUMER_SERVICE", "STANDARD_PRODUCTION", "MADE_TO_ORDER"].contains(spec.code) { gstSetup }
                 review
                 if ready {
                     pill("Ready to start", fill: spec.statusFill, ink: spec.statusInk)
@@ -691,7 +691,7 @@ struct RetailStoreSetupView: View {
             "campaignStatus": "OPEN",
             "companyName": company,
             "gstin": gstin.trimmingCharacters(in: .whitespaces),
-            "gstTracking": (spec.code == "TRADING_WHOLESALE" || spec.code == "DISTRIBUTION_DEALERSHIP") ? gstTracking : "",
+            "gstTracking": ["TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP", "RETAIL_STORE", "RESTAURANT_FOOD", "CONSUMER_SERVICE", "STANDARD_PRODUCTION", "MADE_TO_ORDER"].contains(spec.code) ? gstTracking : "",
             "gstRegistration": gstRegistration,
             "gstState": gstState.trimmingCharacters(in: .whitespaces),
             "salePriceIncludesGst": salePriceIncludesGst,

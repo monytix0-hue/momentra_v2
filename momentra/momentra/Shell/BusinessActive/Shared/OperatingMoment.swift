@@ -248,309 +248,337 @@ struct OperatingMomentPage: View {
         .background(Color(hex: "#0C0F15"))
     }
 
-    private var content: some View {
-        Group {
-            if let projection, projection.subtype == "RETAIL_STORE" {
-                RetailStoreActiveView(
-                    model: projection,
-                    tab: tab,
-                    onOpenQuickAdd: onOpenQuickAdd,
-                    onRecord: { draft in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.recordOperatingEvent(
-                            momentId: momentId,
-                            eventType: draft.eventType,
-                            title: draft.title,
-                            amount: draft.amount,
-                            note: draft.note,
-                            channelName: draft.channelName,
-                            counterpartyName: draft.counterpartyName,
-                            paymentStatus: draft.paymentStatus,
-                            occurredAt: draft.occurredAt,
-                            parentEventId: draft.parentEventId,
-                            quantity: draft.quantity,
-                            unit: draft.unit,
-                            itemName: draft.itemName,
-                            unitPrice: draft.unitPrice,
-                            masterKind: draft.masterKind,
-                            revisesEventId: draft.revisesEventId,
-                            dueAt: draft.dueAt,
-                            contract: draft.contract,
-                            lineItems: draft.lineItems
-                        )
-                        tick += 1
-                    },
-                    onDecide: { eventId, decision in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
-                        tick += 1
-                    },
-                    momentId: momentId
-                )
-            } else if let projection, projection.subtype == "RESTAURANT_FOOD" {
-                RestaurantActiveView(
-                    model: projection,
-                    tab: tab,
-                    onOpenQuickAdd: onOpenQuickAdd,
-                    onRecord: { draft in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.recordOperatingEvent(
-                            momentId: momentId,
-                            eventType: draft.eventType,
-                            title: draft.title,
-                            amount: draft.amount,
-                            note: draft.note,
-                            channelName: draft.channelName,
-                            counterpartyName: draft.counterpartyName,
-                            paymentStatus: draft.paymentStatus,
-                            occurredAt: draft.occurredAt,
-                            parentEventId: draft.parentEventId,
-                            quantity: draft.quantity,
-                            unit: draft.unit,
-                            itemName: draft.itemName,
-                            unitPrice: draft.unitPrice,
-                            masterKind: draft.masterKind,
-                            revisesEventId: draft.revisesEventId,
-                            dueAt: draft.dueAt,
-                            contract: draft.contract,
-                            lineItems: draft.lineItems
-                        )
-                        tick += 1
-                    },
-                    onDecide: { eventId, decision in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
-                        tick += 1
-                    }
-                )
-            } else if let projection, projection.subtype == "CLIENT_CAMPAIGN" || projection.subtype == "OWN_BUSINESS_CAMPAIGN" {
-                MarketingActiveView(
-                    model: projection,
-                    tab: tab,
-                    onOpenQuickAdd: onOpenQuickAdd,
-                    onRecord: { draft in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.recordOperatingEvent(
-                            momentId: momentId,
-                            eventType: draft.eventType,
-                            title: draft.title,
-                            amount: draft.amount,
-                            note: draft.note,
-                            channelName: draft.channelName,
-                            counterpartyName: draft.counterpartyName,
-                            paymentStatus: draft.paymentStatus,
-                            occurredAt: draft.occurredAt,
-                            parentEventId: draft.parentEventId,
-                            quantity: draft.quantity,
-                            unit: draft.unit,
-                            itemName: draft.itemName,
-                            unitPrice: draft.unitPrice,
-                            masterKind: draft.masterKind,
-                            revisesEventId: draft.revisesEventId,
-                            dueAt: draft.dueAt,
-                            contract: draft.contract,
-                            lineItems: draft.lineItems,
-                            reportingMode: draft.reportingMode,
-                            metricCode: draft.metricCode,
-                            budgetCategory: draft.budgetCategory,
-                            activityStatus: draft.activityStatus,
-                            attributedSales: draft.attributedSales,
-                            revisionKind: draft.revisionKind,
-                            costBasis: draft.costBasis,
-                            overlapDeduped: draft.overlapDeduped,
-                            creativeVersion: draft.creativeVersion,
-                            resultSource: draft.resultSource,
-                            idempotencyKey: draft.idempotencyKey
-                        )
-                        tick += 1
-                    },
-                    onDecide: { eventId, decision in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
-                        tick += 1
-                    },
-                    momentId: momentId
-                )
-            } else if let projection, projection.subtype == "STANDARD_PRODUCTION" || projection.subtype == "MADE_TO_ORDER" {
-                ProductionActiveView(
-                    model: projection,
-                    tab: tab,
-                    onOpenQuickAdd: onOpenQuickAdd,
-                    onRecord: { draft in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.recordOperatingEvent(
-                            momentId: momentId,
-                            eventType: draft.eventType,
-                            title: draft.title,
-                            amount: draft.amount,
-                            note: draft.note,
-                            channelName: draft.channelName,
-                            counterpartyName: draft.counterpartyName,
-                            paymentStatus: draft.paymentStatus,
-                            occurredAt: draft.occurredAt,
-                            parentEventId: draft.parentEventId,
-                            quantity: draft.quantity,
-                            unit: draft.unit,
-                            itemName: draft.itemName,
-                            unitPrice: draft.unitPrice,
-                            masterKind: draft.masterKind,
-                            revisesEventId: draft.revisesEventId,
-                            dueAt: draft.dueAt,
-                            contract: draft.contract,
-                            lineItems: draft.lineItems,
-                            rejectedQuantity: draft.rejectedQuantity
-                        )
-                        tick += 1
-                    },
-                    onDecide: { eventId, decision in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
-                        tick += 1
-                    },
-                    momentId: momentId
-                )
-            } else if let projection, projection.subtype == "TRADING_WHOLESALE" {
-                TradingActiveView(
-                    model: projection,
-                    tab: tab,
-                    onOpenQuickAdd: onOpenQuickAdd,
-                    onRecord: { draft in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.recordOperatingEvent(
-                            momentId: momentId,
-                            eventType: draft.eventType,
-                            title: draft.title,
-                            amount: draft.amount,
-                            note: draft.note,
-                            channelName: draft.channelName,
-                            counterpartyName: draft.counterpartyName,
-                            paymentStatus: draft.paymentStatus,
-                            occurredAt: draft.occurredAt,
-                            parentEventId: draft.parentEventId,
-                            quantity: draft.quantity,
-                            unit: draft.unit,
-                            itemName: draft.itemName,
-                            unitPrice: draft.unitPrice,
-                            masterKind: draft.masterKind,
-                            conversionToBase: draft.conversionToBase,
-                            revisesEventId: draft.revisesEventId,
-                            dueAt: draft.dueAt,
-                            contract: draft.contract,
-                            lineItems: draft.lineItems,
-                            masterGstApplicable: draft.masterGstApplicable,
-                            masterGstClassification: draft.masterGstClassification,
-                            masterGstRate: draft.masterGstRate,
-                            masterPriceIncludesGst: draft.masterPriceIncludesGst,
-                            masterSalePriceIncludesGst: draft.masterSalePriceIncludesGst,
-                            masterPurchasePriceIncludesGst: draft.masterPurchasePriceIncludesGst,
-                            masterGstEffectiveFrom: draft.masterGstEffectiveFrom,
-                            masterHsn: draft.masterHsn,
-                            masterGstRegistration: draft.masterGstRegistration,
-                            masterBusinessState: draft.masterBusinessState,
-                            masterBillingState: draft.masterBillingState,
-                            masterDeliveryState: draft.masterDeliveryState,
-                            masterGstin: draft.masterGstin
-                        )
-                        tick += 1
-                    },
-                    onDecide: { eventId, decision in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
-                        tick += 1
-                    }
-                )
-            } else if let projection, projection.subtype == "DISTRIBUTION_DEALERSHIP" {
-                DistributionActiveView(
-                    model: projection,
-                    tab: tab,
-                    onOpenQuickAdd: onOpenQuickAdd,
-                    onRecord: { draft in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.recordOperatingEvent(
-                            momentId: momentId,
-                            eventType: draft.eventType,
-                            title: draft.title,
-                            amount: draft.amount,
-                            note: draft.note,
-                            channelName: draft.channelName,
-                            counterpartyName: draft.counterpartyName,
-                            paymentStatus: draft.paymentStatus,
-                            occurredAt: draft.occurredAt,
-                            parentEventId: draft.parentEventId,
-                            quantity: draft.quantity,
-                            unit: draft.unit,
-                            itemName: draft.itemName,
-                            unitPrice: draft.unitPrice,
-                            masterKind: draft.masterKind,
-                            conversionToBase: draft.conversionToBase,
-                            revisesEventId: draft.revisesEventId,
-                            dueAt: draft.dueAt,
-                            contract: draft.contract,
-                            lineItems: draft.lineItems,
-                            masterGstApplicable: draft.masterGstApplicable,
-                            masterGstClassification: draft.masterGstClassification,
-                            masterGstRate: draft.masterGstRate,
-                            masterPriceIncludesGst: draft.masterPriceIncludesGst,
-                            masterSalePriceIncludesGst: draft.masterSalePriceIncludesGst,
-                            masterPurchasePriceIncludesGst: draft.masterPurchasePriceIncludesGst,
-                            masterGstEffectiveFrom: draft.masterGstEffectiveFrom,
-                            masterHsn: draft.masterHsn,
-                            masterGstRegistration: draft.masterGstRegistration,
-                            masterBusinessState: draft.masterBusinessState,
-                            masterBillingState: draft.masterBillingState,
-                            masterDeliveryState: draft.masterDeliveryState,
-                            masterGstin: draft.masterGstin
-                        )
-                        tick += 1
-                    },
-                    onDecide: { eventId, decision in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
-                        tick += 1
-                    }
-                )
-            } else if let projection, projection.subtype == "CONSUMER_SERVICE" {
-                ConsumerServiceActiveView(
-                    model: projection,
-                    tab: tab,
-                    onOpenQuickAdd: onOpenQuickAdd,
-                    onRecord: { draft in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.recordOperatingEvent(
-                            momentId: momentId,
-                            eventType: draft.eventType,
-                            title: draft.title,
-                            amount: draft.amount,
-                            note: draft.note,
-                            channelName: draft.channelName,
-                            counterpartyName: draft.counterpartyName,
-                            paymentStatus: draft.paymentStatus,
-                            occurredAt: draft.occurredAt,
-                            parentEventId: draft.parentEventId,
-                            quantity: draft.quantity,
-                            unit: draft.unit,
-                            itemName: draft.itemName,
-                            unitPrice: draft.unitPrice,
-                            masterKind: draft.masterKind,
-                            revisesEventId: draft.revisesEventId,
-                            dueAt: draft.dueAt,
-                            contract: draft.contract,
-                            lineItems: draft.lineItems
-                        )
-                        tick += 1
-                    },
-                    onDecide: { eventId, decision in
-                        guard let momentId else { return }
-                        _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
-                        tick += 1
-                    },
-                    momentId: momentId
-                )
-            } else {
-                generic
-            }
+    @ViewBuilder private var content: some View {
+        if let projection {
+            operatingPage(projection)
+        } else {
+            generic
         }
     }
+
+    private func operatingPage(_ projection: OperatingProjectionPayload) -> some View {
+        switch projection.subtype {
+        case "RETAIL_STORE": return AnyView(retailStorePage(projection))
+        case "RESTAURANT_FOOD": return AnyView(restaurantPage(projection))
+        case "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN": return AnyView(marketingPage(projection))
+        case "STANDARD_PRODUCTION", "MADE_TO_ORDER": return AnyView(productionPage(projection))
+        case "TRADING_WHOLESALE": return AnyView(tradingPage(projection))
+        case "DISTRIBUTION_DEALERSHIP": return AnyView(distributionPage(projection))
+        case "CONSUMER_SERVICE": return AnyView(servicePage(projection))
+        default: return AnyView(generic)
+        }
+    }
+
+    private func retailStorePage(_ projection: OperatingProjectionPayload) -> some View {
+        RetailStoreActiveView(
+            model: projection,
+            tab: tab,
+            onOpenQuickAdd: onOpenQuickAdd,
+            onRecord: { draft in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.recordOperatingEvent(
+                    momentId: momentId,
+                    eventType: draft.eventType,
+                    title: draft.title,
+                    amount: draft.amount,
+                    note: draft.note,
+                    channelName: draft.channelName,
+                    counterpartyName: draft.counterpartyName,
+                    paymentStatus: draft.paymentStatus,
+                    occurredAt: draft.occurredAt,
+                    parentEventId: draft.parentEventId,
+                    quantity: draft.quantity,
+                    unit: draft.unit,
+                    itemName: draft.itemName,
+                    unitPrice: draft.unitPrice,
+                    masterKind: draft.masterKind,
+                    revisesEventId: draft.revisesEventId,
+                    dueAt: draft.dueAt,
+                    contract: draft.contract,
+                    lineItems: draft.lineItems
+                )
+                tick += 1
+            },
+            onDecide: { eventId, decision in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
+                tick += 1
+            },
+            momentId: momentId
+        )
+    }
+
+    private func restaurantPage(_ projection: OperatingProjectionPayload) -> some View {
+        RestaurantActiveView(
+            model: projection,
+            tab: tab,
+            onOpenQuickAdd: onOpenQuickAdd,
+            onRecord: { draft in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.recordOperatingEvent(
+                    momentId: momentId,
+                    eventType: draft.eventType,
+                    title: draft.title,
+                    amount: draft.amount,
+                    note: draft.note,
+                    channelName: draft.channelName,
+                    counterpartyName: draft.counterpartyName,
+                    paymentStatus: draft.paymentStatus,
+                    occurredAt: draft.occurredAt,
+                    parentEventId: draft.parentEventId,
+                    quantity: draft.quantity,
+                    unit: draft.unit,
+                    itemName: draft.itemName,
+                    unitPrice: draft.unitPrice,
+                    masterKind: draft.masterKind,
+                    revisesEventId: draft.revisesEventId,
+                    dueAt: draft.dueAt,
+                    contract: draft.contract,
+                    lineItems: draft.lineItems
+                )
+                tick += 1
+            },
+            onDecide: { eventId, decision in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
+                tick += 1
+            }
+        )
+    }
+
+    private func marketingPage(_ projection: OperatingProjectionPayload) -> some View {
+        MarketingActiveView(
+            model: projection,
+            tab: tab,
+            onOpenQuickAdd: onOpenQuickAdd,
+            onRecord: { draft in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.recordOperatingEvent(
+                    momentId: momentId,
+                    eventType: draft.eventType,
+                    title: draft.title,
+                    amount: draft.amount,
+                    note: draft.note,
+                    channelName: draft.channelName,
+                    counterpartyName: draft.counterpartyName,
+                    paymentStatus: draft.paymentStatus,
+                    occurredAt: draft.occurredAt,
+                    parentEventId: draft.parentEventId,
+                    quantity: draft.quantity,
+                    unit: draft.unit,
+                    itemName: draft.itemName,
+                    unitPrice: draft.unitPrice,
+                    masterKind: draft.masterKind,
+                    revisesEventId: draft.revisesEventId,
+                    dueAt: draft.dueAt,
+                    contract: draft.contract,
+                    lineItems: draft.lineItems,
+                    reportingMode: draft.reportingMode,
+                    metricCode: draft.metricCode,
+                    budgetCategory: draft.budgetCategory,
+                    activityStatus: draft.activityStatus,
+                    attributedSales: draft.attributedSales,
+                    revisionKind: draft.revisionKind,
+                    costBasis: draft.costBasis,
+                    overlapDeduped: draft.overlapDeduped,
+                    creativeVersion: draft.creativeVersion,
+                    resultSource: draft.resultSource,
+                    idempotencyKey: draft.idempotencyKey
+                )
+                tick += 1
+            },
+            onDecide: { eventId, decision in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
+                tick += 1
+            },
+            momentId: momentId
+        )
+    }
+
+    private func productionPage(_ projection: OperatingProjectionPayload) -> some View {
+        ProductionActiveView(
+            model: projection,
+            tab: tab,
+            onOpenQuickAdd: onOpenQuickAdd,
+            onRecord: { draft in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.recordOperatingEvent(
+                    momentId: momentId,
+                    eventType: draft.eventType,
+                    title: draft.title,
+                    amount: draft.amount,
+                    note: draft.note,
+                    channelName: draft.channelName,
+                    counterpartyName: draft.counterpartyName,
+                    paymentStatus: draft.paymentStatus,
+                    occurredAt: draft.occurredAt,
+                    parentEventId: draft.parentEventId,
+                    quantity: draft.quantity,
+                    unit: draft.unit,
+                    itemName: draft.itemName,
+                    unitPrice: draft.unitPrice,
+                    masterKind: draft.masterKind,
+                    revisesEventId: draft.revisesEventId,
+                    dueAt: draft.dueAt,
+                    contract: draft.contract,
+                    lineItems: draft.lineItems,
+                    rejectedQuantity: draft.rejectedQuantity
+                )
+                tick += 1
+            },
+            onDecide: { eventId, decision in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
+                tick += 1
+            },
+            momentId: momentId
+        )
+    }
+
+    private func tradingPage(_ projection: OperatingProjectionPayload) -> some View {
+        TradingActiveView(
+            model: projection,
+            tab: tab,
+            onOpenQuickAdd: onOpenQuickAdd,
+            onRecord: { draft in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.recordOperatingEvent(
+                    momentId: momentId,
+                    eventType: draft.eventType,
+                    title: draft.title,
+                    amount: draft.amount,
+                    note: draft.note,
+                    channelName: draft.channelName,
+                    counterpartyName: draft.counterpartyName,
+                    paymentStatus: draft.paymentStatus,
+                    occurredAt: draft.occurredAt,
+                    parentEventId: draft.parentEventId,
+                    quantity: draft.quantity,
+                    unit: draft.unit,
+                    itemName: draft.itemName,
+                    unitPrice: draft.unitPrice,
+                    masterKind: draft.masterKind,
+                    conversionToBase: draft.conversionToBase,
+                    revisesEventId: draft.revisesEventId,
+                    dueAt: draft.dueAt,
+                    contract: draft.contract,
+                    lineItems: draft.lineItems,
+                    masterGstApplicable: draft.masterGstApplicable,
+                    masterGstClassification: draft.masterGstClassification,
+                    masterGstRate: draft.masterGstRate,
+                    masterPriceIncludesGst: draft.masterPriceIncludesGst,
+                    masterSalePriceIncludesGst: draft.masterSalePriceIncludesGst,
+                    masterPurchasePriceIncludesGst: draft.masterPurchasePriceIncludesGst,
+                    masterGstEffectiveFrom: draft.masterGstEffectiveFrom,
+                    masterHsn: draft.masterHsn,
+                    masterGstRegistration: draft.masterGstRegistration,
+                    masterBusinessState: draft.masterBusinessState,
+                    masterBillingState: draft.masterBillingState,
+                    masterDeliveryState: draft.masterDeliveryState,
+                    masterGstin: draft.masterGstin
+                )
+                tick += 1
+            },
+            onDecide: { eventId, decision in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
+                tick += 1
+            }
+        )
+    }
+
+    private func distributionPage(_ projection: OperatingProjectionPayload) -> some View {
+        DistributionActiveView(
+            model: projection,
+            tab: tab,
+            onOpenQuickAdd: onOpenQuickAdd,
+            onRecord: { draft in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.recordOperatingEvent(
+                    momentId: momentId,
+                    eventType: draft.eventType,
+                    title: draft.title,
+                    amount: draft.amount,
+                    note: draft.note,
+                    channelName: draft.channelName,
+                    counterpartyName: draft.counterpartyName,
+                    paymentStatus: draft.paymentStatus,
+                    occurredAt: draft.occurredAt,
+                    parentEventId: draft.parentEventId,
+                    quantity: draft.quantity,
+                    unit: draft.unit,
+                    itemName: draft.itemName,
+                    unitPrice: draft.unitPrice,
+                    masterKind: draft.masterKind,
+                    conversionToBase: draft.conversionToBase,
+                    revisesEventId: draft.revisesEventId,
+                    dueAt: draft.dueAt,
+                    contract: draft.contract,
+                    lineItems: draft.lineItems,
+                    masterGstApplicable: draft.masterGstApplicable,
+                    masterGstClassification: draft.masterGstClassification,
+                    masterGstRate: draft.masterGstRate,
+                    masterPriceIncludesGst: draft.masterPriceIncludesGst,
+                    masterSalePriceIncludesGst: draft.masterSalePriceIncludesGst,
+                    masterPurchasePriceIncludesGst: draft.masterPurchasePriceIncludesGst,
+                    masterGstEffectiveFrom: draft.masterGstEffectiveFrom,
+                    masterHsn: draft.masterHsn,
+                    masterGstRegistration: draft.masterGstRegistration,
+                    masterBusinessState: draft.masterBusinessState,
+                    masterBillingState: draft.masterBillingState,
+                    masterDeliveryState: draft.masterDeliveryState,
+                    masterGstin: draft.masterGstin
+                )
+                tick += 1
+            },
+            onDecide: { eventId, decision in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
+                tick += 1
+            }
+        )
+    }
+
+    private func servicePage(_ projection: OperatingProjectionPayload) -> some View {
+        ConsumerServiceActiveView(
+            model: projection,
+            tab: tab,
+            onOpenQuickAdd: onOpenQuickAdd,
+            onRecord: { draft in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.recordOperatingEvent(
+                    momentId: momentId,
+                    eventType: draft.eventType,
+                    title: draft.title,
+                    amount: draft.amount,
+                    note: draft.note,
+                    channelName: draft.channelName,
+                    counterpartyName: draft.counterpartyName,
+                    paymentStatus: draft.paymentStatus,
+                    occurredAt: draft.occurredAt,
+                    parentEventId: draft.parentEventId,
+                    quantity: draft.quantity,
+                    unit: draft.unit,
+                    itemName: draft.itemName,
+                    unitPrice: draft.unitPrice,
+                    masterKind: draft.masterKind,
+                    revisesEventId: draft.revisesEventId,
+                    dueAt: draft.dueAt,
+                    contract: draft.contract,
+                    lineItems: draft.lineItems
+                )
+                tick += 1
+            },
+            onDecide: { eventId, decision in
+                guard let momentId else { return }
+                _ = try await APIClient.shared.decideOperatingEvent(momentId: momentId, eventId: eventId, decision: decision)
+                tick += 1
+            },
+            momentId: momentId
+        )
+    }
+
 
     private var generic: some View {
         ScrollView {

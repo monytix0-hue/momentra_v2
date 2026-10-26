@@ -156,6 +156,11 @@ export const recordOperatingEventSchema = z
         acceptedQuantity: amountSchema.nullish(),
         productionStatus: z.enum(['PLANNED', 'IN_PROGRESS', 'COMPLETED']).nullish(),
         deliveryStatus: z.enum(['PLANNED', 'DISPATCHED', 'DELIVERED', 'ACCEPTED', 'RETURNED']).nullish(),
+        quotationStatus: z.enum(['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED']).nullish(),
+        scrapQuantity: amountSchema.nullish(),
+        quantityDispatched: amountSchema.nullish(),
+        advanceApplied: z.boolean().nullish(),
+        bomLines: z.array(z.object({ itemName: z.string().min(1).max(160), quantity: amountSchema.nullish(), unit: z.string().max(40).nullish() })).max(20).nullish(),
       })
       .strict()
       .optional(),
@@ -295,6 +300,7 @@ async function loadEvents(client: PoolClient, momentId: string): Promise<Operati
       metric,
       marketing: parseMarketingFacts(payload, metric),
       rejectedQuantity: rejected == null || rejected === '' ? null : String(rejected),
+      idempotencyKey: payload.idempotencyKey == null ? null : String(payload.idempotencyKey),
     };
   });
 }
@@ -425,8 +431,8 @@ export async function recordOperatingEvent(
   let amount = body.amount ?? (lineTotal > 0 ? lineTotal.toFixed(4) : null);
   const existing = await loadEvents(client, momentId);
   const idempotency = (body.idempotencyKey ?? idempotencyKey ?? '').trim();
-  if (idempotency && isMarketingSubtype(prefs.subtype)) {
-    const prior = existing.find((row) => row.marketing?.idempotencyKey === idempotency);
+  if (idempotency) {
+    const prior = existing.find((row) => row.idempotencyKey === idempotency || row.marketing?.idempotencyKey === idempotency);
     if (prior) {
       const projection = await getOperatingProjection(client, ctx, momentId);
       if ('retired' in projection && projection.retired) {
@@ -466,6 +472,7 @@ export async function recordOperatingEvent(
             dueAt: body.dueAt,
             lines: body.lines,
             contract: writeContract,
+            gst: tradingGstContext(prefs),
           },
           existing
         )
@@ -503,6 +510,8 @@ export async function recordOperatingEvent(
             contract: writeContract,
             unit: body.unit,
             rejectedQuantity: body.rejectedQuantity,
+            gst: tradingGstContext(prefs),
+            subtype: prefs.subtype,
           },
           existing
         );
@@ -855,6 +864,7 @@ export async function reviseOperatingEvent(
         lines: body.lines ?? current.lines,
         contract: parseOperatingContract(body.contract) ?? current.contract ?? undefined,
         revisingId: eventId,
+        gst: tradingGstContext(prefs),
       },
       existing
     );
@@ -913,6 +923,8 @@ export async function reviseOperatingEvent(
         contract: parseOperatingContract(body.contract) ?? current.contract ?? undefined,
         unit: body.unit ?? current.unit,
         rejectedQuantity: body.rejectedQuantity ?? current.rejectedQuantity,
+        gst: tradingGstContext(prefs),
+        subtype: prefs.subtype,
       },
       existing.filter((row) => row.operatingEventId !== eventId)
     );

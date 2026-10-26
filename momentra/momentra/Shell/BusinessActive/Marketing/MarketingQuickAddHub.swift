@@ -186,7 +186,12 @@ struct MarketingQuickAddHub: View {
             budgetCategory: draft.budgetCategory,
             activityStatus: draft.activityStatus,
             attributedSales: draft.attributedSales,
-            revisionKind: draft.revisionKind
+            revisionKind: draft.revisionKind,
+            costBasis: draft.costBasis,
+            overlapDeduped: draft.overlapDeduped,
+            creativeVersion: draft.creativeVersion,
+            resultSource: draft.resultSource,
+            idempotencyKey: draft.idempotencyKey
         )
     }
 

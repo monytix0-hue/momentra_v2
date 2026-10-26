@@ -3,7 +3,7 @@
  * Orders and bookings stay commitments. Only a posted sale or finalized charge is revenue.
  */
 
-import { parseGstSnapshot } from './operating-gst';
+import { parseGstSnapshot, stampPostedGst, type GstPostingContext } from './operating-gst';
 
 export const RETAIL_SUBTYPES = ['RETAIL_STORE', 'RESTAURANT_FOOD', 'CONSUMER_SERVICE'] as const;
 
@@ -107,6 +107,11 @@ export interface OperatingContract {
   acceptedQuantity?: string | null;
   productionStatus?: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | null;
   deliveryStatus?: 'PLANNED' | 'DISPATCHED' | 'DELIVERED' | 'ACCEPTED' | 'RETURNED' | null;
+  quotationStatus?: 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | null;
+  scrapQuantity?: string | null;
+  quantityDispatched?: string | null;
+  advanceApplied?: boolean | null;
+  bomLines?: Array<{ itemName: string; quantity?: string | null; unit?: string | null }> | null;
 }
 
 export interface RetailLine {
@@ -175,6 +180,7 @@ export interface RetailWrite {
   lines?: RetailLine[] | null;
   contract?: OperatingContract | null;
   revisingId?: string | null;
+  gst?: GstPostingContext | null;
 }
 
 export interface RetailAttention {
@@ -334,6 +340,26 @@ export function parseOperatingContract(raw: unknown): OperatingContract | null {
       rec.deliveryStatus === 'RETURNED'
         ? rec.deliveryStatus
         : null,
+    quotationStatus:
+      rec.quotationStatus === 'DRAFT' ||
+      rec.quotationStatus === 'SENT' ||
+      rec.quotationStatus === 'ACCEPTED' ||
+      rec.quotationStatus === 'REJECTED' ||
+      rec.quotationStatus === 'EXPIRED'
+        ? rec.quotationStatus
+        : null,
+    scrapQuantity: rec.scrapQuantity == null ? null : String(rec.scrapQuantity),
+    quantityDispatched: rec.quantityDispatched == null ? null : String(rec.quantityDispatched),
+    advanceApplied: rec.advanceApplied === true,
+    bomLines: Array.isArray(rec.bomLines)
+      ? rec.bomLines.flatMap((line) => {
+          if (!line || typeof line !== 'object') return [];
+          const row = line as Record<string, unknown>;
+          const itemName = String(row.itemName ?? '').trim();
+          if (!itemName) return [];
+          return [{ itemName, quantity: row.quantity == null ? null : String(row.quantity), unit: row.unit == null ? null : String(row.unit) }];
+        })
+      : [],
   };
   return contract;
 }
@@ -389,8 +415,8 @@ export function validateRetailWrite(input: RetailWrite, existing: RetailEvent[])
     return validateOrderRevision(input, current, contract);
   }
   if (input.eventType === 'SALE' || input.eventType === 'SERVICE') return validateSale(input, existing, contract);
-  if (input.eventType === 'PURCHASE') return validatePurchase(input, contract);
-  if (input.eventType === 'SPEND') return validateExpense(input, contract);
+  if (input.eventType === 'PURCHASE') return validatePurchase(input, existing, contract);
+  if (input.eventType === 'SPEND') return validateExpense(input, existing, contract);
   if (input.eventType === 'COLLECTION' || input.eventType === 'PAYMENT') return validateSettlement(input, existing, contract);
   if (input.eventType === 'STOCK') return validateStock(input, contract);
   if (input.eventType === 'ORDER') return validateOrder(input, contract);
@@ -404,6 +430,44 @@ export function validateRetailWrite(input: RetailWrite, existing: RetailEvent[])
     contract,
     settleChild: null,
   };
+}
+
+function partySupplyState(name: string | null | undefined, existing: RetailEvent[]): string {
+  const key = String(name ?? '').trim().toLowerCase();
+  if (!key) return '';
+  const party = existing.find((row) => row.master && row.master.name.trim().toLowerCase() === key);
+  return String(party?.master?.deliveryState || party?.master?.billingState || party?.master?.businessState || '').trim();
+}
+
+function withPostedGst(
+  input: RetailWrite,
+  existing: RetailEvent[],
+  contract: OperatingContract,
+  side: 'SALE' | 'PURCHASE',
+  entered: number,
+  lines: RetailLine[]
+): { ok: true; amount: number } | { ok: false; message: string } {
+  return stampPostedGst({
+    gst: input.gst,
+    side,
+    entered,
+    title: input.title,
+    lines: lines.map((line) => ({
+      ...line,
+      master: existing.find((row) => (line.masterId && row.operatingEventId === line.masterId) || (row.master && row.master.name.trim().toLowerCase() === line.itemName.trim().toLowerCase()))?.master ?? null,
+    })),
+    partyState: contract.placeOfSupply || partySupplyState(input.counterpartyName, existing),
+    contract,
+  });
+}
+
+export function matchingIdempotency<T extends { idempotencyKey?: string | null }>(
+  events: T[],
+  key: string | null | undefined
+): T | undefined {
+  const trimmed = String(key ?? '').trim();
+  if (!trimmed) return undefined;
+  return events.find((row) => row.idempotencyKey === trimmed);
 }
 
 function validateSale(input: RetailWrite, existing: RetailEvent[], contract: OperatingContract): RetailWriteResult | { ok: false; message: string } {
@@ -421,6 +485,9 @@ function validateSale(input: RetailWrite, existing: RetailEvent[], contract: Ope
     }
     amount = lineTotal(lines);
   }
+  const stamped = withPostedGst(input, existing, contract, 'SALE', amount, lines);
+  if (!stamped.ok) return stamped;
+  amount = stamped.amount;
   if (!(amount > 0)) return fail('Amount is required.');
   const state = contract.paymentState;
   if (state !== 'RECEIVED' && state !== 'PART_PAID' && state !== 'PAY_LATER') return fail('Choose received, part paid, or pay later.');
@@ -453,10 +520,13 @@ function validateSale(input: RetailWrite, existing: RetailEvent[], contract: Ope
   };
 }
 
-function validatePurchase(input: RetailWrite, contract: OperatingContract): RetailWriteResult | { ok: false; message: string } {
+function validatePurchase(input: RetailWrite, existing: RetailEvent[], contract: OperatingContract): RetailWriteResult | { ok: false; message: string } {
   if (!namedParty(input.counterpartyName)) return fail('Supplier is required.');
   const lines = input.lines ?? [];
-  const amount = lines.length > 0 && lineTotal(lines) > 0 ? lineTotal(lines) : num(input.amount);
+  let amount = lines.length > 0 && lineTotal(lines) > 0 ? lineTotal(lines) : num(input.amount);
+  const stamped = withPostedGst(input, existing, contract, 'PURCHASE', amount, lines);
+  if (!stamped.ok) return stamped;
+  amount = stamped.amount;
   if (!(amount > 0)) return fail('Amount is required.');
   if (contract.receiptState !== 'RECEIVED' && contract.receiptState !== 'PART_RECEIVED' && contract.receiptState !== 'AWAITING') {
     return fail('Choose whether goods were received.');
@@ -480,10 +550,12 @@ function validatePurchase(input: RetailWrite, contract: OperatingContract): Reta
   };
 }
 
-function validateExpense(input: RetailWrite, contract: OperatingContract): RetailWriteResult | { ok: false; message: string } {
+function validateExpense(input: RetailWrite, existing: RetailEvent[], contract: OperatingContract): RetailWriteResult | { ok: false; message: string } {
   const category = String(contract.expenseCategory ?? '').trim();
   if (!category) return fail('Expense category is required.');
-  const amount = num(input.amount);
+  const stamped = withPostedGst(input, existing, contract, 'PURCHASE', num(input.amount), input.lines ?? []);
+  if (!stamped.ok) return stamped;
+  const amount = stamped.amount;
   if (!(amount > 0)) return fail('Amount is required.');
   const state = contract.paymentState === 'RECEIVED' ? 'PAID' : contract.paymentState;
   if (state !== 'PAID' && state !== 'PART_PAID' && state !== 'PAY_LATER') return fail('Choose paid, part paid, or pay later.');
@@ -694,6 +766,11 @@ export function stockPositions(events: RetailEvent[]): StockPosition[] {
         left -= take;
       }
       continue;
+    }
+    if (row.eventType === 'RETURN' && row.contract?.goodsOutcome === 'TO_STOCK') {
+      for (const line of row.lines ?? []) {
+        if (num(line.quantity) > 0) touch(line.itemName, line.unit ?? null).onHand += num(line.quantity);
+      }
     }
   }
   return [...positions.values()];

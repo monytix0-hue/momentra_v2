@@ -442,4 +442,9 @@ struct MarketingEventDraft {
     var activityStatus: String? = nil
     var attributedSales: String? = nil
     var revisionKind: String? = nil
+    var costBasis: String? = nil
+    var overlapDeduped: Bool? = nil
+    var creativeVersion: String? = nil
+    var resultSource: String? = nil
+    var idempotencyKey: String? = nil
 }

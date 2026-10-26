@@ -1329,7 +1329,7 @@ struct OperatingCaptureSheet: View {
     }
 
     @ViewBuilder private func gstPriceFields(purchase: Bool) -> some View {
-        if model.gstTracking == "YES" && tradingFamily {
+        if model.gstTracking == "YES" && (tradingFamily || retailFamily || ["STANDARD_PRODUCTION", "MADE_TO_ORDER"].contains(model.subtype ?? "")) {
             let included = "GST included in price"
             let added = "GST added separately"
             choiceBlock(purchase ? "Purchase price" : "Sale price", options: [included, added], selected: taxMode == "Inclusive" ? included : (taxMode == "Exclusive" ? added : "")) {
@@ -1423,7 +1423,8 @@ struct OperatingCaptureSheet: View {
     @ViewBuilder private var masterGstFields: some View {
         let product = ["PRODUCT", "MATERIAL", "CONSUMABLE"].contains(masterKind)
         let party = ["CUSTOMER", "BUYER", "SUPPLIER"].contains(masterKind)
-        if tradingFamily && model.gstTracking == "YES" && (product || party) {
+        let gstFamily = tradingFamily || retailFamily || ["STANDARD_PRODUCTION", "MADE_TO_ORDER"].contains(model.subtype ?? "")
+        if gstFamily && model.gstTracking == "YES" && (product || party) {
             if party {
                 editField("Delivery location", text: $deliveryState, placeholder: "Where goods usually go")
             }
@@ -2068,7 +2069,8 @@ struct OperatingCaptureSheet: View {
             return ownership == "Consignment" ? "CONSIGNMENT" : "OWNED"
         }()
         let taxModeCode: String? = {
-            guard tradingFamily && ["SALE", "PURCHASE"].contains(mode) else { return nil }
+            let gstFamily = tradingFamily || retailFamily || ["STANDARD_PRODUCTION", "MADE_TO_ORDER"].contains(model.subtype ?? "")
+            guard gstFamily && ["SALE", "PURCHASE", "SERVICE", "SPEND"].contains(mode) else { return nil }
             switch taxMode {
             case "Inclusive": return "INCLUSIVE"
             case "Exclusive": return "EXCLUSIVE"

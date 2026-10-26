@@ -327,13 +327,13 @@ export function accumulateGstPosition(rows: Array<{
     if (row.eventType !== 'SALE' && row.eventType !== 'PURCHASE' && row.eventType !== 'RETURN') continue;
     const total = Number(gst.gstTotal);
     let direction: GstPositionSource['direction'] = 'OUTPUT';
-    if (row.eventType === 'SALE') {
+    if (row.eventType === 'SALE' || row.eventType === 'SERVICE' || row.eventType === 'INVOICE') {
       output += total;
       cgstSales += Number(gst.cgstAmount);
       sgstSales += Number(gst.sgstAmount);
       igstSales += Number(gst.igstAmount);
       direction = 'OUTPUT';
-    } else if (row.eventType === 'PURCHASE') {
+    } else if (row.eventType === 'PURCHASE' || row.eventType === 'SPEND') {
       input += total;
       cgstPurchases += Number(gst.cgstAmount);
       sgstPurchases += Number(gst.sgstAmount);
@@ -393,4 +393,98 @@ export function emptyGstPosition(): GstPosition {
     asOfMonth: '',
     sources: [],
   };
+}
+
+export interface GstPostingContext {
+  enabled: boolean;
+  saleIncludesGst: boolean | null;
+  purchaseIncludesGst: boolean | null;
+  businessState: string;
+  registration: string;
+}
+
+export interface GstPostingLine {
+  quantity?: string | number | null;
+  unitPrice?: string | number | null;
+  gstRate?: string | number | null;
+  taxMode?: 'INCLUSIVE' | 'EXCLUSIVE' | null;
+  discount?: string | number | null;
+  master?: {
+    gstApplicable?: string | null;
+    gstClassification?: string | null;
+    gstRate?: string | null;
+    salePriceIncludesGst?: string | null;
+    purchasePriceIncludesGst?: string | null;
+    priceIncludesGst?: string | null;
+  } | null;
+}
+
+export interface GstPostingContract {
+  taxMode?: 'INCLUSIVE' | 'EXCLUSIVE' | 'NOT_CONFIGURED' | null;
+  gstRate?: string | null;
+  discount?: string | null;
+  taxJurisdiction?: 'INTRA' | 'INTER' | null;
+  placeOfSupply?: string | null;
+  taxStatus?: 'CALCULATED' | 'NOT_CONFIGURED' | null;
+  taxAmount?: string | null;
+  gst?: GstSnapshot | null;
+}
+
+/** Same line snapshot Trading uses. A missing rate is rejected and is never stored as 0%. */
+export function stampPostedGst(input: {
+  gst?: GstPostingContext | null;
+  side: 'SALE' | 'PURCHASE';
+  entered: number;
+  title: string;
+  lines?: GstPostingLine[] | null;
+  partyState?: string | null;
+  contract: GstPostingContract;
+}): { ok: true; amount: number } | { ok: false; message: string } {
+  if (!input.gst?.enabled) return { ok: true, amount: input.entered };
+  if (input.contract.gst?.taxStatus === 'CALCULATED' && input.contract.gst.invoiceTotal) {
+    return { ok: true, amount: Number(input.contract.gst.invoiceTotal) };
+  }
+  const preference = input.side === 'SALE' ? input.gst.saleIncludesGst : input.gst.purchaseIncludesGst;
+  const businessState = input.gst.businessState.trim().toLowerCase();
+  const supplyState = (input.contract.placeOfSupply || input.partyState || '').trim();
+  let jurisdiction = input.contract.taxJurisdiction ?? null;
+  if (!jurisdiction && businessState && supplyState) {
+    jurisdiction = supplyState.toLowerCase() === businessState ? 'INTRA' : 'INTER';
+  }
+  if (!jurisdiction) return { ok: false, message: 'Confirm whether this supply is inside your state or outside it.' };
+  input.contract.taxJurisdiction = jurisdiction;
+  input.contract.placeOfSupply = supplyState || input.contract.placeOfSupply || input.gst.businessState;
+  const priced = (input.lines ?? []).filter((line) => Number(line.unitPrice) > 0 && Number(line.quantity) > 0);
+  const sources = priced.length > 0 ? priced : [{ quantity: '1', unitPrice: String(input.entered), gstRate: input.contract.gstRate, taxMode: input.contract.taxMode === 'NOT_CONFIGURED' ? null : input.contract.taxMode, discount: input.contract.discount, master: null }];
+  const gstLines: GstLineInput[] = [];
+  for (const source of sources) {
+    const master = source.master;
+    const applicable = String(master?.gstApplicable ?? '').toUpperCase();
+    const classification = String(master?.gstClassification ?? '').toUpperCase();
+    const exempt = applicable === 'NO' || ['EXEMPT', 'NIL', 'NON_GST'].includes(classification);
+    const rate = exempt ? 0 : Number(source.gstRate || input.contract.gstRate || master?.gstRate || 0);
+    if (!exempt && !(rate > 0)) return { ok: false, message: 'Choose a GST rate before saving. A missing rate is not 0%.' };
+    const sideOverride = input.side === 'SALE' ? master?.salePriceIncludesGst : master?.purchasePriceIncludesGst;
+    const override = String(sideOverride || master?.priceIncludesGst || '').toUpperCase();
+    const lineMode = source.taxMode;
+    const inclusive = lineMode === 'INCLUSIVE' ? true : lineMode === 'EXCLUSIVE' ? false : input.contract.taxMode === 'INCLUSIVE' ? true : input.contract.taxMode === 'EXCLUSIVE' ? false : override === 'YES' ? true : override === 'NO' ? false : preference;
+    if (inclusive == null) return { ok: false, message: 'Choose whether the price includes GST.' };
+    const lineDiscount = Number(source.discount ?? 0);
+    gstLines.push({
+      quantity: Number(source.quantity) || 1,
+      unitPrice: Number(source.unitPrice),
+      discount: lineDiscount > 0 ? lineDiscount : priced.length > 0 ? 0 : Number(input.contract.discount ?? 0),
+      ratePercent: rate,
+      inclusive,
+    });
+  }
+  const place = input.contract.placeOfSupply ?? '';
+  const snapshot = gstLines.length === 1
+    ? computeGstLine(gstLines[0]!, jurisdiction, place, input.gst.registration)
+    : rollGstLines(gstLines, jurisdiction, place, input.gst.registration);
+  input.contract.gst = snapshot;
+  input.contract.taxStatus = 'CALCULATED';
+  input.contract.taxMode = snapshot.priceIncludesGst ? 'INCLUSIVE' : 'EXCLUSIVE';
+  input.contract.taxAmount = snapshot.gstTotal;
+  return { ok: true, amount: Number(snapshot.invoiceTotal) };
 }

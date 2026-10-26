@@ -497,6 +497,7 @@ private fun SaleServiceCapture(
         ReadField("Sale date", form.dateText) { form.dateOpen = true }
         ChoiceBlock("Payment state", listOf("Received", "Part paid", "Pay later"), form.choice) { form.choice = it }
         if (form.choice == "Part paid") EditField("Received now", form.receivedAmount, "Required") { form.receivedAmount = it }
+        GstPriceFields(form, model, purchase = false)
         model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
             TextButton(onClick = { form.parentId = row.id }) { Text(if (form.parentId == row.id) "Order ${row.title}" else row.title, color = Color.White) }
         }
@@ -591,6 +592,7 @@ private fun PurchaseVendorCapture(
     val typed = form.amount.toBigDecimalOrNull()
     if (production && mode == "PURCHASE") {
         AmountBlock("Amount", currency, form.amount, "Counted once toward budget and payables") { form.amount = it }
+        GstPriceFields(form, model, purchase = true)
         FieldRow {
             EditField("Supplier", form.party, "Required", Modifier.weight(1f)) { form.party = it }
             ReadField("Purchase date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
@@ -1020,7 +1022,14 @@ private fun OrderCapture(
         EditField("Unit", form.unit, "pcs") { form.unit = it }
         AmountBlock("Order value · Optional", currency, form.amount, "Leave blank when the order is unpriced") { form.amount = it }
         ReadField("Order date", form.dateText) { form.dateOpen = true }
-        Text("An order is not revenue, cash, stock, or a receivable.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        if (model.subtype == "MADE_TO_ORDER") {
+            ChoiceBlock("Quotation", listOf("Draft", "Sent", "Accepted", "Rejected", "Expired"), form.goodsStatusLabel.ifBlank { "Accepted" }) {
+                form.goodsStatusLabel = it
+            }
+            Text("Accepted confirms the order. It does not post revenue, a receivable, or GST.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        } else {
+            Text("An order is optional. It is not revenue, cash, stock, or a receivable.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
     } else when {
         restaurant || model.subtype == "RETAIL_STORE" -> {
             if (channels.isNotEmpty()) ChoiceBlock("Order channel", channels, form.channel) { form.channel = it }
@@ -1250,6 +1259,8 @@ private fun ActivityCapture(
         if (form.entryMode == "Detailed batch") {
             EditField("Accepted quantity", form.quantity, "Required to add finished stock") { form.quantity = it }
             EditField("Rejected quantity", form.note, "Optional") { form.note = it }
+            EditField("Scrap quantity", form.receivedAmount, "Does not become finished stock") { form.receivedAmount = it }
+            Text("An optional bill of materials stays on the run. It does not consume material.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
             ChoiceBlock("Status", listOf("Planned", "In progress", "Completed"), form.choice) { form.choice = it }
         }
         model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
@@ -1264,7 +1275,7 @@ private fun ActivityCapture(
         NoteField("What happened", form.purpose, "Required") { form.purpose = it }
     } else if (production && mode == "DELIVERY") {
         Text("Customer order", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-        model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
+        model.activity.filter { it.eventType == "CUSTOMER_ORDER" || it.eventType == "SALE" }.forEach { row ->
             TextButton(onClick = { form.parentId = row.id }) { Text(if (form.parentId == row.id) "Selected ${row.title}" else row.title, color = Color.White) }
         }
         ChoiceBlock("Delivery", listOf("Quick status", "Itemized"), form.entryMode) { form.entryMode = it }
@@ -2187,6 +2198,12 @@ private fun manufacturingDraft(
     receiptState: String,
     receivedAmount: String,
     quantityReceived: String,
+    taxMode: String? = null,
+    gstRate: String? = null,
+    taxJurisdiction: String? = null,
+    quotationStatus: String? = null,
+    scrapQuantity: String? = null,
+    idempotencyKey: String? = null,
 ): OperatingCaptureDraft? {
     fun draft(
         type: String,
@@ -2214,6 +2231,7 @@ private fun manufacturingDraft(
         parentEventId = parent,
         contract = contract,
         rejectedQuantity = rejected,
+        idempotencyKey = idempotencyKey,
     )
     return when (mode) {
         "PRODUCTION" -> {
@@ -2236,6 +2254,7 @@ private fun manufacturingDraft(
                         "In progress" -> "IN_PROGRESS"
                         else -> "COMPLETED"
                     },
+                    scrapQuantity = if (detailed) scrapQuantity else null,
                 ),
                 rejected = if (detailed) note.ifBlank { null } else null,
             )
@@ -2260,6 +2279,9 @@ private fun manufacturingDraft(
                     receiptState = receipt,
                     receivedAmount = if (choice.equals("Part paid", true)) receivedAmount.ifBlank { null } else null,
                     quantityReceived = if (receipt == "PART_RECEIVED") quantityReceived.ifBlank { null } else quantity.ifBlank { null },
+                    taxMode = taxMode,
+                    gstRate = gstRate,
+                    taxJurisdiction = taxJurisdiction,
                 ),
                 item = itemName.ifBlank { null },
             )
@@ -2268,7 +2290,7 @@ private fun manufacturingDraft(
             val value = amount.toBigDecimalOrNull()
             if (value == null || value <= BigDecimal.ZERO) return null
             if (!choice.equals("Paid", true) && party.isBlank()) return null
-            draft("SPEND", purpose.ifBlank { title }, amount, contract = com.example.momentra.data.api.OperatingContractBody(paymentState = payCode(choice)))
+            draft("SPEND", purpose.ifBlank { title }, amount, contract = com.example.momentra.data.api.OperatingContractBody(paymentState = payCode(choice), taxMode = taxMode, gstRate = gstRate, taxJurisdiction = taxJurisdiction))
         }
         "SALE" -> {
             val value = amount.toBigDecimalOrNull()
@@ -2283,6 +2305,9 @@ private fun manufacturingDraft(
                     entryMode = "QUICK",
                     paymentState = payCode(choice),
                     receivedAmount = if (choice.equals("Part paid", true)) receivedAmount.ifBlank { null } else null,
+                    taxMode = taxMode,
+                    gstRate = gstRate,
+                    taxJurisdiction = taxJurisdiction,
                 ),
             )
         }
@@ -2295,7 +2320,11 @@ private fun manufacturingDraft(
                 qty = quantity,
                 savedUnit = unit.ifBlank { null },
                 payment = "NONE",
-                contract = com.example.momentra.data.api.OperatingContractBody(orderStatus = "PLACED", estimatedAmount = amount.ifBlank { null }),
+                contract = com.example.momentra.data.api.OperatingContractBody(
+                    orderStatus = if (quotationStatus == null || quotationStatus == "ACCEPTED") "PLACED" else null,
+                    estimatedAmount = amount.ifBlank { null },
+                    quotationStatus = quotationStatus,
+                ),
             )
         }
         "DELIVERY" -> {
@@ -2469,9 +2498,27 @@ private fun buildDraft(
     val marketing = client || own
     val production = standard || job
     if (production && mode in setOf("PRODUCTION", "PURCHASE", "SPEND", "SALE", "ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "STOCK", "BUDGET", "UPDATE", "ISSUE")) {
+        val postedTax = if (gstOn && mode in setOf("SALE", "PURCHASE", "SPEND")) when (taxModeLabel.lowercase()) {
+            "inclusive" -> "INCLUSIVE"
+            "exclusive" -> "EXCLUSIVE"
+            else -> null
+        } else null
+        val quote = if (job && mode == "ORDER") when (goodsStatusLabel) {
+            "Draft" -> "DRAFT"
+            "Sent" -> "SENT"
+            "Rejected" -> "REJECTED"
+            "Expired" -> "EXPIRED"
+            else -> "ACCEPTED"
+        } else null
         return manufacturingDraft(
             mode, eventType, title, amount, channel, party, purpose, note, choice, occurredAt,
             detail, link, itemName, quantity, unit, parentId, entryMode, receiptState, receivedAmount, quantityReceived,
+            taxMode = postedTax,
+            gstRate = if (postedTax != null) gstRate.filter { it.isDigit() || it == '.' }.ifBlank { null } else null,
+            taxJurisdiction = if (postedTax != null && (supplyChoice == "INTRA" || supplyChoice == "INTER")) supplyChoice else null,
+            quotationStatus = quote,
+            scrapQuantity = if (mode == "PRODUCTION") receivedAmount.ifBlank { null } else null,
+            idempotencyKey = idempotencyKey.ifBlank { null },
         )
     }
     val needsAmount = mode in setOf("SALE", "SERVICE", "PURCHASE", "VENDOR", "SPEND", "PAYMENT", "REIMBURSE", "COLLECTION", "BUDGET", "TARGET", "RESULT", "PRODUCTION", "RETURN")
@@ -2788,7 +2835,7 @@ private fun buildDraft(
         creativeVersion = if (marketing && mode == "APPROVAL") creativeVersion.ifBlank { "1" } else null,
         resultSource = if (marketing && mode == "RESULT") resultSource.ifBlank { null } else null,
         revisionKind = if (marketing && mode == "BUDGET") "BUDGET" else null,
-        idempotencyKey = if (marketing) idempotencyKey else null,
+        idempotencyKey = if (marketing || retail || restaurant || service || standard || job) idempotencyKey else null,
         dueAt = dueAtDay?.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }
             ?: link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) },
         contract = retailContract,
@@ -3225,8 +3272,8 @@ private fun GstPriceFields(form: CaptureForm, model: OperatingProjectionDto, pur
 
 @Composable
 private fun MasterGstFields(form: CaptureForm, model: OperatingProjectionDto) {
-    val trading = model.subtype == "TRADING_WHOLESALE" || model.subtype == "DISTRIBUTION_DEALERSHIP"
-    if (!trading || model.gstTracking != "YES") return
+    val gstFamily = model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP", "RETAIL_STORE", "RESTAURANT_FOOD", "CONSUMER_SERVICE", "STANDARD_PRODUCTION", "MADE_TO_ORDER")
+    if (!gstFamily || model.gstTracking != "YES") return
     val product = form.masterKind in setOf("PRODUCT", "MATERIAL", "CONSUMABLE")
     val party = form.masterKind in setOf("CUSTOMER", "BUYER", "SUPPLIER")
     if (!product && !party) return

@@ -4,6 +4,7 @@
  */
 
 import type { OperatingContract } from './operating-retail-contract';
+import { stampPostedGst, type GstPostingContext } from './operating-gst';
 
 export const MANUFACTURING_SUBTYPES = ['STANDARD_PRODUCTION', 'MADE_TO_ORDER'] as const;
 
@@ -46,6 +47,8 @@ export interface ManufacturingWrite {
   contract?: OperatingContract | null;
   unit?: string | null;
   rejectedQuantity?: string | null;
+  gst?: GstPostingContext | null;
+  subtype?: string | null;
 }
 
 export interface ManufacturingWriteResult {
@@ -130,8 +133,8 @@ export function validateManufacturingWrite(
 ): ManufacturingWriteResult | { ok: false; message: string } {
   const contract: OperatingContract = { ...(input.contract ?? {}) };
   if (input.eventType === 'CUSTOMER_ORDER') return validateOrder(input, contract);
-  if (input.eventType === 'PURCHASE') return validatePurchase(input, contract);
-  if (input.eventType === 'PRODUCTION') return validateProduction(input, contract);
+  if (input.eventType === 'PURCHASE') return validatePurchase(input, existing, contract);
+  if (input.eventType === 'PRODUCTION') return validateProduction(input, existing, contract);
   if (input.eventType === 'SALE') return validateSale(input, existing, contract);
   if (input.eventType === 'DELIVERY') return validateDelivery(input, existing, contract);
   if (input.eventType === 'COLLECTION') return validateCollection(input, existing, contract);
@@ -149,8 +152,48 @@ export function validateManufacturingWrite(
   };
 }
 
+function postedValue(row: ManufacturingEvent): number {
+  const taxable = row.contract?.gst?.taxableAmount;
+  if (taxable != null && taxable !== '') return num(taxable);
+  return num(row.amount);
+}
+
+function withPostedGst(
+  input: ManufacturingWrite,
+  contract: OperatingContract,
+  side: 'SALE' | 'PURCHASE',
+  entered: number
+): { ok: true; amount: number } | { ok: false; message: string } {
+  return stampPostedGst({
+    gst: input.gst,
+    side,
+    entered,
+    title: input.title,
+    lines: (input.lines ?? []).map((line) => ({ ...line, gstRate: contract.gstRate, taxMode: contract.taxMode === 'NOT_CONFIGURED' ? null : contract.taxMode })),
+    partyState: contract.placeOfSupply,
+    contract,
+  });
+}
+
 function validateOrder(input: ManufacturingWrite, contract: OperatingContract): ManufacturingWriteResult | { ok: false; message: string } {
+  if (input.subtype === 'STANDARD_PRODUCTION' && contract.quotationStatus) {
+    return fail('Standard production does not use a quotation.');
+  }
   if (!named(input.counterpartyName)) return fail('Buyer is required.');
+  if (contract.quotationStatus && contract.quotationStatus !== 'ACCEPTED') {
+    if (input.amount && !(num(input.amount) > 0)) return fail('Order value must be a positive amount.');
+    if (input.amount) contract.estimatedAmount = money(num(input.amount));
+    return {
+      ok: true,
+      paymentStatus: 'NONE',
+      amount: input.amount ? money(num(input.amount)) : null,
+      parentEventId: null,
+      quantity: input.quantity ?? null,
+      contract,
+      settleChild: null,
+    };
+  }
+  if (contract.quotationStatus === 'ACCEPTED') contract.orderStatus = contract.orderStatus ?? 'PLACED';
   if (!input.occurredAt) return fail('Order date is required.');
   if (input.amount && !(num(input.amount) > 0)) return fail('Order value must be a positive amount.');
   if (input.amount) contract.estimatedAmount = money(num(input.amount));
@@ -166,10 +209,29 @@ function validateOrder(input: ManufacturingWrite, contract: OperatingContract): 
   };
 }
 
-function validatePurchase(input: ManufacturingWrite, contract: OperatingContract): ManufacturingWriteResult | { ok: false; message: string } {
+function validatePurchase(input: ManufacturingWrite, existing: ManufacturingEvent[], contract: OperatingContract): ManufacturingWriteResult | { ok: false; message: string } {
+  const parent = input.parentEventId ? existing.find((row) => row.operatingEventId === input.parentEventId) ?? null : null;
+  if (parent?.eventType === 'PURCHASE') {
+    const qty = num(contract.quantityReceived ?? input.quantity);
+    if (!(qty > 0)) return fail('Quantity received is required.');
+    contract.receiptState = 'PART_RECEIVED';
+    contract.quantityReceived = money(qty);
+    return {
+      ok: true,
+      paymentStatus: 'NONE',
+      amount: null,
+      parentEventId: parent.operatingEventId,
+      quantity: money(qty),
+      contract,
+      settleChild: null,
+    };
+  }
   if (!named(input.counterpartyName)) return fail('Supplier is required.');
   const lines = input.lines ?? [];
-  const amount = lines.length > 0 && lineTotal(lines) > 0 ? lineTotal(lines) : num(input.amount);
+  let amount = lines.length > 0 && lineTotal(lines) > 0 ? lineTotal(lines) : num(input.amount);
+  const stamped = withPostedGst(input, contract, 'PURCHASE', amount);
+  if (!stamped.ok) return stamped;
+  amount = stamped.amount;
   if (!(amount > 0)) return fail('Amount is required.');
   if (contract.receiptState !== 'RECEIVED' && contract.receiptState !== 'PART_RECEIVED' && contract.receiptState !== 'AWAITING') {
     return fail('Choose whether materials were received.');
@@ -192,7 +254,7 @@ function validatePurchase(input: ManufacturingWrite, contract: OperatingContract
   };
 }
 
-function validateProduction(input: ManufacturingWrite, contract: OperatingContract): ManufacturingWriteResult | { ok: false; message: string } {
+function validateProduction(input: ManufacturingWrite, existing: ManufacturingEvent[], contract: OperatingContract): ManufacturingWriteResult | { ok: false; message: string } {
   const output = input.quantity != null && input.quantity !== '' ? num(input.quantity) : num(input.amount);
   if (!(output > 0)) return fail('Output quantity is required.');
   const detailed = contract.entryMode === 'ITEMIZED';
@@ -216,7 +278,21 @@ function validateProduction(input: ManufacturingWrite, contract: OperatingContra
     return fail('Accepted and rejected quantities cannot exceed completed output.');
   }
   if (accepted != null && (accepted < 0 || accepted > output)) return fail('Accepted quantity cannot exceed completed output.');
+  const scrap = contract.scrapQuantity == null || contract.scrapQuantity === '' ? 0 : num(contract.scrapQuantity);
+  if (scrap < 0) return fail('Scrap quantity cannot be negative.');
+  const parentRun = input.parentEventId ? existing.find((row) => row.operatingEventId === input.parentEventId) ?? null : null;
+  if (parentRun?.eventType === 'PRODUCTION') {
+    const rejected = num(parentRun.rejectedQuantity);
+    const used = existing.reduce((total, row) => {
+      if (row.eventType !== 'PRODUCTION' || row.parentEventId !== parentRun.operatingEventId || !live(row)) return total;
+      return total + num(row.contract?.acceptedQuantity) + num(row.contract?.scrapQuantity);
+    }, 0);
+    if (rejected > 0 && (accepted ?? 0) + scrap + used - rejected > 0.00005) {
+      return fail('Rework cannot exceed the rejected quantity.');
+    }
+  }
   if (accepted != null) contract.acceptedQuantity = money(accepted);
+  if (scrap > 0) contract.scrapQuantity = money(scrap);
   contract.productionStatus = contract.productionStatus ?? 'COMPLETED';
   return {
     ok: true,
@@ -236,7 +312,10 @@ function validateSale(
 ): ManufacturingWriteResult | { ok: false; message: string } {
   const lines = input.lines ?? [];
   const itemized = contract.entryMode === 'ITEMIZED';
-  const amount = itemized && lineTotal(lines) > 0 ? lineTotal(lines) : num(input.amount);
+  let amount = itemized && lineTotal(lines) > 0 ? lineTotal(lines) : num(input.amount);
+  const stamped = withPostedGst(input, contract, 'SALE', amount);
+  if (!stamped.ok) return stamped;
+  amount = stamped.amount;
   if (!(amount > 0)) return fail('Sale amount is required.');
   const state = contract.paymentState;
   if (state !== 'RECEIVED' && state !== 'PART_PAID' && state !== 'PAY_LATER') return fail('Choose received, part paid, or pay later.');
@@ -246,6 +325,17 @@ function validateSale(
   if (input.parentEventId) {
     const parent = existing.find((row) => row.operatingEventId === input.parentEventId);
     if (!parent || parent.eventType !== 'CUSTOMER_ORDER') return fail('Link the sale to the customer order.');
+    if (parent.contract?.quotationStatus && parent.contract.quotationStatus !== 'ACCEPTED') {
+      return fail('Invoice a confirmed order.');
+    }
+    const cap = num(parent.contract?.estimatedAmount || parent.amount);
+    if (cap > 0) {
+      const used = existing.reduce((total, row) => {
+        if (row.eventType !== 'SALE' || row.parentEventId !== parent.operatingEventId || !live(row)) return total;
+        return total + num(row.contract?.gst?.invoiceTotal || row.amount);
+      }, 0);
+      if (used + amount - cap > 0.00005) return fail('Invoices cannot exceed the confirmed order.');
+    }
   }
   contract.entryMode = itemized ? 'ITEMIZED' : 'QUICK';
   contract.receivedAmount = money(received);
@@ -254,7 +344,11 @@ function validateSale(
     paymentStatus: state === 'RECEIVED' ? 'COLLECTED' : 'PENDING',
     amount: money(amount),
     parentEventId: input.parentEventId ?? null,
-    quantity: itemized ? money(lines.reduce((total, line) => total + num(line.quantity), 0)) : null,
+    quantity: itemized
+      ? money(lines.reduce((total, line) => total + num(line.quantity), 0))
+      : input.quantity
+        ? money(num(input.quantity))
+        : null,
     contract,
     settleChild: state === 'PART_PAID' ? { type: 'COLLECTION', amount: money(received) } : null,
   };
@@ -266,7 +360,9 @@ function validateDelivery(
   contract: OperatingContract
 ): ManufacturingWriteResult | { ok: false; message: string } {
   const parent = input.parentEventId ? existing.find((row) => row.operatingEventId === input.parentEventId) ?? null : null;
-  if (!parent || parent.eventType !== 'CUSTOMER_ORDER') return fail('Choose the customer order being fulfilled.');
+  if (!parent || (parent.eventType !== 'CUSTOMER_ORDER' && parent.eventType !== 'SALE')) {
+    return fail('Choose the customer order or sale being fulfilled.');
+  }
   if (!contract.deliveryStatus) return fail('Choose a delivery status.');
   const itemized = contract.entryMode === 'ITEMIZED';
   if (!itemized) {
@@ -312,6 +408,18 @@ function validateCollection(
   if (!named(input.counterpartyName)) return fail('Buyer is required.');
   const parent = input.parentEventId ? existing.find((row) => row.operatingEventId === input.parentEventId) ?? null : null;
   if (input.parentEventId && !parent) return fail('Choose a record on this moment.');
+  if (parent?.eventType === 'COLLECTION') {
+    contract.advanceApplied = true;
+    return {
+      ok: true,
+      paymentStatus: 'COLLECTED',
+      amount: money(amount),
+      parentEventId: parent.operatingEventId,
+      quantity: null,
+      contract,
+      settleChild: null,
+    };
+  }
   if (parent && parent.eventType !== 'SALE' && parent.eventType !== 'INVOICE' && parent.eventType !== 'CUSTOMER_ORDER') {
     return fail('A collection applies to a sale or stays an identifiable advance.');
   }
@@ -353,7 +461,9 @@ function validatePayment(
 }
 
 function validateSpend(input: ManufacturingWrite, contract: OperatingContract): ManufacturingWriteResult | { ok: false; message: string } {
-  const amount = num(input.amount);
+  const stamped = withPostedGst(input, contract, 'PURCHASE', num(input.amount));
+  if (!stamped.ok) return stamped;
+  const amount = stamped.amount;
   if (!(amount > 0)) return fail('Amount is required.');
   const state = contract.paymentState === 'RECEIVED' ? 'PAID' : contract.paymentState;
   if (state !== 'PAID' && state !== 'PART_PAID' && state !== 'PAY_LATER') return fail('Choose paid, part paid, or pay later.');
@@ -411,6 +521,12 @@ export function manufacturingStock(events: ManufacturingEvent[]): ManufacturingS
       else position.onHand -= num(row.quantity);
       continue;
     }
+    if (row.eventType === 'PURCHASE' && row.parentEventId && row.contract?.receiptState === 'PART_RECEIVED') {
+      const source = events.find((parent) => parent.operatingEventId === row.parentEventId);
+      const line = source?.lines?.[0];
+      touch(line?.itemName || row.title, line?.unit ?? row.unit ?? null, 'MATERIAL').onHand += num(row.contract.quantityReceived ?? row.quantity);
+      continue;
+    }
     if (row.eventType === 'PURCHASE' && row.contract?.receiptState && row.contract.receiptState !== 'AWAITING') {
       const lines = row.lines ?? [];
       if (lines.length === 0) continue;
@@ -449,10 +565,10 @@ export function manufacturingMeasure(events: ManufacturingEvent[], metric: strin
   if (metric === 'REVENUE') {
     const sales = rows.filter((row) => row.eventType === 'SALE');
     const ids = new Set(sales.map((row) => row.operatingEventId));
-    const gross = sales.reduce((total, row) => total + num(row.amount), 0);
+    const gross = sales.reduce((total, row) => total + postedValue(row), 0);
     const credits = rows
       .filter((row) => row.eventType === 'RETURN' && row.parentEventId && ids.has(row.parentEventId))
-      .reduce((total, row) => total + num(row.amount), 0);
+      .reduce((total, row) => total + postedValue(row), 0);
     return { progress: Math.max(0, gross - credits), coverage: sales.length ? null : 'not recorded' };
   }
   if (metric === 'ORDERS') {

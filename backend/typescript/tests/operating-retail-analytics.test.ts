@@ -6,6 +6,7 @@ import {
   type OperatingEventRow,
 } from '../src/modules/business/operating-catalog';
 import {
+  matchingIdempotency,
   obligationRemaining,
   stockPositions,
   validateRetailWrite,
@@ -728,5 +729,141 @@ describe('consumer service analytics CS / CS-L', () => {
     });
     assert.equal(after.finance?.sales, '3000.0000');
     assert.equal(after.finance?.received, '1200.0000');
+  });
+});
+
+describe('retail food consumer v4 GST and boundaries', () => {
+  const gst = {
+    enabled: true,
+    saleIncludesGst: null,
+    purchaseIncludesGst: null,
+    businessState: 'Karnataka',
+    registration: 'REGULAR',
+  };
+
+  it('keeps GST off the no-tax path and snapshots included and added prices', () => {
+    const kept = normalizeOperatingPreferences(
+      'RETAIL_CONSUMER',
+      {
+        subtype: 'RETAIL_STORE',
+        identityName: 'Shop',
+        partyName: 'Shop',
+        channels: ['Store'],
+        startDate: '2026-10-01',
+        gstTracking: 'YES',
+        gstRegistration: 'REGULAR',
+        salePriceIncludesGst: 'NO',
+      },
+      { userId: 'u', displayName: 'Asha' }
+    );
+    assert.equal(kept.gstTracking, 'YES');
+    const plain = validateRetailWrite(
+      {
+        eventType: 'SALE',
+        title: 'Walk-in',
+        amount: '2400',
+        channelName: 'Store',
+        contract: { entryMode: 'QUICK', paymentState: 'RECEIVED' },
+      },
+      []
+    );
+    assert.equal(plain.ok, true);
+    if (!plain.ok) return;
+    assert.equal(plain.amount, '2400.0000');
+    assert.equal(plain.contract.gst ?? null, null);
+    const added = validateRetailWrite(
+      {
+        eventType: 'SALE',
+        title: 'Added',
+        amount: '1000',
+        channelName: 'Store',
+        counterpartyName: 'Asha',
+        gst,
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'EXCLUSIVE', gstRate: '5', taxJurisdiction: 'INTRA' },
+      },
+      []
+    );
+    assert.equal(added.ok, true);
+    if (!added.ok) return;
+    assert.equal(added.amount, '1050.0000');
+    assert.equal(added.contract.gst?.gstTotal, '50.0000');
+    const included = validateRetailWrite(
+      {
+        eventType: 'SALE',
+        title: 'Included',
+        amount: '1000',
+        channelName: 'Store',
+        counterpartyName: 'Asha',
+        gst,
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'INCLUSIVE', gstRate: '5', taxJurisdiction: 'INTER' },
+      },
+      []
+    );
+    assert.equal(included.ok, true);
+    if (!included.ok) return;
+    assert.equal(included.contract.gst?.taxableAmount, '952.3800');
+    assert.equal(included.contract.gst?.gstTotal, '47.6200');
+    const posted = event('sale', 'SALE', {
+      amount: included.amount,
+      paymentStatus: 'PENDING',
+      paymentRelevance: 'RECEIVABLE',
+      contract: included.contract,
+    });
+    const view = projectOperatingMoment({ familyCode: 'RETAIL_CONSUMER', prefs: kept, role: 'OWNER_ADMIN', events: [posted] });
+    assert.equal(view.finance?.sales, '952.3800');
+    assert.equal(view.continuity.receivable, '1000.0000');
+    assert.equal(view.gstPosition?.outputGst, '47.6200');
+    const rate = included.contract.gst?.gstRate;
+    included.contract.gstRate = '18';
+    assert.equal(included.contract.gst?.gstRate, rate);
+  });
+
+  it('keeps a platform fee and a booking off revenue, and moves stock only on the physical return', () => {
+    const fee = validateRetailWrite(
+      {
+        eventType: 'SPEND',
+        title: 'Aggregator',
+        amount: '2300',
+        counterpartyName: 'Platform',
+        contract: { expenseCategory: 'Aggregator fees', paymentState: 'PAID' },
+      },
+      []
+    );
+    assert.equal(fee.ok, true);
+    const charge = validateRetailWrite(
+      {
+        eventType: 'SERVICE',
+        title: 'Cut',
+        amount: '3000',
+        channelName: 'Walk-in',
+        counterpartyName: 'Asha',
+        contract: { entryMode: 'QUICK', paymentState: 'PART_PAID', receivedAmount: '1000' },
+      },
+      []
+    );
+    assert.equal(charge.ok, true);
+    if (!charge.ok || !fee.ok) return;
+    const booking = event('book', 'APPOINTMENT', { title: 'Cut', contract: { appointmentStatus: 'COMPLETED' } });
+    const view = projectOperatingMoment({
+      familyCode: 'RETAIL_CONSUMER',
+      prefs: prefs('CONSUMER_SERVICE'),
+      role: 'OWNER_ADMIN',
+      events: [
+        booking,
+        event('fee', 'SPEND', { amount: fee.amount, paymentStatus: 'PAID', paymentRelevance: 'PAYABLE', contract: fee.contract }),
+        event('charge', 'SERVICE', { amount: charge.amount, paymentStatus: 'PENDING', paymentRelevance: 'RECEIVABLE', channelName: 'Walk-in', contract: charge.contract }),
+      ],
+    });
+    assert.equal(view.finance?.sales, '3000.0000');
+    const credit = stockPositions([
+      event('sale', 'SALE', { title: 'Shirt', contract: { entryMode: 'QUICK' } }) as RetailEvent,
+      event('note', 'RETURN', { parentEventId: 'sale', amount: '100', contract: { goodsOutcome: 'NOT_RETURNED' } }) as RetailEvent,
+    ]);
+    assert.equal(credit.length, 0);
+    const returned = stockPositions([
+      event('back', 'RETURN', { contract: { goodsOutcome: 'TO_STOCK' }, lines: [{ itemName: 'Shirt', quantity: '1', unit: 'pc' }] }) as RetailEvent,
+    ]);
+    assert.equal(returned[0]?.onHand, 1);
+    assert.equal(matchingIdempotency([{ operatingEventId: 'sale', idempotencyKey: 'retry' }], 'retry')?.operatingEventId, 'sale');
   });
 });
