@@ -132,15 +132,15 @@ fun ProductionQuickAddHub(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            if (job) "Order. Produce. Deliver. Collect." else "Produce. Dispatch. Collect.",
+            if (job) "Job output. Order. Produce. Deliver. Collect." else "Standard output. Produce. Dispatch. Collect.",
             color = PlantInk,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.SemiBold,
             fontSize = 18.sp,
         )
         Text(
-            if (job) "Capture customer orders, materials, production and delivery. Orders are expectations, not automatic revenue."
-            else "Capture batches, raw materials, buyer commitments and linked money in one factory Moment.",
+            if (job) "Job output is a quantity. A detailed batch adds finished stock only from the accepted quantity. A quotation is not revenue."
+            else "Standard output is a quantity. A detailed batch adds finished stock only from the accepted quantity.",
             color = PlantSecondary,
             fontFamily = PlusJakartaSans,
             fontSize = 13.sp,

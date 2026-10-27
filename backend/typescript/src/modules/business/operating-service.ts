@@ -126,7 +126,7 @@ export const recordOperatingEventSchema = z
         expenseCategory: z.string().max(80).nullish(),
         appointmentStatus: z.enum(['BOOKED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW']).nullish(),
         appointmentAction: z.enum(['RESCHEDULE', 'CANCEL', 'NO_SHOW', 'START', 'COMPLETE']).nullish(),
-        orderStatus: z.enum(['PLACED', 'PREPARING', 'COMPLETED', 'CANCELLED']).nullish(),
+        orderStatus: z.enum(['PLACED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED']).nullish(),
         orderSide: z.enum(['SALES', 'PURCHASE']).nullish(),
         goodsStatus: z.enum(['DELIVERED', 'PARTIAL', 'LATER']).nullish(),
         clientKey: z.string().max(80).nullish(),

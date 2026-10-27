@@ -242,6 +242,8 @@ struct OperatingContractInput: Encodable {
     var acceptedQuantity: String? = nil
     var productionStatus: String? = nil
     var deliveryStatus: String? = nil
+    var quotationStatus: String? = nil
+    var scrapQuantity: String? = nil
 }
 
 struct MeBootstrap: Decodable {

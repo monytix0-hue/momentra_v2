@@ -138,6 +138,8 @@ struct OperatingCaptureSheet: View {
     @State private var itemName = ""
     @State private var quantity = ""
     @State private var rejectedQuantity = ""
+    @State private var scrapQuantity = ""
+    @State private var quotation = "Accepted"
     @State private var quantityReceived = ""
     @State private var unit = "pc"
     @State private var unitPrice = ""
@@ -184,6 +186,8 @@ struct OperatingCaptureSheet: View {
     @State private var returnReason = ""
 
     private var restaurant: Bool { variant == "restaurant" }
+    private var counterSaleWords: Bool { restaurant || model.subtype == "RETAIL_STORE" || model.subtype == "RESTAURANT_FOOD" }
+    private var saleSettled: Bool { choice == "Received" || choice == "Walk-in" || choice == "Paid" }
     private var service: Bool { variant == "service" }
     private var trading: Bool { variant == "trading" }
     private var distribution: Bool { variant == "distribution" }
@@ -346,6 +350,7 @@ struct OperatingCaptureSheet: View {
             if production && mode == "DELIVERY" { entryMode = "Quick status" }
             if production && mode == "STOCK" && note.isEmpty { note = "opening" }
             choice = defaultChoice
+            if (restaurant || model.subtype == "RESTAURANT_FOOD") && mode == "ORDER" { orderStatus = "Accepted" }
             if model.gstTracking == "YES" {
                 let includes = mode == "PURCHASE" ? model.purchasePriceIncludesGst : model.salePriceIncludesGst
                 if includes == "YES" { taxMode = "Inclusive" }
@@ -789,6 +794,11 @@ struct OperatingCaptureSheet: View {
 
     @ViewBuilder private var orderFields: some View {
         if production {
+            if job || model.subtype == "MADE_TO_ORDER" {
+                choiceBlock("Quotation", options: ["Draft", "Sent", "Accepted", "Rejected", "Expired"], selected: quotation) { quotation = $0 }
+                Text("Accepted confirms the order. It does not post revenue, a receivable, or GST.")
+                    .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+            }
             editField("Buyer", text: $party, placeholder: "Required")
             editField("Quantity", text: $quantity, placeholder: "Required")
             editField("Unit", text: $unit, placeholder: "pcs")
@@ -924,17 +934,20 @@ struct OperatingCaptureSheet: View {
 
     @ViewBuilder private var fallbackFields: some View {
         if production && mode == "PRODUCTION" {
-            choiceBlock("Output", options: ["Quick output", "Detailed batch"], selected: entryMode) { entryMode = $0 }
+            choiceBlock(model.subtype == "MADE_TO_ORDER" ? "Job output" : "Standard output", options: ["Quick output", "Detailed batch"], selected: entryMode) { entryMode = $0 }
             amountBlock("Output quantity", hint: "Recorded output. This is not accepted stock.")
             HStack(spacing: 12) { editField("Unit", text: $detail, placeholder: "Required"); dateField("Date") }
             editField(entryMode == "Detailed batch" ? "Finished product" : "Output context", text: $purpose, placeholder: "Required for a detailed batch")
             if entryMode == "Detailed batch" {
                 editField("Accepted quantity", text: $quantity, placeholder: "Required to add finished stock")
                 editField("Rejected quantity", text: $rejectedQuantity, placeholder: "Optional")
+                editField("Scrap quantity", text: $scrapQuantity, placeholder: "Does not become finished stock")
                 choiceBlock("Status", options: ["Planned", "In progress", "Completed"], selected: choice) { choice = $0 }
             }
             orderLink(job ? "Linked order · Optional" : "Linked order · Optional")
-            Text("Quick output does not create a finished SKU. Unlike units are never added.")
+            Text(model.subtype == "MADE_TO_ORDER"
+                 ? "Job output does not create a finished SKU. Finished stock comes only from the accepted quantity."
+                 : "Standard output does not create a finished SKU. Finished stock comes only from the accepted quantity.")
                 .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
         } else if production && mode == "UPDATE" {
             choiceBlock("Record", options: ["Update", "Issue", "Approval", "Budget", "Target"], selected: noteKind) { noteKind = $0 }
@@ -1034,6 +1047,7 @@ struct OperatingCaptureSheet: View {
 
     private var actorName: String { actor.split(separator: "·").first.map { String($0).trimmingCharacters(in: .whitespaces) } ?? actor }
     private var defaultChoice: String {
+        if counterSaleWords && mode == "SALE" { return "Walk-in" }
         if contractFamily && (mode == "SALE" || mode == "SERVICE") { return "Received" }
         if contractFamily && (mode == "PURCHASE" || mode == "SPEND") { return "Pay later" }
         if tradingFamily && (mode == "SHIPMENT" || mode == "DELIVERY") { return mode == "DELIVERY" ? "Delivered" : "In transit" }
@@ -1474,7 +1488,7 @@ struct OperatingCaptureSheet: View {
             ForEach(Array(openObligations.enumerated()), id: \.offset) { _, row in
                 Button {
                     parentId = row.id
-                    if amount.trimmingCharacters(in: .whitespaces).isEmpty, let open = row.amount, !open.isEmpty { amount = open }
+                    if amount.trimmingCharacters(in: .whitespaces).isEmpty, !row.amount.isEmpty { amount = row.amount }
                     if let name = row.counterpartyName, !name.isEmpty { party = name }
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
@@ -1549,13 +1563,13 @@ struct OperatingCaptureSheet: View {
             choiceBlock(mode == "SERVICE" ? "Service channel" : "Sales channel", options: channels, selected: channel) { channel = $0 }
         }
         dateField(mode == "SERVICE" ? "Charge date" : "Sale date")
-        choiceBlock("Payment state", options: ["Received", "Part paid", "Pay later"], selected: choice) { choice = $0 }
+        choiceBlock("Payment state", options: counterSaleWords ? ["Walk-in", "Part paid", "Named credit"] : ["Received", "Part paid", "Pay later"], selected: choice) { choice = $0 }
         if choice == "Part paid" { editField("Received amount", text: $receivedAmount, placeholder: "Less than the total") }
-        if choice != "Received" {
+        if !saleSettled {
             if tradingFamily {
                 lovField(distribution ? "Buyer / dealer" : "Buyer", value: party, kind: "BUYER", placeholder: "Required when a balance remains")
             } else {
-                editField("Customer", text: $party, placeholder: "Required when a balance remains")
+                editField("Customer", text: $party, placeholder: counterSaleWords ? "Required for named credit" : "Required when a balance remains")
             }
         }
         if mode == "SERVICE" {
@@ -1580,7 +1594,7 @@ struct OperatingCaptureSheet: View {
             Text("Goods status does not post stock. Dispatch stays a delivery.")
                 .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
         }
-        if choice != "Received" { dueDateField(tradingFamily ? "Payment due date" : "Due date") }
+        if !saleSettled { dueDateField(tradingFamily ? "Payment due date" : "Due date") }
         moreButton("Tax, FX, and note. Optional.")
         if moreOpen {
             taxFxMore
@@ -1691,7 +1705,7 @@ struct OperatingCaptureSheet: View {
         } else {
             choiceBlock("Order channel", options: channels, selected: channel) { channel = $0 }
         }
-        choiceBlock("Status", options: ["Placed", "Preparing", "Completed", "Cancelled"], selected: orderStatus) { orderStatus = $0 }
+        choiceBlock("Status", options: counterSaleWords && (restaurant || model.subtype == "RESTAURANT_FOOD") ? ["Accepted", "Preparing", "Ready", "Fulfilled", "Cancelled"] : ["Placed", "Preparing", "Completed", "Cancelled"], selected: orderStatus) { orderStatus = $0 }
         let openOrders = (model.activity ?? []).filter { $0.eventType == "ORDER" }
         if !openOrders.isEmpty {
             Text("Update an existing order").font(.plusJakarta(size: 12, weight: .semibold)).foregroundStyle(Color(hex: "#C9C4D8"))
@@ -1983,7 +1997,7 @@ struct OperatingCaptureSheet: View {
             if entryMode == "Quick amount", (Decimal(string: rawAmount) ?? 0) <= 0 { return nil }
             if entryMode == "Itemized", lines.isEmpty { return nil }
             if choice == "Part paid", (Decimal(string: receivedAmount) ?? 0) <= 0 { return nil }
-            if choice != "Received", party.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+            if !saleSettled, party.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
         case "PURCHASE":
             if party.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
             if lines.isEmpty, (Decimal(string: rawAmount) ?? 0) <= 0 { return nil }
@@ -2016,9 +2030,9 @@ struct OperatingCaptureSheet: View {
         }
         let paymentState: String? = {
             switch choice {
-            case "Received": return "RECEIVED"
+            case "Received", "Walk-in": return "RECEIVED"
             case "Part paid": return "PART_PAID"
-            case "Pay later": return "PAY_LATER"
+            case "Pay later", "Named credit": return "PAY_LATER"
             case "Paid": return "PAID"
             default: return nil
             }
@@ -2045,7 +2059,8 @@ struct OperatingCaptureSheet: View {
         let orderCode: String = {
             switch orderStatus {
             case "Preparing": return "PREPARING"
-            case "Completed": return "COMPLETED"
+            case "Ready": return "READY"
+            case "Completed", "Fulfilled": return "COMPLETED"
             case "Cancelled": return "CANCELLED"
             default: return "PLACED"
             }
@@ -2170,7 +2185,7 @@ struct OperatingCaptureSheet: View {
     }
 
     private var retailDueAt: String? {
-        let unpaidSale = (mode == "SALE" || mode == "SERVICE") && choice != "Received"
+        let unpaidSale = (mode == "SALE" || mode == "SERVICE") && !saleSettled
         let unpaidBuy = mode == "PURCHASE" && choice != "Paid"
         let unpaidSpend = mode == "SPEND" && choice != "Paid"
         if unpaidSale || unpaidBuy || unpaidSpend { return isoDay(dueDate) }
@@ -2223,9 +2238,10 @@ struct OperatingCaptureSheet: View {
         let qty = quantity.trimmingCharacters(in: .whitespaces)
         func paymentCode(_ label: String) -> String {
             switch label {
-            case "Received": return "RECEIVED"
+            case "Received", "Walk-in": return "RECEIVED"
             case "Paid": return "PAID"
             case "Part paid": return "PART_PAID"
+            case "Named credit": return "PAY_LATER"
             default: return "PAY_LATER"
             }
         }
@@ -2253,7 +2269,8 @@ struct OperatingCaptureSheet: View {
             let contract = OperatingContractInput(
                 entryMode: detailed ? "ITEMIZED" : "QUICK",
                 acceptedQuantity: detailed && !qty.isEmpty ? qty : nil,
-                productionStatus: detailed ? productionCode(choice) : nil
+                productionStatus: detailed ? productionCode(choice) : nil,
+                scrapQuantity: detailed && !scrapQuantity.trimmingCharacters(in: .whitespaces).isEmpty ? scrapQuantity : nil
             )
             return captured(
                 eventType: "PRODUCTION",
@@ -2328,6 +2345,15 @@ struct OperatingCaptureSheet: View {
             )
         case "ORDER":
             if !named || qty.isEmpty { return nil }
+            let quote: String? = (job || model.subtype == "MADE_TO_ORDER") ? {
+                switch quotation {
+                case "Sent": return "SENT"
+                case "Rejected": return "REJECTED"
+                case "Expired": return "EXPIRED"
+                case "Draft": return "DRAFT"
+                default: return "ACCEPTED"
+                }
+            }() : nil
             return captured(
                 eventType: "CUSTOMER_ORDER",
                 title: buyer,
@@ -2338,7 +2364,11 @@ struct OperatingCaptureSheet: View {
                 payment: "NONE",
                 quantity: qty,
                 unit: unit,
-                contract: OperatingContractInput(orderStatus: "PLACED", estimatedAmount: output.isEmpty ? nil : output)
+                contract: OperatingContractInput(
+                    orderStatus: quote == nil || quote == "ACCEPTED" ? "PLACED" : nil,
+                    estimatedAmount: output.isEmpty ? nil : output,
+                    quotationStatus: quote
+                )
             )
         case "DELIVERY":
             if parentId.isEmpty { return nil }
@@ -2443,7 +2473,7 @@ struct OperatingCaptureSheet: View {
             creativeVersion: creativeVersion,
             resultSource: resultSource.isEmpty ? nil : resultSource,
             idempotencyKey: idempotencyKey,
-            effectiveFrom: marketing && ["BUDGET", "TARGET", "REVISION"].contains(eventType) ? isoDay(eventDate) : nil,
+            effectiveFrom: marketing && ["BUDGET", "TARGET", "REVISION"].contains(eventType) ? calendarDay(eventDate) : nil,
             periodStart: marketing && eventType == "RESULT" ? isoDayText(periodStart) : nil,
             periodEnd: marketing && eventType == "RESULT" ? isoDayText(periodEnd) : nil,
             supersedesEventId: marketing && eventType == "RESULT" && !supersedesId.isEmpty ? supersedesId : nil,
@@ -2452,7 +2482,7 @@ struct OperatingCaptureSheet: View {
         )
     }
 
-    private func isoDay(_ date: Date) -> String {
+    private func calendarDay(_ date: Date) -> String {
         let format = DateFormatter()
         format.calendar = Calendar(identifier: .gregorian)
         format.locale = Locale(identifier: "en_US_POSIX")

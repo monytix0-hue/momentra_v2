@@ -126,6 +126,20 @@ describe('manufacturing ledger gates', () => {
     assert.equal(projected.finance?.eligibleCost, '20000.0000');
   });
 
+  it('made-to-order quick output posts no finished stock', () => {
+    const checked = ok({
+      eventType: 'PRODUCTION',
+      title: 'Job run',
+      amount: '12',
+      subtype: 'MADE_TO_ORDER',
+      contract: { entryMode: 'QUICK' },
+    });
+    assert.equal(checked.paymentStatus, 'NONE');
+    assert.equal(checked.contract.acceptedQuantity ?? null, null);
+    const stock = manufacturingStock([{ ...asEvent('job', 'PRODUCTION'), quantity: checked.quantity, contract: checked.contract }]);
+    assert.equal(stock.length, 0);
+  });
+
   it('04 quick output is recorded and does not create finished stock', () => {
     const checked = ok({
       eventType: 'PRODUCTION',
