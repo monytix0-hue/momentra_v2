@@ -618,7 +618,7 @@ struct OperatingCaptureSheet: View {
                 .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
         } else if marketing {
             amountBlock("Amount", hint: "Positive amount · 2 decimal places")
-            editField("Purpose / Category", text: $purpose, placeholder: "What this was for")
+            editField("Purpose", text: $purpose, placeholder: "What this was for")
             editField("Paid by", text: $party, placeholder: actorName)
             if !channels.isEmpty { choiceBlock(channelLabel, options: channels, selected: channel) { channel = $0 } }
             choiceBlock("Paid / pending", options: ["Pending / unpaid", "Paid"], selected: choice) { choice = $0 }
@@ -957,10 +957,13 @@ struct OperatingCaptureSheet: View {
             dateField("Delivery date")
             Text("A status-only delivery changes status and does not post a quantity or a sale.")
                 .font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
+        } else if marketing && mode == "RESULT" && eventType == "PROGRESS" {
+            amountBlock("Result quantity", hint: "Leave blank to update status only")
+            dateField("Result date")
         } else if marketing && mode == "RESULT" {
             amountBlock("Value", hint: "Positive amount · 2 decimal places")
             if !channels.isEmpty { choiceBlock(channelLabel, options: channels, selected: channel) { channel = $0 } }
-            HStack(spacing: 12) { dateField("Result date"); editField("Metric", text: $purpose, placeholder: "What was measured") }
+            dateField("Result date")
             choiceBlock("Status", options: ["Accepted", "Pending"], selected: choice) { choice = $0 }
             moreButton("Optional note, evidence link or source context.")
             if moreOpen { editField("Note", text: $note, placeholder: "Optional") }

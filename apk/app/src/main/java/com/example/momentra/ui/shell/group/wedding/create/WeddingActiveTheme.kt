@@ -434,12 +434,6 @@ fun WeddingActivityRow(emoji: String, title: String, whenLabel: String) {
     }
 }
 
-/** @deprecated removed from Figma surfaces — kept for any residual call sites. */
-@Composable
-fun WeddingDemoBadge(modifier: Modifier = Modifier) {
-    // No-op visual: Figma has no Demo badges.
-}
-
 @Composable
 fun WeddingEmptyBlock(message: String, detail: String, showApiGap: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

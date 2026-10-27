@@ -132,6 +132,25 @@ struct OperatingMomentPage: View {
     @State private var tick = 0
     @ObservedObject private var chrome = OperatingChromeState.shared
 
+    init(
+        momentId: String?,
+        momentTypeCode: String?,
+        momentTitle: String?,
+        tab: OperatingTab,
+        refreshToken: Int = 0,
+        onCreateMoment: @escaping () -> Void = {},
+        onOpenQuickAdd: @escaping () -> Void = {}
+    ) {
+        self.momentId = momentId
+        self.momentTypeCode = momentTypeCode
+        self.momentTitle = momentTitle
+        self.tab = tab
+        self.refreshToken = refreshToken
+        self.onCreateMoment = onCreateMoment
+        self.onOpenQuickAdd = onOpenQuickAdd
+        _projection = State(initialValue: momentId.flatMap(OperatingProjectionCache.peek))
+    }
+
     var body: some View {
         Group {
             if OperatingMomentCatalog.isRetired(momentTypeCode) || momentId == nil {
@@ -679,12 +698,7 @@ struct OperatingMomentPage: View {
     }
 
     private func familyAccent(_ family: String?) -> Color {
-        switch family {
-        case "TRADING_DISTRIBUTION": return Color(hex: "#FBBF24")
-        case "MARKETING_CAMPAIGNS": return Color(hex: "#818CF8")
-        case "MANUFACTURING_PRODUCTION": return Color(hex: "#38BDF8")
-        default: return Color(hex: "#34D399")
-        }
+        BusinessActiveTheme.forTypeCode(family).accent
     }
 
     private func familyKicker(_ family: String?) -> String {

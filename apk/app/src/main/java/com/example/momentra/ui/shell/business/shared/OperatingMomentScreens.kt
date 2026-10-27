@@ -614,12 +614,7 @@ fun RetiredBusinessMoment(
     }
 }
 
-private fun familyAccent(family: String?): Color = when (family) {
-    "TRADING_DISTRIBUTION" -> Color(0xFFFBBF24)
-    "MARKETING_CAMPAIGNS" -> Color(0xFF818CF8)
-    "MANUFACTURING_PRODUCTION" -> Color(0xFF38BDF8)
-    else -> Color(0xFF34D399)
-}
+private fun familyAccent(family: String?): Color = BusinessActiveTheme.forTypeCode(family).accent
 
 private fun familyKicker(family: String?): String = when (family) {
     "TRADING_DISTRIBUTION" -> "TRADING & DISTRIBUTION"

@@ -1,7 +1,6 @@
 /**
  * Live /v1 router (authoritative). Mounted by app.ts.
  * S2 Personal: life, memory, relationship-activities live here.
- * router-product.ts is NON-RUNTIME / deprecated for any path also defined here — do not dual-mount.
  */
 import { Router } from 'express';
 import { z } from 'zod';

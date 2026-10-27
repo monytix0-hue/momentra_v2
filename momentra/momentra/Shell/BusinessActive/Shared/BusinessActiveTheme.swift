@@ -119,17 +119,198 @@ struct BusinessActiveTheme {
         ]
     )
 
+    static let trading = BusinessActiveTheme(
+        bg: businessRunway.bg,
+        accent: businessRunway.accent,
+        accentSolid: businessRunway.accentSolid,
+        accentLight: businessRunway.accentLight,
+        accentSoft: businessRunway.accentSoft,
+        text: businessRunway.text,
+        secondary: businessRunway.secondary,
+        muted: businessRunway.muted,
+        card: businessRunway.card,
+        border: businessRunway.border,
+        typeLabel: "Trading / Wholesale",
+        pulseTitle: "Trading",
+        momentsTitle: "Trading",
+        lifeTitle: "Trading",
+        memoryTitle: "Trading",
+        hubSubtitle: businessRunway.hubSubtitle,
+        hubHeroTitle: "Trading",
+        hubHeroDetail: businessRunway.hubHeroDetail,
+        hubHeroAssetName: businessRunway.hubHeroAssetName,
+        filterChips: businessRunway.filterChips,
+        heroGradientColors: businessRunway.heroGradientColors,
+        quickChips: businessRunway.quickChips
+    )
+    static let distribution = BusinessActiveTheme(
+        bg: businessRunway.bg,
+        accent: businessRunway.accentLight,
+        accentSolid: businessRunway.accent,
+        accentLight: businessRunway.accentLight,
+        accentSoft: businessRunway.accentSoft,
+        text: businessRunway.text,
+        secondary: businessRunway.secondary,
+        muted: businessRunway.muted,
+        card: businessRunway.card,
+        border: businessRunway.border,
+        typeLabel: "Distribution / Dealership",
+        pulseTitle: "Distribution",
+        momentsTitle: "Distribution",
+        lifeTitle: "Distribution",
+        memoryTitle: "Distribution",
+        hubSubtitle: businessRunway.hubSubtitle,
+        hubHeroTitle: "Distribution",
+        hubHeroDetail: businessRunway.hubHeroDetail,
+        hubHeroAssetName: businessRunway.hubHeroAssetName,
+        filterChips: businessRunway.filterChips,
+        heroGradientColors: businessRunway.heroGradientColors,
+        quickChips: businessRunway.quickChips
+    )
+    static let retail = BusinessActiveTheme(
+        bg: businessOperations.bg,
+        accent: Color(hex: "#34D399"),
+        accentSolid: Color(hex: "#10B981"),
+        accentLight: Color(hex: "#6EE7B7"),
+        accentSoft: Color(hex: "#34D399").opacity(0.2),
+        text: businessOperations.text,
+        secondary: businessOperations.secondary,
+        muted: businessOperations.muted,
+        card: businessOperations.card,
+        border: businessOperations.border,
+        typeLabel: "Retail Store",
+        pulseTitle: "Retail",
+        momentsTitle: "Retail",
+        lifeTitle: "Retail",
+        memoryTitle: "Retail",
+        hubSubtitle: businessOperations.hubSubtitle,
+        hubHeroTitle: "Retail",
+        hubHeroDetail: businessOperations.hubHeroDetail,
+        hubHeroAssetName: businessOperations.hubHeroAssetName,
+        filterChips: businessOperations.filterChips,
+        heroGradientColors: businessOperations.heroGradientColors,
+        quickChips: businessOperations.quickChips
+    )
+    static let food = BusinessActiveTheme(
+        bg: businessRunway.bg,
+        accent: businessRunway.accent,
+        accentSolid: businessRunway.accentSolid,
+        accentLight: businessRunway.accentLight,
+        accentSoft: businessRunway.accentSoft,
+        text: businessRunway.text,
+        secondary: businessRunway.secondary,
+        muted: businessRunway.muted,
+        card: businessRunway.card,
+        border: businessRunway.border,
+        typeLabel: "Restaurant / Food",
+        pulseTitle: "Food",
+        momentsTitle: "Food",
+        lifeTitle: "Food",
+        memoryTitle: "Food",
+        hubSubtitle: businessRunway.hubSubtitle,
+        hubHeroTitle: "Food",
+        hubHeroDetail: businessRunway.hubHeroDetail,
+        hubHeroAssetName: businessRunway.hubHeroAssetName,
+        filterChips: businessRunway.filterChips,
+        heroGradientColors: businessRunway.heroGradientColors,
+        quickChips: businessRunway.quickChips
+    )
+    static let consumerService = BusinessActiveTheme(
+        bg: businessOperations.bg,
+        accent: businessOperations.accent,
+        accentSolid: businessOperations.accentSolid,
+        accentLight: businessOperations.accentLight,
+        accentSoft: businessOperations.accentSoft,
+        text: businessOperations.text,
+        secondary: businessOperations.secondary,
+        muted: businessOperations.muted,
+        card: businessOperations.card,
+        border: businessOperations.border,
+        typeLabel: "Consumer Service",
+        pulseTitle: "Service",
+        momentsTitle: "Service",
+        lifeTitle: "Service",
+        memoryTitle: "Service",
+        hubSubtitle: businessOperations.hubSubtitle,
+        hubHeroTitle: "Service",
+        hubHeroDetail: businessOperations.hubHeroDetail,
+        hubHeroAssetName: businessOperations.hubHeroAssetName,
+        filterChips: businessOperations.filterChips,
+        heroGradientColors: businessOperations.heroGradientColors,
+        quickChips: businessOperations.quickChips
+    )
+    static let manufacturing = BusinessActiveTheme(
+        bg: businessOperations.bg,
+        accent: Color(hex: "#38BDF8"),
+        accentSolid: Color(hex: "#0284C7"),
+        accentLight: Color(hex: "#7DD3FC"),
+        accentSoft: Color(hex: "#38BDF8").opacity(0.2),
+        text: businessOperations.text,
+        secondary: businessOperations.secondary,
+        muted: businessOperations.muted,
+        card: businessOperations.card,
+        border: businessOperations.border,
+        typeLabel: "Standard Production",
+        pulseTitle: "Production",
+        momentsTitle: "Production",
+        lifeTitle: "Production",
+        memoryTitle: "Production",
+        hubSubtitle: businessOperations.hubSubtitle,
+        hubHeroTitle: "Production",
+        hubHeroDetail: businessOperations.hubHeroDetail,
+        hubHeroAssetName: businessOperations.hubHeroAssetName,
+        filterChips: businessOperations.filterChips,
+        heroGradientColors: businessOperations.heroGradientColors,
+        quickChips: businessOperations.quickChips
+    )
+    static let madeToOrder = BusinessActiveTheme(
+        bg: manufacturing.bg,
+        accent: manufacturing.accentLight,
+        accentSolid: manufacturing.accent,
+        accentLight: manufacturing.accentLight,
+        accentSoft: manufacturing.accentSoft,
+        text: manufacturing.text,
+        secondary: manufacturing.secondary,
+        muted: manufacturing.muted,
+        card: manufacturing.card,
+        border: manufacturing.border,
+        typeLabel: "Made-to-Order",
+        pulseTitle: "Made-to-Order",
+        momentsTitle: "Made-to-Order",
+        lifeTitle: "Made-to-Order",
+        memoryTitle: "Made-to-Order",
+        hubSubtitle: manufacturing.hubSubtitle,
+        hubHeroTitle: "Made-to-Order",
+        hubHeroDetail: manufacturing.hubHeroDetail,
+        hubHeroAssetName: manufacturing.hubHeroAssetName,
+        filterChips: manufacturing.filterChips,
+        heroGradientColors: manufacturing.heroGradientColors,
+        quickChips: manufacturing.quickChips
+    )
+
     static func forKind(_ kind: BusinessSetupKind) -> BusinessActiveTheme {
         switch kind {
         case .marketingCampaigns: return .teamOperations
-        case .tradingDistribution: return .businessRunway
-        case .retailConsumer, .manufacturingProduction: return .businessOperations
+        case .tradingDistribution: return .trading
+        case .retailConsumer: return .retail
+        case .manufacturingProduction: return .manufacturing
         }
     }
 
     static func forTypeCode(_ momentTypeCode: String?) -> BusinessActiveTheme {
-        guard let kind = OperatingMomentCatalog.kind(for: momentTypeCode) else { return .teamOperations }
-        return forKind(kind)
+        switch momentTypeCode?.trimmingCharacters(in: .whitespaces).uppercased() {
+        case "TRADING_WHOLESALE": return .trading
+        case "DISTRIBUTION_DEALERSHIP": return .distribution
+        case "RETAIL_STORE": return .retail
+        case "RESTAURANT_FOOD": return .food
+        case "CONSUMER_SERVICE": return .consumerService
+        case "STANDARD_PRODUCTION": return .manufacturing
+        case "MADE_TO_ORDER": return .madeToOrder
+        case "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN": return .teamOperations
+        default:
+            guard let kind = OperatingMomentCatalog.kind(for: momentTypeCode) else { return .teamOperations }
+            return forKind(kind)
+        }
     }
 }
 

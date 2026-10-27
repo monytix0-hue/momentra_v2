@@ -110,27 +110,63 @@ data class BusinessActiveTheme(
             memoryTitle = "Campaign",
         )
         val Trading = BusinessRunway.copy(
-            typeLabel = "Trading & Distribution",
+            typeLabel = "Trading / Wholesale",
             pulseTitle = "Trading",
             momentsTitle = "Trading",
             lifeTitle = "Trading",
             memoryTitle = "Trading",
         )
+        val Distribution = BusinessRunway.copy(
+            accent = BusinessRunway.accentLight,
+            accentSolid = BusinessRunway.accent,
+            typeLabel = "Distribution / Dealership",
+            pulseTitle = "Distribution",
+            momentsTitle = "Distribution",
+            lifeTitle = "Distribution",
+            memoryTitle = "Distribution",
+        )
         val Retail = BusinessOperations.copy(
             accent = Color(0xFF34D399),
-            typeLabel = "Retail & Consumer",
+            accentSolid = Color(0xFF10B981),
+            accentLight = Color(0xFF6EE7B7),
+            typeLabel = "Retail Store",
             pulseTitle = "Retail",
             momentsTitle = "Retail",
             lifeTitle = "Retail",
             memoryTitle = "Retail",
         )
+        val Food = BusinessRunway.copy(
+            typeLabel = "Restaurant / Food",
+            pulseTitle = "Food",
+            momentsTitle = "Food",
+            lifeTitle = "Food",
+            memoryTitle = "Food",
+        )
+        val ConsumerService = BusinessOperations.copy(
+            typeLabel = "Consumer Service",
+            pulseTitle = "Service",
+            momentsTitle = "Service",
+            lifeTitle = "Service",
+            memoryTitle = "Service",
+        )
         val Manufacturing = BusinessOperations.copy(
             accent = Color(0xFF38BDF8),
-            typeLabel = "Manufacturing & Production",
+            accentSolid = Color(0xFF0284C7),
+            accentLight = Color(0xFF7DD3FC),
+            typeLabel = "Standard Production",
             pulseTitle = "Production",
             momentsTitle = "Production",
             lifeTitle = "Production",
             memoryTitle = "Production",
+        )
+        val MadeToOrder = Manufacturing.copy(
+            accent = Manufacturing.accentLight,
+            accentSolid = Manufacturing.accent,
+            typeLabel = "Made-to-Order",
+            pulseTitle = "Made-to-Order",
+            momentsTitle = "Made-to-Order",
+            lifeTitle = "Made-to-Order",
+            memoryTitle = "Made-to-Order",
         )
 
         fun forKind(kind: BusinessSetupKind): BusinessActiveTheme = when (kind) {
@@ -141,12 +177,22 @@ data class BusinessActiveTheme(
         }
 
         fun forTypeCode(momentTypeCode: String?): BusinessActiveTheme {
-            return when (OperatingMomentCatalog.kindForTypeCode(momentTypeCode)) {
-                BusinessSetupKind.MARKETING_CAMPAIGNS -> Marketing
-                BusinessSetupKind.TRADING_DISTRIBUTION -> Trading
-                BusinessSetupKind.RETAIL_CONSUMER -> Retail
-                BusinessSetupKind.MANUFACTURING_PRODUCTION -> Manufacturing
-                null -> TeamOperations
+            return when (momentTypeCode?.trim()?.uppercase()) {
+                "TRADING_WHOLESALE" -> Trading
+                "DISTRIBUTION_DEALERSHIP" -> Distribution
+                "RETAIL_STORE" -> Retail
+                "RESTAURANT_FOOD" -> Food
+                "CONSUMER_SERVICE" -> ConsumerService
+                "STANDARD_PRODUCTION" -> Manufacturing
+                "MADE_TO_ORDER" -> MadeToOrder
+                "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN" -> Marketing
+                else -> when (OperatingMomentCatalog.kindForTypeCode(momentTypeCode)) {
+                    BusinessSetupKind.MARKETING_CAMPAIGNS -> Marketing
+                    BusinessSetupKind.TRADING_DISTRIBUTION -> Trading
+                    BusinessSetupKind.RETAIL_CONSUMER -> Retail
+                    BusinessSetupKind.MANUFACTURING_PRODUCTION -> Manufacturing
+                    null -> TeamOperations
+                }
             }
         }
     }
