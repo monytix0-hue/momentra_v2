@@ -135,7 +135,13 @@ private fun ProductionPulse(model: OperatingProjectionDto, onViewAll: () -> Unit
             }
             Meter("Budget used", fraction(budget?.spent, budget?.amount), PlantSuccess)
             Line("Budget remaining", money(model, budget?.remaining), PlantSuccess)
-            Text("Validated sales count toward a revenue target. Collections do not. Production, orders, and deliveries count only for the measure you chose.", color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            Text(
+                if (LocalJob.current) "Job output stays on the run until a detailed batch accepts a quantity. Validated sales count toward a revenue target."
+                else "Standard output stays on the run until a detailed batch accepts a quantity. Validated sales count toward a revenue target.",
+                color = PlantSecondary,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
         }
         SectionTitle("Needs Attention")
         if (model.attention.isEmpty()) {

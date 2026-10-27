@@ -39,12 +39,12 @@ struct ProductionQuickAddHub: View {
                 chip(job ? "Job work" : "Standard", filled: false)
             }
             VStack(alignment: .leading, spacing: 8) {
-                Text(job ? "Order. Produce. Deliver. Collect." : "Produce. Dispatch. Collect.")
+                Text(job ? "Job output. Order. Produce. Deliver. Collect." : "Standard output. Produce. Dispatch. Collect.")
                     .font(.plusJakarta(size: 18, weight: .semibold))
                     .foregroundStyle(chrome.ink)
                 Text(job
-                     ? "Capture customer orders, materials, production and delivery. Orders are expectations, not automatic revenue."
-                     : "Capture batches, raw materials, buyer commitments and linked money in one factory Moment.")
+                     ? "Job output is a quantity. A detailed batch adds finished stock only from the accepted quantity. A quotation is not revenue."
+                     : "Standard output is a quantity. A detailed batch adds finished stock only from the accepted quantity.")
                     .font(.plusJakarta(size: 13))
                     .foregroundStyle(chrome.secondary)
                 if job ? allowed.contains("CUSTOMER_ORDER") : allowed.contains("PRODUCTION") {

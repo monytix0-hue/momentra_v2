@@ -327,7 +327,7 @@ private fun initialCaptureChoice(mode: String, variant: String): String = when {
         mode in setOf("PURCHASE", "SPEND") -> "Pay later"
     (variant == "trading" || variant == "distribution" || variant == "restaurant" || variant == "service") &&
         mode in setOf("SALE", "SERVICE") -> "Received"
-    variant == "restaurant" && mode == "ORDER" -> "Preparing"
+    variant == "restaurant" && mode == "ORDER" -> "Accepted"
     variant == "service" && mode == "APPOINTMENT" -> "Scheduled"
     variant == "trading" && mode == "ORDER" -> "Placed"
     variant == "trading" && mode == "SHIPMENT" -> "In transit"
@@ -352,6 +352,16 @@ private fun initialCaptureChoice(mode: String, variant: String): String = when {
     (variant == "standard" || variant == "job") && mode == "PRODUCTION" -> "Completed"
     else -> defaultChoice(mode)
 }
+
+private fun counterSale(subtype: String?) = subtype == "RETAIL_STORE" || subtype == "RESTAURANT_FOOD"
+
+private fun openingChoice(mode: String, variant: String, subtype: String?): String {
+    val base = initialCaptureChoice(mode, variant)
+    return if (counterSale(subtype) && mode == "SALE" && base == "Received") "Walk-in" else base
+}
+
+private fun saleSettled(choice: String) =
+    choice.equals("Received", true) || choice.equals("Walk-in", true) || choice.equals("Paid", true)
 
 private fun initialCaptureDetail(mode: String, variant: String): String =
     if ((variant == "client" || variant == "own") && mode == "DELIVERABLE") "Due" else ""
@@ -393,7 +403,7 @@ fun OperatingCaptureSheet(
     val form = remember {
         CaptureForm(
             channel = model.life?.channels?.firstOrNull().orEmpty(),
-            choice = initialCaptureChoice(mode, variant),
+            choice = openingChoice(mode, variant, model.subtype),
             unit = if (variant == "trading" || variant == "distribution" || model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")) "pc" else "piece",
             masterKind = masterKinds(model.subtype).first(),
             receiptState = if (variant == "trading" || variant == "distribution") "Fully received" else "Received",
@@ -401,7 +411,7 @@ fun OperatingCaptureSheet(
         )
     }
     LaunchedEffect(mode, variant) {
-        form.choice = initialCaptureChoice(mode, variant)
+        form.choice = openingChoice(mode, variant, model.subtype)
         form.detail = initialCaptureDetail(mode, variant)
         if (lovTrade && model.gstTracking == "YES") {
             val includes = if (mode == "PURCHASE") model.purchasePriceIncludesGst else model.salePriceIncludesGst
@@ -541,11 +551,12 @@ private fun SaleServiceCapture(
             ReadField("Sale date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
             ReadField("Receipt actor", actor.substringBefore(" ·"), Modifier.weight(1f))
         }
-        ChoiceBlock("Payment state", listOf("Received", "Part paid", "Pay later"), form.choice) { form.choice = it }
+        val counter = counterSale(model.subtype)
+        ChoiceBlock("Payment state", if (counter) listOf("Walk-in", "Part paid", "Named credit") else listOf("Received", "Part paid", "Pay later"), form.choice) { form.choice = it }
         if (form.choice == "Part paid") EditField("Received amount", form.receivedAmount, "Less than the total") { form.receivedAmount = it }
-        if (form.choice != "Received") {
+        if (!saleSettled(form.choice)) {
             if (lovTrade) LovField(if (distribution) "Buyer / dealer" else "Buyer", form.party, "buyer") { form.lovKind = "BUYER" }
-            else EditField("Customer", form.party, "Required when a balance remains") { form.party = it }
+            else EditField("Customer", form.party, if (counter) "Required for named credit" else "Required when a balance remains") { form.party = it }
             ReadField(if (lovTrade) "Payment due date" else "Due date", form.dueDateText) { form.dueDateOpen = true }
         }
         if (lovTrade) {
@@ -575,7 +586,7 @@ private fun SaleServiceCapture(
             }
             NoteField("Note", form.note, "Optional") { form.note = it }
         }
-        SummaryCard("After save", saleSummary(model, currency, typed, form.choice == "Received"))
+        SummaryCard("After save", saleSummary(model, currency, typed, saleSettled(form.choice)))
     } else {
         ItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.itemName = it }, { form.quantity = it }, { form.unit = it }, { form.unitPrice = it }, model.masters.orEmpty())
         AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
@@ -1061,7 +1072,21 @@ private fun OrderCapture(
             Text("An order is optional. It is not revenue, cash, stock, or a receivable.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
     } else when {
-        restaurant || model.subtype == "RETAIL_STORE" -> {
+        restaurant || model.subtype == "RESTAURANT_FOOD" -> {
+            if (channels.isNotEmpty()) ChoiceBlock("Order channel", channels, form.channel) { form.channel = it }
+            else EditField("Order channel", form.channel, "Required") { form.channel = it }
+            ChoiceBlock("Order status", listOf("Accepted", "Preparing", "Ready", "Fulfilled", "Cancelled"), form.choice.ifBlank { "Accepted" }) { form.choice = it }
+            model.activity.filter { it.eventType == "ORDER" }.forEach { row ->
+                TextButton(onClick = { form.parentId = row.id }) {
+                    Text(if (form.parentId == row.id) "Updating ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans, fontSize = 13.sp)
+                }
+            }
+            EditField("Guest or customer", form.party, "Optional") { form.party = it }
+            AmountBlock("Estimated amount", currency, form.amount, "Pipeline only") { form.amount = it }
+            ReadField("Order time", form.dateText) { form.dateOpen = true }
+            Text("Status does not post a sale. Bill the order when you take payment.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
+        model.subtype == "RETAIL_STORE" -> {
             if (channels.isNotEmpty()) ChoiceBlock("Order channel", channels, form.channel) { form.channel = it }
             else EditField("Order channel", form.channel, "Required") { form.channel = it }
             ChoiceBlock("Order status", listOf("Placed", "Preparing", "Completed", "Cancelled"), form.choice.ifBlank { "Placed" }) { form.choice = it }
@@ -1280,7 +1305,8 @@ private fun ActivityCapture(
         ReadField("Date", form.dateText) { form.dateOpen = true }
         Text("Saved as activity. Money totals stay unchanged.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     } else if (production && mode == "PRODUCTION") {
-        ChoiceBlock("Output", listOf("Quick output", "Detailed batch"), form.entryMode) { form.entryMode = it }
+        val jobOutput = model.subtype == "MADE_TO_ORDER"
+        ChoiceBlock(if (jobOutput) "Job output" else "Standard output", listOf("Quick output", "Detailed batch"), form.entryMode) { form.entryMode = it }
         AmountBlock("Output quantity", currency, form.amount, "Recorded output. This is not accepted stock.") { form.amount = it }
         FieldRow {
             EditField("Unit", form.detail, "Required", Modifier.weight(1f)) { form.detail = it }
@@ -1297,7 +1323,13 @@ private fun ActivityCapture(
         model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
             TextButton(onClick = { form.parentId = row.id }) { Text(row.title, color = Color.White) }
         }
-        Text("Quick output does not create a finished SKU.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        Text(
+            if (model.subtype == "MADE_TO_ORDER") "Job output does not create a finished SKU. Finished stock comes only from the accepted quantity."
+            else "Standard output does not create a finished SKU. Finished stock comes only from the accepted quantity.",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
     } else if (production && mode == "UPDATE") {
         ChoiceBlock("Record", listOf("Update", "Issue", "Approval", "Budget", "Target"), form.choice) { form.choice = it }
         if (form.choice == "Budget" || form.choice == "Target") {
@@ -1861,7 +1893,7 @@ private fun CaptureSheetFooter(
                         form.note
                     }
                     val unpaidDue = when (mode) {
-                        "SALE", "SERVICE" -> form.choice != "Received"
+                        "SALE", "SERVICE" -> !saleSettled(form.choice)
                         "PURCHASE", "SPEND" -> form.choice != "Paid"
                         else -> false
                     }
@@ -2227,7 +2259,7 @@ private fun utcMillisToLocalDate(millis: Long): LocalDate =
     Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
 
 private fun payCode(label: String): String = when {
-    label.equals("Received", true) -> "RECEIVED"
+    label.equals("Received", true) || label.equals("Walk-in", true) -> "RECEIVED"
     label.equals("Paid", true) -> "PAID"
     label.equals("Part paid", true) -> "PART_PAID"
     else -> "PAY_LATER"
@@ -2651,7 +2683,7 @@ private fun buildDraft(
         "SALE", "SERVICE" -> when {
             production && choice == "Paid" -> "COLLECTED"
             production -> "PENDING"
-            choice == "Received" -> "COLLECTED"
+            saleSettled(choice) -> "COLLECTED"
             else -> "PENDING"
         }
         "PURCHASE", "VENDOR" -> if (choice == "Paid") "PAID" else "PENDING"
@@ -2702,9 +2734,9 @@ private fun buildDraft(
         val itemized = entryMode.equals("Itemized", ignoreCase = true) ||
             (itemName.isNotBlank() && quantity.isNotBlank() && unitPrice.isNotBlank())
         val salePay = when {
-            choice.equals("Received", ignoreCase = true) || choice.equals("Paid", ignoreCase = true) -> "RECEIVED"
+            choice.equals("Received", ignoreCase = true) || choice.equals("Walk-in", ignoreCase = true) || choice.equals("Paid", ignoreCase = true) -> "RECEIVED"
             choice.equals("Part paid", ignoreCase = true) -> "PART_PAID"
-            choice.equals("Pay later", ignoreCase = true) || choice.equals("Pending", ignoreCase = true) -> "PAY_LATER"
+            choice.equals("Pay later", ignoreCase = true) || choice.equals("Named credit", ignoreCase = true) || choice.equals("Pending", ignoreCase = true) -> "PAY_LATER"
             else -> "PAY_LATER"
         }
         val purchasePay = when {
@@ -2730,7 +2762,8 @@ private fun buildDraft(
         val orderStatus = when {
             mode != "ORDER" -> null
             choice.equals("Preparing", ignoreCase = true) || choice.equals("Scheduled", ignoreCase = true) -> "PREPARING"
-            choice.equals("Completed", ignoreCase = true) -> "COMPLETED"
+            choice.equals("Ready", ignoreCase = true) -> "READY"
+            choice.equals("Completed", ignoreCase = true) || choice.equals("Fulfilled", ignoreCase = true) -> "COMPLETED"
             choice.equals("Cancelled", ignoreCase = true) -> "CANCELLED"
             else -> "PLACED"
         }

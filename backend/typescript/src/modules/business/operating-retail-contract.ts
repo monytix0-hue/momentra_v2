@@ -72,7 +72,7 @@ export interface OperatingContract {
   expenseCategory?: string | null;
   appointmentStatus?: 'BOOKED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | null;
   appointmentAction?: 'RESCHEDULE' | 'CANCEL' | 'NO_SHOW' | 'START' | 'COMPLETE' | null;
-  orderStatus?: 'PLACED' | 'PREPARING' | 'COMPLETED' | 'CANCELLED' | null;
+  orderStatus?: 'PLACED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELLED' | null;
   orderSide?: 'SALES' | 'PURCHASE' | null;
   goodsStatus?: 'DELIVERED' | 'PARTIAL' | 'LATER' | null;
   clientKey?: string | null;
@@ -279,7 +279,7 @@ export function parseOperatingContract(raw: unknown): OperatingContract | null {
         ? rec.appointmentAction
         : null,
     orderStatus:
-      rec.orderStatus === 'PLACED' || rec.orderStatus === 'PREPARING' || rec.orderStatus === 'COMPLETED' || rec.orderStatus === 'CANCELLED'
+      rec.orderStatus === 'PLACED' || rec.orderStatus === 'PREPARING' || rec.orderStatus === 'READY' || rec.orderStatus === 'COMPLETED' || rec.orderStatus === 'CANCELLED'
         ? rec.orderStatus
         : null,
     clientKey: rec.clientKey == null ? null : String(rec.clientKey),
@@ -643,7 +643,7 @@ function validateOrderRevision(
 ): RetailWriteResult | { ok: false; message: string } {
   if (!current || current.eventType !== 'ORDER') return fail('Choose the order to update.');
   const status = contract.orderStatus ?? current.contract?.orderStatus ?? 'PLACED';
-  if (!['PLACED', 'PREPARING', 'COMPLETED', 'CANCELLED'].includes(status)) return fail('Choose an order status.');
+  if (!['PLACED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'].includes(status)) return fail('Choose an order status.');
   contract.orderStatus = status;
   return {
     ok: true,
@@ -659,7 +659,7 @@ function validateOrderRevision(
 function validateOrder(input: RetailWrite, contract: OperatingContract): RetailWriteResult | { ok: false; message: string } {
   if (!String(input.channelName ?? '').trim()) return fail('Order channel is required.');
   if (!contract.orderStatus) contract.orderStatus = 'PLACED';
-  if (!['PLACED', 'PREPARING', 'COMPLETED', 'CANCELLED'].includes(contract.orderStatus)) return fail('Choose an order status.');
+  if (!['PLACED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'].includes(contract.orderStatus)) return fail('Choose an order status.');
   if (input.amount) contract.estimatedAmount = input.amount;
   return {
     ok: true,

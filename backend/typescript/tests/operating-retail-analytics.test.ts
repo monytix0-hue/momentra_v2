@@ -665,6 +665,59 @@ describe('consumer service analytics CS / CS-L', () => {
     }, { userId: 'u', displayName: 'Asha' }));
   });
 
+  it('walk-in credit requires a named customer and named credit is accepted', () => {
+    const unnamed = validateRetailWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Counter',
+        amount: '180',
+        channelName: 'Counter',
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER' },
+      }),
+      []
+    );
+    assert.equal(unnamed.ok, false);
+    const named = validateRetailWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Counter',
+        amount: '180',
+        channelName: 'Counter',
+        counterpartyName: 'Asha',
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER' },
+      }),
+      []
+    );
+    assert.equal(named.ok, true);
+    if (!named.ok) return;
+    assert.equal(named.paymentStatus, 'PENDING');
+    assert.equal(named.amount, '180.0000');
+  });
+
+  it('food READY posts no revenue', () => {
+    const ready = validateRetailWrite(
+      write({
+        eventType: 'ORDER',
+        title: 'Table 4',
+        channelName: 'Counter',
+        contract: { orderStatus: 'READY' },
+      }),
+      []
+    );
+    assert.equal(ready.ok, true);
+    if (!ready.ok) return;
+    assert.equal(ready.paymentStatus, 'NONE');
+    assert.equal(ready.amount, null);
+    assert.equal(ready.contract.orderStatus, 'READY');
+    const view = projectOperatingMoment({
+      familyCode: 'RETAIL_CONSUMER',
+      prefs: prefs('RESTAURANT_FOOD'),
+      role: 'FINANCE',
+      events: [event('ord', 'ORDER', { channelName: 'Counter', contract: { orderStatus: 'READY' } })],
+    });
+    assert.equal(view.finance?.sales ?? '0.0000', '0.0000');
+  });
+
   it('ALL-05: quick amount never moves stock', () => {
     const sale = event('sale', 'SALE', {
       amount: '500.0000',

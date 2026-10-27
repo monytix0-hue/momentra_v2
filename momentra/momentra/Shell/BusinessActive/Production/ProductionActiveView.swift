@@ -54,7 +54,9 @@ struct ProductionActiveView: View {
                     }
                     meter("Budget used", fraction(model.budget?.spent, model.budget?.amount), chrome.success)
                     line("Budget remaining", money(model.budget?.remaining), chrome.success)
-                    Text("Validated sales count toward a revenue target. Collections do not. Production, orders, and deliveries count only for the measure you chose.")
+                    Text(model.subtype == "MADE_TO_ORDER"
+                         ? "Job output stays on the run until a detailed batch accepts a quantity. Validated sales count toward a revenue target."
+                         : "Standard output stays on the run until a detailed batch accepts a quantity. Validated sales count toward a revenue target.")
                         .font(.plusJakarta(size: 12)).foregroundStyle(chrome.secondary)
                 }
                 sectionTitle("Needs Attention")
