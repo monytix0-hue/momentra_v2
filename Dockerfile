@@ -19,8 +19,6 @@ RUN npm run build
 FROM node:22-alpine AS runtime
 WORKDIR /app
 
-RUN apk add --no-cache curl tini
-
 COPY backend/typescript/package.json backend/typescript/package-lock.json ./typescript/
 WORKDIR /app/typescript
 RUN npm ci --omit=dev
@@ -38,5 +36,4 @@ EXPOSE 3000
 
 WORKDIR /app/typescript
 
-ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "dist/index.js"]

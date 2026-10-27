@@ -19,8 +19,6 @@ RUN npm run build
 FROM node:22-alpine AS runtime
 WORKDIR /app
 
-RUN apk add --no-cache curl tini
-
 COPY typescript/package.json typescript/package-lock.json ./typescript/
 WORKDIR /app/typescript
 # Production deps include tsx (runtime dependency in package.json)
@@ -41,5 +39,4 @@ EXPOSE 3000
 # Workers resolve ../../../.env → /app/.env; Dokploy injects real env vars either way.
 WORKDIR /app/typescript
 
-ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "dist/index.js"]
