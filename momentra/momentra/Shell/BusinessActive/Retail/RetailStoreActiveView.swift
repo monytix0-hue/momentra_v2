@@ -379,8 +379,8 @@ enum RetailStoreChrome {
     static let notice = Color(hex: "#252654")
     static let field = Color(hex: "#1E243D")
     static let border = Color(hex: "#2D3554")
-    static let brand = Color(hex: "#5B5CEB")
-    static let accent = Color(hex: "#A5A7FF")
+    static let brand = Color(hex: "#34D399")
+    static let accent = Color(hex: "#6EE7B7")
     static let secondary = Color(hex: "#A1A7C1")
     static let success = Color(hex: "#10B981")
 }

@@ -131,12 +131,31 @@ const CAPABILITIES_SQL = `SELECT DISTINCT c.code
      ORDER BY c.code
      LIMIT 200`;
 
+/** True when every default Personal life system already has an active or draft moment. */
+async function personalDefaultsAlreadyPresent(ctx: RequestContext): Promise<boolean> {
+  const existing = await getPool().query<{ code: string }>(
+    `SELECT DISTINCT mc.code
+     FROM core.moment m
+     JOIN personal.personal_moment_context pmc ON pmc.moment_id = m.moment_id
+     JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+     JOIN core.moment_category mc ON mc.moment_category_id = mt.moment_category_id
+     WHERE pmc.user_id = $1
+       AND m.domain_code = 'PERSONAL'
+       AND m.status IN ('ACTIVE', 'DRAFT')
+       AND mc.code = ANY($2::text[])`,
+    [ctx.userId, [...personalSetupService.PERSONAL_SETUP_SYSTEM_CODES]]
+  );
+  const active = new Set(existing.rows.map((row) => row.code));
+  return personalSetupService.PERSONAL_SETUP_SYSTEM_CODES.every((code) => active.has(code));
+}
+
 /** Lock the profile row, then create any missing default Personal moments before inventory reads. */
 async function ensurePersonalMomentsForBootstrap(ctx: RequestContext): Promise<void> {
   const profile = await getPool().query<{ timezone: string | null }>(
     `SELECT timezone FROM core.user_profile WHERE user_id = $1`,
     [ctx.userId]
   );
+  if (profile.rows[0] && (await personalDefaultsAlreadyPresent(ctx))) return;
   if (!profile.rows[0]) {
     await provisionUserProfile(ctx.userId, ctx.email, ctx.displayName);
   }
@@ -294,7 +313,7 @@ export async function getMeBootstrap(_client: PoolClient | null, ctx: RequestCon
         momentId: m.momentId,
         title: m.title,
         status: m.status,
-        momentTypeCode: m.businessFamily ?? null,
+        momentTypeCode: m.momentTypeCode ?? m.businessFamily ?? null,
         domainCode: 'BUSINESS' as const,
         companyId: m.companyId,
         participantCount: m.participantCount ?? 0,

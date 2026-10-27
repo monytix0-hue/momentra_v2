@@ -628,9 +628,6 @@ export async function activateMomentDraft(
   };
 }
 
-/** @deprecated Use activateMomentDraft */
-export const activateGroupMomentDraft = activateMomentDraft;
-
 export async function discardMomentDraft(
   client: PoolClient,
   ctx: RequestContext,
@@ -696,9 +693,6 @@ export async function discardMomentDraft(
 
   return { momentId, discarded: true };
 }
-
-/** @deprecated Use discardMomentDraft */
-export const discardGroupMomentDraft = discardMomentDraft;
 
 export async function getGroupSetupPrefill(
   client: PoolClient,

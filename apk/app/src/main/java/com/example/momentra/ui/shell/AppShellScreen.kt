@@ -101,10 +101,7 @@ import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
 import com.example.momentra.ui.shell.business.shared.BusinessExpenseSheet
 import com.example.momentra.ui.shell.business.shared.BusinessGapQuickAddSheet
 import com.example.momentra.ui.shell.business.shared.BusinessInvoiceSheet
-import com.example.momentra.ui.shell.business.life.BusinessLifeActiveContent
 import com.example.momentra.ui.shell.business.shared.BusinessMembersSheet
-import com.example.momentra.ui.shell.business.shared.BusinessMemoryActiveContent
-import com.example.momentra.ui.shell.business.shared.BusinessMomentsActiveContent
 import com.example.momentra.ui.shell.business.gap.BusinessActivationSuccess
 import com.example.momentra.ui.shell.business.gap.BusinessCompanyPulseScreen
 import com.example.momentra.ui.shell.business.gap.BusinessFinanceScreen
@@ -785,7 +782,12 @@ fun AppShellScreen(
                     onAddExpense = {
                         when (state.selectedContext) {
                             AppContext.GROUP -> if (!groupViewerReadOnly) groupExpenseSheetOpen = true
-                            AppContext.BUSINESS -> businessExpenseSheetOpen = true
+                            AppContext.BUSINESS -> {
+                                val operating = OperatingMomentCatalog.kindForTypeCode(state.selectedMomentTypeCode) != null &&
+                                    !OperatingMomentCatalog.isRetired(state.selectedMomentTypeCode)
+                                if (operating) shellViewModel.selectBottomDestination(BottomDestination.CREATE)
+                                else businessExpenseSheetOpen = true
+                            }
                             else -> openMoneyQa(MoneyQuickAddKind.MASTER_EXPENSE)
                         }
                     },
@@ -831,11 +833,17 @@ fun AppShellScreen(
                     onBusinessQuickAdd = { kind ->
                         val typeCode = state.selectedMomentTypeCode
                             ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.momentTypeCode
+                        val operating = OperatingMomentCatalog.kindForTypeCode(typeCode) != null &&
+                            !OperatingMomentCatalog.isRetired(typeCode)
                         val code = typeCode.orEmpty().uppercase()
                         val isRunway = code.contains("RUNWAY")
                         val isOps = code.contains("OPERATIONS") && !code.contains("TEAM")
                         when {
                             kind == BusinessQuickAddKind.KHATA -> businessKhataSheetOpen = true
+                            operating && (
+                                kind == BusinessQuickAddKind.EXPENSE ||
+                                    kind == BusinessQuickAddKind.SPEND_ENTRY
+                                ) -> shellViewModel.selectBottomDestination(BottomDestination.CREATE)
                             kind == BusinessQuickAddKind.EXPENSE ||
                                 kind == BusinessQuickAddKind.SPEND_ENTRY -> businessExpenseSheetOpen = true
                             isRunway -> businessGapQa = kind
@@ -1288,7 +1296,10 @@ fun AppShellScreen(
                 val kind = businessGapQa ?: return@LaunchedEffect
                 if (kind == BusinessQuickAddKind.EXPENSE || kind == BusinessQuickAddKind.SPEND_ENTRY) {
                     businessGapQa = null
-                    businessExpenseSheetOpen = true
+                    val operating = OperatingMomentCatalog.kindForTypeCode(state.selectedMomentTypeCode) != null &&
+                        !OperatingMomentCatalog.isRetired(state.selectedMomentTypeCode)
+                    if (operating) shellViewModel.selectBottomDestination(BottomDestination.CREATE)
+                    else businessExpenseSheetOpen = true
                 }
             }
             BusinessExpenseSheet(
@@ -1474,12 +1485,7 @@ fun AppShellScreen(
             momentId = state.selectedMomentId,
             visible = teamRecentActivityOpen,
             onDismiss = { teamRecentActivityOpen = false },
-            accent = when (OperatingMomentCatalog.kindForTypeCode(state.selectedMomentTypeCode)) {
-                com.example.momentra.ui.shell.empty.business.BusinessSetupKind.TRADING_DISTRIBUTION -> RunwayColors.Amber
-                com.example.momentra.ui.shell.empty.business.BusinessSetupKind.RETAIL_CONSUMER -> Color(0xFF34D399)
-                com.example.momentra.ui.shell.empty.business.BusinessSetupKind.MANUFACTURING_PRODUCTION -> Color(0xFF38BDF8)
-                else -> TeamOpsColors.IndigoLight
-            },
+            accent = BusinessActiveTheme.forTypeCode(state.selectedMomentTypeCode).accent,
             subtitle = "Team updates, polls, memories, and other events.",
         )
         BusinessRecentActivityFlow(

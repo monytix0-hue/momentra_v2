@@ -124,9 +124,28 @@ enum MomentThemes {
 
     static func business(_ momentTypeCode: String?) -> MomentTheme {
         let code = momentTypeCode?.uppercased() ?? ""
-        if code.contains("RUNWAY") { return base("BUSINESS", "BUSINESS_RUNWAY", Color(hex: 0x34D399), Color(hex: 0x6EE7B7)) }
-        if code.contains("TEAM") { return base("BUSINESS", "TEAM_OPERATIONS", Color(hex: 0x818CF8), Color(hex: 0xA5B4FC)) }
-        return base("BUSINESS", "BUSINESS_OPERATIONS", Color(hex: 0x818CF8), Color(hex: 0xFB923C))
+        if code == "TRADING_WHOLESALE" || code == "TRADING_DISTRIBUTION" || code == "RESTAURANT_FOOD" {
+            return base("BUSINESS", code.isEmpty ? "TRADING_WHOLESALE" : code, Color(hex: 0xF59E0B), Color(hex: 0xFBBF24))
+        }
+        if code == "DISTRIBUTION_DEALERSHIP" {
+            return base("BUSINESS", code, Color(hex: 0xFBBF24), Color(hex: 0xF59E0B))
+        }
+        if code == "RETAIL_STORE" || code == "RETAIL_CONSUMER" {
+            return base("BUSINESS", code, Color(hex: 0x34D399), Color(hex: 0x6EE7B7))
+        }
+        if code == "CONSUMER_SERVICE" {
+            return base("BUSINESS", code, Color(hex: 0x818CF8), Color(hex: 0xA5B4FC))
+        }
+        if code == "STANDARD_PRODUCTION" || code == "MANUFACTURING_PRODUCTION" {
+            return base("BUSINESS", code, Color(hex: 0x38BDF8), Color(hex: 0x7DD3FC))
+        }
+        if code == "MADE_TO_ORDER" {
+            return base("BUSINESS", code, Color(hex: 0x7DD3FC), Color(hex: 0x38BDF8))
+        }
+        if code.contains("MARKETING") || code == "CLIENT_CAMPAIGN" || code == "OWN_BUSINESS_CAMPAIGN" {
+            return base("BUSINESS", code, Color(hex: 0x818CF8), Color(hex: 0xA5B4FC))
+        }
+        return base("BUSINESS", "BUSINESS_OPERATIONS", Color(hex: 0x818CF8), Color(hex: 0xA5B4FC))
     }
 
     private static func base(_ family: String, _ type: String, _ primary: Color, _ secondary: Color) -> MomentTheme {

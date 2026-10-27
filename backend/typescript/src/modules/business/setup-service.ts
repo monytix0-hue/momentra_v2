@@ -24,16 +24,6 @@ export const BUSINESS_SETUP_FAMILY_CODES = [
 
 export type BusinessSetupFamilyCode = (typeof BUSINESS_SETUP_FAMILY_CODES)[number];
 
-/** Demo / seed / QA amount examples only. Never merge into defaultPreferences or activate/create. */
-export const BUSINESS_SETUP_DEMO_AMOUNTS: Record<string, string> = {
-  approvalThreshold: '₹50,000',
-  availableCash: '₹ 1,80,00,000',
-  monthlySpending: '₹ 12,50,000',
-  monthlyRevenue: '₹ 8,08,000',
-  monthlyBudget: '₹35,00,000',
-  approvalAlarm: '₹5,00,000',
-};
-
 export interface BusinessSetupCatalogItem {
   familyCode: BusinessSetupFamilyCode;
   title: string;
@@ -97,17 +87,6 @@ export function getSetupByCode(code: string): BusinessSetupCatalogItem | undefin
   return BUSINESS_SETUP_CATALOG.find((s) => s.familyCode === code);
 }
 
-async function insertFamilyContext(
-  _client: PoolClient,
-  _momentId: string,
-  _familyCode: BusinessSetupFamilyCode,
-  _title: string
-): Promise<void> {
-  // Operating moments keep identity, people, counterparties, and the monthly plan
-  // on business_system_setup.preferences. The legacy per-family context tables
-  // belong to retired Team / Money / Daily setups.
-}
-
 export async function activateBusinessSetup(
   client: PoolClient,
   ctx: RequestContext,
@@ -167,8 +146,6 @@ export async function activateBusinessSetup(
     timezone: body.timezone ?? 'UTC',
     companyId: body.companyId,
   });
-
-  await insertFamilyContext(client, moment.momentId, catalog.familyCode, title);
 
   const inserted = await client.query<{ business_system_setup_id: string }>(
     `INSERT INTO business.business_system_setup (

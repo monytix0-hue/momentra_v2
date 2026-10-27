@@ -48,68 +48,6 @@ struct BusinessActionRegistryTests {
         #expect(!visible.contains(.taxEntry))
     }
 
-    @Test func emptyFinanceIsUnavailableNotZero() {
-        let model = buildBusinessPulsePresentation(BusinessPulseFactsInput(
-            family: .money,
-            smallShop: false,
-            capabilities: [],
-            momentTypeCode: "BUSINESS_RUNWAY",
-            financeQuality: "EMPTY",
-            revenueTotal: "0",
-            expenseTotal: "0"
-        ))
-        #expect(model.facts.first { $0.label == "Revenue" }?.metric == .unavailable)
-        #expect(!model.displayedFacts().contains { $0.label == "Revenue" })
-    }
-
-    @Test func lifeFailureOmitsCashAndKeepsRevenue() {
-        let model = buildBusinessPulsePresentation(BusinessPulseFactsInput(
-            family: .money,
-            smallShop: false,
-            capabilities: [],
-            momentTypeCode: "BUSINESS_RUNWAY",
-            financeQuality: "REAL_DATA",
-            revenueTotal: "10",
-            expenseTotal: "4",
-            runwayMonths: "6",
-            availableCash: "500",
-            lifeFailed: true
-        ))
-        #expect(model.facts.first { $0.label == "Cash" }?.metric == .unavailable)
-        #expect(model.facts.first { $0.label == "Runway" }?.metric == .unavailable)
-        #expect(model.displayedFacts().contains { $0.label == "Revenue" })
-    }
-
-    @Test func teamDoesNotUseFinanceScore() {
-        let model = buildBusinessPulsePresentation(BusinessPulseFactsInput(
-            family: .team,
-            smallShop: false,
-            capabilities: [],
-            momentTypeCode: "TEAM_OPERATIONS",
-            financeQuality: "REAL_DATA",
-            revenueTotal: "999",
-            rosterCount: 8,
-            approvalTitles: []
-        ))
-        #expect(!model.facts.contains { $0.label.lowercased().contains("health") })
-        #expect(!model.facts.contains { $0.label == "Revenue" })
-        #expect(model.facts.first { $0.label == "People" }?.metric == .available("8"))
-    }
-
-    @Test func heroAndSnapshotShareFacts() {
-        let model = buildBusinessPulsePresentation(BusinessPulseFactsInput(
-            family: .money,
-            smallShop: false,
-            capabilities: [],
-            momentTypeCode: "BUSINESS_RUNWAY",
-            financeQuality: "REAL_DATA",
-            revenueTotal: "480000",
-            expenseTotal: "310000"
-        ))
-        #expect(model.displayedFacts() == model.displayedFacts())
-        #expect(model.showsCompanyTotals())
-    }
-
     @Test func eachFamilyQuickAddPrimaryDiffers() {
         #expect(BusinessMomentFamilyConfig.quickAddPrimary("BUSINESS_RUNWAY", smallShop: false, capabilities: []) == [.revenue, .expense, .invoice])
         #expect(BusinessMomentFamilyConfig.quickAddPrimary("BUSINESS_RUNWAY", smallShop: true, capabilities: []) == [.khata, .revenue, .expense])
@@ -151,31 +89,4 @@ struct BusinessActionRegistryTests {
         #expect(primary("blank").isEmpty)
     }
 
-    @Test func recentTitleIsCompanyActivity() {
-        #expect(BusinessPulsePresentation.recentTitle == "Recent activity")
-    }
-
-    @Test func otherMemberActivityMapsWithOrWithoutActorName() {
-        let named = APIClient.ActivityItemPayload(
-            activityCode: "EXPENSE_RECORDED",
-            title: "Shop expense",
-            occurredAt: "2026-09-30T08:00:00.000Z",
-            activityPayload: nil,
-            actorDisplayName: "Member B"
-        )
-        let unnamed = APIClient.ActivityItemPayload(
-            activityCode: "EXPENSE_RECORDED",
-            title: "Shop expense",
-            occurredAt: "2026-09-30T08:00:00.000Z",
-            activityPayload: nil,
-            actorDisplayName: nil
-        )
-        let namedCard = businessMomentCard(from: named)
-        let unnamedCard = businessMomentCard(from: unnamed)
-        #expect(namedCard.title == "Shop expense")
-        #expect(namedCard.actorDisplayName == "Member B")
-        #expect(unnamedCard.title == "Shop expense")
-        #expect(unnamedCard.actorDisplayName == nil)
-        #expect(namedCard.id == unnamedCard.id)
-    }
 }

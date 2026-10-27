@@ -642,16 +642,3 @@ export async function listExpenseDimensionContributions(
     linkedResourceId: r.linked_resource_id,
   }));
 }
-
-/** @deprecated Use listExpenseDimensionContributions */
-export async function listActiveContributions(
-  client: PoolClient,
-  expenseId: string
-): Promise<Array<{ dimensionCode: string; status: string; targetMomentId: string | null }>> {
-  const rows = await listExpenseDimensionContributions(client, expenseId);
-  return rows.map(({ dimensionCode, status, targetMomentId }) => ({
-    dimensionCode,
-    status,
-    targetMomentId,
-  }));
-}

@@ -2094,6 +2094,7 @@ export async function listBusinessMoments(
     title: string;
     status: string;
     businessFamily: string;
+    momentTypeCode: string | null;
     companyId: string | null;
     participantCount: number;
   }>
@@ -2117,11 +2118,12 @@ export async function listBusinessMoments(
     title: string;
     status: string;
     business_family: string;
+    moment_type_code: string | null;
     company_id: string | null;
     updated_at: Date;
     participant_count: string;
   }>(
-    `SELECT m.moment_id, m.title, m.status, bmc.business_family, bmc.company_id, m.updated_at,
+    `SELECT m.moment_id, m.title, m.status, bmc.business_family, mt.code AS moment_type_code, bmc.company_id, m.updated_at,
             (
               SELECT COUNT(*)::text
               FROM collaboration.moment_participant mpc
@@ -2129,6 +2131,7 @@ export async function listBusinessMoments(
             ) AS participant_count
      FROM business.business_moment_context bmc
      JOIN core.moment m ON m.moment_id = bmc.moment_id
+     LEFT JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
      LEFT JOIN business.company_membership cm
        ON cm.company_id = bmc.company_id AND cm.user_id = $1 AND cm.status = 'ACTIVE'
      LEFT JOIN collaboration.moment_participant mp
@@ -2153,6 +2156,7 @@ export async function listBusinessMoments(
       title: r.title,
       status: r.status,
       businessFamily: r.business_family,
+      momentTypeCode: r.moment_type_code,
       companyId: r.company_id,
       participantCount: Number(r.participant_count) || 0,
     })),

@@ -1333,10 +1333,7 @@ private fun ActivityCapture(
     } else if (marketing && mode == "RESULT") {
         AmountBlock("Value", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
         if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
-        FieldRow {
-            ReadField("Result date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
-            EditField("Metric", form.purpose, "What was measured", Modifier.weight(1f)) { form.purpose = it }
-        }
+        ReadField("Result date", form.dateText) { form.dateOpen = true }
         ChoiceBlock("Reporting", listOf("Incremental", "Cumulative"), form.reportingMode) { form.reportingMode = it }
         ChoiceBlock("Metric", listOf("LEADS", "CONVERSIONS", "REACH", "ENGAGEMENT", "ORDERS"), form.metricCode) { form.metricCode = it }
         ChoiceBlock("Status", listOf("Accepted", "Pending"), form.choice) { form.choice = it }

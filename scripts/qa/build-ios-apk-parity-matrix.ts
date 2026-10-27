@@ -68,7 +68,6 @@ const SPECIAL: Record<string, string> = {
   ExperienceQuickAddHub: 'ExperienceQuickAddHubView',
   PurchaseQuickAddHub: 'PurchaseQuickAddHubView',
   LivingQuickAddHub: 'LivingQuickAddHubView',
-  CompanyLifeActiveContent: 'BusinessLifeActiveView',
   ShellBottomNavigation: 'ShellBottomNavigationView',
 };
 

@@ -408,15 +408,15 @@ struct ProductionChrome {
 
     static let standard = ProductionChrome(
         bg: Color(hex: "#09121F"), card: Color(hex: "#122235"), notice: Color(hex: "#16405C"),
-        field: Color(hex: "#09121F"), border: Color(hex: "#2B4B63"), brand: Color(hex: "#6DDCFF"),
-        accent: Color(hex: "#6DDCFF"), secondary: Color(hex: "#A5BBCE"), ink: Color(hex: "#E5E0EE"),
+        field: Color(hex: "#09121F"), border: Color(hex: "#2B4B63"), brand: Color(hex: "#38BDF8"),
+        accent: Color(hex: "#38BDF8"), secondary: Color(hex: "#A5BBCE"), ink: Color(hex: "#E5E0EE"),
         success: Color(hex: "#8FD6FF")
     )
     static let job = ProductionChrome(
         bg: Color(hex: "#071014"), card: Color(hex: "#15262C"), notice: Color(hex: "#15262C"),
-        field: Color(hex: "#071014"), border: Color(hex: "#345058"), brand: Color(hex: "#66C7A4"),
-        accent: Color(hex: "#66C7A4"), secondary: Color(hex: "#AFC1C3"), ink: Color(hex: "#EFF5F2"),
-        success: Color(hex: "#66C7A4")
+        field: Color(hex: "#071014"), border: Color(hex: "#345058"), brand: Color(hex: "#7DD3FC"),
+        accent: Color(hex: "#7DD3FC"), secondary: Color(hex: "#AFC1C3"), ink: Color(hex: "#EFF5F2"),
+        success: Color(hex: "#7DD3FC")
     )
 }
 

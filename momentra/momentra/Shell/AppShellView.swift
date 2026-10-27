@@ -1,12 +1,5 @@
 import SwiftUI
 
-private enum BusinessQuickAddFollowUp {
-    case kind(BusinessQuickAddKind)
-    case members
-    case newMoment
-    case companySettings
-}
-
 struct AppShellView: View {
     let identity: ShellIdentity
     @ObservedObject var model: AppShellModel
@@ -43,8 +36,6 @@ struct AppShellView: View {
     @State private var businessRevenueSheetPresented = false
     @State private var businessInvoiceSheetPresented = false
     @State private var businessMembersSheetPresented = false
-    @State private var businessQuickAddPresented = false
-    @State private var businessQuickAddFollowUp: BusinessQuickAddFollowUp?
     @State private var businessGapQa: BusinessQuickAddKind? = nil
     @State private var lifeOpsQa: LifeOpsQuickAddKind? = nil
     @State private var futureQa: FutureQuickAddKind? = nil
@@ -626,78 +617,18 @@ struct AppShellView: View {
                 )
             }
         }
-        .sheet(isPresented: $businessQuickAddPresented, onDismiss: {
-            let followUp = businessQuickAddFollowUp
-            businessQuickAddFollowUp = nil
-            switch followUp {
-            case .kind(let kind):
-                presentBusinessKind(kind)
-            case .members:
-                businessMembersSheetPresented = true
-            case .newMoment:
-                model.selectBottomDestination(.create)
-            case .companySettings:
-                reopenCompanySettings = true
-                companyMenuOpen = true
-            case nil:
-                break
-            }
-        }) {
-            BusinessQuickAddHub(
-                hasActiveMoment: model.selectedMomentId != nil,
-                hasCompany: model.selectedCompany != nil,
-                capabilityCodes: model.capabilities,
-                momentId: model.selectedMomentId,
-                momentTypeCode: BusinessMomentFamilyConfig.selectedQuickAddTypeCode(
-                    selectedMomentId: model.selectedMomentId,
-                    moments: model.moments,
-                    selectedMomentTypeCode: model.selectedMomentTypeCode
-                ),
-                companyId: model.selectedCompany?.companyId,
-                onClose: {
-                    businessQuickAddFollowUp = nil
-                    businessQuickAddPresented = false
-                },
-                onTile: { kind in
-                    businessQuickAddFollowUp = .kind(kind)
-                    businessQuickAddPresented = false
-                },
-                onNewMoment: {
-                    businessQuickAddFollowUp = .newMoment
-                    businessQuickAddPresented = false
-                },
-                onOpenCompanySettings: {
-                    businessQuickAddFollowUp = .companySettings
-                    businessQuickAddPresented = false
-                },
-                onExpense: {
-                    businessQuickAddFollowUp = .kind(.expense)
-                    businessQuickAddPresented = false
-                },
-                onRevenue: {
-                    businessQuickAddFollowUp = .kind(.revenue)
-                    businessQuickAddPresented = false
-                },
-                onInvoice: {
-                    businessQuickAddFollowUp = .kind(.invoice)
-                    businessQuickAddPresented = false
-                },
-                onMembers: {
-                    businessQuickAddFollowUp = .members
-                    businessQuickAddPresented = false
-                }
-            )
-            .id(model.selectedMomentId ?? "")
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
-        }
         .sheet(item: $businessGapQa) { kind in
             Group {
                 if kind == .expense || kind == .spendEntry {
                     Color.clear
                         .onAppear {
                             businessGapQa = nil
-                            businessExpenseSheetPresented = true
+                            if OperatingMomentCatalog.kind(for: model.selectedMomentTypeCode) != nil,
+                               !OperatingMomentCatalog.isRetired(model.selectedMomentTypeCode) {
+                                model.selectBottomDestination(.create)
+                            } else {
+                                businessExpenseSheetPresented = true
+                            }
                         }
                 } else {
                     BusinessGapQuickAddSheet(
@@ -706,7 +637,15 @@ struct AppShellView: View {
                         momentId: model.selectedMomentId,
                         onClose: { businessGapQa = nil },
                         onSaved: { model.refreshVisibleBusinessTab() },
-                        onExpense: { businessExpenseSheetPresented = true },
+                        onExpense: {
+                            businessGapQa = nil
+                            if OperatingMomentCatalog.kind(for: model.selectedMomentTypeCode) != nil,
+                               !OperatingMomentCatalog.isRetired(model.selectedMomentTypeCode) {
+                                model.selectBottomDestination(.create)
+                            } else {
+                                businessExpenseSheetPresented = true
+                            }
+                        },
                         onRevenue: { businessRevenueSheetPresented = true },
                         onInvoice: { businessInvoiceSheetPresented = true }
                     )
@@ -1023,21 +962,6 @@ struct AppShellView: View {
             return []
         }
         return base.map { ($0.momentId, $0.title) }
-    }
-
-    private func presentBusinessKind(_ kind: BusinessQuickAddKind) {
-        switch kind {
-        case .khata:
-            businessKhataSheetPresented = true
-        case .expense, .spendEntry:
-            businessExpenseSheetPresented = true
-        case .revenue:
-            businessRevenueSheetPresented = true
-        case .invoice:
-            businessInvoiceSheetPresented = true
-        default:
-            businessGapQa = kind
-        }
     }
 
     private func openMoneyQa(_ kind: MoneyQuickAddKind) {

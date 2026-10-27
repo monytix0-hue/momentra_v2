@@ -152,12 +152,6 @@ struct WeddingViewAllLink: View {
     }
 }
 
-struct WeddingDemoBadge: View {
-    var body: some View {
-        EmptyView()
-    }
-}
-
 struct WeddingIconChip: View {
     let label: String
     let systemImage: String

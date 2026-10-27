@@ -5,7 +5,6 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { assertGovernanceAllowed } from '../governance/resolver';
 import { insertAudit, insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { z } from 'zod';
-import { getMeBootstrap } from './bootstrap';
 
 export { getMeBootstrap } from './bootstrap';
 export type { MeBootstrap } from './bootstrap';
@@ -20,26 +19,6 @@ export const registerDeviceSchema = z
   .strict();
 
 export type RegisterDeviceInput = z.infer<typeof registerDeviceSchema>;
-
-/**
- * @deprecated Prefer getMeBootstrap — kept for narrow identity checks in tests.
- */
-export async function getMe(client: PoolClient, ctx: RequestContext): Promise<{
-  userId: string;
-  email?: string;
-  displayName?: string;
-  firebaseUid: string;
-  roles: string[];
-}> {
-  const boot = await getMeBootstrap(client, ctx);
-  return {
-    userId: boot.userId,
-    email: boot.email ?? undefined,
-    displayName: boot.displayName ?? undefined,
-    firebaseUid: boot.firebaseUid,
-    roles: boot.roles,
-  };
-}
 
 /**
  * Phase 3 transactional proof command.
