@@ -41,10 +41,10 @@ struct TradingActiveView: View {
                 sectionTitle("Target & Budget")
                 card {
                     Text("Recorded sales").font(.plusJakarta(size: 12)).foregroundStyle(TradingChrome.secondary)
-                    Text(money(model.target?.progress)).font(.plusJakarta(size: 28, weight: .semibold)).foregroundStyle(TradingChrome.ink)
+                    Text(money(recordedSales)).font(.plusJakarta(size: 28, weight: .semibold)).foregroundStyle(TradingChrome.ink)
                     if model.target?.configured == true {
                         Text("of \(money(model.target?.value)) sales target").font(.plusJakarta(size: 13)).foregroundStyle(TradingChrome.secondary)
-                        meter("Sales progress", fraction(model.target?.progress, model.target?.value), TradingChrome.brand)
+                        meter("Sales progress", fraction(recordedSales, model.target?.value), TradingChrome.brand)
                     } else {
                         Text("No sales target set for this period.").font(.plusJakarta(size: 13)).foregroundStyle(TradingChrome.secondary)
                     }
@@ -152,7 +152,7 @@ struct TradingActiveView: View {
                     metric("Remaining", model.budget?.configured == true ? money(model.budget?.remaining) : "—")
                 }
                 if model.target?.configured == true {
-                    meter("Sales toward target", fraction(model.target?.progress, model.target?.value), TradingChrome.brand)
+                    meter("Sales toward target", fraction(recordedSales, model.target?.value), TradingChrome.brand)
                 }
             }
             ForEach(model.boards?.moments ?? [], id: \.code) { section in
@@ -384,6 +384,14 @@ struct TradingActiveView: View {
         let until = model.endDate?.prefix(10).description
         if let until, !until.isEmpty { return "Snapshot · \(from?.isEmpty == false ? from! : today.string(from: Date())) – \(until)" }
         return "Snapshot · from \(from?.isEmpty == false ? from! : today.string(from: Date())) · \(today.string(from: Date()))"
+    }
+
+    private var recordedSales: String? {
+        let metric = model.target?.metric.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if metric.isEmpty || metric.uppercased() == "REVENUE" {
+            return model.finance?.sales ?? model.target?.progress
+        }
+        return model.target?.progress
     }
 
     private func money(_ raw: String?) -> String {

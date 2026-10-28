@@ -266,7 +266,7 @@ private class CaptureForm(
                 itemName = option.name
                 if (mode == "STOCK") purpose = option.name
                 productMasterId = option.id.takeUnless { it.startsWith("local-") || it.startsWith("seed-") }
-                option.unit?.takeIf { it.isNotBlank() }?.let { unit = it }
+                OperatingSeedUoms.canonical(option.unit).takeIf { it.isNotBlank() }?.let { unit = it }
                 model.masters.orEmpty().firstOrNull { it.id == option.id }?.let { master ->
                     displayGstRate(master.gstRate)?.let { gstRate = it }
                     when (master.priceIncludesGst) {
@@ -360,6 +360,13 @@ private fun openingChoice(mode: String, variant: String, subtype: String?): Stri
     return if (counterSale(subtype) && mode == "SALE" && base == "Received") "Walk-in" else base
 }
 
+private fun openingChannel(mode: String, model: OperatingProjectionDto): String {
+    val listed = model.life?.channels?.firstOrNull { it.isNotBlank() }
+    if (!listed.isNullOrBlank()) return listed
+    if (mode !in setOf("SALE", "SERVICE", "ORDER")) return ""
+    return model.masters.orEmpty().firstOrNull { it.kind.equals("CHANNEL", true) && it.name.isNotBlank() }?.name.orEmpty()
+}
+
 private fun saleSettled(choice: String) =
     choice.equals("Received", true) || choice.equals("Walk-in", true) || choice.equals("Paid", true)
 
@@ -402,7 +409,7 @@ fun OperatingCaptureSheet(
     val lovTrade = trading || distribution || model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")
     val form = remember {
         CaptureForm(
-            channel = model.life?.channels?.firstOrNull().orEmpty(),
+            channel = openingChannel(mode, model),
             choice = openingChoice(mode, variant, model.subtype),
             unit = if (variant == "trading" || variant == "distribution" || model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")) "pc" else "piece",
             masterKind = masterKinds(model.subtype).first(),
@@ -418,6 +425,9 @@ fun OperatingCaptureSheet(
             if (includes == "YES") form.taxMode = "Inclusive"
             if (includes == "NO") form.taxMode = "Exclusive"
         }
+    }
+    LaunchedEffect(mode, model.life?.channels, model.masters) {
+        if (form.channel.isBlank()) form.channel = openingChannel(mode, model)
     }
     LaunchedEffect(seed?.id, seed?.parentEventId) {
         val row = seed ?: return@LaunchedEffect
@@ -730,16 +740,6 @@ private fun SpendCapture(
         MoreDetails(form.moreOpen, "Reference and note. Optional.") { form.moreOpen = !form.moreOpen }
         if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
         SummaryCard("After approval", spendSummary(model, currency, typed))
-    } else if (marketing) {
-        AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
-        EditField("Purpose / Category", form.purpose, "What this was for") { form.purpose = it }
-        EditField("Paid by", form.party, actor.substringBefore(" ·")) { form.party = it }
-        if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
-        ChoiceBlock("Paid / pending", listOf("Pending / unpaid", "Paid"), form.choice) { form.choice = it }
-        if (model.subtype == "CLIENT_CAMPAIGN") {
-            ChoiceBlock("Who bears the cost", listOf("Agency borne", "Client reimbursable"), form.costBasis) { form.costBasis = it }
-        }
-        SummaryCard("After approval", spendSummary(model, currency, typed))
     } else if (lovTrade) {
         AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
         LovField("Expense category", form.expenseCategory, "category") { form.lovKind = "EXPENSE_CATEGORY" }
@@ -756,6 +756,16 @@ private fun SpendCapture(
         MoreDetails(form.moreOpen, "Note. Optional.") { form.moreOpen = !form.moreOpen }
         if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
         SummaryCard("After save", spendSummary(model, currency, typed))
+    } else if (marketing) {
+        AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+        EditField("Purpose / Category", form.purpose, "What this was for") { form.purpose = it }
+        EditField("Paid by", form.party, actor.substringBefore(" ·")) { form.party = it }
+        if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
+        ChoiceBlock("Paid / pending", listOf("Pending / unpaid", "Paid"), form.choice) { form.choice = it }
+        if (model.subtype == "CLIENT_CAMPAIGN") {
+            ChoiceBlock("Who bears the cost", listOf("Agency borne", "Client reimbursable"), form.costBasis) { form.costBasis = it }
+        }
+        SummaryCard("After approval", spendSummary(model, currency, typed))
     } else {
         AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
         FieldRow {
@@ -1742,7 +1752,9 @@ private fun MastersCapture(
     ChoiceBlock("Master", masterKinds(model.subtype), form.masterKind) { form.masterKind = it }
         EditField("Name", form.itemName, "Required") { form.itemName = it }
         if (form.masterKind in setOf("PRODUCT", "MATERIAL", "CONSUMABLE")) {
-            ChoiceBlock("Unit", listOf("piece", "kg", "litre", "count"), form.unit) { form.unit = it }
+            val tradingMaster = model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")
+            val units = if (tradingMaster) OperatingSeedUoms.all.map { it.name } else listOf("piece", "kg", "litre", "count")
+            ChoiceBlock(if (tradingMaster) "Base unit" else "Unit", units, form.unit) { form.unit = it }
         }
         EditField("Detail", form.purpose, "Optional") { form.purpose = it }
         MasterGstFields(form, model)
@@ -1814,7 +1826,8 @@ private fun CaptureSheetFooter(
             lovTrade && mode == "SPEND" -> form.expenseCategory.isNotBlank() && form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && (form.choice == "Paid" || form.party.isNotBlank())
             lovTrade && mode == "SALE" -> {
                 val amountOk = if (form.entryMode.equals("Itemized", ignoreCase = true)) form.itemName.isNotBlank() else form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
-                amountOk && form.channel.isNotBlank() && (form.choice == "Received" || form.party.isNotBlank())
+                val knownChannel = model.life?.channels.orEmpty().any { it.isNotBlank() } || model.masters.orEmpty().any { it.kind.equals("CHANNEL", true) && it.name.isNotBlank() }
+                amountOk && (form.channel.isNotBlank() || !knownChannel) && (saleSettled(form.choice) || form.party.isNotBlank())
             }
             lovTrade && mode == "STOCK" -> form.purpose.isNotBlank() && form.quantity.isNotBlank()
             lovTrade && mode == "UPDATE" -> form.purpose.isNotBlank()
@@ -2057,12 +2070,22 @@ private fun CaptureLovHost(
                 "SALES_ORDER", "PURCHASE_ORDER" -> orderLovOptions(model, pickerKind)
                 "OBLIGATION" -> obligationLovOptions(mode, model)
                 else -> lovOptions(kind, model.masters.orEmpty(), channels, form.localMasters).let { rows ->
-                    if (!kind.equals("UOM", ignoreCase = true)) rows
+                    val listed = if (
+                        kind.equals("EXPENSE_CATEGORY", ignoreCase = true) &&
+                        model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")
+                    ) {
+                        rows.filter { !campaignExpenseName(it.name) }
+                    } else {
+                        rows
+                    }
+                    if (!kind.equals("UOM", ignoreCase = true)) listed
                     else {
-                        val base = model.masters.orEmpty().firstOrNull { it.id == form.productMasterId }?.unit
-                            ?: form.localMasters.firstOrNull { it.kind.equals("PRODUCT", true) && (it.name == form.itemName || it.name == form.purpose) }?.unit
+                        val base = OperatingSeedUoms.canonical(
+                            model.masters.orEmpty().firstOrNull { it.id == form.productMasterId }?.unit
+                                ?: form.localMasters.firstOrNull { it.kind.equals("PRODUCT", true) && (it.name == form.itemName || it.name == form.purpose) }?.unit,
+                        )
                         val conversion = model.masters.orEmpty().firstOrNull { it.id == form.productMasterId }?.conversionToBase
-                        if (base.isNullOrBlank()) rows else rows.filter { OperatingSeedUoms.compatible(it.name, base, conversion) }
+                        if (base.isNullOrBlank()) listed else listed.filter { OperatingSeedUoms.compatible(it.name, base, conversion) }
                     }
                 }
             },
@@ -2571,8 +2594,29 @@ private fun buildDraft(
     supersedesId: String = "",
     effectiveDay: String = "",
 ): OperatingCaptureDraft? {
+    if (lovTrade && (mode == "UPDATE" || mode == "ISSUE")) {
+        if (purpose.isBlank()) return null
+        val activityNote = listOfNotNull(
+            if (mode == "ISSUE" && choice.isNotBlank()) choice.trim() else null,
+            note.trim().ifBlank { null },
+        ).joinToString(" · ").ifBlank { null }
+        return OperatingCaptureDraft(
+            eventType = if (mode == "ISSUE") "ISSUE" else "UPDATE",
+            title = purpose.trim(),
+            amount = null,
+            note = activityNote,
+            channelName = null,
+            counterpartyName = if (mode == "ISSUE") party.trim().ifBlank { null } else null,
+            paymentStatus = "NONE",
+            occurredAt = occurredAt,
+            dueAt = if (mode == "ISSUE") occurredAt else null,
+        )
+    }
     if (mode == "MASTERS") {
         if (itemName.isBlank()) return null
+        val productMaster = masterKind in setOf("PRODUCT", "MATERIAL", "CONSUMABLE")
+        val savedUnit = if (lovTrade) OperatingSeedUoms.canonical(unit).ifBlank { null } else unit.ifBlank { null }
+        if (productMaster && lovTrade && savedUnit.isNullOrBlank()) return null
         return OperatingCaptureDraft(
             eventType = "UPDATE",
             title = itemName.trim(),
@@ -2582,7 +2626,7 @@ private fun buildDraft(
             counterpartyName = null,
             paymentStatus = null,
             occurredAt = occurredAt,
-            unit = unit.ifBlank { null },
+            unit = savedUnit,
             itemName = itemName.trim(),
             masterKind = masterKind,
         )
@@ -2627,7 +2671,7 @@ private fun buildDraft(
     if (needsText && !(production && mode == "ORDER") && !contractStock && !governedTrade && purpose.isBlank() && note.isBlank()) return null
     // Contract STOCK has no note field — item + quantity are enough (iOS retailDraft parity).
     if (contractStock && (purpose.isBlank() || quantity.isBlank())) return null
-    if (lovTrade && mode == "SALE" && (channel.isBlank() || (choice != "Received" && party.isBlank()))) return null
+    if (lovTrade && mode == "SALE" && !saleSettled(choice) && party.isBlank()) return null
     if (lovTrade && mode == "ORDER" && party.isBlank() && channel.isBlank()) return null
     if (lovTrade && mode == "SHIPMENT" && (parentId.isBlank() || quantity.isBlank())) return null
     if (lovTrade && mode in setOf("UPDATE", "ISSUE") && purpose.isBlank()) return null
@@ -2877,7 +2921,7 @@ private fun buildDraft(
         paymentStatus = payment,
         occurredAt = occurredAt,
         quantity = quantity.ifBlank { null },
-        unit = unit.ifBlank { null },
+        unit = if (lovTrade) OperatingSeedUoms.canonical(unit).ifBlank { null } else unit.ifBlank { null },
         unitPrice = unitPrice.ifBlank { null },
         itemName = lineItemName.ifBlank { null },
         parentEventId = if (mode == "ORDER" || mode == "APPOINTMENT") null else parentId.ifBlank { null },
@@ -3160,6 +3204,25 @@ fun formatOperatingDetail(detail: String, currency: String?): String {
     }
 }
 
+private fun campaignExpenseName(name: String): Boolean {
+    val key = name.trim().uppercase().replace(' ', '_')
+    return key in setOf(
+        "DIGITAL_ADS",
+        "SOCIAL_CONTENT",
+        "INFLUENCER",
+        "EMAIL_DIRECT",
+        "PRINT",
+        "RADIO_AUDIO",
+        "OUTDOOR",
+        "EVENTS",
+        "OUTREACH",
+        "CREATIVE",
+        "RESEARCH",
+        "MARKETING",
+        "ADVERTISING",
+    )
+}
+
 private val ExpenseCategorySeeds = listOf(
     "Rent", "Salaries", "Transport", "Freight", "Utilities", "Packaging", "Marketing",
     "Maintenance", "Office supplies", "Insurance", "Fees and charges", "Other",
@@ -3234,8 +3297,8 @@ private fun lovOptions(
                 id = master.id,
                 name = master.name,
                 kind = kind,
-                unit = master.unit ?: if (kind == "UOM") master.name else null,
-                subtitle = master.unit?.takeIf { it.isNotBlank() && kind == "PRODUCT" }?.let { "Base unit: $it" },
+                unit = if (kind == "PRODUCT" || kind == "UOM") OperatingSeedUoms.canonical(master.unit ?: if (kind == "UOM") master.name else null).ifBlank { null } else master.unit,
+                subtitle = master.unit?.takeIf { it.isNotBlank() && kind == "PRODUCT" }?.let { "Base unit: ${OperatingSeedUoms.canonical(it)}" },
             )
         }
     val seeds = when (kind) {

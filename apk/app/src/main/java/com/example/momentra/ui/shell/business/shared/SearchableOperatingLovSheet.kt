@@ -64,11 +64,21 @@ object OperatingSeedUoms {
         OperatingLovOption(id = "seed-uom-$code", name = code, kind = "UOM", unit = code, subtitle = label)
     }
 
-    fun dimension(code: String): String? = when (code.trim().lowercase()) {
-        "pc", "pair", "set", "pack", "box", "carton", "dozen", "piece (pc)", "dozen (12 pc)" -> "count"
+    fun canonical(code: String?): String {
+        val raw = code?.trim().orEmpty()
+        if (raw.isEmpty()) return ""
+        return when (raw.lowercase()) {
+            "piece", "pieces", "count", "counts", "pcs" -> "pc"
+            "litre", "liter", "litres", "liters" -> "L"
+            else -> all.firstOrNull { it.name.equals(raw, ignoreCase = true) || it.subtitle.equals(raw, ignoreCase = true) }?.name ?: raw
+        }
+    }
+
+    fun dimension(code: String): String? = when (canonical(code).lowercase()) {
+        "pc", "pair", "set", "pack", "box", "carton", "dozen" -> "count"
         "kg", "g", "tonne" -> "mass"
-        "l", "litre (l)", "ml" -> "volume"
-        "m", "metre (m)", "cm", "foot" -> "length"
+        "l", "ml" -> "volume"
+        "m", "cm", "foot" -> "length"
         "sq ft", "sq m" -> "area"
         else -> null
     }

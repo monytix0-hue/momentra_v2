@@ -213,12 +213,23 @@ enum OperatingSeedUoms {
         ("m", "metre (m)"), ("cm", "cm"), ("foot", "foot"), ("sq ft", "sq ft"), ("sq m", "sq m"),
     ].map { OperatingLovOption(id: "seed-uom-\($0.0)", name: $0.0, kind: "UOM", unit: $0.0, subtitle: $0.1) }
 
+    static func canonical(_ code: String?) -> String {
+        let raw = code?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if raw.isEmpty { return "" }
+        switch raw.lowercased() {
+        case "piece", "pieces", "count", "counts", "pcs": return "pc"
+        case "litre", "liter", "litres", "liters": return "L"
+        default:
+            return all.first { $0.name.caseInsensitiveCompare(raw) == .orderedSame || ($0.subtitle ?? "").caseInsensitiveCompare(raw) == .orderedSame }?.name ?? raw
+        }
+    }
+
     static func dimension(_ code: String) -> String? {
-        switch code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "pc", "pair", "set", "pack", "box", "carton", "dozen", "piece (pc)", "dozen (12 pc)": return "count"
+        switch canonical(code).lowercased() {
+        case "pc", "pair", "set", "pack", "box", "carton", "dozen": return "count"
         case "kg", "g", "tonne": return "mass"
-        case "l", "litre (l)", "ml": return "volume"
-        case "m", "metre (m)", "cm", "foot": return "length"
+        case "l", "ml": return "volume"
+        case "m", "cm", "foot": return "length"
         case "sq ft", "sq m": return "area"
         default: return nil
         }

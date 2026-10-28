@@ -97,10 +97,10 @@ private fun TradingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit, o
             val target = model.target
             val budget = model.budget
             Text("Recorded sales", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-            Text(money(model, target?.progress), color = TradeInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 28.sp)
+            Text(money(model, recordedSales(model)), color = TradeInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 28.sp)
             if (target?.configured == true) {
                 Text("of ${money(model, target.value)} sales target", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
-                Meter("Sales progress", fraction(target.progress, target.value), TradeBrand)
+                Meter("Sales progress", fraction(recordedSales(model), target.value), TradeBrand)
             } else {
                 Text("No sales target set for this period.", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
             }
@@ -227,7 +227,7 @@ private fun TradingMoments(model: OperatingProjectionDto, onOpenQuickAdd: () -> 
             Metric("Remaining", if (model.budget?.configured == true) money(model, model.budget?.remaining) else "—", Modifier.weight(1f))
         }
         if (model.target?.configured == true) {
-            Meter("Sales toward target", fraction(model.target?.progress, model.target?.value), TradeBrand)
+            Meter("Sales toward target", fraction(recordedSales(model), model.target?.value), TradeBrand)
         }
     }
     (model.boards?.moments ?: emptyList()).forEach { section ->
@@ -497,6 +497,15 @@ private fun Line(label: String, value: String, color: Color) {
 
 private fun roleLabel(code: String?): String =
     OperatingMomentCatalog.roles.firstOrNull { it.first == code }?.second ?: "Trading"
+
+private fun recordedSales(model: OperatingProjectionDto): String? {
+    val metric = model.target?.metric?.trim().orEmpty()
+    return if (metric.isEmpty() || metric.equals("REVENUE", ignoreCase = true)) {
+        model.finance?.sales ?: model.target?.progress
+    } else {
+        model.target?.progress
+    }
+}
 
 private fun money(model: OperatingProjectionDto, raw: String?): String =
     com.example.momentra.ui.shell.business.shared.formatOperatingAmount(model.currency, raw, model.financeVisible)

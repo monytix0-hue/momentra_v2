@@ -237,16 +237,28 @@ struct OperatingCaptureSheet: View {
     }
     private var lovAccent: Color { trading || distribution ? Color(hex: trading ? "#6DDCFF" : "#5DDEA6") : Color(hex: "#B7B8FF") }
     private var allLovOptions: [OperatingLovOption] {
-        let fromModel = (model.masters ?? []).map {
-            OperatingLovOption(id: $0.id, name: $0.name, kind: $0.kind, unit: $0.unit, subtitle: $0.unit, conversionToBase: $0.conversionToBase)
+        let fromModel = (model.masters ?? []).map { master in
+            let product = master.kind.uppercased() == "PRODUCT"
+            let base = product || master.kind.uppercased() == "UOM" ? OperatingSeedUoms.canonical(master.unit) : (master.unit ?? "")
+            let shown = base.isEmpty ? master.unit : base
+            let subtitle = product && !(shown ?? "").isEmpty ? "Base unit: \(shown!)" : master.unit
+            return OperatingLovOption(id: master.id, name: master.name, kind: master.kind, unit: shown, subtitle: subtitle, conversionToBase: master.conversionToBase)
         }
-        let expenseSeeds = expenseCategories.map {
+        let expenseSource = tradingFamily ? expenseCategories.filter { !campaignExpense($0) } : expenseCategories
+        let expenseSeeds = expenseSource.map {
             OperatingLovOption(id: "seed-expense-\($0)", name: $0, kind: "EXPENSE_CATEGORY", unit: nil, subtitle: nil)
         }
         let channelSeeds = channels.map {
             OperatingLovOption(id: "seed-channel-\($0)", name: $0, kind: "CHANNEL", unit: nil, subtitle: nil)
         }
-        return localMasters + fromModel + OperatingSeedUoms.all + expenseSeeds + channelSeeds
+        let combined = localMasters + fromModel + OperatingSeedUoms.all + expenseSeeds + channelSeeds
+        guard tradingFamily else { return combined }
+        return combined.filter { $0.kind.uppercased() != "EXPENSE_CATEGORY" || !campaignExpense($0.name) }
+    }
+
+    private func campaignExpense(_ name: String) -> Bool {
+        let key = name.trimmingCharacters(in: .whitespacesAndNewlines).uppercased().replacingOccurrences(of: " ", with: "_")
+        return ["DIGITAL_ADS", "SOCIAL_CONTENT", "INFLUENCER", "EMAIL_DIRECT", "PRINT", "RADIO_AUDIO", "OUTDOOR", "EVENTS", "OUTREACH", "CREATIVE", "RESEARCH", "MARKETING", "ADVERTISING"].contains(key)
     }
 
     var body: some View {
@@ -272,7 +284,7 @@ struct OperatingCaptureSheet: View {
                     Text(actor).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#B7B8FF"))
                     Text(statusLine).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#C9C4D8"))
                     if contractFamily && contractModes.contains(mode) { retailFields } else { fields }
-                    if marketing && ["ACTIVITY", "PROGRESS", "RESULT", "SPEND", "REVISION", "INVOICE"].contains(eventType) {
+                    if marketing && !tradingFamily && ["ACTIVITY", "PROGRESS", "RESULT", "SPEND", "REVISION", "INVOICE"].contains(eventType) {
                         marketingFields
                     }
                     if let errorText { Text(errorText).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#F87171")) }
@@ -344,7 +356,11 @@ struct OperatingCaptureSheet: View {
             }
         }
         .onAppear {
-            channel = channels.first ?? ""
+            if channel.trimmingCharacters(in: .whitespaces).isEmpty {
+                channel = channels.first { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                    ?? (model.masters ?? []).first { $0.kind.uppercased() == "CHANNEL" && !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }?.name
+                    ?? ""
+            }
             if marketing && mode == "DELIVERABLE" && detail.isEmpty { detail = "Due" }
             if production && mode == "PRODUCTION" { entryMode = "Quick output" }
             if production && mode == "DELIVERY" { entryMode = "Quick status" }
@@ -405,10 +421,10 @@ struct OperatingCaptureSheet: View {
 
     private var selectedProductUnit: String {
         if let id = productMasterId, let master = (model.masters ?? []).first(where: { $0.id == id }), let masterUnit = master.unit, !masterUnit.isEmpty {
-            return masterUnit
+            return OperatingSeedUoms.canonical(masterUnit)
         }
         if let local = localMasters.first(where: { $0.kind.uppercased() == "PRODUCT" && ($0.name == itemName || $0.name == purpose) }), let localUnit = local.unit, !localUnit.isEmpty {
-            return localUnit
+            return OperatingSeedUoms.canonical(localUnit)
         }
         return ""
     }
@@ -440,7 +456,8 @@ struct OperatingCaptureSheet: View {
         case "PRODUCT":
             itemName = option.name
             productMasterId = option.id.hasPrefix("seed-") || option.id.hasPrefix("local-") ? nil : option.id
-            if let unitName = option.unit, !unitName.isEmpty { unit = unitName }
+            let baseUnit = OperatingSeedUoms.canonical(option.unit)
+            if !baseUnit.isEmpty { unit = baseUnit }
             if mode == "STOCK" { purpose = option.name }
             if let master = (model.masters ?? []).first(where: { $0.id == option.id }) {
                 if let rate = displayGstRate(master.gstRate) { gstRate = rate }
@@ -924,7 +941,11 @@ struct OperatingCaptureSheet: View {
         choiceBlock("Master", options: masterKinds, selected: masterKind) { masterKind = $0 }
         editField("Name", text: $itemName, placeholder: "Required")
         if ["PRODUCT", "MATERIAL", "CONSUMABLE"].contains(masterKind) {
-            choiceBlock("Unit", options: ["piece", "kg", "litre", "count"], selected: unit) { unit = $0 }
+            if tradingFamily {
+                choiceBlock("Base unit", options: OperatingSeedUoms.all.map(\.name), selected: unit) { unit = $0 }
+            } else {
+                choiceBlock("Unit", options: ["piece", "kg", "litre", "count"], selected: unit) { unit = $0 }
+            }
         }
         editField("Detail", text: $purpose, placeholder: "Optional")
         masterGstFields
@@ -1181,8 +1202,10 @@ struct OperatingCaptureSheet: View {
                 let amountOk = entryMode == "Itemized"
                     ? (!itemName.trimmingCharacters(in: .whitespaces).isEmpty || !savedLines.isEmpty)
                     : (Decimal(string: amount) ?? 0) > 0
-                let buyerOk = choice == "Received" || named
-                return amountOk && !channel.trimmingCharacters(in: .whitespaces).isEmpty && buyerOk
+                let buyerOk = saleSettled || named
+                let knownChannel = !channels.isEmpty || (model.masters ?? []).contains { $0.kind.uppercased() == "CHANNEL" && !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
+                let channelOk = !channel.trimmingCharacters(in: .whitespaces).isEmpty || !knownChannel
+                return amountOk && channelOk && buyerOk
             case "PURCHASE":
                 return named && (!itemName.trimmingCharacters(in: .whitespaces).isEmpty || (Decimal(string: amount) ?? 0) > 0)
             case "SPEND":
@@ -1855,6 +1878,7 @@ struct OperatingCaptureSheet: View {
         if mode == "MASTERS" {
             let name = itemName.trimmingCharacters(in: .whitespaces)
             if name.isEmpty { return nil }
+            if tradingFamily && ["PRODUCT", "MATERIAL", "CONSUMABLE"].contains(masterKind) && OperatingSeedUoms.canonical(unit).isEmpty { return nil }
             return captured(eventType: "UPDATE", title: name, amount: nil, note: purpose, channelName: nil, counterpartyName: nil, payment: nil)
         }
         if production && ["PRODUCTION", "PURCHASE", "SPEND", "SALE", "ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "STOCK", "BUDGET", "UPDATE", "ISSUE"].contains(mode) {
@@ -1993,7 +2017,8 @@ struct OperatingCaptureSheet: View {
         let lines = retailLines()
         switch mode {
         case "SALE", "SERVICE":
-            if channel.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+            let knownChannel = !channels.isEmpty || (model.masters ?? []).contains { $0.kind.uppercased() == "CHANNEL" && !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
+            if knownChannel && channel.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
             if entryMode == "Quick amount", (Decimal(string: rawAmount) ?? 0) <= 0 { return nil }
             if entryMode == "Itemized", lines.isEmpty { return nil }
             if choice == "Part paid", (Decimal(string: receivedAmount) ?? 0) <= 0 { return nil }
@@ -2024,7 +2049,23 @@ struct OperatingCaptureSheet: View {
         case "APPOINTMENT":
             if purpose.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
         case "UPDATE", "ISSUE":
-            if purpose.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+            let text = purpose.trimmingCharacters(in: .whitespaces)
+            if text.isEmpty { return nil }
+            let priority = mode == "ISSUE" ? choice.trimmingCharacters(in: .whitespaces) : ""
+            let detail = note.trimmingCharacters(in: .whitespaces)
+            let combined = [priority.isEmpty ? nil : priority, detail.isEmpty ? nil : detail].compactMap { $0 }.joined(separator: " · ")
+            let owner = party.trimmingCharacters(in: .whitespaces)
+            return OperatingCaptureDraft(
+                eventType: mode,
+                title: text,
+                amount: nil,
+                note: combined.isEmpty ? nil : combined,
+                channelName: nil,
+                counterpartyName: mode == "ISSUE" && !owner.isEmpty ? owner : nil,
+                paymentStatus: "NONE",
+                occurredAt: occurredAtValue,
+                dueAt: mode == "ISSUE" ? isoDay(eventDate) : nil
+            )
         default:
             return nil
         }
@@ -2162,7 +2203,12 @@ struct OperatingCaptureSheet: View {
             paymentStatus: nil,
             occurredAt: mode == "APPOINTMENT" || mode == "ORDER" ? isoDay(eventDate) : occurredAtValue,
             quantity: quantity.trimmingCharacters(in: .whitespaces).isEmpty ? nil : quantity,
-            unit: unit.trimmingCharacters(in: .whitespaces).isEmpty ? nil : unit,
+            unit: {
+                let raw = unit.trimmingCharacters(in: .whitespaces)
+                if raw.isEmpty { return nil }
+                if tradingFamily { let seeded = OperatingSeedUoms.canonical(raw); return seeded.isEmpty ? nil : seeded }
+                return raw
+            }(),
             parentEventId: mode == "ORDER" || mode == "APPOINTMENT" ? nil : (parentId.isEmpty ? nil : parentId),
             revisesEventId: (mode == "ORDER" || mode == "APPOINTMENT") && !parentId.isEmpty ? parentId : seed?.id,
             dueAt: mode == "ISSUE" ? isoDay(eventDate) : retailDueAt,
@@ -2443,7 +2489,9 @@ struct OperatingCaptureSheet: View {
         let priced = ["SALE", "SERVICE", "PURCHASE", "VENDOR"].contains(mode) && !item.isEmpty && contract == nil
         let shown = priced ? item : title
         let qty = overrideQuantity ?? (self.quantity.trimmingCharacters(in: .whitespaces).isEmpty ? nil : self.quantity)
-        let unitValue = overrideUnit ?? (unit.trimmingCharacters(in: .whitespaces).isEmpty ? nil : unit)
+        let rawUnit = overrideUnit ?? (unit.trimmingCharacters(in: .whitespaces).isEmpty ? nil : unit)
+        let seededUnit = OperatingSeedUoms.canonical(rawUnit)
+        let unitValue = tradingFamily ? (seededUnit.isEmpty ? nil : seededUnit) : rawUnit
         return OperatingCaptureDraft(
             eventType: eventType,
             title: shown.isEmpty ? self.title : shown,

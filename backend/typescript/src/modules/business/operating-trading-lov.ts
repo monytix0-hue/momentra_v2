@@ -61,9 +61,23 @@ function num(value: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+const UOM_ALIASES: Record<string, string> = {
+  piece: 'pc',
+  pieces: 'pc',
+  count: 'pc',
+  counts: 'pc',
+  pcs: 'pc',
+  litre: 'L',
+  liter: 'L',
+  litres: 'L',
+  liters: 'L',
+};
+
 export function seedUomByCode(code: string | null | undefined): SeedUom | null {
-  const key = String(code ?? '').trim().toLowerCase();
-  if (!key) return null;
+  const raw = String(code ?? '').trim();
+  if (!raw) return null;
+  const aliased = UOM_ALIASES[raw.toLowerCase()] ?? raw;
+  const key = aliased.toLowerCase();
   return SEED_UOMS.find((row) => row.code.toLowerCase() === key || row.label.toLowerCase() === key) ?? null;
 }
 

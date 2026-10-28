@@ -87,6 +87,18 @@ struct RetailStoreSetupView: View {
                 header
                 hero
                 modelSelector
+                if let howCopy = TradingHowItWorksCopy.forSubtype(subtype.code) {
+                    Text(howCopy.context)
+                        .font(.plusJakarta(size: 13))
+                        .foregroundStyle(spec.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("See how it works", action: openHowItWorks)
+                        .buttonStyle(.plain)
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(spec.brand)
+                        .frame(minHeight: 44, alignment: .leading)
+                        .accessibilityLabel("See how it works")
+                }
                 HStack {
                     Text(spec.steps).font(.plusJakarta(size: 12)).foregroundStyle(spec.secondary)
                     Spacer()
@@ -107,34 +119,29 @@ struct RetailStoreSetupView: View {
                 if let message = plainSetupError(localError ?? createModel.state.error) {
                     Text(message).font(.plusJakarta(size: 13)).foregroundStyle(Color(hex: "#F87171"))
                 }
-                Button(createModel.state.submitting ? "Starting…" : spec.activate, action: activate)
-                    .buttonStyle(.plain)
-                    .font(.plusJakarta(size: 16, weight: .semibold))
-                    .foregroundStyle(spec.actionInk)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(spec.brand.opacity(createModel.state.submitting ? 0.45 : 1))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .disabled(createModel.state.submitting)
-                    .accessibilityIdentifier("business.setup.submit")
-                if let howCopy = TradingHowItWorksCopy.forSubtype(subtype.code) {
-                    Text(howCopy.context)
-                        .font(.plusJakarta(size: 13))
-                        .foregroundStyle(spec.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button("See how it works") {
-                        howItWorks = true
-                        trackWidget(
-                            screenName: AnalyticsScreens.businessSetupRunway,
-                            widgetName: "how_it_works_opened",
-                            action: subtype.code
-                        )
+                if TradingHowItWorksCopy.forSubtype(subtype.code) != nil {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .center, spacing: 12) {
+                            createButton.frame(minWidth: 280)
+                            Button("See how it works", action: openHowItWorks)
+                                .buttonStyle(.plain)
+                                .font(.plusJakarta(size: 14, weight: .semibold))
+                                .foregroundStyle(spec.brand)
+                                .fixedSize()
+                                .accessibilityLabel("See how it works")
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            createButton
+                            Button("See how it works", action: openHowItWorks)
+                                .buttonStyle(.plain)
+                                .font(.plusJakarta(size: 14, weight: .semibold))
+                                .foregroundStyle(spec.brand)
+                                .frame(minHeight: 44, alignment: .leading)
+                                .accessibilityLabel("See how it works")
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .font(.plusJakarta(size: 14, weight: .semibold))
-                    .foregroundStyle(spec.brand)
-                    .frame(minHeight: 44, alignment: .leading)
-                    .accessibilityLabel("See how it works")
+                } else {
+                    createButton
                 }
                 Text(spec.footer)
                     .font(.plusJakarta(size: 12)).foregroundStyle(spec.secondary)
@@ -650,6 +657,28 @@ struct RetailStoreSetupView: View {
             companyEdited = true
         }
         if gstin.isEmpty && !initialGstin.isEmpty { gstin = initialGstin }
+    }
+
+    private func openHowItWorks() {
+        howItWorks = true
+        trackWidget(
+            screenName: AnalyticsScreens.businessSetupRunway,
+            widgetName: "how_it_works_opened",
+            action: subtype.code
+        )
+    }
+
+    private var createButton: some View {
+        Button(createModel.state.submitting ? "Starting…" : spec.activate, action: activate)
+            .buttonStyle(.plain)
+            .font(.plusJakarta(size: 16, weight: .semibold))
+            .foregroundStyle(spec.actionInk)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background(spec.brand.opacity(createModel.state.submitting ? 0.45 : 1))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .disabled(createModel.state.submitting)
+            .accessibilityIdentifier("business.setup.submit")
     }
 
     private func activate() {
