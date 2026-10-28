@@ -897,6 +897,32 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
       asTrading([product])
     );
     assert.equal(pack.ok, false);
+    const legacy = event('legacy', 'UPDATE', {
+      title: 'Oil',
+      master: { kind: 'PRODUCT', name: 'Oil', unit: 'litre' },
+    });
+    const litre = validateTradingWrite(
+      write({
+        eventType: 'STOCK',
+        title: 'Oil',
+        quantity: '2',
+        lines: [{ itemName: 'Oil', quantity: '2', unit: 'L', masterId: 'legacy' }],
+        contract: { stockAction: 'ADD', stockReason: 'opening', ownership: 'OWNED' },
+      }),
+      asTrading([legacy])
+    );
+    assert.equal(litre.ok, true);
+    const piece = validateTradingWrite(
+      write({
+        eventType: 'STOCK',
+        title: 'Widget',
+        quantity: '3',
+        lines: [{ itemName: 'Widget', quantity: '3', unit: 'piece', masterId: 'prod' }],
+        contract: { stockAction: 'ADD', stockReason: 'stocktake', ownership: 'OWNED' },
+      }),
+      asTrading([product])
+    );
+    assert.equal(piece.ok, true);
   });
 
   it('a sales order can be billed in part and a paid sale can still await delivery', () => {

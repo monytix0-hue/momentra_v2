@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -679,6 +680,13 @@ fun RetailStoreSetup(
     var purchasePriceIncludesGst by remember { mutableStateOf("NO") }
     var gstEffectiveFrom by remember { mutableStateOf("") }
     var howItWorksViaCreate by remember { mutableStateOf(false) }
+    val openHowItWorks = {
+        howItWorksViaCreate = false
+        howItWorks = true
+        trackWidget(AnalyticsScreens.BUSINESS_SETUP_RUNWAY, "how_it_works_opened", look.code)
+    }
+    val howCopy = TradingHowItWorksCopy.forSubtype(look.code)
+    val wideHowItWorks = howCopy != null && LocalConfiguration.current.screenWidthDp >= 600
     val needsApprover = policy == "APPROVAL_REQUIRED" && invites.none { it.role == "APPROVER" }
     val ready = name.isNotBlank() &&
         companyName.isNotBlank() &&
@@ -763,6 +771,18 @@ fun RetailStoreSetup(
                         Text(item.label, color = if (on) look.chipOnLabel else look.chipOffLabel, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, textAlign = TextAlign.Center)
                     }
                 }
+            }
+        }
+        if (howCopy != null) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    howCopy.context,
+                    color = Secondary,
+                    fontFamily = PlusJakartaSans,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+                SeeHowItWorksLink(look.brand, openHowItWorks)
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -1040,9 +1060,14 @@ fun RetailStoreSetup(
         }
         val shown = plainSetupError(localError ?: error)
         if (!shown.isNullOrBlank()) Text(shown, color = Color(0xFFF87171), fontFamily = PlusJakartaSans, fontSize = 13.sp)
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .weight(1f)
                 .height(56.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .background(look.activateFill.copy(alpha = if (submitting) 0.45f else 1f))
@@ -1108,31 +1133,9 @@ fun RetailStoreSetup(
                 fontSize = 16.sp,
             )
         }
-        val howCopy = TradingHowItWorksCopy.forSubtype(look.code)
-        if (howCopy != null) {
-            Text(
-                howCopy.context,
-                color = Secondary,
-                fontFamily = PlusJakartaSans,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-            )
-            Text(
-                "See how it works",
-                color = look.brand,
-                fontFamily = PlusJakartaSans,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-                modifier = Modifier
-                    .clickable {
-                        howItWorksViaCreate = false
-                        howItWorks = true
-                        trackWidget(AnalyticsScreens.BUSINESS_SETUP_RUNWAY, "how_it_works_opened", look.code)
-                    }
-                    .padding(vertical = 8.dp)
-                    .semantics { role = Role.Button },
-            )
+        if (wideHowItWorks) SeeHowItWorksLink(look.brand, openHowItWorks)
         }
+        if (howCopy != null && !wideHowItWorks) SeeHowItWorksLink(look.brand, openHowItWorks)
         Text(look.footer, color = Secondary, fontFamily = PlusJakartaSans, fontSize = 12.sp, lineHeight = 18.sp)
     }
 
@@ -1187,6 +1190,21 @@ fun RetailStoreSetup(
         }
     }
     }
+}
+
+@Composable
+private fun SeeHowItWorksLink(color: Color, onClick: () -> Unit) {
+    Text(
+        "See how it works",
+        color = color,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp)
+            .semantics { role = Role.Button },
+    )
 }
 
 @Composable
