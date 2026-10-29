@@ -26,19 +26,36 @@ function checksum(body: string): string {
   return createHash('sha256').update(body).digest('hex').slice(0, 32);
 }
 
+/**
+ * Story read/write access. Operating Business moments authorize through company
+ * membership; everything else (Group, Personal, non-operating Business moments)
+ * falls back to the MOMENT governance check, which resolves the domain-appropriate
+ * owner/participant/member scope from PostgreSQL.
+ */
 async function assertStoryAccess(client: PoolClient, ctx: RequestContext, momentId: string): Promise<void> {
-  const marketing = await client.query(
+  const operating = await client.query(
     `SELECT 1 FROM business.business_system_setup
-     WHERE moment_id = $1 AND family_code IN ('MARKETING_CAMPAIGNS', 'RETAIL_CONSUMER', 'MANUFACTURING_PRODUCTION') AND status = 'ACTIVE'
+     WHERE moment_id = $1
+       AND family_code IN (
+         'MARKETING_CAMPAIGNS',
+         'TRADING_DISTRIBUTION',
+         'RETAIL_CONSUMER',
+         'MANUFACTURING_PRODUCTION'
+       )
+       AND status = 'ACTIVE'
      LIMIT 1`,
     [momentId]
   );
-  if (marketing.rows[0]) {
+  if (operating.rows[0]) {
     const { assertCompanyMomentAccess } = await import('../business/membership');
     await assertCompanyMomentAccess(client, ctx, momentId);
     return;
   }
-  await assertStoryAccess(client, ctx, momentId);
+  await assertGovernanceAllowed(client, ctx, {
+    actionCode: 'GROUP_ACCESS',
+    resourceType: 'MOMENT',
+    momentId,
+  });
 }
 
 async function insertArtifact(
@@ -309,11 +326,13 @@ export async function getMomentStory(
     story_version: number;
     status: string;
     family_profile: string;
+    domain_code: string;
   }>(
-    `SELECT story_id, story_version, status, family_profile
-     FROM core.moment_story
-     WHERE moment_id = $1 AND status = 'READY'
-     ORDER BY story_version DESC LIMIT 1`,
+    `SELECT st.story_id, st.story_version, st.status, st.family_profile, m.domain_code
+     FROM core.moment_story st
+     JOIN core.moment m ON m.moment_id = st.moment_id
+     WHERE st.moment_id = $1 AND st.status = 'READY'
+     ORDER BY st.story_version DESC LIMIT 1`,
     [momentId]
   );
   if (!story.rows[0]) {
@@ -328,18 +347,16 @@ export async function getMomentStory(
   }
   const snapshot = snap.rows[0].snapshot_json;
   // Re-sign memory media on every read — frozen snapshot URLs expire (~1h).
-  // Money is live Group Finance, not the completion-time snapshot.
-  const [freshPhotos, freshMoney] = await Promise.all([
-    loadFreshStoryPhotos(client, momentId),
-    loadFreshStoryMoney(client, momentId),
-  ]);
-  const hydrated: StorySnapshot = applyFreshStoryMoney(
-    hydrateStoryMoneyCategories({
-      ...snapshot,
-      photos: freshPhotos,
-    }),
-    freshMoney
-  );
+  const freshPhotos = await loadFreshStoryPhotos(client, momentId);
+  // Money is live Group Finance only for GROUP stories. Business stories compose their
+  // money from business.operating_event; the Group Finance query filters domain_code = 'GROUP',
+  // so applying it here would replace recorded revenue/spend with zeroes and drop every
+  // mc-/rf-/mf- highlight the business composers wrote.
+  let hydrated: StorySnapshot = { ...snapshot, photos: freshPhotos };
+  if (story.rows[0].domain_code === 'GROUP') {
+    const freshMoney = await loadFreshStoryMoney(client, momentId);
+    hydrated = applyFreshStoryMoney(hydrateStoryMoneyCategories(hydrated), freshMoney);
+  }
   return {
     storyId: story.rows[0].story_id,
     storyVersion: story.rows[0].story_version,
@@ -520,9 +537,15 @@ export async function getPublicStoryByToken(
   if (!s || s.revoked_at || (s.expires_at && s.expires_at.getTime() < Date.now())) {
     return { html: '<html><body><p>This Moment Story link is no longer available.</p></body></html>', title: 'Unavailable', revoked: true };
   }
-  const snapRow = await client.query<{ moment_id: string; snapshot_json: StorySnapshot; title: string | null }>(
-    `SELECT st.moment_id, ss.snapshot_json, ss.snapshot_json->'identity'->>'title' AS title
+  const snapRow = await client.query<{
+    moment_id: string;
+    domain_code: string;
+    snapshot_json: StorySnapshot;
+    title: string | null;
+  }>(
+    `SELECT st.moment_id, m.domain_code, ss.snapshot_json, ss.snapshot_json->'identity'->>'title' AS title
      FROM core.moment_story st
+     JOIN core.moment m ON m.moment_id = st.moment_id
      JOIN core.moment_story_snapshot ss ON ss.story_id = st.story_id
      WHERE st.story_id = $1`,
     [s.story_id]
@@ -531,14 +554,13 @@ export async function getPublicStoryByToken(
   if (!stored) {
     return { html: '<html><body><p>Story not ready.</p></body></html>', title: 'Moment Story', revoked: false };
   }
-  const [freshPhotos, freshMoney] = await Promise.all([
-    loadFreshStoryPhotos(client, stored.moment_id),
-    loadFreshStoryMoney(client, stored.moment_id),
-  ]);
-  const hydrated = applyFreshStoryMoney(
-    hydrateStoryMoneyCategories({ ...stored.snapshot_json, photos: freshPhotos }),
-    freshMoney
-  );
+  const freshPhotos = await loadFreshStoryPhotos(client, stored.moment_id);
+  // Business stories keep their operating-ledger money; Group Finance only applies to Group.
+  let hydrated: StorySnapshot = { ...stored.snapshot_json, photos: freshPhotos };
+  if (stored.domain_code === 'GROUP') {
+    const freshMoney = await loadFreshStoryMoney(client, stored.moment_id);
+    hydrated = applyFreshStoryMoney(hydrateStoryMoneyCategories(hydrated), freshMoney);
+  }
   const webUrl = `${publicStoryWebBase()}/story/${shareToken}`;
   return {
     html: renderInteractiveStoryHtml(hydrated, { ogUrl: webUrl }),
