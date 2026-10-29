@@ -54,7 +54,7 @@ struct BusinessLifeEmptyView: View {
                                     .font(.system(size: 15, weight: .bold, design: .monospaced))
                                     .foregroundStyle(BusinessEmptyTokens.textPrimary)
                                 Text(label)
-                                    .font(.system(size: 10))
+                                    .font(.plusJakarta(size: 10))
                                     .foregroundStyle(BusinessEmptyTokens.textMuted)
                             }
                             .frame(maxWidth: .infinity)
@@ -86,7 +86,7 @@ struct BusinessLifeEmptyView: View {
                 BusinessEmptyAssetIcon(name: icon, size: 20)
             }
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.plusJakarta(size: 11, weight: .semibold))
                 .foregroundStyle(BusinessEmptyTokens.textPrimary)
         }
     }

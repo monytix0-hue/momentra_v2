@@ -37,7 +37,7 @@ protocol MomentCreateGateway {
     func mintGroupInvite(draftKey: String, title: String, momentTypeCode: String) async throws -> GroupInvite
     func previewGroupInvite(code: String) async throws -> GroupInvite
     func redeemGroupInvite(code: String) async throws -> RedeemGroupInviteResult
-    func mintCompanyInvite(companyId: String, membershipType: String) async throws -> CompanyInvite
+    func mintCompanyInvite(companyId: String, membershipType: String, operatingRole: String?) async throws -> CompanyInvite
     func previewCompanyInvite(code: String) async throws -> CompanyInvite
     func redeemCompanyInvite(code: String) async throws -> RedeemCompanyInviteResult
     func listCompanies() async throws -> [CompanySummary]
@@ -177,10 +177,11 @@ final class MomentCreateRepository: MomentCreateGateway {
         try await client.getCompanyInvite(code: code)
     }
 
-    func mintCompanyInvite(companyId: String, membershipType: String) async throws -> CompanyInvite {
+    func mintCompanyInvite(companyId: String, membershipType: String, operatingRole: String?) async throws -> CompanyInvite {
         try await client.mintCompanyInvite(
             companyId: companyId,
             membershipType: membershipType,
+            operatingRole: operatingRole,
             idempotencyKey: UUID().uuidString
         )
     }

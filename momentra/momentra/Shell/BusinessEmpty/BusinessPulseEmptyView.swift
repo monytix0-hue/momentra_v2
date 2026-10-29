@@ -27,7 +27,7 @@ struct BusinessPulseEmptyView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Text(label)
-                                        .font(.system(size: 11))
+                                        .font(.plusJakarta(size: 11))
                                         .foregroundStyle(BusinessEmptyTokens.textSecondary)
                                     Spacer()
                                     Text(BusinessNoMomentEmptyCopy.absent)
@@ -59,10 +59,10 @@ struct BusinessPulseEmptyView: View {
                                 }
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(feature.1)
-                                        .font(.system(size: 13, weight: .semibold))
+                                        .font(.plusJakarta(size: 13, weight: .semibold))
                                         .foregroundStyle(BusinessEmptyTokens.textPrimary)
                                     Text(feature.2)
-                                        .font(.system(size: 11))
+                                        .font(.plusJakarta(size: 11))
                                         .foregroundStyle(BusinessEmptyTokens.textSecondary)
                                         .lineLimit(2)
                                 }

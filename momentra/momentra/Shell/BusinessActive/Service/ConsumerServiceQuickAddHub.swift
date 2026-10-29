@@ -58,6 +58,8 @@ struct ServiceQuickAddHub: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(ServiceChrome.notice)
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(ServiceChrome.brand.opacity(0.3), lineWidth: 1))
+            .shadow(color: ServiceChrome.brand.opacity(0.4), radius: 24, y: 8)
             .clipShape(RoundedRectangle(cornerRadius: 18))
             HStack(spacing: 10) {
                 Image("biz_qa_search").renderingMode(.template).resizable().scaledToFit().frame(width: 18, height: 18)
@@ -267,7 +269,7 @@ enum ServiceSheetKind: String, Identifiable {
         case .purchase: return "Record Purchase"
         case .spend: return "Record Expense"
         case .payment: return "Record Payment"
-        case .collection: return "Record Collection"
+        case .collection: return "Money collection"
         case .budget, .revision: return "Budget / Target Revision"
         case .update: return "Issue / Approval / Update"
         case .issue: return "Report Issue"

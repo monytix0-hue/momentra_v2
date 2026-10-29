@@ -216,7 +216,50 @@ struct CompanyInvite: Decodable {
     let title: String
     let companyId: String
     let membershipType: String
+    let operatingRole: String?
     let expiresAt: String?
+
+    init(
+        inviteId: String,
+        inviteCode: String,
+        invitePath: String,
+        inviteUrl: String,
+        status: String,
+        title: String,
+        companyId: String,
+        membershipType: String,
+        operatingRole: String? = nil,
+        expiresAt: String?
+    ) {
+        self.inviteId = inviteId
+        self.inviteCode = inviteCode
+        self.invitePath = invitePath
+        self.inviteUrl = inviteUrl
+        self.status = status
+        self.title = title
+        self.companyId = companyId
+        self.membershipType = membershipType
+        self.operatingRole = operatingRole
+        self.expiresAt = expiresAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        inviteId = try c.decode(String.self, forKey: .inviteId)
+        inviteCode = try c.decode(String.self, forKey: .inviteCode)
+        invitePath = try c.decodeIfPresent(String.self, forKey: .invitePath) ?? ""
+        inviteUrl = try c.decodeIfPresent(String.self, forKey: .inviteUrl) ?? ""
+        status = try c.decodeIfPresent(String.self, forKey: .status) ?? "ACTIVE"
+        title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+        companyId = try c.decodeIfPresent(String.self, forKey: .companyId) ?? ""
+        membershipType = try c.decodeIfPresent(String.self, forKey: .membershipType) ?? "MEMBER"
+        operatingRole = try c.decodeIfPresent(String.self, forKey: .operatingRole)
+        expiresAt = try c.decodeIfPresent(String.self, forKey: .expiresAt)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case inviteId, inviteCode, invitePath, inviteUrl, status, title, companyId, membershipType, operatingRole, expiresAt
+    }
 }
 
 struct RedeemCompanyInviteResult: Decodable {

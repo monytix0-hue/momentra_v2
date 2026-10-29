@@ -169,9 +169,9 @@ fun BusinessLocationFlow(
     pendingRemove?.let { location ->
         AlertDialog(
             onDismissRequest = { pendingRemove = null },
-            title = { Text("Remove ${location.name}?") },
+            title = { Text("Remove ${location.name}?", fontFamily = PlusJakartaSans) },
             text = {
-                Text("It will no longer appear in your locations.")
+                Text("It will no longer appear in your locations.", fontFamily = PlusJakartaSans)
             },
             confirmButton = {
                 TextButton(
@@ -205,12 +205,12 @@ fun BusinessLocationFlow(
                         }
                     },
                 ) {
-                    Text("Remove", color = ColorRemove)
+                    Text("Remove", color = ColorRemove, fontFamily = PlusJakartaSans)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingRemove = null }) {
-                    Text("Cancel")
+                    Text("Cancel", fontFamily = PlusJakartaSans)
                 }
             },
         )
@@ -240,7 +240,7 @@ private fun AddLocationSheet(
         Text("Add Location", color = GapText, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
         GapField("Name", name) { name = it }
         GapField("Address", address) { address = it }
-        error?.let { Text(it, color = GapMuted, fontSize = 12.sp) }
+        error?.let { Text(it, color = GapMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans) }
         Text(
             "Save",
             color = if (name.isNotBlank() && !busy) GapBg else GapMuted,
@@ -282,8 +282,9 @@ private fun AddLocationSheet(
                     }
                 }
                 .padding(horizontal = 16.dp, vertical = 12.dp),
+            fontFamily = PlusJakartaSans,
         )
-        Text("Cancel", color = GapMuted, modifier = Modifier.clickable(onClick = onDismiss))
+        Text("Cancel", color = GapMuted, modifier = Modifier.clickable(onClick = onDismiss), fontFamily = PlusJakartaSans)
     }
 }
 
@@ -309,7 +310,7 @@ private fun EditLocationSheet(
         Text("Edit Location", color = GapText, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
         GapField("Name", name) { name = it }
         GapField("Address", address) { address = it }
-        error?.let { Text(it, color = ColorRemove, fontSize = 12.sp) }
+        error?.let { Text(it, color = ColorRemove, fontSize = 12.sp, fontFamily = PlusJakartaSans) }
         Text(
             "Save",
             color = if (name.isNotBlank() && !busy) GapBg else GapMuted,
@@ -355,8 +356,9 @@ private fun EditLocationSheet(
                     }
                 }
                 .padding(horizontal = 16.dp, vertical = 12.dp),
+            fontFamily = PlusJakartaSans,
         )
-        Text("Cancel", color = GapMuted, modifier = Modifier.clickable(onClick = onDismiss))
+        Text("Cancel", color = GapMuted, modifier = Modifier.clickable(onClick = onDismiss), fontFamily = PlusJakartaSans)
     }
 }
 
@@ -379,9 +381,9 @@ fun BusinessDateSheet(initial: String, onDismiss: () -> Unit, onConfirm: (String
                     val date = Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate().toString()
                     onConfirm(date)
                 }
-            }) { Text("Use date") }
+            }) { Text("Use date", fontFamily = PlusJakartaSans) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", fontFamily = PlusJakartaSans) } },
     ) { DatePicker(state = state) }
 }
 
@@ -416,8 +418,9 @@ fun BusinessNotesSheet(initial: String, onDismiss: () -> Unit, onConfirm: (Strin
                 .background(GapAccent)
                 .clickable { onConfirm(text.trim()) }
                 .padding(horizontal = 16.dp, vertical = 12.dp),
+            fontFamily = PlusJakartaSans,
         )
-        Text("Cancel", color = GapMuted, modifier = Modifier.clickable(onClick = onDismiss))
+        Text("Cancel", color = GapMuted, modifier = Modifier.clickable(onClick = onDismiss), fontFamily = PlusJakartaSans)
     }
 }
 
@@ -442,8 +445,9 @@ fun BusinessAddPeopleSheet(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
                 .background(if (name.isNotBlank()) GapAccent else GapCard)
                 .clickable(enabled = name.isNotBlank()) { onConfirm(name.trim()) }
                 .padding(horizontal = 16.dp, vertical = 12.dp),
+            fontFamily = PlusJakartaSans,
         )
-        Text("Cancel", color = GapMuted, modifier = Modifier.clickable(onClick = onDismiss))
+        Text("Cancel", color = GapMuted, modifier = Modifier.clickable(onClick = onDismiss), fontFamily = PlusJakartaSans)
     }
 }
 
@@ -462,6 +466,7 @@ fun BusinessActivationSuccess(title: String, onContinue: () -> Unit) {
                     .background(GapAccent)
                     .clickable(onClick = onContinue)
                     .padding(horizontal = 18.dp, vertical = 12.dp),
+                fontFamily = PlusJakartaSans,
             )
         }
     }

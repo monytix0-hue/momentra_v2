@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -78,6 +79,7 @@ data class DistributionEventDraft(
     val masterBillingState: String? = null,
     val masterDeliveryState: String? = null,
     val masterGstin: String? = null,
+    val lines: List<com.example.momentra.data.api.OperatingLineBody>? = null,
 )
 
 private enum class DistributionSheet(
@@ -92,7 +94,7 @@ private enum class DistributionSheet(
     PURCHASE("Record Purchase", "PURCHASE", true, false, true, null),
     SPEND("Record Expense", "SPEND", true, false, false, null),
     PAYMENT("Record Payment", "PAYMENT", true, false, true, "PENDING"),
-    COLLECTION("Record Collection", "COLLECTION", true, true, false, "PENDING"),
+    COLLECTION("Money collection", "COLLECTION", true, true, false, "PENDING"),
     BUDGET("Revise Budget", "BUDGET", true, false, false, null),
     UPDATE("Post Update", "UPDATE", false, false, false, null),
     ISSUE("Report Issue", "ISSUE", false, false, false, null),
@@ -149,6 +151,8 @@ fun DistributionQuickAddHub(
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(DistNotice)
+            .border(1.dp, DistBrand.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
+            .shadow(24.dp, RoundedCornerShape(18.dp), ambientColor = DistBrand.copy(alpha = 0.4f), spotColor = DistBrand.copy(alpha = 0.4f))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -197,7 +201,7 @@ fun DistributionQuickAddHub(
         DistributionSheet.PURCHASE to "Purchase",
         DistributionSheet.SPEND to "Expense",
         DistributionSheet.PAYMENT to "Payment",
-        DistributionSheet.COLLECTION to "Collection",
+        DistributionSheet.COLLECTION to "Money collection",
         DistributionSheet.BUDGET to "Budget",
         DistributionSheet.UPDATE to "Update",
         DistributionSheet.ISSUE to "Issue",
@@ -272,7 +276,7 @@ fun DistributionQuickAddHub(
     }
     val open = sheet
     if (open != null) {
-        OperatingSheetScrim(onDismiss = { sheet = null }) {
+        OperatingSheetScrim(onDismiss = { sheet = null }, accent = DistBrand) {
             OperatingCaptureSheet(
                 title = open.title,
                 icon = open.hubIcon,
@@ -296,7 +300,7 @@ fun DistributionQuickAddHub(
         }
     }
     if (mastersOpen) {
-        OperatingSheetScrim(onDismiss = { mastersOpen = false }) {
+        OperatingSheetScrim(onDismiss = { mastersOpen = false }, accent = DistBrand) {
             OperatingCaptureSheet(
                 title = "Masters",
                 icon = R.drawable.qa_shield,
@@ -312,7 +316,7 @@ fun DistributionQuickAddHub(
         }
     }
     if (approvalOpen) {
-        OperatingSheetScrim(onDismiss = { approvalOpen = false }) {
+        OperatingSheetScrim(onDismiss = { approvalOpen = false }, accent = DistBrand) {
             OperatingCaptureSheet(
                 title = "Review Approval",
                 icon = R.drawable.qa_shield,
@@ -439,4 +443,5 @@ private fun OperatingCaptureDraft.toDistribution() = DistributionEventDraft(
     masterBillingState = masterBillingState,
     masterDeliveryState = masterDeliveryState,
     masterGstin = masterGstin,
+    lines = lines,
 )

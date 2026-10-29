@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct RetailStoreSetupView: View {
-    let subtypes: [OperatingSubtype]
-    let subtype: OperatingSubtype
     let ownerName: String
     @ObservedObject var createModel: MomentCreateModel
     var onSubtype: (OperatingSubtype) -> Void
@@ -11,6 +9,9 @@ struct RetailStoreSetupView: View {
     var initialName: String = ""
     var initialCompanyName: String = ""
     var initialGstin: String = ""
+    var companyId: String = ""
+    var subtypes: [OperatingSubtype] = []
+    var subtype: OperatingSubtype = OperatingSubtype(code: "", label: "", partyLabel: "", targetMetrics: [], requiresChannel: false, quickAdds: [])
 
     @State private var name = ""
     @State private var companyName = ""
@@ -75,8 +76,8 @@ struct RetailStoreSetupView: View {
         !name.trimmingCharacters(in: .whitespaces).isEmpty &&
         !companyName.trimmingCharacters(in: .whitespaces).isEmpty &&
         (spec.channelsOptional || !selectedChannels.isEmpty) &&
-        (Double(budget) ?? 0) > 0 &&
-        ((marketingSetup && target.trimmingCharacters(in: .whitespaces).isEmpty) || (Double(target) ?? 0) > 0) &&
+        (Double(plainAmount(budget)) ?? 0) > 0 &&
+        ((marketingSetup && target.trimmingCharacters(in: .whitespaces).isEmpty) || (Double(plainAmount(target)) ?? 0) > 0) &&
         !needsApprover &&
         !createModel.state.submitting
     }
@@ -168,6 +169,17 @@ struct RetailStoreSetupView: View {
         .onChange(of: initialCompanyName) { _, _ in applyCompanySeed() }
         .onChange(of: initialGstin) { _, _ in applyCompanySeed() }
         .onChange(of: initialName) { _, _ in applyCompanySeed() }
+        .sheet(isPresented: $inviting) {
+            BusinessSetupInviteSheet(
+                companyId: companyId,
+                companyName: companyName.isEmpty ? name : companyName,
+                accent: spec.accent,
+                onAdd: { person, role in
+                    invites.append(StoreInvite(name: person, role: role))
+                    inviteRole = role
+                }
+            )
+        }
         .sheet(isPresented: $dateOpen) {
             VStack {
                 DatePicker(
@@ -368,7 +380,7 @@ struct RetailStoreSetupView: View {
             ForEach(invites) { person in
                 Text("\(person.name) · \(roleLabel(person.role))").font(.plusJakarta(size: 14)).foregroundStyle(spec.text)
             }
-            Button(inviting ? "Close invite" : "+ Invite or add people") { inviting.toggle() }
+            Button("+ Invite or add people") { inviting = true }
                 .font(.plusJakarta(size: 14, weight: .semibold))
                 .foregroundStyle(spec.actionInk)
                 .frame(maxWidth: .infinity)
@@ -376,22 +388,6 @@ struct RetailStoreSetupView: View {
                 .background(spec.inviteFill)
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(spec.inviteBorder, lineWidth: 1))
                 .clipShape(RoundedRectangle(cornerRadius: 14))
-            if inviting {
-                editor("Name", text: $inviteName, placeholder: "Person name", icon: "rs_setup_pencil")
-                ForEach(OperatingMomentCatalog.roles.filter { $0.0 != "OWNER_ADMIN" }, id: \.0) { item in
-                    Button(item.1) { inviteRole = item.0 }
-                        .font(.plusJakarta(size: 11, weight: .semibold))
-                        .foregroundStyle(inviteRole == item.0 ? spec.accent : spec.secondary)
-                }
-                Button("Add") {
-                    let trimmed = inviteName.trimmingCharacters(in: .whitespaces)
-                    guard !trimmed.isEmpty else { return }
-                    invites.append(StoreInvite(name: trimmed, role: inviteRole))
-                    inviteName = ""
-                    inviting = false
-                }
-                .foregroundStyle(spec.text)
-            }
             Text(spec.peopleNote)
                 .font(.plusJakarta(size: 12)).foregroundStyle(spec.secondary)
             Text("Who can do what").font(.plusJakarta(size: 16)).foregroundStyle(spec.text)
@@ -474,8 +470,8 @@ struct RetailStoreSetupView: View {
                  : "\(selectedChannels.count) selected. \(spec.channelHelp)")
                 .font(.plusJakarta(size: 12)).foregroundStyle(spec.secondary)
             choice("Month", monthLabel(start), icon: "rs_setup_calendar") { editingEnd = false; dateOpen = true }
-            editor("Monthly budget", text: $budget, placeholder: "Amount", icon: "rs_setup_pencil")
-            editor(marketingSetup ? "Target (optional until you choose a measure)" : "Monthly sales target", text: $target, placeholder: "Amount", icon: "rs_setup_pencil")
+            editor("Monthly budget", text: moneyField($budget), placeholder: "Amount", icon: "rs_setup_pencil")
+            editor(marketingSetup ? "Target (optional until you choose a measure)" : "Monthly sales target", text: moneyField($target), placeholder: "Amount", icon: "rs_setup_pencil")
             if marketingSetup {
                 editor("Offering", text: $offering, placeholder: "Optional product or service", icon: "rs_setup_pencil")
                 Toggle("Creative approval required", isOn: $creativeApproval)
@@ -486,7 +482,7 @@ struct RetailStoreSetupView: View {
                 }
             }
             if spec.code == "CLIENT_CAMPAIGN" {
-                editor("Client fee", text: $clientFee, placeholder: "Stored only. This is not an invoice.", icon: "rs_setup_pencil")
+                editor("Client fee", text: moneyField($clientFee), placeholder: "Stored only. This is not an invoice.", icon: "rs_setup_pencil")
                 Picker("Reporting cadence", selection: $cadence) {
                     Text("None").tag("")
                     Text("Weekly").tag("WEEKLY")
@@ -541,11 +537,13 @@ struct RetailStoreSetupView: View {
                         Text("Not sure").tag("NOT_SURE")
                     }
                     TextField("Which state is your business registered in?", text: $gstState)
-                    Picker("Selling prices", selection: $salePriceIncludesGst) {
-                        Text("Prices include GST").tag("YES")
-                        Text("GST is added separately").tag("NO")
-                    }
-                    Picker("Purchase prices", selection: $purchasePriceIncludesGst) {
+                    Picker("Do prices include GST?", selection: Binding(
+                        get: { salePriceIncludesGst },
+                        set: { value in
+                            salePriceIncludesGst = value
+                            purchasePriceIncludesGst = value
+                        }
+                    )) {
                         Text("Prices include GST").tag("YES")
                         Text("GST is added separately").tag("NO")
                     }
@@ -596,6 +594,10 @@ struct RetailStoreSetupView: View {
         .background(spec.card)
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(spec.border, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func moneyField(_ value: Binding<String>) -> Binding<String> {
+        Binding(get: { value.wrappedValue }, set: { value.wrappedValue = formatIndianAmount($0) })
     }
 
     private func editor(_ label: String, text: Binding<String>, placeholder: String, icon: String) -> some View {
@@ -687,9 +689,9 @@ struct RetailStoreSetupView: View {
         if trimmed.isEmpty { localError = "Add a name."; return }
         if company.isEmpty { localError = "Add a company name."; return }
         if !spec.channelsOptional && selectedChannels.isEmpty { localError = "Choose at least one."; return }
-        if (Double(budget) ?? 0) <= 0 { localError = "Enter a monthly budget above zero."; return }
+        if (Double(plainAmount(budget)) ?? 0) <= 0 { localError = "Enter a monthly budget above zero."; return }
         let targetBlank = marketingSetup && target.trimmingCharacters(in: .whitespaces).isEmpty
-        if !targetBlank && (Double(target) ?? 0) <= 0 { localError = "Enter a monthly sales target above zero."; return }
+        if !targetBlank && (Double(plainAmount(target)) ?? 0) <= 0 { localError = "Enter a monthly sales target above zero."; return }
         if needsApprover { localError = "Add someone who can approve, or choose no approval needed."; return }
         localError = nil
         let participants: [[String: String]] = invites.map { ["displayName": $0.name, "role": $0.role] }
@@ -707,10 +709,10 @@ struct RetailStoreSetupView: View {
             "counterparties": parties.map { ["name": $0.1, "kind": $0.0] },
             "channels": Array(selectedChannels),
             "tradeReach": Array(tradeReach),
-            "monthlyBudget": budget.trimmingCharacters(in: .whitespaces),
-            "monthlyTarget": target.trimmingCharacters(in: .whitespaces),
+            "monthlyBudget": plainAmount(budget),
+            "monthlyTarget": plainAmount(target),
             "targetMetric": metric,
-            "clientFee": spec.code == "CLIENT_CAMPAIGN" ? clientFee.trimmingCharacters(in: .whitespaces) : "",
+            "clientFee": spec.code == "CLIENT_CAMPAIGN" ? plainAmount(clientFee) : "",
             "offering": marketingSetup ? offering.trimmingCharacters(in: .whitespaces) : "",
             "creativeApprovalRequired": marketingSetup && creativeApproval ? "YES" : "",
             "reportingCadence": spec.code == "CLIENT_CAMPAIGN" ? cadence : "",
@@ -1188,4 +1190,172 @@ private struct StoreInvite: Identifiable {
     let id = UUID()
     let name: String
     let role: String
+}
+
+func plainAmount(_ raw: String) -> String {
+    var out = ""
+    var dot = false
+    for ch in raw {
+        if ch.isNumber { out.append(ch) }
+        else if ch == "." && !dot { out.append(ch); dot = true }
+    }
+    return out
+}
+
+func formatIndianAmount(_ raw: String) -> String {
+    let cleaned = plainAmount(raw)
+    if cleaned.isEmpty { return "" }
+    let parts = cleaned.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
+    let intRaw = String(parts[0])
+    let frac = parts.count > 1 ? "." + String(parts[1].prefix(2)) : (cleaned.hasSuffix(".") ? "." : "")
+    let trimmed = intRaw.drop(while: { $0 == "0" })
+    let digits = trimmed.isEmpty && (!intRaw.isEmpty || !frac.isEmpty) ? "0" : String(trimmed)
+    if digits.isEmpty { return "" }
+    return indianGroup(digits) + frac
+}
+
+private func indianGroup(_ digits: String) -> String {
+    if digits.count <= 3 { return digits }
+    let head = String(digits.dropLast(3))
+    let tail = String(digits.suffix(3))
+    let grouped = String(head.reversed()).split(by: 2).joined(separator: ",").reversedString
+    return grouped + "," + tail
+}
+
+private extension String {
+    func split(by size: Int) -> [String] {
+        var parts: [String] = []
+        var rest = self
+        while !rest.isEmpty {
+            let end = rest.index(rest.startIndex, offsetBy: min(size, rest.count))
+            parts.append(String(rest[..<end]))
+            rest = String(rest[end...])
+        }
+        return parts
+    }
+    var reversedString: String { String(reversed()) }
+}
+
+let businessInviteRoles = [
+    ("FINANCE", "Finance"),
+    ("APPROVER", "Approver"),
+    ("OPERATIONS_LEAD", "Operations"),
+    ("CONTRIBUTOR", "Contributor"),
+]
+
+func businessInviteRoleLabel(_ role: String?) -> String {
+    businessInviteRoles.first { $0.0 == role }?.1 ?? (role ?? "Member")
+}
+
+func businessInviteMembership(_ role: String) -> String {
+    role == "FINANCE" || role == "APPROVER" ? "ADMIN" : "MEMBER"
+}
+
+private struct BusinessSetupInviteSheet: View {
+    let companyId: String
+    let companyName: String
+    let accent: Color
+    var onAdd: (String, String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var role = "OPERATIONS_LEAD"
+    @State private var person = ""
+    @State private var invitePath = ""
+    @State private var note = ""
+    @State private var loading = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Invite people")
+                    .font(.plusJakarta(size: 20, weight: .bold))
+                    .foregroundStyle(.white)
+                Text("Pick the business role, then share the QR. A named person also joins this moment with that role.")
+                    .font(.plusJakarta(size: 13))
+                    .foregroundStyle(Color(hex: "#9CA3AF"))
+                roleRow
+                TextField("Person name", text: $person)
+                    .font(.plusJakarta(size: 16))
+                    .foregroundStyle(.white)
+                    .padding(14)
+                    .background(Color(hex: "#252230"))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                Button("Add \(businessInviteRoleLabel(role))") {
+                    let trimmed = person.trimmingCharacters(in: .whitespaces)
+                    guard !trimmed.isEmpty else { return }
+                    onAdd(trimmed, role)
+                    person = ""
+                }
+                .font(.plusJakarta(size: 15, weight: .bold))
+                .foregroundStyle(Color(hex: "#14121B"))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(accent)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .shadow(color: accent.opacity(0.4), radius: 10, y: 4)
+                if companyId.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Text("The QR is shared once this business exists. Their name still gets \(businessInviteRoleLabel(role)) when you start.")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(Color(hex: "#9CA3AF"))
+                } else if loading {
+                    ProgressView().tint(accent)
+                } else if !note.isEmpty {
+                    Text(note).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                } else if !invitePath.isEmpty {
+                    Text(invitePath).font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(accent)
+                    Text("They join as \(businessInviteRoleLabel(role)).")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(Color(hex: "#9CA3AF"))
+                    ShareLink(item: invitePath) {
+                        Text("Share link")
+                            .font(.plusJakarta(size: 14, weight: .bold))
+                            .foregroundStyle(accent)
+                    }
+                }
+                Button("Done") { dismiss() }
+                    .font(.plusJakarta(size: 15, weight: .bold))
+                    .foregroundStyle(accent)
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color(hex: "#1C1926"))
+        .presentationDetents([.large])
+        .task(id: role) { await mint() }
+    }
+
+    private var roleRow: some View {
+        HStack(spacing: 8) {
+            ForEach(businessInviteRoles, id: \.0) { item in
+                let on = item.0 == role
+                Button(item.1) { role = item.0 }
+                    .font(.plusJakarta(size: 12, weight: .semibold))
+                    .foregroundStyle(on ? accent : Color(hex: "#9CA3AF"))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(on ? accent.opacity(0.1) : Color.clear)
+                    .overlay(Capsule().stroke(on ? accent.opacity(0.2) : Color(hex: "#2A2538"), lineWidth: 1))
+                    .clipShape(Capsule())
+            }
+        }
+    }
+
+    private func mint() async {
+        let id = companyId.trimmingCharacters(in: .whitespaces)
+        guard !id.isEmpty else { return }
+        loading = true
+        note = ""
+        do {
+            let invite = try await APIClient.shared.mintCompanyInvite(
+                companyId: id,
+                membershipType: businessInviteMembership(role),
+                operatingRole: role,
+                idempotencyKey: UUID().uuidString
+            )
+            invitePath = invite.invitePath.isEmpty ? invite.inviteUrl : invite.invitePath
+            loading = false
+        } catch {
+            note = error.localizedDescription
+            loading = false
+        }
+    }
 }

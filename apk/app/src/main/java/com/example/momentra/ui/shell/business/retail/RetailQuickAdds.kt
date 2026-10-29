@@ -61,6 +61,7 @@ data class RetailEventDraft(
     val masterKind: String? = null,
     val dueAt: String? = null,
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
+    val lines: List<com.example.momentra.data.api.OperatingLineBody>? = null,
 )
 
 private enum class RetailSheet(
@@ -75,7 +76,7 @@ private enum class RetailSheet(
     PURCHASE("Record Purchase", "PURCHASE", true, false, true, null),
     SPEND("Record Expense", "SPEND", true, false, false, null),
     PAYMENT("Record Payment", "PAYMENT", true, false, true, "PENDING"),
-    COLLECTION("Record Collection", "COLLECTION", true, true, false, "PENDING"),
+    COLLECTION("Money collection", "COLLECTION", true, true, false, "PENDING"),
     BUDGET("Revise Budget", "BUDGET", true, false, false, null),
     UPDATE("Issue / Approval / Update", "UPDATE", false, false, false, null),
     ISSUE("Report Issue", "ISSUE", false, false, false, null),
@@ -228,7 +229,7 @@ fun RetailQuickAddHub(
     }
     val open = sheet
     if (open != null) {
-        OperatingSheetScrim(onDismiss = { sheet = null }) {
+        OperatingSheetScrim(onDismiss = { sheet = null }, accent = StoreBrand) {
             OperatingCaptureSheet(
                 title = open.title,
                 icon = open.hubIcon,
@@ -245,7 +246,7 @@ fun RetailQuickAddHub(
         }
     }
     if (mastersOpen) {
-        OperatingSheetScrim(onDismiss = { mastersOpen = false }) {
+        OperatingSheetScrim(onDismiss = { mastersOpen = false }, accent = StoreBrand) {
             OperatingCaptureSheet(
                 title = "Masters",
                 icon = R.drawable.qa_shield,
@@ -261,7 +262,7 @@ fun RetailQuickAddHub(
         }
     }
     if (approvalOpen) {
-        OperatingSheetScrim(onDismiss = { approvalOpen = false }) {
+        OperatingSheetScrim(onDismiss = { approvalOpen = false }, accent = StoreBrand) {
             OperatingCaptureSheet(
                 title = "Review Approval",
                 icon = R.drawable.qa_shield,
@@ -368,4 +369,5 @@ private fun OperatingCaptureDraft.toRetail() = RetailEventDraft(
     masterKind = masterKind,
     dueAt = dueAt,
     contract = contract,
+    lines = lines,
 )

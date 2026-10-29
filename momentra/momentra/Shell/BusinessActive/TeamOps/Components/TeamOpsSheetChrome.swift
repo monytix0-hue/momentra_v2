@@ -71,7 +71,7 @@ struct TeamOpsSheetHeader: View {
         HStack {
             HStack(spacing: 12) {
                 Text(emoji)
-                    .font(.system(size: 18))
+                    .font(.plusJakarta(size: 18))
                     .frame(width: 36, height: 36)
                     .background(accent.soft)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
@@ -87,7 +87,7 @@ struct TeamOpsSheetHeader: View {
             Spacer()
             Button(action: onClose) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.plusJakarta(size: 12, weight: .bold))
                     .foregroundStyle(TeamOpsSheetTokens.muted)
                     .frame(width: 32, height: 32)
                     .background(TeamOpsSheetTokens.closeBg)
@@ -181,7 +181,7 @@ struct TeamOpsDropdownField: View {
                     .lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.plusJakarta(size: 12, weight: .semibold))
                     .foregroundStyle(TeamOpsSheetTokens.muted)
             }
             .padding(.horizontal, 16)
@@ -217,7 +217,7 @@ struct TeamOpsDateField: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "calendar")
-                    .font(.system(size: 14))
+                    .font(.plusJakarta(size: 14))
                     .foregroundStyle(TeamOpsSheetTokens.muted)
                 Text(display)
                     .font(.plusJakarta(size: 14, weight: .medium))

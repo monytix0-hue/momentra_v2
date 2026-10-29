@@ -186,7 +186,7 @@ fun RunwaySheetHeader(
                         modifier = Modifier.size(20.dp),
                     )
                 } else {
-                    Text(emojiFallback, fontSize = 18.sp)
+                    Text(emojiFallback, fontSize = 18.sp, fontFamily = PlusJakartaSans)
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -458,10 +458,10 @@ fun RunwayDateField(
                         )
                     }
                     showPicker = false
-                }) { Text("OK") }
+                }) { Text("OK", fontFamily = PlusJakartaSans) }
             },
             dismissButton = {
-                TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showPicker = false }) { Text("Cancel", fontFamily = PlusJakartaSans) }
             },
         ) {
             DatePicker(state = state)
@@ -515,10 +515,10 @@ fun RunwayTimeField(
                 TextButton(onClick = {
                     onTimeChange("%02d:%02d".format(state.hour, state.minute))
                     showPicker = false
-                }) { Text("OK") }
+                }) { Text("OK", fontFamily = PlusJakartaSans) }
             },
             dismissButton = {
-                TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showPicker = false }) { Text("Cancel", fontFamily = PlusJakartaSans) }
             },
             text = { TimePicker(state = state) },
         )

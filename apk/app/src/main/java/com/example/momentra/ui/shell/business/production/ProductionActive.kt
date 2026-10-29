@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,6 +35,8 @@ import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.OperatingActivityDto
 import com.example.momentra.data.api.OperatingBoardSectionDto
 import com.example.momentra.data.api.OperatingProjectionDto
+import com.example.momentra.ui.shell.business.shared.BusinessActivityList
+import com.example.momentra.ui.shell.business.shared.BusinessEmptyState
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingTab
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -145,7 +148,13 @@ private fun ProductionPulse(model: OperatingProjectionDto, onViewAll: () -> Unit
         }
         SectionTitle("Needs Attention")
         if (model.attention.isEmpty()) {
-            PlantCard { Text("Nothing is waiting.", color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 14.sp) }
+            BusinessEmptyState(
+            title = "Nothing is waiting",
+            body = "Approvals, overdue items, and blockers will show here.",
+            accent = PlantAccent,
+            glyph = "✅",
+            compact = true,
+        )
         }
         model.attention.forEach { item ->
             PlantCard {
@@ -210,9 +219,22 @@ private fun ProductionPulse(model: OperatingProjectionDto, onViewAll: () -> Unit
     SectionTitle("Activity")
     val recent = model.activity.take(5)
     if (recent.isEmpty()) {
-        PlantCard { Text("Nothing recorded yet.", color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 14.sp) }
+        BusinessEmptyState(
+            title = "Nothing recorded yet",
+            body = "Batches, output, and dispatches will show here.",
+            accent = PlantAccent,
+            glyph = "📌",
+            actionLabel = "Use quick add",
+            onAction = onViewAll,
+        )
+    } else {
+        BusinessActivityList(
+            rows = recent,
+            model = model,
+            accent = PlantAccent,
+            onEdit = { com.example.momentra.ui.shell.business.shared.OperatingChromeState.editing = it },
+        )
     }
-    recent.forEach { ActivityRow(it, model) }
     Text(
         "View all activity",
         color = PlantAccent,
@@ -237,7 +259,13 @@ private fun RestrictedPulse(model: OperatingProjectionDto) {
     }
     SectionTitle("Needs Attention")
     if (model.attention.isEmpty()) {
-        PlantCard { Text("Nothing is waiting.", color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 14.sp) }
+        BusinessEmptyState(
+            title = "Nothing is waiting",
+            body = "Approvals, overdue items, and blockers will show here.",
+            accent = PlantAccent,
+            glyph = "✅",
+            compact = true,
+        )
     }
     model.attention.forEach { item ->
         PlantCard {
@@ -309,7 +337,13 @@ private fun ProductionLife(model: OperatingProjectionDto) {
     Header(model, "Life", "How production is moving today.")
     (model.boards?.life ?: emptyList()).forEach { BoardBlock(it, model) }
     if (model.boards?.life.isNullOrEmpty()) {
-        PlantCard { Text("Nothing recorded yet.", color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 14.sp) }
+        BusinessEmptyState(
+            title = "Nothing recorded yet",
+            body = "Board updates and the live position will show here.",
+            accent = PlantAccent,
+            glyph = "📋",
+            compact = true,
+        )
     }
 }
 
@@ -361,9 +395,19 @@ private fun ActivitySheet(model: OperatingProjectionDto, onClose: () -> Unit) {
             }
             Text(model.title ?: "Production", color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
             if (model.activity.isEmpty()) {
-                Text("Nothing recorded yet.", color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+                BusinessEmptyState(
+                    title = "Nothing recorded yet",
+                    body = "Sales, spend, and money collection will show here.",
+                    accent = PlantAccent,
+                    glyph = "📋",
+                )
             }
-            model.activity.forEach { ActivityRow(it, model) }
+            BusinessActivityList(
+                rows = model.activity,
+                model = model,
+                accent = PlantAccent,
+                onEdit = { com.example.momentra.ui.shell.business.shared.OperatingChromeState.editing = it },
+            )
         }
     }
 }
@@ -396,30 +440,6 @@ private fun BoardBlock(section: OperatingBoardSectionDto, model: OperatingProjec
     }
 }
 
-@Composable
-private fun ActivityRow(row: OperatingActivityDto, model: OperatingProjectionDto) {
-    PlantCard {
-        Text(row.eventType.replace('_', ' '), color = PlantAccent, fontFamily = PlusJakartaSans, fontSize = 11.sp)
-        Text(row.title, color = PlantInk, fontFamily = PlusJakartaSans, fontSize = 14.sp)
-        val qty = listOfNotNull(row.quantity, row.unit).filter { it.isNotBlank() }.joinToString(" ")
-        val bits = listOfNotNull(
-            row.counterpartyName,
-            qty.ifBlank { null },
-            row.paymentStatus?.takeIf { it != "NONE" },
-            row.occurredAt.take(10).ifBlank { null },
-            if (model.financeVisible) com.example.momentra.ui.shell.business.shared.formatOperatingAmount(model.currency, row.amount, true).takeIf { it != "—" } else null,
-        )
-        Text(
-            "Edit",
-            color = Color.White,
-            fontFamily = PlusJakartaSans,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-            fontSize = 13.sp,
-            modifier = Modifier.clickable { com.example.momentra.ui.shell.business.shared.OperatingChromeState.editing = row },
-        )
-        if (bits.isNotEmpty()) Text(bits.joinToString(" · "), color = PlantSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-    }
-}
 
 @Composable
 private fun ReadinessGroup(label: String, rows: List<com.example.momentra.data.api.OperatingPaymentDto>, model: OperatingProjectionDto) {
@@ -444,6 +464,7 @@ private fun PlantCard(content: @Composable () -> Unit) {
             .clip(RoundedCornerShape(18.dp))
             .background(PlantCard)
             .border(1.dp, PlantBorder, RoundedCornerShape(18.dp))
+            .shadow(10.dp, RoundedCornerShape(18.dp), ambientColor = PlantBrand.copy(alpha = 0.4f), spotColor = PlantBrand.copy(alpha = 0.4f))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         content = { content() },

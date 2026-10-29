@@ -125,7 +125,7 @@ fun CompanyJoinConfirmSheet(
         }
         repository.redeemCompanyInvite(code).fold(
             onSuccess = { result ->
-                roleLabel = result.membershipType ?: invite.membershipType
+                roleLabel = businessInviteRoleLabel(invite.operatingRole ?: result.membershipType ?: invite.membershipType)
                 joined = CompanySummary(
                     companyId = result.companyId.ifBlank { invite.companyId },
                     displayName = invite.title.ifBlank { "Company" },
@@ -164,9 +164,9 @@ private fun PreviewBody(
                 modifier = Modifier.padding(start = 12.dp),
             )
         }
-        preview?.membershipType?.takeIf { it.isNotBlank() }?.let { role ->
+        (preview?.operatingRole ?: preview?.membershipType)?.takeIf { it.isNotBlank() }?.let { role ->
             Text(
-                text = "You join as ${role.lowercase().replaceFirstChar { it.uppercase() }}",
+                text = "You join as ${businessInviteRoleLabel(role)}",
                 color = Accent,
                 fontSize = 12.sp,
                 fontFamily = PlusJakartaSans,

@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// Shared business sheet tokens aligned with the Group/Trip sheet palette.
+struct BusinessSheetTokens {
+    static let bg = Color(hex: "#1C1A24")
+    static let field = Color(hex: "#252332")
+    static let border = Color(hex: "#323042")
+    static let muted = Color(hex: "#9E9AA8")
+    static let text = Color(hex: "#FFFFFF")
+}
+
 /// B01–B03 Business active tokens — Team Ops / Runway / Operations.
 struct BusinessActiveTheme {
     let bg: Color

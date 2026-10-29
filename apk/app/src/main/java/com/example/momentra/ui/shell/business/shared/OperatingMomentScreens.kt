@@ -42,6 +42,7 @@ import com.example.momentra.ui.shell.business.restaurant.RestaurantActive
 import com.example.momentra.ui.shell.business.trading.TradingActive
 import com.example.momentra.ui.shell.business.service.ConsumerServiceActive
 import com.example.momentra.ui.shell.business.retail.RetailStoreActive
+import com.example.momentra.ui.theme.PlusJakartaSans
 
 private val Bg = Color(0xFF0C0F15)
 private val Card = Color(0xFF161B26)
@@ -109,7 +110,7 @@ fun OperatingMomentPage(
                 draft.parentEventId,
                 draft.quantity,
                 draft.unit,
-                if (draft.itemName.isNullOrBlank()) null else listOf(
+                draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
                     com.example.momentra.data.api.OperatingLineBody(
                         draft.itemName,
                         draft.quantity,
@@ -166,7 +167,7 @@ fun OperatingMomentPage(
                     draft.parentEventId,
                     draft.quantity,
                     draft.unit,
-                    if (draft.itemName.isNullOrBlank()) null else listOf(
+                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
                         com.example.momentra.data.api.OperatingLineBody(
                             draft.itemName,
                             draft.quantity,
@@ -215,7 +216,7 @@ fun OperatingMomentPage(
                     draft.parentEventId,
                     draft.quantity,
                     draft.unit,
-                    if (draft.itemName.isNullOrBlank()) null else listOf(
+                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
                         com.example.momentra.data.api.OperatingLineBody(
                             draft.itemName,
                             draft.quantity,
@@ -264,7 +265,7 @@ fun OperatingMomentPage(
                     draft.parentEventId,
                     draft.quantity,
                     draft.unit,
-                    if (draft.itemName.isNullOrBlank()) null else listOf(
+                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
                         com.example.momentra.data.api.OperatingLineBody(
                             draft.itemName,
                             draft.quantity,
@@ -328,7 +329,7 @@ fun OperatingMomentPage(
                     draft.parentEventId,
                     draft.quantity,
                     draft.unit,
-                    if (draft.itemName.isNullOrBlank()) null else listOf(
+                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
                         com.example.momentra.data.api.OperatingLineBody(
                             draft.itemName,
                             draft.quantity,
@@ -377,7 +378,7 @@ fun OperatingMomentPage(
                     draft.parentEventId,
                     draft.quantity,
                     draft.unit,
-                    if (draft.itemName.isNullOrBlank()) null else listOf(
+                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
                         com.example.momentra.data.api.OperatingLineBody(
                             draft.itemName,
                             draft.quantity,
@@ -444,7 +445,7 @@ fun OperatingMomentPage(
                     draft.parentEventId,
                     draft.quantity,
                     draft.unit,
-                    if (draft.itemName.isNullOrBlank()) null else listOf(
+                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
                         com.example.momentra.data.api.OperatingLineBody(
                             draft.itemName,
                             draft.quantity,
@@ -512,7 +513,7 @@ fun OperatingMomentPage(
                     draft.parentEventId,
                     draft.quantity,
                     draft.unit,
-                    if (draft.itemName.isNullOrBlank()) null else listOf(
+                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
                         com.example.momentra.data.api.OperatingLineBody(
                             draft.itemName,
                             draft.quantity,
@@ -549,14 +550,14 @@ fun OperatingMomentPage(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(familyKicker(model?.familyCode), color = familyAccent(model?.familyCode), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-        Text(model?.subtypeLabel ?: momentTitle ?: "Business moment", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
-        Text(model?.partyName.orEmpty(), color = Muted, fontSize = 13.sp)
+        Text(familyKicker(model?.familyCode), color = familyAccent(model?.familyCode), fontSize = 12.sp, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
+        Text(model?.subtypeLabel ?: momentTitle ?: "Business moment", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, fontFamily = PlusJakartaSans)
+        Text(model?.partyName.orEmpty(), color = Muted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
         if (model != null) {
-            Text(model.role?.replace('_', ' ') ?: "", color = familyAccent(model.familyCode), fontSize = 12.sp)
+            Text(model.role?.replace('_', ' ') ?: "", color = familyAccent(model.familyCode), fontSize = 12.sp, fontFamily = PlusJakartaSans)
         }
         if (error != null && model == null) {
-            Text(error ?: "", color = Color(0xFFF87171))
+            Text(error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans)
         }
         when (tab) {
             OperatingTab.PULSE -> PulseBlocks(model)
@@ -595,11 +596,12 @@ fun RetiredBusinessMoment(
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(title ?: "Business moment", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
+        Text(title ?: "Business moment", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, fontFamily = PlusJakartaSans)
         Text(
             "Team & Work, Money & Cash Flow, and Daily Business are retired. Create a Marketing, Trading, Retail, or Manufacturing moment.",
             color = Muted,
             fontSize = 14.sp,
+            fontFamily = PlusJakartaSans,
         )
         Text(
             "Create a moment",
@@ -610,6 +612,7 @@ fun RetiredBusinessMoment(
                 .background(Color(0xFF818CF8))
                 .clickable(onClick = onCreateMoment)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
+            fontFamily = PlusJakartaSans,
         )
     }
 }
@@ -632,7 +635,7 @@ private fun momentsHeading(family: String?): String = when (family) {
 
 @Composable
 private fun BoardSections(sections: List<OperatingBoardSectionDto>?, heading: String) {
-    Text(heading, color = TextPrimary, fontWeight = FontWeight.Medium)
+    Text(heading, color = TextPrimary, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
     val blocks = sections.orEmpty()
     if (blocks.isEmpty()) InfoCard("This moment", "Nothing recorded yet.")
     blocks.forEach { section ->
@@ -665,7 +668,7 @@ private fun PulseBlocks(model: OperatingProjectionDto?) {
     }
     val recent = model?.activity.orEmpty().take(5)
     if (recent.isNotEmpty()) {
-        Text("Activity", color = TextPrimary, fontWeight = FontWeight.Medium)
+        Text("Activity", color = TextPrimary, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
         recent.forEach { row ->
             val amount = row.amount?.let { " · $it" }.orEmpty()
             InfoCard(row.eventType, row.title + amount)
@@ -685,9 +688,9 @@ private fun OperatingQuickAddForm(
     var title by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    Text("Quick Add", color = TextPrimary, fontWeight = FontWeight.Medium)
+    Text("Quick Add", color = TextPrimary, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
     if (adds.isEmpty()) {
-        Text("Your role cannot add to this moment.", color = Muted, fontSize = 13.sp)
+        Text("Your role cannot add to this moment.", color = Muted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
     }
     adds.forEach { add ->
         val on = add.code == selected
@@ -700,6 +703,7 @@ private fun OperatingQuickAddForm(
                 .background(if (on) accent else Card)
                 .clickable { selected = add.code }
                 .padding(horizontal = 10.dp, vertical = 8.dp),
+            fontFamily = PlusJakartaSans,
         )
     }
     BasicTextField(
@@ -747,6 +751,7 @@ private fun OperatingQuickAddForm(
                 }
             }
             .padding(horizontal = 16.dp, vertical = 12.dp),
+        fontFamily = PlusJakartaSans,
     )
     model?.attention?.filter { it.kind == "APPROVAL" }?.forEach { item ->
         Text(
@@ -755,6 +760,7 @@ private fun OperatingQuickAddForm(
             modifier = Modifier.clickable {
                 scope.launch { onDecide(item.id, "APPROVED") }
             },
+            fontFamily = PlusJakartaSans,
         )
     }
 }
@@ -770,8 +776,8 @@ private fun InfoCard(label: String, body: String) {
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(label, color = Muted, fontSize = 11.sp)
-        Text(body, color = TextPrimary, fontSize = 14.sp)
+        Text(label, color = Muted, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+        Text(body, color = TextPrimary, fontSize = 14.sp, fontFamily = PlusJakartaSans)
     }
 }
 

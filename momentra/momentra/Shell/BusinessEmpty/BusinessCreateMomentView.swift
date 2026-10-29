@@ -89,7 +89,7 @@ struct BusinessCreateMomentView: View {
                 .frame(width: 40, height: 4)
             HStack {
                 Text(tab == .createMoment ? "Choose a Moment" : "Choose a Memory")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.plusJakarta(size: 20, weight: .bold))
                     .foregroundStyle(.white)
                 Spacer(minLength: 0)
                 Button(action: onBack) {
@@ -108,7 +108,7 @@ struct BusinessCreateMomentView: View {
             }
             if showRetailTagline {
                 Text("Built for shops and small teams in India.")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.plusJakarta(size: 13, weight: .medium))
                     .foregroundStyle(Color(hex: "#94A3B8"))
             }
         }
@@ -122,7 +122,7 @@ struct BusinessCreateMomentView: View {
                     tab = item
                 } label: {
                     Text(item.rawValue)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.plusJakarta(size: 14, weight: .semibold))
                         .foregroundStyle(tabForeground(item))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -154,11 +154,11 @@ struct BusinessCreateMomentView: View {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Run every part of your business with clarity.")
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.plusJakarta(size: 24, weight: .bold))
                         .foregroundStyle(.white)
                         .fixedSize(horizontal: false, vertical: true)
                     Text("Create moments to track operations, revenue, strategy, and growth — all in one place.")
-                        .font(.system(size: 14))
+                        .font(.plusJakarta(size: 14))
                         .foregroundStyle(Color(hex: "#94A3B8"))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -187,7 +187,7 @@ struct BusinessCreateMomentView: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 Text("Choose the part of the business you want to manage.")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.plusJakarta(size: 14, weight: .medium))
                     .foregroundStyle(Color(hex: "#94A3B8"))
                 ForEach(visibleCategories) { category in
                     Button {
@@ -206,10 +206,10 @@ struct BusinessCreateMomentView: View {
             if !showRetailTagline {
                 HStack(spacing: 6) {
                     Text("Not sure where to start?")
-                        .font(.system(size: 14))
+                        .font(.plusJakarta(size: 14))
                         .foregroundStyle(Color(hex: "#94A3B8"))
                     Text("Let AI suggest →")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.plusJakarta(size: 14, weight: .semibold))
                         .foregroundStyle(BusinessEmptyTokens.accent)
                         .underline()
                 }
@@ -227,7 +227,7 @@ struct BusinessCreateMomentView: View {
                     .scaledToFit()
                     .frame(width: 18, height: 18)
                 TextField("", text: $search, prompt: Text("Search memories...").foregroundStyle(Color(hex: "#64748B")))
-                    .font(.system(size: 14))
+                    .font(.plusJakarta(size: 14))
                     .foregroundStyle(.white)
             }
             .padding(.horizontal, 16)
@@ -242,7 +242,7 @@ struct BusinessCreateMomentView: View {
                             filter = chip
                         } label: {
                             Text(chip)
-                                .font(.system(size: 13))
+                                .font(.plusJakarta(size: 13))
                                 .foregroundStyle(filter == chip ? BusinessEmptyTokens.accent : Color(hex: "#94A3B8"))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
@@ -255,13 +255,13 @@ struct BusinessCreateMomentView: View {
             }
 
             Text("RECENT MEMORIES")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.plusJakarta(size: 13, weight: .semibold))
                 .tracking(0.8)
                 .foregroundStyle(Color(hex: "#64748B"))
 
             if filteredMemories.isEmpty {
                 Text("No memories yet")
-                    .font(.system(size: 14))
+                    .font(.plusJakarta(size: 14))
                     .foregroundStyle(Color(hex: "#94A3B8"))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
@@ -290,10 +290,10 @@ struct BusinessCreateMomentView: View {
                     }
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.title)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.plusJakarta(size: 16, weight: .semibold))
                             .foregroundStyle(.white)
                         Text(item.body)
-                            .font(.system(size: 13))
+                            .font(.plusJakarta(size: 13))
                             .foregroundStyle(Color(hex: "#94A3B8"))
                             .lineLimit(2)
                     }
@@ -326,7 +326,7 @@ struct BusinessCreateMomentView: View {
 
             if item.comingSoon {
                 Text("Coming Soon")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.plusJakarta(size: 9, weight: .semibold))
                     .tracking(0.5)
                     .foregroundStyle(Color(hex: "#98A3B8"))
                     .padding(.horizontal, 8)
@@ -348,12 +348,12 @@ struct BusinessCreateMomentView: View {
                     .scaledToFit()
                     .frame(width: 8, height: 8)
                 Text(item.title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.plusJakarta(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
             }
             Text(item.body)
-                .font(.system(size: 13))
+                .font(.plusJakarta(size: 13))
                 .foregroundStyle(Color(hex: "#94A3B8"))
                 .lineLimit(2)
             Image("biz_memory_line")
@@ -363,13 +363,13 @@ struct BusinessCreateMomentView: View {
             HStack {
                 HStack(spacing: 8) {
                     Text(item.tag.uppercased())
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.plusJakarta(size: 11, weight: .semibold))
                         .foregroundStyle(Color(hex: "#94A3B8"))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
                         .background(BusinessSheetTheme.border, in: RoundedRectangle(cornerRadius: 6))
                     Text(item.date)
-                        .font(.system(size: 12))
+                        .font(.plusJakarta(size: 12))
                         .foregroundStyle(Color(hex: "#64748B"))
                 }
                 Spacer()

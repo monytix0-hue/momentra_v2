@@ -105,7 +105,7 @@ private struct BusinessMomentsDirectory: View {
             HStack {
                 ForEach(["Active", "Upcoming", "Completed"], id: \.self) { label in
                     Button(label) { tab = label }
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.plusJakarta(size: 13, weight: .semibold))
                         .foregroundStyle(tab == label ? gapBg : gapText)
                         .padding(.horizontal, 12).padding(.vertical, 8)
                         .background(tab == label ? gapAccent : gapCard, in: Capsule())
@@ -118,9 +118,9 @@ private struct BusinessMomentsDirectory: View {
             ForEach(filtered) { moment in
                 Button { onSelect(moment) } label: {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(familyLabel(moment.momentTypeCode)).font(.system(size: 11, weight: .bold)).foregroundStyle(gapAccent)
+                        Text(familyLabel(moment.momentTypeCode)).font(.plusJakarta(size: 11, weight: .bold)).foregroundStyle(gapAccent)
                         Text(moment.title.isEmpty ? "Untitled moment" : moment.title).foregroundStyle(gapText)
-                        Text(moment.status).font(.system(size: 12)).foregroundStyle(gapMuted)
+                        Text(moment.status).font(.plusJakarta(size: 12)).foregroundStyle(gapMuted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
@@ -129,7 +129,7 @@ private struct BusinessMomentsDirectory: View {
                 .buttonStyle(.plain)
             }
             Button("+ Create Moment", action: onCreate)
-                .font(.system(size: 14, weight: .bold))
+                .font(.plusJakarta(size: 14, weight: .bold))
                 .foregroundStyle(gapBg)
                 .padding(.horizontal, 16).padding(.vertical, 12)
                 .background(gapAccent, in: Capsule())
@@ -195,7 +195,7 @@ private struct BusinessFinanceScreen: View {
             ForEach(activity) { item in
                 VStack(alignment: .leading) {
                     Text(item.title).foregroundStyle(gapText)
-                    Text(item.occurredAt).font(.system(size: 12)).foregroundStyle(gapMuted)
+                    Text(item.occurredAt).font(.plusJakarta(size: 12)).foregroundStyle(gapMuted)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12).background(gapCard, in: RoundedRectangle(cornerRadius: 12))
@@ -245,7 +245,7 @@ private struct VendorOperationsScreen: View {
             ForEach(vendors, id: \.vendorId) { vendor in
                 VStack(alignment: .leading) {
                     Text(vendor.name).foregroundStyle(gapText)
-                    Text(vendor.status ?? "—").font(.system(size: 12)).foregroundStyle(gapMuted)
+                    Text(vendor.status ?? "—").font(.plusJakarta(size: 12)).foregroundStyle(gapMuted)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16).background(gapCard, in: RoundedRectangle(cornerRadius: 16))
@@ -406,7 +406,7 @@ private struct VendorSheet: View {
 
     private func field(_ label: String, _ text: Binding<String>) -> some View {
         VStack(alignment: .leading) {
-            Text(label).font(.system(size: 12)).foregroundStyle(gapMuted)
+            Text(label).font(.plusJakarta(size: 12)).foregroundStyle(gapMuted)
             TextField(label, text: text).foregroundStyle(gapText).padding(10).background(gapCard, in: RoundedRectangle(cornerRadius: 10))
         }
     }

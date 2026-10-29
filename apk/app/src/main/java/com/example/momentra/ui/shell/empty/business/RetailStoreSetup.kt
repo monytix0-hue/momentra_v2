@@ -630,6 +630,7 @@ fun RetailStoreSetup(
     onClose: () -> Unit,
     onActivate: (Map<String, Any>, String) -> Unit,
     modifier: Modifier = Modifier,
+    companyId: String = "",
     initialName: String = "",
     initialCompanyName: String = "",
     initialGstin: String = "",
@@ -691,8 +692,8 @@ fun RetailStoreSetup(
     val ready = name.isNotBlank() &&
         companyName.isNotBlank() &&
         (look.channelsOptional || selectedChannels.isNotEmpty()) &&
-        budget.toDoubleOrNull()?.let { it > 0 } == true &&
-        (marketingSetup && target.isBlank() || target.toDoubleOrNull()?.let { it > 0 } == true) &&
+        plainAmount(budget).toDoubleOrNull()?.let { it > 0 } == true &&
+        (marketingSetup && target.isBlank() || plainAmount(target).toDoubleOrNull()?.let { it > 0 } == true) &&
         !needsApprover
     LaunchedEffect(name) {
         if (!companyEdited) companyName = name
@@ -874,21 +875,18 @@ fun RetailStoreSetup(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Elevated).border(1.dp, if (look.inviteFill == look.activateFill) look.inviteFill else Border, RoundedCornerShape(14.dp)).clickable { inviting = !inviting }.padding(14.dp),
             )
             if (inviting) {
-                FieldEditor("Name", inviteName, "Person name", R.drawable.rs_setup_pencil) { inviteName = it }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OperatingMomentCatalog.roles.filter { it.first != "OWNER_ADMIN" }.forEach { (code, label) ->
-                        val on = code == inviteRole
-                        Text(label, color = if (on) Accent else Secondary, fontFamily = PlusJakartaSans, fontSize = 11.sp, modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (on) Selected else Color.Transparent).border(1.dp, if (on) Brand else Border, RoundedCornerShape(999.dp)).clickable { inviteRole = code }.padding(horizontal = 10.dp, vertical = 6.dp))
-                    }
-                }
-                Text("Add", color = Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable {
-                    val trimmed = inviteName.trim()
-                    if (trimmed.isNotEmpty()) {
-                        invites = invites + StoreInvite(trimmed, inviteRole)
+                BusinessSetupInviteSheet(
+                    visible = inviting,
+                    companyId = companyId,
+                    companyName = companyName.ifBlank { name },
+                    accent = look.accent,
+                    onAddPerson = { person, role ->
+                        invites = invites + StoreInvite(person, role)
                         inviteName = ""
-                        inviting = false
-                    }
-                })
+                        inviteRole = role
+                    },
+                    onDismiss = { inviting = false },
+                )
             }
             Text(look.peopleNote, color = Secondary, fontFamily = PlusJakartaSans, fontSize = 12.sp, lineHeight = 18.sp)
             Text("Who can do what", color = Ink, fontFamily = PlusJakartaSans, fontSize = 16.sp, lineHeight = 24.sp)
@@ -951,13 +949,13 @@ fun RetailStoreSetup(
                 fontSize = 12.sp,
             )
             ChoiceRow("Month", start.format(monthFormat), R.drawable.rs_setup_calendar) { dateTarget = "start" }
-            FieldEditor("Monthly budget", budget, "Amount", R.drawable.rs_setup_pencil) { budget = it.filter { ch -> ch.isDigit() || ch == '.' } }
+            FieldEditor("Monthly budget", budget, "Amount", R.drawable.rs_setup_pencil) { budget = formatIndianAmount(it) }
             FieldEditor(
                 if (marketingSetup) "Target (optional until you choose a measure)" else "Monthly sales target",
                 target,
                 "Amount",
                 R.drawable.rs_setup_pencil,
-            ) { target = it.filter { ch -> ch.isDigit() || ch == '.' } }
+            ) { target = formatIndianAmount(it) }
             if (look.targetMetrics.size > 1) {
                 ChoiceRow("How the target is measured", metricLabel(metric, look.targetMetrics), R.drawable.rs_setup_chevron) { metricOpen = !metricOpen }
                 if (metricOpen) {
@@ -977,7 +975,7 @@ fun RetailStoreSetup(
                 }
             }
             if (clientCampaign) {
-                FieldEditor("Client fee", clientFee, "Stored only. This is not an invoice.", R.drawable.rs_setup_pencil) { clientFee = it.filter { ch -> ch.isDigit() || ch == '.' } }
+                FieldEditor("Client fee", clientFee, "Stored only. This is not an invoice.", R.drawable.rs_setup_pencil) { clientFee = formatIndianAmount(it) }
                 ChoiceRow("Reporting cadence", cadence.ifBlank { "None" }, R.drawable.rs_setup_chevron) {
                     cadence = when (cadence) {
                         "" -> "WEEKLY"
@@ -1019,13 +1017,12 @@ fun RetailStoreSetup(
                             Text(label, color = if (gstRegistration == code) Accent else Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp, modifier = Modifier.clickable { gstRegistration = code }.padding(vertical = 4.dp))
                         }
                         FieldEditor("Which state is your business registered in?", gstState, "State", R.drawable.rs_setup_pin) { gstState = it }
-                        Text("How do you usually enter selling prices?", color = Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+                        Text("Do prices include GST?", color = Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp)
                         listOf("YES" to "Prices include GST", "NO" to "GST is added separately").forEach { (code, label) ->
-                            Text(label, color = if (salePriceIncludesGst == code) Accent else Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp, modifier = Modifier.clickable { salePriceIncludesGst = code }.padding(vertical = 4.dp))
-                        }
-                        Text("How do you usually enter purchase prices?", color = Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp)
-                        listOf("YES" to "Prices include GST", "NO" to "GST is added separately").forEach { (code, label) ->
-                            Text(label, color = if (purchasePriceIncludesGst == code) Accent else Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp, modifier = Modifier.clickable { purchasePriceIncludesGst = code }.padding(vertical = 4.dp))
+                            Text(label, color = if (salePriceIncludesGst == code) Accent else Ink, fontFamily = PlusJakartaSans, fontSize = 14.sp, modifier = Modifier.clickable {
+                                salePriceIncludesGst = code
+                                purchasePriceIncludesGst = code
+                            }.padding(vertical = 4.dp))
                         }
                         Text("Your GSTIN stays the one entered above. It is stored as a reference only.", color = Secondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                         FieldEditor("Effective from (optional)", gstEffectiveFrom, "YYYY-MM-DD", R.drawable.rs_setup_pin) { gstEffectiveFrom = it.take(10) }
@@ -1077,8 +1074,8 @@ fun RetailStoreSetup(
                         name.isBlank() -> "Add a name."
                         companyName.isBlank() -> "Add a company name."
                         !look.channelsOptional && selectedChannels.isEmpty() -> "Choose at least one."
-                        budget.toDoubleOrNull()?.let { it > 0 } != true -> "Enter a monthly budget above zero."
-                        !(marketingSetup && target.isBlank()) && target.toDoubleOrNull()?.let { it > 0 } != true -> "Enter a monthly sales target above zero."
+                        plainAmount(budget).toDoubleOrNull()?.let { it > 0 } != true -> "Enter a monthly budget above zero."
+                        !(marketingSetup && target.isBlank()) && plainAmount(target).toDoubleOrNull()?.let { it > 0 } != true -> "Enter a monthly sales target above zero."
                         needsApprover -> "Add someone who can approve, or choose no approval needed."
                         else -> null
                     }
@@ -1100,10 +1097,10 @@ fun RetailStoreSetup(
                             "counterparties" to parties.map { mapOf("name" to it.second, "kind" to it.first) },
                             "channels" to selectedChannels.toList(),
                             "tradeReach" to tradeReach.toList(),
-                            "monthlyBudget" to budget.trim(),
-                            "monthlyTarget" to target.trim(),
+                            "monthlyBudget" to plainAmount(budget),
+                            "monthlyTarget" to plainAmount(target),
                             "targetMetric" to metric,
-                            "clientFee" to if (clientCampaign) clientFee.trim() else "",
+                            "clientFee" to if (clientCampaign) plainAmount(clientFee) else "",
                             "offering" to if (marketingSetup) offering.trim() else "",
                             "creativeApprovalRequired" to if (marketingSetup && creativeApproval) "YES" else "",
                             "reportingCadence" to if (clientCampaign) cadence else "",
@@ -1330,6 +1327,35 @@ private fun plainSetupError(message: String?): String? {
     } else {
         message
     }
+}
+
+internal fun plainAmount(raw: String): String = buildString {
+    var dot = false
+    for (c in raw) {
+        if (c.isDigit()) append(c)
+        else if (c == '.' && !dot) {
+            append('.')
+            dot = true
+        }
+    }
+}
+
+internal fun formatIndianAmount(raw: String): String {
+    val cleaned = plainAmount(raw)
+    if (cleaned.isEmpty()) return ""
+    val dot = cleaned.indexOf('.')
+    val intRaw = if (dot >= 0) cleaned.substring(0, dot) else cleaned
+    val frac = if (dot >= 0) cleaned.substring(dot).take(3) else ""
+    val digits = intRaw.trimStart('0').ifEmpty { if (intRaw.isNotEmpty() || frac.isNotEmpty()) "0" else "" }
+    if (digits.isEmpty()) return ""
+    return indianGroup(digits) + frac
+}
+
+private fun indianGroup(digits: String): String {
+    if (digits.length <= 3) return digits
+    val head = digits.dropLast(3)
+    val tail = digits.takeLast(3)
+    return head.reversed().chunked(2).joinToString(",").reversed() + "," + tail
 }
 
 private fun money(currency: String, amount: String): String {

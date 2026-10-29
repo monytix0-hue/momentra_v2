@@ -62,6 +62,7 @@ data class ProductionEventDraft(
     val dueAt: String? = null,
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
     val rejectedQuantity: String? = null,
+    val lines: List<com.example.momentra.data.api.OperatingLineBody>? = null,
 )
 
 private enum class ProductionSheet(
@@ -365,7 +366,7 @@ private fun ProductionSheet.sheetTitle(): String = when (this) {
     ProductionSheet.CUSTOMER_ORDER -> "Customer Order"
     ProductionSheet.DELIVERY -> "Delivery"
     ProductionSheet.PAYMENT -> "Record Payment"
-    ProductionSheet.COLLECTION -> "Record Collection"
+    ProductionSheet.COLLECTION -> "Money collection"
     ProductionSheet.BUDGET -> "Budget / Target"
     ProductionSheet.UPDATE -> "Post Update"
     ProductionSheet.ISSUE -> "Report Issue"
@@ -419,4 +420,5 @@ private fun OperatingCaptureDraft.toProduction() = ProductionEventDraft(
     dueAt = dueAt,
     contract = contract,
     rejectedQuantity = rejectedQuantity,
+    lines = lines,
 )

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -149,8 +150,21 @@ fun BusinessKhataHomeSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = TeamOpsSheetTokens.SheetBg,
-        dragHandle = null,
+        containerColor = BusinessSheetTokens.bg,
+        dragHandle = {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 12.dp, bottom = 4.dp)
+                        .size(width = 40.dp, height = 5.dp)
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(Color.White.copy(alpha = 0.2f)),
+                )
+            }
+        },
     ) {
         Column(
             modifier = Modifier
@@ -158,10 +172,9 @@ fun BusinessKhataHomeSheet(
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(top = 12.dp, bottom = 28.dp),
+                .padding(top = 8.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            TeamOpsSheetHandle()
             Text(
                 "Khata",
                 color = TeamOpsSheetTokens.Text,
@@ -197,7 +210,7 @@ fun BusinessKhataHomeSheet(
             TeamOpsErrorText(error)
 
             when {
-                loading -> Text("Loading…", color = TeamOpsSheetTokens.Muted, fontSize = 13.sp)
+                loading -> Text("Loading…", color = TeamOpsSheetTokens.Muted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
                 items.isEmpty() -> Text(
                     if (tab == "CUSTOMER") {
                         "Add a customer, then log udhaar when they take goods on credit"
@@ -344,7 +357,7 @@ private fun KhataPartyRow(
                 fontSize = 16.sp,
                 fontFamily = PlusJakartaSans,
             )
-            Text("›", color = TeamOpsSheetTokens.Muted, fontSize = 18.sp)
+            Text("›", color = TeamOpsSheetTokens.Muted, fontSize = 18.sp, fontFamily = PlusJakartaSans)
         }
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -813,11 +826,12 @@ fun BusinessKhataHistorySheet(
             )
             TeamOpsErrorText(error)
             when {
-                loading -> Text("Loading…", color = TeamOpsSheetTokens.Muted, fontSize = 13.sp)
+                loading -> Text("Loading…", color = TeamOpsSheetTokens.Muted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
                 entries.isEmpty() -> Text(
                     "No entries yet — log udhaar or a collection",
                     color = TeamOpsSheetTokens.Muted,
                     fontSize = 14.sp,
+                    fontFamily = PlusJakartaSans,
                 )
                 else -> entries.forEach { entry ->
                     val credit = entry.entryType.equals("CREDIT", true)
@@ -843,7 +857,7 @@ fun BusinessKhataHistorySheet(
                                 entry.note?.takeIf { it.isNotBlank() }?.let { add(it) }
                             }.joinToString(" · ")
                             if (sub.isNotBlank()) {
-                                Text(sub, color = TeamOpsSheetTokens.Muted, fontSize = 12.sp)
+                                Text(sub, color = TeamOpsSheetTokens.Muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
                             }
                         }
                         Text(

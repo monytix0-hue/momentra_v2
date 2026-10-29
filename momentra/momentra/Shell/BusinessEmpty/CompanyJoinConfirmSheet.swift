@@ -40,7 +40,7 @@ struct CompanyJoinConfirmSheet: View {
             case .joining:
                 ProgressView().tint(accent)
                 Text(preview?.title.isEmpty == false ? "Joining \(preview?.title ?? "")..." : "Joining…")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.plusJakarta(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
             case .welcome:
                 welcomeBody
@@ -62,13 +62,13 @@ struct CompanyJoinConfirmSheet: View {
             HStack(spacing: 12) {
                 initialsBubble(preview.title)
                 Text(preview.title)
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.plusJakarta(size: 18, weight: .bold))
                     .foregroundStyle(.white)
                 Spacer()
             }
-            if !preview.membershipType.isEmpty {
-                Text("You join as \(prettyRole(preview.membershipType))")
-                    .font(.system(size: 12, weight: .semibold))
+            if let role = preview.operatingRole ?? Optional(preview.membershipType), !role.isEmpty {
+                Text("You join as \(businessInviteRoleLabel(role))")
+                    .font(.plusJakarta(size: 12, weight: .semibold))
                     .foregroundStyle(accent)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
@@ -77,7 +77,7 @@ struct CompanyJoinConfirmSheet: View {
         }
         if let error {
             Text(error)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.plusJakarta(size: 12, weight: .semibold))
                 .foregroundStyle(Color(hex: "#F87171"))
         }
         Button {
@@ -86,7 +86,7 @@ struct CompanyJoinConfirmSheet: View {
             error = nil
         } label: {
             Text("Join Company")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.plusJakarta(size: 15, weight: .semibold))
                 .foregroundStyle(Color(hex: "#F1F5F9"))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
@@ -95,10 +95,10 @@ struct CompanyJoinConfirmSheet: View {
         .buttonStyle(.plain)
         .disabled(preview == nil)
         Button("Decline", action: onClose)
-            .font(.system(size: 15, weight: .semibold))
+            .font(.plusJakarta(size: 15, weight: .semibold))
             .foregroundStyle(Color(hex: "#94A3B8"))
         Text("You can leave anytime from company settings")
-            .font(.system(size: 12))
+            .font(.plusJakarta(size: 12))
             .foregroundStyle(Color(hex: "#94A3B8"))
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
@@ -108,12 +108,12 @@ struct CompanyJoinConfirmSheet: View {
     private var welcomeBody: some View {
         let name = joined?.displayName ?? ""
         Text(name.isEmpty ? "Welcome" : "Welcome to \(name)!")
-            .font(.system(size: 22, weight: .bold))
+            .font(.plusJakarta(size: 22, weight: .bold))
             .foregroundStyle(.white)
             .multilineTextAlignment(.center)
         if let roleLabel, !roleLabel.isEmpty {
             Text("You've successfully joined as a \(prettyRole(roleLabel))")
-                .font(.system(size: 14))
+                .font(.plusJakarta(size: 14))
                 .foregroundStyle(Color(hex: "#94A3B8"))
                 .multilineTextAlignment(.center)
         }
@@ -121,7 +121,7 @@ struct CompanyJoinConfirmSheet: View {
             HStack(spacing: 12) {
                 initialsBubble(name)
                 Text(name)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.plusJakarta(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
                 Spacer()
             }
@@ -132,7 +132,7 @@ struct CompanyJoinConfirmSheet: View {
             if let joined { onGoToCompany(joined) }
         } label: {
             Text("Go to Company")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.plusJakarta(size: 15, weight: .semibold))
                 .foregroundStyle(Color(hex: "#F1F5F9"))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
@@ -140,13 +140,13 @@ struct CompanyJoinConfirmSheet: View {
         }
         .buttonStyle(.plain)
         Button("Stay Here", action: onClose)
-            .font(.system(size: 15, weight: .semibold))
+            .font(.plusJakarta(size: 15, weight: .semibold))
             .foregroundStyle(Color(hex: "#94A3B8"))
     }
 
     private func initialsBubble(_ name: String) -> some View {
         Text(companyInitials(name))
-            .font(.system(size: 13, weight: .bold))
+            .font(.plusJakarta(size: 13, weight: .bold))
             .foregroundStyle(Color(hex: "#818CF8"))
             .frame(width: 40, height: 40)
             .background(Color(hex: "#818CF8").opacity(0.2), in: Circle())
@@ -170,7 +170,7 @@ struct CompanyJoinConfirmSheet: View {
     private func redeemIfNeeded() async {
         guard phase == .joining, let preview else { return }
         if let result = await createModel.redeemCompanyInvite(code: code) {
-            roleLabel = result.membershipType ?? preview.membershipType
+            roleLabel = businessInviteRoleLabel(preview.operatingRole ?? result.membershipType ?? preview.membershipType)
             let title = preview.title.isEmpty ? "Company" : preview.title
             joined = CompanySummary(
                 companyId: result.companyId.isEmpty ? preview.companyId : result.companyId,

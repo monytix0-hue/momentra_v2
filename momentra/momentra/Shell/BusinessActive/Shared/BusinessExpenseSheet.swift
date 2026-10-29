@@ -344,7 +344,7 @@ struct BusinessRevenueSheet: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Log revenue")
-                    .font(.system(size: 18, weight: .heavy))
+                    .font(.plusJakarta(size: 18, weight: .heavy))
                     .foregroundStyle(Color(hex: "#E5E0EE"))
                 TravelCurrencyPicker(
                     selectedCode: $currencyCode,
@@ -353,7 +353,7 @@ struct BusinessRevenueSheet: View {
                 )
                 TextField("0.00", text: $amount)
                     .keyboardType(.decimalPad)
-                    .font(.system(size: 26, weight: .heavy))
+                    .font(.plusJakarta(size: 26, weight: .heavy))
                     .foregroundStyle(Color(hex: "#E5E0EE"))
                     .padding(12)
                     .background(Color(hex: "#201E28"))
@@ -362,7 +362,7 @@ struct BusinessRevenueSheet: View {
                     .accessibilityIdentifier("business.revenue.amount")
                 if smallShop {
                     Text("Payment")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.plusJakarta(size: 12, weight: .semibold))
                         .foregroundStyle(Color(hex: "#C9C4D8"))
                     Picker("Payment", selection: $payment) {
                         Text("Cash").tag("Cash")
@@ -390,7 +390,7 @@ struct BusinessRevenueSheet: View {
                             .padding(.vertical, 14)
                     } else {
                         Text("Save Revenue")
-                            .font(.system(size: 15, weight: .heavy))
+                            .font(.plusJakarta(size: 15, weight: .heavy))
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
@@ -474,11 +474,11 @@ struct BusinessInvoiceSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Track invoice")
-                        .font(.system(size: 18, weight: .heavy))
+                        .font(.plusJakarta(size: 18, weight: .heavy))
                         .foregroundStyle(Color(hex: "#E5E0EE"))
                     if let receipt = shareReceipt {
                         Text("Invoice saved. Share the receipt?")
-                            .font(.system(size: 13))
+                            .font(.plusJakarta(size: 13))
                             .foregroundStyle(Color(hex: "#C9C4D8"))
                         Text(receipt)
                             .font(.system(size: 12, design: .monospaced))
@@ -491,7 +491,7 @@ struct BusinessInvoiceSheet: View {
                             InviteOutboundShare.sendWhatsApp(phone: nil, message: receipt)
                         } label: {
                             Text("Share on WhatsApp")
-                                .font(.system(size: 15, weight: .heavy))
+                                .font(.plusJakarta(size: 15, weight: .heavy))
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
@@ -502,7 +502,7 @@ struct BusinessInvoiceSheet: View {
                             InviteOutboundShare.presentSystemShare(items: [receipt])
                         } label: {
                             Text("Share…")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.plusJakarta(size: 14, weight: .semibold))
                                 .foregroundStyle(accent)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
@@ -514,7 +514,7 @@ struct BusinessInvoiceSheet: View {
                             onSaved()
                         } label: {
                             Text("Done")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.plusJakarta(size: 14, weight: .semibold))
                                 .foregroundStyle(Color(hex: "#C9C4D8"))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
@@ -563,7 +563,7 @@ struct BusinessInvoiceSheet: View {
                         .background(Color(hex: "#201E28"))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         Text("Tax is calculated when you file—leave blank for now.")
-                            .font(.system(size: 11))
+                            .font(.plusJakarta(size: 11))
                             .foregroundStyle(Color(hex: "#C9C4D8"))
                         if let error {
                             Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171"))
@@ -577,7 +577,7 @@ struct BusinessInvoiceSheet: View {
                                     .padding(.vertical, 14)
                             } else {
                                 Text("Save Invoice")
-                                    .font(.system(size: 15, weight: .heavy))
+                                    .font(.plusJakarta(size: 15, weight: .heavy))
                                     .foregroundStyle(.white)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 14)
@@ -698,6 +698,7 @@ struct BusinessMembersSheet: View {
     @State private var invitePath: String?
     @State private var inviteCode: String?
     @State private var inviteError: String?
+    @State private var inviteRole = "OPERATIONS_LEAD"
     @State private var minting = false
 
     private let accent = Color(red: 0.506, green: 0.549, blue: 0.973)
@@ -742,6 +743,19 @@ struct BusinessMembersSheet: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Invite to company")
                         .font(.plusJakarta(size: 20, weight: .heavy))
+                    HStack(spacing: 8) {
+                        ForEach(businessInviteRoles, id: \.0) { item in
+                            let on = item.0 == inviteRole
+                            Button {
+                                inviteRole = item.0
+                            } label: {
+                                Text(item.1)
+                                    .font(.plusJakarta(size: 12, weight: .semibold))
+                                    .foregroundStyle(on ? accent : Color(hex: "#9CA3AF"))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                     if let inviteError {
                         Text(inviteError).foregroundStyle(Color(hex: "#F87171"))
                     } else {
@@ -763,7 +777,7 @@ struct BusinessMembersSheet: View {
                         Text("Code: \(inviteCode ?? "")")
                             .font(.plusJakarta(size: 13))
                             .foregroundStyle(Color(hex: "#9E9AA8"))
-                        Text("Share this link via Messages or WhatsApp. New members join as MEMBER.")
+                        Text("Share this link via Messages or WhatsApp. They join as \(businessInviteRoleLabel(inviteRole)).")
                             .font(.plusJakarta(size: 12))
                             .foregroundStyle(Color(hex: "#64748B"))
                         InviteSendChannelButtons(
@@ -812,6 +826,9 @@ struct BusinessMembersSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .onChange(of: inviteRole) { _, _ in
+            if showInvite { mintInvite() }
+        }
         .task {
             loading = true
             do {
@@ -831,7 +848,8 @@ struct BusinessMembersSheet: View {
             do {
                 let invite = try await APIClient.shared.mintCompanyInvite(
                     companyId: companyId,
-                    membershipType: "MEMBER",
+                    membershipType: businessInviteMembership(inviteRole),
+                    operatingRole: inviteRole,
                     idempotencyKey: UUID().uuidString
                 )
                 await MainActor.run {

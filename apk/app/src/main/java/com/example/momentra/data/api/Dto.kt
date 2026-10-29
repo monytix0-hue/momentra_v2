@@ -730,12 +730,14 @@ data class CompanyInviteDto(
     val title: String = "",
     @SerializedName("companyId") val companyId: String = "",
     @SerializedName("membershipType") val membershipType: String = "MEMBER",
+    @SerializedName("operatingRole") val operatingRole: String? = null,
     @SerializedName("expiresAt") val expiresAt: String? = null,
 )
 
 data class MintCompanyInviteBody(
     @SerializedName("companyId") val companyId: String,
     @SerializedName("membershipType") val membershipType: String = "MEMBER",
+    @SerializedName("operatingRole") val operatingRole: String? = null,
 )
 
 data class RedeemCompanyInviteResultDto(

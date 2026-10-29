@@ -87,7 +87,7 @@ private struct BusinessGapBody: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                Text(kind.emoji).font(.system(size: 28))
+                Text(kind.emoji).font(.plusJakarta(size: 28))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(kind.label)
                         .font(.plusJakarta(size: 20, weight: .heavy))

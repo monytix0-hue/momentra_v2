@@ -106,7 +106,7 @@ struct CompanyFlowSheet: View {
                         HStack(spacing: 12) {
                             initials(company.displayName)
                             Text(company.displayName)
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(.plusJakarta(size: 15, weight: .semibold))
                                 .foregroundStyle(Color(hex: "#F1F5F9"))
                             Spacer()
                             if company.companyId == selectedCompanyId {
@@ -147,7 +147,7 @@ struct CompanyFlowSheet: View {
                         .frame(width: 36, height: 36)
                         .overlay(Circle().stroke(Color(hex: "#818CF8"), lineWidth: 1))
                     Text("Add New Company")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.plusJakarta(size: 15, weight: .semibold))
                         .foregroundStyle(Color(hex: "#F1F5F9"))
                 }
                 .padding(.horizontal, 16)
@@ -224,10 +224,10 @@ private struct CompanyCreateForm: View {
                     .overlay(Circle().stroke(Color(hex: "#818CF8"), lineWidth: 1))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Company Logo")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.plusJakarta(size: 14, weight: .semibold))
                         .foregroundStyle(Color(hex: "#F1F5F9"))
                     Text("Optional")
-                        .font(.system(size: 12))
+                        .font(.plusJakarta(size: 12))
                         .foregroundStyle(Color(hex: "#64748B"))
                 }
             }
@@ -262,13 +262,13 @@ private struct CompanyCreateForm: View {
                 .padding(.horizontal, 16)
             if let error {
                 Text(error)
-                    .font(.system(size: 12))
+                    .font(.plusJakarta(size: 12))
                     .foregroundStyle(Color(hex: "#F87171"))
                     .padding(.horizontal, 16)
             }
             Button(action: submit) {
                 Text(saving ? "Creating…" : "Create Company")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.plusJakarta(size: 15, weight: .semibold))
                     .foregroundStyle(Color(hex: "#F1F5F9"))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
@@ -279,7 +279,7 @@ private struct CompanyCreateForm: View {
             .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || saving)
             .padding(.horizontal, 16)
             Button("Cancel", action: onCancel)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.plusJakarta(size: 15, weight: .semibold))
                 .foregroundStyle(Color(hex: "#CBD5E1"))
                 .frame(maxWidth: .infinity)
         }
@@ -327,7 +327,7 @@ private struct FlexibleChipRow: View {
             ForEach(options, id: \.self) { option in
                 let on = option == selected
                 Button(option) { onSelect(option) }
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.plusJakarta(size: 13, weight: .medium))
                     .foregroundStyle(on ? Color(hex: "#F1F5F9") : Color(hex: "#CBD5E1"))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -345,11 +345,11 @@ private func sheetHeader(_ title: String, subtitle: String?, close: @escaping ()
     HStack(alignment: .center) {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.plusJakarta(size: 18, weight: .semibold))
                 .foregroundStyle(Color(hex: "#F1F5F9"))
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(.system(size: 13))
+                    .font(.plusJakarta(size: 13))
                     .foregroundStyle(Color(hex: "#CBD5E1"))
             }
         }
@@ -368,14 +368,14 @@ private func sheetHeader(_ title: String, subtitle: String?, close: @escaping ()
 
 private func fieldLabel(_ text: String) -> some View {
     Text(text)
-        .font(.system(size: 11, weight: .semibold))
+        .font(.plusJakarta(size: 11, weight: .semibold))
         .foregroundStyle(Color(hex: "#64748B"))
         .padding(.horizontal, 16)
 }
 
 private func initials(_ name: String) -> some View {
     Text(companyInitials(name))
-        .font(.system(size: 13, weight: .bold))
+        .font(.plusJakarta(size: 13, weight: .bold))
         .foregroundStyle(Color(hex: "#818CF8"))
         .frame(width: 40, height: 40)
         .background(Color(hex: "#818CF8").opacity(0.2), in: Circle())
@@ -465,13 +465,13 @@ private struct BusinessSettingsPage: View {
         VStack(alignment: .leading, spacing: 16) {
             sheetHeader("Company Settings", subtitle: headerName, close: onClose)
             if loading {
-                Text("Loading…").font(.system(size: 13)).foregroundStyle(Color(hex: "#64748B"))
+                Text("Loading…").font(.plusJakarta(size: 13)).foregroundStyle(Color(hex: "#64748B"))
             }
             if let loadError {
-                Text(loadError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                Text(loadError).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#F87171"))
             }
             if let settingsPatchError {
-                Text(settingsPatchError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                Text(settingsPatchError).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#F87171"))
             }
             settingsCard("Business Profile") {
                 settingsTextField("Business Name", text: $displayName)
@@ -485,14 +485,14 @@ private struct BusinessSettingsPage: View {
                 FlexibleChipRow(options: companySizes, selected: companySize) { companySize = $0 }
                 settingsMenuField("Currency", selection: $currency, options: currencyOptions)
                 if let profileSaveError {
-                    Text(profileSaveError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                    Text(profileSaveError).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#F87171"))
                 }
                 if profileSaved {
-                    Text("Saved").font(.system(size: 12)).foregroundStyle(Color(hex: "#10B981"))
+                    Text("Saved").font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#10B981"))
                 }
                 Button(action: saveProfile) {
                     Text(savingProfile ? "Saving…" : "Save profile")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.plusJakarta(size: 14, weight: .semibold))
                         .foregroundStyle(Color(hex: "#F1F5F9"))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -504,7 +504,7 @@ private struct BusinessSettingsPage: View {
             }
             settingsCard("Business Accounts") {
                 Text("Accounts · Coming soon")
-                    .font(.system(size: 12))
+                    .font(.plusJakarta(size: 12))
                     .foregroundStyle(Color(hex: "#64748B").opacity(0.85))
             }
             settingsCard("Money Settings") {
@@ -516,7 +516,7 @@ private struct BusinessSettingsPage: View {
             settingsCard("Locations") {
                 Button(action: onOpenLocations) {
                     Text("Manage locations")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.plusJakarta(size: 13, weight: .semibold))
                         .foregroundStyle(Color(hex: "#818CF8"))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -524,7 +524,7 @@ private struct BusinessSettingsPage: View {
             }
             settingsCard("Team & Roles") {
                 if members.isEmpty {
-                    Text("No team members yet").font(.system(size: 13)).foregroundStyle(Color(hex: "#64748B"))
+                    Text("No team members yet").font(.plusJakarta(size: 13)).foregroundStyle(Color(hex: "#64748B"))
                 } else {
                     ForEach(members) { member in
                         valueRow(
@@ -537,7 +537,7 @@ private struct BusinessSettingsPage: View {
                     Task { await mintInvite() }
                 } label: {
                     Text(inviteBusy ? "Preparing…" : "Invite")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.plusJakarta(size: 14, weight: .semibold))
                         .foregroundStyle(Color(hex: "#F1F5F9"))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -547,21 +547,21 @@ private struct BusinessSettingsPage: View {
                 .buttonStyle(.plain)
                 .disabled(companyId.isEmpty || inviteBusy)
                 if let inviteError {
-                    Text(inviteError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                    Text(inviteError).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#F87171"))
                 }
             }
             settingsCard("What do you use Momentra for?", note: "Turn on only the business moment types you want to use.") {
                 if smallShop, let industryTemplateId, !industryTemplateId.isEmpty {
                     Text("Template: \(IndustryTemplateCatalog.labelFor(industryTemplateId))")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.plusJakarta(size: 13, weight: .medium))
                         .foregroundStyle(Color(hex: "#CBD5E1"))
                     Text("Change modules anytime — you are not locked to the template.")
-                        .font(.system(size: 11))
+                        .font(.plusJakarta(size: 11))
                         .foregroundStyle(Color(hex: "#64748B").opacity(0.8))
                 }
                 ForEach(moduleToggleDefs.filter { !smallShop || !$0.smallShopHidden }, id: \.key) { def in
                     Toggle(def.label, isOn: moduleBinding(for: def.key))
-                        .font(.system(size: 14))
+                        .font(.plusJakarta(size: 14))
                         .foregroundStyle(Color(hex: "#F1F5F9"))
                         .tint(Color(hex: "#818CF8"))
                 }
@@ -569,36 +569,36 @@ private struct BusinessSettingsPage: View {
             settingsCard("Notifications & Approvals") {
                 ForEach(alertToggleDefs, id: \.1) { label, key in
                     Toggle(label, isOn: alertBinding(for: key))
-                        .font(.system(size: 14))
+                        .font(.plusJakarta(size: 14))
                         .foregroundStyle(Color(hex: "#F1F5F9"))
                         .tint(Color(hex: "#818CF8"))
                 }
             }
             settingsCard("Business Memory & Data") {
                 Toggle("Business Memory", isOn: memoryBinding)
-                    .font(.system(size: 14))
+                    .font(.plusJakarta(size: 14))
                     .foregroundStyle(Color(hex: "#F1F5F9"))
                     .tint(Color(hex: "#818CF8"))
                 Text("Archive, export, and retention options coming later")
-                    .font(.system(size: 12))
+                    .font(.plusJakarta(size: 12))
                     .foregroundStyle(Color(hex: "#64748B").opacity(0.8))
             }
             settingsCard("Plan & Usage") {
                 Text("Plan details · Coming soon")
-                    .font(.system(size: 12))
+                    .font(.plusJakarta(size: 12))
                     .foregroundStyle(Color(hex: "#64748B").opacity(0.85))
             }
             settingsCard("Business Management") {
                 if !isOwner {
                     Text("Owner actions only")
-                        .font(.system(size: 12))
+                        .font(.plusJakarta(size: 12))
                         .foregroundStyle(Color(hex: "#64748B").opacity(0.8))
                 } else {
                     Button {
                         showTransferSheet = true
                     } label: {
                         Text("Transfer Ownership")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.plusJakarta(size: 13, weight: .semibold))
                             .foregroundStyle(transferCandidates.isEmpty || managementBusy
                                              ? Color(hex: "#64748B")
                                              : Color(hex: "#818CF8"))
@@ -608,14 +608,14 @@ private struct BusinessSettingsPage: View {
                     .disabled(transferCandidates.isEmpty || managementBusy)
                     if transferCandidates.isEmpty {
                         Text("Invite another member before transferring")
-                            .font(.system(size: 11))
+                            .font(.plusJakarta(size: 11))
                             .foregroundStyle(Color(hex: "#64748B").opacity(0.8))
                     }
                     Button {
                         confirmStatus = "ARCHIVED"
                     } label: {
                         Text("Archive Business")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.plusJakarta(size: 13, weight: .semibold))
                             .foregroundStyle(managementBusy || version == nil
                                              ? Color(hex: "#64748B")
                                              : Color(hex: "#818CF8"))
@@ -627,7 +627,7 @@ private struct BusinessSettingsPage: View {
                         confirmStatus = "INACTIVE"
                     } label: {
                         Text("Deactivate Business")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.plusJakarta(size: 13, weight: .semibold))
                             .foregroundStyle(managementBusy || version == nil
                                              ? Color(hex: "#64748B")
                                              : Color(hex: "#818CF8"))
@@ -637,10 +637,10 @@ private struct BusinessSettingsPage: View {
                     .disabled(managementBusy || version == nil)
                 }
                 if let managementError {
-                    Text(managementError).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                    Text(managementError).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#F87171"))
                 }
                 if let managementOk {
-                    Text(managementOk).font(.system(size: 12)).foregroundStyle(Color(hex: "#10B981"))
+                    Text(managementOk).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#10B981"))
                 }
             }
         }
@@ -673,7 +673,7 @@ private struct BusinessSettingsPage: View {
                 List {
                     Section {
                         Text("Pick who becomes owner. You stay on the company as Admin.")
-                            .font(.system(size: 13))
+                            .font(.plusJakarta(size: 13))
                             .foregroundStyle(Color(hex: "#94A3B8"))
                             .listRowBackground(Color.clear)
                     }
@@ -703,16 +703,16 @@ private struct BusinessSettingsPage: View {
             NavigationStack {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Invite teammates")
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.plusJakarta(size: 18, weight: .bold))
                         .foregroundStyle(Color(hex: "#F1F5F9"))
                     if let inviteMessage {
                         Text(inviteMessage)
-                            .font(.system(size: 13))
+                            .font(.plusJakarta(size: 13))
                             .foregroundStyle(Color(hex: "#94A3B8"))
                             .textSelection(.enabled)
                         ShareLink(item: inviteMessage) {
                             Text("Share invite")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.plusJakarta(size: 14, weight: .semibold))
                                 .foregroundStyle(Color(hex: "#F1F5F9"))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
@@ -957,9 +957,9 @@ private struct BusinessSettingsPage: View {
 
     private func settingsCard<Content: View>(_ title: String, note: String? = nil, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Color(hex: "#F1F5F9"))
+            Text(title).font(.plusJakarta(size: 15, weight: .semibold)).foregroundStyle(Color(hex: "#F1F5F9"))
             if let note {
-                Text(note).font(.system(size: 12)).foregroundStyle(Color(hex: "#64748B"))
+                Text(note).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#64748B"))
             }
             content()
         }
@@ -971,17 +971,17 @@ private struct BusinessSettingsPage: View {
 
     private func valueRow(_ label: String, _ value: String, muted: Bool = false) -> some View {
         HStack {
-            Text(label).font(.system(size: 13)).foregroundStyle(Color(hex: "#CBD5E1"))
+            Text(label).font(.plusJakarta(size: 13)).foregroundStyle(Color(hex: "#CBD5E1"))
             Spacer()
             Text(value)
-                .font(.system(size: 13, weight: .medium))
+                .font(.plusJakarta(size: 13, weight: .medium))
                 .foregroundStyle(muted ? Color(hex: "#64748B") : Color(hex: "#F1F5F9"))
         }
     }
 
     private func settingsTextField(_ label: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.system(size: 13)).foregroundStyle(Color(hex: "#CBD5E1"))
+            Text(label).font(.plusJakarta(size: 13)).foregroundStyle(Color(hex: "#CBD5E1"))
             TextField("", text: text)
                 .padding(10)
                 .background(Color(hex: "#0C0F15"))
@@ -993,7 +993,7 @@ private struct BusinessSettingsPage: View {
 
     private func settingsMenuField(_ label: String, selection: Binding<String>, options: [String], placeholder: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.system(size: 13)).foregroundStyle(Color(hex: "#CBD5E1"))
+            Text(label).font(.plusJakarta(size: 13)).foregroundStyle(Color(hex: "#CBD5E1"))
             Menu {
                 ForEach(options, id: \.self) { option in
                     Button(option) { selection.wrappedValue = option }
