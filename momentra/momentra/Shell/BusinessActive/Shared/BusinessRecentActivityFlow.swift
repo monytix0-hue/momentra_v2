@@ -5,7 +5,10 @@ struct BusinessRecentActivityFlow: View {
     let momentId: String
     @Binding var isPresented: Bool
     var accent: Color = Color(hex: "#818CF8")
+    var title: String = "All activity"
     var subtitle: String = "Updates, spend, memories, and other events."
+    var emptyTitle: String = "No activity yet"
+    var emptyBody: String = "Updates, spend, and collections will show here."
 
     @State private var items: [APIClient.ActivityItemPayload] = []
     @State private var nextCursor: String?
@@ -25,24 +28,20 @@ struct BusinessRecentActivityFlow: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NativeSheetScaffold(
+            title: title,
+            onClose: { isPresented = false },
+            background: BusinessSheetTokens.bg
+        ) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color(hex: "#94A3B8"))
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(BusinessSheetTokens.muted)
                     .padding(.horizontal, 16)
                 chipRow
                 content
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(Color(hex: "#0C0F15").ignoresSafeArea())
-            .navigationTitle("All activity")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { isPresented = false }
-                }
-            }
             .task(id: momentId) { await reload() }
         }
     }
@@ -56,12 +55,17 @@ struct BusinessRecentActivityFlow: View {
                         filter = selected ? GroupActivityCategoryFilter.allId : chip.id
                     } label: {
                         Text("\(chip.emoji) \(chip.label)")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(selected ? .white : Color(hex: "#C9C4D8"))
+                            .font(.plusJakarta(size: 12, weight: .semibold))
+                            .foregroundStyle(selected ? BusinessSheetTokens.text : BusinessSheetTokens.muted)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(selected ? accent : Color.white.opacity(0.06), in: Capsule())
-                            .overlay(Capsule().stroke(selected ? accent : Color.white.opacity(0.08), lineWidth: 1))
+                            .background(selected ? accent : BusinessSheetTokens.field, in: Capsule())
+                            .overlay(
+                                Capsule().stroke(
+                                    selected ? accent : BusinessSheetTokens.border,
+                                    lineWidth: 1
+                                )
+                            )
                     }
                     .buttonStyle(.plain)
                 }
@@ -75,30 +79,42 @@ struct BusinessRecentActivityFlow: View {
         if loading && items.isEmpty {
             ProgressView().tint(accent).frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let error, items.isEmpty {
-            Text(error)
-                .font(.system(size: 13))
-                .foregroundStyle(Color(hex: "#F87171"))
-                .padding(16)
+            BusinessEmptyState(
+                title: "Could not load activity",
+                message: error,
+                systemIcon: "exclamationmark.triangle",
+                accent: Color(hex: "#F87171")
+            )
         } else if items.isEmpty {
-            Text("No activity yet")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(24)
+            BusinessEmptyState(
+                title: emptyTitle,
+                message: emptyBody,
+                systemIcon: "clock.arrow.circlepath",
+                accent: accent
+            )
         } else if filteredItems.isEmpty {
-            Text("No activity in this category")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(24)
+            BusinessEmptyState(
+                title: "No activity in this category",
+                message: "Try another filter, or load more if the list is paginated.",
+                systemIcon: "line.3.horizontal.decrease.circle",
+                accent: accent
+            )
         } else {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 4) {
+                LazyVStack(alignment: .leading, spacing: 0) {
                     if let error {
-                        Text(error).font(.caption).foregroundStyle(Color(hex: "#F87171")).padding(.horizontal, 16)
+                        Text(error)
+                            .font(.plusJakarta(size: 12))
+                            .foregroundStyle(Color(hex: "#F87171"))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
                     }
                     ForEach(activityNodes) { node in
                         GroupActivityRow(
                             item: node.item,
                             accent: accent,
+                            textColor: BusinessSheetTokens.text,
+                            secondaryColor: BusinessSheetTokens.muted,
                             showChevron: false,
                             compactPadding: false
                         )
@@ -106,6 +122,8 @@ struct BusinessRecentActivityFlow: View {
                             GroupActivityRow(
                                 item: child,
                                 accent: accent,
+                                textColor: BusinessSheetTokens.text,
+                                secondaryColor: BusinessSheetTokens.muted,
                                 showChevron: false,
                                 compactPadding: false,
                                 isChild: true
@@ -120,7 +138,7 @@ struct BusinessRecentActivityFlow: View {
                                 ProgressView().tint(accent)
                             } else {
                                 Text("Load more")
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(.plusJakarta(size: 14, weight: .semibold))
                                     .foregroundStyle(accent)
                             }
                         }

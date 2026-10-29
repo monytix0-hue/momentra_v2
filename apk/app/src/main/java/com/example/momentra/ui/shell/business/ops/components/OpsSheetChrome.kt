@@ -412,10 +412,10 @@ fun OpsDateField(
                         )
                     }
                     showPicker = false
-                }) { Text("OK") }
+                }) { Text("OK", fontFamily = PlusJakartaSans) }
             },
             dismissButton = {
-                TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showPicker = false }) { Text("Cancel", fontFamily = PlusJakartaSans) }
             },
         ) {
             DatePicker(state = state)

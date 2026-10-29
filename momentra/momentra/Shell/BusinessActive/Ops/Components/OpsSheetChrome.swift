@@ -48,7 +48,7 @@ struct OpsSheetHeader: View {
         HStack {
             HStack(spacing: 12) {
                 Text(emoji)
-                    .font(.system(size: 18))
+                    .font(.plusJakarta(size: 18))
                     .frame(width: 36, height: 36)
                     .background(OpsSheetTokens.soft)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
@@ -64,7 +64,7 @@ struct OpsSheetHeader: View {
             Spacer()
             Button(action: onClose) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.plusJakarta(size: 12, weight: .bold))
                     .foregroundStyle(OpsSheetTokens.muted)
                     .frame(width: 32, height: 32)
                     .background(OpsSheetTokens.closeBg)
@@ -155,7 +155,7 @@ struct OpsDropdownField: View {
                     .lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.plusJakarta(size: 12, weight: .semibold))
                     .foregroundStyle(OpsSheetTokens.muted)
             }
             .padding(.horizontal, 16)
@@ -191,7 +191,7 @@ struct OpsDateField: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "calendar")
-                    .font(.system(size: 14))
+                    .font(.plusJakarta(size: 14))
                     .foregroundStyle(OpsSheetTokens.muted)
                 Text(display)
                     .font(.plusJakarta(size: 14, weight: .medium))

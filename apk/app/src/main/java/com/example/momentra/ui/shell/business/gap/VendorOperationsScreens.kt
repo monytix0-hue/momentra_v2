@@ -164,7 +164,7 @@ private fun AddContractSheet(
         Text(end.ifBlank { "Choose a date" }, color = GapText, fontFamily = PlusJakartaSans)
         GapField("Contract Value", value) { value = it }
         GapField("Currency", currency) { currency = it }
-        error?.let { Text(it, color = GapMuted, fontSize = 12.sp) }
+        error?.let { Text(it, color = GapMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans) }
         SheetActions(
             label = "Create Contract",
             enabled = !busy && name.isNotBlank() && vendorId.isNotBlank(),
@@ -249,7 +249,7 @@ private fun DefineSlaSheet(
         GapField("Comparator", comparator) { comparator = it }
         GapField("Target Value", target) { target = it }
         GapField("Unit", unit) { unit = it }
-        error?.let { Text(it, color = GapMuted, fontSize = 12.sp) }
+        error?.let { Text(it, color = GapMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans) }
         SheetActions(
             label = "Create SLA",
             enabled = !busy && name.isNotBlank() && metric.isNotBlank() && comparator.isNotBlank() && vendorId.isNotBlank(),
@@ -316,7 +316,7 @@ private fun RecordSlaSheet(
                 )
             }
             Text(selected?.name ?: "—", color = GapText, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
-            Text("Observation Date", color = GapMuted, fontSize = 12.sp, modifier = Modifier.clickable { showDate = true })
+            Text("Observation Date", color = GapMuted, fontSize = 12.sp, modifier = Modifier.clickable { showDate = true }, fontFamily = PlusJakartaSans)
             Text(observedAt.ifBlank { "Choose a date" }, color = GapText, fontFamily = PlusJakartaSans)
             GapField("Observed Value", observed) { observed = it }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -329,13 +329,14 @@ private fun RecordSlaSheet(
                             .background(if (result == label) GapAccent else GapCard)
                             .clickable { result = label }
                             .padding(horizontal = 10.dp, vertical = 6.dp),
+                        fontFamily = PlusJakartaSans,
                     )
                 }
             }
-            Text("Evidence / Notes", color = GapMuted, fontSize = 12.sp, modifier = Modifier.clickable { showNote = true })
+            Text("Evidence / Notes", color = GapMuted, fontSize = 12.sp, modifier = Modifier.clickable { showNote = true }, fontFamily = PlusJakartaSans)
             Text(note.ifBlank { "Add a note" }, color = GapText, fontFamily = PlusJakartaSans)
         }
-        error?.let { Text(it, color = GapMuted, fontSize = 12.sp) }
+        error?.let { Text(it, color = GapMuted, fontSize = 12.sp, fontFamily = PlusJakartaSans) }
         SheetActions(
             label = "Record Check",
             enabled = !busy && selected != null,

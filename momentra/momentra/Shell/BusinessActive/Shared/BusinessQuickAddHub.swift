@@ -271,7 +271,7 @@ struct BusinessQuickAddHub: View {
                                     .frame(width: 40, height: 40)
                             } else {
                                 Text(kind.emoji)
-                                    .font(.system(size: 22))
+                                    .font(.plusJakarta(size: 22))
                                     .frame(width: 40, height: 40)
                             }
                             Text(kind.label(smallShop: smallShop))

@@ -1150,7 +1150,7 @@ fun OpsPatternNetworkSection(
                         .border(1.dp, theme.border, RoundedCornerShape(999.dp))
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                 )
-                Text("→", color = theme.muted, fontSize = 12.sp)
+                Text("→", color = theme.muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
                 Text(
                     "Effect",
                     color = theme.muted,
@@ -1367,6 +1367,6 @@ fun OpsScopeDropdown(
             fontWeight = FontWeight.SemiBold,
             fontFamily = PlusJakartaSans,
         )
-        Text("▾", color = theme.secondary, fontSize = 12.sp)
+        Text("▾", color = theme.secondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
     }
 }

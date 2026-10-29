@@ -33,7 +33,7 @@ struct BusinessCreateEmptyView: View {
                     }
 
                     Text("Built for every business")
-                        .font(.system(size: 14))
+                        .font(.plusJakarta(size: 14))
                         .foregroundStyle(BusinessEmptyTokens.textMuted)
                         .multilineTextAlignment(.center)
 
@@ -55,10 +55,10 @@ struct BusinessCreateEmptyView: View {
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(tile.1)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.plusJakarta(size: 13, weight: .semibold))
                     .foregroundStyle(BusinessEmptyTokens.textPrimary)
                 Text(tile.2)
-                    .font(.system(size: 11))
+                    .font(.plusJakarta(size: 11))
                     .foregroundStyle(BusinessEmptyTokens.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

@@ -4,6 +4,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import com.example.momentra.ui.shell.empty.business.BusinessSetupKind
 
+/** Shared business sheet tokens aligned with the Group/Trip sheet palette. */
+object BusinessSheetTokens {
+    val bg = Color(0xFF1C1A24)
+    val field = Color(0xFF252332)
+    val border = Color(0xFF323042)
+    val muted = Color(0xFF9E9AA8)
+    val text = Color(0xFFFFFFFF)
+}
+
 /** B01–B03 Business active tokens — Team Ops / Runway / Operations. */
 data class BusinessActiveTheme(
     val bg: Color,

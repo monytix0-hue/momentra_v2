@@ -7,10 +7,13 @@ import { assertGovernanceAllowed } from '../governance/resolver';
 import { insertAudit, insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { assertActiveCompanyMember } from './membership';
 
+const OPERATING_INVITE_ROLES = ['FINANCE', 'APPROVER', 'OPERATIONS_LEAD', 'CONTRIBUTOR'] as const;
+
 export const mintCompanyInviteSchema = z
   .object({
     companyId: z.string().uuid(),
     membershipType: z.enum(['ADMIN', 'MEMBER', 'CONTRACTOR', 'OBSERVER']).default('MEMBER'),
+    operatingRole: z.enum(OPERATING_INVITE_ROLES).optional(),
   })
   .strict();
 
@@ -25,6 +28,7 @@ export interface CompanyInviteResult {
   title: string;
   companyId: string;
   membershipType: string;
+  operatingRole?: string;
   expiresAt: string;
 }
 
@@ -46,6 +50,16 @@ const DISPLAY_ORIGIN = (
 const DISPLAY_HOST = DISPLAY_ORIGIN.replace(/^https?:\/\//i, '');
 const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 
+const SNAPSHOT_ROLE = '||';
+
+function splitInviteSnapshot(raw: string): { title: string; operatingRole?: string } {
+  const idx = raw.lastIndexOf(SNAPSHOT_ROLE);
+  if (idx < 0) return { title: raw };
+  const code = raw.slice(idx + SNAPSHOT_ROLE.length);
+  if (!(OPERATING_INVITE_ROLES as readonly string[]).includes(code)) return { title: raw };
+  return { title: raw.slice(0, idx), operatingRole: code };
+}
+
 function toInviteViews(row: {
   invite_id: string;
   invite_code: string;
@@ -58,15 +72,17 @@ function toInviteViews(row: {
   const hostPath = `${DISPLAY_HOST}/c/${row.invite_code}`;
   const expiresAt =
     row.expires_at instanceof Date ? row.expires_at.toISOString() : String(row.expires_at);
+  const snapshot = splitInviteSnapshot(row.title_snapshot);
   return {
     inviteId: row.invite_id,
     inviteCode: row.invite_code,
     invitePath: hostPath,
     inviteUrl: `${DISPLAY_ORIGIN}/c/${row.invite_code}`,
     status: row.status,
-    title: row.title_snapshot,
+    title: snapshot.title,
     companyId: row.company_id,
     membershipType: row.membership_type,
+    operatingRole: snapshot.operatingRole,
     expiresAt,
   };
 }
@@ -133,7 +149,15 @@ export async function mintCompanyInvite(
        invite_code, created_by_user_id, company_id, membership_type, title_snapshot, status, version
      ) VALUES ($1, $2, $3, $4, $5, 'ACTIVE', 1)
      RETURNING invite_id, invite_code, status, title_snapshot, company_id, membership_type, expires_at`,
-    [code, ctx.userId, body.companyId, body.membershipType, company.rows[0].display_name]
+    [
+      code,
+      ctx.userId,
+      body.companyId,
+      body.membershipType,
+      body.operatingRole
+        ? `${company.rows[0].display_name}${SNAPSHOT_ROLE}${body.operatingRole}`
+        : company.rows[0].display_name,
+    ]
   );
   const row = inserted.rows[0]!;
 
@@ -148,6 +172,7 @@ export async function mintCompanyInvite(
       inviteCode: code,
       companyId: body.companyId,
       membershipType: body.membershipType,
+      operatingRole: body.operatingRole ?? null,
     },
   });
 

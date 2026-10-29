@@ -26,7 +26,7 @@ struct BusinessMemoryEmptyView: View {
                                 HStack(spacing: 8) {
                                     BusinessEmptyAssetIcon(name: "business_empty_memory_dot", size: 6)
                                     Text(title)
-                                        .font(.system(size: 13, weight: .semibold))
+                                        .font(.plusJakarta(size: 13, weight: .semibold))
                                         .foregroundStyle(BusinessEmptyTokens.textPrimary)
                                 }
                                 Spacer()
@@ -43,7 +43,7 @@ struct BusinessMemoryEmptyView: View {
                     }
 
                     Text("\"Everything stays here so you can find it later.\"")
-                        .font(.system(size: 13).italic())
+                        .font(.plusJakarta(size: 13).italic())
                         .foregroundStyle(BusinessEmptyTokens.textSecondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)

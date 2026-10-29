@@ -61,6 +61,7 @@ data class ServiceEventDraft(
     val masterKind: String? = null,
     val dueAt: String? = null,
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
+    val lines: List<com.example.momentra.data.api.OperatingLineBody>? = null,
 )
 
 private enum class ServiceSheet(
@@ -77,7 +78,7 @@ private enum class ServiceSheet(
     PURCHASE("Record Purchase", "PURCHASE", true, false, true, null),
     SPEND("Record Expense", "SPEND", true, false, false, null),
     PAYMENT("Record Payment", "PAYMENT", true, false, true, "PENDING"),
-    COLLECTION("Record Collection", "COLLECTION", true, true, false, "PENDING"),
+    COLLECTION("Money collection", "COLLECTION", true, true, false, "PENDING"),
     BUDGET("Revise Budget", "BUDGET", true, false, false, null),
     UPDATE("Issue / Approval / Update", "UPDATE", false, false, false, null),
     ISSUE("Report Issue", "ISSUE", false, false, false, null),
@@ -229,7 +230,7 @@ fun ServiceQuickAddHub(
     }
     val open = sheet
     if (open != null) {
-        OperatingSheetScrim(onDismiss = { sheet = null }) {
+        OperatingSheetScrim(onDismiss = { sheet = null }, accent = SvcBrand) {
             OperatingCaptureSheet(
                 title = open.title,
                 icon = open.hubIcon,
@@ -253,7 +254,7 @@ fun ServiceQuickAddHub(
         }
     }
     if (mastersOpen) {
-        OperatingSheetScrim(onDismiss = { mastersOpen = false }) {
+        OperatingSheetScrim(onDismiss = { mastersOpen = false }, accent = SvcBrand) {
             OperatingCaptureSheet(
                 title = "Masters",
                 icon = R.drawable.qa_shield,
@@ -269,7 +270,7 @@ fun ServiceQuickAddHub(
         }
     }
     if (approvalOpen) {
-        OperatingSheetScrim(onDismiss = { approvalOpen = false }) {
+        OperatingSheetScrim(onDismiss = { approvalOpen = false }, accent = SvcBrand) {
             OperatingCaptureSheet(
                 title = "Review Approval",
                 icon = R.drawable.qa_shield,
@@ -381,4 +382,5 @@ private fun OperatingCaptureDraft.toService() = ServiceEventDraft(
     masterKind = masterKind,
     dueAt = dueAt,
     contract = contract,
+    lines = lines,
 )

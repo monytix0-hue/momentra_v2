@@ -15,7 +15,7 @@ struct BusinessEmptyPill: View {
 
     var body: some View {
         Text(label.uppercased())
-            .font(.system(size: 11, weight: .bold))
+            .font(.plusJakarta(size: 11, weight: .bold))
             .foregroundStyle(BusinessEmptyTokens.accent)
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
@@ -32,12 +32,12 @@ struct BusinessEmptyHeadline: View {
     var body: some View {
         VStack(spacing: 10) {
             Text(title)
-                .font(.system(size: 32, weight: .bold))
+                .font(.plusJakarta(size: 32, weight: .bold))
                 .foregroundStyle(BusinessEmptyTokens.textPrimary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
             Text(bodyText)
-                .font(.system(size: 14))
+                .font(.plusJakarta(size: 14))
                 .foregroundStyle(BusinessEmptyTokens.textSecondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
@@ -52,7 +52,7 @@ struct BusinessEmptyCTA: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.plusJakarta(size: 15, weight: .semibold))
                 .foregroundStyle(BusinessEmptyTokens.textPrimary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)

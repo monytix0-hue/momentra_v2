@@ -59,27 +59,19 @@ struct SearchableOperatingLovSheet: View {
                         .font(.plusJakarta(size: 14))
                 }
                 .padding(12)
-                .background(Color(hex: "#1A2330"))
+                .background(BusinessSheetTokens.field)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(BusinessSheetTokens.border, lineWidth: 1))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .onChange(of: query) { _, _ in page = 1 }
 
                 if filtered.isEmpty {
                     Text("No matching \(title.lowercased())")
                         .font(.plusJakarta(size: 13))
-                        .foregroundStyle(Color(hex: "#9AA3B2"))
-                    if canAdd {
-                        Button {
-                            newName = query
-                            adding = true
-                        } label: {
-                            Label("+ Add \(title)", systemImage: "plus")
-                                .font(.plusJakarta(size: 14, weight: .semibold))
-                        }
-                        .foregroundStyle(accent)
-                    } else {
+                        .foregroundStyle(BusinessSheetTokens.muted)
+                    if !canAdd {
                         Text("Ask an admin to add this.")
                             .font(.plusJakarta(size: 12))
-                            .foregroundStyle(Color(hex: "#9AA3B2"))
+                            .foregroundStyle(BusinessSheetTokens.muted)
                     }
                 } else {
                     ScrollView {
@@ -92,16 +84,16 @@ struct SearchableOperatingLovSheet: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(option.name)
                                             .font(.plusJakarta(size: 15, weight: .semibold))
-                                            .foregroundStyle(Color(hex: "#E8EEF7"))
+                                            .foregroundStyle(BusinessSheetTokens.text)
                                         if let subtitle = option.subtitle, !subtitle.isEmpty {
                                             Text(subtitle)
                                                 .font(.plusJakarta(size: 12))
-                                                .foregroundStyle(Color(hex: "#9AA3B2"))
+                                                .foregroundStyle(BusinessSheetTokens.muted)
                                         }
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(12)
-                                    .background(Color(hex: "#15202B"))
+                                    .background(BusinessSheetTokens.field)
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                                 }
                                 .buttonStyle(.plain)

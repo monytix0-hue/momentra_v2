@@ -8,10 +8,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -57,7 +62,6 @@ import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.repository.MeRepository
 import com.example.momentra.domain.CompanySummary
 import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
-import com.example.momentra.ui.shell.empty.group.generateInviteQrBitmap
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.util.UUID
 import kotlinx.coroutines.launch
@@ -270,6 +274,21 @@ fun CompanyJoinCodeSheet(
     }
 }
 
+internal val BusinessInviteRoles = listOf(
+    "FINANCE" to "Finance",
+    "APPROVER" to "Approver",
+    "OPERATIONS_LEAD" to "Operations",
+    "CONTRIBUTOR" to "Contributor",
+)
+
+internal fun businessInviteMembership(role: String): String =
+    if (role == "FINANCE" || role == "APPROVER") "ADMIN" else "MEMBER"
+
+internal fun businessInviteRoleLabel(role: String?): String =
+    BusinessInviteRoles.firstOrNull { it.first == role }?.second
+        ?: role?.lowercase()?.replace('_', ' ')?.replaceFirstChar { it.uppercase() }
+        ?: "Member"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CompanyInviteShareSheet(
@@ -277,6 +296,7 @@ fun CompanyInviteShareSheet(
     visible: Boolean,
     onDismiss: () -> Unit,
     companyName: String = "company",
+    accent: Color = Accent,
 ) {
     if (!visible) return
     val context = LocalContext.current
@@ -286,15 +306,21 @@ fun CompanyInviteShareSheet(
     var inviteCode by remember { mutableStateOf<String?>(null) }
     var invitePath by remember { mutableStateOf<String?>(null) }
     var copied by remember { mutableStateOf(false) }
+    var role by remember { mutableStateOf("OPERATIONS_LEAD") }
 
-    androidx.compose.runtime.LaunchedEffect(companyId, visible) {
-        if (!visible) return@LaunchedEffect
+    androidx.compose.runtime.LaunchedEffect(companyId, visible, role) {
+        if (!visible || companyId.isBlank()) return@LaunchedEffect
         loading = true
         error = null
+        copied = false
         runCatching {
             ApiClient.apiService.mintCompanyInvite(
                 idempotencyKey = UUID.randomUUID().toString(),
-                body = MintCompanyInviteBody(companyId = companyId),
+                body = MintCompanyInviteBody(
+                    companyId = companyId,
+                    membershipType = businessInviteMembership(role),
+                    operatingRole = role,
+                ),
             ).data
         }.fold(
             onSuccess = {
@@ -331,6 +357,7 @@ fun CompanyInviteShareSheet(
                 fontFamily = PlusJakartaSans,
                 modifier = Modifier.fillMaxWidth(),
             )
+            BusinessInviteRoleRow(role = role, accent = accent, onRole = { role = it })
             when {
                 loading -> Text("Minting invite…", color = Color(0xFF9E9AA8), fontFamily = PlusJakartaSans)
                 error != null -> Text(error!!, color = Red, fontFamily = PlusJakartaSans)
@@ -367,7 +394,7 @@ fun CompanyInviteShareSheet(
                         fontFamily = PlusJakartaSans,
                     )
                     Text(
-                        "Share this link via Messages or WhatsApp. New members join as MEMBER.",
+                        "Share this link via Messages or WhatsApp. They join as ${businessInviteRoleLabel(role)}.",
                         color = Color(0xFF64748B),
                         fontSize = 12.sp,
                         fontFamily = PlusJakartaSans,
@@ -375,7 +402,7 @@ fun CompanyInviteShareSheet(
                     )
                     InviteSendChannelRow(
                         enabled = invitePath != null,
-                        accent = Accent,
+                        accent = accent,
                         onMessages = {
                             val url = invitePath ?: return@InviteSendChannelRow
                             sendInviteSms(context, null, inviteMessage(companyName, url))
@@ -422,13 +449,226 @@ fun CompanyInviteShareSheet(
             }
             Text(
                 "Done",
-                color = Accent,
+                color = accent,
                 fontWeight = FontWeight.Bold,
                 fontFamily = PlusJakartaSans,
                 modifier = Modifier
                     .padding(top = 8.dp)
                     .clickable(onClick = onDismiss)
                     .padding(8.dp),
+            )
+        }
+    }
+}
+
+@Composable
+internal fun BusinessInviteRoleRow(role: String, accent: Color, onRole: (String) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        BusinessInviteRoles.forEach { (code, label) ->
+            val on = code == role
+            val shape = RoundedCornerShape(999.dp)
+            Text(
+                label,
+                color = if (on) accent else Color(0xFF9CA3AF),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier
+                    .clip(shape)
+                    .background(if (on) accent.copy(alpha = 0.1f) else Color.Transparent)
+                    .border(1.dp, if (on) accent.copy(alpha = 0.2f) else Color(0xFF2A2538), shape)
+                    .clickable { onRole(code) }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BusinessSetupInviteSheet(
+    visible: Boolean,
+    companyId: String,
+    companyName: String,
+    accent: Color,
+    onAddPerson: (name: String, role: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (!visible) return
+    val context = LocalContext.current
+    var role by remember { mutableStateOf("OPERATIONS_LEAD") }
+    var name by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var inviteCode by remember { mutableStateOf<String?>(null) }
+    var invitePath by remember { mutableStateOf<String?>(null) }
+    var copied by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    LaunchedEffect(companyId, visible, role) {
+        if (!visible || companyId.isBlank()) return@LaunchedEffect
+        loading = true
+        error = null
+        copied = false
+        runCatching {
+            ApiClient.apiService.mintCompanyInvite(
+                idempotencyKey = UUID.randomUUID().toString(),
+                body = MintCompanyInviteBody(
+                    companyId = companyId,
+                    membershipType = businessInviteMembership(role),
+                    operatingRole = role,
+                ),
+            ).data
+        }.fold(
+            onSuccess = {
+                inviteCode = it.inviteCode
+                invitePath = it.invitePath.ifBlank { CompanyJoinLink.displayPath(it.inviteCode) }
+                loading = false
+            },
+            onFailure = {
+                error = it.message ?: "Could not mint invite"
+                loading = false
+            },
+        )
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color(0xFF1C1926),
+        shape = shape,
+        dragHandle = null,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.92f)
+                .border(1.dp, Color(0xFF2A2538), shape)
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                "Invite people",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                "Pick the business role, then share the QR. A named person also joins this moment with that role.",
+                color = Color(0xFF9CA3AF),
+                fontSize = 13.sp,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            BusinessInviteRoleRow(role, accent) { role = it }
+            BasicTextField(
+                value = name,
+                onValueChange = { name = it },
+                textStyle = TextStyle(color = Color.White, fontSize = 16.sp, fontFamily = PlusJakartaSans),
+                cursorBrush = SolidColor(accent),
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF252230))
+                    .border(1.dp, Color(0xFF322E40), RoundedCornerShape(12.dp))
+                    .padding(14.dp),
+                decorationBox = { inner ->
+                    if (name.isEmpty()) {
+                        Text("Person name", color = Color(0xFF9CA3AF), fontFamily = PlusJakartaSans)
+                    }
+                    inner()
+                },
+            )
+            val addShape = RoundedCornerShape(14.dp)
+            Text(
+                "Add ${businessInviteRoleLabel(role)}",
+                color = Color(0xFF14121B),
+                fontWeight = FontWeight.Bold,
+                fontFamily = PlusJakartaSans,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(10.dp, addShape, ambientColor = accent.copy(alpha = 0.4f), spotColor = accent.copy(alpha = 0.4f))
+                    .clip(addShape)
+                    .background(accent)
+                    .clickable {
+                        val trimmed = name.trim()
+                        if (trimmed.isNotEmpty()) {
+                            onAddPerson(trimmed, role)
+                            name = ""
+                        }
+                    }
+                    .padding(vertical = 14.dp),
+            )
+            if (companyId.isBlank()) {
+                Text(
+                    "The QR is shared once this business exists. Their name still gets ${businessInviteRoleLabel(role)} when you start.",
+                    color = Color(0xFF9CA3AF),
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else when {
+                loading -> Text("Minting invite…", color = Color(0xFF9E9AA8), fontFamily = PlusJakartaSans)
+                error != null -> Text(error!!, color = Red, fontFamily = PlusJakartaSans, modifier = Modifier.fillMaxWidth())
+                else -> {
+                    val code = inviteCode.orEmpty()
+                    val qrSizePx = with(LocalDensity.current) { 160.dp.roundToPx() }
+                    val qrBitmap = remember(code, qrSizePx) {
+                        code.takeIf { it.isNotBlank() }?.let { generateInviteQrBitmap(CompanyJoinLink.qrPayload(it), qrSizePx) }
+                    }
+                    qrBitmap?.let {
+                        Image(
+                            bitmap = it.asImageBitmap(),
+                            contentDescription = "Company invite QR",
+                            modifier = Modifier.size(160.dp).clip(RoundedCornerShape(12.dp)).background(Color.White).padding(8.dp),
+                        )
+                    }
+                    Text(invitePath.orEmpty(), color = accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlusJakartaSans)
+                    Text(
+                        "They join as ${businessInviteRoleLabel(role)}.",
+                        color = Color(0xFF9CA3AF),
+                        fontSize = 12.sp,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    InviteSendChannelRow(
+                        enabled = invitePath != null,
+                        accent = accent,
+                        onMessages = {
+                            val url = invitePath ?: return@InviteSendChannelRow
+                            sendInviteSms(context, null, inviteMessage(companyName, url))
+                        },
+                        onWhatsApp = {
+                            val url = invitePath ?: return@InviteSendChannelRow
+                            sendInviteWhatsApp(context, null, inviteMessage(companyName, url))
+                        },
+                    )
+                    Text(
+                        if (copied) "Copied" else "Copy link",
+                        color = accent,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier.clickable {
+                            val url = invitePath ?: return@clickable
+                            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            cm.setPrimaryClip(ClipData.newPlainText("invite", url))
+                            copied = true
+                        }.padding(8.dp),
+                    )
+                }
+            }
+            Text(
+                "Done",
+                color = accent,
+                fontWeight = FontWeight.Bold,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier.clickable(onClick = onDismiss).padding(8.dp),
             )
         }
     }

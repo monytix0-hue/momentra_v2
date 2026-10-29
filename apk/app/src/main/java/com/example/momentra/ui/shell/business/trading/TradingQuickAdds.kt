@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -78,6 +79,7 @@ data class TradingEventDraft(
     val masterBillingState: String? = null,
     val masterDeliveryState: String? = null,
     val masterGstin: String? = null,
+    val lines: List<com.example.momentra.data.api.OperatingLineBody>? = null,
 )
 
 private enum class TradingSheet(
@@ -92,7 +94,7 @@ private enum class TradingSheet(
     PURCHASE("Record Purchase", "PURCHASE", true, false, true, null),
     SPEND("Record Expense", "SPEND", true, false, false, null),
     PAYMENT("Record Payment", "PAYMENT", true, false, true, "PENDING"),
-    COLLECTION("Record Collection", "COLLECTION", true, true, false, "PENDING"),
+    COLLECTION("Money collection", "COLLECTION", true, true, false, "PENDING"),
     BUDGET("Revise Budget", "BUDGET", true, false, false, null),
     UPDATE("Post Update", "UPDATE", false, false, false, null),
     ISSUE("Report Issue", "ISSUE", false, false, false, null),
@@ -149,6 +151,8 @@ fun TradingQuickAddHub(
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(TradeNotice)
+            .border(1.dp, TradeBrand.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
+            .shadow(24.dp, RoundedCornerShape(18.dp), ambientColor = TradeBrand.copy(alpha = 0.4f), spotColor = TradeBrand.copy(alpha = 0.4f))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -197,7 +201,7 @@ fun TradingQuickAddHub(
         TradingSheet.PURCHASE to "Purchase",
         TradingSheet.SPEND to "Expense",
         TradingSheet.PAYMENT to "Payment",
-        TradingSheet.COLLECTION to "Collection",
+        TradingSheet.COLLECTION to "Money collection",
         TradingSheet.BUDGET to "Budget",
         TradingSheet.UPDATE to "Update",
         TradingSheet.ISSUE to "Issue",
@@ -272,7 +276,7 @@ fun TradingQuickAddHub(
     }
     val open = sheet
     if (open != null) {
-        OperatingSheetScrim(onDismiss = { sheet = null }) {
+        OperatingSheetScrim(onDismiss = { sheet = null }, accent = TradeBrand) {
             OperatingCaptureSheet(
                 title = open.title,
                 icon = open.hubIcon,
@@ -296,7 +300,7 @@ fun TradingQuickAddHub(
         }
     }
     if (mastersOpen) {
-        OperatingSheetScrim(onDismiss = { mastersOpen = false }) {
+        OperatingSheetScrim(onDismiss = { mastersOpen = false }, accent = TradeBrand) {
             OperatingCaptureSheet(
                 title = "Masters",
                 icon = R.drawable.qa_shield,
@@ -312,7 +316,7 @@ fun TradingQuickAddHub(
         }
     }
     if (approvalOpen) {
-        OperatingSheetScrim(onDismiss = { approvalOpen = false }) {
+        OperatingSheetScrim(onDismiss = { approvalOpen = false }, accent = TradeBrand) {
             OperatingCaptureSheet(
                 title = "Review Approval",
                 icon = R.drawable.qa_shield,
@@ -439,4 +443,5 @@ private fun OperatingCaptureDraft.toTrading() = TradingEventDraft(
     masterBillingState = masterBillingState,
     masterDeliveryState = masterDeliveryState,
     masterGstin = masterGstin,
+    lines = lines,
 )

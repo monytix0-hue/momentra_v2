@@ -2017,15 +2017,24 @@ final class APIClient {
     func mintCompanyInvite(
         companyId: String,
         membershipType: String = "MEMBER",
+        operatingRole: String? = nil,
         idempotencyKey: String
     ) async throws -> CompanyInvite {
         struct Body: Encodable {
             let companyId: String
             let membershipType: String
+            let operatingRole: String?
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encode(companyId, forKey: .companyId)
+                try c.encode(membershipType, forKey: .membershipType)
+                try c.encodeIfPresent(operatingRole, forKey: .operatingRole)
+            }
+            private enum CodingKeys: String, CodingKey { case companyId, membershipType, operatingRole }
         }
         return try await authorizedPost(
             path: "v1/company/invites",
-            body: Body(companyId: companyId, membershipType: membershipType),
+            body: Body(companyId: companyId, membershipType: membershipType, operatingRole: operatingRole),
             idempotencyKey: idempotencyKey
         )
     }

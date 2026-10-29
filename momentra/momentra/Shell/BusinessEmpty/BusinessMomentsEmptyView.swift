@@ -35,7 +35,7 @@ struct BusinessMomentsEmptyView: View {
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(item.title)
-                                        .font(.system(size: 13, weight: .semibold))
+                                        .font(.plusJakarta(size: 13, weight: .semibold))
                                         .foregroundStyle(BusinessEmptyTokens.textPrimary)
                                     Text(item.time)
                                         .font(.system(size: 11, design: .monospaced))
@@ -70,7 +70,7 @@ struct BusinessMomentsEmptyView: View {
 
     private func chipView(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 12, weight: .medium))
+            .font(.plusJakarta(size: 12, weight: .medium))
             .foregroundStyle(BusinessEmptyTokens.textSecondary)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)

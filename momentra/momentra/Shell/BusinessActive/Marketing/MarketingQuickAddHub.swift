@@ -91,6 +91,8 @@ struct MarketingQuickAddHub: View {
                     ? AnyShapeStyle(MarketingChrome.notice)
                     : AnyShapeStyle(LinearGradient(colors: [Color(hex: "#6C4EF2"), Color(hex: "#3A3842")], startPoint: .leading, endPoint: .trailing))
             )
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(MarketingChrome.brand.opacity(0.3), lineWidth: 1))
+            .shadow(color: MarketingChrome.brand.opacity(0.4), radius: 24, y: 8)
             .clipShape(RoundedRectangle(cornerRadius: 18))
             HStack(spacing: 10) {
                 Image("biz_qa_search").renderingMode(.template).resizable().scaledToFit().frame(width: 18, height: 18)

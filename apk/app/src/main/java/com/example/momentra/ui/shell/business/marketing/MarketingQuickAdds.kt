@@ -76,6 +76,7 @@ data class MarketingEventDraft(
     val periodStart: String? = null,
     val periodEnd: String? = null,
     val supersedesEventId: String? = null,
+    val lines: List<com.example.momentra.data.api.OperatingLineBody>? = null,
 )
 
 private enum class MarketingSheet(
@@ -92,7 +93,7 @@ private enum class MarketingSheet(
     RESULT("Campaign Result", "RESULT", true, true, false, null),
     PAYMENT("Record Payment", "PAYMENT", true, false, true, "PENDING"),
     INVOICE("Record Invoice", "INVOICE", true, false, true, "PENDING"),
-    COLLECTION("Record Collection", "COLLECTION", true, true, false, "PENDING"),
+    COLLECTION("Money collection", "COLLECTION", true, true, false, "PENDING"),
     REVISION("Budget / Target Revision", "REVISION", true, false, false, null),
     BUDGET("Add Budget", "BUDGET", true, false, false, null),
     TARGET("Add Target", "TARGET", true, false, false, null),
@@ -220,7 +221,7 @@ fun MarketingQuickAddHub(
         MarketingSheet.SPEND to "Record Spend",
         MarketingSheet.PAYMENT to "Record Payment",
         MarketingSheet.INVOICE to "Record Invoice",
-        MarketingSheet.COLLECTION to "Record Collection",
+        MarketingSheet.COLLECTION to "Money collection",
         MarketingSheet.REVISION to "Budget / Target Revision",
         MarketingSheet.APPROVAL to "Approval / Decision",
         MarketingSheet.UPDATE to "Team Update",
@@ -279,7 +280,7 @@ fun MarketingQuickAddHub(
     }
     val open = sheet
     if (open != null) {
-        OperatingSheetScrim(onDismiss = { sheet = null }) {
+        OperatingSheetScrim(onDismiss = { sheet = null }, accent = CampBrand) {
             OperatingCaptureSheet(
                 title = open.sheetTitle(client),
                 icon = open.icon(client),
@@ -298,7 +299,7 @@ fun MarketingQuickAddHub(
         }
     }
     if (mastersOpen) {
-        OperatingSheetScrim(onDismiss = { mastersOpen = false }) {
+        OperatingSheetScrim(onDismiss = { mastersOpen = false }, accent = CampBrand) {
             OperatingCaptureSheet(
                 title = "Masters",
                 icon = R.drawable.qa_shield,
@@ -314,7 +315,7 @@ fun MarketingQuickAddHub(
         }
     }
     if (approvalOpen) {
-        OperatingSheetScrim(onDismiss = { approvalOpen = false }) {
+        OperatingSheetScrim(onDismiss = { approvalOpen = false }, accent = CampBrand) {
             OperatingCaptureSheet(
                 title = "Review Approval",
                 icon = R.drawable.qa_shield,
@@ -467,4 +468,5 @@ private fun OperatingCaptureDraft.toMarketing() = MarketingEventDraft(
     periodStart = periodStart,
     periodEnd = periodEnd,
     supersedesEventId = supersedesEventId,
+    lines = lines,
 )

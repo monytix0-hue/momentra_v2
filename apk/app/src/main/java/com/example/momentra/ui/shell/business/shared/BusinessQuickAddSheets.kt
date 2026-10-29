@@ -67,8 +67,21 @@ fun BusinessGapQuickAddSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = SheetBg,
-        dragHandle = null,
+        containerColor = BusinessSheetTokens.bg,
+        dragHandle = {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 12.dp, bottom = 4.dp)
+                        .size(width = 40.dp, height = 5.dp)
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(Color.White.copy(alpha = 0.2f)),
+                )
+            }
+        },
     ) {
         Column(
             modifier = Modifier
@@ -76,16 +89,9 @@ fun BusinessGapQuickAddSheet(
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(top = 12.dp, bottom = 28.dp),
+                .padding(top = 8.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .size(width = 48.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Handle),
-            )
             when (kind) {
                 BusinessQuickAddKind.EXPENSE, BusinessQuickAddKind.SPEND_ENTRY ->
                     RedirectLiveBody(
@@ -184,7 +190,7 @@ private fun BusinessGapBody(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(kind.emoji(), fontSize = 28.sp)
+            Text(kind.emoji(), fontSize = 28.sp, fontFamily = PlusJakartaSans)
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     kind.label(),

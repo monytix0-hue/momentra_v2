@@ -57,8 +57,6 @@ struct BusinessSetupWizardView: View {
             || (kind == .manufacturingProduction && ["STANDARD_PRODUCTION", "MADE_TO_ORDER"].contains(subtype.code))
         if dedicated {
             RetailStoreSetupView(
-                subtypes: OperatingMomentCatalog.subtypes(kind),
-                subtype: subtype,
                 ownerName: ownerName,
                 createModel: createModel,
                 onSubtype: { item in
@@ -82,7 +80,8 @@ struct BusinessSetupWizardView: View {
                 },
                 initialName: initialTitle ?? "",
                 initialCompanyName: companySeed,
-                initialGstin: gstSeed
+                initialGstin: gstSeed,
+                companyId: companyId ?? ""
             )
             .task(id: editingMomentId) { await loadCompanySeed() }
             .accessibilityIdentifier(kind.maestroTag)
@@ -161,8 +160,8 @@ struct BusinessSetupWizardView: View {
             if subtype.requiresChannel {
                 field("Channels", "Comma separated", text: $channels)
             }
-            field("Monthly budget", "Positive amount", text: $budget)
-            field("Monthly target", "Positive amount or count", text: $target)
+            field("Monthly budget", "Positive amount", text: Binding(get: { budget }, set: { budget = formatIndianAmount($0) }))
+            field("Monthly target", "Positive amount or count", text: Binding(get: { target }, set: { target = formatIndianAmount($0) }))
             ForEach(subtype.targetMetrics, id: \.self) { item in
                 Button(item) { metric = item }.buttonStyle(.bordered)
             }
@@ -195,8 +194,8 @@ struct BusinessSetupWizardView: View {
             if subtype.requiresChannel && channels.trimmingCharacters(in: .whitespaces).isEmpty {
                 localError = "Select at least one channel."; return
             }
-            if Double(budget) == nil || (Double(budget) ?? 0) <= 0 { localError = "Monthly budget must be a positive amount."; return }
-            if Double(target) == nil || (Double(target) ?? 0) <= 0 { localError = "Monthly target must be a positive amount."; return }
+            if (Double(plainAmount(budget)) ?? 0) <= 0 { localError = "Monthly budget must be a positive amount."; return }
+            if (Double(plainAmount(target)) ?? 0) <= 0 { localError = "Monthly target must be a positive amount."; return }
         }
         localError = nil
         if step < 3 {
@@ -220,8 +219,8 @@ struct BusinessSetupWizardView: View {
             "participants": participants,
             "counterparties": parties,
             "channels": channelList,
-            "monthlyBudget": budget.trimmingCharacters(in: .whitespaces),
-            "monthlyTarget": target.trimmingCharacters(in: .whitespaces),
+            "monthlyBudget": plainAmount(budget),
+            "monthlyTarget": plainAmount(target),
             "targetMetric": metric,
         ]
         createModel.submitBusinessSetup(

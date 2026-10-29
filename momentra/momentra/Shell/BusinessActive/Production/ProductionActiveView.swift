@@ -61,7 +61,13 @@ struct ProductionActiveView: View {
                 }
                 sectionTitle("Needs Attention")
                 if (model.attention ?? []).isEmpty {
-                    card { Text("Nothing is waiting.").foregroundStyle(chrome.secondary) }
+                    BusinessEmptyState(
+                        title: "Nothing is waiting",
+                        message: "Approvals, overdue items, and blockers will show here.",
+                        accent: chrome.accent,
+                        glyph: "✅",
+                        compact: true
+                    )
                 }
                 ForEach(model.attention ?? []) { item in
                     card {
@@ -120,9 +126,21 @@ struct ProductionActiveView: View {
                 }
             }
             sectionTitle("Activity")
-            ForEach(Array((model.activity ?? []).prefix(5))) { row in activityRow(row) }
             if (model.activity ?? []).isEmpty {
-                card { Text("Nothing recorded yet.").foregroundStyle(chrome.secondary) }
+                    BusinessEmptyState(
+                        title: "Nothing recorded yet",
+                        message: "Batches, output, and dispatches will show here.",
+                        accent: chrome.accent,
+                        glyph: "📋",
+                        compact: true
+                    )
+            } else {
+                BusinessActivityList(
+                    rows: Array((model.activity ?? []).prefix(5)),
+                    model: model,
+                    accent: chrome.accent,
+                    onEdit: { OperatingChromeState.shared.editing = $0 }
+                )
             }
             Button("View all activity") { activityOpen = true }
                 .font(.plusJakarta(size: 15, weight: .semibold))
@@ -174,7 +192,13 @@ struct ProductionActiveView: View {
             header("Life", "How production is moving today.")
             ForEach(model.boards?.life ?? []) { board($0) }
             if (model.boards?.life ?? []).isEmpty {
-                card { Text("Nothing recorded yet.").foregroundStyle(chrome.secondary) }
+                BusinessEmptyState(
+                    title: "Nothing recorded yet",
+                    message: "Batches, output, and dispatches will show here.",
+                    accent: chrome.accent,
+                    glyph: "📋",
+                    compact: true
+                )
             }
         }
     }
@@ -204,9 +228,20 @@ struct ProductionActiveView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("All activity").font(.plusJakarta(size: 22, weight: .semibold)).foregroundStyle(chrome.ink)
                 Text(model.title ?? "Factory").foregroundStyle(chrome.secondary)
-                ForEach(model.activity ?? []) { activityRow($0) }
                 if (model.activity ?? []).isEmpty {
-                    Text("Nothing recorded yet.").foregroundStyle(chrome.secondary)
+                        BusinessEmptyState(
+                            title: "Nothing recorded yet",
+                            message: "Batches, output, and dispatches will show here.",
+                            accent: chrome.accent,
+                            glyph: "📋"
+                        )
+                } else {
+                    BusinessActivityList(
+                        rows: model.activity ?? [],
+                        model: model,
+                        accent: chrome.accent,
+                        onEdit: { OperatingChromeState.shared.editing = $0 }
+                    )
                 }
             }
             .padding(18)
@@ -264,20 +299,6 @@ struct ProductionActiveView: View {
         }
     }
 
-    private func activityRow(_ row: OperatingActivityPayload) -> some View {
-        card {
-            Text(row.eventType.replacingOccurrences(of: "_", with: " "))
-                .font(.plusJakarta(size: 11)).foregroundStyle(chrome.accent)
-            Text(row.title).foregroundStyle(chrome.ink)
-            let qty = [row.quantity, row.unit].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
-            let bits = [row.counterpartyName, qty.isEmpty ? nil : qty, row.paymentStatus == "NONE" ? nil : row.paymentStatus, String(row.occurredAt.prefix(10)), model.financeVisible == true ? money(row.amount) : nil].compactMap { $0 }.filter { !$0.isEmpty && $0 != "—" }
-            if !bits.isEmpty {
-                Text(bits.joined(separator: " · ")).font(.plusJakarta(size: 12)).foregroundStyle(chrome.secondary)
-            }
-            Button("Edit") { OperatingChromeState.shared.editing = row }
-                .font(.plusJakarta(size: 13, weight: .semibold))
-        }
-    }
 
     @ViewBuilder private func readiness(_ label: String, _ rows: [OperatingPaymentPayload]) -> some View {
         if !rows.isEmpty {

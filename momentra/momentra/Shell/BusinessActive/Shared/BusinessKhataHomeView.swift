@@ -1,5 +1,32 @@
 import SwiftUI
 
+private let KhataAccent = Color(hex: "#818CF8")
+private let KhataPaid = Color(hex: "#34D399")
+private let KhataDue = Color(hex: "#F59E0B")
+
+
+/// Dark-sheet text field: the native `.roundedBorder` style renders a light gray box
+/// that breaks the Business sheet surface.
+private struct KhataFieldModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .font(.plusJakarta(size: 15))
+            .foregroundStyle(BusinessSheetTokens.text)
+            .padding(.horizontal, 14)
+            .frame(height: 48)
+            .background(BusinessSheetTokens.field)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(BusinessSheetTokens.border, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private extension View {
+    func khataField() -> some View { modifier(KhataFieldModifier()) }
+}
+
 struct BusinessKhataHomeView: View {
     let momentId: String
     let companyId: String
@@ -22,8 +49,8 @@ struct BusinessKhataHomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Who owes you — and who you owe")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color(hex: "#94A3B8"))
+                        .font(.plusJakarta(size: 13))
+                        .foregroundStyle(BusinessSheetTokens.muted)
 
                     HStack(spacing: 8) {
                         tabChip("Customers", key: "CUSTOMER")
@@ -31,18 +58,21 @@ struct BusinessKhataHomeView: View {
                     }
 
                     if let error {
-                        Text(error).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                        Text(error).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#F87171"))
                     }
                     if loading {
-                        ProgressView().tint(Color(hex: "#818CF8"))
+                        ProgressView().tint(KhataAccent)
                     } else if items.isEmpty {
-                        Text(
-                            tab == "CUSTOMER"
-                                ? "Add a customer, then log udhaar when they take goods on credit"
-                                : "Add a supplier, then log credit purchases and payouts"
+                        BusinessEmptyState(
+                            title: tab == "SUPPLIER" ? "No suppliers yet" : "No customers yet",
+                            message: tab == "CUSTOMER"
+                                ? "Add a customer, then log udhaar when they take goods on credit."
+                                : "Add a supplier, then log credit purchases and payouts.",
+                            accent: KhataAccent,
+                            glyph: tab == "SUPPLIER" ? "📦" : "👤",
+                            actionLabel: tab == "SUPPLIER" ? "Add supplier" : "Add customer",
+                            onAction: { showAdd = true }
                         )
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color(hex: "#64748B"))
                     } else {
                         ForEach(items) { party in
                             partyCard(party)
@@ -53,18 +83,25 @@ struct BusinessKhataHomeView: View {
                         showAdd = true
                     } label: {
                         Text(tab == "SUPPLIER" ? "Add supplier" : "Add customer")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color(hex: "#F1F5F9"))
+                            .font(.plusJakarta(size: 15, weight: .semibold))
+                            .foregroundStyle(Color(hex: "#14121B"))
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color(hex: "#818CF8"))
+                            .frame(height: 52)
+                            .background(
+                                LinearGradient(
+                                    colors: [KhataAccent, Color(hex: "#A5B4FC")],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
                             .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .shadow(color: KhataAccent.opacity(0.4), radius: 10, y: 4)
                     }
                     .buttonStyle(.plain)
                 }
                 .padding(16)
             }
-            .background(Color(hex: "#0F172A").ignoresSafeArea())
+            .background(BusinessSheetTokens.bg.ignoresSafeArea())
             .navigationTitle("Khata")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -109,11 +146,11 @@ struct BusinessKhataHomeView: View {
             tab = key
         } label: {
             Text(label)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(selected ? Color.white : Color(hex: "#64748B"))
+                .font(.plusJakarta(size: 13, weight: .semibold))
+                .foregroundStyle(selected ? Color.white : BusinessSheetTokens.muted)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(selected ? Color(hex: "#818CF8") : Color(hex: "#1E293B"))
+                .background(selected ? KhataAccent : BusinessSheetTokens.field)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -129,24 +166,24 @@ struct BusinessKhataHomeView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(party.name)
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(Color(hex: "#F1F5F9"))
+                            .font(.plusJakarta(size: 15, weight: .bold))
+                            .foregroundStyle(BusinessSheetTokens.text)
                         let meta = [party.phone, party.overdue == true && due > 0 ? "Overdue" : nil]
                             .compactMap { $0 }
                             .joined(separator: " · ")
                         if !meta.isEmpty {
                             Text(meta)
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color(hex: "#64748B"))
+                                .font(.plusJakarta(size: 12))
+                                .foregroundStyle(BusinessSheetTokens.muted)
                         }
                     }
                     Spacer()
                     Text(formatDue(party.balanceDue))
-                        .font(.system(size: 16, weight: .heavy))
-                        .foregroundStyle(due > 0 ? Color(hex: "#F59E0B") : Color(hex: "#F1F5F9"))
+                        .font(.plusJakarta(size: 16, weight: .heavy))
+                        .foregroundStyle(due > 0 ? KhataDue : BusinessSheetTokens.text)
                     Text("›")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(Color(hex: "#64748B"))
+                        .font(.plusJakarta(size: 18, weight: .medium))
+                        .foregroundStyle(BusinessSheetTokens.muted)
                 }
             }
             .buttonStyle(.plain)
@@ -182,19 +219,19 @@ struct BusinessKhataHomeView: View {
             }
         }
         .padding(14)
-        .background(Color(hex: "#1E293B"))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "#334155")))
+        .background(BusinessSheetTokens.field)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(BusinessSheetTokens.border))
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
     private func miniBtn(_ label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color(hex: "#818CF8"))
+                .font(.plusJakarta(size: 12, weight: .semibold))
+                .foregroundStyle(KhataAccent)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
-                .background(Color(hex: "#818CF8").opacity(0.15))
+                .background(KhataAccent.opacity(0.15))
                 .clipShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
@@ -250,23 +287,30 @@ private struct BusinessKhataAddPartyView: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
                 TextField(partyKind == "SUPPLIER" ? "Supplier name" : "Customer name", text: $name)
-                    .textFieldStyle(.roundedBorder)
+                    .khataField()
                 TextField("Phone (for WhatsApp remind)", text: $phone)
                     .keyboardType(.phonePad)
-                    .textFieldStyle(.roundedBorder)
+                    .khataField()
                 if let error {
-                    Text(error).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                    Text(error).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#F87171"))
                 }
                 Button {
                     Task { await save() }
                 } label: {
                     Text(submitting ? "Saving…" : "Save")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(hex: "#F1F5F9"))
+                        .font(.plusJakarta(size: 15, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#14121B"))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color(hex: "#818CF8"))
+                        .frame(height: 52)
+                        .background(
+                            LinearGradient(
+                                colors: [KhataAccent, Color(hex: "#A5B4FC")],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .shadow(color: KhataAccent.opacity(0.4), radius: 10, y: 4)
                 }
                 .buttonStyle(.plain)
                 .disabled(submitting || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -331,10 +375,10 @@ private struct BusinessKhataEntryView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
-                Text(party.name).font(.system(size: 13)).foregroundStyle(Color(hex: "#94A3B8"))
+                Text(party.name).font(.plusJakarta(size: 13)).foregroundStyle(BusinessSheetTokens.muted)
                 TextField("Amount", text: $amount)
                     .keyboardType(.decimalPad)
-                    .textFieldStyle(.roundedBorder)
+                    .khataField()
                 if isPayment {
                     Picker("Payment", selection: $payment) {
                         Text("Cash").tag("Cash")
@@ -344,20 +388,27 @@ private struct BusinessKhataEntryView: View {
                     .pickerStyle(.segmented)
                 }
                 TextField("Note (optional)", text: $note)
-                    .textFieldStyle(.roundedBorder)
+                    .khataField()
                 if let error {
-                    Text(error).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                    Text(error).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#F87171"))
                 }
                 Button {
                     Task { await save() }
                 } label: {
                     Text(submitting ? "Saving…" : "Save")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(hex: "#F1F5F9"))
+                        .font(.plusJakarta(size: 15, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#14121B"))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color(hex: "#818CF8"))
+                        .frame(height: 52)
+                        .background(
+                            LinearGradient(
+                                colors: [KhataAccent, Color(hex: "#A5B4FC")],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .shadow(color: KhataAccent.opacity(0.4), radius: 10, y: 4)
                 }
                 .buttonStyle(.plain)
                 .disabled(submitting)
@@ -418,10 +469,10 @@ private struct BusinessKhataCashSaleView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
-                Text(party.name).font(.system(size: 13)).foregroundStyle(Color(hex: "#94A3B8"))
+                Text(party.name).font(.plusJakarta(size: 13)).foregroundStyle(BusinessSheetTokens.muted)
                 TextField("Amount", text: $amount)
                     .keyboardType(.decimalPad)
-                    .textFieldStyle(.roundedBorder)
+                    .khataField()
                 Picker("Payment", selection: $payment) {
                     Text("Cash").tag("Cash")
                     Text("UPI").tag("UPI")
@@ -429,23 +480,30 @@ private struct BusinessKhataCashSaleView: View {
                 }
                 .pickerStyle(.segmented)
                 TextField("Note (optional)", text: $note)
-                    .textFieldStyle(.roundedBorder)
+                    .khataField()
                 Text("Does not change udhaar balance")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color(hex: "#64748B"))
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(BusinessSheetTokens.muted)
                 if let error {
-                    Text(error).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                    Text(error).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#F87171"))
                 }
                 Button {
                     Task { await save() }
                 } label: {
                     Text(submitting ? "Saving…" : "Save cash sale")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(hex: "#F1F5F9"))
+                        .font(.plusJakarta(size: 15, weight: .semibold))
+                        .foregroundStyle(Color(hex: "#14121B"))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color(hex: "#818CF8"))
+                        .frame(height: 52)
+                        .background(
+                            LinearGradient(
+                                colors: [KhataAccent, Color(hex: "#A5B4FC")],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .shadow(color: KhataAccent.opacity(0.4), radius: 10, y: 4)
                 }
                 .buttonStyle(.plain)
                 .disabled(submitting)
@@ -511,53 +569,53 @@ private struct BusinessKhataHistoryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Due \(formatDue(balanceDue))")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(hex: "#F59E0B"))
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(KhataDue)
                     if let error {
-                        Text(error).font(.system(size: 12)).foregroundStyle(Color(hex: "#F87171"))
+                        Text(error).font(.plusJakarta(size: 12)).foregroundStyle(Color(hex: "#F87171"))
                     }
                     if loading {
-                        ProgressView().tint(Color(hex: "#818CF8"))
+                        ProgressView().tint(KhataAccent)
                     } else if entries.isEmpty {
                         Text("No entries yet")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color(hex: "#64748B"))
+                            .font(.plusJakarta(size: 14))
+                            .foregroundStyle(BusinessSheetTokens.muted)
                     } else {
                         ForEach(entries) { entry in
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(entry.entryType.uppercased() == "PAYMENT" ? "Payment" : "Credit")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(Color(hex: "#F1F5F9"))
+                                        .font(.plusJakarta(size: 14, weight: .semibold))
+                                        .foregroundStyle(BusinessSheetTokens.text)
                                     if let note = entry.note, !note.isEmpty {
                                         Text(note)
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(Color(hex: "#64748B"))
+                                            .font(.plusJakarta(size: 12))
+                                            .foregroundStyle(BusinessSheetTokens.muted)
                                     }
                                     if let at = entry.effectiveAt, !at.isEmpty {
                                         Text(String(at.prefix(10)))
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(Color(hex: "#64748B"))
+                                            .font(.plusJakarta(size: 11))
+                                            .foregroundStyle(BusinessSheetTokens.muted)
                                     }
                                 }
                                 Spacer()
                                 Text(formatDue(entry.amount))
-                                    .font(.system(size: 14, weight: .bold))
+                                    .font(.plusJakarta(size: 14, weight: .bold))
                                     .foregroundStyle(
                                         entry.entryType.uppercased() == "PAYMENT"
-                                            ? Color(hex: "#34D399")
-                                            : Color(hex: "#F59E0B")
+                                            ? KhataPaid
+                                            : KhataDue
                                     )
                             }
                             .padding(12)
-                            .background(Color(hex: "#1E293B"))
+                            .background(BusinessSheetTokens.field)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
                     }
                 }
                 .padding(16)
             }
-            .background(Color(hex: "#0F172A").ignoresSafeArea())
+            .background(BusinessSheetTokens.bg.ignoresSafeArea())
             .navigationTitle(party.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -29,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
@@ -51,12 +54,14 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 private val Teal = Color(0xFF14B8A6)
+private val TealEnd = Color(0xFF2DD4BF)
 private val Blue = Color(0xFF3B82F6)
-private val Bg = Color(0xFF131313)
-private val Card = Color(0xFF1C1C1E)
-private val Border = Color(0xFF2C2C2E)
-private val TextPrimary = Color(0xFFE5E2E1)
-private val TextSecondary = Color(0xFFA1A1AA)
+private val BlueEnd = Color(0xFF60A5FA)
+private val Bg = BusinessSheetTokens.bg
+private val Card = BusinessSheetTokens.field
+private val Border = BusinessSheetTokens.border
+private val TextPrimary = BusinessSheetTokens.text
+private val TextSecondary = BusinessSheetTokens.muted
 private val Red = Color(0xFFF87171)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,8 +98,21 @@ fun BusinessRevenueSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Bg,
-        dragHandle = null,
+        containerColor = BusinessSheetTokens.bg,
+        dragHandle = {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 12.dp, bottom = 4.dp)
+                        .size(width = 40.dp, height = 5.dp)
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(Color.White.copy(alpha = 0.2f)),
+                )
+            }
+        },
     ) {
         Column(
             modifier = Modifier
@@ -161,6 +179,7 @@ fun BusinessRevenueSheet(
             SubmitButton(
                 label = if (submitting) "Saving…" else "Save revenue",
                 accent = Teal,
+                accentEnd = TealEnd,
                 enabled = !submitting && amount.isNotBlank(),
                 testTag = MaestroIds.BUSINESS_REVENUE_SUBMIT,
                 onClick = {
@@ -234,8 +253,21 @@ fun BusinessInvoiceSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Bg,
-        dragHandle = null,
+        containerColor = BusinessSheetTokens.bg,
+        dragHandle = {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 12.dp, bottom = 4.dp)
+                        .size(width = 40.dp, height = 5.dp)
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(Color.White.copy(alpha = 0.2f)),
+                )
+            }
+        },
     ) {
         Column(
             modifier = Modifier
@@ -309,6 +341,7 @@ fun BusinessInvoiceSheet(
                 SubmitButton(
                     label = "Share on WhatsApp",
                     accent = Teal,
+                    accentEnd = TealEnd,
                     enabled = true,
                     testTag = MaestroIds.BUSINESS_INVOICE_SUBMIT + "_share",
                     onClick = {
@@ -318,6 +351,7 @@ fun BusinessInvoiceSheet(
                 SubmitButton(
                     label = "Share…",
                     accent = Blue,
+                    accentEnd = BlueEnd,
                     enabled = true,
                     testTag = MaestroIds.BUSINESS_INVOICE_SUBMIT + "_system",
                     onClick = {
@@ -331,6 +365,7 @@ fun BusinessInvoiceSheet(
                 SubmitButton(
                     label = "Done",
                     accent = Blue,
+                    accentEnd = BlueEnd,
                     enabled = true,
                     testTag = MaestroIds.BUSINESS_INVOICE_SUBMIT + "_done",
                     onClick = {
@@ -346,6 +381,7 @@ fun BusinessInvoiceSheet(
             SubmitButton(
                 label = if (submitting) "Saving…" else "Save invoice",
                 accent = Blue,
+                accentEnd = BlueEnd,
                 enabled = !submitting && canSubmit,
                 testTag = MaestroIds.BUSINESS_INVOICE_SUBMIT,
                 onClick = {
@@ -457,6 +493,7 @@ private fun FinanceField(
 private fun SubmitButton(
     label: String,
     accent: Color,
+    accentEnd: Color,
     enabled: Boolean,
     testTag: String,
     onClick: () -> Unit,
@@ -464,13 +501,16 @@ private fun SubmitButton(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (enabled) accent else accent.copy(alpha = 0.45f))
+            .height(52.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (enabled) Brush.horizontalGradient(listOf(accent, accentEnd))
+                else SolidColor(accent.copy(alpha = 0.45f))
+            )
             .testTag(testTag)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 14.dp),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = PlusJakartaSans)
+        Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = PlusJakartaSans)
     }
 }

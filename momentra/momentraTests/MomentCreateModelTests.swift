@@ -161,7 +161,7 @@ private final class FakeCreateGateway: MomentCreateGateway {
         )
     }
 
-    func mintCompanyInvite(companyId: String, membershipType: String) async throws -> CompanyInvite {
+    func mintCompanyInvite(companyId: String, membershipType: String, operatingRole: String?) async throws -> CompanyInvite {
         CompanyInvite(
             inviteId: "cinv1",
             inviteCode: "abcdefgh",

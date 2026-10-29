@@ -112,6 +112,7 @@ fun BusinessSetupWizardContent(
             initialName = initialTitle.orEmpty(),
             initialCompanyName = companySeed,
             initialGstin = gstSeed,
+            companyId = companyId,
             onActivate = { preferences, title ->
                 createViewModel.submitBusinessSetup(
                     kind = kind,
@@ -161,7 +162,7 @@ fun BusinessSetupWizardContent(
             )
             1 -> PeopleStep(people, { people = it }, role, { role = it })
             2 -> FieldBlock("Counterparties", "Optional. One name per line.", counterparties, { counterparties = it })
-            else -> PlanStep(subtype, channels, { channels = it }, budget, { budget = it }, target, { target = it }, metric, { metric = it })
+            else -> PlanStep(subtype, channels, { channels = it }, budget, { budget = formatIndianAmount(it) }, target, { target = formatIndianAmount(it) }, metric, { metric = it })
         }
         val shownError = localError ?: error
         if (!shownError.isNullOrBlank()) {
@@ -221,8 +222,8 @@ private fun validateStep(
     }
     3 -> when {
         subtype.requiresChannel && channels.isBlank() -> "Select at least one channel."
-        budget.toDoubleOrNull() == null || budget.toDouble() <= 0 -> "Monthly budget must be a positive amount."
-        target.toDoubleOrNull() == null || target.toDouble() <= 0 -> "Monthly target must be a positive amount."
+        plainAmount(budget).toDoubleOrNull()?.let { it > 0 } != true -> "Monthly budget must be a positive amount."
+        plainAmount(target).toDoubleOrNull()?.let { it > 0 } != true -> "Monthly target must be a positive amount."
         else -> null
     }
     else -> null
@@ -258,8 +259,8 @@ private fun buildPrefs(
         "participants" to participants,
         "counterparties" to parties,
         "channels" to channelList,
-        "monthlyBudget" to budget.trim(),
-        "monthlyTarget" to target.trim(),
+        "monthlyBudget" to plainAmount(budget),
+        "monthlyTarget" to plainAmount(target),
         "targetMetric" to metric,
     )
 }

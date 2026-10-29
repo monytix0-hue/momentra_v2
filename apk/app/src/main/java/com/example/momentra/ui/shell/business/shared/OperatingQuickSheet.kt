@@ -5,11 +5,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,6 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
@@ -62,15 +66,15 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-internal val SheetElevated = Color(0xFF3A3842)
-internal val SheetFieldBg = Color(0xFF201E28)
-internal val SheetHigh = Color(0xFF35333E)
-internal val SheetInk = Color(0xFFE5E0EE)
-internal val SheetMuted = Color(0xFFC9C4D8)
+internal val SheetElevated = BusinessSheetTokens.border
+internal val SheetFieldBg = BusinessSheetTokens.field
+internal val SheetHigh = BusinessSheetTokens.border
+internal val SheetInk = BusinessSheetTokens.text
+internal val SheetMuted = BusinessSheetTokens.muted
 internal val SheetBrand = Color(0xFFC9BFFF)
 internal val SheetOnBrand = Color(0xFF2F009C)
 internal val SheetAccent = Color(0xFFB7B8FF)
-internal val SheetBorder = Color(0xFF938EA1)
+internal val SheetBorder = BusinessSheetTokens.border
 internal val SheetIdentity = Color(0xFF6C4EF2)
 
 data class OperatingCaptureDraft(
@@ -122,6 +126,8 @@ data class OperatingCaptureDraft(
     val periodStart: String? = null,
     val periodEnd: String? = null,
     val supersedesEventId: String? = null,
+    /** Itemized draft lines. When present these are sent instead of the single item/quantity pair. */
+    val lines: List<com.example.momentra.data.api.OperatingLineBody>? = null,
 )
 
 private val dayFormat = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH)
@@ -145,20 +151,24 @@ private fun contextLine(model: OperatingProjectionDto): String {
 }
 
 @Composable
-fun OperatingSheetScrim(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+fun OperatingSheetScrim(onDismiss: () -> Unit, accent: Color = Color(0xFFF59E0B), content: @Composable () -> Unit) {
     val absorb = remember { MutableInteractionSource() }
-    Column(
+    val shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    Box(
         Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(onClick = onDismiss)
-            .padding(top = 80.dp),
+            .background(Color.Black.copy(alpha = 0.7f))
+            .clickable(onClick = onDismiss),
     ) {
         Column(
             Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                .background(SheetElevated)
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.92f)
+                .shadow(10.dp, shape, ambientColor = accent.copy(alpha = 0.4f), spotColor = accent.copy(alpha = 0.4f))
+                .clip(shape)
+                .background(Color(0xFF1C1926))
+                .border(1.dp, Color(0xFF2A2538), shape)
                 .clickable(interactionSource = absorb, indication = null, onClick = {}),
         ) {
             content()
@@ -197,6 +207,8 @@ private class CaptureForm(
     var parentId by mutableStateOf("")
     var masterKind by mutableStateOf(masterKind)
     var entryMode by mutableStateOf("Quick amount")
+    /** Itemized cart for POS-style capture; mirrors iOS `savedLines`. */
+    var savedLines by mutableStateOf<List<com.example.momentra.data.api.OperatingLineBody>>(emptyList())
     var receiptState by mutableStateOf(receiptState)
     var ownership by mutableStateOf("Owned")
     var stockAction by mutableStateOf("Set current stock")
@@ -222,6 +234,9 @@ private class CaptureForm(
     var billingState by mutableStateOf("")
     var deliveryState by mutableStateOf("")
     var partyGstin by mutableStateOf("")
+    var supplierPhone by mutableStateOf("")
+    var supplierAddress by mutableStateOf("")
+    var expenseGroup by mutableStateOf("Premises")
     var reportingMode by mutableStateOf("Incremental")
     var metricCode by mutableStateOf("LEADS")
     var activityStatus by mutableStateOf("IN_PROGRESS")
@@ -435,6 +450,7 @@ fun OperatingCaptureSheet(
     }
     val scope = rememberCoroutineScope()
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
         Column(
             Modifier
@@ -445,7 +461,7 @@ fun OperatingCaptureSheet(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                Row(Modifier.size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(SheetMuted)) {}
+                Row(Modifier.size(width = 40.dp, height = 5.dp).clip(RoundedCornerShape(100.dp)).background(Color.White.copy(alpha = 0.2f))) {}
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(
@@ -499,7 +515,8 @@ fun OperatingCaptureSheet(
     }
     CaptureDateDialogs(form)
     CaptureLovHost(form, model, mode, channels, distribution, onCreateMaster, scope)
-}
+    }
+    }
 
 @Composable
 private fun SaleServiceCapture(
@@ -535,7 +552,7 @@ private fun SaleServiceCapture(
         if (form.choice == "Part paid") EditField("Received now", form.receivedAmount, "Required") { form.receivedAmount = it }
         GstPriceFields(form, model, purchase = false)
         model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
-            TextButton(onClick = { form.parentId = row.id }) { Text(if (form.parentId == row.id) "Order ${row.title}" else row.title, color = Color.White) }
+            TextButton(onClick = { form.parentId = row.id }) { Text(if (form.parentId == row.id) "Order ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans) }
         }
         Text("A sale is not a delivery.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     } else if (contractFamily) {
@@ -550,6 +567,8 @@ private fun SaleServiceCapture(
             } else {
                 ItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.itemName = it }, { form.quantity = it }, { form.unit = it }, { form.unitPrice = it }, model.masters.orEmpty())
             }
+            BusinessAddLineButton(form, label = "+ Add item to sale")
+            BusinessPosLineCart(form, currency, title = "Sale items")
         } else {
             AmountBlock("Sale amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
         }
@@ -659,6 +678,8 @@ private fun PurchaseVendorCapture(
         } else {
             ItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.itemName = it }, { form.quantity = it }, { form.unit = it }, { form.unitPrice = it }, model.masters.orEmpty())
         }
+        BusinessAddLineButton(form, label = "+ Add item to purchase")
+        BusinessPosLineCart(form, currency, title = "Purchase items")
         AmountBlock("Amount", currency, form.amount, "Positive amount, or leave blank when items have prices") { form.amount = it }
         GstPriceFields(form, model, purchase = true)
         if (lovTrade) LovField(if (distribution) "Principal / supplier" else "Supplier", form.party, "supplier") { form.lovKind = "SUPPLIER" }
@@ -742,7 +763,15 @@ private fun SpendCapture(
         SummaryCard("After approval", spendSummary(model, currency, typed))
     } else if (lovTrade) {
         AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
-        LovField("Expense category", form.expenseCategory, "category") { form.lovKind = "EXPENSE_CATEGORY" }
+        ChoiceBlock("Category", ExpenseGroups.map { it.first }, form.expenseGroup) {
+            form.expenseGroup = it
+            form.expenseCategory = ""
+        }
+        ChoiceBlock(
+            "Subcategory",
+            ExpenseGroups.firstOrNull { it.first == form.expenseGroup }?.second.orEmpty(),
+            form.expenseCategory,
+        ) { form.expenseCategory = it }
         FieldRow {
             EditField("Purpose", form.purpose, "What this was for", Modifier.weight(1f)) { form.purpose = it }
             ReadField("Expense date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
@@ -1205,7 +1234,7 @@ private fun ShipmentCapture(
                 row.quantity?.takeIf { it.isNotBlank() }?.let { form.quantity = it }
                 row.unit?.takeIf { it.isNotBlank() }?.let { form.unit = it }
             }) {
-                Text(if (form.parentId == row.id) "Using ${row.title}" else row.title, color = Color.White, fontSize = 13.sp)
+                Text(if (form.parentId == row.id) "Using ${row.title}" else row.title, color = Color.White, fontSize = 13.sp, fontFamily = PlusJakartaSans)
             }
         }
         EditField("Quantity", form.quantity, "Required") { form.quantity = it }
@@ -1331,7 +1360,7 @@ private fun ActivityCapture(
             ChoiceBlock("Status", listOf("Planned", "In progress", "Completed"), form.choice) { form.choice = it }
         }
         model.activity.filter { it.eventType == "CUSTOMER_ORDER" }.forEach { row ->
-            TextButton(onClick = { form.parentId = row.id }) { Text(row.title, color = Color.White) }
+            TextButton(onClick = { form.parentId = row.id }) { Text(row.title, color = Color.White, fontFamily = PlusJakartaSans) }
         }
         Text(
             if (model.subtype == "MADE_TO_ORDER") "Job output does not create a finished SKU. Finished stock comes only from the accepted quantity."
@@ -1349,7 +1378,7 @@ private fun ActivityCapture(
     } else if (production && mode == "DELIVERY") {
         Text("Customer order", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         model.activity.filter { it.eventType == "CUSTOMER_ORDER" || it.eventType == "SALE" }.forEach { row ->
-            TextButton(onClick = { form.parentId = row.id }) { Text(if (form.parentId == row.id) "Selected ${row.title}" else row.title, color = Color.White) }
+            TextButton(onClick = { form.parentId = row.id }) { Text(if (form.parentId == row.id) "Selected ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans) }
         }
         ChoiceBlock("Delivery", listOf("Quick status", "Itemized"), form.entryMode) { form.entryMode = it }
         ChoiceBlock("Status", listOf("Planned", "Dispatched", "Delivered", "Accepted", "Returned"), form.choice) { form.choice = it }
@@ -1364,7 +1393,7 @@ private fun ActivityCapture(
         Text(if (open.isEmpty()) "Add an activity before updating progress." else "Open activity", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         open.forEach { row ->
             TextButton(onClick = { form.parentId = row.id }) {
-                Text(if (form.parentId == row.id) "Selected ${row.title}" else row.title, color = Color.White)
+                Text(if (form.parentId == row.id) "Selected ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans)
             }
         }
         ChoiceBlock("Status", listOf("In progress", "Blocked", "Postponed", "Completed", "Cancelled"), form.activityStatus) { form.activityStatus = it }
@@ -1387,7 +1416,7 @@ private fun ActivityCapture(
             Text("Correct an earlier result", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
             earlier.forEach { row ->
                 TextButton(onClick = { form.supersedesId = if (form.supersedesId == row.id) "" else row.id }) {
-                    Text(if (form.supersedesId == row.id) "Replaces ${row.title}" else row.title, color = Color.White)
+                    Text(if (form.supersedesId == row.id) "Replaces ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans)
                 }
             }
         }
@@ -1728,6 +1757,11 @@ private fun SupplierPartnerCapture(
                 fontSize = 12.sp,
             )
         }
+        if (trading || distribution) {
+            EditField("GSTIN · Optional", form.partyGstin, "Optional") { form.partyGstin = it.take(15) }
+            EditField("Phone · Optional", form.supplierPhone, "Optional") { form.supplierPhone = it }
+            EditField("Address · Optional", form.supplierAddress, "Optional") { form.supplierAddress = it }
+        }
         EditField(
             if (distribution) "Goods supplied" else "What they supply",
             form.purpose,
@@ -1825,7 +1859,11 @@ private fun CaptureSheetFooter(
             mode == "RETURN" -> form.parentId.isNotBlank() && form.returnReason.isNotBlank()
             lovTrade && mode == "SPEND" -> form.expenseCategory.isNotBlank() && form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && (form.choice == "Paid" || form.party.isNotBlank())
             lovTrade && mode == "SALE" -> {
-                val amountOk = if (form.entryMode.equals("Itemized", ignoreCase = true)) form.itemName.isNotBlank() else form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
+                val amountOk = if (form.entryMode.equals("Itemized", ignoreCase = true)) {
+                    form.itemName.isNotBlank() || form.savedLines.isNotEmpty()
+                } else {
+                    form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
+                }
                 val knownChannel = model.life?.channels.orEmpty().any { it.isNotBlank() } || model.masters.orEmpty().any { it.kind.equals("CHANNEL", true) && it.name.isNotBlank() }
                 amountOk && (form.channel.isNotBlank() || !knownChannel) && (saleSettled(form.choice) || form.party.isNotBlank())
             }
@@ -1863,17 +1901,20 @@ private fun CaptureSheetFooter(
             production && mode == "UPDATE" -> form.purpose.isNotBlank()
             else -> true
         }
+        val theme = BusinessActiveTheme.forTypeCode(model.subtype)
+        val accentGradient = Brush.horizontalGradient(listOf(theme.accent, theme.accentLight))
         Text(
             action,
-            color = if (enabled) SheetOnBrand else SheetMuted,
+            color = if (enabled) Color.White else SheetMuted,
             fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(if (enabled) SheetBrand else Color(0xFF353A59))
+                .height(52.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (enabled) accentGradient else Brush.horizontalGradient(listOf(Color(0xFF353A59), Color(0xFF353A59))))
                 .clickable(enabled = enabled) {
                     if (mode == "APPROVAL") {
                         val item = model.attention.firstOrNull { it.kind == "APPROVAL" }
@@ -1900,10 +1941,18 @@ private fun CaptureSheetFooter(
                             return@clickable
                         }
                     }
+                    val supplierContact = if (mode == "SUPPLIER" || mode == "PARTNER") {
+                        listOfNotNull(
+                            form.supplierPhone.trim().takeIf { it.isNotBlank() }?.let { "Phone $it" },
+                            form.supplierAddress.trim().takeIf { it.isNotBlank() }?.let { "Address $it" },
+                        ).joinToString(" · ")
+                    } else {
+                        ""
+                    }
                     val draftNote = if (distribution && mode == "SHIPMENT" && form.link.isNotBlank()) {
                         listOf(form.note, form.link).filter { it.isNotBlank() }.joinToString(" · ")
                     } else {
-                        form.note
+                        listOf(form.note, supplierContact).filter { it.isNotBlank() }.joinToString(" · ")
                     }
                     val unpaidDue = when (mode) {
                         "SALE", "SERVICE" -> !saleSettled(form.choice)
@@ -1981,9 +2030,32 @@ private fun CaptureSheetFooter(
                         return@clickable
                     }
                     form.error = null
+                    // Attach the itemized cart, folding in any half-entered line still in the editor.
+                    val pendingLine = form.itemName.trim().takeIf { it.isNotBlank() }?.let {
+                        com.example.momentra.data.api.OperatingLineBody(
+                            itemName = it,
+                            quantity = form.quantity.ifBlank { null },
+                            unit = form.unit.ifBlank { null },
+                            unitPrice = form.unitPrice.ifBlank { null },
+                            masterId = form.productMasterId,
+                        )
+                    }
+                    val draftLines = form.savedLines + listOfNotNull(pendingLine)
+                    val finalDraft = if (draftLines.isNotEmpty()) {
+                        draft.copy(
+                            lines = draftLines,
+                            itemName = draft.itemName ?: draftLines.first().itemName,
+                            quantity = draft.quantity ?: draftLines.first().quantity,
+                            unit = draft.unit ?: draftLines.first().unit,
+                            unitPrice = draft.unitPrice ?: draftLines.first().unitPrice,
+                            amount = draft.amount ?: businessLinesTotal(draftLines)?.toPlainString(),
+                        )
+                    } else {
+                        draft
+                    }
                     scope.launch {
                         try {
-                            onSubmit(draft)
+                            onSubmit(finalDraft)
                         } catch (failure: Exception) {
                             form.error = failure.message?.takeIf { it.isNotBlank() } ?: "Could not save."
                         }
@@ -2005,10 +2077,10 @@ private fun CaptureDateDialogs(form: CaptureForm) {
                 TextButton(onClick = {
                     pickerState.selectedDateMillis?.let { form.eventDate = utcMillisToLocalDate(it) }
                     form.dateOpen = false
-                }) { Text("OK") }
+                }) { Text("OK", fontFamily = PlusJakartaSans) }
             },
             dismissButton = {
-                TextButton(onClick = { form.dateOpen = false }) { Text("Cancel") }
+                TextButton(onClick = { form.dateOpen = false }) { Text("Cancel", fontFamily = PlusJakartaSans) }
             },
         ) {
             DatePicker(state = pickerState)
@@ -2022,10 +2094,10 @@ private fun CaptureDateDialogs(form: CaptureForm) {
                 TextButton(onClick = {
                     pickerState.selectedDateMillis?.let { form.dueDate = utcMillisToLocalDate(it) }
                     form.dueDateOpen = false
-                }) { Text("OK") }
+                }) { Text("OK", fontFamily = PlusJakartaSans) }
             },
             dismissButton = {
-                TextButton(onClick = { form.dueDateOpen = false }) { Text("Cancel") }
+                TextButton(onClick = { form.dueDateOpen = false }) { Text("Cancel", fontFamily = PlusJakartaSans) }
             },
         ) {
             DatePicker(state = pickerState)
@@ -2039,10 +2111,10 @@ private fun CaptureDateDialogs(form: CaptureForm) {
                 TextButton(onClick = {
                     pickerState.selectedDateMillis?.let { form.goodsDueDate = utcMillisToLocalDate(it) }
                     form.goodsDueOpen = false
-                }) { Text("OK") }
+                }) { Text("OK", fontFamily = PlusJakartaSans) }
             },
             dismissButton = {
-                TextButton(onClick = { form.goodsDueOpen = false }) { Text("Cancel") }
+                TextButton(onClick = { form.goodsDueOpen = false }) { Text("Cancel", fontFamily = PlusJakartaSans) }
             },
         ) {
             DatePicker(state = pickerState)
@@ -2660,9 +2732,10 @@ private fun buildDraft(
     val statusOnlyProgress = marketing && eventType == "PROGRESS" && amount.isBlank()
     val needsAmount = mode in setOf("SALE", "SERVICE", "PURCHASE", "VENDOR", "SPEND", "PAYMENT", "REIMBURSE", "COLLECTION", "BUDGET", "TARGET", "RESULT", "PRODUCTION", "RETURN") && !statusOnlyProgress
     val computed = quantity.toBigDecimalOrNull()?.multiply(unitPrice.toBigDecimalOrNull() ?: BigDecimal.ZERO)
-    val resolvedAmount = amount.ifBlank {
-        computed?.takeIf { it > BigDecimal.ZERO }?.setScale(2, RoundingMode.HALF_UP)?.toPlainString() ?: ""
-    }
+    val typedAmount = amount.toBigDecimalOrNull()?.takeIf { it > BigDecimal.ZERO }
+    val resolvedAmount = typedAmount?.setScale(2, RoundingMode.HALF_UP)?.toPlainString()
+        ?: computed?.takeIf { it > BigDecimal.ZERO }?.setScale(2, RoundingMode.HALF_UP)?.toPlainString()
+        ?: ""
     val value = resolvedAmount.toBigDecimalOrNull()
     if (needsAmount && (value == null || value <= BigDecimal.ZERO)) return null
     val contractStock = (retail || lovTrade) && mode == "STOCK"
@@ -2955,7 +3028,7 @@ private fun buildDraft(
         masterBusinessState = if (mode == "MASTERS") businessState.trim().ifBlank { null } else null,
         masterBillingState = if (mode == "MASTERS") billingState.trim().ifBlank { null } else null,
         masterDeliveryState = if (mode == "MASTERS") deliveryState.trim().ifBlank { null } else null,
-        masterGstin = if (mode == "MASTERS") partyGstin.trim().ifBlank { null } else null,
+        masterGstin = if (mode == "MASTERS" || mode == "SUPPLIER" || mode == "PARTNER") partyGstin.trim().ifBlank { null } else null,
         reportingMode = if (marketing && mode == "RESULT" && !statusOnlyProgress) {
             if (reportingMode == "Cumulative") "CUMULATIVE" else "INCREMENTAL"
         } else null,
@@ -3223,6 +3296,15 @@ private fun campaignExpenseName(name: String): Boolean {
     )
 }
 
+private val ExpenseGroups = listOf(
+    "Premises" to listOf("Rent", "Utilities", "Maintenance"),
+    "People" to listOf("Salaries"),
+    "Movement" to listOf("Transport", "Freight"),
+    "Selling" to listOf("Packaging"),
+    "Office" to listOf("Office supplies", "Insurance", "Fees and charges"),
+    "Other" to listOf("Other"),
+)
+
 private val ExpenseCategorySeeds = listOf(
     "Rent", "Salaries", "Transport", "Freight", "Utilities", "Packaging", "Marketing",
     "Maintenance", "Office supplies", "Insurance", "Fees and charges", "Other",
@@ -3328,15 +3410,194 @@ private fun LovItemLine(
     onPrice: (String) -> Unit,
     showPrice: Boolean = true,
 ) {
-    LovField("Product", itemName, "product", onClick = onPickProduct)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LovField("Product", itemName, "product", Modifier.weight(1f), onPickProduct)
+        Text(
+            "+",
+            color = Color(0xFF14121B),
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .size(40.dp)
+                .shadow(10.dp, RoundedCornerShape(12.dp), ambientColor = SheetAccent.copy(alpha = 0.4f), spotColor = SheetAccent.copy(alpha = 0.4f))
+                .clip(RoundedCornerShape(12.dp))
+                .background(SheetAccent)
+                .clickable(onClick = onPickProduct)
+                .padding(top = 6.dp),
+        )
+    }
     FieldRow {
         EditField("Qty", quantity, "1", Modifier.weight(1f)) { onQuantity(it) }
         LovField("UOM", unit, "UOM", Modifier.weight(1f), onPickUom)
         if (showPrice) EditField("Price", unitPrice, "0", Modifier.weight(1f)) { onPrice(it) }
     }
     if (showPrice) {
+        val qty = quantity.toBigDecimalOrNull()
+        val price = unitPrice.toBigDecimalOrNull()
+        val total = if (qty != null && price != null) qty.multiply(price) else null
+        if (total != null && total.signum() > 0) {
+            Text("Total ${total.setScale(2, RoundingMode.HALF_UP).toPlainString()}", color = SheetInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        }
+    }
+    if (showPrice) {
         Text("Quantity, unit, and price stay on the sale or purchase. Stock changes only when you record that the goods were received or dispatched.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     }
+}
+
+/**
+ * POS-style add button: appends the line currently in the editor to the itemized cart,
+ * then clears the editor for the next item.
+ */
+@Composable
+private fun BusinessAddLineButton(form: CaptureForm, label: String) {
+    if (form.itemName.isBlank()) return
+    Text(
+        label,
+        color = SheetAccent,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 13.sp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable {
+                form.savedLines = form.savedLines + com.example.momentra.data.api.OperatingLineBody(
+                    itemName = form.itemName.trim(),
+                    quantity = form.quantity.ifBlank { null },
+                    unit = form.unit.ifBlank { null },
+                    unitPrice = form.unitPrice.ifBlank { null },
+                    masterId = form.productMasterId,
+                )
+                form.itemName = ""
+                form.quantity = ""
+                form.unitPrice = ""
+                form.productMasterId = null
+            }
+            .padding(vertical = 10.dp),
+    )
+}
+
+/**
+ * POS-style cart for itemized capture: saved lines with a remove action, then a sticky
+ * subtotal bar showing quantity × unit price across every line.
+ */
+@Composable
+private fun BusinessPosLineCart(form: CaptureForm, currency: String, title: String) {
+    val lines = form.savedLines
+    if (lines.isEmpty()) {
+        Text(
+            "Add products to build this line by line.",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+        return
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(SheetFieldBg)
+            .border(1.dp, SheetBorder, RoundedCornerShape(14.dp)),
+    ) {
+        Text(
+            title,
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(start = 12.dp, top = 10.dp),
+        )
+        lines.forEachIndexed { index, line ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        line.itemName,
+                        color = SheetInk,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                    )
+                    val meta = listOfNotNull(
+                        line.quantity?.let { q -> listOfNotNull(q, line.unit).joinToString(" ") },
+                        line.unitPrice?.let { price -> "@ $price" },
+                    ).joinToString(" · ")
+                    if (meta.isNotBlank()) {
+                        Text(meta, color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                    }
+                }
+                val lineTotal = businessLineTotal(line.quantity, line.unitPrice)
+                if (lineTotal != null) {
+                    Text(
+                        formatOperatingAmount(currency, lineTotal.toPlainString()),
+                        color = SheetAccent,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                    )
+                }
+                Text(
+                    "×",
+                    color = SheetMuted,
+                    fontFamily = PlusJakartaSans,
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            form.savedLines = form.savedLines.filterIndexed { i, _ -> i != index }
+                        }
+                        .padding(6.dp),
+                )
+            }
+            if (index < lines.lastIndex) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 12.dp)
+                        .height(1.dp)
+                        .background(SheetBorder),
+                )
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(SheetAccent.copy(alpha = 0.10f))
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "${lines.size} ${if (lines.size == 1) "item" else "items"}",
+                color = SheetMuted,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
+            Text(
+                formatOperatingAmount(currency, businessLinesTotal(lines)?.toPlainString()),
+                color = SheetAccent,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+            )
+        }
+    }
+}
+
+/** Sum of quantity × unit price across itemized lines; null when no line has a price. */
+fun businessLinesTotal(
+    lines: List<com.example.momentra.data.api.OperatingLineBody>,
+): BigDecimal? {
+    val totals = lines.mapNotNull { businessLineTotal(it.quantity, it.unitPrice) }
+    return if (totals.isEmpty()) null else totals.reduce { a, b -> a.add(b) }
 }
 
 private data class GstPreview(
@@ -3350,7 +3611,7 @@ private data class GstPreview(
 
 private fun previewGst(form: CaptureForm): GstPreview? {
     val rate = form.gstRate.toBigDecimalOrNull() ?: return null
-    if (rate.signum() <= 0) return null
+    if (rate.signum() < 0) return null
     val qty = form.quantity.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: BigDecimal.ONE
     val price = form.unitPrice.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
     val entered = if (price != null) qty.multiply(price) else form.amount.toBigDecimalOrNull() ?: return null
@@ -3405,10 +3666,9 @@ private fun GstPriceFields(form: CaptureForm, model: OperatingProjectionDto, pur
         Text("Confirm whether this supply is inside your state or outside it.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     }
     val preview = previewGst(form)
-    val modeLabel = if (form.taxMode == "Inclusive") "Included in price" else "Added separately"
     val rateLabel = form.gstRate.ifBlank { "—" }
     Text(
-        if (form.gstDetailsOpen) "GST $rateLabel% · $modeLabel · Hide" else "GST $rateLabel% · $modeLabel · View",
+        if (form.gstDetailsOpen) "GST $rateLabel% · Hide" else "GST $rateLabel% · View",
         color = SheetAccent,
         fontFamily = PlusJakartaSans,
         fontWeight = FontWeight.SemiBold,
@@ -3427,6 +3687,8 @@ private fun GstPriceFields(form: CaptureForm, model: OperatingProjectionDto, pur
         }
         Text("GST ${formatMoney(preview.gst, model.currency ?: "INR")} · Invoice ${formatMoney(preview.invoice, model.currency ?: "INR")}", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         Text("Place of supply ${if (form.supplyChoice == "INTER") "outside your state" else if (form.supplyChoice == "INTRA") "inside your state" else "not confirmed"}", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (form.gstRate.toBigDecimalOrNull()?.signum() == 0) {
+        Text("No GST on this bill.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     } else if (preview == null) {
         Text("A missing rate is not treated as 0%.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     }

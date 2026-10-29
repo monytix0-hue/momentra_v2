@@ -65,6 +65,8 @@ struct ProductionQuickAddHub: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(chrome.card)
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(chrome.brand.opacity(0.3), lineWidth: 1))
+            .shadow(color: chrome.brand.opacity(0.4), radius: 24, y: 8)
             .clipShape(RoundedRectangle(cornerRadius: 18))
             HStack(spacing: 10) {
                 Image("biz_qa_search").renderingMode(.template).resizable().scaledToFit().frame(width: 18, height: 18)
@@ -285,7 +287,7 @@ enum ProductionSheetKind: String, Identifiable {
         case .customerOrder: return "Customer Order"
         case .delivery: return "Delivery"
         case .payment: return "Record Payment"
-        case .collection: return "Record Collection"
+        case .collection: return "Money collection"
         case .budget: return "Budget / Target"
         case .update: return "Post Update"
         case .issue: return "Report Issue"
