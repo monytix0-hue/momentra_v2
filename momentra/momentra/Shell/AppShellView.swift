@@ -38,13 +38,9 @@ struct AppShellView: View {
     @State private var businessMembersSheetPresented = false
     @State private var businessGapQa: BusinessQuickAddKind? = nil
     @State private var lifeOpsQa: LifeOpsQuickAddKind? = nil
-    @State private var futureQa: FutureQuickAddKind? = nil
-    @State private var lifestyleQa: LifestyleQuickAddKind? = nil
-    @State private var relationshipsQa: RelationshipsQuickAddKind? = nil
     @State private var personalQaMomentId: String? = nil
     @State private var personalSetupSystem: PersonalSetupSystem? = nil
     @State private var personalSetupChooserOpen = false
-    @State private var relationshipsActivityOpen = false
     @State private var recentActivityOpen = false
     @State private var groupRecentActivityOpen = false
     @State private var teamRecentActivityOpen = false
@@ -675,64 +671,6 @@ struct AppShellView: View {
                 )
             }
         }
-        .sheet(item: $futureQa) { kind in
-            if let momentId = personalQaMomentId ?? model.selectedMomentId {
-                PersonalFutureQuickAddSheet(
-                    kind: kind,
-                    momentId: momentId,
-                    onClose: {
-                        futureQa = nil
-                        personalQaMomentId = nil
-                    },
-                    onSaved: {
-                        futureQa = nil
-                        personalQaMomentId = nil
-                        model.refreshVisiblePersonalTab()
-                    }
-                )
-            }
-        }
-        .sheet(item: $lifestyleQa) { kind in
-            if let momentId = personalQaMomentId ?? model.selectedMomentId {
-                PersonalLifestyleQuickAddSheet(
-                    kind: kind,
-                    momentId: momentId,
-                    onClose: {
-                        lifestyleQa = nil
-                        personalQaMomentId = nil
-                    },
-                    onSaved: {
-                        lifestyleQa = nil
-                        personalQaMomentId = nil
-                        model.refreshVisiblePersonalTab()
-                    }
-                )
-            }
-        }
-        .sheet(item: $relationshipsQa) { kind in
-            if let momentId = personalQaMomentId ?? model.selectedMomentId {
-                PersonalRelationshipsQuickAddSheet(
-                    kind: kind,
-                    momentId: momentId,
-                    onClose: {
-                        relationshipsQa = nil
-                        personalQaMomentId = nil
-                    },
-                    onSaved: {
-                        relationshipsQa = nil
-                        personalQaMomentId = nil
-                        model.refreshVisiblePersonalTab()
-                    }
-                )
-            }
-        }
-        .sheet(isPresented: $relationshipsActivityOpen) {
-            PersonalRelationshipsActivityFlow(
-                momentId: model.selectedMomentId,
-                isPresented: $relationshipsActivityOpen,
-                onChanged: { model.refreshVisiblePersonalTab() }
-            )
-        }
         .sheet(isPresented: $recentActivityOpen) {
             PersonalRecentActivityFlow(
                 momentId: model.selectedMomentId,
@@ -988,36 +926,6 @@ struct AppShellView: View {
         }
         personalQaMomentId = m.momentId
         lifeOpsQa = kind
-    }
-
-    private func openFutureQa(_ kind: FutureQuickAddKind) {
-        guard let m = PersonalUnified.resolveFamilyTarget(
-            moments: model.moments,
-            family: .futureBuilding,
-            currentSelectedId: model.selectedMomentId
-        ) else { return }
-        personalQaMomentId = m.momentId
-        futureQa = kind
-    }
-
-    private func openLifestyleQa(_ kind: LifestyleQuickAddKind) {
-        guard let m = PersonalUnified.resolveFamilyTarget(
-            moments: model.moments,
-            family: .lifestyle,
-            currentSelectedId: model.selectedMomentId
-        ) else { return }
-        personalQaMomentId = m.momentId
-        lifestyleQa = kind
-    }
-
-    private func openRelationshipsQa(_ kind: RelationshipsQuickAddKind) {
-        guard let m = PersonalUnified.resolveFamilyTarget(
-            moments: model.moments,
-            family: .relationships,
-            currentSelectedId: model.selectedMomentId
-        ) else { return }
-        personalQaMomentId = m.momentId
-        relationshipsQa = kind
     }
 
     private var personalSwitcherTitle: String? {

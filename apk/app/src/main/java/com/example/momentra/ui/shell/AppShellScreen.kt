@@ -178,31 +178,15 @@ import com.example.momentra.ui.shell.group.wedding.pulse.WeddingPulseActiveConte
 import com.example.momentra.ui.shell.group.wedding.create.WeddingQuickAddHub
 import com.example.momentra.ui.shell.group.wedding.create.WeddingQuickAddKind
 import com.example.momentra.ui.shell.perf.ShellPerf
-import com.example.momentra.ui.shell.personal.future.create.FutureQuickAddKind
-import com.example.momentra.ui.shell.personal.future.create.PersonalFutureQuickAddSheet
-import com.example.momentra.ui.shell.personal.future.moments.PersonalFutureMomentsActiveContent
-import com.example.momentra.ui.shell.personal.life.PersonalLifeActiveContent
 import com.example.momentra.ui.shell.personal.lifeops.create.LifeOpsQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.MoneyQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalLifeOpsQuickAddSheet
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalMoneyQuickAddSheet
-import com.example.momentra.ui.shell.personal.lifeops.moments.PersonalLifeOpsMomentsActiveContent
-import com.example.momentra.ui.shell.personal.lifeops.pulse.PersonalLifeOpsPulseActiveContent
-import com.example.momentra.ui.shell.personal.lifestyle.pulse.PersonalLifestylePulseActiveContent
-import com.example.momentra.ui.shell.personal.lifestyle.create.PersonalLifestyleQuickAddSheet
-import com.example.momentra.ui.shell.personal.lifestyle.moments.PersonalLifestyleMomentsActiveContent
-import com.example.momentra.ui.shell.personal.relationships.create.PersonalRelationshipsActivityFlow
-import com.example.momentra.ui.shell.personal.relationships.create.PersonalRelationshipsQuickAddSheet
-import com.example.momentra.ui.shell.personal.relationships.moments.PersonalRelationshipsMomentsActiveContent
-import com.example.momentra.ui.shell.personal.relationships.pulse.PersonalRelationshipsPulseActiveContent
-import com.example.momentra.ui.shell.personal.shared.LifestyleQuickAddKind
 import com.example.momentra.ui.shell.personal.shared.PersonalExpenseFab
 import com.example.momentra.ui.shell.personal.shared.PersonalEveningNudgeScheduler
 import com.example.momentra.ui.shell.personal.shared.PersonalMasterExpenseSheet
 import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
-import com.example.momentra.ui.shell.personal.shared.PersonalQuickAddHub
 import com.example.momentra.ui.shell.personal.shared.PersonalRecentActivityFlow
-import com.example.momentra.ui.shell.personal.shared.RelationshipsQuickAddKind
 import com.example.momentra.ui.shell.personal.shared.missingPersonalSetupSystems
 import com.example.momentra.ui.shell.personal.shared.personalPulseFamilyFor
 import com.example.momentra.ui.shell.personal.shared.presentPersonalFamilies
@@ -362,10 +346,6 @@ fun AppShellScreen(
             ShellPerf.instant("lifeops_sheet_open", mapOf("kind" to kind.name))
         }
     }
-    var futureQa by remember { mutableStateOf<FutureQuickAddKind?>(null) }
-    var lifestyleQa by remember { mutableStateOf<LifestyleQuickAddKind?>(null) }
-    var relationshipsQa by remember { mutableStateOf<RelationshipsQuickAddKind?>(null) }
-    var relationshipsActivityOpen by remember { mutableStateOf(false) }
     var recentActivityOpen by remember { mutableStateOf(false) }
     var groupRecentActivityOpen by remember { mutableStateOf(false) }
     var teamRecentActivityOpen by remember { mutableStateOf(false) }
@@ -393,9 +373,6 @@ fun AppShellScreen(
         state.selectedMomentTypeCode,
     ).primary
     val lifeOpsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val futureSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val lifestyleSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val relationshipsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val openBusinessCreateMoment: () -> Unit = {
         newMomentOpen = true
     }
@@ -469,24 +446,6 @@ fun AppShellScreen(
         }
         openPersonalSheet(m.momentId, m.momentTypeCode)
         lifeOpsQa = kind
-    }
-
-    fun openFutureQa(kind: FutureQuickAddKind) {
-        val m = targetForFamily(PersonalPulseFamily.FUTURE_BUILDING) ?: return
-        openPersonalSheet(m.momentId, m.momentTypeCode)
-        futureQa = kind
-    }
-
-    fun openLifestyleQa(kind: LifestyleQuickAddKind) {
-        val m = targetForFamily(PersonalPulseFamily.LIFESTYLE) ?: return
-        openPersonalSheet(m.momentId, m.momentTypeCode)
-        lifestyleQa = kind
-    }
-
-    fun openRelationshipsQa(kind: RelationshipsQuickAddKind) {
-        val m = targetForFamily(PersonalPulseFamily.RELATIONSHIPS) ?: return
-        openPersonalSheet(m.momentId, m.momentTypeCode)
-        relationshipsQa = kind
     }
 
     fun openMoneyQa(kind: MoneyQuickAddKind) {
@@ -867,10 +826,6 @@ fun AppShellScreen(
                     onOpenVendor = { businessGap = BusinessGapPage.Vendor },
                     onLifeOpsQuickAdd = { openLifeOpsQa(it) },
                     onMoneyQuickAdd = { openMoneyQa(it) },
-                    onFutureQuickAdd = { openFutureQa(it) },
-                    onLifestyleQuickAdd = { openLifestyleQa(it) },
-                    onRelationshipsQuickAdd = { openRelationshipsQa(it) },
-                    onOpenRelationshipsActivity = { relationshipsActivityOpen = true },
                     onViewAllActivity = { recentActivityOpen = true },
                     onPersonalActivityChanged = { shellViewModel.refreshVisiblePersonalTab() },
                     onViewAllGroupActivity = { groupRecentActivityOpen = true },
@@ -1382,99 +1337,6 @@ fun AppShellScreen(
                 }
             }
         }
-        futureQa?.let { kind ->
-            val momentId = personalQaMomentId
-            if (momentId != null) {
-                ModalBottomSheet(
-                    onDismissRequest = {
-                        futureQa = null
-                        clearPersonalSheetTarget()
-                    },
-                    sheetState = futureSheetState,
-                    containerColor = Color(0xFF14121B),
-                    dragHandle = null,
-                ) {
-                    PersonalFutureQuickAddSheet(
-                        kind = kind,
-                        momentId = momentId,
-                        onClose = {
-                            futureQa = null
-                            clearPersonalSheetTarget()
-                        },
-                        onSaved = {
-                            futureQa = null
-                            clearPersonalSheetTarget()
-                            shellViewModel.refreshVisiblePersonalTab()
-                            tourController.showWhereToLook(TourWhereToLook.forFuture(kind))
-                        },
-                    )
-                }
-            }
-        }
-        lifestyleQa?.let { kind ->
-            val momentId = personalQaMomentId
-            if (momentId != null) {
-                ModalBottomSheet(
-                    onDismissRequest = {
-                        lifestyleQa = null
-                        clearPersonalSheetTarget()
-                    },
-                    sheetState = lifestyleSheetState,
-                    containerColor = Color(0xFF14121B),
-                    dragHandle = null,
-                ) {
-                    PersonalLifestyleQuickAddSheet(
-                        kind = kind,
-                        momentId = momentId,
-                        onClose = {
-                            lifestyleQa = null
-                            clearPersonalSheetTarget()
-                        },
-                        onSaved = {
-                            lifestyleQa = null
-                            clearPersonalSheetTarget()
-                            shellViewModel.refreshVisiblePersonalTab()
-                            tourController.showWhereToLook(TourWhereToLook.forLifestyle(kind))
-                        },
-                    )
-                }
-            }
-        }
-        relationshipsQa?.let { kind ->
-            val momentId = personalQaMomentId
-            if (momentId != null) {
-                ModalBottomSheet(
-                    onDismissRequest = {
-                        relationshipsQa = null
-                        clearPersonalSheetTarget()
-                    },
-                    sheetState = relationshipsSheetState,
-                    containerColor = Color(0xFF14121B),
-                    dragHandle = null,
-                ) {
-                    PersonalRelationshipsQuickAddSheet(
-                        kind = kind,
-                        momentId = momentId,
-                        onClose = {
-                            relationshipsQa = null
-                            clearPersonalSheetTarget()
-                        },
-                        onSaved = {
-                            relationshipsQa = null
-                            clearPersonalSheetTarget()
-                            shellViewModel.refreshVisiblePersonalTab()
-                            tourController.showWhereToLook(TourWhereToLook.forRelationships(kind))
-                        },
-                    )
-                }
-            }
-        }
-        PersonalRelationshipsActivityFlow(
-            momentId = state.selectedMomentId,
-            visible = relationshipsActivityOpen,
-            onDismiss = { relationshipsActivityOpen = false },
-            onChanged = { shellViewModel.refreshVisiblePersonalTab() },
-        )
         PersonalRecentActivityFlow(
             momentId = state.selectedMomentId,
             visible = recentActivityOpen,
@@ -1836,9 +1698,6 @@ private fun ShellDestinationContent(
     onOpenVendor: () -> Unit = {},
     onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Unit = {},
     onMoneyQuickAdd: (MoneyQuickAddKind) -> Unit = {},
-    onFutureQuickAdd: (FutureQuickAddKind) -> Unit = {},
-    onLifestyleQuickAdd: (LifestyleQuickAddKind) -> Unit = {},
-    onRelationshipsQuickAdd: (RelationshipsQuickAddKind) -> Unit = {},
     onOpenRelationshipsActivity: () -> Unit = {},
     onViewAllActivity: () -> Unit = {},
     onPersonalActivityChanged: () -> Unit = {},
@@ -2046,9 +1905,6 @@ private fun ShellDestinationContent(
                         ?: moments.firstOrNull { it.momentId == selectedMomentId }?.momentTypeCode
                     val personalFamily = personalPulseFamilyFor(personalTypeCode)
                     val isLifeOps = personalFamily == PersonalPulseFamily.LIFE_OPERATIONS
-                    val isFutureBuilding = personalFamily == PersonalPulseFamily.FUTURE_BUILDING
-                    val isLifestyle = personalFamily == PersonalPulseFamily.LIFESTYLE
-                    val isRelationships = personalFamily == PersonalPulseFamily.RELATIONSHIPS
                     val groupTypeCode = selectedMomentTypeCode
                         ?: moments.firstOrNull { it.momentId == selectedMomentId }?.momentTypeCode
                     val groupFamily = groupExperienceFamilyFor(groupTypeCode)
