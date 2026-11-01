@@ -6,6 +6,7 @@ struct DistributionActiveView: View {
     var onOpenQuickAdd: () -> Void = {}
     var onRecord: (DistributionEventDraft) async throws -> Void = { _ in }
     var onDecide: (String, String) async throws -> Void = { _, _ in }
+    var onViewAllAttention: () -> Void = {}
 
     @State private var activityOpen = false
     @State private var gstDetailsOpen = false
@@ -68,6 +69,8 @@ struct DistributionActiveView: View {
                 ForEach(model.attention ?? []) { item in
                     attentionCard(item)
                 }
+                AppStateSecondaryButton(label: "View all") { onViewAllAttention() }
+                    .frame(maxWidth: 200)
                 sectionTitle("Payment Readiness")
                 readiness("To collect", (model.paymentReadiness ?? []).filter { $0.relevance == "RECEIVABLE" })
                 readiness("To pay", (model.paymentReadiness ?? []).filter { $0.relevance != "RECEIVABLE" })

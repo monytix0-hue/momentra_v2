@@ -1226,8 +1226,15 @@ data class OperatingLifeDto(
     val resultProgress: String = "",
 )
 
+/** `memory.revisions[]` — the backend sends `{ id, title, occurredAt }` only. */
+data class OperatingRevisionDto(
+    val id: String = "",
+    val title: String = "",
+    val occurredAt: String = "",
+)
+
 data class OperatingMemoryDto(
-    val revisions: List<OperatingAttentionDto> = emptyList(),
+    val revisions: List<OperatingRevisionDto> = emptyList(),
 )
 
 data class OperatingBoardSectionDto(

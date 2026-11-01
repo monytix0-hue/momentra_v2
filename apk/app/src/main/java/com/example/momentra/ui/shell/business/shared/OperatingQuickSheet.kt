@@ -55,6 +55,8 @@ import com.example.momentra.data.api.OperatingMasterDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.theme.PlusJakartaSans
+import com.example.momentra.ui.theme.RestaurantEmber
+import com.example.momentra.ui.theme.RetailRose
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -151,7 +153,13 @@ private fun contextLine(model: OperatingProjectionDto): String {
 }
 
 @Composable
-fun OperatingSheetScrim(onDismiss: () -> Unit, accent: Color = Color(0xFFF59E0B), content: @Composable () -> Unit) {
+fun OperatingSheetScrim(
+    onDismiss: () -> Unit,
+    accent: Color = Color(0xFFF59E0B),
+    surface: Color = Color(0xFF1C1926),
+    border: Color = Color(0xFF2A2538),
+    content: @Composable () -> Unit,
+) {
     val absorb = remember { MutableInteractionSource() }
     val shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     Box(
@@ -167,8 +175,8 @@ fun OperatingSheetScrim(onDismiss: () -> Unit, accent: Color = Color(0xFFF59E0B)
                 .fillMaxHeight(0.92f)
                 .shadow(10.dp, shape, ambientColor = accent.copy(alpha = 0.4f), spotColor = accent.copy(alpha = 0.4f))
                 .clip(shape)
-                .background(Color(0xFF1C1926))
-                .border(1.dp, Color(0xFF2A2538), shape)
+                .background(surface)
+                .border(1.dp, border, shape)
                 .clickable(interactionSource = absorb, indication = null, onClick = {}),
         ) {
             content()
@@ -406,6 +414,10 @@ fun OperatingCaptureSheet(
     onCreateMaster: (suspend (String, String, String?, String?) -> Unit)? = null,
 ) {
     val currency = model.currency?.ifBlank { null } ?: "INR"
+    // The retail section runs the Figma rose sheet (`2399:30253`); every other family keeps
+    // the group sheet chrome so its existing screens are untouched.
+    val roseSheet = model.subtype == "RETAIL_STORE"
+    val emberSheet = variant == "restaurant"
     val actor = contextLine(model)
     val channels = model.life?.channels.orEmpty()
     val restaurant = variant == "restaurant"
@@ -461,34 +473,90 @@ fun OperatingCaptureSheet(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                Row(Modifier.size(width = 40.dp, height = 5.dp).clip(RoundedCornerShape(100.dp)).background(Color.White.copy(alpha = 0.2f))) {}
+                Row(
+                    Modifier
+                        .size(width = 40.dp, height = if (roseSheet) 4.dp else 5.dp)
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(
+                            when {
+                                roseSheet -> RetailRose.roseMuted
+                                emberSheet -> RestaurantEmber.ember.copy(alpha = 0.55f)
+                                else -> Color.White.copy(alpha = 0.2f)
+                            },
+                        ),
+                ) {}
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(
                     painterResource(icon),
                     contentDescription = null,
-                    tint = SheetInk,
+                    tint = when {
+                        roseSheet -> RetailRose.rose
+                        emberSheet -> RestaurantEmber.ember
+                        else -> SheetInk
+                    },
                     modifier = Modifier
                         .size(34.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(SheetIdentity)
+                        .background(
+                            when {
+                                roseSheet -> RetailRose.rose.copy(alpha = 0.16f)
+                                emberSheet -> RestaurantEmber.ember.copy(alpha = 0.16f)
+                                else -> SheetIdentity
+                            },
+                        )
                         .padding(7.dp),
                 )
-                Text(title, color = SheetInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, modifier = Modifier.weight(1f))
+                Text(
+                    title,
+                    color = when {
+                        roseSheet -> RetailRose.textPrimary
+                        emberSheet -> RestaurantEmber.textPrimary
+                        else -> SheetInk
+                    },
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = if (roseSheet || emberSheet) FontWeight.Bold else FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    modifier = Modifier.weight(1f),
+                )
                 Text(
                     "Close  ×",
-                    color = SheetMuted,
+                    color = if (emberSheet) RestaurantEmber.textBody else SheetMuted,
                     fontFamily = PlusJakartaSans,
                     fontSize = 12.sp,
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
-                        .background(SheetHigh)
+                        .background(
+                            when {
+                                roseSheet -> RetailRose.chip
+                                emberSheet -> RestaurantEmber.chip
+                                else -> SheetHigh
+                            },
+                        )
                         .clickable(onClick = onDismiss)
                         .padding(horizontal = 8.dp, vertical = 8.dp),
                 )
             }
-            Text(actor, color = SheetAccent, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-            Text(statusLine(mode), color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            Text(
+                actor,
+                color = when {
+                    roseSheet -> RetailRose.textBody
+                    emberSheet -> RestaurantEmber.gold
+                    else -> SheetAccent
+                },
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
+            Text(
+                statusLine(mode),
+                color = when {
+                    roseSheet -> RetailRose.textMuted
+                    emberSheet -> RestaurantEmber.textFaint
+                    else -> SheetMuted
+                },
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
             when (mode) {
                 "SALE", "SERVICE" -> SaleServiceCapture(form, mode, model, currency, channels, channelLabel, actor, production, contractFamily, lovTrade, trading, distribution, marketing)
                 "PURCHASE", "VENDOR" -> PurchaseVendorCapture(form, mode, model, currency, production, contractFamily, lovTrade, trading, distribution, marketing)
@@ -796,6 +864,11 @@ private fun SpendCapture(
         }
         SummaryCard("After approval", spendSummary(model, currency, typed))
     } else {
+        if (restaurant) {
+            // Kitchen-first categories, all present in the backend's `EXPENSE_CATEGORIES`.
+            if (form.purpose !in KitchenExpenseCategories) form.purpose = KitchenExpenseCategories.first()
+            ChoiceBlock("Category", KitchenExpenseCategories, form.purpose) { form.purpose = it }
+        }
         AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
         FieldRow {
             EditField("Purpose", form.purpose, "What this was for", Modifier.weight(1f)) { form.purpose = it }
@@ -3309,6 +3382,12 @@ private val ExpenseCategorySeeds = listOf(
     "Rent", "Salaries", "Transport", "Freight", "Utilities", "Packaging", "Marketing",
     "Maintenance", "Office supplies", "Insurance", "Fees and charges", "Other",
 ).map { OperatingLovOption(id = "seed-expense-$it", name = it, kind = "EXPENSE_CATEGORY") }
+
+/** Kitchen-first order for the restaurant expense sheet (`RST-QA-06`). */
+private val KitchenExpenseCategories = listOf(
+    "Kitchen supplies", "Food wastage", "Gas/fuel", "Aggregator fees",
+    "Hygiene/pest control", "Contract labour", "Disposables", "Laundry",
+)
 
 private fun lovTitle(kind: String): String = when (kind.uppercase()) {
     "PRODUCT" -> "Product"

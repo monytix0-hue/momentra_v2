@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Debug only. Release builds reject cleartext so bearer tokens stay on HTTPS. -->
-    <application android:usesCleartextTraffic="true" />
+    <application android:usesCleartextTraffic="true">
+        <!-- Debug-only gallery for the Business app-state kit. Screenshot-compare against
+             Figma node 2666:29489 without signing in. Not shipped in release. -->
+        <activity
+            android:name=".ui.shell.business.appstate.gallery.AppStateGalleryActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Momentra" />
+    </application>
 </manifest>

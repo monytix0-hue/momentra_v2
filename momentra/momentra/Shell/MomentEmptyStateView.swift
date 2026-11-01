@@ -141,6 +141,8 @@ struct ContextEmptyExperienceView: View {
     var onSetupTypeChanged: (String) -> Void = Self.ignoreString
     var onJoinCode: (String) -> Void = Self.ignoreString
     var onOpenCompletedMoments: (() -> Void)? = nil
+    var onCreateBusiness: () -> Void = {}
+    var onJoinCompany: () -> Void = {}
 
     private static func ignoreString(_: String) {}
 
@@ -281,6 +283,31 @@ struct ContextEmptyExperienceView: View {
 
     @ViewBuilder
     private var businessEmpty: some View {
+        if !hasCompany {
+            // No business yet — the kit's Setup variant owns this rather than a bare moment list.
+            BusinessAppStateBody(
+                spec: BusinessAppStateSpecs.spec(.noCompany, .setup),
+                accent: businessAccent,
+                onPrimary: onCreateBusiness,
+                onSecondary: onJoinCompany
+            )
+        } else {
+            businessEmptyWithCompany
+        }
+    }
+
+    /// Accent for the current moment, resolved from the same code set the active screens use.
+    private var businessAccent: BusinessAppStateAccent {
+        BusinessAppStateAccent.forTypeCode(businessTypeCode)
+    }
+
+    private var businessTypeCode: String? {
+        moments.first(where: { $0.companyId == selectedCompanyId })?.momentTypeCode
+            ?? moments.first?.momentTypeCode
+    }
+
+    @ViewBuilder
+    private var businessEmptyWithCompany: some View {
         switch destination {
         case .create:
             BusinessCreateFlowView(
@@ -291,25 +318,45 @@ struct ContextEmptyExperienceView: View {
             )
         case .pulse:
             if first {
-                BusinessPulseEmptyView(onStartCta: onCreateMoment)
+                BusinessAppStateBody(
+                    spec: BusinessAppStateSpecs.spec(.pulse, .empty),
+                    accent: businessAccent,
+                    onPrimary: onCreateMoment,
+                    onSecondary: onCreateMoment
+                )
             } else {
                 businessBetweenEmpty
             }
         case .moments:
             if first {
-                BusinessMomentsEmptyView(onStartCta: onCreateMoment)
+                BusinessAppStateBody(
+                    spec: BusinessAppStateSpecs.spec(.moments, .empty),
+                    accent: businessAccent,
+                    onPrimary: onCreateMoment,
+                    onSecondary: onCreateMoment
+                )
             } else {
                 businessBetweenEmpty
             }
         case .life:
             if first {
-                BusinessLifeEmptyView(onStartCta: onCreateMoment)
+                BusinessAppStateBody(
+                    spec: BusinessAppStateSpecs.spec(.life, .empty),
+                    accent: businessAccent,
+                    onPrimary: onCreateMoment,
+                    onSecondary: onCreateMoment
+                )
             } else {
                 businessBetweenEmpty
             }
         case .memory:
             if first {
-                BusinessMemoryEmptyView(onStartCta: onCreateMoment)
+                BusinessAppStateBody(
+                    spec: BusinessAppStateSpecs.spec(.memory, .empty),
+                    accent: businessAccent,
+                    onPrimary: onCreateMoment,
+                    onSecondary: onCreateMoment
+                )
             } else {
                 businessBetweenEmpty
             }

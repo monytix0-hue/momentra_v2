@@ -126,6 +126,7 @@ struct OperatingMomentPage: View {
     var refreshToken: Int = 0
     var onCreateMoment: () -> Void = {}
     var onOpenQuickAdd: () -> Void = {}
+    var onViewAllAttention: () -> Void = {}
 
     @State private var projection: OperatingProjectionPayload?
     @State private var errorText: String?
@@ -139,7 +140,8 @@ struct OperatingMomentPage: View {
         tab: OperatingTab,
         refreshToken: Int = 0,
         onCreateMoment: @escaping () -> Void = {},
-        onOpenQuickAdd: @escaping () -> Void = {}
+        onOpenQuickAdd: @escaping () -> Void = {},
+        onViewAllAttention: @escaping () -> Void = {}
     ) {
         self.momentId = momentId
         self.momentTypeCode = momentTypeCode
@@ -148,6 +150,7 @@ struct OperatingMomentPage: View {
         self.refreshToken = refreshToken
         self.onCreateMoment = onCreateMoment
         self.onOpenQuickAdd = onOpenQuickAdd
+        self.onViewAllAttention = onViewAllAttention
         _projection = State(initialValue: momentId.flatMap(OperatingProjectionCache.peek))
     }
 
@@ -293,6 +296,7 @@ struct OperatingMomentPage: View {
             model: projection,
             tab: tab,
             onOpenQuickAdd: onOpenQuickAdd,
+            onViewAllAttention: onViewAllAttention,
             onRecord: { draft in
                 guard let momentId else { return }
                 _ = try await APIClient.shared.recordOperatingEvent(
@@ -332,6 +336,7 @@ struct OperatingMomentPage: View {
             model: projection,
             tab: tab,
             onOpenQuickAdd: onOpenQuickAdd,
+            onViewAllAttention: onViewAllAttention,
             onRecord: { draft in
                 guard let momentId else { return }
                 _ = try await APIClient.shared.recordOperatingEvent(
@@ -370,6 +375,7 @@ struct OperatingMomentPage: View {
             model: projection,
             tab: tab,
             onOpenQuickAdd: onOpenQuickAdd,
+            onViewAllAttention: onViewAllAttention,
             onRecord: { draft in
                 guard let momentId else { return }
                 _ = try await APIClient.shared.recordOperatingEvent(
@@ -424,6 +430,7 @@ struct OperatingMomentPage: View {
             model: projection,
             tab: tab,
             onOpenQuickAdd: onOpenQuickAdd,
+            onViewAllAttention: onViewAllAttention,
             onRecord: { draft in
                 guard let momentId else { return }
                 _ = try await APIClient.shared.recordOperatingEvent(
@@ -464,6 +471,7 @@ struct OperatingMomentPage: View {
             model: projection,
             tab: tab,
             onOpenQuickAdd: onOpenQuickAdd,
+            onViewAllAttention: onViewAllAttention,
             onRecord: { draft in
                 guard let momentId else { return }
                 _ = try await APIClient.shared.recordOperatingEvent(
@@ -516,6 +524,7 @@ struct OperatingMomentPage: View {
             model: projection,
             tab: tab,
             onOpenQuickAdd: onOpenQuickAdd,
+            onViewAllAttention: onViewAllAttention,
             onRecord: { draft in
                 guard let momentId else { return }
                 _ = try await APIClient.shared.recordOperatingEvent(
@@ -568,6 +577,7 @@ struct OperatingMomentPage: View {
             model: projection,
             tab: tab,
             onOpenQuickAdd: onOpenQuickAdd,
+            onViewAllAttention: onViewAllAttention,
             onRecord: { draft in
                 guard let momentId else { return }
                 _ = try await APIClient.shared.recordOperatingEvent(

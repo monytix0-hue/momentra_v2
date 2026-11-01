@@ -216,6 +216,37 @@ struct OperatingCaptureSheet: View {
         return iso.string(from: start)
     }
     private var theme: BusinessActiveTheme { BusinessActiveTheme.forTypeCode(model.subtype) }
+    /// The retail section runs the Figma rose system; every other family keeps its theme.
+    private var roseSheet: Bool { model.subtype?.uppercased() == "RETAIL_STORE" }
+    /// The restaurant section runs the Figma ember system (`RST-QA-02..10` `2400:30310`).
+    private var emberSheet: Bool { variant == "restaurant" || model.subtype?.uppercased() == "RESTAURANT_FOOD" }
+    private var accentColor: Color {
+        emberSheet ? RestaurantEmber.ember : (roseSheet ? RetailRose.rose : theme.accent)
+    }
+    private var accentSolidColor: Color {
+        emberSheet ? RestaurantEmber.ember : (roseSheet ? RetailRose.roseBorder : theme.accentSolid)
+    }
+    private var accentLightColor: Color {
+        emberSheet ? RestaurantEmber.gold : (roseSheet ? RetailRose.roseMuted : theme.accentLight)
+    }
+
+    // Sheet chrome. Retail reads the Figma sheet frame `2399:30253`, restaurant reads
+    // `2400:30310`; other families keep the group sheet palette so their screens are untouched.
+    private var sheetBg: Color {
+        emberSheet ? RestaurantEmber.sheet : (roseSheet ? Color(hex: "#1E293B") : BusinessSheetTokens.bg)
+    }
+    private var sheetField: Color {
+        emberSheet ? RestaurantEmber.field : (roseSheet ? Color(hex: "#0F172A") : BusinessSheetTokens.field)
+    }
+    private var sheetBorder: Color {
+        emberSheet ? RestaurantEmber.divider : (roseSheet ? RetailRose.roseBorder.opacity(0.55) : BusinessSheetTokens.border)
+    }
+    private var sheetMuted: Color {
+        emberSheet ? RestaurantEmber.textBody : (roseSheet ? RetailRose.textBody : BusinessSheetTokens.muted)
+    }
+    private var sheetText: Color {
+        emberSheet ? RestaurantEmber.textPrimary : (roseSheet ? RetailRose.textPrimary : BusinessSheetTokens.text)
+    }
     private var actor: String {
         let roleCode = model.role ?? ""
         let role = OperatingMomentCatalog.roles.first { $0.0 == roleCode }?.1 ?? "Member"
@@ -233,11 +264,18 @@ struct OperatingCaptureSheet: View {
     private var retailModes: Set<String> { ["SALE", "SERVICE", "PURCHASE", "SPEND", "STOCK", "ORDER", "APPOINTMENT", "COLLECTION", "PAYMENT"] }
     private var tradingModes: Set<String> { ["SALE", "PURCHASE", "SPEND", "STOCK", "ORDER", "COLLECTION", "PAYMENT", "SHIPMENT", "DELIVERY", "RETURN", "UPDATE", "ISSUE"] }
     private var contractModes: Set<String> { retailFamily ? retailModes : tradingModes }
-    private let expenseCategories = ["Rent/lease", "Utilities", "Wages/salaries", "Advertising", "Packaging", "Delivery/shipping", "Marketplace/platform fees", "Consumables", "Kitchen supplies", "Software/subscriptions", "Insurance", "Bank charges", "Gas/fuel", "Aggregator fees", "Miscellaneous"]
+    private let expenseCategories = ["Rent/lease", "Utilities", "Wages/salaries", "Advertising", "Packaging", "Delivery/shipping", "Marketplace/platform fees", "Consumables", "Food wastage", "Software/subscriptions", "Insurance", "Bank charges", "Gas/fuel", "Aggregator fees", "Miscellaneous"]
+    /// Kitchen-first order for the restaurant sheet — every value already exists in the
+    /// backend's `EXPENSE_CATEGORIES` (`operating-retail-contract.ts:10`).
+    private let kitchenExpenseCategories = ["Kitchen supplies", "Food wastage", "Gas/fuel", "Aggregator fees", "Hygiene/pest control", "Contract labour", "Disposables", "Laundry"]
+    /// Categories the restaurant sheet offers: the kitchen list first, then the shared tail.
+    private var restaurantExpenseCategories: [String] {
+        kitchenExpenseCategories + expenseCategories.filter { !kitchenExpenseCategories.contains($0) }
+    }
     private var canAddMaster: Bool {
         model.role == "OWNER_ADMIN" || (model.quickAdds ?? []).contains(where: { $0.code == "UPDATE" })
     }
-    private var lovAccent: Color { trading || distribution ? Color(hex: trading ? "#6DDCFF" : "#5DDEA6") : theme.accentLight }
+    private var lovAccent: Color { trading || distribution ? Color(hex: trading ? "#6DDCFF" : "#5DDEA6") : accentLightColor }
     private var allLovOptions: [OperatingLovOption] {
         let fromModel = (model.masters ?? []).map { master in
             let product = master.kind.uppercased() == "PRODUCT"
@@ -269,33 +307,33 @@ struct OperatingCaptureSheet: View {
                 VStack(alignment: .leading, spacing: 6) {
                     // Group sheet chrome: 40×5 white-20% pill, 24pt top radius, accent-tinted icon tile.
                     Capsule()
-                        .fill(Color.white.opacity(0.2))
-                        .frame(width: 40, height: 5)
+                        .fill(emberSheet ? RestaurantEmber.ember.opacity(0.55) : (roseSheet ? RetailRose.roseMuted : Color.white.opacity(0.2)))
+                        .frame(width: 40, height: roseSheet || emberSheet ? 4 : 5)
                         .frame(maxWidth: .infinity)
                         .padding(.bottom, 6)
                     HStack(spacing: 10) {
                         Image(icon).renderingMode(.template).resizable().scaledToFit().frame(width: 20, height: 20)
                             .padding(8)
-                            .background(theme.accent.opacity(0.16))
+                            .background(accentColor.opacity(0.16))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 10)
-                                    .stroke(theme.accent.opacity(0.32), lineWidth: 1)
+                                    .stroke(accentColor.opacity(0.32), lineWidth: 1)
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .foregroundStyle(theme.accentLight)
+                            .foregroundStyle(accentLightColor)
                         Text(title)
                             .font(.plusJakarta(size: 18, weight: .heavy))
-                            .foregroundStyle(BusinessSheetTokens.text)
+                            .foregroundStyle(sheetText)
                         Spacer()
                         Button("Close  ×") { close() }
                             .font(.plusJakarta(size: 12))
-                            .foregroundStyle(BusinessSheetTokens.muted)
+                            .foregroundStyle(sheetMuted)
                             .padding(8)
-                            .background(BusinessSheetTokens.field)
+                            .background(sheetField)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
-                    Text(actor).font(.plusJakarta(size: 12)).foregroundStyle(theme.accentLight)
-                    Text(statusLine).font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                    Text(actor).font(.plusJakarta(size: 12)).foregroundStyle(accentLightColor)
+                    Text(statusLine).font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                     if contractFamily && contractModes.contains(mode) { retailFields } else { fields }
                     if marketing && !tradingFamily && ["ACTIVITY", "PROGRESS", "RESULT", "SPEND", "REVISION", "INVOICE"].contains(eventType) {
                         marketingFields
@@ -306,26 +344,28 @@ struct OperatingCaptureSheet: View {
                 .padding(.bottom, 8)
             }
             VStack(alignment: .leading, spacing: 6) {
-                Text(footerLine).font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text(footerLine).font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 Button(actionLabel) { Task { await save() } }
                     .font(.plusJakarta(size: 15, weight: .semibold))
-                    .foregroundStyle(canSave ? Color(hex: "#14121B") : BusinessSheetTokens.muted)
+                    .foregroundStyle(canSave ? (roseSheet || emberSheet ? Color.white : Color(hex: "#14121B")) : sheetMuted)
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
                     .background {
                         if canSave {
                             LinearGradient(
-                                colors: [theme.accent, theme.accentLight],
+                                colors: emberSheet
+                                    ? [RestaurantEmber.ember, RestaurantEmber.ember]
+                                    : (roseSheet ? [RetailRose.rose, RetailRose.rose] : [accentColor, accentLightColor]),
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         } else {
-                            BusinessSheetTokens.field
+                            sheetField
                         }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .shadow(
-                        color: canSave ? theme.accent.opacity(0.4) : .clear,
+                        color: canSave ? accentColor.opacity(0.4) : .clear,
                         radius: 10,
                         y: 4
                     )
@@ -333,13 +373,17 @@ struct OperatingCaptureSheet: View {
             }
             .padding(.horizontal, 17)
             .padding(.vertical, 10)
-            .overlay(alignment: .top) { Rectangle().fill(BusinessSheetTokens.border).frame(height: 1) }
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(emberSheet ? RestaurantEmber.divider : (roseSheet ? RetailRose.roseBorder.opacity(0.55) : sheetBorder))
+                    .frame(height: 1)
+            }
         }
-        .background(BusinessSheetTokens.bg)
+        .background(sheetBg)
         .presentationDetents([.fraction(0.92)])
         .presentationDragIndicator(.hidden)
         .presentationCornerRadius(24)
-        .presentationBackground(BusinessSheetTokens.bg)
+        .presentationBackground(sheetBg)
         .sheet(item: $picker) { picker in
             switch picker {
             case .date:
@@ -395,6 +439,9 @@ struct OperatingCaptureSheet: View {
             if production && mode == "STOCK" && note.isEmpty { note = "opening" }
             choice = defaultChoice
             if (restaurant || model.subtype == "RESTAURANT_FOOD") && mode == "ORDER" { orderStatus = "Accepted" }
+            if emberSheet && mode == "SPEND" && !kitchenExpenseCategories.contains(expenseCategory) {
+                expenseCategory = kitchenExpenseCategories[0]
+            }
             if model.gstTracking == "YES" {
                 let includes = mode == "PURCHASE" ? model.purchasePriceIncludesGst : model.salePriceIncludesGst
                 if includes == "YES" { taxMode = "Inclusive" }
@@ -431,7 +478,7 @@ struct OperatingCaptureSheet: View {
                 }
         }
         .presentationDetents([.medium, .large])
-        .presentationBackground(BusinessSheetTokens.bg)
+        .presentationBackground(sheetBg)
         .preferredColorScheme(.dark)
     }
 
@@ -542,13 +589,13 @@ struct OperatingCaptureSheet: View {
     @ViewBuilder private func lovField(_ label: String, value: String, kind: String, placeholder: String) -> some View {
         Button { picker = .lov(kind) } label: {
             VStack(alignment: .leading, spacing: 4) {
-                Text(label).font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text(label).font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 Text(value.isEmpty ? placeholder : value)
                     .font(.plusJakarta(size: 15))
-                    .foregroundStyle(value.isEmpty ? BusinessSheetTokens.muted : BusinessSheetTokens.text)
+                    .foregroundStyle(value.isEmpty ? sheetMuted : sheetText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
-                    .background(BusinessSheetTokens.field)
+                    .background(sheetField)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
@@ -606,7 +653,7 @@ struct OperatingCaptureSheet: View {
             if choice == "Part paid" { editField("Received now", text: $receivedAmount, placeholder: "Required") }
             orderLink("Linked order · Optional")
             Text("A sale is not a delivery. Dispatch stays a separate record.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             summary("After save", saleLines)
         } else {
         amountBlock("Amount", hint: "Positive amount · 2 decimal places")
@@ -615,7 +662,7 @@ struct OperatingCaptureSheet: View {
         HStack(spacing: 12) { dateField(restaurant || service || trading || distribution ? "Sale date" : "Date"); readField(restaurant || service || trading || distribution ? "Receipt actor" : "Recorded by", actorName) }
         choiceBlock(trading ? "Received status" : "Money received", options: ["Received", "Pending"], selected: choice) { choice = $0 }
         Text(distribution ? "One sale and its linked receipt. This is not a separate collection." : (trading ? "One sale and its linked receipt. This is not a second collection." : (service ? "One sale and its linked receipt. This is not a second sale or collection." : (restaurant ? "One sale and its linked receipt. This is not a separate collection." : "One sale and its receipt. A collection is a separate event."))))
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         moreButton(distribution ? "Note and reference. Optional." : (trading ? "Buyer, reference, and shipment context. Optional." : (service ? "Customer, note and evidence. Optional." : "Note, reference and evidence. Optional.")))
         if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
         summary("After save", saleLines)
@@ -637,20 +684,20 @@ struct OperatingCaptureSheet: View {
             choiceBlock("Payment state", options: ["Paid", "Part paid", "Pay later"], selected: choice) { choice = $0 }
             if choice == "Part paid" { editField("Paid now", text: $receivedAmount, placeholder: "Required") }
             Text("Stock increases only for the quantity you mark as received.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else if marketing && mode == "VENDOR" {
             amountBlock("Amount", hint: "Positive amount · 2 decimal places")
             editField("Counterparty", text: $party, placeholder: "Required")
             editField("Purpose", text: $purpose, placeholder: "What this covers")
             choiceBlock("Paid / pending", options: ["Pending / unpaid", "Paid"], selected: choice) { choice = $0 }
-            Text("Pending approval. Submission is not payment.").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            Text("Pending approval. Submission is not payment.").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             summary("After approval", purchaseLines)
         } else {
         amountBlock("Amount", hint: "Positive amount · 2 decimal places")
         HStack(spacing: 12) { editField(distribution ? "Principal · Optional" : "Supplier · Optional", text: $party, placeholder: "Name"); dateField(restaurant || service || trading || distribution ? "Purchase date" : "Date") }
         editField("Purpose", text: $purpose, placeholder: "What was bought")
         choiceBlock("Payment state", options: ["Pending / unpaid", "Paid"], selected: choice) { choice = $0 }
-        Text("Pending approval. Submission is not payment.").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+        Text("Pending approval. Submission is not payment.").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         moreButton("Due date, reference and evidence. Optional.")
         if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
         summary("After approval", purchaseLines)
@@ -665,7 +712,7 @@ struct OperatingCaptureSheet: View {
             choiceBlock("Payment state", options: ["Paid", "Pay later"], selected: choice) { choice = $0 }
             if choice != "Paid" { editField("Payee", text: $party, placeholder: "Required") }
             Text("A payment later is not a second expense.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else if marketing {
             amountBlock("Amount", hint: "Positive amount · 2 decimal places")
             editField("Purpose", text: $purpose, placeholder: "What this was for")
@@ -680,7 +727,7 @@ struct OperatingCaptureSheet: View {
         editField("Paid by", text: $party, placeholder: actorName)
         if service || trading || distribution {
             Text("A personal claim is reimbursed later. It is not a second expense.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         }
         moreButton("Reference and note. Optional.")
         if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
@@ -696,7 +743,7 @@ struct OperatingCaptureSheet: View {
             editField("Paid to", text: $party, placeholder: "Required")
             editField("Purpose / reference", text: $purpose, placeholder: "Required")
             dateField("Date")
-            Text("Manual confirmation only. This is not a live transfer.").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            Text("Manual confirmation only. This is not a live transfer.").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else {
         amountBlock(mode == "REIMBURSE" ? "Reimbursement amount" : "Amount", hint: "Positive amount · 2 decimal places")
         editField((service || trading || distribution) && mode == "REIMBURSE" ? "Business payer" : (mode == "REIMBURSE" ? "Payee" : "Paid to"), text: $party, placeholder: "Name")
@@ -717,12 +764,12 @@ struct OperatingCaptureSheet: View {
             amountBlock("Amount received", hint: "Positive amount")
             HStack(spacing: 12) { readField("Received by", actorName); dateField("Date") }
             editField("Note", text: $note, placeholder: "Optional")
-            Text("Records the receipt. This is not a live transfer.").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            Text("Records the receipt. This is not a live transfer.").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             summary("After mark received", collectionLines)
         } else if client {
             choiceBlock("Collection path", options: ["Mark Received / Collect", "Create Receivable"], selected: choice) { choice = $0 }
             Text("Mark Received records a receipt. Create Receivable records the obligation.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             amountBlock("Amount received", hint: "Positive amount")
             editField("Received from", text: $party, placeholder: "Required")
             HStack(spacing: 12) { readField("Received by", actorName); dateField("Date") }
@@ -731,7 +778,7 @@ struct OperatingCaptureSheet: View {
         } else if own {
             choiceBlock("Received from", options: ["Linked campaign receipt", "Other campaign receipt"], selected: choice) { choice = $0 }
             Text("Campaign-linked receipt only. No client billing or receivable.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             amountBlock("Amount received", hint: "Positive amount")
             HStack(spacing: 12) { readField("Received by", actorName); dateField("Date") }
             editField("Purpose / reference", text: $purpose, placeholder: "Required")
@@ -788,7 +835,7 @@ struct OperatingCaptureSheet: View {
                 ])
             } else {
                 Text("No budget yet. A proposal stays inactive until it is approved.")
-                    .font(.plusJakarta(size: 13)).foregroundStyle(BusinessSheetTokens.muted)
+                    .font(.plusJakarta(size: 13)).foregroundStyle(sheetMuted)
             }
             amountBlock("Proposed budget", hint: "Proposal only")
             editField("Revision reason", text: $purpose, placeholder: "Why this changes")
@@ -823,7 +870,7 @@ struct OperatingCaptureSheet: View {
             choiceBlock("Reason", options: ["opening", "stocktake", "damage", "waste", "return", "correction"], selected: note) { note = $0 }
             HStack(spacing: 12) { editField("Quantity", text: $quantity, placeholder: "Required"); editField("Unit", text: $unit, placeholder: "kg") }
             Text("Damage is not an expense or a sale.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else {
         editField(distribution ? "Availability context" : "Stock context", text: $purpose, placeholder: "What changed")
         choiceBlock(distribution ? "Availability status" : "Stock status", options: distribution ? ["Available", "Needs check", "Limited availability"] : (trading ? ["Available", "Needs check", "Low availability"] : ["In stock", "Needs check", "Low stock"]), selected: choice) { choice = $0 }
@@ -842,7 +889,7 @@ struct OperatingCaptureSheet: View {
             if job || model.subtype == "MADE_TO_ORDER" {
                 choiceBlock("Quotation", options: ["Draft", "Sent", "Accepted", "Rejected", "Expired"], selected: quotation) { quotation = $0 }
                 Text("Accepted confirms the order. It does not post revenue, a receivable, or GST.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                    .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             }
             editField("Buyer", text: $party, placeholder: "Required")
             editField("Quantity", text: $quantity, placeholder: "Required")
@@ -850,7 +897,7 @@ struct OperatingCaptureSheet: View {
             amountBlock("Order value · Optional", hint: "Leave blank when the order is unpriced")
             dateField("Order date")
             Text("An order is not revenue, cash, stock, or a receivable. A deposit is a separate collection.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else if restaurant {
             editField("Order / context", text: $purpose, placeholder: "What changed")
             choiceBlock("Order status", options: ["Preparing", "Ready", "Handoff delayed"], selected: choice) { choice = $0 }
@@ -910,7 +957,7 @@ struct OperatingCaptureSheet: View {
             HStack(spacing: 12) { dateField("Appointment date"); editField("Professional", text: $party, placeholder: "Who is assigned") }
             choiceBlock("Job status", options: ["Scheduled", "Completed"], selected: choice) { choice = $0 }
             Text("Job status is operational only. Completing a job does not create revenue or a receivable.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             moreButton("Customer. Optional.")
             if moreOpen { editField("Customer", text: $note, placeholder: "Optional") }
             summary("After save", ["Saves the job as activity.", "Revenue and collections stay unchanged."])
@@ -928,28 +975,28 @@ struct OperatingCaptureSheet: View {
         choiceBlock("Access", options: OperatingMomentCatalog.roles.map(\.1), selected: choice) { choice = $0 }
         if restaurant || service || trading || distribution || marketing || production { editField("Scope", text: $note, placeholder: "Optional") }
         Text("A job label is not a grant. Access applies after the invitation is accepted.")
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
     }
 
     @ViewBuilder private var supplierFields: some View {
         if production && mode == "PARTNER" {
             editField("Supplier name", text: $party, placeholder: "Required")
-            Text("Enter a supplier name to enable Save.").font(.plusJakarta(size: 12)).foregroundStyle(theme.accentLight)
+            Text("Enter a supplier name to enable Save.").font(.plusJakarta(size: 12)).foregroundStyle(accentLightColor)
             editField("What they supply", text: $purpose, placeholder: "Optional")
             editField("Payment terms", text: $note, placeholder: "Optional")
             amountBlock("Opening due · Optional", hint: "Leave blank if nothing is owed")
             if !channels.isEmpty { choiceBlock("Channel", options: channels, selected: channel) { channel = $0 } }
-            Text("Saving creates no purchase or expense.").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            Text("Saving creates no purchase or expense.").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else if marketing && mode == "PARTNER" {
             editField(own ? "Partner / counterparty" : "Name", text: $party, placeholder: "Required")
-            Text("Enter a name to enable Save.").font(.plusJakarta(size: 12)).foregroundStyle(theme.accentLight)
+            Text("Enter a name to enable Save.").font(.plusJakarta(size: 12)).foregroundStyle(accentLightColor)
             if client {
                 choiceBlock("Relationship", options: ["Client", "Vendor", "Creator", "Platform", "Partner"], selected: choice) { choice = $0 }
                 editField("Purpose", text: $purpose, placeholder: "Optional")
             }
             if !channels.isEmpty { choiceBlock(own ? "Accepted channel" : "Channel", options: channels, selected: channel) { channel = $0 } }
             Text(own ? "Saving creates no spend event." : "Saving creates no purchase or expense.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else {
         editField(distribution ? "Principal / supplier name" : (restaurant || service || trading ? "Supplier name" : "Name"), text: $party, placeholder: "Name")
         if restaurant || service || trading || distribution {
@@ -961,7 +1008,7 @@ struct OperatingCaptureSheet: View {
         amountBlock("Opening due", hint: "Leave at 0 if nothing is owed")
         if !channels.isEmpty { choiceBlock(restaurant || service || trading || distribution ? "Where you sell" : "Channel", options: channels, selected: channel) { channel = $0 } }
         Text("Saving creates the relationship. It does not create a purchase or an expense.")
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         }
     }
 
@@ -978,7 +1025,7 @@ struct OperatingCaptureSheet: View {
         editField("Detail", text: $purpose, placeholder: "Optional")
         masterGstFields
         Text("Saving adds a selectable record. It does not create a sale or a cost.")
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
     }
 
     @ViewBuilder private var fallbackFields: some View {
@@ -997,7 +1044,7 @@ struct OperatingCaptureSheet: View {
             Text(model.subtype == "MADE_TO_ORDER"
                  ? "Job output does not create a finished SKU. Finished stock comes only from the accepted quantity."
                  : "Standard output does not create a finished SKU. Finished stock comes only from the accepted quantity.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else if production && mode == "UPDATE" {
             choiceBlock("Record", options: ["Update", "Issue", "Approval", "Budget", "Target"], selected: noteKind) { noteKind = $0 }
             if noteKind == "Budget" || noteKind == "Target" {
@@ -1018,7 +1065,7 @@ struct OperatingCaptureSheet: View {
             }
             dateField("Delivery date")
             Text("A status-only delivery changes status and does not post a quantity or a sale.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else if marketing && mode == "RESULT" && eventType == "PROGRESS" {
             amountBlock("Result quantity", hint: "Leave blank to update status only")
             dateField("Result date")
@@ -1030,7 +1077,7 @@ struct OperatingCaptureSheet: View {
             moreButton("Optional note, evidence link or source context.")
             if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
             Text("Accepted Result counts toward target, not its Receipt.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else if marketing && mode == "UPDATE" {
             editField("Update text", text: $purpose, placeholder: "Required")
             editField("Linked operational context", text: $note, placeholder: "Optional")
@@ -1044,14 +1091,14 @@ struct OperatingCaptureSheet: View {
             if !channels.isEmpty { choiceBlock("Channel", options: channels, selected: channel) { channel = $0 } }
             editField("Dependency", text: $note, placeholder: "Optional")
             Text("Launched, Due, Complete, or Blocked. Closing retains obligations.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else if marketing && mode == "COMPLETE" {
             editField("Result / deliverable reference", text: $purpose, placeholder: "Required")
             choiceBlock("Completion status", options: ["Assigned", "In review", "Blocked", "Complete", "Partial"], selected: choice) { choice = $0 }
             editField("Completion note", text: $note, placeholder: "Required")
             dateField("Completion date")
             Text("Completion does not add revenue or a receipt.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else {
         if mode == "RESULT" || mode == "PRODUCTION" {
             amountBlock(mode == "PRODUCTION" ? "Output" : "Result", hint: "Amount for this record")
@@ -1082,7 +1129,7 @@ struct OperatingCaptureSheet: View {
     @ViewBuilder private var approvalFields: some View {
         let pending = (model.attention ?? []).filter { $0.kind == "APPROVAL" }
         if pending.isEmpty || onDecide == nil {
-            Text("Nothing is waiting for a decision.").font(.plusJakarta(size: 14)).foregroundStyle(BusinessSheetTokens.muted)
+            Text("Nothing is waiting for a decision.").font(.plusJakarta(size: 14)).foregroundStyle(sheetMuted)
         } else {
             ForEach(pending) { item in
                 summary("Waiting", [item.title, "Still pending until you decide."])
@@ -1090,7 +1137,7 @@ struct OperatingCaptureSheet: View {
             choiceBlock("Decision", options: marketing ? ["Approve", "Reject", "Return"] : ["Approve", "Reject"], selected: choice) { choice = $0 }
             editField("Decision reason", text: $note, placeholder: marketing ? "Required for Reject or Return" : "Required when you reject")
             Text("Approval records the decision. It does not move money by itself.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         }
     }
 
@@ -1361,17 +1408,17 @@ struct OperatingCaptureSheet: View {
         } else {
             let saved = model.masters ?? []
             if !saved.isEmpty {
-                Text("Saved items").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text("Saved items").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 ForEach(Array(saved.enumerated()), id: \.offset) { _, master in
                     Button(master.name) {
                         itemName = master.name
                         if let unitName = master.unit, !unitName.isEmpty { unit = unitName }
                     }
                     .font(.plusJakarta(size: 13))
-                    .foregroundStyle(BusinessSheetTokens.text)
+                    .foregroundStyle(sheetText)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(BusinessSheetTokens.border, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(sheetBorder, lineWidth: 1))
                 }
             }
             editField("Item", text: $itemName, placeholder: "Item name")
@@ -1382,7 +1429,7 @@ struct OperatingCaptureSheet: View {
             }
         }
         Text("Quantity, unit, and price stay on the sale or purchase. Stock changes only when you record that the goods were received or dispatched.")
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
     }
 
     @ViewBuilder private var taxFxMore: some View {
@@ -1392,7 +1439,7 @@ struct OperatingCaptureSheet: View {
                 editField("Tax amount", text: $taxAmount, placeholder: taxMode == "Inclusive" ? "Optional · display only" : "Optional")
             } else {
                 Text("No tax amount is stored until tax mode is configured.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                    .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             }
         }
         if tradingFamily {
@@ -1416,7 +1463,7 @@ struct OperatingCaptureSheet: View {
             }
             if supplyChoice.isEmpty {
                 Text("Confirm whether this supply is inside your state or outside it.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                    .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             }
             let preview = gstPreview()
             let modeLabel = taxMode == "Inclusive" ? "Included in price" : "Added separately"
@@ -1424,21 +1471,21 @@ struct OperatingCaptureSheet: View {
                 .font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(Color(hex: "#E8C547"))
             if purchase, let preview {
                 Text("Supplier invoice total \(moneyLabel(preview.invoice))")
-                    .font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(BusinessSheetTokens.text)
+                    .font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(sheetText)
                 Text("Amount paid stays separate from this invoice total.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                    .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             }
             if gstPreviewOpen, let preview {
-                Text("Taxable \(moneyLabel(preview.taxable))").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text("Taxable \(moneyLabel(preview.taxable))").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 if supplyChoice == "INTER" {
-                    Text("IGST \(moneyLabel(preview.igst))").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                    Text("IGST \(moneyLabel(preview.igst))").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 } else if supplyChoice == "INTRA" {
-                    Text("CGST \(moneyLabel(preview.cgst)) · SGST \(moneyLabel(preview.sgst))").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                    Text("CGST \(moneyLabel(preview.cgst)) · SGST \(moneyLabel(preview.sgst))").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 }
-                Text("GST \(moneyLabel(preview.gst)) · Invoice \(moneyLabel(preview.invoice))").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text("GST \(moneyLabel(preview.gst)) · Invoice \(moneyLabel(preview.invoice))").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             } else if preview == nil {
                 Text("A missing rate is not treated as 0%.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                    .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             }
         }
     }
@@ -1506,7 +1553,7 @@ struct OperatingCaptureSheet: View {
             Button(gstDetailsOpen ? "Hide GST details" : (product ? "Add GST Details (optional)" : "GST & Business Location")) { gstDetailsOpen.toggle() }
                 .font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(Color(hex: "#E8C547"))
             if gstDetailsOpen && product {
-                Text("Set the product’s GST rate for automatic calculations.").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text("Set the product’s GST rate for automatic calculations.").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 choiceBlock("GST applicable", options: ["Yes", "No", "Not sure"], selected: gstApplicable) { gstApplicable = $0 }
                 choiceBlock("Classification", options: ["Taxable", "Exempt", "Nil-rated", "Non-GST"], selected: gstClassification) { gstClassification = $0 }
                 editField("GST rate %", text: $gstRate, placeholder: "Your rate")
@@ -1516,7 +1563,7 @@ struct OperatingCaptureSheet: View {
                 editField("HSN Code (Optional)", text: $hsn, placeholder: "Add the product’s HSN code if you know it")
             }
             if gstDetailsOpen && party {
-                Text("Save their tax details for future transactions.").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text("Save their tax details for future transactions.").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 choiceBlock("GST registration", options: ["Registered", "Unregistered", "Not sure"], selected: partyGstRegistration) { partyGstRegistration = $0 }
                 editField("Business state", text: $businessState, placeholder: "State")
                 editField("Billing state", text: $billingState, placeholder: "State")
@@ -1532,10 +1579,10 @@ struct OperatingCaptureSheet: View {
             lovField(label, value: selected, kind: "OBLIGATION", placeholder: openObligations.isEmpty ? "Nothing is open" : "Search open records")
         } else if openObligations.isEmpty {
             Text(marketing && mode == "PAYMENT" ? "Record a spend before paying a vendor." : marketing && mode == "COLLECTION" ? "Record an invoice before collecting." : mode == "COLLECTION" ? "No unpaid sale is open." : "No unpaid purchase or expense is open.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else {
             Text(marketing && mode == "COLLECTION" ? "Open client invoices" : marketing && mode == "PAYMENT" ? "Open payables" : mode == "COLLECTION" ? "Unpaid sales" : "Unpaid purchases and expenses")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             ForEach(Array(openObligations.enumerated()), id: \.offset) { _, row in
                 Button {
                     parentId = row.id
@@ -1543,14 +1590,14 @@ struct OperatingCaptureSheet: View {
                     if let name = row.counterpartyName, !name.isEmpty { party = name }
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(row.title).font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(BusinessSheetTokens.text)
+                        Text(row.title).font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(sheetText)
                         Text([row.counterpartyName, row.amount, row.dueAt].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
-                            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .background(parentId == row.id ? BusinessSheetTokens.field : Color.clear)
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(parentId == row.id ? theme.accentLight : BusinessSheetTokens.border, lineWidth: 1))
+                    .background(parentId == row.id ? sheetField : Color.clear)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(parentId == row.id ? accentLightColor : sheetBorder, lineWidth: 1))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)
@@ -1593,7 +1640,7 @@ struct OperatingCaptureSheet: View {
             HStack {
                 Text(title)
                     .font(.plusJakarta(size: 11, weight: .semibold))
-                    .foregroundStyle(BusinessSheetTokens.muted)
+                    .foregroundStyle(sheetMuted)
                 Spacer()
             }
             .padding(.horizontal, 12)
@@ -1604,14 +1651,14 @@ struct OperatingCaptureSheet: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(line.itemName)
                             .font(.plusJakarta(size: 14, weight: .semibold))
-                            .foregroundStyle(BusinessSheetTokens.text)
+                            .foregroundStyle(sheetText)
                         let meta = [line.quantity.isEmpty ? nil : "\(line.quantity) \(line.unit)",
                                     line.unitPrice.isEmpty ? nil : "@ \(line.unitPrice)"]
                             .compactMap { $0 }.joined(separator: " · ")
                         if !meta.isEmpty {
                             Text(meta)
                                 .font(.plusJakarta(size: 12))
-                                .foregroundStyle(BusinessSheetTokens.muted)
+                                .foregroundStyle(sheetMuted)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1619,7 +1666,7 @@ struct OperatingCaptureSheet: View {
                     if let total = BusinessActivityFormat.lineTotal(quantity: line.quantity, price: line.unitPrice) {
                         Text(total)
                             .font(.plusJakarta(size: 13, weight: .semibold))
-                            .foregroundStyle(theme.accentLight)
+                            .foregroundStyle(accentLightColor)
                     }
 
                     Button {
@@ -1627,7 +1674,7 @@ struct OperatingCaptureSheet: View {
                     } label: {
                         Text("×")
                             .font(.plusJakarta(size: 16))
-                            .foregroundStyle(BusinessSheetTokens.muted)
+                            .foregroundStyle(sheetMuted)
                             .padding(6)
                     }
                     .buttonStyle(.plain)
@@ -1637,7 +1684,7 @@ struct OperatingCaptureSheet: View {
 
                 if index < savedLines.count - 1 {
                     Rectangle()
-                        .fill(BusinessSheetTokens.border)
+                        .fill(sheetBorder)
                         .frame(height: 1)
                         .padding(.leading, 12)
                 }
@@ -1646,7 +1693,7 @@ struct OperatingCaptureSheet: View {
             HStack {
                 Text("\(savedLines.count) \(savedLines.count == 1 ? "item" : "items")")
                     .font(.plusJakarta(size: 12))
-                    .foregroundStyle(BusinessSheetTokens.muted)
+                    .foregroundStyle(sheetMuted)
                 Spacer()
                 Text(BusinessActivityFormat.money(
                     savedLines.reduce(0.0) { sum, line in
@@ -1655,16 +1702,16 @@ struct OperatingCaptureSheet: View {
                     currency: model.currency
                 ))
                     .font(.plusJakarta(size: 16, weight: .bold))
-                    .foregroundStyle(theme.accentLight)
+                    .foregroundStyle(accentLightColor)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 12)
-            .background(theme.accent.opacity(0.1))
+            .background(accentColor.opacity(0.1))
         }
-        .background(BusinessSheetTokens.field)
+        .background(sheetField)
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(BusinessSheetTokens.border, lineWidth: 1)
+                .stroke(sheetBorder, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
@@ -1681,7 +1728,7 @@ struct OperatingCaptureSheet: View {
                     itemName = ""; quantity = ""; unitPrice = ""; productMasterId = nil
                 }
             }
-            .font(.plusJakarta(size: 13, weight: .semibold)).foregroundStyle(theme.accentLight)
+            .font(.plusJakarta(size: 13, weight: .semibold)).foregroundStyle(accentLightColor)
             if !savedLines.isEmpty {
                 posCart(title: "Sale items")
             }
@@ -1708,16 +1755,16 @@ struct OperatingCaptureSheet: View {
         if mode == "SERVICE" {
             let bookings = (model.activity ?? []).filter { $0.eventType == "APPOINTMENT" }
             if !bookings.isEmpty {
-                Text("Link a booking").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text("Link a booking").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 ForEach(Array(bookings.prefix(6).enumerated()), id: \.offset) { _, row in
                     Button(row.title) { parentId = row.id }
                         .font(.plusJakarta(size: 13))
-                        .foregroundStyle(parentId == row.id ? Color(hex: "#14121B") : BusinessSheetTokens.text)
+                        .foregroundStyle(parentId == row.id ? Color(hex: "#14121B") : sheetText)
                 }
             }
         }
         Text(mode == "SERVICE" ? "A finalized charge is the sale. A booking is not revenue." : (tradingFamily ? "A quick amount does not change stock. Itemized sales do not deduct stock until dispatch." : "A quick amount does not change stock. Itemized lines do."))
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         if tradingFamily {
             choiceBlock("Goods", options: ["Fully delivered", "Partially delivered", "Deliver later"], selected: goodsStatus) { goodsStatus = $0 }
             if goodsStatus == "Partially delivered" {
@@ -1725,7 +1772,7 @@ struct OperatingCaptureSheet: View {
             }
             if goodsStatus != "Fully delivered" { goodsDueField("Delivery due date") }
             Text("Goods status does not post stock. Dispatch stays a delivery.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         }
         if !saleSettled { dueDateField(tradingFamily ? "Payment due date" : "Due date") }
         moreButton("Tax, FX, and note. Optional.")
@@ -1745,7 +1792,7 @@ struct OperatingCaptureSheet: View {
                 itemName = ""; quantity = ""; unitPrice = ""; productMasterId = nil
             }
         }
-        .font(.plusJakarta(size: 13, weight: .semibold)).foregroundStyle(theme.accentLight)
+        .font(.plusJakarta(size: 13, weight: .semibold)).foregroundStyle(accentLightColor)
         if !savedLines.isEmpty {
             posCart(title: "Purchase items")
         }
@@ -1769,7 +1816,7 @@ struct OperatingCaptureSheet: View {
         if tradingFamily {
             choiceBlock("Ownership", options: ["Owned", "Consignment"], selected: ownership) { ownership = $0 }
             Text("Consignment is not owned stock.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         }
         choiceBlock("Payment state", options: ["Paid", "Part paid", "Pay later"], selected: choice) { choice = $0 }
         if choice == "Part paid" { editField("Amount paid", text: $receivedAmount, placeholder: "Less than the total") }
@@ -1784,6 +1831,8 @@ struct OperatingCaptureSheet: View {
     @ViewBuilder private var retailSpendFields: some View {
         if tradingFamily {
             lovField("Category", value: expenseCategory, kind: "EXPENSE_CATEGORY", placeholder: "Required")
+        } else if emberSheet {
+            choiceBlock("Category", options: restaurantExpenseCategories, selected: expenseCategory) { expenseCategory = $0 }
         } else {
             choiceBlock("Category", options: expenseCategories, selected: expenseCategory) { expenseCategory = $0 }
         }
@@ -1805,7 +1854,7 @@ struct OperatingCaptureSheet: View {
         editField(mode == "COLLECTION" ? "Customer or platform" : "Supplier or payee", text: $party, placeholder: "Name")
         dateField(mode == "COLLECTION" ? "Collection date" : "Payment date")
         Text(mode == "COLLECTION" ? "This reduces what is owed. It does not increase sales." : "This reduces what you owe. It does not repeat the cost.")
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         moreButton("Reference. Optional.")
         if moreOpen { editField("Reference", text: $note, placeholder: "Optional") }
     }
@@ -1829,7 +1878,7 @@ struct OperatingCaptureSheet: View {
         }
         editField("Reorder point", text: $detail, placeholder: "Optional")
         Text("Set replaces the count. Add and reduce move it. This is not a purchase.")
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
     }
 
     @ViewBuilder private var retailOrderFields: some View {
@@ -1842,7 +1891,7 @@ struct OperatingCaptureSheet: View {
             editField("Estimated amount", text: $amount, placeholder: "Commitment only")
             editField("Promised date", text: $link, placeholder: "YYYY-MM-DD")
             Text("An order is not a sale or a purchase until you bill it. Ordered, executed, and remaining stay on the order.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else {
         if channels.isEmpty {
             editField("Order channel", text: $channel, placeholder: "Required")
@@ -1852,18 +1901,18 @@ struct OperatingCaptureSheet: View {
         choiceBlock("Status", options: counterSaleWords && (restaurant || model.subtype == "RESTAURANT_FOOD") ? ["Accepted", "Preparing", "Ready", "Fulfilled", "Cancelled"] : ["Placed", "Preparing", "Completed", "Cancelled"], selected: orderStatus) { orderStatus = $0 }
         let openOrders = (model.activity ?? []).filter { $0.eventType == "ORDER" }
         if !openOrders.isEmpty {
-            Text("Update an existing order").font(.plusJakarta(size: 12, weight: .semibold)).foregroundStyle(BusinessSheetTokens.muted)
+            Text("Update an existing order").font(.plusJakarta(size: 12, weight: .semibold)).foregroundStyle(sheetMuted)
             ForEach(Array(openOrders.enumerated()), id: \.offset) { _, row in
                 Button(parentId == row.id ? "Updating \(row.title)" : row.title) { parentId = row.id }
                     .font(.plusJakarta(size: 13, weight: .semibold))
-                    .foregroundStyle(BusinessSheetTokens.text)
+                    .foregroundStyle(sheetText)
             }
         }
         editField("Guest or customer", text: $party, placeholder: "Optional")
         editField("Estimated amount", text: $amount, placeholder: "Pipeline only")
         dateField("Order time")
         Text("An order is not a sale until you bill it.")
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         moreButton("Note. Optional.")
         if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
         }
@@ -1879,9 +1928,9 @@ struct OperatingCaptureSheet: View {
             let sources = (model.activity ?? []).filter { $0.eventType == sourceType }
             if sources.isEmpty {
                 Text(sourceType == "SALE" ? "No posted sale to deliver." : "No posted purchase to receive.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                    .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             } else {
-                Text("Source").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text("Source").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 ForEach(Array(sources.prefix(8).enumerated()), id: \.offset) { _, row in
                     Button {
                         parentId = row.id
@@ -1892,7 +1941,7 @@ struct OperatingCaptureSheet: View {
                     } label: {
                         Text(parentId == row.id ? "Using \(row.title)" : row.title)
                             .font(.plusJakarta(size: 13, weight: .semibold))
-                            .foregroundStyle(BusinessSheetTokens.text)
+                            .foregroundStyle(sheetText)
                     }
                     .buttonStyle(.plain)
                 }
@@ -1901,7 +1950,7 @@ struct OperatingCaptureSheet: View {
             lovField("Unit", value: unit, kind: "UOM", placeholder: "pc")
             choiceBlock("Status", options: ["Placed", "In transit", "Delivered", "Cancelled"], selected: choice) { choice = $0 }
             Text("Delivery moves goods against the source. It does not create another sale or purchase.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else {
         editField(mode == "DELIVERY" ? "Delivery reference" : "Shipment reference", text: $purpose, placeholder: "Required")
         editField("Quantity", text: $quantity, placeholder: "Required")
@@ -1914,7 +1963,7 @@ struct OperatingCaptureSheet: View {
         moreButton("Note. Optional.")
         if moreOpen { editField("Note", text: $note, placeholder: "Optional") }
         Text("Shipment and delivery are fulfilment only. They are not sales.")
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         }
     }
 
@@ -1925,23 +1974,23 @@ struct OperatingCaptureSheet: View {
         }
         if sources.isEmpty {
             Text(returnDirection == "Customer" ? "No open sale to credit." : "No open purchase to credit.")
-                .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else {
-            Text("Source").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            Text("Source").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             ForEach(Array(sources.prefix(8).enumerated()), id: \.offset) { _, row in
                 Button {
                     parentId = row.id
                     if let name = row.counterpartyName, !name.isEmpty { party = name }
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(row.title).font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(BusinessSheetTokens.text)
+                        Text(row.title).font(.plusJakarta(size: 14, weight: .semibold)).foregroundStyle(sheetText)
                         Text([row.counterpartyName, row.amount].compactMap { $0 }.joined(separator: " · "))
-                            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .background(parentId == row.id ? BusinessSheetTokens.field : Color.clear)
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(parentId == row.id ? lovAccent : BusinessSheetTokens.border, lineWidth: 1))
+                    .background(parentId == row.id ? sheetField : Color.clear)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(parentId == row.id ? lovAccent : sheetBorder, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
             }
@@ -1951,7 +2000,7 @@ struct OperatingCaptureSheet: View {
         choiceBlock("Goods outcome", options: ["To stock", "Not returned", "Pending inspection"], selected: goodsOutcome) { goodsOutcome = $0 }
         editField("Reason", text: $returnReason, placeholder: "Required")
         Text("Only “To stock” increases owned on-hand. Returns do not invent revenue or cost.")
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
     }
 
     @ViewBuilder private var retailAppointmentFields: some View {
@@ -1961,18 +2010,18 @@ struct OperatingCaptureSheet: View {
         editField("Assigned person", text: $detail, placeholder: "Optional")
         let openBookings = (model.activity ?? []).filter { $0.eventType == "APPOINTMENT" }
         if !openBookings.isEmpty {
-            Text("Update an existing booking").font(.plusJakarta(size: 12, weight: .semibold)).foregroundStyle(BusinessSheetTokens.muted)
+            Text("Update an existing booking").font(.plusJakarta(size: 12, weight: .semibold)).foregroundStyle(sheetMuted)
             ForEach(Array(openBookings.enumerated()), id: \.offset) { _, row in
                 Button(parentId == row.id ? "Updating \(row.title)" : row.title) { parentId = row.id }
                     .font(.plusJakarta(size: 13, weight: .semibold))
-                    .foregroundStyle(BusinessSheetTokens.text)
+                    .foregroundStyle(sheetText)
             }
         }
         if seed != nil || !parentId.isEmpty {
             choiceBlock("Action", options: ["Reschedule", "Cancel", "No-show", "Start", "Complete"], selected: bookingAction) { bookingAction = $0 }
         }
         Text("Booking, starting, and completing do not post revenue. Finalize a charge separately.")
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         moreButton("Reason. Optional.")
         if moreOpen { editField("Reason", text: $note, placeholder: "Optional") }
     }
@@ -1981,7 +2030,7 @@ struct OperatingCaptureSheet: View {
         editField("Update", text: $purpose, placeholder: "What happened")
         dateField("Date")
         Text("Saved as activity. Money totals stay unchanged.")
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
     }
 
     @ViewBuilder private var retailIssueFields: some View {
@@ -1990,7 +2039,7 @@ struct OperatingCaptureSheet: View {
         editField("Owner", text: $party, placeholder: actorName)
         dateField("Due date")
         Text("Opens an attention item. Money totals stay unchanged.")
-            .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
     }
 
 
@@ -2381,22 +2430,22 @@ struct OperatingCaptureSheet: View {
     @ViewBuilder private func orderLink(_ label: String) -> some View {
         let orders = (model.activity ?? []).filter { $0.eventType == "CUSTOMER_ORDER" && $0.approvalStatus != "REJECTED" }
         if orders.isEmpty {
-            Text("No open customer order on this moment yet.").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            Text("No open customer order on this moment yet.").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         } else {
-            Text(label).font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            Text(label).font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             ForEach(Array(orders.enumerated()), id: \.offset) { _, row in
                 Button(row.title) { parentId = row.id }
                     .font(.plusJakarta(size: 14, weight: .semibold))
                     .foregroundStyle(parentId == row.id ? Color(hex: "#0E2A22") : chromeInk)
                     .padding(.vertical, 8)
                     .frame(maxWidth: .infinity)
-                    .background(parentId == row.id ? Color(hex: "#66C7A4") : BusinessSheetTokens.field)
+                    .background(parentId == row.id ? Color(hex: "#66C7A4") : sheetField)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
     }
 
-    private var chromeInk: Color { BusinessSheetTokens.text }
+    private var chromeInk: Color { sheetText }
 
     private func productionGovernedDraft() -> OperatingCaptureDraft? {
         let buyer = party.trimmingCharacters(in: .whitespaces)
@@ -2669,28 +2718,28 @@ struct OperatingCaptureSheet: View {
     private var marketingFields: some View {
         VStack(alignment: .leading, spacing: 8) {
             if eventType == "INVOICE" {
-                Text("Client").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text("Client").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 Text((model.partyName?.isEmpty == false) ? model.partyName! : "Set the client in setup")
-                    .font(.plusJakarta(size: 16, weight: .semibold)).foregroundStyle(BusinessSheetTokens.text)
+                    .font(.plusJakarta(size: 16, weight: .semibold)).foregroundStyle(sheetText)
                 Text("This invoice uses the campaign client.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                    .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             }
             if eventType == "PROGRESS" {
                 let open = (model.activity ?? []).filter { $0.eventType == "ACTIVITY" && $0.approvalStatus != "REJECTED" }
-                Text(open.isEmpty ? "Add an activity before updating progress." : "Open activity").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
-                Text("Leave the amount blank to update status only.").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text(open.isEmpty ? "Add an activity before updating progress." : "Open activity").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
+                Text("Leave the amount blank to update status only.").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 ForEach(Array(open.enumerated()), id: \.offset) { _, row in
                     Button(row.title) { parentId = row.id }
                         .font(.plusJakarta(size: 14, weight: .semibold))
-                        .foregroundStyle(parentId == row.id ? Color(hex: "#14121B") : BusinessSheetTokens.text)
+                        .foregroundStyle(parentId == row.id ? Color(hex: "#14121B") : sheetText)
                         .padding(.vertical, 8)
                         .frame(maxWidth: .infinity)
-                        .background(parentId == row.id ? theme.accentLight : BusinessSheetTokens.field)
+                        .background(parentId == row.id ? accentLightColor : sheetField)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
             }
             if eventType == "PROGRESS" || eventType == "RESULT" {
-                Text("Reporting").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text("Reporting").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 Picker("Mode", selection: $reportingMode) {
                     Text("Incremental").tag("INCREMENTAL")
                     Text("Cumulative").tag("CUMULATIVE")
@@ -2725,18 +2774,18 @@ struct OperatingCaptureSheet: View {
                 TextField("Period end YYYY-MM-DD", text: $periodEnd)
                 let earlier = (model.activity ?? []).filter { $0.eventType == "RESULT" && $0.approvalStatus != "REJECTED" }
                 if !earlier.isEmpty {
-                    Text("Correct an earlier result").font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                    Text("Correct an earlier result").font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                     ForEach(Array(earlier.enumerated()), id: \.offset) { _, row in
                         Button(supersedesId == row.id ? "Replaces \(row.title)" : row.title) {
                             supersedesId = supersedesId == row.id ? "" : row.id
                         }
                         .font(.plusJakarta(size: 14, weight: .semibold))
-                        .foregroundStyle(BusinessSheetTokens.text)
+                        .foregroundStyle(sheetText)
                     }
                 }
                 Toggle("Deduplicated reach", isOn: $overlapDeduped)
                 Text("Attributed sales stay an observation. They are not revenue.")
-                    .font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                    .font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             }
             if eventType == "APPROVAL" {
                 TextField("Creative version", text: $creativeVersion)
@@ -2751,7 +2800,7 @@ struct OperatingCaptureSheet: View {
             if eventType == "RESULT" && model.subtype == "OWN_BUSINESS_CAMPAIGN" {
                 TextField("Attributed sales (not revenue)", text: $attributedSales)
                     .font(.plusJakarta(size: 14))
-                    .foregroundStyle(BusinessSheetTokens.text)
+                    .foregroundStyle(sheetText)
             }
         }
     }
@@ -2808,35 +2857,35 @@ struct OperatingCaptureSheet: View {
     private func amountBlock(_ label: String, hint: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(label).font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text(label).font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
                 Spacer()
-                Text(currency).font(.plusJakarta(size: 12)).foregroundStyle(theme.accentLight)
+                Text(currency).font(.plusJakarta(size: 12)).foregroundStyle(accentLightColor)
             }
             TextField("0.00", text: $amount)
                 .keyboardType(.decimalPad)
                 .font(.plusJakarta(size: 30, weight: .bold))
-                .foregroundStyle(BusinessSheetTokens.text)
-            Text(hint).font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                .foregroundStyle(sheetText)
+            Text(hint).font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
         }
         .padding(10)
-        .background(BusinessSheetTokens.field)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.accentLight, lineWidth: 1))
+        .background(sheetField)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(accentLightColor, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func choiceBlock(_ label: String, options: [String], selected: String, onSelect: @escaping (String) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            Text(label).font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             FlowLayout(spacing: 6) {
                 ForEach(Array(options.enumerated()), id: \.offset) { _, option in
                     let on = option == selected
                     Button(on ? "✓ \(option)" : option) { onSelect(option) }
                         .font(.plusJakarta(size: 12, weight: .medium))
-                        .foregroundStyle(on ? theme.accentLight : BusinessSheetTokens.muted)
+                        .foregroundStyle(on ? accentLightColor : sheetMuted)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(on ? theme.accent : BusinessSheetTokens.field)
-                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(on ? theme.accentLight : BusinessSheetTokens.border, lineWidth: 1))
+                        .background(on ? accentColor : sheetField)
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(on ? accentLightColor : sheetBorder, lineWidth: 1))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
             }
@@ -2923,37 +2972,37 @@ struct OperatingCaptureSheet: View {
 
     private func readField(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
-            Text(value).font(.plusJakarta(size: 14)).foregroundStyle(BusinessSheetTokens.text)
+            Text(label).font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
+            Text(value).font(.plusJakarta(size: 14)).foregroundStyle(sheetText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(BusinessSheetTokens.field)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(BusinessSheetTokens.border, lineWidth: 1))
+        .background(sheetField)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(sheetBorder, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func editField(_ label: String, text: Binding<String>, placeholder: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+            Text(label).font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             TextField(placeholder, text: text)
                 .font(.plusJakarta(size: 14))
-                .foregroundStyle(BusinessSheetTokens.text)
+                .foregroundStyle(sheetText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(BusinessSheetTokens.field)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(BusinessSheetTokens.border, lineWidth: 1))
+        .background(sheetField)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(sheetBorder, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func moreButton(_ hint: String) -> some View {
         Button { moreOpen.toggle() } label: {
             VStack(alignment: .leading, spacing: 2) {
-                Text(moreOpen ? "More details  ∧" : "More details  ∨").font(.plusJakarta(size: 14)).foregroundStyle(theme.accentLight)
-                Text(hint).font(.plusJakarta(size: 12)).foregroundStyle(BusinessSheetTokens.muted)
+                Text(moreOpen ? "More details  ∧" : "More details  ∨").font(.plusJakarta(size: 14)).foregroundStyle(accentLightColor)
+                Text(hint).font(.plusJakarta(size: 12)).foregroundStyle(sheetMuted)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -2961,15 +3010,15 @@ struct OperatingCaptureSheet: View {
 
     private func summary(_ title: String, _ lines: [String]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.plusJakarta(size: 14)).foregroundStyle(theme.accentLight)
+            Text(title).font(.plusJakarta(size: 14)).foregroundStyle(accentLightColor)
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                Text(line).font(.plusJakarta(size: 14)).foregroundStyle(BusinessSheetTokens.text)
+                Text(line).font(.plusJakarta(size: 14)).foregroundStyle(sheetText)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(BusinessSheetTokens.field)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(BusinessSheetTokens.border, lineWidth: 1))
+        .background(sheetField)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(sheetBorder, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 

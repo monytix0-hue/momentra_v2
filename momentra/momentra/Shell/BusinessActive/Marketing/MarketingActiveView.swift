@@ -7,6 +7,7 @@ struct MarketingActiveView: View {
     var onRecord: (MarketingEventDraft) async throws -> Void = { _ in }
     var onDecide: (String, String) async throws -> Void = { _, _ in }
     var momentId: String? = nil
+    var onViewAllAttention: () -> Void = {}
 
     @State private var activityOpen = false
 
@@ -106,6 +107,8 @@ struct MarketingActiveView: View {
                         }
                     }
                 }
+                AppStateSecondaryButton(label: "View all") { onViewAllAttention() }
+                    .frame(maxWidth: 200)
                 sectionTitle("Payment Readiness")
                 if model.subtype == "CLIENT_CAMPAIGN" {
                     readiness("To collect", (model.paymentReadiness ?? []).filter { $0.relevance == "RECEIVABLE" })

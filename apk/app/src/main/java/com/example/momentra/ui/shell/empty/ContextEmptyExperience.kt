@@ -36,10 +36,6 @@ import com.example.momentra.domain.recentHistoryMoments
 
 import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
 import com.example.momentra.ui.shell.empty.business.BusinessCreateEmptyContent
-import com.example.momentra.ui.shell.empty.business.BusinessLifeEmptyContent
-import com.example.momentra.ui.shell.empty.business.BusinessMemoryEmptyContent
-import com.example.momentra.ui.shell.empty.business.BusinessMomentsEmptyContent
-import com.example.momentra.ui.shell.empty.business.BusinessPulseEmptyContent
 import com.example.momentra.ui.shell.empty.business.BusinessSetupBottomSheet
 import com.example.momentra.ui.shell.empty.business.CompanyFlowSheet
 import com.example.momentra.ui.shell.empty.personal.PersonalLifeEmptyContent
@@ -64,6 +60,12 @@ import com.example.momentra.ui.shell.empty.personal.PersonalMemoryEmptyContent
 import com.example.momentra.ui.shell.empty.personal.PersonalMomentsEmptyContent
 import com.example.momentra.ui.shell.empty.personal.PersonalPulseEmptyContent
 import com.example.momentra.ui.shell.personal.experience.PersonalExperienceHost
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateHubBody
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
 import com.example.momentra.ui.shell.circle.CircleComingSoonContent
 import com.example.momentra.ui.theme.ShellTokens
 
@@ -75,11 +77,17 @@ fun ContextEmptyExperience(
     moments: List<MomentSummary>,
     hasCompany: Boolean,
     companyId: String? = null,
+    /** Operating subtype of the selected moment; picks the App States accent. */
+    momentTypeCode: String? = null,
     onCreateMoment: () -> Unit,
     onCreateBack: () -> Unit = {},
     onCompanyActivated: (com.example.momentra.domain.CompanySummary) -> Unit = {},
     onMomentCreated: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
     onJoinGroupCode: (String) -> Unit = {},
+    /** Opens the business company-creation flow (NoCompany setup state). */
+    onCreateBusiness: () -> Unit = {},
+    /** Opens the company join-code sheet (NoCompany setup state). */
+    onJoinCompany: () -> Unit = {},
     groupCreatePhase: GroupCreatePhase = GroupCreatePhase.CHOOSER,
     onGroupCreatePhase: (GroupCreatePhase) -> Unit = {},
     /** Opens Group Create tab without resetting phase (Pulse type cards → setup). */
@@ -123,10 +131,13 @@ fun ContextEmptyExperience(
             history = history,
             hasCompany = hasCompany,
             companyId = companyId,
+            momentTypeCode = momentTypeCode,
             onCreateMoment = onCreateMoment,
             onCreateBack = onCreateBack,
             onCompanyActivated = onCompanyActivated,
             onMomentCreated = onMomentCreated,
+            onCreateBusiness = onCreateBusiness,
+            onJoinCompany = onJoinCompany,
             modifier = modifier,
         )
 
@@ -326,14 +337,17 @@ private fun BusinessEmpty(
     history: List<MomentSummary>,
     hasCompany: Boolean,
     companyId: String? = null,
+    momentTypeCode: String? = null,
     onCreateMoment: () -> Unit,
     onCreateBack: () -> Unit,
     onCompanyActivated: (com.example.momentra.domain.CompanySummary) -> Unit = {},
     onMomentCreated: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
+    onCreateBusiness: () -> Unit = {},
+    onJoinCompany: () -> Unit = {},
     createViewModel: MomentCreateViewModel = viewModel(),
     modifier: Modifier,
 ) {
-    val accent = Color(0xFF818CF8)
+    val accent = BusinessAppStateAccent.forTypeCode(momentTypeCode)
 
     if (destination == BottomDestination.CREATE) {
         BusinessCreateFlow(
@@ -346,139 +360,102 @@ private fun BusinessEmpty(
         return
     }
 
-
+    // No business yet: Pulse, Moments, Life and Memory all need a company first.
+    if (!hasCompany) {
+        BusinessAppStateBody(
+            spec = BusinessAppStateSpecs.spec(
+                BusinessAppStateScreen.NoCompany,
+                BusinessAppStatePhase.Setup,
+            ),
+            accent = accent,
+            onPrimary = onCreateBusiness,
+            onSecondary = onJoinCompany,
+            modifier = modifier,
+        )
+        return
+    }
 
     if (first) {
-
-        when (destination) {
-
-            BottomDestination.PULSE -> BusinessPulseEmptyContent(onStartCta = onCreateMoment, modifier = modifier)
-
-            BottomDestination.MOMENTS -> BusinessMomentsEmptyContent(onStartCta = onCreateMoment, modifier = modifier)
-
-            BottomDestination.CREATE -> Unit
-
-            BottomDestination.LIFE -> BusinessLifeEmptyContent(onStartCta = onCreateMoment, modifier = modifier)
-
-            BottomDestination.MEMORY -> BusinessMemoryEmptyContent(onStartCta = onCreateMoment, modifier = modifier)
-
+        val screen = when (destination) {
+            BottomDestination.PULSE -> BusinessAppStateScreen.Pulse
+            BottomDestination.MOMENTS -> BusinessAppStateScreen.Moments
+            BottomDestination.LIFE -> BusinessAppStateScreen.Life
+            BottomDestination.MEMORY -> BusinessAppStateScreen.Memory
+            BottomDestination.CREATE -> BusinessAppStateScreen.Pulse
         }
-
+        if (screen == BusinessAppStateScreen.Hub) {
+            BusinessAppStateHubBody(
+                accent = accent,
+                onPrimary = onCreateMoment,
+                onSecondary = onCreateMoment,
+                modifier = modifier,
+            )
+            return
+        }
+        BusinessAppStateBody(
+            spec = BusinessAppStateSpecs.spec(screen, BusinessAppStatePhase.Empty),
+            accent = accent,
+            onPrimary = onCreateMoment,
+            onSecondary = onCreateMoment,
+            modifier = modifier,
+        )
         return
-
     }
 
-
-
+    // Between moments: keep the existing history-aware empty state.
     when (destination) {
-
         BottomDestination.PULSE -> MomentEmptyState(
-
             config = MomentEmptyConfig(
-
                 eyebrow = "PULSE",
-
                 title = "All quiet for now",
-
                 body = "There isn't an active work signal needing your attention.",
-
                 primaryLabel = "+ Start a Business Moment",
-
                 onPrimary = onCreateMoment,
-
                 historyTitle = "Recent work",
-
                 history = history,
-
-                accent = accent,
-
+                accent = accent.color,
             ),
-
             modifier = modifier,
-
         )
-
         BottomDestination.MOMENTS -> MomentEmptyState(
-
             config = MomentEmptyConfig(
-
                 eyebrow = "BUSINESS",
-
                 title = "No active work moments",
-
-                body = "Create a moment for something your business is working on — a launch, campaign, event, project or initiative.",
-
+                body = "Create a moment for something your business is working on \u2014 a launch, campaign, event, project or initiative.",
                 primaryLabel = "+ Create Business Moment",
-
                 onPrimary = onCreateMoment,
-
                 historyTitle = "Recent work",
-
                 history = history,
-
-                accent = accent,
-
+                accent = accent.color,
             ),
-
             modifier = modifier,
-
         )
-
         BottomDestination.CREATE -> Unit
-
         BottomDestination.LIFE -> MomentEmptyState(
-
             config = MomentEmptyConfig(
-
                 eyebrow = "LIFE",
-
                 title = "Your business story continues",
-
                 body = "As work moments accumulate, Life connects people, finances, and operations into one picture.",
-
                 primaryLabel = "+ Start a new Moment",
-
                 onPrimary = onCreateMoment,
-
                 historyTitle = "Recent work",
-
                 history = history,
-
-                accent = accent,
-
+                accent = accent.color,
             ),
-
             modifier = modifier,
-
         )
-
         BottomDestination.MEMORY -> MomentEmptyState(
-
             config = MomentEmptyConfig(
-
                 eyebrow = "MEMORY",
-
                 title = "Patterns wait quietly",
-
                 body = "Nothing needs your attention right now. Past work stays ready when you want to revisit it.",
-
                 primaryLabel = "+ Start a new Moment",
-
                 onPrimary = onCreateMoment,
-
                 historyTitle = "Past work",
-
                 history = history,
-
-                accent = accent,
-
+                accent = accent.color,
             ),
-
             modifier = modifier,
-
         )
-
     }
-
 }
-

@@ -6,6 +6,7 @@ struct ConsumerServiceActiveView: View {
     var onOpenQuickAdd: () -> Void = {}
     var onRecord: (ServiceEventDraft) async throws -> Void = { _ in }
     var onDecide: (String, String) async throws -> Void = { _, _ in }
+    var onViewAllAttention: () -> Void = {}
     var momentId: String? = nil
 
     @State private var activityOpen = false
@@ -70,6 +71,8 @@ struct ConsumerServiceActiveView: View {
                 ForEach(model.attention ?? []) { item in
                     attentionCard(item)
                 }
+                AppStateSecondaryButton(label: "View all") { onViewAllAttention() }
+                    .frame(maxWidth: 200)
                 sectionTitle("Payment Readiness")
                 readiness("To collect", (model.paymentReadiness ?? []).filter { $0.relevance == "RECEIVABLE" })
                 readiness("To pay", (model.paymentReadiness ?? []).filter { $0.relevance != "RECEIVABLE" })

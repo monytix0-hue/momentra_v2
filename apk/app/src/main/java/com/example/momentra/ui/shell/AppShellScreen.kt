@@ -98,6 +98,14 @@ import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
 import com.example.momentra.ui.shell.empty.business.BusinessSetupBottomSheet
 import com.example.momentra.ui.shell.empty.business.CompanyFlowSheet
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
+import com.example.momentra.ui.shell.business.appstate.BusinessActiveMomentsDirectory
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateLoadingBody
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateViewAllSheet
 import com.example.momentra.ui.shell.business.shared.BusinessExpenseSheet
 import com.example.momentra.ui.shell.business.shared.BusinessGapQuickAddSheet
 import com.example.momentra.ui.shell.business.shared.BusinessInvoiceSheet
@@ -350,6 +358,8 @@ fun AppShellScreen(
     var groupRecentActivityOpen by remember { mutableStateOf(false) }
     var teamRecentActivityOpen by remember { mutableStateOf(false) }
     var businessRecentActivityOpen by remember { mutableStateOf(false) }
+    var businessAttentionViewAllOpen by remember { mutableStateOf(false) }
+    var businessAttentionFilter by remember { mutableStateOf("All") }
     var newMomentOpen by remember { mutableStateOf(false) }
     var businessGap by remember { mutableStateOf<BusinessGapPage?>(null) }
     var businessLocation by remember { mutableStateOf<com.example.momentra.data.api.LocationItemDto?>(null) }
@@ -831,6 +841,7 @@ fun AppShellScreen(
                     onViewAllGroupActivity = { groupRecentActivityOpen = true },
                     onViewAllTeamActivity = { teamRecentActivityOpen = true },
                     onViewAllBusinessActivity = { businessRecentActivityOpen = true },
+                    onViewAllBusinessAttention = { businessAttentionViewAllOpen = true },
                     onOpenCompletedMoments = {
                         groupDirectoryPreferCompleted = true
                         groupMomentDirectoryOpen = true
@@ -894,7 +905,7 @@ fun AppShellScreen(
                     .fillMaxSize()
                     .statusBarsPadding(),
             )
-            GroupActiveMomentsDirectory(
+            BusinessActiveMomentsDirectory(
                 moments = state.moments,
                 selectedMomentId = state.selectedMomentId,
                 visible = businessDirectoryVisible,
@@ -915,7 +926,7 @@ fun AppShellScreen(
                     businessMomentDirectoryOpen = false
                     openNewMoment()
                 },
-                kind = MomentDirectoryKind.BUSINESS,
+                companyName = state.selectedCompany?.displayName.orEmpty().ifBlank { "Your business" },
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding(),
@@ -1364,6 +1375,18 @@ fun AppShellScreen(
                 else -> "Deliveries, vendors, issues, and ops events."
             },
         )
+        if (businessAttentionViewAllOpen) {
+            BusinessAppStateViewAllSheet(
+                accent = BusinessAppStateAccent.forTypeCode(state.selectedMomentTypeCode),
+                selectedFilter = businessAttentionFilter,
+                onSelectFilter = { businessAttentionFilter = it },
+                onClose = { businessAttentionViewAllOpen = false },
+                onShowAll = {
+                    businessAttentionViewAllOpen = false
+                    businessAttentionFilter = "All"
+                },
+            )
+        }
         GroupRecentActivityFlow(
             momentId = state.selectedMomentId,
             visible = groupRecentActivityOpen,
@@ -1629,8 +1652,24 @@ private fun shouldShowMomentSwitcher(
     return show
 }
 
-@Composable
+private fun businessErrorScreen(destination: BottomDestination): BusinessAppStateScreen = when (destination) {
+    BottomDestination.PULSE -> BusinessAppStateScreen.Pulse
+    BottomDestination.MOMENTS -> BusinessAppStateScreen.Moments
+    BottomDestination.LIFE -> BusinessAppStateScreen.Life
+    BottomDestination.MEMORY -> BusinessAppStateScreen.Memory
+    BottomDestination.CREATE -> BusinessAppStateScreen.Hub
+}
 
+/** Loading label for the Business app-state skeleton body. */
+private fun businessLoadingLabel(destination: BottomDestination): String = when (destination) {
+    BottomDestination.PULSE -> "Loading Pulse\u2026"
+    BottomDestination.MOMENTS -> "Loading Moments\u2026"
+    BottomDestination.LIFE -> "Loading Life\u2026"
+    BottomDestination.MEMORY -> "Loading Memory\u2026"
+    BottomDestination.CREATE -> "Loading Quick adds\u2026"
+}
+
+@Composable
 private fun ShellDestinationContent(
     context: AppContext,
     destination: BottomDestination,
@@ -1704,32 +1743,72 @@ private fun ShellDestinationContent(
     onViewAllGroupActivity: () -> Unit = {},
     onViewAllTeamActivity: () -> Unit = {},
     onViewAllBusinessActivity: () -> Unit = {},
+    onViewAllBusinessAttention: () -> Unit = {},
     onOpenCompletedMoments: (() -> Unit)? = null,
 ) {
+    // Business renders the shared Figma app-state kit (node 2666:29489) for its
+    // loading / offline / error surfaces. Personal, Group and Circle keep the generic panels.
+    val businessAppState = context == AppContext.BUSINESS
+    val businessAccent = BusinessAppStateAccent.forTypeCode(selectedMomentTypeCode)
+
     when (content) {
         ShellContentState.Loading, ShellContentState.Idle -> {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MomentraBrandColors.Cta)
+            if (businessAppState) {
+                BusinessAppStateLoadingBody(
+                    label = businessLoadingLabel(destination),
+                    accent = businessAccent,
+                )
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MomentraBrandColors.Cta)
+                }
             }
         }
         ShellContentState.Offline -> {
-            EmptyPanel(
-                title = "You're offline",
-                body = "Check your connection and try again.",
-                actionLabel = "Retry",
-                onAction = onRetry,
-            )
+            if (businessAppState) {
+                BusinessAppStateBody(
+                    spec = BusinessAppStateSpecs.spec(
+                        BusinessAppStateScreen.Offline,
+                        BusinessAppStatePhase.Error,
+                    ),
+                    accent = businessAccent,
+                    onPrimary = onRetry,
+                    onSecondary = onRetry,
+                )
+            } else {
+                EmptyPanel(
+                    title = "You're offline",
+                    body = "Check your connection and try again.",
+                    actionLabel = "Retry",
+                    onAction = onRetry,
+                )
+            }
         }
         is ShellContentState.Error -> {
             if (content.code == "UNAUTHORIZED" || content.message.contains("UNAUTHENTICATED", ignoreCase = true)) {
                 LaunchedEffect(Unit) { onSessionExpired() }
+                if (businessAppState) {
+                    return
+                }
             }
-            EmptyPanel(
-                title = "We couldn't load your moments",
-                body = content.message,
-                actionLabel = "Retry",
-                onAction = onRetry,
-            )
+            if (businessAppState) {
+                BusinessAppStateBody(
+                    spec = BusinessAppStateSpecs.spec(
+                        businessErrorScreen(destination),
+                        BusinessAppStatePhase.Error,
+                    ),
+                    accent = businessAccent,
+                    onPrimary = onRetry,
+                    onSecondary = onOpenQuickAdd,
+                )
+            } else {
+                EmptyPanel(
+                    title = "We couldn't load your moments",
+                    body = content.message,
+                    actionLabel = "Retry",
+                    onAction = onRetry,
+                )
+            }
         }
         ShellContentState.Forbidden -> {
             EmptyPanel(
@@ -1749,11 +1828,14 @@ private fun ShellDestinationContent(
                 moments = moments,
                 hasCompany = hasCompany,
                 companyId = companyId,
+                momentTypeCode = selectedMomentTypeCode,
                 onCreateMoment = onCreateMoment,
                 onCreateBack = onCreateBack,
                 onCompanyActivated = onCompanyActivated,
                 onMomentCreated = onMomentCreated,
                 onJoinGroupCode = onJoinGroupCode,
+                onCreateBusiness = { onOpenCompanySettings() },
+                onJoinCompany = { onOpenCompanySettings() },
                 groupCreatePhase = groupCreatePhase,
                 onGroupCreatePhase = onGroupCreatePhase,
                 onOpenGroupCreateTab = onOpenGroupCreateTab,
@@ -2134,6 +2216,7 @@ private fun ShellDestinationContent(
                                 refreshToken = businessTabRefreshToken.toInt(),
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
+                                onViewAllAttention = onViewAllBusinessAttention,
                             )
                         }
                         context == AppContext.BUSINESS && destination == BottomDestination.MOMENTS -> {

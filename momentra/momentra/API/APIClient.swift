@@ -76,7 +76,14 @@ struct OperatingLifePayload: Decodable {
 }
 
 struct OperatingMemoryPayload: Decodable {
-    let revisions: [OperatingAttentionPayload]
+    let revisions: [OperatingRevisionPayload]
+}
+
+/// `memory.revisions[]` — the backend sends `{ id, title, occurredAt }` only.
+struct OperatingRevisionPayload: Decodable, Identifiable {
+    let id: String
+    let title: String
+    let occurredAt: String
 }
 
 struct OperatingMasterPayload: Decodable, Identifiable {

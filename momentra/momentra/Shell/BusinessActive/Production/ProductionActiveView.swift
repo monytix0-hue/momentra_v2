@@ -7,6 +7,7 @@ struct ProductionActiveView: View {
     var onRecord: (ProductionEventDraft) async throws -> Void = { _ in }
     var onDecide: (String, String) async throws -> Void = { _, _ in }
     var momentId: String? = nil
+    var onViewAllAttention: () -> Void = {}
 
     @State private var activityOpen = false
     private var chrome: ProductionChrome { model.subtype == "MADE_TO_ORDER" ? .job : .standard }
@@ -87,6 +88,8 @@ struct ProductionActiveView: View {
                         }
                     }
                 }
+                AppStateSecondaryButton(label: "View all") { onViewAllAttention() }
+                    .frame(maxWidth: 200)
                 sectionTitle("Payment Readiness")
                 readiness("To collect", (model.paymentReadiness ?? []).filter { $0.relevance == "RECEIVABLE" })
                 readiness("To pay", (model.paymentReadiness ?? []).filter { $0.relevance != "RECEIVABLE" })

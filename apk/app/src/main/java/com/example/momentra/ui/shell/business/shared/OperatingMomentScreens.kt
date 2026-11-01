@@ -43,6 +43,11 @@ import com.example.momentra.ui.shell.business.trading.TradingActive
 import com.example.momentra.ui.shell.business.service.ConsumerServiceActive
 import com.example.momentra.ui.shell.business.retail.RetailStoreActive
 import com.example.momentra.ui.theme.PlusJakartaSans
+import com.example.momentra.ui.shell.business.appstate.AppStateErrorCodePill
+import com.example.momentra.ui.shell.business.appstate.AppStateEyebrow
+import com.example.momentra.ui.shell.business.appstate.AppStateGlassCard
+import com.example.momentra.ui.shell.business.appstate.AppStateSecondaryButton
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateTokens
 
 private val Bg = Color(0xFF0C0F15)
 private val Card = Color(0xFF161B26)
@@ -80,6 +85,8 @@ fun OperatingMomentPage(
     refreshToken: Int,
     onCreateMoment: () -> Unit,
     onOpenQuickAdd: () -> Unit = {},
+    /** Opens the Pulse "Needs Attention" view-all sheet (app-state kit ViewAll variant). */
+    onViewAllAttention: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (momentId.isNullOrBlank()) {
@@ -557,10 +564,20 @@ fun OperatingMomentPage(
             Text(model.role?.replace('_', ' ') ?: "", color = familyAccent(model.familyCode), fontSize = 12.sp, fontFamily = PlusJakartaSans)
         }
         if (error != null && model == null) {
-            Text(error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans)
+            AppStateGlassCard(accent = BusinessAppStateTokens.ErrorRing, strokeAlpha = 0.40f) {
+                AppStateEyebrow("COULDN'T LOAD THIS MOMENT", BusinessAppStateTokens.ErrorRing)
+                Text(
+                    text = error ?: "",
+                    color = Color.White.copy(alpha = 0.70f),
+                    fontSize = 13.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+                AppStateErrorCodePill(code = "MOMENT_DETAIL_FAILED", accent = BusinessAppStateTokens.ErrorRing)
+                AppStateSecondaryButton(label = "Retry", onClick = { tick += 1 })
+            }
         }
         when (tab) {
-            OperatingTab.PULSE -> PulseBlocks(model)
+            OperatingTab.PULSE -> PulseBlocks(model, onViewAllAttention)
             OperatingTab.MOMENTS -> BoardSections(model?.boards?.moments, momentsHeading(model?.familyCode))
             OperatingTab.LIFE -> BoardSections(model?.boards?.life, "How this moment connects")
             OperatingTab.MEMORY -> BoardSections(model?.boards?.memory, "What stays")
@@ -648,7 +665,7 @@ private fun BoardSections(sections: List<OperatingBoardSectionDto>?, heading: St
 }
 
 @Composable
-private fun PulseBlocks(model: OperatingProjectionDto?) {
+private fun PulseBlocks(model: OperatingProjectionDto?, onViewAllAttention: () -> Unit = {}) {
     val budget = model?.budget
     if (model?.financeVisible == true && budget != null) {
         InfoCard("Budget", "${budget.remaining} left of ${budget.amount} ${model.currency.orEmpty()}")
@@ -665,6 +682,8 @@ private fun PulseBlocks(model: OperatingProjectionDto?) {
     model?.attention?.forEach { InfoCard(it.kind, it.title) }
     if (model?.attention.isNullOrEmpty()) {
         InfoCard("Needs Attention", "Nothing is waiting.")
+    } else {
+        AppStateSecondaryButton(label = "View all", onClick = onViewAllAttention)
     }
     val recent = model?.activity.orEmpty().take(5)
     if (recent.isNotEmpty()) {
