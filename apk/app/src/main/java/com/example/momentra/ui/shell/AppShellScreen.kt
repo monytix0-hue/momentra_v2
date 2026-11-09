@@ -1503,6 +1503,17 @@ fun AppShellScreen(
                 },
                 accent = momentAccent,
                 createLabel = if (state.selectedContext == AppContext.PERSONAL) "Add" else BottomDestination.CREATE.label,
+                // TRD/DST-PULSE-v12: slate idle icons on the vertical canvas bar.
+                unselected = if (state.selectedContext == AppContext.BUSINESS) {
+                    ShellTokens.BusinessBottomUnselected
+                } else {
+                    ShellTokens.BottomUnselected
+                },
+                barBackground = if (state.selectedContext == AppContext.BUSINESS) {
+                    ShellTokens.businessBottomBarBackground(state.selectedMomentTypeCode)
+                } else {
+                    ShellTokens.BottomBarBackground
+                },
             )
         }
     }

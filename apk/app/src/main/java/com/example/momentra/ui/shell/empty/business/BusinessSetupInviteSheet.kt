@@ -57,7 +57,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.momentra.data.api.CompanyInviteDto
-import com.example.momentra.ui.shell.business.shared.BusinessInviteRoles
 import com.example.momentra.ui.shell.business.shared.CompanyJoinLink
 import com.example.momentra.ui.shell.business.shared.inviteRoleAccess
 import com.example.momentra.ui.shell.components.MomentraFullscreenDialog
@@ -91,6 +90,7 @@ internal fun BusinessSetupInviteSheet(
     error: String?,
     theme: SetupDocTheme,
     existingNames: List<String>,
+    subtypeCode: String = SetupDocumentSpec.TRADING,
     onRoleChange: (String) -> Unit,
     onAddPerson: (SetupInvitee) -> Unit,
     onRetry: () -> Unit,
@@ -203,19 +203,18 @@ internal fun BusinessSetupInviteSheet(
                         ) {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
-                                    "Invite people",
+                                    "Invite team · $displayName",
                                     color = theme.ink,
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = PlusJakartaSans,
+                                    maxLines = 2,
                                 )
                                 Text(
-                                    displayName,
+                                    "Invite grants a role and its access. Joining ≠ approval ≠ payment.",
                                     color = theme.muted,
                                     fontSize = 11.sp,
                                     fontFamily = PlusJakartaSans,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                             Box(
@@ -262,10 +261,10 @@ internal fun BusinessSetupInviteSheet(
                                 fontFamily = PlusJakartaSans,
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                BusinessInviteRoles.forEach { (code, label) ->
-                                    val selected = code == roleCode
+                                SetupDocumentSpec.inviteRoles(subtypeCode).forEach { role ->
+                                    val selected = role.code == roleCode
                                     Text(
-                                        label,
+                                        role.label,
                                         color = if (selected) theme.ink else theme.muted,
                                         fontSize = 12.sp,
                                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
@@ -279,13 +278,13 @@ internal fun BusinessSetupInviteSheet(
                                                 if (selected) theme.accent else theme.border,
                                                 RoundedCornerShape(999.dp),
                                             )
-                                            .clickable { onRoleChange(code) }
+                                            .clickable { onRoleChange(role.code) }
                                             .padding(horizontal = 11.dp, vertical = 7.dp),
                                     )
                                 }
                             }
                             Text(
-                                "Access: ${inviteRoleAccess(roleCode)}.",
+                                "Access: ${inviteRoleAccess(roleCode, SetupDocumentSpec.isDistribution(subtypeCode))}.",
                                 color = theme.muted,
                                 fontSize = 11.sp,
                                 fontFamily = PlusJakartaSans,

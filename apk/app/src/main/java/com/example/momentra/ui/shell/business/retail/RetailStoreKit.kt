@@ -803,4 +803,7 @@ object RetailTileIcons {
     val locations = R.drawable.ic_retail_tile_locations
     val invite = R.drawable.ic_retail_tile_invite
     val issue = R.drawable.ic_retail_tile_issue
+    val hold = R.drawable.qa_shield
+    val transfer = R.drawable.qa_truck
+    val reprint = R.drawable.qa_receipt
 }

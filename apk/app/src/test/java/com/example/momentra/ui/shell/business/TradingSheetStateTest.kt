@@ -5,6 +5,11 @@ import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.shell.business.distribution.DISTRIBUTION_SHEET_STATES
 import com.example.momentra.ui.shell.business.distribution.DistributionSheetState
 import com.example.momentra.ui.shell.business.distribution.distributionSheetForCode
+import com.example.momentra.ui.shell.business.manufacturing.MANUFACTURING_SHEET_STATES
+import com.example.momentra.ui.shell.business.manufacturing.ManufacturingSheetState
+import com.example.momentra.ui.shell.business.manufacturing.manufacturingSheetForCode
+import com.example.momentra.ui.shell.business.manufacturing.specFor
+import com.example.momentra.ui.shell.business.shared.OperatingV12Theme
 import com.example.momentra.ui.shell.business.shared.sectionByCode
 import com.example.momentra.ui.shell.business.trading.TRADING_PULSE_CODES
 import com.example.momentra.ui.shell.business.trading.TRADING_SHEET_STATES
@@ -44,6 +49,37 @@ class TradingSheetStateTest {
     }
 
     @Test
+    fun manufacturingListsExactlyEighteenSurfaces() {
+        assertEquals(18, MANUFACTURING_SHEET_STATES.size)
+        assertEquals(18, MANUFACTURING_SHEET_STATES.map { it.spec.code }.toSet().size)
+        assertEquals(
+            TRADING_SHEET_STATES.map { it.spec.code }.toSet(),
+            MANUFACTURING_SHEET_STATES.map { it.spec.code }.toSet(),
+        )
+    }
+
+    @Test
+    fun manufacturingMtoTitlesOverrideJobCopy() {
+        val orders = ManufacturingSheetState.OrdersCommitments.specFor("MADE_TO_ORDER")
+        assertEquals("Current Jobs", orders.title)
+        assertEquals(
+            "Orders & Commitments",
+            ManufacturingSheetState.OrdersCommitments.specFor("STANDARD_PRODUCTION").title,
+        )
+    }
+
+    @Test
+    fun manufacturingThemeResolvesFromSubtype() {
+        assertTrue(OperatingV12Theme.forSubtype("STANDARD_PRODUCTION").isManufacturing)
+        assertTrue(OperatingV12Theme.forSubtype("MADE_TO_ORDER").isMadeToOrder)
+        assertEquals("Plan. Make. Fulfil.", OperatingV12Theme.manufacturing().motionLine)
+        assertEquals(
+            "Quote. Confirm. Make. Invoice.",
+            OperatingV12Theme.madeToOrder().motionLine,
+        )
+    }
+
+    @Test
     fun sixPulseCodesRouteToPulseSurfaces() {
         assertEquals(6, TRADING_PULSE_CODES.size)
         TRADING_PULSE_CODES.forEach { code ->
@@ -73,6 +109,21 @@ class TradingSheetStateTest {
     }
 
     @Test
+    fun everySheetCarriesDstChromeMetadata() {
+        DISTRIBUTION_SHEET_STATES.forEach { state ->
+            assertTrue(state.spec.code, state.spec.figmaId.isNotBlank())
+            assertTrue(state.spec.code, state.spec.statusFilters.isNotEmpty())
+            assertTrue(state.spec.code, state.spec.footerCta.isNotBlank())
+            assertEquals(3, state.spec.periodFilters.size)
+        }
+        assertEquals("Open Quick Add", DISTRIBUTION_SHEET_STATES.first().spec.footerCta)
+        assertEquals(
+            "Open Memory",
+            DISTRIBUTION_SHEET_STATES.first { it.spec.code == "ME4" }.spec.footerCta,
+        )
+    }
+
+    @Test
     fun sectionCodesRouteToTheirSurface() {
         assertEquals(TradingSheetState.OrdersCommitments, tradingSheetForCode("orders"))
         assertEquals(TradingSheetState.StockProducts, tradingSheetForCode("stock"))
@@ -90,12 +141,17 @@ class TradingSheetStateTest {
         assertEquals(DistributionSheetState.OrdersCommitments, distributionSheetForCode("orders"))
         assertEquals(DistributionSheetState.FulfilmentMemory, distributionSheetForCode("fulfilment"))
         assertEquals(DistributionSheetState.PeoplePatterns, distributionSheetForCode("ME4"))
+
+        assertEquals(ManufacturingSheetState.OrdersCommitments, manufacturingSheetForCode("orders"))
+        assertEquals(ManufacturingSheetState.FulfilmentMemory, manufacturingSheetForCode("fulfilment"))
+        assertEquals(ManufacturingSheetState.PeoplePatterns, manufacturingSheetForCode("ME4"))
     }
 
     @Test
     fun unknownSectionCodeHasNoSurface() {
         assertNull(tradingSheetForCode("not-a-section"))
         assertNull(distributionSheetForCode(""))
+        assertNull(manufacturingSheetForCode(""))
     }
 
     @Test

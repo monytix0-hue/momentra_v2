@@ -97,7 +97,7 @@ struct BusinessSetupDocState: Equatable {
 
     var subtypeCode: String { BusinessSetupDocSpec.subtype(vertical) }
 
-    var roles: [BusinessSetupRoleSpec] { BusinessSetupDocSpec.roles(vertical: vertical) }
+    var roles: [BusinessSetupRoleSpec] { BusinessSetupDocSpec.roles(vertical) }
     var channelChoices: [String] { BusinessSetupDocSpec.channels(vertical: vertical) }
 
     /// The chip label for the selected code, for the rows and the footnote.
@@ -129,10 +129,15 @@ struct BusinessSetupDocState: Equatable {
 
     /// §04 rows and §06 activation only need a name to exist; everything else may be blank.
     var canStart: Bool {
-        !businessName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && hasChannels
-            && (Decimal(string: BusinessSetupDocSpec.plainAmount(budget)) ?? 0) > 0
-            && (Decimal(string: BusinessSetupDocSpec.plainAmount(target)) ?? 0) > 0
+        let named = !businessName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let budgetOk = (Decimal(string: BusinessSetupDocSpec.plainAmount(budget)) ?? 0) > 0
+        if vertical.isMarketing {
+            let partyOk = !location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let startOk = startDate.count >= 10
+            return named && partyOk && budgetOk && startOk && hasChannels
+        }
+        let targetOk = (Decimal(string: BusinessSetupDocSpec.plainAmount(target)) ?? 0) > 0
+        return named && hasChannels && budgetOk && targetOk
     }
 
     /// The body the document sends. `partyName` carries the trading party (the company the moment
@@ -173,8 +178,9 @@ struct BusinessSetupDocState: Equatable {
             vertical = saved
         }
         if let value = string("identityName") { businessName = value }
+        if let value = string("partyName") { location = value }
         if let value = string("description") { description = value }
-        if let value = string("location") { location = value }
+        if let value = string("location"), location.isEmpty { location = value }
         if let value = string("gstin") { gstin = value }
         if let value = string("gstState") { gstState = value }
         if let value = string("startDate") { startDate = value }
@@ -221,8 +227,21 @@ enum BusinessSetupDocSpec {
 
     // MARK: - Kind
 
+    static let manufacturingPlantSubtype = "STANDARD_PRODUCTION"
+    static let manufacturingJobSubtype = "MADE_TO_ORDER"
+
     static func subtype(_ vertical: BusinessOperatingVertical) -> String {
-        vertical == .trading ? tradingSubtype : distributionSubtype
+        switch vertical {
+        case .trading: return tradingSubtype
+        case .distribution: return distributionSubtype
+        case .standardProduction: return manufacturingPlantSubtype
+        case .madeToOrder: return manufacturingJobSubtype
+        case .clientCampaign: return "CLIENT_CAMPAIGN"
+        case .ownBusinessCampaign: return "OWN_BUSINESS_CAMPAIGN"
+        case .retailStore: return "RETAIL_STORE"
+        case .restaurantFood: return "RESTAURANT_FOOD"
+        case .consumerService: return "CONSUMER_SERVICE"
+        }
     }
 
     static func vertical(forSubtype code: String?) -> BusinessOperatingVertical? {
@@ -230,14 +249,43 @@ enum BusinessSetupDocSpec {
     }
 
     static func kindLabel(_ vertical: BusinessOperatingVertical) -> String {
-        vertical == .trading ? "Trading" : "Distribution"
+        switch vertical {
+        case .trading: return "Trading"
+        case .distribution: return "Distribution"
+        case .standardProduction: return "Plant"
+        case .madeToOrder: return "Workshop"
+        case .clientCampaign: return "Client Campaign"
+        case .ownBusinessCampaign: return "Own Business Campaign"
+        case .retailStore: return "Retail store"
+        case .restaurantFood: return "Restaurant"
+        case .consumerService: return "Service"
+        }
     }
 
     static let tradingChannels = ["Retail buyers", "Wholesale", "Modern trade", "HoReCa", "Online"]
     static let distributionChannels = ["Retail dealers", "Wholesale", "Modern trade", "HoReCa", "Van sales"]
+    static let manufacturingChannels = ["OEM", "Contract", "Job work", "Private label", "Direct"]
+    static let madeToOrderChannels = ["Custom jobs", "Contract", "Repair", "Private label", "Direct"]
+    static let marketingChannels = [
+        "Paid Social", "Search Ads", "Display / Video Ads", "Organic Social",
+        "Email", "Influencer", "SEO / Content", "SMS / Messaging",
+    ]
+
+    static let retailChannels = ["Walk-in", "Online", "Wholesale", "Marketplace", "Delivery"]
+    static let restaurantChannels = ["Dine-in", "Takeaway", "Delivery", "Catering", "Events"]
+    static let serviceChannels = ["Appointment", "Home visit", "On-site", "Remote", "Walk-in"]
 
     static func channels(vertical: BusinessOperatingVertical) -> [String] {
-        vertical == .trading ? tradingChannels : distributionChannels
+        switch vertical {
+        case .trading: return tradingChannels
+        case .distribution: return distributionChannels
+        case .standardProduction: return manufacturingChannels
+        case .madeToOrder: return madeToOrderChannels
+        case .clientCampaign, .ownBusinessCampaign: return marketingChannels
+        case .retailStore: return retailChannels
+        case .restaurantFood: return restaurantChannels
+        case .consumerService: return serviceChannels
+        }
     }
 
     static let tradingRoles = [
@@ -247,28 +295,51 @@ enum BusinessSetupDocSpec {
         BusinessSetupRoleSpec(code: "CONTRIBUTOR", label: "Contributor"),
     ]
 
+    /// Dist invite chips keep the four mintable API codes; labels follow DST-MASTER Invite & QR.
     static let distributionRoles = [
+        BusinessSetupRoleSpec(code: "FINANCE", label: "Manager"),
+        BusinessSetupRoleSpec(code: "APPROVER", label: "Warehouse"),
+        BusinessSetupRoleSpec(code: "OPERATIONS_LEAD", label: "Route lead"),
+        BusinessSetupRoleSpec(code: "CONTRIBUTOR", label: "Salesman"),
+    ]
+
+    static let manufacturingRoles = [
         BusinessSetupRoleSpec(code: "FINANCE", label: "Finance"),
         BusinessSetupRoleSpec(code: "APPROVER", label: "Approver"),
-        BusinessSetupRoleSpec(code: "OPERATIONS_LEAD", label: "Operations"),
+        BusinessSetupRoleSpec(code: "OPERATIONS_LEAD", label: "Operations Lead"),
         BusinessSetupRoleSpec(code: "CONTRIBUTOR", label: "Contributor"),
     ]
 
-    static func roles(vertical: BusinessOperatingVertical) -> [BusinessSetupRoleSpec] {
-        vertical == .trading ? tradingRoles : distributionRoles
+    static let marketingRoles = [
+        BusinessSetupRoleSpec(code: "FINANCE", label: "Finance"),
+        BusinessSetupRoleSpec(code: "APPROVER", label: "Approver"),
+        BusinessSetupRoleSpec(code: "OPERATIONS_LEAD", label: "Campaign Lead"),
+        BusinessSetupRoleSpec(code: "CONTRIBUTOR", label: "Contributor"),
+    ]
+
+    static func roles(_ vertical: BusinessOperatingVertical) -> [BusinessSetupRoleSpec] {
+        switch vertical {
+        case .trading: return tradingRoles
+        case .distribution: return distributionRoles
+        case .standardProduction, .madeToOrder: return manufacturingRoles
+        case .clientCampaign, .ownBusinessCampaign: return marketingRoles
+        case .retailStore, .restaurantFood, .consumerService: return tradingRoles
+        }
     }
 
     /// Every chip is one of the four codes `POST /v1/company/invites` accepts
     /// (`OPERATING_INVITE_ROLES`), so nothing the document offers can be silently refused.
     static let defaultInviteRole = "OPERATIONS_LEAD"
 
-    static func roleLabel(_ code: String?) -> String {
-        guard let code, !code.isEmpty else { return roleLabel(defaultInviteRole) }
-        return roles(vertical: .trading).first { $0.code == code }?.label ?? humanized(code)
+    static func roleLabel(_ code: String?, vertical: BusinessOperatingVertical = .trading) -> String {
+        guard let code, !code.isEmpty else { return roleLabel(defaultInviteRole, vertical: vertical) }
+        if let hit = roles(vertical).first(where: { $0.code == code })?.label { return hit }
+        return roles(.trading).first { $0.code == code }?.label ?? humanized(code)
     }
 
-    static func roleCode(_ label: String) -> String {
-        roles(vertical: .trading).first { $0.label == label }?.code ?? defaultInviteRole
+    static func roleCode(_ label: String, vertical: BusinessOperatingVertical = .trading) -> String {
+        if let hit = roles(vertical).first(where: { $0.label == label })?.code { return hit }
+        return roles(.trading).first { $0.label == label }?.code ?? defaultInviteRole
     }
 
     /// `FINANCE` and `APPROVER` mint an admin membership; the other two mint a member.
@@ -277,7 +348,23 @@ enum BusinessSetupDocSpec {
     }
 
     /// What the selected role can reach, printed under the chips.
-    static func roleAccess(_ code: String) -> String {
+    static func roleAccess(_ code: String, vertical: BusinessOperatingVertical = .trading) -> String {
+        if vertical == .distribution {
+            switch code {
+            case "FINANCE": return "money, settlements and finance boards"
+            case "APPROVER": return "warehouse stock, GRNs and holds"
+            case "OPERATIONS_LEAD": return "routes, dispatches, dealers and orders"
+            default: return "records route activity; money waits for approval"
+            }
+        }
+        if vertical.isManufacturing {
+            switch code {
+            case "FINANCE": return "money, settlements and finance boards"
+            case "APPROVER": return "approves production and stock adjustments"
+            case "OPERATIONS_LEAD": return "jobs, lines, materials and fulfilment"
+            default: return "records plant activity; money waits for approval"
+            }
+        }
         switch code {
         case "FINANCE": return "money, payments and finance boards"
         case "APPROVER": return "approves money and stock adjustments"
@@ -295,14 +382,75 @@ enum BusinessSetupDocSpec {
 
     /// §04 row four: `Principals & dealers` for trading, `Suppliers & buyers` for distribution.
     static func networkLabel(_ vertical: BusinessOperatingVertical) -> String {
-        vertical == .trading ? "Principals & dealers" : "Suppliers & buyers"
+        switch vertical {
+        case .trading: return "Principals & dealers"
+        case .distribution: return "Suppliers & buyers"
+        case .standardProduction, .madeToOrder: return "Vendors & customers"
+        case .clientCampaign: return "Clients & vendors"
+        case .ownBusinessCampaign: return "Vendors & creators"
+        case .retailStore: return "Suppliers & customers"
+        case .restaurantFood: return "Vendors & guests"
+        case .consumerService: return "Clients & staff"
+        }
     }
 
     // MARK: - Sections
 
     /// The six sections, in the order the frames stack them. Both verticals carry all six.
     static func sections(_ vertical: BusinessOperatingVertical) -> [BusinessSetupSectionSpec] {
-        let noun = vertical == .trading ? "trading" : "distribution"
+        let noun: String
+        switch vertical {
+        case .trading: noun = "trading"
+        case .distribution: noun = "distribution"
+        case .standardProduction: noun = "plant"
+        case .madeToOrder: noun = "job order"
+        case .clientCampaign: noun = "client campaign"
+        case .ownBusinessCampaign: noun = "own campaign"
+        case .retailStore: noun = "retail"
+        case .restaurantFood: noun = "restaurant"
+        case .consumerService: noun = "service"
+        }
+        if vertical.isMarketing {
+            return [
+                BusinessSetupSectionSpec(
+                    number: "01",
+                    title: "Business Basics",
+                    subtitle: vertical == .ownBusinessCampaign
+                        ? "Name the campaign and what you promote. Mode is fixed for this Moment."
+                        : "Name the campaign and the client it is run for. Mode is fixed for this Moment."
+                ),
+                BusinessSetupSectionSpec(
+                    number: "02",
+                    title: "People & Roles",
+                    subtitle: "Invite teammates and pick a role on Invite & QR. No separate Add person."
+                ),
+                BusinessSetupSectionSpec(
+                    number: "03",
+                    title: "Catalogue, Stock & Network",
+                    subtitle: vertical == .ownBusinessCampaign
+                        ? "Vendors · creators · agency/media · platforms. No client in Own Business."
+                        : "Clients, vendors, channels & teams your campaign reads from."
+                ),
+                BusinessSetupSectionSpec(
+                    number: "04",
+                    title: "Channels & Monthly Plan",
+                    subtitle: vertical == .ownBusinessCampaign
+                        ? "Channels, own marketing budget and targets."
+                        : "Channels, client commercials, budget and targets."
+                ),
+                BusinessSetupSectionSpec(number: "05", title: "GST & Tax Details", subtitle: "Set up GST once to make buying and selling easier."),
+                BusinessSetupSectionSpec(number: "06", title: "Review your setup", subtitle: ""),
+            ]
+        }
+        let mastersTitle = vertical.isManufacturing
+            ? "Parts, Lines & Network"
+            : "Catalogue, Warehouses & Network"
+        let mastersSubtitle = vertical.isManufacturing
+            ? "Parts, lines, stores and vendors your jobs and sales read from."
+            : "Masters your orders, dispatches and purchases read from. Each opens its own sheet."
+        let channelSubtitle = vertical.isManufacturing
+            ? "Where do jobs and sales land? Choose at least one."
+            : "Where do you sell? Choose at least one."
         return [
             BusinessSetupSectionSpec(number: "01", title: "Business Basics", subtitle: "A home for this \(noun) business."),
             BusinessSetupSectionSpec(
@@ -313,12 +461,12 @@ enum BusinessSetupDocSpec {
             BusinessSetupSectionSpec(
                 number: "03",
                 title: "Channels & Monthly Plan",
-                subtitle: "Where do you sell? Choose at least one."
+                subtitle: channelSubtitle
             ),
             BusinessSetupSectionSpec(
                 number: "04",
-                title: "Catalogue, Warehouses & Network",
-                subtitle: "Masters your orders, dispatches and purchases read from. Each opens its own sheet."
+                title: mastersTitle,
+                subtitle: mastersSubtitle
             ),
             BusinessSetupSectionSpec(number: "05", title: "GST & Tax Details", subtitle: "Set up GST once to make buying and selling easier."),
             BusinessSetupSectionSpec(number: "06", title: "Review your setup", subtitle: ""),
@@ -334,8 +482,8 @@ enum BusinessSetupDocSpec {
     }
 
     /// The access line under the `Roles on invite` chips.
-    static func inviteAccessNote(_ code: String) -> String {
-        "Access: \(roleAccess(code))."
+    static func inviteAccessNote(_ code: String, vertical: BusinessOperatingVertical = .trading) -> String {
+        "Access: \(roleAccess(code, vertical: vertical))."
     }
 
     static func teamMeta(status: String, role: String) -> String {
@@ -454,11 +602,33 @@ enum BusinessSetupDocSpec {
         return head + routes
     }
 
-    /// §04 row four — `Principals & dealers` for trading, `Suppliers & buyers` for distribution.
+    /// §04 row four — network contacts for the vertical.
     static func networkSubtitle(_ vertical: BusinessOperatingVertical, counts: BusinessSetupMasterCounts) -> String {
-        let primary = vertical == .trading ? "principal" : "supplier"
-        let secondary = vertical == .trading ? "dealer" : "buyer"
-        guard counts.principals > 0 || counts.dealers > 0 else { return networkInvite }
+        let primary: String
+        let secondary: String
+        switch vertical {
+        case .trading:
+            primary = "principal"; secondary = "dealer"
+        case .distribution:
+            primary = "supplier"; secondary = "buyer"
+        case .standardProduction, .madeToOrder:
+            primary = "vendor"; secondary = "customer"
+        case .clientCampaign:
+            primary = "client"; secondary = "vendor"
+        case .ownBusinessCampaign:
+            primary = "vendor"; secondary = "creator"
+        case .retailStore:
+            primary = "supplier"; secondary = "customer"
+        case .restaurantFood:
+            primary = "vendor"; secondary = "guest"
+        case .consumerService:
+            primary = "client"; secondary = "staff"
+        }
+        guard counts.principals > 0 || counts.dealers > 0 else {
+            return vertical.isMarketing
+                ? "Add the network this campaign reads from"
+                : networkInvite
+        }
         var parts: [String] = []
         if counts.principals > 0 {
             parts.append("\(counts.principals) \(primary)\(plural(counts.principals))")
@@ -466,18 +636,28 @@ enum BusinessSetupDocSpec {
         if counts.dealers > 0 {
             parts.append("\(counts.dealers) \(secondary)\(plural(counts.dealers))")
         }
-        parts.append("GSTIN on file")
+        if !vertical.isMarketing { parts.append("GSTIN on file") }
         return parts.joined(separator: " · ")
     }
 
     /// §04 row five — the invite role chips, in frame order.
     static func inviteSubtitle(_ vertical: BusinessOperatingVertical) -> String {
-        roles(vertical: vertical).map(\.label).joined(separator: " · ")
+        roles(vertical).map(\.label).joined(separator: " · ")
     }
 
     /// §04's closing footnote; the noun tracks the vertical.
     static func networkFootnote(_ vertical: BusinessOperatingVertical) -> String {
-        let noun = vertical == .trading ? "principals" : "buyers"
+        let noun: String
+        switch vertical {
+        case .trading: noun = "principals"
+        case .distribution: noun = "buyers"
+        case .standardProduction, .madeToOrder: noun = "customers"
+        case .clientCampaign: noun = "clients"
+        case .ownBusinessCampaign: noun = "vendors"
+        case .retailStore: noun = "customers"
+        case .restaurantFood: noun = "guests"
+        case .consumerService: noun = "clients"
+        }
         return "Warehouses hold stock; routes carry it; \(noun) carry GSTIN for ITC on GRN. "
             + "GST posts on invoice or GRN — never on SO / PO save."
     }

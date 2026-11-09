@@ -1540,8 +1540,28 @@ v1Router.post('/business/setups/:familyCode/activate', requireIdempotencyKey, as
 v1Router.get('/business/moments/:momentId/operating', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
+    const periodRaw = typeof req.query.period === 'string' ? req.query.period : undefined;
+    const statusRaw = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const period =
+      periodRaw === 'this_month' || periodRaw === 'last_month' || periodRaw === 'custom'
+        ? periodRaw
+        : undefined;
+    const status =
+      statusRaw === 'all' ||
+      statusRaw === 'open' ||
+      statusRaw === 'done' ||
+      statusRaw === 'overdue' ||
+      statusRaw === 'settled'
+        ? statusRaw
+        : undefined;
+    const query: operatingService.OperatingProjectionQuery = {
+      period,
+      status,
+      from: typeof req.query.from === 'string' ? req.query.from : undefined,
+      to: typeof req.query.to === 'string' ? req.query.to : undefined,
+    };
     const data = await withDb((client) =>
-      operatingService.getOperatingProjection(client, ctx, param(req.params.momentId))
+      operatingService.getOperatingProjection(client, ctx, param(req.params.momentId), query)
     );
     res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {

@@ -5577,8 +5577,22 @@ final class APIClient {
         try await authorizedGet(path: "v1/business/moments/\(momentId)/workload")
     }
 
-    func getOperatingMoment(momentId: String) async throws -> OperatingProjectionPayload {
-        try await authorizedGet(path: "v1/business/moments/\(momentId)/operating")
+    func getOperatingMoment(
+        momentId: String,
+        period: String? = nil,
+        status: String? = nil,
+        from: String? = nil,
+        to: String? = nil
+    ) async throws -> OperatingProjectionPayload {
+        var query: [String: String] = [:]
+        if let period, !period.isEmpty { query["period"] = period }
+        if let status, !status.isEmpty { query["status"] = status }
+        if let from, !from.isEmpty { query["from"] = from }
+        if let to, !to.isEmpty { query["to"] = to }
+        return try await authorizedGet(
+            path: "v1/business/moments/\(momentId)/operating",
+            query: query
+        )
     }
 
     // MARK: - Operating masters + price lists (V099)

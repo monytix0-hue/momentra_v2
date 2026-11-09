@@ -77,19 +77,28 @@ struct OperatingCatalogTests {
 
     // MARK: Verticals
 
-    @Test func onlyTheTwoOperatingSubtypesResolve() {
+    @Test func operatingSubtypesResolveIncludingManufacturing() {
         #expect(BusinessOperatingVertical.forSubtype("TRADING_WHOLESALE") == .trading)
         #expect(BusinessOperatingVertical.forSubtype("DISTRIBUTION_DEALERSHIP") == .distribution)
         #expect(BusinessOperatingVertical.forSubtype("trading_wholesale") == .trading)
-        #expect(BusinessOperatingVertical.forSubtype("RETAIL_STORE") == nil)
+        #expect(BusinessOperatingVertical.forSubtype("STANDARD_PRODUCTION") == .standardProduction)
+        #expect(BusinessOperatingVertical.forSubtype("MADE_TO_ORDER") == .madeToOrder)
+        #expect(BusinessOperatingVertical.forSubtype("RETAIL_STORE") == .retailStore)
         #expect(BusinessOperatingVertical.forSubtype(nil) == nil)
+        #expect(BusinessOperatingVertical.forSubtype("SOMETHING_ELSE") == nil)
     }
 
     @Test func verticalsUseTheirOwnNoun() {
         #expect(BusinessOperatingVertical.trading.partyNoun == "Buyers")
         #expect(BusinessOperatingVertical.distribution.partyNoun == "Dealers")
+        #expect(BusinessOperatingVertical.standardProduction.partyNoun == "Buyers")
+        #expect(BusinessOperatingVertical.madeToOrder.partyNoun == "Customers")
         #expect(BusinessOperatingVertical.trading.storyPages.count == 8)
         #expect(BusinessOperatingVertical.distribution.storyPages.count == 8)
+        #expect(BusinessOperatingVertical.standardProduction.storyPages.count == 8)
+        #expect(BusinessOperatingVertical.madeToOrder.storyPages.count == 8)
+        #expect(BusinessOperatingVertical.standardProduction.isManufacturing)
+        #expect(BusinessOperatingVertical.madeToOrder.isManufacturing)
     }
 
     // MARK: Masters

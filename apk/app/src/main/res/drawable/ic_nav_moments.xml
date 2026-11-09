@@ -1,17 +1,19 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="22dp"
-    android:height="22dp"
-    android:viewportWidth="22"
-    android:viewportHeight="22">
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- TRD-PULSE-v12 Moments tab (2566:29604) -->
     <path
-        android:pathData="M16.5,5.5H5.5C4.48748,5.5 3.66667,6.32081 3.66667,7.33333V14.6667C3.66667,15.6792 4.48748,16.5 5.5,16.5H16.5C17.5125,16.5 18.3333,15.6792 18.3333,14.6667V7.33333C18.3333,6.32081 17.5125,5.5 16.5,5.5Z"
+        android:pathData="M4,8L12,4L20,8L12,12L4,8Z"
         android:strokeWidth="1.8"
         android:strokeColor="#FFFFFF"
+        android:strokeLineJoin="round"
         android:fillColor="#00000000" />
     <path
-        android:pathData="M7.33333,9.16667H14.6667M7.33333,12.8333H11.9167"
+        android:pathData="M4,12L12,16L20,12M4,16L12,20L20,16"
         android:strokeWidth="1.8"
         android:strokeColor="#FFFFFF"
-        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
         android:fillColor="#00000000" />
 </vector>

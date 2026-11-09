@@ -1,15 +1,16 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="22dp"
-    android:height="22dp"
-    android:viewportWidth="22"
-    android:viewportHeight="22">
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- TRD-PULSE-v12 Memory tab (2566:29621) -->
     <path
-        android:pathData="M11,19.25C15.0501,19.25 18.3333,15.9668 18.3333,11.9167C18.3333,7.86658 15.0501,4.58333 11,4.58333C6.94991,4.58333 3.66667,7.86658 3.66667,11.9167C3.66667,15.9668 6.94991,19.25 11,19.25Z"
+        android:pathData="M20,12C20,16.4183 16.4183,20 12,20C7.5817,20 4,16.4183 4,12C4,7.5817 7.5817,4 12,4C16.4183,4 20,7.5817 20,12Z"
         android:strokeWidth="1.8"
         android:strokeColor="#FFFFFF"
         android:fillColor="#00000000" />
     <path
-        android:pathData="M11,8.25V11.9167L13.75,13.75"
+        android:pathData="M12,8V12L15,14"
         android:strokeWidth="1.8"
         android:strokeColor="#FFFFFF"
         android:strokeLineCap="round"

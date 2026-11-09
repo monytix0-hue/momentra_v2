@@ -24,7 +24,13 @@ private final class RecordingGateway: BusinessOperatingGateway, @unchecked Senda
         self.projection = projection
     }
 
-    func loadProjection(momentId: String) async throws -> OperatingProjectionPayload {
+    func loadProjection(
+        momentId: String,
+        period: String?,
+        status: String?,
+        from: String?,
+        to: String?
+    ) async throws -> OperatingProjectionPayload {
         projectionReads += 1
         if let failure { throw failure }
         return projection
@@ -532,22 +538,29 @@ struct BusinessSetupDocSpecTests {
 
     // MARK: Sections
 
-    @Test func bothVerticalsCarryTheSameSixSectionsInOrder() {
-        for vertical in BusinessOperatingVertical.allCases {
+    @Test func tradingFamilyVerticalsCarryTheSameSixSectionsInOrder() {
+        let verticals: [BusinessOperatingVertical] = [
+            .trading, .distribution, .standardProduction, .madeToOrder,
+        ]
+        for vertical in verticals {
             let sections = BusinessSetupDocSpec.sections(vertical)
             #expect(sections.map(\.number) == ["01", "02", "03", "04", "05", "06"])
             #expect(sections[0].title == "Business Basics")
             #expect(sections[1].title == "People & Roles")
             #expect(sections[2].title == "Channels & Monthly Plan")
-            #expect(sections[3].title == "Catalogue, Warehouses & Network")
             #expect(sections[4].title == "GST & Tax Details")
             #expect(sections[5].title == "Review your setup")
         }
+        #expect(BusinessSetupDocSpec.sections(.trading)[3].title == "Catalogue, Warehouses & Network")
+        #expect(BusinessSetupDocSpec.sections(.standardProduction)[3].title == "Parts, Lines & Network")
+        #expect(BusinessSetupDocSpec.sections(.madeToOrder)[3].title == "Parts, Lines & Network")
     }
 
     @Test func theBasicsSubtitleNamesTheVertical() {
         #expect(BusinessSetupDocSpec.sections(.trading)[0].subtitle == "A home for this trading business.")
         #expect(BusinessSetupDocSpec.sections(.distribution)[0].subtitle == "A home for this distribution business.")
+        #expect(BusinessSetupDocSpec.sections(.standardProduction)[0].subtitle == "A home for this plant business.")
+        #expect(BusinessSetupDocSpec.sections(.madeToOrder)[0].subtitle == "A home for this job order business.")
     }
 
     // MARK: Subtype
@@ -555,8 +568,12 @@ struct BusinessSetupDocSpecTests {
     @Test func theSubtypeResolvesBackToItsVertical() {
         #expect(BusinessSetupDocSpec.subtype(.trading) == "TRADING_WHOLESALE")
         #expect(BusinessSetupDocSpec.subtype(.distribution) == "DISTRIBUTION_DEALERSHIP")
+        #expect(BusinessSetupDocSpec.subtype(.standardProduction) == "STANDARD_PRODUCTION")
+        #expect(BusinessSetupDocSpec.subtype(.madeToOrder) == "MADE_TO_ORDER")
         #expect(BusinessSetupDocSpec.vertical(forSubtype: "TRADING_WHOLESALE") == .trading)
         #expect(BusinessSetupDocSpec.vertical(forSubtype: "DISTRIBUTION_DEALERSHIP") == .distribution)
+        #expect(BusinessSetupDocSpec.vertical(forSubtype: "STANDARD_PRODUCTION") == .standardProduction)
+        #expect(BusinessSetupDocSpec.vertical(forSubtype: "MADE_TO_ORDER") == .madeToOrder)
         #expect(BusinessSetupDocSpec.vertical(forSubtype: nil) == nil)
         #expect(BusinessSetupDocSpec.vertical(forSubtype: "SOMETHING_ELSE") == nil)
     }
@@ -574,7 +591,12 @@ struct BusinessSetupDocSpecTests {
         #expect(BusinessSetupDocSpec.roles(.trading).map(\.code) == expected)
         #expect(BusinessSetupDocSpec.roles(.distribution).map(\.code) == expected)
         #expect(BusinessSetupDocSpec.roles(.trading).map(\.label) == ["Finance", "Approver", "Operations", "Contributor"])
-        #expect(BusinessSetupDocSpec.roles(.distribution).map(\.label) == ["Finance", "Approver", "Operations", "Contributor"])
+        #expect(BusinessSetupDocSpec.roles(.distribution).map(\.label) == ["Manager", "Warehouse", "Route lead", "Salesman"])
+        #expect(OperatingSheetCatalog.all.count == 18)
+        #expect(OperatingSheetChrome.figmaId(for: "FINANCE") == "2561:29430")
+        #expect(OperatingSheetChrome.footerCta(for: "ME4") == "Open Memory")
+        #expect(OperatingSheetChrome.footerAction(for: "PAYMENT_READINESS") == "PAYMENT")
+        #expect(OperatingSheetChrome.statusFilters(for: "ATTENTION") == ["Open", "Overdue", "Settled"])
         // Every chip carries a capability the backend actually accepts.
         #expect(BusinessSetupDocSpec.roles(.trading).allSatisfy { !$0.code.isEmpty })
     }

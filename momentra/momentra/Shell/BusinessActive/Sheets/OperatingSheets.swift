@@ -2,86 +2,262 @@ import SwiftUI
 
 /// One data-driven `View all ›` sheet for all eighteen surfaces of a vertical.
 ///
-/// The Pulse surfaces read a metric group; the twelve board surfaces read their section. Both
-/// come from the same projection, so this sheet never holds state of its own beyond the load.
+/// Sticky header carries period + status chips (`DST-SHEET`); the body scrolls; the footer
+/// CTA deep-links into Quick Add, payment capture, attention, or Memory.
 struct OperatingViewAllSheet: View {
     let spec: OperatingSheetSpec
     let theme: OperatingTheme
     @ObservedObject var model: BusinessOperatingModel
     var onOpenRow: ((OperatingActivityPayload) -> Void)? = nil
+    /// Host handles footer actions: `QUICK_ADD`, `PAYMENT`, `ATTENTION`, `MEMORY`, or a capture code.
+    var onFooterAction: ((String) -> Void)? = nil
+
+    @State private var period = OperatingSheetChrome.periodFilters[0]
+    @State private var statusFilter: String = ""
+
+    private var filters: [String] { spec.statusFilters }
+    private var selectedStatus: String {
+        statusFilter.isEmpty ? (filters.first ?? "All") : statusFilter
+    }
+
+    private var contextLine: String {
+        let title = model.title.isEmpty ? model.vertical.label : model.title
+        let month = OperatingV12Date.monthYear(model.projection?.startDate) ?? "This month"
+        return "\(title) · \(month) · full activity, newest first"
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 10) {
-                    Text(spec.title)
-                        .font(.plusJakarta(size: 24, weight: .semibold))
-                        .foregroundStyle(theme.ink)
-                    Spacer()
+        VStack(spacing: 0) {
+            stickyHeader
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    sheetBody
                 }
-                Text(spec.eyebrow)
-                    .font(.plusJakarta(size: 12))
-                    .foregroundStyle(theme.body)
-
-                if spec.pulseSurface {
-                    let group = model.pulseGroup(code: spec.code)
-                    OperatingMetricGrid(theme: theme, metrics: group?.metrics ?? [])
-                    OperatingWhyFootnote(theme: theme, text: group?.why)
-                    if (group?.metrics ?? []).isEmpty {
-                        OperatingEmptyState(
-                            theme: theme,
-                            title: spec.emptyTitle,
-                            bodyText: spec.emptyBody
-                        )
-                    }
-                    if spec.code == "ATTENTION" {
-                        attentionRows
-                    }
-                    if spec.code == "PAYMENT_READINESS" {
-                        paymentRows
-                    }
-                } else {
-                    OperatingBoardSectionBody(
-                        theme: theme,
-                        spec: spec,
-                        section: model.section(code: spec.code),
-                        currency: model.currency,
-                        financeVisible: model.financeVisible,
-                        onOpenRow: onOpenRow
-                    )
-                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
             }
-            .padding(18)
+            stickyFooter
         }
         .background(theme.canvas.ignoresSafeArea())
+        .onAppear {
+            if statusFilter.isEmpty { statusFilter = filters.first ?? "All" }
+        }
+    }
+
+    private var stickyHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Capsule()
+                .fill(Color.white.opacity(0.2))
+                .frame(width: 40, height: 4)
+                .frame(maxWidth: .infinity)
+
+            HStack(spacing: 10) {
+                Text(spec.title)
+                    .font(.plusJakarta(size: 24, weight: .semibold))
+                    .foregroundStyle(theme.ink)
+                Spacer(minLength: 4)
+            }
+
+            Text(contextLine)
+                .font(.plusJakarta(size: 12))
+                .foregroundStyle(theme.body)
+                .lineLimit(2)
+
+            chipRow(OperatingSheetChrome.periodFilters, selection: period) { next in
+                period = next
+                Task { await model.applySheetPeriod(next) }
+            }
+            chipRow(filters, selection: selectedStatus) { next in
+                // Status chips filter the already-loaded sheet body locally.
+                statusFilter = next
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(theme.canvas)
+    }
+
+    private func chipRow(_ options: [String], selection: String, onSelect: @escaping (String) -> Void) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(options, id: \.self) { option in
+                    let on = option == selection
+                    Text(option)
+                        .font(.plusJakarta(size: 12, weight: .semibold))
+                        .foregroundStyle(on ? theme.onAccent : theme.body)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 7)
+                        .background(on ? theme.accent : theme.inset)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(theme.border, lineWidth: on ? 0 : 1))
+                        .onTapGesture { onSelect(option) }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sheetBody: some View {
+        if spec.pulseSurface {
+            let group = model.pulseGroup(code: spec.code)
+            OperatingMetricGrid(theme: theme, metrics: group?.metrics ?? [])
+            OperatingWhyFootnote(theme: theme, text: group?.why)
+            if (group?.metrics ?? []).isEmpty && rawRowCount == 0 {
+                OperatingEmptyState(
+                    theme: theme,
+                    title: spec.emptyTitle,
+                    bodyText: spec.emptyBody
+                )
+            }
+            if spec.code == "ATTENTION" {
+                attentionRows
+            }
+            if spec.code == "PAYMENT_READINESS" {
+                paymentRows
+            }
+            if spec.code == "ACTIVITY" {
+                activityRows
+            }
+        } else if let section = model.section(code: spec.code) {
+            OperatingMetricGrid(theme: theme, metrics: section.metrics ?? [])
+            OperatingWhyFootnote(theme: theme, text: section.why)
+            let rows = filteredBoardRows(section.rows ?? [])
+            if rows.isEmpty {
+                OperatingEmptyState(
+                    theme: theme,
+                    title: spec.emptyTitle,
+                    bodyText: spec.emptyBody,
+                    glyph: "◻︎"
+                )
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(rows) { row in
+                        HStack(alignment: .center, spacing: 10) {
+                            priorityBar(for: row.badge)
+                            OperatingActivityRow(
+                                theme: theme,
+                                row: row,
+                                currency: model.currency,
+                                financeVisible: model.financeVisible,
+                                onTap: onOpenRow.map { open in { open(row) } }
+                            )
+                        }
+                        Divider().overlay(theme.border)
+                    }
+                }
+            }
+        } else {
+            OperatingEmptyState(theme: theme, title: spec.emptyTitle, bodyText: spec.emptyBody)
+        }
+    }
+
+    private var stickyFooter: some View {
+        VStack(spacing: 8) {
+            Text("Showing \(visibleCount) of \(totalCount) · tap a row for detail")
+                .font(.plusJakarta(size: 12))
+                .foregroundStyle(theme.body)
+                .frame(maxWidth: .infinity)
+            Button {
+                onFooterAction?(OperatingSheetChrome.footerAction(for: spec.code))
+            } label: {
+                Text(spec.footerCta)
+                    .font(.plusJakarta(size: 15, weight: .semibold))
+                    .foregroundStyle(theme.onAccent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(theme.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 10)
+        .padding(.bottom, 18)
+        .background(theme.canvas)
+    }
+
+    private var rawRowCount: Int {
+        if spec.code == "ATTENTION" { return model.projection?.attention?.count ?? 0 }
+        if spec.code == "PAYMENT_READINESS" { return model.projection?.paymentReadiness?.count ?? 0 }
+        if spec.code == "ACTIVITY" { return model.projection?.activity?.count ?? 0 }
+        if spec.pulseSurface { return model.pulseGroup(code: spec.code)?.metrics?.count ?? 0 }
+        return model.section(code: spec.code)?.rows?.count ?? 0
+    }
+
+    private var totalCount: Int { rawRowCount }
+    private var visibleCount: Int {
+        if spec.code == "ATTENTION" { return filteredAttention.count }
+        if spec.code == "PAYMENT_READINESS" { return filteredPayments.count }
+        if spec.code == "ACTIVITY" { return filteredActivity.count }
+        if spec.pulseSurface { return model.pulseGroup(code: spec.code)?.metrics?.count ?? 0 }
+        return filteredBoardRows(model.section(code: spec.code)?.rows ?? []).count
+    }
+
+    private func matchesStatus(_ badge: String?) -> Bool {
+        let filter = selectedStatus
+        if filter == "All" { return true }
+        let b = (badge ?? "").lowercased()
+        switch filter {
+        case "Open":
+            return b.contains("open") || b.contains("alert") || b.contains("part")
+                || b.contains("transit") || b.contains("unavailable") || b.isEmpty
+        case "Done":
+            return b.contains("done") || b.contains("delivered")
+        case "Settled":
+            return b.contains("settled") || b.contains("paid") || b.contains("done")
+        case "Overdue":
+            return b.contains("overdue") || b.contains("critical")
+        default:
+            return true
+        }
+    }
+
+    private var filteredAttention: [OperatingAttentionPayload] {
+        (model.projection?.attention ?? []).filter { item in
+            matchesStatus(attentionChip(item))
+        }
+    }
+
+    private var filteredPayments: [OperatingPaymentPayload] {
+        (model.projection?.paymentReadiness ?? []).filter { item in
+            matchesStatus(dueBadge(item.dueBucket))
+        }
+    }
+
+    private var filteredActivity: [OperatingActivityPayload] {
+        (model.projection?.activity ?? []).filter { matchesStatus($0.badge) }
+    }
+
+    private func filteredBoardRows(_ rows: [OperatingActivityPayload]) -> [OperatingActivityPayload] {
+        rows.filter { matchesStatus($0.badge) }
     }
 
     private var attentionRows: some View {
-        let items = model.projection?.attention ?? []
-        return Group {
-            if !items.isEmpty {
+        Group {
+            if !filteredAttention.isEmpty {
                 VStack(spacing: 0) {
-                    ForEach(items) { item in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 8) {
-                                Text(item.title)
-                                    .font(.plusJakarta(size: 14))
-                                    .foregroundStyle(theme.ink)
-                                Spacer(minLength: 4)
-                                OperatingBadgeChip(
-                                    theme: theme,
-                                    badge: item.severity == "CRITICAL" ? "Overdue" : "Open"
-                                )
-                            }
-                            if let due = item.dueAt, !due.isEmpty {
-                                Text("Due \(String(due.prefix(10)))")
-                                    .font(.plusJakarta(size: 12))
-                                    .foregroundStyle(theme.body)
-                            }
-                            if model.financeVisible, let amount = item.amount, !amount.isEmpty {
-                                Text(OperatingMoneyFormat.format(model.currency, amount))
-                                    .font(.plusJakarta(size: 13, weight: .semibold))
-                                    .foregroundStyle(theme.accent)
+                    ForEach(filteredAttention) { item in
+                        HStack(alignment: .center, spacing: 10) {
+                            priorityBar(for: attentionChip(item))
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 8) {
+                                    Text(item.title)
+                                        .font(.plusJakarta(size: 14))
+                                        .foregroundStyle(theme.ink)
+                                    Spacer(minLength: 4)
+                                    OperatingBadgeChip(theme: theme, badge: attentionChip(item))
+                                }
+                                if let due = item.dueAt, !due.isEmpty {
+                                    Text("Due \(String(due.prefix(10)))")
+                                        .font(.plusJakarta(size: 12))
+                                        .foregroundStyle(theme.body)
+                                }
+                                if model.financeVisible, let amount = item.amount, !amount.isEmpty {
+                                    Text(OperatingMoneyFormat.format(model.currency, amount))
+                                        .font(.plusJakarta(size: 13, weight: .semibold))
+                                        .foregroundStyle(theme.accent)
+                                }
                             }
                         }
                         .padding(.vertical, 8)
@@ -94,28 +270,30 @@ struct OperatingViewAllSheet: View {
     }
 
     private var paymentRows: some View {
-        let items = model.projection?.paymentReadiness ?? []
-        return Group {
-            if !items.isEmpty {
+        Group {
+            if !filteredPayments.isEmpty {
                 VStack(spacing: 0) {
-                    ForEach(items) { item in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 8) {
-                                Text(item.title)
-                                    .font(.plusJakarta(size: 14))
-                                    .foregroundStyle(theme.ink)
-                                Spacer(minLength: 4)
-                                OperatingBadgeChip(theme: theme, badge: dueBadge(item.dueBucket))
-                            }
-                            if let name = item.counterpartyName, !name.isEmpty {
-                                Text(name)
-                                    .font(.plusJakarta(size: 12))
-                                    .foregroundStyle(theme.body)
-                            }
-                            if model.financeVisible {
-                                Text(OperatingMoneyFormat.format(model.currency, item.amount))
-                                    .font(.plusJakarta(size: 13, weight: .semibold))
-                                    .foregroundStyle(theme.accent)
+                    ForEach(filteredPayments) { item in
+                        HStack(alignment: .center, spacing: 10) {
+                            priorityBar(for: dueBadge(item.dueBucket))
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 8) {
+                                    Text(item.title)
+                                        .font(.plusJakarta(size: 14))
+                                        .foregroundStyle(theme.ink)
+                                    Spacer(minLength: 4)
+                                    OperatingBadgeChip(theme: theme, badge: dueBadge(item.dueBucket))
+                                }
+                                if let name = item.counterpartyName, !name.isEmpty {
+                                    Text(name)
+                                        .font(.plusJakarta(size: 12))
+                                        .foregroundStyle(theme.body)
+                                }
+                                if model.financeVisible {
+                                    Text(OperatingMoneyFormat.format(model.currency, item.amount))
+                                        .font(.plusJakarta(size: 13, weight: .semibold))
+                                        .foregroundStyle(theme.accent)
+                                }
                             }
                         }
                         .padding(.vertical, 8)
@@ -127,11 +305,59 @@ struct OperatingViewAllSheet: View {
         }
     }
 
+    private var activityRows: some View {
+        Group {
+            if !filteredActivity.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(filteredActivity) { row in
+                        HStack(alignment: .center, spacing: 10) {
+                            priorityBar(for: row.badge)
+                            OperatingActivityRow(
+                                theme: theme,
+                                row: row,
+                                currency: model.currency,
+                                financeVisible: model.financeVisible,
+                                onTap: onOpenRow.map { open in { open(row) } }
+                            )
+                        }
+                        Divider().overlay(theme.border)
+                    }
+                }
+            }
+        }
+    }
+
+    private func priorityBar(for badge: String?) -> some View {
+        let tone: Color = {
+            switch (badge ?? "").lowercased() {
+            case let b where b.contains("overdue") || b.contains("critical"):
+                return Color(red: 0.97, green: 0.44, blue: 0.44)
+            case let b where b.contains("alert") || b.contains("open") || b.contains("unavailable"):
+                return Color(red: 0.96, green: 0.62, blue: 0.04)
+            default:
+                return theme.accent.opacity(0.55)
+            }
+        }()
+        return RoundedRectangle(cornerRadius: 2)
+            .fill(tone)
+            .frame(width: 3, height: 32)
+    }
+
+    private func attentionChip(_ item: OperatingAttentionPayload) -> String? {
+        switch (item.severity ?? "").uppercased() {
+        case "CRITICAL": return "Overdue"
+        case "HIGH": return "Alert"
+        case "MEDIUM": return "Unavailable"
+        default: return "Open"
+        }
+    }
+
     private func dueBadge(_ bucket: String?) -> String? {
         switch bucket {
         case "OVERDUE": return "Overdue"
         case "DUE_SOON": return "Due soon"
         case "OPEN": return "Open"
+        case "SETTLED": return "Settled"
         default: return nil
         }
     }

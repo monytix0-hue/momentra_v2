@@ -9,15 +9,20 @@ object ShellTokens {
     val TopBarBackground = Color(0xFF0C0F15)
     val ContextSelectedPersonal = Color(0xFF7C5CFC)
     val ContextSelectedGroup = Color(0xFFE8621A)
-    val ContextSelectedBusiness = Color(0xFF818CF8)
+    /** Business context switcher — DST/TRD vertical accent base (`#EA580C`). */
+    val ContextSelectedBusiness = Color(0xFFEA580C)
     val ContextSelectedCircle = Color(0xFFFC6A8B)
     val ContextUnselected = Color(0xFFC9C4D9)
     val SurfaceContent = Color(0xFF14121B)
     val EmptyBody = Color(0xFFC9C4D8)
     val BottomBarBackground = Color(0xFF0C0F15)
+    /** Trading / Distribution canvas used under the business tab bar (TRD-PULSE-v12). */
+    val BusinessBottomBarBackground = Color(0xFF090D16)
     /** Figma Comp / Personal / Bottom Nav selected accent. */
     val BottomSelected = Color(0xFFC9BFFF)
     val BottomUnselected = Color(0xFFC9C4D8)
+    /** TRD/DST bottom nav idle icons + labels (`#64748B` slate). */
+    val BusinessBottomUnselected = Color(0xFF64748B)
     val CompanyChipBackground = Color(0xFF1A2030)
     val CompanyChipBorder = Color(0xFF3A4258)
     val ActionCircle = Color(0xFF1E293B)
@@ -39,4 +44,15 @@ object ShellTokens {
         AppContext.CIRCLE -> ContextSelectedCircle
     }
 
+    /** Business tab-bar canvas follows the active vertical (TRD/DST/RTL/RST/SVC). */
+    fun businessBottomBarBackground(momentTypeCode: String?): Color {
+        val code = momentTypeCode?.uppercase().orEmpty()
+        return when {
+            code.contains("RESTAURANT") -> Color(0xFF1C1917)
+            code.contains("RETAIL") -> Color(0xFF0B0A1F)
+            code.contains("SERVICE") && !code.contains("CAMPAIGN") -> Color(0xFF042F2E)
+            code.contains("DISTRIBUTION") || code.contains("DEALERSHIP") -> Color(0xFF0F172A)
+            else -> BusinessBottomBarBackground
+        }
+    }
 }

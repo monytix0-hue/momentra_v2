@@ -544,7 +544,15 @@ struct NativeShellTabView<Content: View>: View {
     @Binding var selection: BottomDestination
     let accent: Color
     var context: AppContextKind = .personal
+    /// When set in business context, the tab bar uses that moment's domain canvas.
+    var businessMomentTypeCode: String? = nil
     @ViewBuilder var content: () -> Content
+
+    private var barBackground: Color {
+        context == .business
+            ? GlobalTheme.businessBottomBarBackground(momentTypeCode: businessMomentTypeCode)
+            : GlobalTheme.bottomBarBackground
+    }
 
     var body: some View {
         TabView(selection: $selection) {
@@ -555,9 +563,17 @@ struct NativeShellTabView<Content: View>: View {
             }
         }
         .tint(accent)
-        .toolbarBackground(GlobalTheme.bottomBarBackground, for: .tabBar)
+        .toolbarBackground(barBackground, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
-        .onAppear(perform: Self.configureTabBarAppearance)
+        .onAppear { Self.configureTabBarAppearance(context: context, momentTypeCode: businessMomentTypeCode) }
+        .onChange(of: context) { _, newContext in
+            Self.configureTabBarAppearance(context: newContext, momentTypeCode: businessMomentTypeCode)
+        }
+        .onChange(of: businessMomentTypeCode) { _, code in
+            if context == .business {
+                Self.configureTabBarAppearance(context: .business, momentTypeCode: code)
+            }
+        }
         .accessibilityIdentifier("bottom.nav")
     }
 
@@ -580,16 +596,29 @@ struct NativeShellTabView<Content: View>: View {
         }
     }
 
-    static func configureTabBarAppearance() {
+    static func configureTabBarAppearance(context: AppContextKind, momentTypeCode: String? = nil) {
         let appearance = UITabBarAppearance()
         appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(GlobalTheme.bottomBarBackground)
-        let unselected = UIColor(GlobalTheme.bottomUnselected)
+        let isBusiness = context == .business
+        appearance.backgroundColor = UIColor(
+            isBusiness
+                ? GlobalTheme.businessBottomBarBackground(momentTypeCode: momentTypeCode)
+                : GlobalTheme.bottomBarBackground
+        )
+        // TRD/DST idle slate `#64748B`; Personal/Group keep lavender idle.
+        let unselected = UIColor(
+            isBusiness ? GlobalTheme.businessBottomUnselected : GlobalTheme.bottomUnselected
+        )
         let normal = appearance.stackedLayoutAppearance.normal
         normal.iconColor = unselected
         normal.titleTextAttributes = [.foregroundColor: unselected]
+        // Selected tint comes from SwiftUI `.tint(accent)` (Dist orange / Trading emerald / …).
+        let selected = appearance.stackedLayoutAppearance.selected
+        selected.iconColor = nil
+        selected.titleTextAttributes = [:]
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
+        UITabBar.appearance().isTranslucent = false
     }
 }
 
@@ -597,11 +626,14 @@ struct NativeShellTabView<Content: View>: View {
 struct ShellBottomNavigationView: View {
     let selected: BottomDestination
     let accent: Color
+    var unselected: Color = GlobalTheme.bottomUnselected
+    var barBackground: Color = GlobalTheme.bottomBarBackground
     var onSelect: (BottomDestination) -> Void
 
     private let barHeight: CGFloat = 72
     private let iconSize: CGFloat = 22
-    private let fabSize: CGFloat = 36
+    /// TRD/DST-PULSE-v12 center FAB is 44 pt with a soft accent glow.
+    private let fabSize: CGFloat = 44
     private let plusIconSize: CGFloat = 16
 
     var body: some View {
@@ -619,23 +651,27 @@ struct ShellBottomNavigationView: View {
             .frame(height: barHeight)
         }
         .frame(maxWidth: .infinity)
-        .background(GlobalTheme.bottomBarBackground)
-        .background(GlobalTheme.bottomBarBackground.ignoresSafeArea(edges: .bottom))
+        .background(barBackground)
+        .background(barBackground.ignoresSafeArea(edges: .bottom))
         .accessibilityIdentifier("bottom.nav")
     }
 
     private func bottomTab(_ destination: BottomDestination) -> some View {
         let isSelected = selected == destination
-        let tint = isSelected ? accent : GlobalTheme.bottomUnselected
+        let tint = isSelected ? accent : unselected
         return Button {
             onSelect(destination)
         } label: {
-            VStack(spacing: 4) {
+            VStack(spacing: 3) {
                 Image(destination.tabAssetName)
                     .resizable()
                     .scaledToFit()
                     .frame(width: iconSize, height: iconSize)
                     .foregroundStyle(tint)
+                // DST-PULSE-v12 / shell: 4 pt accent dot under the selected icon.
+                Circle()
+                    .fill(isSelected ? accent : Color.clear)
+                    .frame(width: 4, height: 4)
                 Text(destination.shellNavLabel)
                     .font(.system(size: 10, weight: isSelected ? .bold : .medium))
                     .foregroundStyle(tint)
@@ -657,9 +693,15 @@ struct ShellBottomNavigationView: View {
         } label: {
             VStack(spacing: 0) {
                 ZStack {
+                    // Soft accent glow behind the FAB (TRD/DST-PULSE-v12 · 0.35 ambient).
+                    Circle()
+                        .fill(accent.opacity(0.35))
+                        .frame(width: fabSize + 16, height: fabSize + 16)
+                        .blur(radius: 12)
                     Circle()
                         .fill(accent)
                         .frame(width: fabSize, height: fabSize)
+                        .shadow(color: accent.opacity(0.55), radius: 14, x: 0, y: 4)
                     Image("ShellPlus")
                         .resizable()
                         .scaledToFit()

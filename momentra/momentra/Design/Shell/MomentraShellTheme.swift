@@ -3,10 +3,31 @@ import SwiftUI
 enum GlobalTheme {
     static let topBarBackground = Color(hex: 0x0C0F15)
     static let bottomBarBackground = Color(hex: 0x0C0F15)
+    /// Trading / Distribution canvas under the business tab bar (TRD-PULSE-v12).
+    static let businessBottomBarBackground = Color(hex: 0x090D16)
+
+    /// Tab bar fill tuned to the active business moment's domain canvas.
+    static func businessBottomBarBackground(momentTypeCode: String?) -> Color {
+        guard let vertical = BusinessOperatingVertical.forSubtype(momentTypeCode) else {
+            return businessBottomBarBackground
+        }
+        switch vertical {
+        case .trading: return BusinessTokens.Colors.tradingCanvas
+        case .distribution: return BusinessTokens.Colors.distributionCanvas
+        case .standardProduction, .madeToOrder: return BusinessTokens.Colors.manufacturingCanvas
+        case .clientCampaign: return BusinessTokens.Colors.marketingCanvas
+        case .ownBusinessCampaign: return BusinessTokens.Colors.marketingOwnCanvas
+        case .retailStore: return BusinessTokens.Colors.retailCanvas
+        case .restaurantFood: return BusinessTokens.Colors.restaurantCanvas
+        case .consumerService: return BusinessTokens.Colors.servicesCanvas
+        }
+    }
     static let surfaceContent = Color(hex: 0x14121B)
     static let contextUnselected = Color(hex: 0xC9C4D9)
     static let bottomSelected = Color(hex: 0xC9BFFF)
     static let bottomUnselected = Color(hex: 0xC9C4D8)
+    /// TRD/DST bottom nav idle icons + labels (`#64748B` slate).
+    static let businessBottomUnselected = Color(hex: 0x64748B)
     static let actionCircle = Color(hex: 0x1E293B)
     static let statusOnline = Color(hex: 0x10B981)
     static let moduleCardBackground = Color(hex: 0x161B26)
@@ -25,7 +46,8 @@ struct ContextTheme {
         case .group:
             return ContextTheme(context: .group, contextAccent: Color(hex: 0xE8621A), contextAccentSecondary: Color(hex: 0xFF8E63))
         case .business:
-            return ContextTheme(context: .business, contextAccent: Color(hex: 0x818CF8), contextAccentSecondary: Color(hex: 0xA5B4FC))
+            // Business context chrome — Figma vertical accent `#EA580C` / soft `#FFB598`.
+            return ContextTheme(context: .business, contextAccent: Color(hex: 0xEA580C), contextAccentSecondary: Color(hex: 0xFFB598))
         case .circle:
             return ContextTheme(context: .circle, contextAccent: Color(hex: 0xE86BA3), contextAccentSecondary: Color(hex: 0xFF6B8A))
         }
@@ -122,26 +144,34 @@ enum MomentThemes {
 
     static func business(_ momentTypeCode: String?) -> MomentTheme {
         let code = momentTypeCode?.uppercased() ?? ""
-        if code == "TRADING_WHOLESALE" || code == "TRADING_DISTRIBUTION" || code == "RESTAURANT_FOOD" {
-            return base("BUSINESS", code.isEmpty ? "TRADING_WHOLESALE" : code, Color(hex: 0xF59E0B), Color(hex: 0xFBBF24))
+        // Domain Color System — matches design/tokens/business.tokens.json (nav + chrome accent).
+        if code == "DISTRIBUTION_DEALERSHIP" || code.contains("DEALERSHIP") {
+            // Distribution · S `#EA580C` / soft `#FFB598` (DST-PULSE-v12)
+            return base("BUSINESS", code.isEmpty ? "DISTRIBUTION_DEALERSHIP" : code, Color(hex: 0xEA580C), Color(hex: 0xFFB598))
         }
-        if code == "DISTRIBUTION_DEALERSHIP" {
-            return base("BUSINESS", code, Color(hex: 0xFBBF24), Color(hex: 0xF59E0B))
+        if code == "TRADING_WHOLESALE" || code.contains("WHOLESALE") || code == "TRADING_DISTRIBUTION" {
+            // FinTech / Trading · S `#10B981` / soft `#6EE7B7` (TRD-PULSE-v12)
+            return base("BUSINESS", code.isEmpty ? "TRADING_WHOLESALE" : code, Color(hex: 0x10B981), Color(hex: 0x6EE7B7))
         }
-        if code == "RETAIL_STORE" || code == "RETAIL_CONSUMER" {
-            return base("BUSINESS", code, Color(hex: 0x34D399), Color(hex: 0x6EE7B7))
+        if code == "RESTAURANT_FOOD" || code.contains("RESTAURANT") {
+            // Restaurant · S `#EA580C` / H `#FCD34D` (RST-PULSE-v12)
+            return base("BUSINESS", code, Color(hex: 0xEA580C), Color(hex: 0xFCD34D))
         }
-        if code == "CONSUMER_SERVICE" {
-            return base("BUSINESS", code, Color(hex: 0x818CF8), Color(hex: 0xA5B4FC))
+        if code == "RETAIL_STORE" || code == "RETAIL_CONSUMER" || code.contains("RETAIL") {
+            return base("BUSINESS", code, Color(hex: 0xF43F5E), Color(hex: 0xFB7185))
         }
-        if code == "STANDARD_PRODUCTION" || code == "MANUFACTURING_PRODUCTION" {
-            return base("BUSINESS", code, Color(hex: 0x38BDF8), Color(hex: 0x7DD3FC))
+        if code == "CONSUMER_SERVICE" || (code.contains("SERVICE") && !code.contains("CAMPAIGN")) {
+            return base("BUSINESS", code, Color(hex: 0x0D9488), Color(hex: 0x84CC16))
         }
-        if code == "MADE_TO_ORDER" {
-            return base("BUSINESS", code, Color(hex: 0x7DD3FC), Color(hex: 0x38BDF8))
+        if code == "STANDARD_PRODUCTION" || code == "MANUFACTURING_PRODUCTION" || code == "MADE_TO_ORDER"
+            || code.contains("MANUFACTURING") {
+            return base("BUSINESS", code, Color(hex: 0xF59E0B), Color(hex: 0xFBBF24))
         }
-        if code.contains("MARKETING") || code == "CLIENT_CAMPAIGN" || code == "OWN_BUSINESS_CAMPAIGN" {
-            return base("BUSINESS", code, Color(hex: 0x818CF8), Color(hex: 0xA5B4FC))
+        if code == "OWN_BUSINESS_CAMPAIGN" {
+            return base("BUSINESS", code, Color(hex: 0xD946EF), Color(hex: 0xE879F9))
+        }
+        if code.contains("MARKETING") || code == "CLIENT_CAMPAIGN" {
+            return base("BUSINESS", code.isEmpty ? "CLIENT_CAMPAIGN" : code, Color(hex: 0x6366F1), Color(hex: 0x818CF8))
         }
         return base("BUSINESS", "BUSINESS_OPERATIONS", Color(hex: 0x818CF8), Color(hex: 0xA5B4FC))
     }

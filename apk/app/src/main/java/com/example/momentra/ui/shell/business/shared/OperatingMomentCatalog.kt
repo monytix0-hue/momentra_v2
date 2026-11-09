@@ -33,6 +33,25 @@ object OperatingMomentCatalog {
     /** The frame's five distribution channels (`DST-SETUP-v6` §03). */
     val distributionChannels = listOf("Retail dealers", "Wholesale", "Modern trade", "HoReCa", "Van sales")
 
+    /** Marketing campaign channels (`MKT-SETUP-v6` / contract §3.1 subset shown in setup chips). */
+    val marketingChannels = listOf(
+        "Paid Social",
+        "Search Ads",
+        "Display / Video Ads",
+        "Organic Social",
+        "Email",
+        "Influencer",
+        "SEO / Content",
+        "SMS / Messaging",
+    )
+
+    val marketingInviteRoles = listOf(
+        OperatingInviteRole("FINANCE", "Finance"),
+        OperatingInviteRole("APPROVER", "Approver"),
+        OperatingInviteRole("OPERATIONS_LEAD", "Campaign Lead"),
+        OperatingInviteRole("CONTRIBUTOR", "Contributor"),
+    )
+
     /**
      * §02 `Roles on invite`, in frame order. These are exactly the four codes
      * `POST /v1/company/invites` accepts (`OPERATING_INVITE_ROLES`), so every chip can actually
@@ -45,11 +64,12 @@ object OperatingMomentCatalog {
         OperatingInviteRole("CONTRIBUTOR", "Contributor"),
     )
 
+    /** Dist labels follow DST-MASTER Invite & QR; codes stay mintable on `/v1/company/invites`. */
     val distributionInviteRoles = listOf(
-        OperatingInviteRole("FINANCE", "Finance"),
-        OperatingInviteRole("APPROVER", "Approver"),
-        OperatingInviteRole("OPERATIONS_LEAD", "Operations"),
-        OperatingInviteRole("CONTRIBUTOR", "Contributor"),
+        OperatingInviteRole("FINANCE", "Manager"),
+        OperatingInviteRole("APPROVER", "Warehouse"),
+        OperatingInviteRole("OPERATIONS_LEAD", "Route lead"),
+        OperatingInviteRole("CONTRIBUTOR", "Salesman"),
     )
 
     fun isDistribution(subtypeCode: String): Boolean =
@@ -71,8 +91,28 @@ object OperatingMomentCatalog {
 
     val families: Map<BusinessSetupKind, List<OperatingSubtype>> = mapOf(
         BusinessSetupKind.MARKETING_CAMPAIGNS to listOf(
-            OperatingSubtype("CLIENT_CAMPAIGN", "Client Campaign", "Client", listOf("LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT", "CLIENT_BILLING"), false, marketingAdds + listOf("INVOICE", "COLLECTION")),
-            OperatingSubtype("OWN_BUSINESS_CAMPAIGN", "Own Business Campaign", "Brand", listOf("LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT"), false, marketingAdds),
+            OperatingSubtype(
+                code = "CLIENT_CAMPAIGN",
+                label = "Client Campaign",
+                partyLabel = "Client",
+                targetMetrics = listOf("LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT", "CLIENT_BILLING"),
+                requiresChannel = false,
+                quickAdds = marketingAdds + listOf("INVOICE", "COLLECTION"),
+                channels = marketingChannels,
+                inviteRoles = marketingInviteRoles,
+                networkLabel = "Clients & vendors",
+            ),
+            OperatingSubtype(
+                code = "OWN_BUSINESS_CAMPAIGN",
+                label = "Own Business Campaign",
+                partyLabel = "Brand",
+                targetMetrics = listOf("LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT"),
+                requiresChannel = false,
+                quickAdds = marketingAdds,
+                channels = marketingChannels,
+                inviteRoles = marketingInviteRoles,
+                networkLabel = "Vendors & creators",
+            ),
         ),
         BusinessSetupKind.TRADING_DISTRIBUTION to listOf(
             OperatingSubtype(

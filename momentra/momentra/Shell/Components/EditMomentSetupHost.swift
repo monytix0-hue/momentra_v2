@@ -31,6 +31,26 @@ enum EditMomentSetupTarget: Identifiable, Equatable {
             case .relationships: return .personal(.relationships)
             }
         case .business:
+            let code = (momentTypeCode ?? "").uppercased()
+            if code == "CLIENT_CAMPAIGN" || code == "OWN_BUSINESS_CAMPAIGN" || code.contains("MARKETING") {
+                return .business(.marketing)
+            }
+            if code == "TRADING_WHOLESALE" || code.contains("TRADING") {
+                return .business(.trading)
+            }
+            if code == "DISTRIBUTION_DEALERSHIP" || code.contains("DISTRIBUTION") {
+                return .business(.distribution)
+            }
+            if code == "RETAIL_STORE" || code.contains("RETAIL") {
+                return .business(.retail)
+            }
+            if code == "RESTAURANT_FOOD" || code.contains("RESTAURANT") {
+                return .business(.restaurant)
+            }
+            if code == "CONSUMER_SERVICE"
+                || (code.contains("SERVICE") && !code.contains("CAMPAIGN")) {
+                return .business(.service)
+            }
             return nil
         case .group:
             let family = GroupExperienceFamily.forTypeCode(momentTypeCode)

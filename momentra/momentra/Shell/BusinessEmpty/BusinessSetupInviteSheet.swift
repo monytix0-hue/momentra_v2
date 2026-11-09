@@ -124,13 +124,14 @@ struct BusinessSetupInviteSheet: View {
                 .frame(width: 36, height: 4)
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Invite people")
+                    Text("Invite team · \(displayName)")
                         .font(.plusJakarta(size: 18, weight: .bold))
                         .foregroundStyle(theme.ink)
-                    Text(displayName)
+                        .lineLimit(2)
+                    Text("Invite grants a role and its access. Joining ≠ approval ≠ payment.")
                         .font(.plusJakarta(size: 11))
                         .foregroundStyle(theme.muted)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
                 Button(action: onDismiss) {
@@ -155,7 +156,7 @@ struct BusinessSetupInviteSheet: View {
                 .font(.plusJakarta(size: 11, weight: .bold))
                 .foregroundStyle(theme.accent)
             HStack(spacing: 6) {
-                ForEach(BusinessSetupDocSpec.roles(vertical: theme.vertical)) { role in
+                ForEach(BusinessSetupDocSpec.roles(theme.vertical)) { role in
                     let selected = role.code == roleCode
                     Button {
                         onRoleChange(role.code)
@@ -174,7 +175,7 @@ struct BusinessSetupInviteSheet: View {
                     .buttonStyle(.plain)
                 }
             }
-            Text(BusinessSetupDocSpec.inviteAccessNote(roleCode))
+            Text(BusinessSetupDocSpec.inviteAccessNote(roleCode, vertical: theme.vertical))
                 .font(.plusJakarta(size: 11))
                 .foregroundStyle(theme.muted)
                 .fixedSize(horizontal: false, vertical: true)

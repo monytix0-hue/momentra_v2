@@ -186,10 +186,17 @@ struct GroupAddPeopleSheet: View {
                 .fill(GroupSetupTheme.border)
                 .frame(width: 36, height: 4)
             HStack {
-                Text("Add People")
-                    .font(.plusJakarta(size: 18, weight: .bold))
-                    .foregroundStyle(GroupSetupTheme.textPrimary)
-                Spacer()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Invite team · \(experienceTitle)")
+                        .font(.plusJakarta(size: 18, weight: .bold))
+                        .foregroundStyle(GroupSetupTheme.textPrimary)
+                        .lineLimit(2)
+                    Text("Invite grants a role and its access. Joining ≠ approval ≠ payment.")
+                        .font(.plusJakarta(size: 11))
+                        .foregroundStyle(GroupSetupTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
                 Button(action: onDismiss) {
                     ZStack {
                         Circle().fill(GroupSetupTheme.iconSurface).frame(width: 32, height: 32)

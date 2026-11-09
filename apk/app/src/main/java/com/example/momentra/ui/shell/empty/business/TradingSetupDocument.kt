@@ -144,10 +144,21 @@ internal class SetupDocState(
         string("subtype")?.let { saved ->
             // A draft saved in lower case still resolves to the canonical code, so the wire keeps
             // one spelling of each subtype.
-            if (saved.equals(SetupDocumentSpec.TRADING, ignoreCase = true)) {
-                subtype = SetupDocumentSpec.TRADING
-            } else if (saved.equals(SetupDocumentSpec.DISTRIBUTION, ignoreCase = true)) {
-                subtype = SetupDocumentSpec.DISTRIBUTION
+            when {
+                saved.equals(SetupDocumentSpec.TRADING, ignoreCase = true) ->
+                    subtype = SetupDocumentSpec.TRADING
+                saved.equals(SetupDocumentSpec.DISTRIBUTION, ignoreCase = true) ->
+                    subtype = SetupDocumentSpec.DISTRIBUTION
+                saved.equals(SetupDocumentSpec.STANDARD_PRODUCTION, ignoreCase = true) ->
+                    subtype = SetupDocumentSpec.STANDARD_PRODUCTION
+                saved.equals(SetupDocumentSpec.MADE_TO_ORDER, ignoreCase = true) ->
+                    subtype = SetupDocumentSpec.MADE_TO_ORDER
+                saved.equals(SetupDocumentSpec.RETAIL_STORE, ignoreCase = true) ->
+                    subtype = SetupDocumentSpec.RETAIL_STORE
+                saved.equals(SetupDocumentSpec.RESTAURANT_FOOD, ignoreCase = true) ->
+                    subtype = SetupDocumentSpec.RESTAURANT_FOOD
+                saved.equals(SetupDocumentSpec.CONSUMER_SERVICE, ignoreCase = true) ->
+                    subtype = SetupDocumentSpec.CONSUMER_SERVICE
             }
         }
         string("identityName")?.let { businessName = it }
@@ -256,10 +267,14 @@ internal fun TradingSetupDocument(
             onClose = onClose,
         )
         SetupKindCard(state, theme)
-        SetupSection(SetupDocumentSpec.sections(state.subtype)[0], theme) {
+        // DST-SETUP-v6: soft orange accent drop under section cards (matches Pulse card glow).
+        val distGlow = SetupDocumentSpec.isDistribution(state.subtype) ||
+            SetupDocumentSpec.isManufacturing(state.subtype) ||
+            SetupDocumentSpec.isRetailFamily(state.subtype)
+        SetupSection(SetupDocumentSpec.sections(state.subtype)[0], theme, accentShadow = distGlow) {
             Section01(state, theme) { picker = it }
         }
-        SetupSection(SetupDocumentSpec.sections(state.subtype)[1], theme) {
+        SetupSection(SetupDocumentSpec.sections(state.subtype)[1], theme, accentShadow = distGlow) {
             Section02(
                 state = state,
                 theme = theme,
@@ -271,16 +286,16 @@ internal fun TradingSetupDocument(
                 onWhatsApp = onWhatsAppInvite,
             )
         }
-        SetupSection(SetupDocumentSpec.sections(state.subtype)[2], theme) {
+        SetupSection(SetupDocumentSpec.sections(state.subtype)[2], theme, accentShadow = distGlow) {
             Section03(state, theme) { picker = it }
         }
-        SetupSection(SetupDocumentSpec.sections(state.subtype)[3], theme) {
+        SetupSection(SetupDocumentSpec.sections(state.subtype)[3], theme, accentShadow = distGlow) {
             Section04(state, theme, counts, warehouseNames, onOpenMasters, onOpenInvite)
         }
-        SetupSection(SetupDocumentSpec.sections(state.subtype)[4], theme) {
+        SetupSection(SetupDocumentSpec.sections(state.subtype)[4], theme, accentShadow = distGlow) {
             Section05(state, theme) { picker = it }
         }
-        SetupSection(SetupDocumentSpec.sections(state.subtype)[5], theme) {
+        SetupSection(SetupDocumentSpec.sections(state.subtype)[5], theme, accentShadow = distGlow) {
             Section06(state, theme, ownerName, submitting, momentStatus, onStart)
         }
         if (!error.isNullOrBlank()) {
@@ -538,7 +553,18 @@ private fun SetupKindCard(state: SetupDocState, theme: SetupDocTheme) {
             fontSize = 11.sp,
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            listOf(SetupDocumentSpec.DISTRIBUTION, SetupDocumentSpec.TRADING).forEach { code ->
+            val kindCodes = when {
+                SetupDocumentSpec.isManufacturing(state.subtype) ->
+                    listOf(SetupDocumentSpec.STANDARD_PRODUCTION, SetupDocumentSpec.MADE_TO_ORDER)
+                SetupDocumentSpec.isRetailFamily(state.subtype) ->
+                    listOf(
+                        SetupDocumentSpec.RETAIL_STORE,
+                        SetupDocumentSpec.RESTAURANT_FOOD,
+                        SetupDocumentSpec.CONSUMER_SERVICE,
+                    )
+                else -> listOf(SetupDocumentSpec.DISTRIBUTION, SetupDocumentSpec.TRADING)
+            }
+            kindCodes.forEach { code ->
                 val on = state.subtype.equals(code, ignoreCase = true)
                 Column(
                     Modifier
@@ -1140,7 +1166,11 @@ internal fun SetupMastersHost(
     val model = OperatingProjectionDto(
         title = state.businessName,
         role = "OWNER_ADMIN",
-        familyCode = "TRADING_DISTRIBUTION",
+        familyCode = if (SetupDocumentSpec.isManufacturing(state.subtype)) {
+            "MANUFACTURING_PRODUCTION"
+        } else {
+            "TRADING_DISTRIBUTION"
+        },
         subtype = state.subtype,
         masters = emptyList(),
     )

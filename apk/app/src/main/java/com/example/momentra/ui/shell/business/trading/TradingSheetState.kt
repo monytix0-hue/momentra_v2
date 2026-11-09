@@ -244,23 +244,108 @@ fun TradingBoardSheet(
     model: OperatingProjectionDto,
     theme: OperatingSheetTheme,
     onDismiss: () -> Unit,
+    onFooterAction: ((String) -> Unit)? = null,
 ) {
     val spec = state.spec
+    val section = model.sectionByCode(spec.code)
+    val total = when (spec.code) {
+        "ATTENTION" -> model.attention.size
+        "PAYMENT_READINESS" -> model.paymentReadiness.size
+        "ACTIVITY" -> model.activity.size
+        else -> section?.rows?.size
+            ?: model.pulseMetrics?.firstOrNull { it.code == spec.code }?.metrics?.size
+            ?: 0
+    }
     OperatingSheetFrame(
         title = spec.title,
         eyebrow = spec.eyebrow,
         model = model,
         theme = theme,
         onDismiss = onDismiss,
-    ) {
+        sheetCode = spec.code,
+        totalCount = total,
+        visibleCount = { status ->
+            when (spec.code) {
+                "ATTENTION" -> model.attention.count {
+                    val chip = when (it.severity?.uppercase()) {
+                        "CRITICAL" -> "Overdue"
+                        "HIGH" -> "Alert"
+                        "MEDIUM" -> "Unavailable"
+                        else -> "Open"
+                    }
+                    com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, chip)
+                }
+                "PAYMENT_READINESS" -> model.paymentReadiness.count {
+                    com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.dueBucket)
+                }
+                "ACTIVITY" -> model.activity.count {
+                    com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.badge)
+                }
+                else -> section?.rows?.count {
+                    com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.badge)
+                } ?: total
+            }
+        },
+        onFooterAction = onFooterAction,
+    ) { status ->
         if (spec.pulseSurface) {
             val surface = runCatching { OperatingPulseSurface.valueOf(spec.code) }.getOrNull()
             OperatingPulseTiles(surface ?: OperatingPulseSurface.ACTIVITY, model, theme)
             val group = model.pulseMetrics?.firstOrNull { it.code == spec.code }
             OperatingWhyFootnote(group?.why, theme)
+            when (spec.code) {
+                "ATTENTION" -> model.attention
+                    .filter {
+                        val chip = when (it.severity?.uppercase()) {
+                            "CRITICAL" -> "Overdue"
+                            "HIGH" -> "Alert"
+                            "MEDIUM" -> "Unavailable"
+                            else -> "Open"
+                        }
+                        com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, chip)
+                    }
+                    .forEach { item ->
+                        com.example.momentra.ui.shell.business.shared.OperatingBoardRowRow(
+                            row = com.example.momentra.data.api.OperatingActivityDto(
+                                id = item.id,
+                                eventType = item.kind,
+                                title = item.title,
+                                subtitle = item.counterpartyName,
+                                amount = item.amount,
+                                badge = when (item.severity?.uppercase()) {
+                                    "CRITICAL" -> "Overdue"
+                                    "HIGH" -> "Alert"
+                                    "MEDIUM" -> "Unavailable"
+                                    else -> "Open"
+                                },
+                            ),
+                            model = model,
+                            theme = theme,
+                        )
+                    }
+                "PAYMENT_READINESS" -> com.example.momentra.ui.shell.business.shared.OperatingPaymentRows(
+                    rows = model.paymentReadiness.filter {
+                        com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.dueBucket)
+                    },
+                    model = model,
+                    theme = theme,
+                )
+                "ACTIVITY" -> model.activity
+                    .filter {
+                        com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.badge)
+                    }
+                    .forEach { row ->
+                        com.example.momentra.ui.shell.business.shared.OperatingBoardRowRow(row, model, theme)
+                    }
+                else -> Unit
+            }
         } else {
             OperatingBoardSectionBody(
-                section = model.sectionByCode(spec.code),
+                section = section?.copy(
+                    rows = section.rows.filter {
+                        com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.badge)
+                    },
+                ),
                 spec = spec,
                 model = model,
                 theme = theme,

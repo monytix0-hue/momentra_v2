@@ -58,10 +58,15 @@ export async function assertCompanyMomentAccess(
        ON cm.company_id = bmc.company_id AND cm.user_id = $2 AND cm.status = 'ACTIVE'
      LEFT JOIN collaboration.moment_participant mp
        ON mp.moment_id = bmc.moment_id AND mp.user_id = $2 AND mp.status = 'ACTIVE'
-     WHERE bmc.moment_id = $1 AND bmc.status = 'ACTIVE'
+     WHERE bmc.moment_id = $1
+       AND (
+         bmc.status = 'ACTIVE'
+         OR (bmc.status = 'DRAFT' AND m.created_by_user_id = $2)
+       )
        AND (
          cm.company_membership_id IS NOT NULL
-         OR (bmc.company_id IS NULL AND (mp.participant_id IS NOT NULL OR m.created_by_user_id = $2))
+         OR mp.participant_id IS NOT NULL
+         OR m.created_by_user_id = $2
        )`,
     [momentId, ctx.userId]
   );

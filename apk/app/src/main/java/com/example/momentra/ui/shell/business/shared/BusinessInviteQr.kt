@@ -638,12 +638,22 @@ internal fun BusinessInviteQr(
     )
 }
 
-internal fun inviteRoleAccess(role: String): String = when (role) {
-    "FINANCE" -> "money, payments and finance boards"
-    "APPROVER" -> "approves money and stock adjustments"
-    "OPERATIONS_LEAD" -> "sales, stock, purchases and orders"
-    else -> "records activity; money waits for approval"
-}
+internal fun inviteRoleAccess(role: String, distribution: Boolean = false): String =
+    if (distribution) {
+        when (role) {
+            "FINANCE" -> "money, settlements and finance boards"
+            "APPROVER" -> "warehouse stock, GRNs and holds"
+            "OPERATIONS_LEAD" -> "routes, dispatches, dealers and orders"
+            else -> "records route activity; money waits for approval"
+        }
+    } else {
+        when (role) {
+            "FINANCE" -> "money, payments and finance boards"
+            "APPROVER" -> "approves money and stock adjustments"
+            "OPERATIONS_LEAD" -> "sales, stock, purchases and orders"
+            else -> "records activity; money waits for approval"
+        }
+    }
 
 @Composable
 private fun InviteOutlineAction(
