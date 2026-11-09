@@ -33,23 +33,28 @@ import com.example.momentra.data.api.OperatingBoardSectionDto
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.shell.business.shared.BusinessActivityList
 import com.example.momentra.ui.shell.business.shared.BusinessEmptyState
+import com.example.momentra.ui.shell.business.shared.OperatingBadgeChip
+import com.example.momentra.ui.shell.business.shared.OperatingMetricTiles
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingTab
+import com.example.momentra.ui.shell.business.shared.OperatingWhyFootnote
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-internal val DistBg = Color(0xFF071014)
-internal val DistCard = Color(0xFF0C171B)
-internal val DistNotice = Color(0xFF15262C)
-internal val DistField = Color(0xFF0C171B)
-internal val DistBorder = Color(0xFF345058)
-internal val DistBrand = Color(0xFFFBBF24)
-internal val DistAccent = Color(0xFFFBBF24)
-internal val DistSecondary = Color(0xFF66C7A4)
-internal val DistInk = Color(0xFFEFF5F2)
-internal val DistSuccess = Color(0xFF66C7A4)
+// Domain palette "distribution" in design/tokens/business.tokens.json (DST-PULSE-v12 2365:29452).
+// The old values were the amber BusinessRunway palette; Figma binds orange here.
+internal val DistBg = Color(0xFF0F172A) // domain.distribution.canvas
+internal val DistCard = Color(0xFF0B1433) // domain.distribution.surface
+internal val DistNotice = Color(0xFF0B1226) // domain.distribution.canvasTop
+internal val DistField = Color(0xFF071022) // domain.distribution.inset
+internal val DistBorder = Color(0xFF1E293B) // color.border.default
+internal val DistBrand = Color(0xFFEA580C) // domain.distribution.accent
+internal val DistAccent = Color(0xFFEA580C) // domain.distribution.accent
+internal val DistSecondary = Color(0xFF94A3B8) // color.text.muted
+internal val DistInk = Color(0xFFFFFFFF) // color.text.primary
+internal val DistSuccess = Color(0xFFFFB598) // domain.distribution.accentSoft
 
 private val dayFormat = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH)
 
@@ -60,9 +65,12 @@ fun DistributionActive(
     onOpenQuickAdd: () -> Unit,
     onRecord: suspend (DistributionEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
+    companyId: String? = null,
     modifier: Modifier = Modifier,
 ) {
-    var activityOpen by remember { mutableStateOf(false) }
+    // One sheet slot for all eighteen view-all surfaces; `null` means no sheet is open.
+    var sheet by remember { mutableStateOf<DistributionSheetState?>(null) }
+    val openSheet: (DistributionSheetState) -> Unit = { sheet = it }
     Box(modifier.fillMaxSize().background(DistBg)) {
     if (tab == OperatingTab.QUICK_ADD) {
         DistributionQuickAddHub(model, onRecord, onDecide)
@@ -76,26 +84,61 @@ fun DistributionActive(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         when (tab) {
-            OperatingTab.PULSE -> DistributionPulse(model, onViewAll = { activityOpen = true }, onOpenQuickAdd = onOpenQuickAdd)
-            OperatingTab.MOMENTS -> DistributionMoments(model, onOpenQuickAdd)
-            OperatingTab.LIFE -> DistributionLife(model)
-            OperatingTab.MEMORY -> DistributionMemory(model)
+            OperatingTab.PULSE -> DistributionPulse(model, onViewAll = openSheet, onOpenQuickAdd = onOpenQuickAdd)
+            OperatingTab.MOMENTS -> DistributionMoments(model, onOpenQuickAdd, openSheet)
+            OperatingTab.LIFE -> DistributionLife(model, openSheet)
+            OperatingTab.MEMORY -> DistributionMemory(model, openSheet)
             OperatingTab.QUICK_ADD -> Unit
         }
     }
     }
-    if (activityOpen) {
-        ActivitySheet(model, onClose = { activityOpen = false })
+    sheet?.let { state ->
+        DistributionBoardSheet(state, model, DistSheetTheme, onDismiss = { sheet = null })
     }
-    com.example.momentra.ui.shell.business.shared.OperatingChromeSheets(model)
+    com.example.momentra.ui.shell.business.shared.OperatingChromeSheets(model, companyId)
     }
 }
 
+/** Figma `DST-SHEET` tokens: orange accent on the distribution canvas. */
+internal val DistSheetTheme = com.example.momentra.ui.shell.business.shared.OperatingSheetTheme(
+    accent = DistBrand,
+    accentSoft = DistSuccess,
+    canvas = DistBg,
+    surface = DistCard,
+    inset = DistField,
+    border = DistBorder,
+    ink = DistInk,
+    body = DistSecondary,
+    warning = com.example.momentra.ui.shell.business.shared.OperatingSheetWarning,
+    negative = com.example.momentra.ui.shell.business.shared.OperatingSheetNegative,
+)
+
+/** Board section code → the view-all surface it opens, or `null` when there is none. */
+internal fun distributionSheetForCode(code: String): DistributionSheetState? = when (code) {
+    "orders" -> DistributionSheetState.OrdersCommitments
+    "stock" -> DistributionSheetState.StockProducts
+    "network" -> DistributionSheetState.PeopleNetwork
+    "M4" -> DistributionSheetState.OpenCommitments
+    "L1" -> DistributionSheetState.LifeCurrentBusiness
+    "L2" -> DistributionSheetState.LifeDealersChannels
+    "L3" -> DistributionSheetState.LifeMoneyMoving
+    "L4" -> DistributionSheetState.LifePeopleActivity
+    "ME1" -> DistributionSheetState.MonthlyMemory
+    "ME2" -> DistributionSheetState.MoneyMemory
+    "fulfilment" -> DistributionSheetState.FulfilmentMemory
+    "ME4" -> DistributionSheetState.PeoplePatterns
+    else -> null
+}
+
 @Composable
-private fun DistributionPulse(model: OperatingProjectionDto, onViewAll: () -> Unit, onOpenQuickAdd: () -> Unit = {}) {
+private fun DistributionPulse(
+    model: OperatingProjectionDto,
+    onViewAll: (DistributionSheetState) -> Unit,
+    onOpenQuickAdd: () -> Unit = {},
+) {
     Header(model, "Pulse", "Your sales plan, distribution commitments and ready money.")
     if (model.financeVisible) {
-        SectionTitle("Target & Budget")
+        ViewAllSectionTitle("Target & Budget") { onViewAll(DistributionSheetState.TargetBudget) }
         DistCard {
             val target = model.target
             val budget = model.budget
@@ -115,7 +158,7 @@ private fun DistributionPulse(model: OperatingProjectionDto, onViewAll: () -> Un
             }
             Text("Validated sales count toward the target. Eligible purchase and expense facts count once toward budget.", color = DistSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
-        SectionTitle("Needs Attention")
+        ViewAllSectionTitle("Needs Attention") { onViewAll(DistributionSheetState.NeedsAttention) }
         if (model.attention.isEmpty()) {
             BusinessEmptyState(
             title = "Nothing is waiting",
@@ -128,7 +171,7 @@ private fun DistributionPulse(model: OperatingProjectionDto, onViewAll: () -> Un
         model.attention.forEach { item ->
             AttentionCard(item, model, onOpenQuickAdd)
         }
-        SectionTitle("Payment Readiness")
+        ViewAllSectionTitle("Payment Readiness") { onViewAll(DistributionSheetState.PaymentReadiness) }
         val toCollect = model.paymentReadiness.filter { it.relevance == "RECEIVABLE" }
         val toPay = model.paymentReadiness.filter { it.relevance != "RECEIVABLE" }
         ReadinessGroup("To collect", toCollect, model)
@@ -136,15 +179,15 @@ private fun DistributionPulse(model: OperatingProjectionDto, onViewAll: () -> Un
         if (model.paymentReadiness.isEmpty()) {
             DistCard { Text("No open payments or collections.", color = DistSecondary, fontFamily = PlusJakartaSans, fontSize = 14.sp) }
         }
-        SectionTitle("Finance")
+        ViewAllSectionTitle("Finance") { onViewAll(DistributionSheetState.Finance) }
         DistCard {
             val finance = model.finance
             Line("Recorded sales", money(model, finance?.sales), DistAccent)
             Line("Received", money(model, finance?.received), DistSuccess)
-            Line("Still to collect", money(model, finance?.outstanding), Color(0xFFFBBF24))
+            Line("Still to collect", money(model, finance?.outstanding), DistAccent)
             Line("Eligible cost", money(model, finance?.eligibleCost), DistInk)
             Line("Business cash paid", money(model, finance?.cashPaid), DistInk)
-            Line("Still to pay", money(model, finance?.payable), Color(0xFFFBBF24))
+            Line("Still to pay", money(model, finance?.payable), DistAccent)
         }
         val position = model.gstPosition
         if (position != null) {
@@ -184,7 +227,7 @@ private fun DistributionPulse(model: OperatingProjectionDto, onViewAll: () -> Un
     } else {
         StaffPulse(model, onOpenQuickAdd)
     }
-    SectionTitle("Activity")
+    ViewAllSectionTitle("Activity") { onViewAll(DistributionSheetState.Activity) }
     val recent = model.activity.take(5)
     if (recent.isEmpty()) {
         BusinessEmptyState(
@@ -213,7 +256,7 @@ private fun DistributionPulse(model: OperatingProjectionDto, onViewAll: () -> Un
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .border(1.dp, DistBrand, RoundedCornerShape(14.dp))
-            .clickable(onClick = onViewAll)
+            .clickable { onViewAll(DistributionSheetState.Activity) }
             .padding(vertical = 14.dp),
     )
 }
@@ -266,8 +309,13 @@ private fun AttentionCard(
 }
 
 @Composable
-private fun DistributionMoments(model: OperatingProjectionDto, onOpenQuickAdd: () -> Unit) {
+private fun DistributionMoments(
+    model: OperatingProjectionDto,
+    onOpenQuickAdd: () -> Unit,
+    onViewAll: (DistributionSheetState) -> Unit,
+) {
     Header(model, "Moments", "Dispatches, stock, and the distribution this month.")
+    ViewAllSectionTitle("This month, in motion") { onViewAll(DistributionSheetState.OrdersCommitments) }
     DistCard {
         Text(periodLabel(model.startDate), color = DistAccent, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         Text("This month, in motion", color = DistInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
@@ -284,7 +332,7 @@ private fun DistributionMoments(model: OperatingProjectionDto, onOpenQuickAdd: (
         }
     }
     (model.boards?.moments ?: emptyList()).forEach { section ->
-        BoardBlock(section, model)
+        BoardBlock(section, model, onViewAll)
     }
     DistCard {
         Text("Create the next distribution moment", color = DistInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
@@ -303,9 +351,9 @@ private fun DistributionMoments(model: OperatingProjectionDto, onOpenQuickAdd: (
 }
 
 @Composable
-private fun DistributionLife(model: OperatingProjectionDto) {
+private fun DistributionLife(model: OperatingProjectionDto, onViewAll: (DistributionSheetState) -> Unit) {
     Header(model, "Life", "How the distribution is moving today.")
-    (model.boards?.life ?: emptyList()).forEach { BoardBlock(it, model) }
+    (model.boards?.life ?: emptyList()).forEach { BoardBlock(it, model, onViewAll) }
     if (model.boards?.life.isNullOrEmpty()) {
         BusinessEmptyState(
             title = "Nothing recorded yet",
@@ -318,55 +366,14 @@ private fun DistributionLife(model: OperatingProjectionDto) {
 }
 
 @Composable
-private fun DistributionMemory(model: OperatingProjectionDto) {
+private fun DistributionMemory(model: OperatingProjectionDto, onViewAll: (DistributionSheetState) -> Unit) {
     Header(model, "Memory", "What this distribution keeps from the month.")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Pill(periodLabel(model.startDate))
         Pill("Current")
     }
-    (model.boards?.memory ?: emptyList()).forEach { BoardBlock(it, model) }
-}
-
-@Composable
-private fun ActivitySheet(model: OperatingProjectionDto, onClose: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(onClick = onClose)
-            .padding(top = 80.dp),
-    ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                .background(DistBg)
-                .clickable(enabled = false) {}
-                .verticalScroll(rememberScrollState())
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("All activity", color = DistInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
-                Text("Close", color = DistSecondary, fontFamily = PlusJakartaSans, modifier = Modifier.clickable(onClick = onClose))
-            }
-            Text(model.title ?: "Distribution", color = DistSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
-            if (model.activity.isEmpty()) {
-                BusinessEmptyState(
-                    title = "Nothing recorded yet",
-                    body = "Dispatches, dealer sales, and money collection will show here.",
-                    accent = DistAccent,
-                    glyph = "📋",
-                )
-            }
-            BusinessActivityList(
-                rows = model.activity,
-                model = model,
-                accent = DistAccent,
-                onEdit = { com.example.momentra.ui.shell.business.shared.OperatingChromeState.editing = it },
-            )
-        }
-    }
+    (model.boards?.memory ?: emptyList()).forEach { BoardBlock(it, model, onViewAll) }
+    DistributionStoryCta(model)
 }
 
 @Composable
@@ -380,23 +387,119 @@ private fun Header(model: OperatingProjectionDto, title: String, body: String) {
 }
 
 @Composable
-private fun BoardBlock(section: OperatingBoardSectionDto, model: OperatingProjectionDto) {
-    SectionTitle(section.title)
+private fun BoardBlock(
+    section: OperatingBoardSectionDto,
+    model: OperatingProjectionDto,
+    onViewAll: (DistributionSheetState) -> Unit,
+) {
+    val sheet = distributionSheetForCode(section.code)
+    if (sheet != null) {
+        ViewAllSectionTitle(section.title) { onViewAll(sheet) }
+    } else {
+        SectionTitle(section.title)
+    }
     DistCard {
-        Text(com.example.momentra.ui.shell.business.shared.formatOperatingDetail(section.detail.ifBlank { "Nothing recorded yet." }, model.currency), color = DistSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        // Quantified tiles replace the parsed prose sentence. `Not recorded` is a
+        // real answer here, never a zero.
+        if (section.metrics.isNotEmpty()) {
+            OperatingMetricTiles(section.metrics, DistSheetTheme)
+        } else {
+            Text(
+                com.example.momentra.ui.shell.business.shared.formatOperatingDetail(
+                    section.detail.ifBlank { "Nothing recorded yet." },
+                    model.currency,
+                ),
+                color = DistSecondary,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
+        }
+        OperatingWhyFootnote(section.why, DistSheetTheme)
         if (!section.coverage.isNullOrBlank()) {
             Text(section.coverage, color = DistAccent, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
         }
-        section.rows.forEach { row ->
+        section.rows.take(5).forEach { row ->
             Column(Modifier.padding(vertical = 6.dp)) {
-                Text(row.title, color = DistInk, fontFamily = PlusJakartaSans, fontSize = 14.sp)
-                val extra = listOfNotNull(row.channelName, row.counterpartyName, row.paymentStatus?.takeIf { it != "NONE" }).joinToString(" · ")
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        row.title,
+                        color = DistInk,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 14.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OperatingBadgeChip(row.badge, DistSheetTheme)
+                }
+                val extra = row.subtitle?.takeIf { it.isNotBlank() }
+                    ?: listOfNotNull(row.channelName, row.counterpartyName, row.paymentStatus?.takeIf { it != "NONE" })
+                        .joinToString(" · ")
                 if (extra.isNotBlank()) Text(extra, color = DistSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                 if (model.financeVisible && !row.amount.isNullOrBlank()) {
                     Text(com.example.momentra.ui.shell.business.shared.formatOperatingAmount(model.currency, row.amount, true), color = DistAccent, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
             }
         }
+        if (section.rows.size > 5 && sheet != null) {
+            Text(
+                "View all ${section.rows.size}",
+                color = DistAccent,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable { onViewAll(sheet) },
+            )
+        }
+    }
+}
+
+/** A section heading with the Figma `View all ›` affordance on the right. */
+@Composable
+private fun ViewAllSectionTitle(text: String, onViewAll: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text,
+            color = DistInk,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 20.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "View all ›",
+            color = DistAccent,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 12.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .clickable(onClick = onViewAll)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+        )
+    }
+}
+
+/** The Memory-tab CTA that opens the eight-page business story (DST-MEMORY-v12). */
+@Composable
+private fun DistributionStoryCta(model: OperatingProjectionDto) {
+    DistCard {
+        Text("Business story", color = DistInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        Text(
+            "Eight pages from the month — moment, motion, orders, money, stock, network, attention, and so far.",
+            color = DistSecondary,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+        Text(
+            "Generate business story",
+            color = DistBg,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(DistBrand)
+                .clickable { com.example.momentra.ui.shell.business.shared.OperatingChromeState.storyConfigOpen = true }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        )
     }
 }
 

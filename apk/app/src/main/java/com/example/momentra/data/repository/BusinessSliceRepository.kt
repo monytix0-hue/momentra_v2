@@ -196,6 +196,79 @@ class BusinessSliceRepository(
         Unit
     }.recoverCatching { e -> throw mapError(e) }
 
+    /**
+     * Structured reprint payload for an invoice or challan. The server never renders a
+     * PDF; the device draws the document from this read model.
+     */
+    suspend fun getOperatingDocument(
+        momentId: String,
+        eventId: String,
+        kind: String = "INVOICE",
+    ): Result<com.example.momentra.data.api.OperatingDocumentDto> = runCatching {
+        api.getOperatingDocument(momentId, eventId, kind).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listMasters(
+        companyId: String,
+        kind: String? = null,
+        search: String? = null,
+        momentId: String? = null,
+        includeArchived: Boolean? = null,
+    ): Result<List<com.example.momentra.data.api.OperatingMasterDto>> = runCatching {
+        api.listOperatingMasters(companyId, kind, search, momentId, includeArchived).data.items
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun createMaster(
+        companyId: String,
+        body: com.example.momentra.data.api.OperatingMasterBody,
+    ): Result<com.example.momentra.data.api.OperatingMasterDto> = runCatching {
+        api.createOperatingMaster(companyId, UUID.randomUUID().toString(), body).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun updateMaster(
+        companyId: String,
+        masterId: String,
+        body: com.example.momentra.data.api.OperatingMasterUpdateBody,
+    ): Result<com.example.momentra.data.api.OperatingMasterDto> = runCatching {
+        api.updateOperatingMaster(companyId, masterId, UUID.randomUUID().toString(), body).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun archiveMaster(
+        companyId: String,
+        masterId: String,
+        expectedVersion: Int,
+    ): Result<com.example.momentra.data.api.OperatingMasterDto> = runCatching {
+        api.archiveOperatingMaster(
+            companyId,
+            masterId,
+            UUID.randomUUID().toString(),
+            com.example.momentra.data.api.OperatingMasterArchiveBody(expectedVersion = expectedVersion),
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun listPriceLists(
+        companyId: String,
+        momentId: String? = null,
+        includeArchived: Boolean? = null,
+    ): Result<List<com.example.momentra.data.api.OperatingPriceListDto>> = runCatching {
+        api.listOperatingPriceLists(companyId, momentId, includeArchived).data.items
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun createPriceList(
+        companyId: String,
+        body: com.example.momentra.data.api.OperatingPriceListBody,
+    ): Result<com.example.momentra.data.api.OperatingPriceListDto> = runCatching {
+        api.createOperatingPriceList(companyId, UUID.randomUUID().toString(), body).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun updatePriceList(
+        companyId: String,
+        priceListId: String,
+        body: com.example.momentra.data.api.OperatingPriceListUpdateBody,
+    ): Result<com.example.momentra.data.api.OperatingPriceListDto> = runCatching {
+        api.updateOperatingPriceList(companyId, priceListId, UUID.randomUUID().toString(), body).data
+    }.recoverCatching { e -> throw mapError(e) }
+
     suspend fun getPulse(momentId: String): Result<BusinessFacetDto<BusinessPulsePayloadDto>> = runCatching {
         api.getBusinessPulse(momentId).data
     }.recoverCatching { e -> throw mapError(e) }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -87,17 +88,22 @@ import com.example.momentra.ui.shell.components.MomentraTopBarConfig
 import com.example.momentra.ui.shell.components.ShellBottomNavigation
 import com.example.momentra.ui.shell.components.label
 import com.example.momentra.ui.shell.empty.ContextEmptyExperience
-import com.example.momentra.ui.shell.group.directory.GroupActiveMomentsDirectory
-import com.example.momentra.ui.shell.group.directory.MomentDirectoryKind
 import com.example.momentra.ui.shell.empty.GroupCreateFlow
+import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
 import com.example.momentra.ui.shell.empty.group.GroupCreatePhase
-import com.example.momentra.ui.shell.empty.business.CompanyJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
-import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
-import com.example.momentra.ui.shell.empty.business.BusinessSetupBottomSheet
-import com.example.momentra.ui.shell.empty.business.CompanyFlowSheet
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
+import com.example.momentra.ui.shell.momentswitcher.MomentSwitcherDirectory
+import com.example.momentra.ui.shell.momentswitcher.businessMomentSwitcherSpec
+import com.example.momentra.ui.shell.momentswitcher.groupMomentSwitcherSpec
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateLoadingBody
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateViewAllSheet
 import com.example.momentra.ui.shell.business.shared.BusinessExpenseSheet
 import com.example.momentra.ui.shell.business.shared.BusinessGapQuickAddSheet
 import com.example.momentra.ui.shell.business.shared.BusinessInvoiceSheet
@@ -178,31 +184,15 @@ import com.example.momentra.ui.shell.group.wedding.pulse.WeddingPulseActiveConte
 import com.example.momentra.ui.shell.group.wedding.create.WeddingQuickAddHub
 import com.example.momentra.ui.shell.group.wedding.create.WeddingQuickAddKind
 import com.example.momentra.ui.shell.perf.ShellPerf
-import com.example.momentra.ui.shell.personal.future.create.FutureQuickAddKind
-import com.example.momentra.ui.shell.personal.future.create.PersonalFutureQuickAddSheet
-import com.example.momentra.ui.shell.personal.future.moments.PersonalFutureMomentsActiveContent
-import com.example.momentra.ui.shell.personal.life.PersonalLifeActiveContent
 import com.example.momentra.ui.shell.personal.lifeops.create.LifeOpsQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.MoneyQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalLifeOpsQuickAddSheet
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalMoneyQuickAddSheet
-import com.example.momentra.ui.shell.personal.lifeops.moments.PersonalLifeOpsMomentsActiveContent
-import com.example.momentra.ui.shell.personal.lifeops.pulse.PersonalLifeOpsPulseActiveContent
-import com.example.momentra.ui.shell.personal.lifestyle.pulse.PersonalLifestylePulseActiveContent
-import com.example.momentra.ui.shell.personal.lifestyle.create.PersonalLifestyleQuickAddSheet
-import com.example.momentra.ui.shell.personal.lifestyle.moments.PersonalLifestyleMomentsActiveContent
-import com.example.momentra.ui.shell.personal.relationships.create.PersonalRelationshipsActivityFlow
-import com.example.momentra.ui.shell.personal.relationships.create.PersonalRelationshipsQuickAddSheet
-import com.example.momentra.ui.shell.personal.relationships.moments.PersonalRelationshipsMomentsActiveContent
-import com.example.momentra.ui.shell.personal.relationships.pulse.PersonalRelationshipsPulseActiveContent
-import com.example.momentra.ui.shell.personal.shared.LifestyleQuickAddKind
 import com.example.momentra.ui.shell.personal.shared.PersonalExpenseFab
 import com.example.momentra.ui.shell.personal.shared.PersonalEveningNudgeScheduler
 import com.example.momentra.ui.shell.personal.shared.PersonalMasterExpenseSheet
 import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
-import com.example.momentra.ui.shell.personal.shared.PersonalQuickAddHub
 import com.example.momentra.ui.shell.personal.shared.PersonalRecentActivityFlow
-import com.example.momentra.ui.shell.personal.shared.RelationshipsQuickAddKind
 import com.example.momentra.ui.shell.personal.shared.missingPersonalSetupSystems
 import com.example.momentra.ui.shell.personal.shared.personalPulseFamilyFor
 import com.example.momentra.ui.shell.personal.shared.presentPersonalFamilies
@@ -362,18 +352,15 @@ fun AppShellScreen(
             ShellPerf.instant("lifeops_sheet_open", mapOf("kind" to kind.name))
         }
     }
-    var futureQa by remember { mutableStateOf<FutureQuickAddKind?>(null) }
-    var lifestyleQa by remember { mutableStateOf<LifestyleQuickAddKind?>(null) }
-    var relationshipsQa by remember { mutableStateOf<RelationshipsQuickAddKind?>(null) }
-    var relationshipsActivityOpen by remember { mutableStateOf(false) }
     var recentActivityOpen by remember { mutableStateOf(false) }
     var groupRecentActivityOpen by remember { mutableStateOf(false) }
     var teamRecentActivityOpen by remember { mutableStateOf(false) }
     var businessRecentActivityOpen by remember { mutableStateOf(false) }
+    var businessAttentionViewAllOpen by remember { mutableStateOf(false) }
+    var businessAttentionFilter by remember { mutableStateOf("All") }
     var newMomentOpen by remember { mutableStateOf(false) }
     var businessGap by remember { mutableStateOf<BusinessGapPage?>(null) }
     var businessLocation by remember { mutableStateOf<com.example.momentra.data.api.LocationItemDto?>(null) }
-    var reopenCompanySettings by remember { mutableStateOf(false) }
     var pendingActivation by remember { mutableStateOf<PendingBusinessActivation?>(null) }
     var groupCreatePhase by remember { mutableStateOf(GroupCreatePhase.CHOOSER) }
     var preferGroupCreateFlow by remember { mutableStateOf(false) }
@@ -393,9 +380,6 @@ fun AppShellScreen(
         state.selectedMomentTypeCode,
     ).primary
     val lifeOpsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val futureSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val lifestyleSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val relationshipsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val openBusinessCreateMoment: () -> Unit = {
         newMomentOpen = true
     }
@@ -471,24 +455,6 @@ fun AppShellScreen(
         lifeOpsQa = kind
     }
 
-    fun openFutureQa(kind: FutureQuickAddKind) {
-        val m = targetForFamily(PersonalPulseFamily.FUTURE_BUILDING) ?: return
-        openPersonalSheet(m.momentId, m.momentTypeCode)
-        futureQa = kind
-    }
-
-    fun openLifestyleQa(kind: LifestyleQuickAddKind) {
-        val m = targetForFamily(PersonalPulseFamily.LIFESTYLE) ?: return
-        openPersonalSheet(m.momentId, m.momentTypeCode)
-        lifestyleQa = kind
-    }
-
-    fun openRelationshipsQa(kind: RelationshipsQuickAddKind) {
-        val m = targetForFamily(PersonalPulseFamily.RELATIONSHIPS) ?: return
-        openPersonalSheet(m.momentId, m.momentTypeCode)
-        relationshipsQa = kind
-    }
-
     fun openMoneyQa(kind: MoneyQuickAddKind) {
         val m = targetForFamily(PersonalPulseFamily.LIFE_OPERATIONS)
         if (m == null) {
@@ -541,10 +507,11 @@ fun AppShellScreen(
             shellViewModel.selectBottomDestination(dest)
         },
     ) {
+    val businessCreateVisible = newMomentOpen && state.selectedContext == AppContext.BUSINESS
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ShellTokens.SurfaceContent),
+            .background(if (businessCreateVisible) Color(0xFF111113) else ShellTokens.SurfaceContent),
     ) {
         state.offlineNotice?.let { notice ->
             Text(
@@ -564,7 +531,7 @@ fun AppShellScreen(
             (groupMomentDirectoryOpen || groupDirectoryHome)
         val businessDirectoryVisible = state.selectedContext == AppContext.BUSINESS &&
             businessMomentDirectoryOpen
-        if (!groupDirectoryVisible && !businessDirectoryVisible) {
+        if (!groupDirectoryVisible && !businessDirectoryVisible && !businessCreateVisible) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -581,18 +548,12 @@ fun AppShellScreen(
                         config = MomentraTopBarConfig(
                             context = state.selectedContext,
                             displayName = identity.displayName,
-                            companies = state.companies,
-                            selectedCompany = state.selectedCompany,
-                            companyMenuOpen = state.companyMenuOpen,
-                            locationName = businessLocation?.name,
                             life360Available = true,
                             globalCreateAvailable = state.selectedContext != AppContext.PERSONAL,
                             qrScanAvailable = true,
                             referAvailable = true,
                             unreadNotificationCount = unreadNotificationCount,
                         ),
-                        onCompanyMenuToggle = shellViewModel::toggleCompanyMenu,
-                        onCompanySelected = shellViewModel::selectCompany,
                         onQrScan = { showJoinQrScanner = true },
                         onLife360 = { shellViewModel.openLife360(true) },
                         onNewMoment = openNewMoment,
@@ -708,20 +669,19 @@ fun AppShellScreen(
                 .align(Alignment.CenterHorizontally)
                 .momentraMaxWidth(shellWindow.contentMaxWidth),
         ) {
-            if (newMomentOpen && state.selectedContext == AppContext.BUSINESS) {
+            if (businessCreateVisible) {
                 BusinessCreateFlow(
                     companyId = state.selectedCompany?.companyId,
                     ownerName = state.identity?.displayName.orEmpty(),
                     onCreateBack = { newMomentOpen = false },
-                    onMomentCreated = { momentId, title, momentTypeCode, status ->
-                        if (momentTypeCode == "RETAIL_STORE" || momentTypeCode == "RESTAURANT_FOOD" || momentTypeCode == "CONSUMER_SERVICE" || momentTypeCode == "TRADING_WHOLESALE" || momentTypeCode == "DISTRIBUTION_DEALERSHIP" || momentTypeCode == "CLIENT_CAMPAIGN" || momentTypeCode == "OWN_BUSINESS_CAMPAIGN" || momentTypeCode == "STANDARD_PRODUCTION" || momentTypeCode == "MADE_TO_ORDER") {
-                            newMomentOpen = false
-                            shellViewModel.onMomentCreated(momentId, title, momentTypeCode, status)
-                            tourController.onSignal(TourSignal.MOMENT_CREATED)
-                        } else {
-                            pendingActivation = PendingBusinessActivation(momentId, title, momentTypeCode, status)
-                        }
+                    onMomentCreated = { id, title, momentTypeCode, status ->
+                        newMomentOpen = false
+                        pendingActivation = PendingBusinessActivation(id, title, momentTypeCode, status)
                     },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .navigationBarsPadding(),
                 )
             } else {
                 ShellDestinationContent(
@@ -747,6 +707,7 @@ fun AppShellScreen(
                     personalPresentFamilies = presentPersonalFamilies(state.moments),
                     viewerReadOnly = groupViewerReadOnly,
                     onRetry = { shellViewModel.selectContext(state.selectedContext) },
+                    onSelectDestination = { shellViewModel.selectBottomDestination(it) },
                     onSessionExpired = onSessionExpired,
                     onCreateMoment = openNewMoment,
                     onOpenPersonalLife = { shellViewModel.selectBottomDestination(BottomDestination.LIFE) },
@@ -856,10 +817,6 @@ fun AppShellScreen(
                     onAddRevenue = { businessRevenueSheetOpen = true },
                     onAddInvoice = { businessInvoiceSheetOpen = true },
                     onAddMembers = { businessMembersSheetOpen = true },
-                    onOpenCompanySettings = {
-                        reopenCompanySettings = true
-                        shellViewModel.toggleCompanyMenu(true)
-                    },
                     onOpenQuickAdd = { shellViewModel.selectBottomDestination(BottomDestination.CREATE) },
                     onOpenMoments = { shellViewModel.selectBottomDestination(BottomDestination.MOMENTS) },
                     onViewBusinessReport = { businessGap = BusinessGapPage.Finance },
@@ -867,15 +824,13 @@ fun AppShellScreen(
                     onOpenVendor = { businessGap = BusinessGapPage.Vendor },
                     onLifeOpsQuickAdd = { openLifeOpsQa(it) },
                     onMoneyQuickAdd = { openMoneyQa(it) },
-                    onFutureQuickAdd = { openFutureQa(it) },
-                    onLifestyleQuickAdd = { openLifestyleQa(it) },
-                    onRelationshipsQuickAdd = { openRelationshipsQa(it) },
-                    onOpenRelationshipsActivity = { relationshipsActivityOpen = true },
                     onViewAllActivity = { recentActivityOpen = true },
                     onPersonalActivityChanged = { shellViewModel.refreshVisiblePersonalTab() },
                     onViewAllGroupActivity = { groupRecentActivityOpen = true },
                     onViewAllTeamActivity = { teamRecentActivityOpen = true },
                     onViewAllBusinessActivity = { businessRecentActivityOpen = true },
+                    onViewAllBusinessAttention = { businessAttentionViewAllOpen = true },
+                    onSelectMoment = shellViewModel::selectMoment,
                     onOpenCompletedMoments = {
                         groupDirectoryPreferCompleted = true
                         groupMomentDirectoryOpen = true
@@ -902,12 +857,24 @@ fun AppShellScreen(
                         .padding(end = 16.dp, bottom = ShellTokens.BottomBarHeight + 16.dp),
                 )
             }
-            GroupActiveMomentsDirectory(
+            // One spec-driven switcher serves both contexts (Figma 2678:37791).
+            val businessSwitcher = state.selectedContext == AppContext.BUSINESS
+            MomentSwitcherDirectory(
+                spec = if (businessSwitcher) {
+                    businessMomentSwitcherSpec(
+                        companyName = state.selectedCompany?.displayName.orEmpty()
+                            .ifBlank { "Your business" },
+                    )
+                } else {
+                    groupMomentSwitcherSpec(allowDismiss = !groupDirectoryHome)
+                },
                 moments = state.moments,
                 selectedMomentId = state.selectedMomentId,
-                visible = groupDirectoryVisible,
+                visible = groupDirectoryVisible || businessDirectoryVisible,
                 onDismiss = {
-                    if (!groupDirectoryHome) {
+                    if (businessSwitcher) {
+                        businessMomentDirectoryOpen = false
+                    } else if (!groupDirectoryHome) {
                         groupMomentDirectoryOpen = false
                         groupDirectoryPreferCompleted = false
                     }
@@ -916,51 +883,34 @@ fun AppShellScreen(
                     shellViewModel.selectMoment(momentId)
                     groupMomentDirectoryOpen = false
                     groupDirectoryPreferCompleted = false
+                    businessMomentDirectoryOpen = false
                 },
                 onSelectCompletedMoment = { moment ->
-                    shellViewModel.selectCompletedGroupMoment(moment)
+                    if (businessSwitcher) {
+                        shellViewModel.selectCompletedBusinessMoment(moment)
+                    } else {
+                        shellViewModel.selectCompletedGroupMoment(moment)
+                    }
                     groupMomentDirectoryOpen = false
                     groupDirectoryPreferCompleted = false
+                    businessMomentDirectoryOpen = false
                 },
                 onOpenStory = { momentId ->
                     storyMomentId = momentId
                     groupMomentDirectoryOpen = false
                     groupDirectoryPreferCompleted = false
+                    businessMomentDirectoryOpen = false
                 },
                 onCreateMoment = {
                     groupMomentDirectoryOpen = false
                     groupDirectoryPreferCompleted = false
-                    openNewMoment()
-                },
-                initialCompletedTab = groupDirectoryPreferCompleted ||
-                    (groupDirectoryHome && state.moments.none { it.isActiveStatus() }),
-                allowDismiss = !groupDirectoryHome,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding(),
-            )
-            GroupActiveMomentsDirectory(
-                moments = state.moments,
-                selectedMomentId = state.selectedMomentId,
-                visible = businessDirectoryVisible,
-                onDismiss = { businessMomentDirectoryOpen = false },
-                onSelectMoment = { momentId ->
-                    shellViewModel.selectMoment(momentId)
-                    businessMomentDirectoryOpen = false
-                },
-                onSelectCompletedMoment = { moment ->
-                    shellViewModel.selectCompletedBusinessMoment(moment)
-                    businessMomentDirectoryOpen = false
-                },
-                onOpenStory = { momentId ->
-                    storyMomentId = momentId
-                    businessMomentDirectoryOpen = false
-                },
-                onCreateMoment = {
                     businessMomentDirectoryOpen = false
                     openNewMoment()
                 },
-                kind = MomentDirectoryKind.BUSINESS,
+                initialCompletedTab = !businessSwitcher && (
+                    groupDirectoryPreferCompleted ||
+                        (groupDirectoryHome && state.moments.none { it.isActiveStatus() })
+                    ),
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding(),
@@ -985,8 +935,6 @@ fun AppShellScreen(
                 },
                 onBackToSettings = {
                     businessGap = null
-                    reopenCompanySettings = true
-                    shellViewModel.toggleCompanyMenu(true)
                 },
             )
             pendingActivation?.let { pending ->
@@ -1257,40 +1205,6 @@ fun AppShellScreen(
                 },
             )
         }
-        if (state.showCompanySwitcher && state.companyMenuOpen && state.selectedContext == AppContext.BUSINESS) {
-            CompanyFlowSheet(
-                companies = state.companies,
-                selectedCompanyId = state.selectedCompany?.companyId,
-                startOnCreate = false,
-                startOnSettings = reopenCompanySettings,
-                onDismiss = {
-                    reopenCompanySettings = false
-                    shellViewModel.toggleCompanyMenu(false)
-                },
-                onSelect = shellViewModel::selectCompany,
-                onCreated = shellViewModel::onCompanyCreated,
-                onOpenLocations = {
-                    reopenCompanySettings = true
-                    shellViewModel.toggleCompanyMenu(false)
-                    businessGap = BusinessGapPage.LocationPicker
-                },
-                onCompaniesChanged = {
-                    shellViewModel.clearSelectedMomentAfterLeave()
-                },
-            )
-        }
-        pendingCompanyJoinCode?.let { code ->
-            CompanyJoinConfirmSheet(
-                code = code,
-                visible = true,
-                onDismiss = { pendingCompanyJoinCode = null },
-                onGoToCompany = { company ->
-                    pendingCompanyJoinCode = null
-                    shellViewModel.onCompanyCreated(company)
-                    shellViewModel.selectContext(AppContext.BUSINESS)
-                },
-            )
-        }
         if (state.selectedMomentId != null && state.selectedContext == AppContext.BUSINESS) {
             LaunchedEffect(businessGapQa) {
                 val kind = businessGapQa ?: return@LaunchedEffect
@@ -1382,99 +1296,6 @@ fun AppShellScreen(
                 }
             }
         }
-        futureQa?.let { kind ->
-            val momentId = personalQaMomentId
-            if (momentId != null) {
-                ModalBottomSheet(
-                    onDismissRequest = {
-                        futureQa = null
-                        clearPersonalSheetTarget()
-                    },
-                    sheetState = futureSheetState,
-                    containerColor = Color(0xFF14121B),
-                    dragHandle = null,
-                ) {
-                    PersonalFutureQuickAddSheet(
-                        kind = kind,
-                        momentId = momentId,
-                        onClose = {
-                            futureQa = null
-                            clearPersonalSheetTarget()
-                        },
-                        onSaved = {
-                            futureQa = null
-                            clearPersonalSheetTarget()
-                            shellViewModel.refreshVisiblePersonalTab()
-                            tourController.showWhereToLook(TourWhereToLook.forFuture(kind))
-                        },
-                    )
-                }
-            }
-        }
-        lifestyleQa?.let { kind ->
-            val momentId = personalQaMomentId
-            if (momentId != null) {
-                ModalBottomSheet(
-                    onDismissRequest = {
-                        lifestyleQa = null
-                        clearPersonalSheetTarget()
-                    },
-                    sheetState = lifestyleSheetState,
-                    containerColor = Color(0xFF14121B),
-                    dragHandle = null,
-                ) {
-                    PersonalLifestyleQuickAddSheet(
-                        kind = kind,
-                        momentId = momentId,
-                        onClose = {
-                            lifestyleQa = null
-                            clearPersonalSheetTarget()
-                        },
-                        onSaved = {
-                            lifestyleQa = null
-                            clearPersonalSheetTarget()
-                            shellViewModel.refreshVisiblePersonalTab()
-                            tourController.showWhereToLook(TourWhereToLook.forLifestyle(kind))
-                        },
-                    )
-                }
-            }
-        }
-        relationshipsQa?.let { kind ->
-            val momentId = personalQaMomentId
-            if (momentId != null) {
-                ModalBottomSheet(
-                    onDismissRequest = {
-                        relationshipsQa = null
-                        clearPersonalSheetTarget()
-                    },
-                    sheetState = relationshipsSheetState,
-                    containerColor = Color(0xFF14121B),
-                    dragHandle = null,
-                ) {
-                    PersonalRelationshipsQuickAddSheet(
-                        kind = kind,
-                        momentId = momentId,
-                        onClose = {
-                            relationshipsQa = null
-                            clearPersonalSheetTarget()
-                        },
-                        onSaved = {
-                            relationshipsQa = null
-                            clearPersonalSheetTarget()
-                            shellViewModel.refreshVisiblePersonalTab()
-                            tourController.showWhereToLook(TourWhereToLook.forRelationships(kind))
-                        },
-                    )
-                }
-            }
-        }
-        PersonalRelationshipsActivityFlow(
-            momentId = state.selectedMomentId,
-            visible = relationshipsActivityOpen,
-            onDismiss = { relationshipsActivityOpen = false },
-            onChanged = { shellViewModel.refreshVisiblePersonalTab() },
-        )
         PersonalRecentActivityFlow(
             momentId = state.selectedMomentId,
             visible = recentActivityOpen,
@@ -1502,6 +1323,18 @@ fun AppShellScreen(
                 else -> "Deliveries, vendors, issues, and ops events."
             },
         )
+        if (businessAttentionViewAllOpen) {
+            BusinessAppStateViewAllSheet(
+                accent = BusinessAppStateAccent.forTypeCode(state.selectedMomentTypeCode),
+                selectedFilter = businessAttentionFilter,
+                onSelectFilter = { businessAttentionFilter = it },
+                onClose = { businessAttentionViewAllOpen = false },
+                onShowAll = {
+                    businessAttentionViewAllOpen = false
+                    businessAttentionFilter = "All"
+                },
+            )
+        }
         GroupRecentActivityFlow(
             momentId = state.selectedMomentId,
             visible = groupRecentActivityOpen,
@@ -1655,21 +1488,23 @@ fun AppShellScreen(
                 }
             }
         }
-        ShellBottomNavigation(
-            selected = state.bottomDestination,
-            onSelect = {
-                newMomentOpen = false
-                groupMomentDirectoryOpen = false
-                businessMomentDirectoryOpen = false
-                if (it == BottomDestination.CREATE && state.selectedContext == AppContext.GROUP) {
-                    groupCreatePhase = GroupCreatePhase.CHOOSER
-                    preferGroupCreateFlow = false
-                }
-                shellViewModel.selectBottomDestination(it)
-            },
-            accent = momentAccent,
-            createLabel = if (state.selectedContext == AppContext.PERSONAL) "Add" else BottomDestination.CREATE.label,
-        )
+        if (!businessCreateVisible) {
+            ShellBottomNavigation(
+                selected = state.bottomDestination,
+                onSelect = {
+                    newMomentOpen = false
+                    groupMomentDirectoryOpen = false
+                    businessMomentDirectoryOpen = false
+                    if (it == BottomDestination.CREATE && state.selectedContext == AppContext.GROUP) {
+                        groupCreatePhase = GroupCreatePhase.CHOOSER
+                        preferGroupCreateFlow = false
+                    }
+                    shellViewModel.selectBottomDestination(it)
+                },
+                accent = momentAccent,
+                createLabel = if (state.selectedContext == AppContext.PERSONAL) "Add" else BottomDestination.CREATE.label,
+            )
+        }
     }
 
     if (state.life360Open) {
@@ -1767,8 +1602,24 @@ private fun shouldShowMomentSwitcher(
     return show
 }
 
-@Composable
+private fun businessErrorScreen(destination: BottomDestination): BusinessAppStateScreen = when (destination) {
+    BottomDestination.PULSE -> BusinessAppStateScreen.Pulse
+    BottomDestination.MOMENTS -> BusinessAppStateScreen.Moments
+    BottomDestination.LIFE -> BusinessAppStateScreen.Life
+    BottomDestination.MEMORY -> BusinessAppStateScreen.Memory
+    BottomDestination.CREATE -> BusinessAppStateScreen.Hub
+}
 
+/** Loading label for the Business app-state skeleton body. */
+private fun businessLoadingLabel(destination: BottomDestination): String = when (destination) {
+    BottomDestination.PULSE -> "Loading Pulse\u2026"
+    BottomDestination.MOMENTS -> "Loading Moments\u2026"
+    BottomDestination.LIFE -> "Loading Life\u2026"
+    BottomDestination.MEMORY -> "Loading Memory\u2026"
+    BottomDestination.CREATE -> "Loading Quick adds\u2026"
+}
+
+@Composable
 private fun ShellDestinationContent(
     context: AppContext,
     destination: BottomDestination,
@@ -1826,6 +1677,8 @@ private fun ShellDestinationContent(
     onLivingQuickAdd: (LivingQuickAddKind) -> Unit = {},
     onBusinessQuickAdd: (BusinessQuickAddKind) -> Unit = {},
     onOpenCompanySettings: () -> Unit = {},
+    /** Moves the shell to another bottom destination (kit "Back to Pulse" CTAs). */
+    onSelectDestination: (BottomDestination) -> Unit = {},
     onAddRevenue: () -> Unit = {},
     onAddInvoice: () -> Unit = {},
     onAddMembers: () -> Unit = {},
@@ -1836,41 +1689,79 @@ private fun ShellDestinationContent(
     onOpenVendor: () -> Unit = {},
     onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Unit = {},
     onMoneyQuickAdd: (MoneyQuickAddKind) -> Unit = {},
-    onFutureQuickAdd: (FutureQuickAddKind) -> Unit = {},
-    onLifestyleQuickAdd: (LifestyleQuickAddKind) -> Unit = {},
-    onRelationshipsQuickAdd: (RelationshipsQuickAddKind) -> Unit = {},
     onOpenRelationshipsActivity: () -> Unit = {},
     onViewAllActivity: () -> Unit = {},
     onPersonalActivityChanged: () -> Unit = {},
     onViewAllGroupActivity: () -> Unit = {},
     onViewAllTeamActivity: () -> Unit = {},
     onViewAllBusinessActivity: () -> Unit = {},
+    onViewAllBusinessAttention: () -> Unit = {},
+    onSelectMoment: (String) -> Unit = {},
     onOpenCompletedMoments: (() -> Unit)? = null,
 ) {
+    // Business renders the shared Figma app-state kit (node 2666:29489) for its
+    // loading / offline / error surfaces. Personal, Group and Circle keep the generic panels.
+    val businessAppState = context == AppContext.BUSINESS
+    val businessAccent = BusinessAppStateAccent.forTypeCode(selectedMomentTypeCode)
+
     when (content) {
         ShellContentState.Loading, ShellContentState.Idle -> {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MomentraBrandColors.Cta)
+            if (businessAppState) {
+                BusinessAppStateLoadingBody(
+                    label = businessLoadingLabel(destination),
+                    accent = businessAccent,
+                )
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MomentraBrandColors.Cta)
+                }
             }
         }
         ShellContentState.Offline -> {
-            EmptyPanel(
-                title = "You're offline",
-                body = "Check your connection and try again.",
-                actionLabel = "Retry",
-                onAction = onRetry,
-            )
+            if (businessAppState) {
+                BusinessAppStateBody(
+                    spec = BusinessAppStateSpecs.spec(
+                        BusinessAppStateScreen.Offline,
+                        BusinessAppStatePhase.Error,
+                    ),
+                    accent = businessAccent,
+                    onPrimary = onRetry,
+                    onSecondary = onRetry,
+                )
+            } else {
+                EmptyPanel(
+                    title = "You're offline",
+                    body = "Check your connection and try again.",
+                    actionLabel = "Retry",
+                    onAction = onRetry,
+                )
+            }
         }
         is ShellContentState.Error -> {
             if (content.code == "UNAUTHORIZED" || content.message.contains("UNAUTHENTICATED", ignoreCase = true)) {
                 LaunchedEffect(Unit) { onSessionExpired() }
+                if (businessAppState) {
+                    return
+                }
             }
-            EmptyPanel(
-                title = "We couldn't load your moments",
-                body = content.message,
-                actionLabel = "Retry",
-                onAction = onRetry,
-            )
+            if (businessAppState) {
+                BusinessAppStateBody(
+                    spec = BusinessAppStateSpecs.spec(
+                        businessErrorScreen(destination),
+                        BusinessAppStatePhase.Error,
+                    ),
+                    accent = businessAccent,
+                    onPrimary = onRetry,
+                    onSecondary = onOpenQuickAdd,
+                )
+            } else {
+                EmptyPanel(
+                    title = "We couldn't load your moments",
+                    body = content.message,
+                    actionLabel = "Retry",
+                    onAction = onRetry,
+                )
+            }
         }
         ShellContentState.Forbidden -> {
             EmptyPanel(
@@ -1890,11 +1781,15 @@ private fun ShellDestinationContent(
                 moments = moments,
                 hasCompany = hasCompany,
                 companyId = companyId,
+                momentTypeCode = selectedMomentTypeCode,
                 onCreateMoment = onCreateMoment,
                 onCreateBack = onCreateBack,
                 onCompanyActivated = onCompanyActivated,
                 onMomentCreated = onMomentCreated,
                 onJoinGroupCode = onJoinGroupCode,
+                onCreateBusiness = { onOpenCompanySettings() },
+                onJoinCompany = { onOpenCompanySettings() },
+                onSelectDestination = onSelectDestination,
                 groupCreatePhase = groupCreatePhase,
                 onGroupCreatePhase = onGroupCreatePhase,
                 onOpenGroupCreateTab = onOpenGroupCreateTab,
@@ -2023,6 +1918,7 @@ private fun ShellDestinationContent(
                             momentTitle = selectedMomentTitle,
                             tab = OperatingTab.QUICK_ADD,
                             refreshToken = businessTabRefreshToken.toInt(),
+                            companyId = companyId,
                             onCreateMoment = onCreateMoment,
                             onOpenQuickAdd = onOpenQuickAdd,
                         )
@@ -2046,9 +1942,6 @@ private fun ShellDestinationContent(
                         ?: moments.firstOrNull { it.momentId == selectedMomentId }?.momentTypeCode
                     val personalFamily = personalPulseFamilyFor(personalTypeCode)
                     val isLifeOps = personalFamily == PersonalPulseFamily.LIFE_OPERATIONS
-                    val isFutureBuilding = personalFamily == PersonalPulseFamily.FUTURE_BUILDING
-                    val isLifestyle = personalFamily == PersonalPulseFamily.LIFESTYLE
-                    val isRelationships = personalFamily == PersonalPulseFamily.RELATIONSHIPS
                     val groupTypeCode = selectedMomentTypeCode
                         ?: moments.firstOrNull { it.momentId == selectedMomentId }?.momentTypeCode
                     val groupFamily = groupExperienceFamilyFor(groupTypeCode)
@@ -2276,8 +2169,11 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 tab = OperatingTab.PULSE,
                                 refreshToken = businessTabRefreshToken.toInt(),
+                                companyId = companyId,
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
+                                onViewAllAttention = onViewAllBusinessAttention,
+                                onSwitchMoment = onSelectMoment,
                             )
                         }
                         context == AppContext.BUSINESS && destination == BottomDestination.MOMENTS -> {
@@ -2289,6 +2185,7 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 tab = OperatingTab.MOMENTS,
                                 refreshToken = businessTabRefreshToken.toInt(),
+                                companyId = companyId,
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
                             )
@@ -2302,6 +2199,7 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 tab = OperatingTab.LIFE,
                                 refreshToken = businessTabRefreshToken.toInt(),
+                                companyId = companyId,
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
                             )
@@ -2315,6 +2213,7 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 tab = OperatingTab.MEMORY,
                                 refreshToken = businessTabRefreshToken.toInt(),
+                                companyId = companyId,
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
                             )

@@ -20,6 +20,7 @@ import {
 } from './operating-retail-contract';
 import { lineBaseQuantity, toBaseQuantity, type MasterMeta } from './operating-trading-lov';
 import { computeGstLine, rollGstLines, scaleGstSnapshot, type GstSnapshot } from './operating-gst';
+import { gstStateCodeOf, gstStateName, resolveJurisdiction } from './operating-gst-states';
 
 export const TRADING_SUBTYPES = ['TRADING_WHOLESALE', 'DISTRIBUTION_DEALERSHIP'] as const;
 
@@ -27,12 +28,19 @@ export type TradingEvent = RetailEvent;
 export interface TradingGstContext {
   enabled: boolean;
   businessState: string;
+  /** Two-digit GST code for `businessState`; derived from the name when absent. */
+  businessStateCode?: string;
   saleIncludesGst: boolean | null;
   purchaseIncludesGst: boolean | null;
   registration: string;
 }
 
-export type TradingWrite = RetailWrite & { channelTracking?: boolean; gst?: TradingGstContext | null };
+export type TradingWrite = RetailWrite & {
+  channelTracking?: boolean;
+  gst?: TradingGstContext | null;
+  /** Table-backed masters for the company, keyed by master id. */
+  masterRefs?: TradingMasterRefs;
+};
 export type TradingAttention = RetailAttention;
 export type TradingLine = RetailLine;
 
@@ -68,7 +76,41 @@ function fail(message: string): { ok: false; message: string } {
   return { ok: false, message };
 }
 
-function masterRecord(line: TradingLine, existing: TradingEvent[]) {
+/**
+ * A master resolved from `business.operating_master`. Passed into validation so a
+ * line's unit, GST class, and standing price come from real master data instead of a
+ * free-text name on an older event.
+ */
+export interface TradingMasterRef {
+  id: string;
+  kind: string;
+  name: string;
+  unit?: string | null;
+  dimension?: string | null;
+  conversionToBase?: string | null;
+  gstApplicable?: string | null;
+  gstClassification?: string | null;
+  gstRate?: string | null;
+  priceIncludesGst?: string | null;
+  salePriceIncludesGst?: string | null;
+  purchasePriceIncludesGst?: string | null;
+  sellPrice?: string | null;
+  purchasePrice?: string | null;
+  businessState?: string | null;
+  billingState?: string | null;
+  deliveryState?: string | null;
+}
+
+export type TradingMasterRefs = Map<string, TradingMasterRef>;
+
+function masterFromRefs(masterId: string | null | undefined, refs?: TradingMasterRefs): TradingMasterRef | null {
+  if (!masterId || !refs) return null;
+  return refs.get(masterId) ?? null;
+}
+
+function masterRecord(line: TradingLine, existing: TradingEvent[], refs?: TradingMasterRefs) {
+  const referenced = masterFromRefs(line.masterId, refs);
+  if (referenced) return referenced;
   if (line.masterId) {
     const byId = existing.find((row) => row.operatingEventId === line.masterId && row.master);
     if (byId?.master) return byId.master;
@@ -78,12 +120,22 @@ function masterRecord(line: TradingLine, existing: TradingEvent[]) {
   return existing.find((row) => row.master && row.master.name.trim().toLowerCase() === name)?.master ?? null;
 }
 
-function partyState(name: string | null | undefined, existing: TradingEvent[]): string {
+function partyState(
+  name: string | null | undefined,
+  existing: TradingEvent[],
+  refs?: TradingMasterRefs
+): string {
   const key = String(name ?? '').trim().toLowerCase();
   if (!key) return '';
+  const partyKind = (kind: string) => ['CUSTOMER', 'BUYER', 'SUPPLIER', 'PRINCIPAL', 'DEALER', 'VENDOR'].includes(kind);
+  for (const ref of refs?.values() ?? []) {
+    if (!partyKind(String(ref.kind ?? '').toUpperCase())) continue;
+    if (ref.name.trim().toLowerCase() !== key) continue;
+    return String(ref.deliveryState || ref.billingState || ref.businessState || '').trim();
+  }
   const party = existing.find((row) => {
     const kind = String(row.master?.kind ?? '').toUpperCase();
-    return ['CUSTOMER', 'BUYER', 'SUPPLIER'].includes(kind) && row.master?.name.trim().toLowerCase() === key;
+    return partyKind(kind) && row.master?.name.trim().toLowerCase() === key;
   });
   return String(party?.master?.deliveryState || party?.master?.billingState || party?.master?.businessState || '').trim();
 }
@@ -101,19 +153,26 @@ function applyPostedGst(
     return { ok: true, amount: entered };
   }
   const preference = side === 'SALE' ? input.gst.saleIncludesGst : input.gst.purchaseIncludesGst;
-  const businessState = input.gst.businessState.trim().toLowerCase();
-  const supplyState = (contract.placeOfSupply || partyState(input.counterpartyName, existing)).trim();
+  // Prefer the stored code; fall back to resolving the name so a context built without the code
+  // still compares correctly.
+  const businessState = input.gst.businessState.trim();
+  const businessStateCode = input.gst.businessStateCode || gstStateCodeOf(businessState);
+  const supplyState = (contract.placeOfSupply || partyState(input.counterpartyName, existing, input.masterRefs)).trim();
   let jurisdiction = contract.taxJurisdiction ?? null;
-  if (!jurisdiction && businessState && supplyState) {
-    jurisdiction = supplyState.toLowerCase() === businessState ? 'INTRA' : 'INTER';
+  // Compare GST state codes, not typed names: `"MH"` and `"Maharashtra"` are one state, and an
+  // exact-string compare used to read them as two and charge IGST on an intra-state sale.
+  if (!jurisdiction) {
+    jurisdiction = resolveJurisdiction(businessStateCode || businessState, supplyState);
   }
   if (!jurisdiction) return fail('Confirm whether this supply is inside your state or outside it.');
   contract.taxJurisdiction = jurisdiction;
-  contract.placeOfSupply = supplyState || contract.placeOfSupply || input.gst.businessState;
+  // Canonical name, so every snapshot stores the same spelling for the same state.
+  const canonicalSupply = supplyState || contract.placeOfSupply || businessState;
+  contract.placeOfSupply = gstStateName(canonicalSupply) || canonicalSupply;
 
   const pricedLines = lines.filter((line) => num(line.unitPrice) > 0 && num(line.quantity) > 0);
   const sources = pricedLines.length > 0
-    ? pricedLines.map((line) => ({ line, master: masterRecord(line, existing) }))
+    ? pricedLines.map((line) => ({ line, master: masterRecord(line, existing, input.masterRefs) }))
     : [{ line: { itemName: input.title, quantity: '1', unitPrice: String(entered), unit: null }, master: null }];
 
   const gstLines = [];
@@ -169,9 +228,25 @@ function lineTotal(lines: TradingLine[] | null | undefined): number {
   return (lines ?? []).reduce((total, line) => total + num(line.quantity ?? 1) * num(line.unitPrice), 0);
 }
 
-function productForLine(line: TradingLine, existing: TradingEvent[]): MasterMeta | null {
+function productForLine(
+  line: TradingLine,
+  existing: TradingEvent[],
+  refs?: TradingMasterRefs
+): MasterMeta | null {
+  const referenced = masterFromRefs(line.masterId, refs);
+  if (referenced && ['PRODUCT', 'SKU'].includes(String(referenced.kind ?? '').toUpperCase())) {
+    return {
+      kind: referenced.kind,
+      name: referenced.name,
+      unit: referenced.unit ?? null,
+      dimension: (referenced.dimension as MasterMeta['dimension']) ?? null,
+      conversionToBase: referenced.conversionToBase ?? null,
+    };
+  }
   if (line.masterId) {
-    const byId = existing.find((row) => row.operatingEventId === line.masterId && row.master?.kind === 'PRODUCT');
+    const byId = existing.find(
+      (row) => row.operatingEventId === line.masterId && ['PRODUCT', 'SKU'].includes(String(row.master?.kind ?? ''))
+    );
     if (byId?.master) {
       return {
         kind: byId.master.kind,
@@ -185,7 +260,7 @@ function productForLine(line: TradingLine, existing: TradingEvent[]): MasterMeta
   const name = line.itemName.trim().toLowerCase();
   if (!name) return null;
   const byName = existing.find(
-    (row) => row.master?.kind === 'PRODUCT' && row.master.name.trim().toLowerCase() === name
+    (row) => ['PRODUCT', 'SKU'].includes(String(row.master?.kind ?? '')) && row.master!.name.trim().toLowerCase() === name
   );
   if (!byName?.master) return null;
   return {
@@ -197,8 +272,12 @@ function productForLine(line: TradingLine, existing: TradingEvent[]): MasterMeta
   };
 }
 
-function convertLine(line: TradingLine, existing: TradingEvent[]): { ok: true } | { ok: false; message: string } {
-  const product = productForLine(line, existing);
+function convertLine(
+  line: TradingLine,
+  existing: TradingEvent[],
+  refs?: TradingMasterRefs
+): { ok: true } | { ok: false; message: string } {
+  const product = productForLine(line, existing, refs);
   if (line.masterId && !product) return fail('Choose a product from the list.');
   const converted = toBaseQuantity(line.quantity, line.unit, product);
   if (!converted.ok) return fail(converted.message);
@@ -309,7 +388,7 @@ function validateSale(
       if (!line.itemName.trim() || !(num(line.quantity) > 0) || !String(line.unit ?? '').trim() || !(num(line.unitPrice) > 0)) {
         return fail('Each item needs a name, quantity, unit, and price.');
       }
-      const converted = convertLine(line, existing);
+      const converted = convertLine(line, existing, input.masterRefs);
       if (!converted.ok) return converted;
     }
     amount = lineTotal(lines);
@@ -353,7 +432,7 @@ function validateSale(
     amount: money(amount),
     parentEventId: input.parentEventId ?? null,
     quantity: mode === 'ITEMIZED'
-      ? money(lines.reduce((total, line) => total + lineBaseQuantity(line, productForLine(line, existing)), 0))
+      ? money(lines.reduce((total, line) => total + lineBaseQuantity(line, productForLine(line, existing, input.masterRefs)), 0))
       : null,
     contract,
     settleChild: state === 'PART_PAID' ? { type: 'COLLECTION', amount: money(received) } : null,
@@ -395,7 +474,7 @@ function validatePurchase(
   if (taxFx && !taxFx.ok) return taxFx;
   if (input.lines?.length) {
     for (const line of input.lines) {
-      const converted = convertLine(line, existing);
+      const converted = convertLine(line, existing, input.masterRefs);
       if (!converted.ok) return converted;
     }
   }
@@ -502,10 +581,47 @@ function validateStock(
   contract: OperatingContract
 ): RetailWriteResult | { ok: false; message: string } {
   if (!input.title.trim()) return fail('Choose an item.');
-  if (contract.stockAction !== 'SET' && contract.stockAction !== 'ADD' && contract.stockAction !== 'REDUCE') {
-    return fail('Choose set, add, or reduce.');
+  const action = contract.stockAction;
+  if (action !== 'SET' && action !== 'ADD' && action !== 'REDUCE' && action !== 'TRANSFER') {
+    return fail('Choose set, add, reduce, or transfer.');
   }
-  if (!(num(input.quantity) >= 0) || (contract.stockAction !== 'SET' && !(num(input.quantity) > 0))) {
+  if (action === 'TRANSFER') {
+    // A transfer moves the same quantity out of one location and into another; it
+    // must never read as a global gain or loss.
+    const from = String(contract.transferFromName ?? '').trim();
+    const to = String(contract.transferToName ?? '').trim();
+    if (!contract.transferFromMasterId && !from) {
+      return fail('Choose the location stock is leaving.');
+    }
+    if (!contract.transferToMasterId && !to) {
+      return fail('Choose the location stock is moving to.');
+    }
+    if (
+      contract.transferFromMasterId &&
+      contract.transferToMasterId &&
+      contract.transferFromMasterId === contract.transferToMasterId
+    ) {
+      return fail('Choose two different locations.');
+    }
+    if (!(num(input.quantity) > 0)) return fail('Quantity is required.');
+    if (!contract.stockReason) contract.stockReason = 'TRANSFER';
+    if (contract.ownership !== 'OWNED' && contract.ownership !== 'CONSIGNMENT') contract.ownership = 'OWNED';
+    for (const line of input.lines ?? []) {
+      if (!(num(line.quantity) > 0) || !String(line.unit ?? '').trim()) continue;
+      const converted = convertLine(line, existing, input.masterRefs);
+      if (!converted.ok) return converted;
+    }
+    return {
+      ok: true,
+      paymentStatus: 'NONE',
+      amount: null,
+      parentEventId: null,
+      quantity: money(num(input.quantity)),
+      contract,
+      settleChild: null,
+    };
+  }
+  if (!(num(input.quantity) >= 0) || (action !== 'SET' && !(num(input.quantity) > 0))) {
     return fail('Quantity is required.');
   }
   if (!contract.stockReason) return fail('Choose a reason.');
@@ -513,7 +629,7 @@ function validateStock(
   if (num(input.quantity) > 0) {
     for (const line of input.lines ?? []) {
       if (!(num(line.quantity) > 0) || !String(line.unit ?? '').trim()) continue;
-      const converted = convertLine(line, existing);
+      const converted = convertLine(line, existing, input.masterRefs);
       if (!converted.ok) return converted;
     }
   }
@@ -540,12 +656,20 @@ function validateOrder(
   if (!contract.orderStatus) contract.orderStatus = 'PLACED';
   if (!['PLACED', 'PREPARING', 'COMPLETED', 'CANCELLED'].includes(contract.orderStatus)) return fail('Choose an order status.');
   if (contract.orderSide !== 'SALES' && contract.orderSide !== 'PURCHASE') contract.orderSide = 'SALES';
+  if (contract.holdStatus && !['NONE', 'HELD', 'RELEASED'].includes(contract.holdStatus)) {
+    return fail('Choose whether this order is on hold.');
+  }
+  if (contract.holdStatus === 'HELD') {
+    // A held order is frozen: it keeps its place and its amount but cannot claim it was completed.
+    if (contract.orderStatus === 'COMPLETED') return fail('Release the hold before completing this order.');
+    if (!String(contract.holdReason ?? '').trim()) return fail('Add a reason for the hold.');
+  }
   if (input.lines?.length) {
     for (const line of input.lines) {
       if (!line.itemName.trim() || !(num(line.quantity) > 0) || !String(line.unit ?? '').trim()) {
         return fail('Each order line needs a name, quantity, and unit.');
       }
-      const converted = convertLine(line, existing);
+      const converted = convertLine(line, existing, input.masterRefs);
       if (!converted.ok) return converted;
     }
   }
@@ -564,7 +688,7 @@ function validateOrder(
     contract.taxStatus = savedStatus;
   }
   if (input.dueAt) contract.promisedAt = input.dueAt;
-  const lineQty = (input.lines ?? []).reduce((total, line) => total + lineBaseQuantity(line, productForLine(line, existing)), 0);
+  const lineQty = (input.lines ?? []).reduce((total, line) => total + lineBaseQuantity(line, productForLine(line, existing, input.masterRefs)), 0);
   return {
     ok: true,
     paymentStatus: 'NONE',
@@ -587,6 +711,13 @@ function validateShipment(
   }
   if (!['PLACED', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED'].includes(contract.shipmentStatus)) {
     return fail('Choose a shipment status.');
+  }
+  if (contract.holdStatus && !['NONE', 'HELD', 'RELEASED'].includes(contract.holdStatus)) {
+    return fail('Choose whether this dispatch is on hold.');
+  }
+  if (contract.holdStatus === 'HELD') {
+    if (contract.shipmentStatus === 'DELIVERED') return fail('Release the hold before marking this delivered.');
+    if (!String(contract.holdReason ?? '').trim()) return fail('Add a reason for the hold.');
   }
   if (input.parentEventId) {
     const parent = existing.find((row) => row.operatingEventId === input.parentEventId);
@@ -644,7 +775,7 @@ function validateReturn(
   }
   if (input.lines?.length) {
     for (const line of input.lines) {
-      const converted = convertLine(line, existing);
+      const converted = convertLine(line, existing, input.masterRefs);
       if (!converted.ok) return converted;
     }
   }
@@ -654,7 +785,7 @@ function validateReturn(
     amount: money(amount),
     parentEventId: parentId,
     quantity: qty > 0 ? money(qty) : input.lines?.length
-      ? money(input.lines.reduce((total, line) => total + lineBaseQuantity(line, productForLine(line, existing)), 0))
+      ? money(input.lines.reduce((total, line) => total + lineBaseQuantity(line, productForLine(line, existing, input.masterRefs)), 0))
       : null,
     contract,
     settleChild: null,
@@ -684,11 +815,25 @@ export function tradingStockPositions(events: TradingEvent[]): StockPosition[] {
   for (const { row } of ordered) {
     const reorder = row.contract?.reorderPoint;
     if (row.eventType === 'STOCK' && row.contract?.stockAction) {
-      const position = touch(row.title, row.unit ?? null);
+      const action = row.contract.stockAction;
+      if (action === 'TRANSFER') {
+        // Move, never net: the quantity leaves the source location and arrives at the
+        // destination location. Global on-hand is unchanged.
+        const qty = num(row.quantity);
+        if (!(qty > 0)) continue;
+        const from = String(row.contract.transferFromName ?? '').trim();
+        const to = String(row.contract.transferToName ?? '').trim();
+        const item = row.title.trim();
+        if (from) touch(`${item} @ ${from}`, row.unit ?? null).onHand -= qty;
+        if (to) touch(`${item} @ ${to}`, row.unit ?? null).onHand += qty;
+        continue;
+      }
+      const location = String(row.contract.locationName ?? '').trim();
+      const position = touch(location ? `${row.title.trim()} @ ${location}` : row.title, row.unit ?? null);
       if (reorder != null) position.reorderPoint = num(reorder);
       const qty = num(row.contract.declaredQuantity ?? row.quantity);
-      if (row.contract.stockAction === 'SET') position.onHand = qty;
-      else if (row.contract.stockAction === 'ADD') position.onHand += num(row.quantity);
+      if (action === 'SET') position.onHand = qty;
+      else if (action === 'ADD') position.onHand += num(row.quantity);
       else position.onHand -= num(row.quantity);
       continue;
     }

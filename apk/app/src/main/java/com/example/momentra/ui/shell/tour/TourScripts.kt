@@ -83,12 +83,6 @@ object TourScripts {
 
     fun businessMini(): List<TourStep> = listOf(
         TourStep(
-            id = "biz_company_first",
-            title = "Company first",
-            body = "Business Moments need a company. Set one up from the company menu before creating a Moment.",
-            target = TourTargetId.COMPANY_CHIP,
-        ),
-        TourStep(
             id = "biz_create_moment",
             title = "Then create a Moment",
             body = "Pick Marketing, Trading, Retail, or Manufacturing — Activate unlocks Pulse, Moments, Life, Memory, and Quick Adds.",

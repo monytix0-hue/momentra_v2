@@ -84,7 +84,7 @@ struct PersonalMasterExpenseSheet: View {
             )
             .presentationDetents([.large])
         }
-        .confirmationDialog("When", isPresented: $showWhenPicker, titleVisibility: .visible) {
+        .confirmationDialog("When", isPresented: $showWhenPicker, titleVisibility: Visibility.visible) {
             ForEach(PersonalMasterExpenseTheme.whenOptions, id: \.self) { opt in
                 Button(opt) { whenCode = opt }
             }

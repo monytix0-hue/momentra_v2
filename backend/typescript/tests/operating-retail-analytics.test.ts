@@ -862,7 +862,14 @@ describe('retail food consumer v4 GST and boundaries', () => {
       paymentRelevance: 'RECEIVABLE',
       contract: included.contract,
     });
-    const view = projectOperatingMoment({ familyCode: 'RETAIL_CONSUMER', prefs: kept, role: 'OWNER_ADMIN', events: [posted] });
+    // `gstPosition` only reads the current month, so pin the clock to the events' month.
+    const view = projectOperatingMoment({
+      familyCode: 'RETAIL_CONSUMER',
+      prefs: kept,
+      role: 'OWNER_ADMIN',
+      asOf: new Date('2026-10-18T00:00:00.000Z'),
+      events: [posted],
+    });
     assert.equal(view.finance?.sales, '952.3800');
     assert.equal(view.continuity.receivable, '1000.0000');
     assert.equal(view.gstPosition?.outputGst, '47.6200');

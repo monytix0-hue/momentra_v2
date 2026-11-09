@@ -98,12 +98,7 @@ extension MeBootstrap {
     }
 
     private static func companySummary(from item: CompanyItemPayload) -> CompanySummary {
-        let audience = (item.profileJson?[BusinessAudience.prefKey]?.value as? String)
-        if let audience {
-            BusinessAudience.saveForCompany(companyId: item.companyId, audience: audience)
-        }
-        CompanyModules.rehydrateFromProfile(companyId: item.companyId, profileJson: item.profileJson)
-        IndustryTemplateCatalog.rehydrateHubHint(companyId: item.companyId, profileJson: item.profileJson)
+        let audience = (item.profileJson?["audience"]?.value as? String)
         return CompanySummary(
             companyId: item.companyId,
             displayName: item.displayName,

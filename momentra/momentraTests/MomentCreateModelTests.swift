@@ -73,7 +73,7 @@ private final class FakeCreateGateway: MomentCreateGateway {
 
     func createBusinessSetup(
         draftKey: String,
-        companyId: String,
+        companyId: String?,
         familyCode: String,
         title: String,
         description: String?,
@@ -176,7 +176,7 @@ private final class FakeCreateGateway: MomentCreateGateway {
     }
 
     func previewCompanyInvite(code: String) async throws -> CompanyInvite {
-        try await mintCompanyInvite(companyId: "co1", membershipType: "MEMBER")
+        try await mintCompanyInvite(companyId: "co1", membershipType: "MEMBER", operatingRole: nil)
     }
 
     func redeemCompanyInvite(code: String) async throws -> RedeemCompanyInviteResult {

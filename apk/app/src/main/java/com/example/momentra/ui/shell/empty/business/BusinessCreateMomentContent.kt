@@ -1,26 +1,23 @@
 package com.example.momentra.ui.shell.empty.business
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,58 +27,123 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
-import com.example.momentra.ui.shell.business.shared.BusinessAudience
-import com.example.momentra.ui.shell.business.shared.CompanyModules
-import com.example.momentra.ui.shell.maestro.MaestroIds
+import com.example.momentra.ui.splash.MomentraWordmark
+import com.example.momentra.ui.theme.PlusJakartaSans
+import com.example.momentra.ui.theme.generated.BusinessIcons
 
-private val Bg = Color(0xFF0C0F15)
-private val Accent = Color(0xFF818CF8)
-private val Border = Color(0xFF1E293B)
-private val Card = Color(0xFF161B26)
-private val Muted = Color(0xFF94A3B8)
-private val Dim = Color(0xFF64748B)
+private val Page = Color(0xFF111113)
+private val ChoiceCard = Color(0xFF1B1B1E)
+private val ChoiceStroke = Color(0x1AFFFFFF)
+private val Emerald = Color(0xFF10B981)
+private val EmeraldWash = Color(0xFF10B981).copy(alpha = 0.07f)
+private val HeroFill = Color(0xFF18181B)
+private val HeroStroke = Color(0xFF053B29)
+private val TextPrimary = Color(0xFFF1F5F9)
+private val TextSecondary = Color(0xFFA7A7AE)
+private val CtaInk = Color(0xFF0E0E0E)
 
-private enum class BizCreateTab { Moment, Memory }
-
-private data class BizCategory(
-    val title: String,
-    val body: String,
+/** One guided business choice: card identity plus the preview it unlocks. */
+private data class BizChoice(
+    val kind: BusinessSetupKind,
+    val caption: String,
     @DrawableRes val icon: Int,
-    @DrawableRes val card: Int,
-    val comingSoon: Boolean,
-    val setupKind: BusinessSetupKind? = null,
-    val testTag: String? = null,
+    val promise: String,
+    val description: String,
+    val capabilities: List<Pair<Int, String>>,
+) {
+    val eyebrow: String
+        get() = when (kind) {
+            BusinessSetupKind.MARKETING_CAMPAIGNS -> "YOUR MARKETING MOMENT"
+            BusinessSetupKind.TRADING_DISTRIBUTION -> "YOUR TRADING MOMENT"
+            BusinessSetupKind.RETAIL_CONSUMER -> "YOUR RETAIL MOMENT"
+            BusinessSetupKind.MANUFACTURING_PRODUCTION -> "YOUR MANUFACTURING MOMENT"
+        }
+}
+
+private fun iconRes(key: String): Int = BusinessIcons.res(key) ?: R.drawable.ic_biz_layers
+
+private val BizChoices: List<BizChoice> = listOf(
+    BizChoice(
+        kind = BusinessSetupKind.MARKETING_CAMPAIGNS,
+        caption = "Ads, promotions & leads",
+        icon = iconRes("megaphone"),
+        promise = "Built for the way you promote.",
+        description = "Plan campaigns, track leads, and keep every approval in one place.",
+        capabilities = listOf(
+            iconRes("wallet") to "Campaign budgets",
+            iconRes("target") to "Lead tracking",
+            iconRes("users") to "Client retainers",
+            iconRes("badge-check") to "Creative approvals",
+        ),
+    ),
+    BizChoice(
+        kind = BusinessSetupKind.TRADING_DISTRIBUTION,
+        caption = "Bulk buying & selling",
+        icon = iconRes("truck"),
+        promise = "Built for the way you trade.",
+        description = "Buy in bulk, sell across counters, and keep stock, dispatch and collections in step.",
+        capabilities = listOf(
+            iconRes("package") to "Purchase & stock",
+            iconRes("truck") to "Sales & dispatch",
+            iconRes("wallet") to "Collections & ledger",
+            iconRes("route") to "Shipments & tracking",
+        ),
+    ),
+    BizChoice(
+        kind = BusinessSetupKind.RETAIL_CONSUMER,
+        caption = "Shop & counter sales",
+        icon = iconRes("store"),
+        promise = "Built for the way you sell.",
+        description = "Run counter sales, keep stock honest, and close the day with cash that matches.",
+        capabilities = listOf(
+            iconRes("store") to "POS / counter sales",
+            iconRes("package") to "Inventory & stock",
+            iconRes("users") to "Customer tabs",
+            iconRes("receipt") to "Daily cash close",
+        ),
+    ),
+    BizChoice(
+        kind = BusinessSetupKind.MANUFACTURING_PRODUCTION,
+        caption = "Batch & job work",
+        icon = iconRes("factory"),
+        promise = "Built for the way you make.",
+        description = "Make products in batches from raw materials or manage made-to-order job work.",
+        capabilities = listOf(
+            iconRes("clipboard-list") to "Quotes & job orders",
+            iconRes("factory") to "Production & WIP",
+            iconRes("layers") to "BOM & materials",
+            iconRes("receipt-text") to "Invoices against orders",
+        ),
+    ),
 )
 
-private data class BizMemory(
-    val title: String,
-    val body: String,
-    val tag: String,
-    val date: String,
-    val dot: Color,
-)
-
-/** Figma 658:9451 + 658:9573 — Business Create / Choose Moment & Memory */
+/**
+ * Figma 2943:9075 — Create a moment · Guided business selection.
+ *
+ * The top bar "+" opens this screen directly for Business: pick a kind, read what the moment
+ * will include, then Continue into the four-step setup wizard for that kind.
+ */
 @Composable
 fun BusinessCreateMomentContent(
     onBack: () -> Unit,
@@ -89,445 +151,365 @@ fun BusinessCreateMomentContent(
     companyId: String? = null,
     modifier: Modifier = Modifier,
 ) {
-    var tab by remember { mutableStateOf(BizCreateTab.Moment) }
-    var search by remember { mutableStateOf("") }
-    var filter by remember { mutableStateOf("All") }
-    val context = LocalContext.current
-    val showRetailTagline = remember(companyId) {
-        BusinessAudience.isSmallShop(BusinessAudience.forCompany(context, companyId))
-    }
-
-    val categories = remember(showRetailTagline, companyId) {
-        val live = BusinessSetupKind.entries.map { kind ->
-            BizCategory(
-                kind.title,
-                kind.body,
-                R.drawable.ic_biz_create_layers,
-                R.drawable.ic_biz_create_card_project,
-                false,
-                kind,
-                kind.maestroTag,
-            )
-        }
-        val all = live
-        all.filter { cat ->
-            val kind = cat.setupKind ?: return@filter true
-            val key = CompanyModules.moduleKeyForSetupKind(kind) ?: return@filter true
-            CompanyModules.isEnabled(context, companyId, key)
-        }
-    }
-    val memories = remember { emptyList<BizMemory>() }
-    val filters = listOf("All", "Revenue", "Team", "Strategy", "Projects", "Expenses")
-    val filtered = memories.filter {
-        (filter == "All" || it.tag == filter) &&
-            (search.isBlank() || it.title.contains(search, true) || it.body.contains(search, true))
-    }
+    var selected by remember { mutableStateOf(BusinessSetupKind.MANUFACTURING_PRODUCTION) }
+    val choice = BizChoices.first { it.kind == selected }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Bg)
-            .verticalScroll(rememberScrollState())
-            .padding(top = 12.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+            .background(Page),
     ) {
+        Header(onBack = onBack)
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
         ) {
-            Box(
-                modifier = Modifier
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Border),
+            Question(
+                selected = selected,
+                onSelect = { selected = it },
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = if (tab == BizCreateTab.Moment) "Choose a Moment" else "Choose a Memory",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                    modifier = Modifier.weight(1f),
-                )
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (tab == BizCreateTab.Moment) Border else Card)
-                        .clickable(onClick = onBack)
-                        .semantics {
-                            role = Role.Button
-                            contentDescription = "Close"
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_biz_create_x),
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-            if (showRetailTagline) {
-                Text(
-                    text = "Built for shops and small teams in India.",
-                    color = Muted,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
+            BusinessPreview(choice)
         }
 
-        if (!showRetailTagline) {
-            TabSwitcher(tab = tab, onSelect = { tab = it })
-        }
-
-        if (tab == BizCreateTab.Moment || showRetailTagline) {
-            MomentBody(
-                categories = categories,
-                onSelect = onSelectSetup,
-                hideAiSuggest = showRetailTagline,
-            )
-        } else {
-            MemoryBody(
-                search = search,
-                onSearch = { search = it },
-                filter = filter,
-                filters = filters,
-                onFilter = { filter = it },
-                memories = filtered,
-            )
-        }
+        ContinueAction(
+            caption = "You can change this later in Manage moment.",
+            onClick = { onSelectSetup(choice.kind) },
+        )
     }
 }
 
 @Composable
-private fun TabSwitcher(tab: BizCreateTab, onSelect: (BizCreateTab) -> Unit) {
-    val pill = tab == BizCreateTab.Moment
+private fun Header(onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .clip(RoundedCornerShape(if (pill) 100.dp else 12.dp))
-            .border(1.dp, Border, RoundedCornerShape(if (pill) 100.dp else 12.dp))
-            .background(if (pill) Color(0xFF111520) else Card)
-            .padding(4.dp),
+            .height(52.dp)
+            .padding(start = 24.dp, end = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        listOf(BizCreateTab.Moment to "Create a Moment", BizCreateTab.Memory to "Choose a Memory").forEach { (value, label) ->
-            val selected = tab == value
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(if (pill) 100.dp else 8.dp))
-                    .background(if (selected) Accent else Color.Transparent)
-                    .clickable { onSelect(value) }
-                    .padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = label,
-                    color = when {
-                        selected && pill -> Bg
-                        selected -> Color.White
-                        else -> Muted
-                    },
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MomentBody(
-    categories: List<BizCategory>,
-    onSelect: (BusinessSetupKind) -> Unit,
-    hideAiSuggest: Boolean = false,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .border(1.dp, Border, RoundedCornerShape(20.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Accent.copy(alpha = 0.145f), Card.copy(alpha = 0f), Card),
-                    ),
-                )
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                "Run every part of your business with clarity.",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 24.sp,
-                lineHeight = 31.sp,
-            )
-            Text(
-                "Create moments to track operations, revenue, strategy, and growth — all in one place.",
-                color = Muted,
-                fontSize = 14.sp,
-                lineHeight = 21.sp,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(modifier = Modifier.width(24.dp).height(2.dp).clip(RoundedCornerShape(1.dp)).background(Accent))
-                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Accent.copy(alpha = 0.35f)))
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                "Choose the part of the business you want to manage.",
-                color = Muted,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-            )
-            categories.forEach { CategoryCard(it, onSelect = onSelect) }
-        }
-
-        if (!hideAiSuggest) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                Text("Not sure where to start? ", color = Muted, fontSize = 14.sp)
-                Text(
-                    "Let AI suggest →",
-                    color = Accent,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                    style = TextStyle(textDecoration = TextDecoration.Underline),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CategoryCard(item: BizCategory, onSelect: (BusinessSetupKind) -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(110.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, Border, RoundedCornerShape(16.dp))
-            .then(if (item.comingSoon) Modifier.alpha(0.6f) else Modifier)
-            .then(
-                if (!item.comingSoon && item.setupKind != null) {
-                    val kind = item.setupKind
-                    Modifier
-                        .then(item.testTag?.let { Modifier.testTag(it) } ?: Modifier)
-                        .clickable { onSelect(kind) }
-                } else Modifier
-            ),
-    ) {
-        Image(
-            painter = painterResource(item.card),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
+        MomentraWordmark(
+            showTagline = false,
+            titleSizeSp = 21f,
+            alignStart = true,
+            modifier = Modifier.weight(1f),
         )
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(Card, Card.copy(alpha = 0.93f), Card.copy(alpha = 0.4f)),
-                    ),
-                ),
-        )
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
+                .size(44.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .clickable(role = Role.Button, onClick = onBack)
+                .semantics {
+                    contentDescription = "Close creation"
+                    role = Role.Button
+                },
+            contentAlignment = Alignment.Center,
         ) {
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Accent.copy(alpha = 0.13f))
-                        .border(1.dp, Accent, RoundedCornerShape(10.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(painterResource(item.icon), null, Modifier.size(20.dp))
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(item.title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                    Text(item.body, color = Muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
+            Canvas(modifier = Modifier.size(12.dp)) {
+                val stroke = 1.5.dp.toPx()
+                drawLine(
+                    color = TextPrimary,
+                    start = Offset(0f, 0f),
+                    end = Offset(size.width, size.height),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = TextPrimary,
+                    start = Offset(size.width, 0f),
+                    end = Offset(0f, size.height),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round,
+                )
             }
-            Box(
-                modifier = Modifier
-                    .width(44.dp)
-                    .fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Image(painterResource(R.drawable.ic_biz_create_chevron), null, Modifier.size(16.dp))
-            }
-        }
-        if (item.comingSoon) {
-            Text(
-                text = "Coming Soon",
-                color = Color(0xFF98A3B8),
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 9.sp,
-                letterSpacing = 0.5.sp,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 9.dp, end = 12.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0x994D4D59))
-                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            )
         }
     }
 }
 
 @Composable
-private fun MemoryBody(
-    search: String,
-    onSearch: (String) -> Unit,
-    filter: String,
-    filters: List<String>,
-    onFilter: (String) -> Unit,
-    memories: List<BizMemory>,
+private fun Question(
+    selected: BusinessSetupKind,
+    onSelect: (BusinessSetupKind) -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = 24.dp)
+            .padding(top = 20.dp, bottom = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, Border, RoundedCornerShape(12.dp))
-                .background(Card)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Image(painterResource(R.drawable.ic_biz_memory_search), null, Modifier.size(18.dp))
-            BasicTextField(
-                value = search,
-                onValueChange = onSearch,
-                singleLine = true,
-                textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
-                cursorBrush = SolidColor(Accent),
-                modifier = Modifier.weight(1f),
-                decorationBox = { inner ->
-                    if (search.isEmpty()) {
-                        Text("Search memories...", color = Dim, fontSize = 14.sp)
-                    }
-                    inner()
-                },
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            filters.forEach { chip ->
-                val selected = filter == chip
-                Text(
-                    text = chip,
-                    color = if (selected) Accent else Muted,
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .then(if (selected) Modifier else Modifier.background(Card))
-                        .border(1.dp, if (selected) Accent else Border, RoundedCornerShape(20.dp))
-                        .clickable { onFilter(chip) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        }
-
-        Text("RECENT MEMORIES", color = Dim, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, letterSpacing = 0.8.sp)
-
-        if (memories.isEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "No memories yet",
-                color = Muted,
-                fontSize = 14.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Card)
-                    .border(1.dp, Border, RoundedCornerShape(16.dp))
-                    .padding(16.dp),
+                text = "What kind of\nbusiness do you run?",
+                color = TextPrimary,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 32.sp,
+                lineHeight = 40.sp,
             )
-        } else {
-            memories.forEach { MemoryCard(it) }
+            Text(
+                text = "Choose a type. We’ll tailor your moment.",
+                color = TextSecondary,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Normal,
+                fontSize = 14.sp,
+                lineHeight = 22.sp,
+            )
+        }
+        // 2x2 grid, 10dp between columns and rows, matching the Figma category pairs.
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            BizChoices.chunked(2).forEach { pair ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    pair.forEach { choice ->
+                        BusinessChoice(
+                            choice = choice,
+                            isSelected = choice.kind == selected,
+                            onSelect = { onSelect(choice.kind) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun MemoryCard(item: BizMemory) {
+private fun BusinessChoice(
+    choice: BizChoice,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .height(126.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .then(
+                if (isSelected) {
+                    Modifier
+                        .background(EmeraldWash)
+                        .border(1.5.dp, Emerald, RoundedCornerShape(12.dp))
+                } else {
+                    Modifier
+                        .background(ChoiceCard)
+                        .border(1.dp, ChoiceStroke, RoundedCornerShape(12.dp))
+                },
+            )
+            .testTag(choice.kind.maestroTag)
+            .clickable(role = Role.RadioButton, onClick = onSelect)
+            .semantics {
+                role = Role.RadioButton
+                this.selected = isSelected
+                contentDescription = "${choice.kind.title}. ${choice.caption}"
+            }
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Image(
+                painter = painterResource(choice.icon),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(if (isSelected) Emerald else TextSecondary),
+                modifier = Modifier.size(19.dp),
+            )
+            SelectionIndicator(isSelected = isSelected)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = choice.kind.title,
+                color = TextPrimary,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                maxLines = 2,
+            )
+            Text(
+                text = choice.caption,
+                color = TextSecondary,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Normal,
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+            )
+        }
+    }
+}
+
+/** Unselected is a 17dp hairline ring; selected is an 18dp emerald disc with a dark check. */
+@Composable
+private fun SelectionIndicator(isSelected: Boolean) {
+    if (!isSelected) {
+        Box(
+            modifier = Modifier
+                .size(17.dp)
+                .border(1.5.dp, Color(0x59FFFFFF), CircleShape),
+        )
+        return
+    }
+    Canvas(modifier = Modifier.size(18.dp)) {
+        drawCircle(color = Emerald)
+        val unit = size.minDimension / 18f
+        val check = Path().apply {
+            moveTo(4f * unit, 9.5f * unit)
+            lineTo(7.5f * unit, 12.5f * unit)
+            lineTo(14f * unit, 5.5f * unit)
+        }
+        drawPath(
+            path = check,
+            color = CtaInk,
+            style = Stroke(
+                width = 1.8f * unit,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun BusinessPreview(choice: BizChoice) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, Border, RoundedCornerShape(16.dp))
-            .background(Card)
-            .padding(16.dp),
+            .padding(horizontal = 24.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(HeroFill)
+                .border(1.dp, HeroStroke, RoundedCornerShape(18.dp))
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = choice.eyebrow,
+                    color = Emerald,
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.sp,
+                    lineHeight = 16.sp,
+                    letterSpacing = 1.sp,
+                )
+                Text(
+                    text = choice.promise,
+                    color = TextPrimary,
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    lineHeight = 28.sp,
+                )
+                Text(
+                    text = choice.description,
+                    color = TextSecondary,
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Color(0x1AFFFFFF)),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                choice.capabilities.chunked(2).forEach { pair ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        pair.forEach { (icon, label) ->
+                            Capability(icon = icon, label = label, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Capability(
+    @DrawableRes icon: Int,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.height(40.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Image(
+            painter = painterResource(icon),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            colorFilter = ColorFilter.tint(Emerald),
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = label,
+            color = TextPrimary,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.Normal,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+        )
+    }
+}
+
+@Composable
+private fun ContinueAction(caption: String, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(item.dot))
-            Text(item.title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Text(item.body, color = Muted, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(Border))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Emerald)
+                .clickable(role = Role.Button, onClick = onClick)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "Continue"
+                },
+            contentAlignment = Alignment.Center,
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = item.tag.uppercase(),
-                    color = Muted,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 11.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Border)
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                )
-                Text(item.date, color = Dim, fontSize = 12.sp)
-            }
-            Image(painterResource(R.drawable.ic_biz_memory_bookmark), null, Modifier.size(16.dp))
+            Text(
+                text = "Continue",
+                color = CtaInk,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 17.sp,
+            )
         }
+        Text(
+            text = caption,
+            color = TextSecondary,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.Normal,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }

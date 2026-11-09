@@ -17,6 +17,10 @@ import * as businessService from '../../modules/business/service';
 import * as businessMembership from '../../modules/business/membership';
 import * as businessSetupService from '../../modules/business/setup-service';
 import * as operatingService from '../../modules/business/operating-service';
+import * as operatingMasters from '../../modules/business/operating-masters';
+import { GST_STATES, normalizeGstState, gstStateName } from '../../modules/business/operating-gst-states';
+import { validateGstin } from '../../modules/business/operating-gstin';
+import { HSN_LOOKUP_NOTE, searchHsn } from '../../modules/business/operating-hsn';
 import * as businessFinanceService from '../../modules/finance/business-finance';
 import * as businessOpsPrecision from '../../modules/business/operations-precision';
 import * as businessClosureWriters from '../../modules/business/business-closure-writers';
@@ -523,6 +527,142 @@ v1Router.patch('/companies/:companyId/locations/:locationId', requireIdempotency
     next(e);
   }
 });
+
+v1Router.get('/companies/:companyId/operating-masters', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const query = req.query as Record<string, string | string[] | undefined>;
+    const kind = query.kind == null ? undefined : param(query.kind);
+    const search = query.search == null ? undefined : param(query.search);
+    const momentId = query.momentId == null ? undefined : param(query.momentId);
+    const data = await withDb((client) =>
+      operatingMasters.listOperatingMasters(client, ctx, param(req.params.companyId), {
+        kind,
+        search,
+        momentId,
+        includeArchived: param(query.includeArchived ?? '') === 'true',
+      })
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post('/companies/:companyId/operating-masters', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(operatingMasters.createOperatingMasterSchema, stripNulls(req.body));
+    const data = await withDb((client) =>
+      operatingMasters.createOperatingMaster(client, ctx, param(req.params.companyId), body)
+    );
+    res.status(201).json(commandEnvelope(data, ctx.correlationId, { resourceVersion: data.version }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.patch(
+  '/companies/:companyId/operating-masters/:masterId',
+  requireIdempotencyKey,
+  async (req, res, next) => {
+    try {
+      const ctx = req.requestContext!;
+      const body = parseBody(operatingMasters.updateOperatingMasterSchema, stripNulls(req.body));
+      const data = await withDb((client) =>
+        operatingMasters.updateOperatingMaster(
+          client,
+          ctx,
+          param(req.params.companyId),
+          param(req.params.masterId),
+          body
+        )
+      );
+      res.json(commandEnvelope(data, ctx.correlationId, { resourceVersion: data.version }));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+v1Router.delete(
+  '/companies/:companyId/operating-masters/:masterId',
+  requireIdempotencyKey,
+  async (req, res, next) => {
+    try {
+      const ctx = req.requestContext!;
+      const body = parseBody(operatingMasters.archiveOperatingMasterSchema, stripNulls(req.body));
+      const data = await withDb((client) =>
+        operatingMasters.archiveOperatingMaster(
+          client,
+          ctx,
+          param(req.params.companyId),
+          param(req.params.masterId),
+          body.expectedVersion
+        )
+      );
+      res.json(commandEnvelope(data, ctx.correlationId, { resourceVersion: data.version }));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+v1Router.get('/companies/:companyId/operating-price-lists', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const query = req.query as Record<string, string | string[] | undefined>;
+    const data = await withDb((client) =>
+      operatingMasters.listPriceLists(client, ctx, param(req.params.companyId), {
+        momentId: query.momentId == null ? undefined : param(query.momentId),
+        includeArchived: param(query.includeArchived ?? '') === 'true',
+      })
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post(
+  '/companies/:companyId/operating-price-lists',
+  requireIdempotencyKey,
+  async (req, res, next) => {
+    try {
+      const ctx = req.requestContext!;
+      const body = parseBody(operatingMasters.createPriceListSchema, stripNulls(req.body));
+      const data = await withDb((client) =>
+        operatingMasters.createPriceList(client, ctx, param(req.params.companyId), body)
+      );
+      res.status(201).json(commandEnvelope(data, ctx.correlationId, { resourceVersion: data.version }));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+v1Router.patch(
+  '/companies/:companyId/operating-price-lists/:priceListId',
+  requireIdempotencyKey,
+  async (req, res, next) => {
+    try {
+      const ctx = req.requestContext!;
+      const body = parseBody(operatingMasters.updatePriceListSchema, stripNulls(req.body));
+      const data = await withDb((client) =>
+        operatingMasters.updatePriceList(
+          client,
+          ctx,
+          param(req.params.companyId),
+          param(req.params.priceListId),
+          body
+        )
+      );
+      res.json(commandEnvelope(data, ctx.correlationId, { resourceVersion: data.version }));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 v1Router.get('/companies/:companyId/teams', async (req, res, next) => {
   try {
@@ -1315,6 +1455,55 @@ v1Router.get('/business/setups', async (req, res, next) => {
   }
 });
 
+/**
+ * The canonical GST state list, so a client that predates the bundled registry can still offer a
+ * correct picker without a store release.
+ */
+v1Router.get('/business/gst/states', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = {
+      states: GST_STATES.map((s) => ({ code: s.code, name: s.name, type: s.type })),
+    };
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * HSN search. `q` matches a code prefix or a description; a blank query returns the codes the
+ * trading verticals sell most, so the sheet is never empty on open.
+ */
+v1Router.get('/business/gst/hsn', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const q = String(req.query.q ?? '');
+    const limit = Number(req.query.limit ?? 25);
+    const data = {
+      query: q,
+      results: searchHsn(q, Number.isFinite(limit) ? limit : 25),
+      note: HSN_LOOKUP_NOTE,
+    };
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** Validate a GSTIN against the state it claims, without writing anything. */
+v1Router.get('/business/gst/validate-gstin', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const gstin = String(req.query.gstin ?? '');
+    const state = String(req.query.state ?? '');
+    const result = validateGstin(gstin, normalizeGstState(state)?.code ?? null);
+    res.json(projectionEnvelope({ ...result, state: gstStateName(state) }, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
 v1Router.post('/business/setups/:familyCode/activate', requireIdempotencyKey, async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
@@ -1353,6 +1542,23 @@ v1Router.get('/business/moments/:momentId/operating', async (req, res, next) => 
     const ctx = req.requestContext!;
     const data = await withDb((client) =>
       operatingService.getOperatingProjection(client, ctx, param(req.params.momentId))
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * Derived GSTR-1 / GSTR-3B summaries for one month. Read-only and explicitly not a filed return;
+ * the payload carries that caveat in `note`.
+ */
+v1Router.get('/business/moments/:momentId/gst/returns', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const month = typeof req.query.month === 'string' ? req.query.month : undefined;
+    const data = await withDb((client) =>
+      operatingService.getOperatingGstReturns(client, ctx, param(req.params.momentId), month)
     );
     res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {
@@ -1448,6 +1654,29 @@ v1Router.post(
         },
       });
       res.status(201).json(commandEnvelope(result, ctx.correlationId));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+v1Router.get(
+  '/business/moments/:momentId/operating-events/:eventId/document',
+  async (req, res, next) => {
+    try {
+      const ctx = req.requestContext!;
+      const kindRaw = String(req.query.kind ?? 'INVOICE').toUpperCase();
+      const kind = kindRaw === 'CHALLAN' ? 'CHALLAN' : 'INVOICE';
+      const data = await withDb((client) =>
+        operatingService.getOperatingDocument(
+          client,
+          ctx,
+          param(req.params.momentId),
+          param(req.params.eventId),
+          kind
+        )
+      );
+      res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
     } catch (e) {
       next(e);
     }
@@ -1875,6 +2104,32 @@ v1Router.get('/moments/:momentId/setup', async (req, res, next) => {
       momentService.getDomainSetupPrefill(client, ctx, param(req.params.momentId))
     );
     res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.patch('/moments/:momentId/business-setup', requireIdempotencyKey, async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const body = parseBody(momentService.updateBusinessSetupDraftSchema, req.body);
+    const result = await runCommand({
+      operationCode: 'BUSINESS_SETUP_DRAFT_UPDATE',
+      idempotencyKey: req.idempotencyKey!,
+      body,
+      ctx,
+      resourceType: 'BUSINESS_SYSTEM_SETUP',
+      execute: async (client, b) => {
+        const r = await momentService.updateBusinessSetupDraft(
+          client,
+          ctx,
+          param(req.params.momentId),
+          b as momentService.UpdateBusinessSetupDraftInput
+        );
+        return { result: r, resourceId: r.setupId ?? r.momentId };
+      },
+    });
+    res.json(commandEnvelope(result, ctx.correlationId, { resourceVersion: result.version }));
   } catch (e) {
     next(e);
   }

@@ -43,6 +43,11 @@ import com.example.momentra.ui.shell.business.trading.TradingActive
 import com.example.momentra.ui.shell.business.service.ConsumerServiceActive
 import com.example.momentra.ui.shell.business.retail.RetailStoreActive
 import com.example.momentra.ui.theme.PlusJakartaSans
+import com.example.momentra.ui.shell.business.appstate.AppStateErrorCodePill
+import com.example.momentra.ui.shell.business.appstate.AppStateEyebrow
+import com.example.momentra.ui.shell.business.appstate.AppStateGlassCard
+import com.example.momentra.ui.shell.business.appstate.AppStateSecondaryButton
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateTokens
 
 private val Bg = Color(0xFF0C0F15)
 private val Card = Color(0xFF161B26)
@@ -80,6 +85,11 @@ fun OperatingMomentPage(
     refreshToken: Int,
     onCreateMoment: () -> Unit,
     onOpenQuickAdd: () -> Unit = {},
+    /** Opens the Pulse "Needs Attention" view-all sheet (app-state kit ViewAll variant). */
+    onViewAllAttention: () -> Unit = {},
+    /** Moves the shell to another moment; the `Switch Moment` sheet delegates here. */
+    onSwitchMoment: ((String) -> Unit)? = null,
+    companyId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     if (momentId.isNullOrBlank()) {
@@ -96,6 +106,8 @@ fun OperatingMomentPage(
     val repo = remember { BusinessSliceRepository() }
     val activeMomentId = momentId
     androidx.compose.runtime.SideEffect {
+        OperatingChromeState.momentId = activeMomentId
+        OperatingChromeState.onSwitchMoment = onSwitchMoment
         OperatingChromeState.record = { draft ->
             repo.recordOperatingEvent(
                 activeMomentId,
@@ -129,7 +141,7 @@ fun OperatingMomentPage(
             )
         }
     }
-    LaunchedEffect(momentId, refreshToken, tick) {
+    LaunchedEffect(momentId, refreshToken, tick, OperatingChromeState.refresh) {
         repo.getOperating(momentId).fold(
             onSuccess = {
                 OperatingProjectionCache.put(momentId, it)
@@ -141,6 +153,25 @@ fun OperatingMomentPage(
                 if (projection == null) error = it.message ?: "Could not load this moment"
             },
         )
+    }
+    // The shared chrome sheets (masters, story, pickers) take the vertical's palette.
+    androidx.compose.runtime.SideEffect {
+        when (projection?.subtype) {
+            "DISTRIBUTION_DEALERSHIP" -> {
+                OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.distribution.DistBrand
+                OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.distribution.DistBg
+                OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.distribution.DistBorder
+                OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.distribution.DistInk
+                OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.distribution.DistSecondary
+            }
+            else -> {
+                OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.trading.TradeBrand
+                OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.trading.TradeBg
+                OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.trading.TradeBorder
+                OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.trading.TradeInk
+                OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.trading.TradeSecondary
+            }
+        }
     }
     val model = projection
     if (model?.retired == true) {
@@ -422,6 +453,7 @@ fun OperatingMomentPage(
                     onFailure = { error = it.message },
                 )
             },
+            companyId = companyId,
             modifier = modifier,
         )
         return
@@ -557,10 +589,20 @@ fun OperatingMomentPage(
             Text(model.role?.replace('_', ' ') ?: "", color = familyAccent(model.familyCode), fontSize = 12.sp, fontFamily = PlusJakartaSans)
         }
         if (error != null && model == null) {
-            Text(error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans)
+            AppStateGlassCard(accent = BusinessAppStateTokens.ErrorRing, strokeAlpha = 0.40f) {
+                AppStateEyebrow("COULDN'T LOAD THIS MOMENT", BusinessAppStateTokens.ErrorRing)
+                Text(
+                    text = error ?: "",
+                    color = Color.White.copy(alpha = 0.70f),
+                    fontSize = 13.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+                AppStateErrorCodePill(code = "MOMENT_DETAIL_FAILED", accent = BusinessAppStateTokens.ErrorRing)
+                AppStateSecondaryButton(label = "Retry", onClick = { tick += 1 })
+            }
         }
         when (tab) {
-            OperatingTab.PULSE -> PulseBlocks(model)
+            OperatingTab.PULSE -> PulseBlocks(model, onViewAllAttention)
             OperatingTab.MOMENTS -> BoardSections(model?.boards?.moments, momentsHeading(model?.familyCode))
             OperatingTab.LIFE -> BoardSections(model?.boards?.life, "How this moment connects")
             OperatingTab.MEMORY -> BoardSections(model?.boards?.memory, "What stays")
@@ -648,7 +690,7 @@ private fun BoardSections(sections: List<OperatingBoardSectionDto>?, heading: St
 }
 
 @Composable
-private fun PulseBlocks(model: OperatingProjectionDto?) {
+private fun PulseBlocks(model: OperatingProjectionDto?, onViewAllAttention: () -> Unit = {}) {
     val budget = model?.budget
     if (model?.financeVisible == true && budget != null) {
         InfoCard("Budget", "${budget.remaining} left of ${budget.amount} ${model.currency.orEmpty()}")
@@ -665,6 +707,8 @@ private fun PulseBlocks(model: OperatingProjectionDto?) {
     model?.attention?.forEach { InfoCard(it.kind, it.title) }
     if (model?.attention.isNullOrEmpty()) {
         InfoCard("Needs Attention", "Nothing is waiting.")
+    } else {
+        AppStateSecondaryButton(label = "View all", onClick = onViewAllAttention)
     }
     val recent = model?.activity.orEmpty().take(5)
     if (recent.isNotEmpty()) {
@@ -782,7 +826,7 @@ private fun InfoCard(label: String, body: String) {
 }
 
 @Composable
-internal fun OperatingChromeSheets(model: OperatingProjectionDto) {
+internal fun OperatingChromeSheets(model: OperatingProjectionDto, companyId: String? = null) {
     val editing = OperatingChromeState.editing
     val settling = OperatingChromeState.settling
     val record = OperatingChromeState.record
@@ -824,4 +868,85 @@ internal fun OperatingChromeSheets(model: OperatingProjectionDto) {
             },
         )
     }
+
+    // Story config — `TRD-MEMORY-v12` / `DST-MEMORY-v12` Memory-tab CTA.
+    val storyId = OperatingChromeState.momentId
+    if (OperatingChromeState.storyConfigOpen && storyId != null) {
+        OperatingSheetScrim(
+            onDismiss = { OperatingChromeState.storyConfigOpen = false },
+            accent = OperatingChromeState.storyAccent,
+            surface = OperatingChromeState.storySurface,
+            border = OperatingChromeState.storyBorder,
+        ) {
+            if (model.subtype == "DISTRIBUTION_DEALERSHIP") {
+                com.example.momentra.ui.shell.business.distribution.DistributionStoryConfigSheet(
+                    model = model,
+                    momentId = storyId,
+                    theme = OperatingChromeState.storyTheme(),
+                    onDismiss = { OperatingChromeState.storyConfigOpen = false },
+                )
+            } else {
+                com.example.momentra.ui.shell.business.trading.TradingStoryConfigSheet(
+                    model = model,
+                    momentId = storyId,
+                    theme = OperatingChromeState.storyTheme(),
+                    onDismiss = { OperatingChromeState.storyConfigOpen = false },
+                )
+            }
+        }
+    }
+
+    // Masters — opened from Quick Add or a view-all sheet.
+    val mastersTab = OperatingChromeState.mastersOpen
+    val mastersMomentId = OperatingChromeState.momentId
+    if (mastersTab != null && mastersMomentId != null) {
+        val tab = OperatingMasterTab.entries.firstOrNull { it.name == mastersTab } ?: OperatingMasterTab.Catalogue
+        OperatingSheetScrim(
+            onDismiss = { OperatingChromeState.mastersOpen = null },
+            accent = OperatingChromeState.storyAccent,
+            surface = OperatingChromeState.storySurface,
+            border = OperatingChromeState.storyBorder,
+        ) {
+            OperatingMastersSheet(
+                tab = tab,
+                model = model,
+                context = OperatingMasterContext(
+                    companyId = companyId,
+                    momentId = mastersMomentId,
+                    onChanged = { OperatingChromeState.refresh += 1 },
+                ),
+                theme = OperatingChromeState.storyTheme(),
+                onClose = { OperatingChromeState.mastersOpen = null },
+            )
+        }
+    }
+
+    // `Switch Moment` — `TRD-SWITCH 2566:33577`. Selecting a moment is delegated to the
+    // shell so this sheet never navigates on its own.
+    if (OperatingChromeState.switchMomentOpen) {
+        OperatingSheetScrim(
+            onDismiss = { OperatingChromeState.switchMomentOpen = false },
+            accent = OperatingChromeState.storyAccent,
+            surface = OperatingChromeState.storySurface,
+            border = OperatingChromeState.storyBorder,
+        ) {
+            OperatingSwitchMomentSheet(
+                currentMomentId = OperatingChromeState.momentId,
+                theme = OperatingChromeState.storyTheme(),
+                onDismiss = { OperatingChromeState.switchMomentOpen = false },
+                onSelect = {
+                    OperatingChromeState.switchMomentOpen = false
+                    OperatingChromeState.onSwitchMoment?.invoke(it)
+                },
+            )
+        }
+    }
 }
+
+/** The eight chapters the backend composes for each vertical. */
+internal val TRADING_STORY_PAGES = listOf(
+    "Moment", "Motion", "Orders", "Money", "Stock", "Network", "Attention", "So far",
+)
+internal val DISTRIBUTION_STORY_PAGES = listOf(
+    "Moment", "Motion", "Dealers", "Money", "Stock", "Network", "Attention", "So far",
+)

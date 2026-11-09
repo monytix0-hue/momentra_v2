@@ -145,6 +145,8 @@ struct JSONEncodableValue: Encodable {
                 try container.encode(dict)
             case let dict as [String: Any]:
                 try container.encode(JSONEncodableValue.map(dict))
+            case let rows as [[String: String]]:
+                try container.encode(rows.map { JSONEncodableValue.map($0) })
             case let numbers as [String]:
                 try container.encode(numbers)
             case let numbers as [Any]:

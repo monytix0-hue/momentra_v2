@@ -4,10 +4,6 @@ import UIKit
 struct MomentraTopBar: View {
     let context: AppContextKind
     let displayName: String?
-    let companies: [CompanySummary]
-    let selectedCompany: CompanySummary?
-    @Binding var companyMenuOpen: Bool
-    var onCompanySelected: (CompanySummary) -> Void
     var onQrScan: (() -> Void)? = nil
     var onLife360: () -> Void = {}
     var onNewMoment: () -> Void = {}
@@ -16,19 +12,18 @@ struct MomentraTopBar: View {
     var onAvatar: () -> Void
     var referAvailable: Bool = true
     var unreadNotificationCount: Int = 0
-    var locationName: String? = nil
-
-    /// Figma: company chip only when Business + selected company (`692:34971`).
-    private var showCompanyChip: Bool {
-        context == .business && selectedCompany != nil
-    }
 
     private var showsQrScan: Bool {
         (context == .group || context == .business) && onQrScan != nil
     }
 
+    /// Business opens the Moments list; every other context creates a single new Moment.
     private var createLabel: String {
-        showCompanyChip ? "Moments" : "New"
+        context == .business ? "Moments" : "New"
+    }
+
+    private var createAccessibilityLabel: String {
+        context == .business ? "Open moments" : "Create moment"
     }
 
     private let actionBg = Color(hex: "#1C233D")
@@ -36,18 +31,12 @@ struct MomentraTopBar: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            HStack(spacing: 8) {
-                MomentraWordmark(
-                    showTagline: true,
-                    titleSize: 16,
-                    taglineSize: 5.5,
-                    alignStart: true
-                )
-
-                if showCompanyChip {
-                    companyChip
-                }
-            }
+            MomentraWordmark(
+                showTagline: true,
+                titleSize: 16,
+                taglineSize: 5.5,
+                alignStart: true
+            )
 
             Spacer(minLength: 8)
 
@@ -84,7 +73,7 @@ struct MomentraTopBar: View {
                     labeledAction(
                         caption: createLabel,
                         bg: GlobalTheme.createMomentCta,
-                        a11y: showCompanyChip ? "Open moments" : "Create moment",
+                        a11y: createAccessibilityLabel,
                         id: "topbar.new_moment",
                         captionColor: .white.opacity(0.92),
                         action: onNewMoment
@@ -157,36 +146,6 @@ struct MomentraTopBar: View {
         .background(GlobalTheme.topBarBackground)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("topbar.root")
-    }
-
-    private var companyChipTitle: String {
-        let company = selectedCompany?.displayName ?? "Company"
-        guard let locationName, !locationName.isEmpty else { return company }
-        return "\(company) · \(locationName)"
-    }
-
-    private var companyChip: some View {
-        Button {
-            companyMenuOpen = true
-        } label: {
-            HStack(spacing: 6) {
-                Text(companyChipTitle)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(MomentraBrandTokens.textOnDark)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(MomentraBrandTokens.textOnDark.opacity(0.8))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color(hex: "#1E293B"), in: RoundedRectangle(cornerRadius: 8))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(
-            selectedCompany.map { "Selected company \($0.displayName)" } ?? "Company selector"
-        )
-        .accessibilityIdentifier("company.switcher")
     }
 
     private func labeledAction<Content: View>(
@@ -486,10 +445,6 @@ struct MomentSwitcherView: View {
 struct ShellToolbarContent: ToolbarContent {
     let context: AppContextKind
     let displayName: String?
-    let companies: [CompanySummary]
-    let selectedCompany: CompanySummary?
-    let showCompanyMenu: Bool
-    var onCompanySelect: (CompanySummary) -> Void
     var onQrScan: (() -> Void)?
     var onLife360: () -> Void
     var onNewMoment: () -> Void
@@ -503,21 +458,6 @@ struct ShellToolbarContent: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
             MomentraWordmark(showTagline: false, titleSize: 16, taglineSize: 6, alignStart: true)
-        }
-
-        ToolbarItem(placement: .principal) {
-            if showCompanyMenu, let selectedCompany {
-                Menu {
-                    ForEach(companies) { company in
-                        Button(company.displayName) { onCompanySelect(company) }
-                    }
-                } label: {
-                    Label(selectedCompany.displayName, systemImage: "building.2")
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                }
-                .accessibilityIdentifier("company.switcher")
-            }
         }
 
         ToolbarItemGroup(placement: .topBarTrailing) {

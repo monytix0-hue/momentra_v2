@@ -107,6 +107,9 @@ private enum class TradingSheet(
     ROLE("Add or invite person", "UPDATE", false, false, true, null),
     INVITE("Add or invite person", "UPDATE", false, false, true, null),
     SUPPLIER("Add Supplier", "UPDATE", false, false, true, null),
+    HOLD("Hold / release order", "ORDER", false, false, false, null),
+    TRANSFER("Transfer stock", "STOCK", false, false, false, null),
+    REPRINT("Reprint invoice / challan", "SALE", false, false, false, null),
 }
 
 @Composable
@@ -229,6 +232,9 @@ fun TradingQuickAddHub(
     )
     Text("Support & management", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     val support = listOf(
+        Triple(TradingSheet.HOLD, "Hold / release", if ("ORDER" in allowed) null else "Moments only"),
+        Triple(TradingSheet.TRANSFER, "Transfer stock", if ("STOCK" in allowed) null else "Stock only"),
+        Triple(TradingSheet.REPRINT, "Reprint document", if ("SALE" in allowed) null else "Sales only"),
         Triple(TradingSheet.REIMBURSE, "Reimbursement", if ("PAYMENT" in allowed) null else "Finance only"),
         Triple(null, "Approval review", if (approver) null else "Approver only"),
         Triple(TradingSheet.PERSON, "Add person", if (owner && "UPDATE" in allowed) null else "Owner only"),
@@ -352,6 +358,9 @@ private val TradingSheet.hubIcon: Int
         TradingSheet.ROLE -> R.drawable.qa_users
         TradingSheet.INVITE -> R.drawable.qa_qr
         TradingSheet.SUPPLIER -> R.drawable.qa_network
+        TradingSheet.HOLD -> R.drawable.qa_shield
+        TradingSheet.TRANSFER -> R.drawable.qa_truck
+        TradingSheet.REPRINT -> R.drawable.qa_receipt
     }
 
 @Composable
@@ -408,6 +417,9 @@ private val TradingSheet.captureMode: String
         TradingSheet.ROLE -> "ROLE"
         TradingSheet.INVITE -> "INVITE"
         TradingSheet.SUPPLIER -> "SUPPLIER"
+        TradingSheet.HOLD -> "HOLD"
+        TradingSheet.TRANSFER -> "TRANSFER"
+        TradingSheet.REPRINT -> "REPRINT"
     }
 
 private fun OperatingCaptureDraft.toTrading() = TradingEventDraft(

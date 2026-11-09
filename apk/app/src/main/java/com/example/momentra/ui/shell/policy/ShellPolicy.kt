@@ -7,7 +7,7 @@ import com.example.momentra.domain.MomentSummary
 import com.example.momentra.domain.ShellContentState
 import com.example.momentra.domain.isActiveStatus
 
-/** Central MomentSwitcher / CompanySwitcher visibility — do not scatter in screens. */
+/** Central MomentSwitcher visibility — do not scatter in screens. */
 object ShellVisibilityPolicy {
     fun showMomentSwitcher(
         context: AppContext,
@@ -26,8 +26,6 @@ object ShellVisibilityPolicy {
         return activeMomentCount > 0 &&
             (context == AppContext.PERSONAL || context == AppContext.GROUP || context == AppContext.BUSINESS)
     }
-
-    fun showCompanySwitcher(context: AppContext, companies: List<CompanySummary>): Boolean = false
 }
 
 data class ShellInvariantInput(

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="92dp"
+    android:height="92dp"
+    android:viewportWidth="92"
+    android:viewportHeight="92">
+    <path
+        android:pathData="M92 46C92 71.4051 71.4051 92 46 92C20.5949 92 0 71.4051 0 46C0 20.5949 20.5949 0 46 0C71.4051 0 92 20.5949 92 46ZM8.28 46C8.28 66.8322 25.1678 83.72 46 83.72C66.8322 83.72 83.72 66.8322 83.72 46C83.72 25.1678 66.8322 8.28 46 8.28C25.1678 8.28 8.28 25.1678 8.28 46Z"
+        android:fillColor="#FFFFFF"
+    />
+</vector>

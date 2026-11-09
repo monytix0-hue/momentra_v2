@@ -1,26 +1,56 @@
 import SwiftUI
 
-enum BusinessEmptyTokens {
-    static let accent = Color(hex: "#818CF8")
-    static let textPrimary = Color(hex: "#F1F5F9")
-    static let textSecondary = Color(hex: "#CBD5E1")
-    static let textMuted = Color(hex: "#64748B")
-    static let cardFill = Color.white.opacity(0.08)
-    static let cardStroke = Color.white.opacity(0.10)
-    static let iconWell = Color(hex: "#818CF8").opacity(0.10)
+// Domain-aware Business empty screen tokens
+struct BusinessEmptyTokens {
+    let accent: Color
+    let textPrimary: Color
+    let textSecondary: Color
+    let textMuted: Color
+    let cardFill: Color
+    let cardStroke: Color
+    let iconWell: Color
+
+    init(domain: BusinessDomain = .corporate) {
+        let domainAccent = BusinessTokens.Colors.accent(for: domain)
+        self.accent = domainAccent
+        self.textPrimary = BusinessTokens.Colors.textPrimary
+        self.textSecondary = BusinessTokens.Colors.textSecondary
+        self.textMuted = BusinessTokens.Colors.textMuted
+        self.cardFill = Color.white.opacity(0.08)
+        self.cardStroke = Color.white.opacity(0.10)
+        self.iconWell = domainAccent.opacity(0.10)
+    }
+
+    // MARK: - Static compatibility accessors
+    //
+    // The token set was a `static enum` before it became a domain-aware instance struct. Call
+    // sites that have no domain context (the Business create flow) still read the corporate
+    // palette statically, so these forward to a shared corporate instance. Instance members keep
+    // precedence at type scope, so `tokens.accent` and `BusinessEmptyTokens.accent` coexist.
+
+    static let corporate = BusinessEmptyTokens(domain: .corporate)
+
+    static var accent: Color { corporate.accent }
+    static var textPrimary: Color { corporate.textPrimary }
+    static var textSecondary: Color { corporate.textSecondary }
+    static var textMuted: Color { corporate.textMuted }
+    static var cardFill: Color { corporate.cardFill }
+    static var cardStroke: Color { corporate.cardStroke }
+    static var iconWell: Color { corporate.iconWell }
 }
 
 struct BusinessEmptyPill: View {
     let label: String
+    var tokens: BusinessEmptyTokens = .corporate
 
     var body: some View {
         Text(label.uppercased())
             .font(.plusJakarta(size: 11, weight: .bold))
-            .foregroundStyle(BusinessEmptyTokens.accent)
+            .foregroundStyle(tokens.accent)
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(BusinessEmptyTokens.accent.opacity(0.10))
-            .overlay(Capsule().stroke(BusinessEmptyTokens.accent, lineWidth: 1))
+            .background(tokens.iconWell)
+            .overlay(Capsule().stroke(tokens.accent, lineWidth: 1))
             .clipShape(Capsule())
     }
 }
@@ -28,17 +58,18 @@ struct BusinessEmptyPill: View {
 struct BusinessEmptyHeadline: View {
     let title: String
     let bodyText: String
+    var tokens: BusinessEmptyTokens = .corporate
 
     var body: some View {
         VStack(spacing: 10) {
             Text(title)
                 .font(.plusJakarta(size: 32, weight: .bold))
-                .foregroundStyle(BusinessEmptyTokens.textPrimary)
+                .foregroundStyle(tokens.textPrimary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
             Text(bodyText)
                 .font(.plusJakarta(size: 14))
-                .foregroundStyle(BusinessEmptyTokens.textSecondary)
+                .foregroundStyle(tokens.textSecondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
         }
@@ -47,22 +78,23 @@ struct BusinessEmptyHeadline: View {
 
 struct BusinessEmptyCTA: View {
     let label: String
+    var tokens: BusinessEmptyTokens = .corporate
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Text(label)
                 .font(.plusJakarta(size: 15, weight: .semibold))
-                .foregroundStyle(BusinessEmptyTokens.textPrimary)
+                .foregroundStyle(tokens.textPrimary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(BusinessEmptyTokens.accent.opacity(0.15))
+                .background(tokens.accent.opacity(0.15))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(BusinessEmptyTokens.accent, lineWidth: 1.5)
+                        .stroke(tokens.accent, lineWidth: 1.5)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 12))
-                .shadow(color: BusinessEmptyTokens.accent.opacity(0.20), radius: 6, y: 4)
+                .shadow(color: tokens.accent.opacity(0.20), radius: 6, y: 4)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)

@@ -17,10 +17,6 @@ enum ShellVisibilityPolicy {
         }
         return activeMomentCount > 0 && (context == .personal || context == .group || context == .business)
     }
-
-    static func showCompanySwitcher(context: AppContextKind, companies: [CompanySummary]) -> Bool {
-        false
-    }
 }
 
 struct ShellInvariantInput {
@@ -56,6 +52,9 @@ enum ShellStateInvariants {
             healed = true
         }
 
+        // Business moments share one catalog and are no longer company-scoped, so
+        // the company is deliberately not part of the healed business selection.
+        // `AppShellModel` keeps the user's company choice in its own inventory.
         let companyId: String? = nil
         if input.selectedCompanyId != nil { healed = true }
 

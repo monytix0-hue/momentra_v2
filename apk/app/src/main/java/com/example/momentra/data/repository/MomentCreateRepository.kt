@@ -11,6 +11,8 @@ import com.example.momentra.data.api.CreateMomentResultDto
 import com.example.momentra.data.api.GroupInviteDto
 import com.example.momentra.data.api.MintGroupInviteBody
 import com.example.momentra.data.api.GroupSetupBlockDto
+import com.example.momentra.data.api.PatchBusinessSetupDraftBody
+import com.example.momentra.data.api.PatchBusinessSetupDraftResultDto
 import com.example.momentra.data.api.PersonalSetupBlockDto
 import com.example.momentra.data.api.mapHttpFailure
 import retrofit2.HttpException
@@ -117,6 +119,22 @@ class MomentCreateRepository(
                 placeholder = queuedMoment("GROUP", title, status),
                 mapError = { it },
             )
+    }
+
+    suspend fun updateBusinessSetupDraft(
+        momentId: String,
+        preferences: Map<String, Any>,
+        title: String? = null,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<PatchBusinessSetupDraftResultDto> {
+        val body = PatchBusinessSetupDraftBody(title = title, preferences = preferences)
+        return runCatching {
+            api.patchBusinessSetupDraft(
+                momentId = momentId,
+                idempotencyKey = idempotencyKey,
+                body = body,
+            ).data
+        }.recoverCatching { e -> throw mapCreateError(e) }
     }
 
     suspend fun activateMoment(momentId: String): Result<CreateMomentResultDto> = runCatching {

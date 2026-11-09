@@ -15,7 +15,6 @@ final class AppShellModel: ObservableObject {
     @Published var showMomentSwitcher = false
     @Published var bottomDestination: BottomDestination = .pulse
     private(set) var lastNonCreateDestination: BottomDestination = .moments
-    @Published var companyMenuOpen = false
     @Published var life360Open = false
     @Published var profileOpen = false
     @Published private(set) var contextContent: ShellContentState = .idle
@@ -127,7 +126,6 @@ final class AppShellModel: ObservableObject {
         lastNonCreateDestination = .moments
         tabByContext = [:]
         selectedMomentByContext = [:]
-        companyMenuOpen = false
         life360Open = false
         profileOpen = false
         contextContent = .idle
@@ -138,7 +136,6 @@ final class AppShellModel: ObservableObject {
         ttcsMs = nil
         PersonalTabDataCache.clear()
         GroupTabDataCache.clear()
-        BusinessTabDataCache.clear()
         groupPrefetchTask?.cancel()
         businessPrefetchTask?.cancel()
         APIClient.shared.clearAuthTokenCache()
@@ -238,7 +235,6 @@ final class AppShellModel: ObservableObject {
         selectedMomentTitle = nil
         selectedMomentTypeCode = nil
         showMomentSwitcher = false
-        companyMenuOpen = false
         moments = []
         momentExperience = .loading
         if context != .business {
@@ -319,8 +315,7 @@ final class AppShellModel: ObservableObject {
             || code.hasPrefix("FUTURE_")
             || code.hasPrefix("LIFESTYLE")
             || code.hasPrefix("RELATIONSHIP")
-        let business = OperatingMomentCatalog.kind(for: code) != nil
-            || OperatingMomentCatalog.isRetired(code)
+        let business = false
         switch context {
         case .personal: return personal
         case .group: return !personal && !business
@@ -433,7 +428,20 @@ final class AppShellModel: ObservableObject {
             ? [.personal, .group, .business, .circle]
             : boot.supportedContexts
         selectedContext = healed.selectedContext
-        selectedCompany = companyPool.first { $0.companyId == healed.selectedCompanyId }
+        // `heal` deliberately drops the company for business (business moments share
+        // one catalog). Keep the user's explicit choice when it is still in the
+        // inventory, so a company the user just picked survives a bootstrap that
+        // omits it instead of silently reverting to the server default.
+        let healedCompany = companyPool.first { $0.companyId == healed.selectedCompanyId }
+        if let healedCompany {
+            selectedCompany = healedCompany
+        } else if selectedContext != .business {
+            selectedCompany = nil
+        } else if let current = selectedCompany, companyPool.contains(where: { $0.companyId == current.companyId }) {
+            // Retain the current selection — it is still a known company.
+        } else {
+            selectedCompany = companyPool.first { $0.companyId == boot.selectedCompany?.companyId }
+        }
         let previousById = Dictionary(uniqueKeysWithValues: moments.map { ($0.momentId, $0) })
         // Preserve known type codes when bootstrap omits them (legacy group inventory).
         moments = healed.moments.map { m in
@@ -828,9 +836,6 @@ final class AppShellModel: ObservableObject {
     func refreshVisibleBusinessTab(forcePrefetch: Bool = false) {
         let momentId = selectedMomentId
         let typeCode = selectedMomentTypeCode
-        if let momentId, !momentId.isEmpty {
-            BusinessTabLoad.invalidate(momentId: momentId)
-        }
         businessTabRefreshToken &+= 1
         prefetchBusinessTabs(for: momentId, momentTypeCode: typeCode)
         ShellPerf.instant(
@@ -846,12 +851,6 @@ final class AppShellModel: ObservableObject {
 
     /// Warm bundled pulse so Business tabs paint without spinners.
     private func prefetchBusinessTabs(for momentId: String?, momentTypeCode: String? = nil) {
-        guard let momentId, !momentId.isEmpty else { return }
-        businessPrefetchTask?.cancel()
-        let code = momentTypeCode ?? selectedMomentTypeCode
-        businessPrefetchTask = Task {
-            await BusinessTabPrefetch.run(momentId: momentId, momentTypeCode: code)
-        }
     }
 
     /// Redeem invite code then select the joined Moment on Pulse.
@@ -924,19 +923,24 @@ final class AppShellModel: ObservableObject {
         selectBottomDestination(lastNonCreateDestination)
     }
 
-    func toggleCompanyMenu(_ open: Bool? = nil) {
-        companyMenuOpen = open ?? !companyMenuOpen
-    }
-
     func selectCompany(_ company: CompanySummary?) {
         // Atomic company switch: clear invalid Moment, re-filter inventory by companyId, bump refresh.
         selectedCompany = company
+        // Keep the selected company in the inventory so the company menu always
+        // lists what is currently active — a bootstrap that omits it must not
+        // leave the selection unreachable in `companies`.
+        if let company {
+            if companies.contains(where: { $0.companyId == company.companyId }) {
+                companies = companies.map { $0.companyId == company.companyId ? company : $0 }
+            } else {
+                companies = [company] + companies
+            }
+        }
         selectedMomentId = nil
         selectedMomentTitle = nil
         selectedMomentTypeCode = nil
         selectedMomentByContext[.business] = nil
         showMomentSwitcher = false
-        companyMenuOpen = false
         moments = []
         generation &+= 1
         if company == nil {
@@ -963,7 +967,6 @@ final class AppShellModel: ObservableObject {
         bottomDestination = .create
         contextContent = .empty
         momentExperience = .firstMoment
-        companyMenuOpen = false
         refreshVisibleBusinessTab()
         Task { _ = try? await gateway.getBootstrap() }
     }

@@ -42,8 +42,8 @@ fun MomentSummary.isShellProductStatus(): Boolean =
 
 fun resolveMomentExperience(moments: List<MomentSummary>): MomentExperienceKind {
     if (moments.isEmpty()) return MomentExperienceKind.FIRST_MOMENT
-    val hasProduct = moments.any { it.isShellProductStatus() }
-    if (hasProduct) return MomentExperienceKind.ACTIVE
+    val hasActive = moments.any { it.isActiveStatus() }
+    if (hasActive) return MomentExperienceKind.ACTIVE
     val hasPaused = moments.any { it.isPausedStatus() }
     val hasHistory = moments.any { it.isHistoricalStatus() || !it.isPausedStatus() }
     return when {

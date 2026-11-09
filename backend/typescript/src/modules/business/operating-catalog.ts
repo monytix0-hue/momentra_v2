@@ -41,6 +41,10 @@ import {
   obligationRemaining as tradingObligationRemaining,
 } from './operating-trading-contract';
 import { accumulateGstPosition, type GstPosition } from './operating-gst';
+import { normalizeGstState, gstStateCodeOf } from './operating-gst-states';
+import { validateGstin } from './operating-gstin';
+import type { OperatingMasterRecord } from './operating-masters';
+import { applyTradingBoardMetrics, tradingPulseMetrics } from './operating-board-metrics';
 import {
   channelCoverage,
   isMarketingSubtype,
@@ -405,7 +409,10 @@ export interface OperatingPreferences {
   targetMetric: string;
   gstTracking: string;
   gstRegistration: string;
+  /** The canonical full state name (`'Maharashtra'`), never the bare code. */
   gstState: string;
+  /** The two-digit GST state code derived from `gstState`; `''` when unresolved. */
+  gstStateCode: string;
   gstin: string;
   salePriceIncludesGst: string;
   purchasePriceIncludesGst: string;
@@ -434,33 +441,46 @@ function positiveAmount(value: unknown): string | undefined {
   return n.toFixed(4);
 }
 
+/**
+ * Normalise a setup payload into the stored preference shape.
+ *
+ * `options.draft` marks a half-filled setup document: a draft is incomplete by definition, so
+ * the required-field guards are relaxed and every missing value is stored as empty rather than
+ * rejecting the write. Activation always normalises strictly, so an incomplete setup can never
+ * become an ACTIVE moment.
+ */
 export function normalizeOperatingPreferences(
   familyCode: OperatingFamilyCode,
   input: Record<string, unknown> | undefined,
-  creator: { userId: string; displayName: string }
+  creator: { userId: string; displayName: string },
+  options: { draft?: boolean } = {}
 ): OperatingPreferences {
+  const draft = options.draft === true;
   const prefs = input ?? {};
   const subtype = String(prefs.subtype ?? '').toUpperCase();
   const sub = subtypeDef(familyCode, subtype);
   if (!sub) {
-    throw new Error(`Unknown subtype for ${familyCode}: ${subtype || '(missing)'}`);
+    if (!draft) throw new Error(`Unknown subtype for ${familyCode}: ${subtype || '(missing)'}`);
   }
   const identityName = String(prefs.identityName ?? prefs.title ?? '').trim();
   const partyName = String(prefs.partyName ?? '').trim();
-  if (!identityName) throw new Error('Moment name is required.');
-  if (!partyName) throw new Error(`${sub.partyLabel} name is required.`);
+  if (!draft) {
+    if (!identityName) throw new Error('Moment name is required.');
+    if (!partyName) throw new Error(`${sub!.partyLabel} name is required.`);
+  }
   const monthlyBudget = positiveAmount(prefs.monthlyBudget) ?? '';
   const monthlyTarget = positiveAmount(prefs.monthlyTarget) ?? '';
-  if (familyCode === 'MARKETING_CAMPAIGNS') {
-    if (!monthlyBudget) throw new Error('Monthly budget must be a positive amount.');
-  } else if (familyCode !== 'RETAIL_CONSUMER') {
-    if (!monthlyBudget) throw new Error('Monthly budget must be a positive amount.');
-    if (!monthlyTarget) throw new Error('Monthly target must be a positive amount.');
+  if (!draft) {
+    if (familyCode === 'MARKETING_CAMPAIGNS') {
+      if (!monthlyBudget) throw new Error('Monthly budget must be a positive amount.');
+    } else if (familyCode !== 'RETAIL_CONSUMER') {
+      if (!monthlyBudget) throw new Error('Monthly budget must be a positive amount.');
+      if (!monthlyTarget) throw new Error('Monthly target must be a positive amount.');
+    }
   }
-  const targetMetric = String(prefs.targetMetric ?? sub.targetMetrics[0]).toUpperCase();
-  if (!sub.targetMetrics.includes(targetMetric)) {
-    throw new Error(`Target measure must be one of ${sub.targetMetrics.join(', ')}.`);
-  }
+  const requestedMetric = String(prefs.targetMetric ?? '').toUpperCase();
+  const fallbackMetrics = sub?.targetMetrics ?? ['REVENUE', 'ORDERS', 'CUSTOM_COUNT'];
+  const targetMetric = fallbackMetrics.includes(requestedMetric) ? requestedMetric : fallbackMetrics[0];
   const channels = Array.isArray(prefs.channels)
     ? prefs.channels.map((c) => String(c).trim()).filter(Boolean)
     : [];
@@ -468,12 +488,12 @@ export function normalizeOperatingPreferences(
   const tradeReach = Array.isArray(prefs.tradeReach)
     ? [...new Set(prefs.tradeReach.map((item) => String(item).trim()).filter((item) => reachAllowed.has(item)))]
     : [];
-  if (sub.requiresChannel && channels.length === 0) {
+  if (!draft && sub?.requiresChannel && channels.length === 0) {
     throw new Error('Select at least one channel.');
   }
   const startDate = String(prefs.startDate ?? '').slice(0, 10);
   const endDate = String(prefs.endDate ?? '').slice(0, 10);
-  if (familyCode === 'MARKETING_CAMPAIGNS') {
+  if (!draft && familyCode === 'MARKETING_CAMPAIGNS') {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
       throw new Error('Campaign start date is required.');
     }
@@ -532,7 +552,7 @@ export function normalizeOperatingPreferences(
     monthlyBudget,
     monthlyTarget,
     targetMetric,
-    ...normalizeGstPreferences(familyCode, prefs),
+    ...normalizeGstPreferences(familyCode, prefs, draft),
     ...normalizeMarketingPreferences(familyCode, subtype, prefs),
   };
 }
@@ -584,28 +604,59 @@ function gstChoice(value: unknown, allowed: string[]): string {
 
 function normalizeGstPreferences(
   familyCode: OperatingFamilyCode,
-  prefs: Record<string, unknown>
+  prefs: Record<string, unknown>,
+  draft: boolean
 ): Pick<
   OperatingPreferences,
-  'gstTracking' | 'gstRegistration' | 'gstState' | 'gstin' | 'salePriceIncludesGst' | 'purchasePriceIncludesGst' | 'gstEffectiveFrom'
+  | 'gstTracking'
+  | 'gstRegistration'
+  | 'gstState'
+  | 'gstStateCode'
+  | 'gstin'
+  | 'salePriceIncludesGst'
+  | 'purchasePriceIncludesGst'
+  | 'gstEffectiveFrom'
 > {
   if (familyCode !== 'TRADING_DISTRIBUTION' && familyCode !== 'RETAIL_CONSUMER' && familyCode !== 'MANUFACTURING_PRODUCTION') {
     return {
       gstTracking: '',
       gstRegistration: '',
       gstState: '',
+      gstStateCode: '',
       gstin: '',
       salePriceIncludesGst: '',
       purchasePriceIncludesGst: '',
       gstEffectiveFrom: '',
     };
   }
+
+  // The state is stored as its canonical name plus the code the jurisdiction compare needs.
+  // An unknown spelling is preserved verbatim on a draft (the operator is mid-document) but
+  // rejected on activation, where it would silently mis-tax every invoice.
+  const requestedState = String(prefs.gstState ?? '').trim();
+  const resolvedState = normalizeGstState(requestedState);
+  if (requestedState && !resolvedState && !draft) {
+    throw new Error(
+      `"${requestedState}" is not an Indian state or union territory. Pick one from the list.`
+    );
+  }
+
+  // The GSTIN is validated strictly on activation. A draft keeps whatever has been typed so a
+  // half-entered number is not lost between saves.
+  const requestedGstin = String(prefs.gstin ?? '').trim().toUpperCase();
+  let gstin = requestedGstin;
+  if (requestedGstin && !draft) {
+    const checked = validateGstin(requestedGstin, resolvedState?.code ?? null);
+    if (!checked.ok) throw new Error(checked.message);
+  }
+
   const effective = String(prefs.gstEffectiveFrom ?? '').trim();
   return {
     gstTracking: gstChoice(prefs.gstTracking, ['YES', 'NOT_NOW']),
     gstRegistration: gstChoice(prefs.gstRegistration, ['REGULAR', 'COMPOSITION', 'UNREGISTERED', 'NOT_SURE']),
-    gstState: String(prefs.gstState ?? '').trim(),
-    gstin: String(prefs.gstin ?? '').trim(),
+    gstState: resolvedState?.name ?? requestedState,
+    gstStateCode: resolvedState?.code ?? '',
+    gstin,
     salePriceIncludesGst: gstChoice(prefs.salePriceIncludesGst, ['YES', 'NO']),
     purchasePriceIncludesGst: gstChoice(prefs.purchasePriceIncludesGst, ['YES', 'NO']),
     gstEffectiveFrom: /^\d{4}-\d{2}-\d{2}$/.test(effective) ? effective : '',
@@ -645,6 +696,8 @@ export interface OperatingLine {
   quantity?: string | null;
   unit?: string | null;
   unitPrice?: string | null;
+  discount?: string | null;
+  gstRate?: string | null;
   masterId?: string | null;
   baseQuantity?: string | null;
 }
@@ -687,6 +740,8 @@ export interface OperatingProjection {
   participants: string[];
   masters: Array<{
     id: string;
+    /** MASTER rows are table-backed and editable; EVENT rows are the legacy fallback. */
+    source?: 'MASTER' | 'EVENT';
     kind: string;
     name: string;
     unit: string | null;
@@ -707,6 +762,13 @@ export interface OperatingProjection {
     billingState?: string | null;
     deliveryState?: string | null;
     gstin?: string | null;
+    code?: string | null;
+    sellPrice?: string | null;
+    mrp?: string | null;
+    purchasePrice?: string | null;
+    parentMasterId?: string | null;
+    status?: string | null;
+    momentId?: string | null;
   }>;
   location: string;
   budget: { amount: string; spent: string; remaining: string; configured: boolean } | null;
@@ -765,11 +827,15 @@ export interface OperatingProjection {
   gstTracking: string;
   gstRegistration: string;
   gstState: string;
+  /** The two-digit GST state code behind `gstState`; `''` when the saved name is unresolved. */
+  gstStateCode: string;
   gstEffectiveFrom: string;
   salePriceIncludesGst: string;
   purchasePriceIncludesGst: string;
   gstPosition: GstPosition | null;
   marketing: MarketingInsight | null;
+  /** Quantified tiles for the six Pulse surfaces, keyed by section. */
+  pulseMetrics?: import('./operating-board-metrics').OperatingPulseMetricGroup[] | null;
 }
 
 export interface MarketingInsight {
@@ -799,6 +865,9 @@ export interface OperatingBoardRow {
   paymentStatus: string | null;
   approvalStatus: string | null;
   note: string | null;
+  /** Open / Part / Overdue / Settled / Done — the Figma status chip. */
+  badge?: string | null;
+  subtitle?: string | null;
 }
 
 export interface OperatingFinanceTotals {
@@ -832,12 +901,24 @@ export interface OperatingContinuity {
   conversionRate: string | null;
 }
 
+export interface OperatingBoardMetric {
+  key: string;
+  label: string;
+  value: string;
+  unit: string | null;
+  tone: 'NORMAL' | 'WARNING' | 'POSITIVE';
+}
+
 export interface OperatingBoardSection {
   code: string;
   title: string;
   detail: string;
   rows: OperatingBoardRow[];
   coverage?: string | null;
+  /** Quantified tiles the v12 frames show instead of parsing `detail`. */
+  metrics?: OperatingBoardMetric[];
+  /** Figma "Why: ..." footnote. Only explains a gap, never restates the tiles. */
+  why?: string | null;
 }
 
 function num(value: string | null | undefined): number {
@@ -1120,12 +1201,100 @@ function readinessAmount(row: OperatingEventRow, events: OperatingEventRow[]): n
   return num(row.amount);
 }
 
+/**
+ * Table masters first, then legacy event-derived masters that have no table
+ * counterpart, deduped on `(kind, lower(name))`. A moment created before V099 keeps
+ * rendering its masters; a renamed event master does not shadow the table row.
+ */
+function companyMasters(
+  masterRows: OperatingMasterRecord[] | undefined,
+  events: OperatingEventRow[]
+): OperatingProjection['masters'] {
+  const mapped: OperatingProjection['masters'] = [];
+  const seen = new Set<string>();
+  const keyOf = (kind: string, name: string) => `${kind.toUpperCase()}::${name.trim().toLowerCase()}`;
+  for (const row of masterRows ?? []) {
+    if (row.status === 'ARCHIVED') continue;
+    const key = keyOf(row.kind, row.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    mapped.push({
+      id: row.id,
+      source: 'MASTER',
+      kind: row.kind,
+      name: row.name,
+      unit: row.unit,
+      dimension: row.dimension,
+      conversionToBase: row.conversionToBase,
+      tracked: row.tracked,
+      barcode: row.barcode,
+      gstApplicable: row.gstApplicable,
+      gstClassification: row.gstClassification,
+      gstRate: row.gstRate,
+      priceIncludesGst: row.priceIncludesGst,
+      salePriceIncludesGst: row.salePriceIncludesGst,
+      purchasePriceIncludesGst: row.purchasePriceIncludesGst,
+      gstEffectiveFrom: row.gstEffectiveFrom,
+      hsn: row.hsn,
+      gstRegistration: null,
+      businessState: row.businessState,
+      billingState: row.billingState,
+      deliveryState: row.deliveryState,
+      gstin: row.gstin,
+      code: row.code,
+      sellPrice: row.sellPrice,
+      mrp: row.mrp,
+      purchasePrice: row.purchasePrice,
+      parentMasterId: row.parentMasterId,
+      status: row.status,
+      momentId: row.momentId,
+    });
+  }
+  for (const row of events) {
+    if (!row.master || row.approvalStatus === 'REJECTED') continue;
+    const key = keyOf(row.master.kind, row.master.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    mapped.push({
+      id: row.operatingEventId,
+      source: 'EVENT',
+      kind: row.master.kind,
+      name: row.master.name,
+      unit: row.master.unit ?? null,
+      dimension: row.master.dimension ?? null,
+      conversionToBase: row.master.conversionToBase ?? null,
+      tracked: row.master.tracked ?? null,
+      barcode: row.master.barcode ?? null,
+      gstApplicable: row.master.gstApplicable ?? null,
+      gstClassification: row.master.gstClassification ?? null,
+      gstRate: row.master.gstRate ?? null,
+      priceIncludesGst: row.master.priceIncludesGst ?? null,
+      salePriceIncludesGst: row.master.salePriceIncludesGst ?? null,
+      purchasePriceIncludesGst: row.master.purchasePriceIncludesGst ?? null,
+      gstEffectiveFrom: row.master.gstEffectiveFrom ?? null,
+      hsn: row.master.hsn ?? null,
+      gstRegistration: row.master.gstRegistration ?? null,
+      businessState: row.master.businessState ?? null,
+      billingState: row.master.billingState ?? null,
+      deliveryState: row.master.deliveryState ?? null,
+      gstin: row.master.gstin ?? null,
+      status: 'ACTIVE',
+    });
+  }
+  return mapped;
+}
+
 export function projectOperatingMoment(args: {
   familyCode: string;
   prefs: OperatingPreferences;
   role: OperatingRole;
   events: OperatingEventRow[];
   asOf?: Date;
+  /**
+   * Table-backed masters for the company. Absent means the caller did not load
+   * them, so the projection keeps the legacy event-derived list only.
+   */
+  masterRows?: OperatingMasterRecord[];
 }): OperatingProjection {
   const sub = subtypeDef(args.familyCode, args.prefs.subtype);
   const visible = financeVisibleFor(args.role);
@@ -1340,31 +1509,7 @@ export function projectOperatingMoment(args: {
     startDate: args.prefs.startDate,
     endDate: args.prefs.endDate,
     participants: args.prefs.participants.map((person) => person.displayName),
-    masters: args.events
-      .filter((row) => row.master && row.approvalStatus !== 'REJECTED')
-      .map((row) => ({
-        id: row.operatingEventId,
-        kind: row.master!.kind,
-        name: row.master!.name,
-        unit: row.master!.unit ?? null,
-        dimension: row.master!.dimension ?? null,
-        conversionToBase: row.master!.conversionToBase ?? null,
-        tracked: row.master!.tracked ?? null,
-        barcode: row.master!.barcode ?? null,
-        gstApplicable: row.master!.gstApplicable ?? null,
-        gstClassification: row.master!.gstClassification ?? null,
-        gstRate: row.master!.gstRate ?? null,
-        priceIncludesGst: row.master!.priceIncludesGst ?? null,
-        salePriceIncludesGst: row.master!.salePriceIncludesGst ?? null,
-        purchasePriceIncludesGst: row.master!.purchasePriceIncludesGst ?? null,
-        gstEffectiveFrom: row.master!.gstEffectiveFrom ?? null,
-        hsn: row.master!.hsn ?? null,
-        gstRegistration: row.master!.gstRegistration ?? null,
-        businessState: row.master!.businessState ?? null,
-        billingState: row.master!.billingState ?? null,
-        deliveryState: row.master!.deliveryState ?? null,
-        gstin: row.master!.gstin ?? null,
-      })),
+    masters: companyMasters(args.masterRows, args.events),
     location: args.prefs.location,
     finance,
     continuity,
@@ -1433,6 +1578,7 @@ export function projectOperatingMoment(args: {
     gstTracking: args.prefs.gstTracking,
     gstRegistration: args.prefs.gstRegistration,
     gstState: args.prefs.gstState,
+    gstStateCode: args.prefs.gstStateCode || gstStateCodeOf(args.prefs.gstState),
     gstEffectiveFrom: args.prefs.gstEffectiveFrom,
     salePriceIncludesGst: args.prefs.salePriceIncludesGst,
     purchasePriceIncludesGst: args.prefs.purchasePriceIncludesGst,
@@ -1453,6 +1599,29 @@ export function projectOperatingMoment(args: {
           )
         : null,
     marketing: marketingInsight,
+    pulseMetrics:
+      isTradingSubtype(args.prefs.subtype) || isRetailSubtype(args.prefs.subtype)
+        ? tradingPulseMetrics({
+            events: args.events,
+            visible,
+            currency: args.prefs.currency,
+            asOf,
+            prefs: args.prefs,
+            role: args.role,
+            projection: {
+              budget: visible
+                ? { amount: money(budget), spent: money(spent), remaining: money(budget - spent), configured: budgetConfigured }
+                : null,
+              target: visible
+                ? { metric: args.prefs.targetMetric, value: money(target), progress: money(progress), configured: targetConfigured }
+                : null,
+              finance,
+              attention,
+              paymentReadiness,
+              activity: pulseEvents.map((row) => ({ eventType: row.eventType })),
+            },
+          })
+        : null,
   };
 }
 
@@ -1781,7 +1950,10 @@ function operatingBoards(args: {
     ...familyMemorySections(familyCode, pulseEvents, visible, currency),
   ];
   if (isRetailSubtype(args.subtype)) decorateRetailBoards(moments, life, memory, args.events, visible, currency, args.asOf);
-  if (isTradingSubtype(args.subtype)) decorateTradingBoards(moments, life, memory, args.events, visible, currency, args.asOf, network);
+  if (isTradingSubtype(args.subtype)) {
+    decorateTradingBoards(moments, life, memory, args.events, visible, currency, args.asOf, network);
+    applyTradingBoardMetrics({ moments, life, memory }, args.events, visible, currency, args.asOf);
+  }
   if (isMarketingSubtype(args.subtype)) decorateMarketingBoards(moments, life, memory, args.prefs, args.events);
   if (isManufacturingSubtype(args.subtype)) decorateManufacturingBoards(moments, args.events);
   return { moments, life, memory };

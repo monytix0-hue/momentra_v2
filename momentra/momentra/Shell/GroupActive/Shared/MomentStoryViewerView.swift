@@ -21,13 +21,14 @@ struct MomentStoryViewerView: View {
     }
 
     private var chromeDark: Bool {
-        currentChapter == "cover" || currentChapter == "close"
+        currentChapter == "cover" || currentChapter == "close" || currentChapter.hasSuffix("-sofar") || currentChapter.hasSuffix("-moment")
     }
 
     private var pageBackground: Color {
         switch currentChapter {
         case "cover": return Color(hex: "#2D1F5E")
-        case "close": return Color(hex: "#201E28")
+        case "close", "trd-sofar", "dst-sofar": return Color(hex: "#201E28")
+        case "trd-moment", "dst-moment": return Color(hex: "#2D1F5E")
         default: return Color(hex: "#F7F4EE")
         }
     }
@@ -154,12 +155,38 @@ struct MomentStoryViewerView: View {
             }
             return ["mc-moment", "mc-motion", "mc-results", "mc-money", "mc-channels", "mc-people", "mc-attention", "mc-sofar"]
         }
+        if isOperatingStory(story) {
+            let pages = story?.snapshot?.chapters ?? story?.chapters ?? []
+            if !pages.isEmpty { return pages }
+            return Self.operatingFallbackChapters(story)
+        }
         var pages = ["cover", "moment"]
         if !moneyChapterEmpty(story) {
             pages.append(contentsOf: ["money", "expenses"])
         }
         pages.append("close")
         return pages
+    }
+
+    /// Trading and Distribution always resolve to their vertical chapter set, even when the
+    /// family profile is missing from an older snapshot — the `trd-` / `dst-` prefixes are enough.
+    static func operatingFallbackChapters(_ story: APIClient.MomentStoryPayload?) -> [String] {
+        let pages = story?.snapshot?.chapters ?? story?.chapters ?? []
+        if let first = pages.first, first.hasPrefix("trd-") || first.hasPrefix("dst-") { return pages }
+        let trading = !(pages.first?.hasPrefix("dst-") ?? false)
+        return trading
+            ? ["trd-moment", "trd-motion", "trd-orders", "trd-money", "trd-stock", "trd-network", "trd-attention", "trd-sofar"]
+            : ["dst-moment", "dst-motion", "dst-orders", "dst-money", "dst-stock", "dst-network", "dst-attention", "dst-sofar"]
+    }
+
+    /// A story is an operating story when the payload or snapshot names the family, or when any
+    /// resolved chapter carries a TRD/DST prefix (older snapshots omit the profile).
+    static func isOperatingStory(_ story: APIClient.MomentStoryPayload?) -> Bool {
+        if story?.familyProfile == "TRADING_DISTRIBUTION" { return true }
+        if story?.snapshot?.identity?.familyProfile == "TRADING_DISTRIBUTION" { return true }
+        return (story?.snapshot?.chapters ?? story?.chapters ?? []).contains {
+            $0.hasPrefix("trd-") || $0.hasPrefix("dst-")
+        }
     }
 
     private func storyCurrency(_ snap: APIClient.MomentStorySnapshot?) -> String {
@@ -254,6 +281,8 @@ struct MomentStoryViewerView: View {
             moneyChapter(snap)
         case let chapter where chapter.hasPrefix("mc-") || chapter.hasPrefix("rf-") || chapter.hasPrefix("mf-"):
             marketingChapter(snap, chapter)
+        case let chapter where chapter.hasPrefix("trd-") || chapter.hasPrefix("dst-"):
+            operatingChapter(snap, chapter)
         default:
             closeChapter(snap)
         }
@@ -272,6 +301,193 @@ struct MomentStoryViewerView: View {
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - Trading & Distribution chapters
+
+    /// One `trd-*` / `dst-*` chapter. The backend already wrote the chapter's title and its
+    /// one-sentence reading of the period, so the page renders the highlight and then the exact
+    /// money that chapter is about — no re-derivation, no rounding drift.
+    @ViewBuilder
+    private func operatingChapter(_ snap: APIClient.MomentStorySnapshot?, _ chapter: String) -> some View {
+        let card = snap?.highlights?.first { $0.key == chapter }
+        let isOpening = chapter.hasSuffix("-moment")
+        let isClosing = chapter.hasSuffix("-sofar")
+        let ink = isOpening || isClosing ? Color(hex: "#F5F0FF") : Color(hex: "#25231F")
+        let body = isOpening || isClosing ? Color(hex: "#C4BDEE") : Color(hex: "#746F67")
+        let currency = storyCurrency(snap)
+        let money = snap?.money
+
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(operatingEyebrow(chapter).uppercased())
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(1.4)
+                    .foregroundStyle(Color(hex: "#E8621A"))
+                Text(card?.title ?? operatingFallbackTitle(chapter))
+                    .font(.system(size: 28, weight: .bold, design: .serif))
+                    .foregroundStyle(ink)
+                Text(card?.detail ?? snap?.narrative?.opening ?? "")
+                    .font(.system(size: 16))
+                    .foregroundStyle(body)
+
+                if isOpening, let range = Self.dateRangeLabel(
+                    start: snap?.identity?.startAt,
+                    end: snap?.identity?.endAt
+                ) {
+                    Text(range)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color(hex: "#C4BDEE"))
+                }
+
+                if chapter.hasSuffix("-money"), let money {
+                    HStack(spacing: 8) {
+                        moneyFlowTile("Collected", money.contributed ?? 0, currency, blank: money.contributed == nil)
+                        moneyFlowTile("Paid", money.spent ?? 0, currency, blank: money.spent == nil)
+                        moneyFlowTile("To collect", money.remaining ?? 0, currency, blank: money.remaining == nil)
+                    }
+                }
+
+                if chapter.hasSuffix("-stock") {
+                    // A missing figure is drawn as an em dash, never as ₹0, which would read as
+                    // "nothing was bought".
+                    HStack(spacing: 8) {
+                        moneyFlowTile("Bought", money?.spent ?? 0, currency, blank: money?.spent == nil)
+                        moneyFlowTile("Unsettled", money?.unsettled ?? 0, currency, blank: money?.unsettled == nil)
+                    }
+                }
+
+                if chapter.hasSuffix("-orders") || chapter.hasSuffix("-network") {
+                    operatingMetricStrip(snap, ink: ink, body: body)
+                } else if let insights = snap?.narrative?.insights, !insights.isEmpty, !isOpening {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("AS RECORDED")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color(hex: "#6C4EF2"))
+                        ForEach(Array(insights.enumerated()), id: \.offset) { _, line in
+                            Text(line)
+                                .font(.system(size: 14))
+                                .foregroundStyle(body)
+                        }
+                    }
+                }
+
+                if isClosing {
+                    Text(snap?.display?.closeLine ?? "The trade, as recorded.")
+                        .font(.system(size: 18, design: .serif))
+                        .foregroundStyle(Color.white.opacity(0.8))
+                        .padding(.top, 6)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isOpening ? Color(hex: "#2D1F5E") : (isClosing ? Color(hex: "#201E28") : Color(hex: "#F7F4EE")))
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+        }
+    }
+
+    /// The chapter's place in the eight-beat operating arc, e.g. `04 / MONEY IN & OUT`.
+    /// Distribution renames three beats because a dealer network reads differently from a trade.
+    private func operatingEyebrow(_ chapter: String) -> String {
+        let distribution = chapter.hasPrefix("dst-")
+        let beats: [String: String] = distribution
+            ? [
+                "moment": "01  /  The Business Moment",
+                "motion": "02  /  From Brand to Dealer",
+                "orders": "03  /  The Sales & Order Story",
+                "money": "04  /  Money In & Out",
+                "stock": "05  /  Stock & Route",
+                "network": "06  /  Brands, Dealers & Routes",
+                "attention": "07  /  What Needs Attention",
+                "sofar": "08  /  The Story So Far",
+            ]
+            : [
+                "moment": "01  /  The Business Moment",
+                "motion": "02  /  Source to Sale",
+                "orders": "03  /  Orders & Commitments",
+                "money": "04  /  Money In & Out",
+                "stock": "05  /  Stock & Purchases",
+                "network": "06  /  Buyers, Suppliers & Channels",
+                "attention": "07  /  What Needs Attention",
+                "sofar": "08  /  The Story So Far",
+            ]
+        let suffix = operatingChapterSuffix(chapter)
+        return beats[suffix] ?? "The Business Moment"
+    }
+
+    /// Title fallback when a snapshot predates the highlight list but still names its chapters.
+    private func operatingFallbackTitle(_ chapter: String) -> String {
+        let distribution = chapter.hasPrefix("dst-")
+        let titles: [String: String] = distribution
+            ? [
+                "moment": "The Business Moment",
+                "motion": "From Brand to Dealer",
+                "orders": "The Sales & Order Story",
+                "money": "Money In & Out",
+                "stock": "Stock & Route",
+                "network": "Brands, Dealers & Routes",
+                "attention": "What Needs Attention",
+                "sofar": "The Story So Far",
+            ]
+            : [
+                "moment": "The Business Moment",
+                "motion": "Source to Sale",
+                "orders": "Orders & Commitments",
+                "money": "Money In & Out",
+                "stock": "Stock & Purchases",
+                "network": "Buyers, Suppliers & Channels",
+                "attention": "What Needs Attention",
+                "sofar": "The Story So Far",
+            ]
+        let suffix = operatingChapterSuffix(chapter)
+        return titles[suffix] ?? "The Business Moment"
+    }
+
+    private func operatingChapterSuffix(_ chapter: String) -> String {
+        chapter.split(separator: "-", maxSplits: 1).last.map(String.init) ?? "moment"
+    }
+
+    /// The composer's own metrics (`sales`, `collections`, `stock`, `buyers`, …) as small tiles.
+    /// The server already decided which four figures matter for this vertical, so the page does not
+    /// pick its own.
+    @ViewBuilder
+    private func operatingMetricStrip(
+        _ snap: APIClient.MomentStorySnapshot?,
+        ink: Color,
+        body: Color
+    ) -> some View {
+        let metrics = snap?.metrics ?? [:]
+        let keys = ["sales", "collections", "stock", "buyers", "invoices", "orders", "purchases", "dispatches"]
+        let present = keys.compactMap { key -> (String, String)? in
+            guard let value = metrics[key] else { return nil }
+            // The composer writes `N/A` for a figure it could not measure. It is shown as
+            // "Not recorded" rather than as a zero, which would read as a real number.
+            let figure = value.label == "N/A" ? "Not recorded" : value.label
+            return (key.replacingOccurrences(of: "_", with: " ").capitalized, figure)
+        }
+        if !present.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("AS RECORDED")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Color(hex: "#6C4EF2"))
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    ForEach(Array(present.enumerated()), id: \.offset) { _, pair in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(pair.1)
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(ink)
+                            Text(pair.0)
+                                .font(.system(size: 11))
+                                .foregroundStyle(body)
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(hex: "#FFFEFB"))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+            }
         }
     }
 

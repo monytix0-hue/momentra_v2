@@ -9,7 +9,8 @@ export type StoryFamilyProfile =
   | 'SHARED_LIVING'
   | 'MARKETING_CAMPAIGN'
   | 'RETAIL_FOOD_CONSUMER'
-  | 'MANUFACTURING_MADE_TO_ORDER';
+  | 'MANUFACTURING_MADE_TO_ORDER'
+  | 'TRADING_DISTRIBUTION';
 
 export type StoryChapterId =
   | 'cover'
@@ -42,7 +43,23 @@ export type StoryChapterId =
   | 'mf-materials'
   | 'mf-people'
   | 'mf-attention'
-  | 'mf-sofar';
+  | 'mf-sofar'
+  | 'trd-moment'
+  | 'trd-motion'
+  | 'trd-orders'
+  | 'trd-money'
+  | 'trd-stock'
+  | 'trd-network'
+  | 'trd-attention'
+  | 'trd-sofar'
+  | 'dst-moment'
+  | 'dst-motion'
+  | 'dst-orders'
+  | 'dst-money'
+  | 'dst-stock'
+  | 'dst-network'
+  | 'dst-attention'
+  | 'dst-sofar';
 
 export interface StoryMetricDef {
   key: string;
@@ -81,8 +98,10 @@ export function resolveStoryFamilyProfile(input: {
   if ((input.businessFamily ?? '').toUpperCase() === 'MARKETING_CAMPAIGNS') return 'MARKETING_CAMPAIGN';
   if ((input.businessFamily ?? '').toUpperCase() === 'RETAIL_CONSUMER') return 'RETAIL_FOOD_CONSUMER';
   if ((input.businessFamily ?? '').toUpperCase() === 'MANUFACTURING_PRODUCTION') return 'MANUFACTURING_MADE_TO_ORDER';
+  if ((input.businessFamily ?? '').toUpperCase() === 'TRADING_DISTRIBUTION') return 'TRADING_DISTRIBUTION';
   const type = (input.momentTypeCode ?? '').toUpperCase();
   const family = (input.groupFamily ?? '').toUpperCase();
+  if (type === 'TRADING_WHOLESALE' || type === 'DISTRIBUTION_DEALERSHIP') return 'TRADING_DISTRIBUTION';
   if (type === 'HOUSE_PARTY') return 'HOUSE_PARTY';
   if (type === 'TRIP') return 'TRIP';
   if (type === 'WEDDING') return 'WEDDING';
@@ -227,6 +246,23 @@ export function getStoryComposer(profile: StoryFamilyProfile): StoryFamilyCompos
         omitPlaces: true,
         shareBlurb: (title, m) => `${title} — manufacturing story. Sales ${m.sales ?? 'not recorded'}. Momentra.`,
       };
+    case 'TRADING_DISTRIBUTION':
+      return {
+        profile,
+        displayLabel: 'Trading & Distribution Story',
+        coverEyebrow: 'Trading and distribution',
+        closeLine: 'The trade, as recorded.',
+        metricKeys: [
+          { key: 'sales', label: 'Net sales' },
+          { key: 'collections', label: 'Collected' },
+          { key: 'stock', label: 'Stock' },
+          { key: 'buyers', label: 'Buyers' },
+        ],
+        moneyCategoriesHint: [],
+        omitPlaces: true,
+        shareBlurb: (title, m) =>
+          `${title} — trading story. Net sales ${m.sales ?? 'not recorded'}. Momentra.`,
+      };
     default:
       return {
         ...EXPERIENCE_BASE,
@@ -273,4 +309,26 @@ export const MANUFACTURING_STORY_CHAPTERS: StoryChapterId[] = [
   'mf-people',
   'mf-attention',
   'mf-sofar',
+];
+
+export const TRADING_STORY_CHAPTERS: StoryChapterId[] = [
+  'trd-moment',
+  'trd-motion',
+  'trd-orders',
+  'trd-money',
+  'trd-stock',
+  'trd-network',
+  'trd-attention',
+  'trd-sofar',
+];
+
+export const DISTRIBUTION_STORY_CHAPTERS: StoryChapterId[] = [
+  'dst-moment',
+  'dst-motion',
+  'dst-orders',
+  'dst-money',
+  'dst-stock',
+  'dst-network',
+  'dst-attention',
+  'dst-sofar',
 ];

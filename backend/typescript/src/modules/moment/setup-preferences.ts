@@ -96,17 +96,23 @@ export function validateAndMergePersonalPreferences(
 export function validateAndMergeBusinessPreferences(
   familyCode: BusinessSetupFamilyCode | 'TEAM_OPERATIONS' | 'BUSINESS_RUNWAY' | 'BUSINESS_OPERATIONS',
   input: Record<string, unknown> | undefined,
-  creator?: { userId: string; displayName: string }
+  creator?: { userId: string; displayName: string },
+  options: { draft?: boolean } = {}
 ): Record<string, unknown> {
   if (isLegacyBusinessFamily(familyCode)) {
     return { ...(input ?? {}) };
   }
   if (isOperatingFamily(familyCode)) {
     try {
-      return normalizeOperatingPreferences(familyCode, input, creator ?? {
-        userId: '00000000-0000-0000-0000-000000000000',
-        displayName: 'Owner',
-      }) as unknown as Record<string, unknown>;
+      return normalizeOperatingPreferences(
+        familyCode,
+        input,
+        creator ?? {
+          userId: '00000000-0000-0000-0000-000000000000',
+          displayName: 'Owner',
+        },
+        options
+      ) as unknown as Record<string, unknown>;
     } catch (err) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,

@@ -117,6 +117,27 @@ export async function insertBusinessSetupRow(
   return setupId;
 }
 
+/**
+ * Rewrite a DRAFT business setup in place — the setup document's Section 01–05 edits after the
+ * draft moment already exists. Only a DRAFT row is writable: once a setup is ACTIVE its
+ * preferences move through the operating events (`BUDGET` / `TARGET` revisions), not a rewrite.
+ */
+export async function updateBusinessSetupDraftRow(
+  client: PoolClient,
+  momentId: string,
+  title: string,
+  preferences: Record<string, unknown>
+): Promise<string | null> {
+  const updated = await client.query<{ business_system_setup_id: string }>(
+    `UPDATE business.business_system_setup
+     SET title = $2, preferences = $3::jsonb, updated_at = now(), version = version + 1
+     WHERE moment_id = $1 AND status = 'DRAFT'
+     RETURNING business_system_setup_id`,
+    [momentId, title, JSON.stringify(preferences)]
+  );
+  return updated.rows[0]?.business_system_setup_id ?? null;
+}
+
 export function catalogSubtitleForPersonal(systemCode: PersonalSetupSystemCode): string {
   return PERSONAL_SETUP_CATALOG.find((s) => s.systemCode === systemCode)?.subtitle ?? '';
 }

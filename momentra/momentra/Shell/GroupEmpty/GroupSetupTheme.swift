@@ -113,7 +113,8 @@ extension Font {
         switch weight {
         case .heavy, .black: name = "PlusJakartaSans-ExtraBold"
         case .bold: name = "PlusJakartaSans-Bold"
-        case .semibold, .medium: name = "PlusJakartaSans-SemiBold"
+        case .semibold: name = "PlusJakartaSans-SemiBold"
+        case .medium: name = "PlusJakartaSans-Medium"
         default: name = "PlusJakartaSans-Regular"
         }
         return .custom(name, size: size)

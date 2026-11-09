@@ -28,8 +28,11 @@ import {
   validateRetailWrite,
   type OperatingContract,
 } from './operating-retail-contract';
-import { isTradingSubtype, validateTradingWrite } from './operating-trading-contract';
+import { isTradingSubtype, validateTradingWrite, type TradingMasterRef } from './operating-trading-contract';
+import { listMastersForCompany, resolveMasterRefs } from './operating-masters';
 import { uomDimension } from './operating-trading-lov';
+import { gstStateCodeOf } from './operating-gst-states';
+import { buildGstrSummary, type GstrSummary } from './operating-gstr';
 import { isMarketingSubtype, marketingTaxSnapshot, observationDelta, parseMarketingFacts, validateMarketingWrite } from './operating-marketing';
 import { isManufacturingSubtype, validateManufacturingWrite } from './operating-manufacturing';
 
@@ -67,6 +70,8 @@ export const recordOperatingEventSchema = z
       .nullish(),
     master: z
       .object({
+        /** Link to an existing company master instead of re-declaring it. */
+        masterId: z.string().uuid().nullish(),
         kind: z.string().min(1).max(40),
         name: z.string().min(1).max(160),
         unit: z.string().max(24).nullish(),
@@ -121,8 +126,16 @@ export const recordOperatingEventSchema = z
         receiptState: z.enum(['RECEIVED', 'PART_RECEIVED', 'AWAITING']).nullish(),
         receivedAmount: amountSchema.nullish(),
         quantityReceived: amountSchema.nullish(),
-        stockAction: z.enum(['SET', 'ADD', 'REDUCE']).nullish(),
-        stockReason: z.enum(['opening', 'stocktake', 'damage', 'waste', 'return', 'correction']).nullish(),
+        stockAction: z.enum(['SET', 'ADD', 'REDUCE', 'TRANSFER']).nullish(),
+        stockReason: z.enum(['opening', 'stocktake', 'damage', 'waste', 'return', 'correction', 'TRANSFER']).nullish(),
+        /** HOLD (TRD-QA-HOLD): frozen order or dispatch, released explicitly. */
+        holdStatus: z.enum(['NONE', 'HELD', 'RELEASED']).nullish(),
+        holdReason: z.string().max(200).nullish(),
+        /** TRANSFER (TRD-QA-TRANSFER): quantity moves between two locations. */
+        transferFromMasterId: z.string().max(80).nullish(),
+        transferToMasterId: z.string().max(80).nullish(),
+        transferFromName: z.string().max(160).nullish(),
+        transferToName: z.string().max(160).nullish(),
         expenseCategory: z.string().max(80).nullish(),
         appointmentStatus: z.enum(['BOOKED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW']).nullish(),
         appointmentAction: z.enum(['RESCHEDULE', 'CANCEL', 'NO_SHOW', 'START', 'COMPLETE']).nullish(),
@@ -316,6 +329,7 @@ function tradingGstContext(prefs: OperatingPreferences) {
   return {
     enabled: prefs.gstTracking === 'YES' && prefs.gstRegistration === 'REGULAR',
     businessState: prefs.gstState ?? '',
+    businessStateCode: prefs.gstStateCode || gstStateCodeOf(prefs.gstState),
     saleIncludesGst: yesNo(prefs.salePriceIncludesGst),
     purchaseIncludesGst: yesNo(prefs.purchasePriceIncludesGst),
     registration: prefs.gstRegistration ?? '',
@@ -368,12 +382,122 @@ export async function getOperatingProjection(
   }
   const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType);
   const events = await loadEvents(client, momentId);
+  // Table masters are the authority; event-derived masters remain a read fallback.
+  const masterRows = scope.companyId
+    ? await listMastersForCompany(client, scope.companyId).catch(() => [])
+    : [];
   return projectOperatingMoment({
     familyCode: scope.businessFamily,
     prefs,
     role,
     events,
+    masterRows,
   });
+}
+
+/**
+ * The GSTR summaries for one month.
+ *
+ * A read model over the posted GST snapshots — the same rows the trading GST position walks —
+ * grouped the way GSTR-1 and GSTR-3B group them. Nothing is filed; `note` says so on every
+ * figure. Month is `YYYY-MM` and defaults to the latest month with a recorded event.
+ */
+export async function getOperatingGstReturns(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  month?: string
+): Promise<GstrSummary & { month: string }> {
+  const scope = await assertCompanyMomentAccess(client, ctx, momentId);
+  if (isLegacyBusinessFamily(scope.businessFamily) || !isOperatingFamily(scope.businessFamily)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'GST returns are only available for operating moments.', 400);
+  }
+  const events = await loadEvents(client, momentId);
+
+  // Counterparty GSTINs decide the B2B / B2C split in GSTR-1.
+  const partyNames = [...new Set(events.map((row) => (row.counterpartyName ?? '').trim()).filter(Boolean))];
+  const gstinByName = new Map<string, boolean>();
+  if (scope.companyId && partyNames.length > 0) {
+    const parties = await client
+      .query<{ name: string; has_gstin: boolean }>(
+        `SELECT lower(btrim(name)) AS name, (gstin IS NOT NULL AND btrim(gstin) <> '') AS has_gstin
+         FROM business.operating_master
+         WHERE company_id = $1
+           AND kind IN ('CUSTOMER', 'BUYER', 'SUPPLIER', 'PRINCIPAL', 'DEALER', 'VENDOR', 'PARTY')`,
+        [scope.companyId]
+      )
+      .catch(() => ({ rows: [] as Array<{ name: string; has_gstin: boolean }> }));
+    for (const row of parties.rows) gstinByName.set(row.name, row.has_gstin);
+  }
+
+  const resolvedMonth = month?.trim() ||
+    [...events]
+      .map((row) => row.occurredAt.slice(0, 7))
+      .filter(Boolean)
+      .sort()
+      .reverse()[0] ||
+    '';
+
+  const scoped = resolvedMonth
+    ? events.filter((row) => row.occurredAt.slice(0, 7) === resolvedMonth)
+    : events;
+
+  const summary = buildGstrSummary(
+    scoped.map((row) => ({
+      eventType: row.eventType,
+      approvalStatus: row.approvalStatus,
+      paymentStatus: row.paymentStatus,
+      counterpartyHasGstin: row.counterpartyName
+        ? gstinByName.get(row.counterpartyName.trim().toLowerCase()) === true
+        : false,
+      returnDirection: row.contract?.returnDirection,
+      gst: row.contract?.gst ?? null,
+    })),
+    resolvedMonth
+  );
+  return { ...summary, month: resolvedMonth };
+}
+
+/**
+ * Master references carried by one write, resolved against the company's table.
+ * Lines reference masters by `masterId`; a body-level `master` may also name an
+ * existing master so the event links instead of re-declaring the name.
+ */
+async function loadTradingMasterRefs(
+  client: PoolClient,
+  companyId: string | null,
+  body: { lines?: Array<{ masterId?: string | null }> | null; master?: { masterId?: string | null } | null }
+): Promise<Map<string, TradingMasterRef>> {
+  const refs = new Map<string, TradingMasterRef>();
+  if (!companyId) return refs;
+  const ids = [
+    ...(body.lines ?? []).flatMap((line) => (line.masterId ? [line.masterId] : [])),
+    ...(body.master?.masterId ? [body.master.masterId] : []),
+  ];
+  if (ids.length === 0) return refs;
+  const found = await resolveMasterRefs(client, companyId, ids);
+  for (const [id, master] of found) {
+    refs.set(id, {
+      id: master.id,
+      kind: master.kind,
+      name: master.name,
+      unit: master.unit,
+      dimension: master.dimension,
+      conversionToBase: master.conversionToBase,
+      gstApplicable: master.gstApplicable,
+      gstClassification: master.gstClassification,
+      gstRate: master.gstRate,
+      priceIncludesGst: master.priceIncludesGst,
+      salePriceIncludesGst: master.salePriceIncludesGst,
+      purchasePriceIncludesGst: master.purchasePriceIncludesGst,
+      sellPrice: master.sellPrice,
+      purchasePrice: master.purchasePrice,
+      businessState: master.businessState,
+      billingState: master.billingState,
+      deliveryState: master.deliveryState,
+    });
+  }
+  return refs;
 }
 
 export async function recordOperatingEvent(
@@ -494,6 +618,7 @@ export async function recordOperatingEvent(
             contract: writeContract,
             channelTracking: (prefs.channels?.length ?? 0) > 0,
             gst: tradingGstContext(prefs),
+            masterRefs: await loadTradingMasterRefs(client, scope.companyId, body),
           },
           existing
         )
@@ -668,8 +793,40 @@ export async function recordOperatingEvent(
   if (body.unit) payload.unit = body.unit;
   if (body.dueAt) payload.dueAt = body.dueAt;
   if (body.master) {
-    const dimension = body.master.dimension ?? (body.master.unit ? uomDimension(body.master.unit) : null);
-    payload.master = dimension ? { ...body.master, dimension } : body.master;
+    // Link to an existing master instead of re-declaring the name, so a rename in
+    // master data reaches every event that references it.
+    if (body.master.masterId && scope.companyId) {
+      const linked = await resolveMasterRefs(client, scope.companyId, [body.master.masterId]);
+      const found = linked.get(body.master.masterId);
+      if (!found) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, 'Choose a master from this company.', 400);
+      }
+      payload.masterId = found.id;
+      payload.master = {
+        kind: found.kind,
+        name: found.name,
+        unit: found.unit,
+        dimension: found.dimension,
+        conversionToBase: found.conversionToBase,
+        tracked: found.tracked,
+        barcode: found.barcode,
+        gstApplicable: found.gstApplicable,
+        gstClassification: found.gstClassification,
+        gstRate: found.gstRate,
+        priceIncludesGst: found.priceIncludesGst,
+        salePriceIncludesGst: found.salePriceIncludesGst,
+        purchasePriceIncludesGst: found.purchasePriceIncludesGst,
+        gstEffectiveFrom: found.gstEffectiveFrom,
+        hsn: found.hsn,
+        gstin: found.gstin,
+        businessState: found.businessState,
+        billingState: found.billingState,
+        deliveryState: found.deliveryState,
+      };
+    } else {
+      const dimension = body.master.dimension ?? (body.master.unit ? uomDimension(body.master.unit) : null);
+      payload.master = dimension ? { ...body.master, dimension } : body.master;
+    }
   }
   if (retailContract) {
     payload.contract = retailContract;
@@ -832,6 +989,159 @@ export async function decideOperatingEvent(
     reason: body.reason ?? null,
   });
   return { eventId, approvalStatus: body.decision };
+}
+
+export type OperatingDocumentKind = 'INVOICE' | 'CHALLAN';
+
+export interface OperatingDocument {
+  kind: OperatingDocumentKind;
+  eventId: string;
+  momentId: string;
+  documentNumber: string;
+  issuedAt: string;
+  currency: string;
+  seller: {
+    name: string;
+    gstin: string | null;
+    state: string | null;
+  };
+  buyer: {
+    name: string;
+    gstin: string | null;
+    state: string | null;
+    billingState: string | null;
+    deliveryState: string | null;
+  } | null;
+  lines: Array<{
+    itemName: string;
+    quantity: string | null;
+    unit: string | null;
+    unitPrice: string | null;
+    discount: string | null;
+    gstRate: string | null;
+    masterId: string | null;
+    masterName: string | null;
+  }>;
+  tax: {
+    jurisdiction: 'INTRA' | 'INTER' | null;
+    placeOfSupply: string | null;
+    taxableAmount: string | null;
+    cgst: string | null;
+    sgst: string | null;
+    igst: string | null;
+    total: string | null;
+  };
+  totals: { subTotal: string; discount: string; tax: string; grandTotal: string };
+  notes: string | null;
+  /** Re-print is a read: no stock, ledger, or GST movement happens here. */
+  reprint: true;
+}
+
+/**
+ * Structured document for TRD-QA-REPRINT. The server never renders a PDF: the device
+ * prints and shares, so the response is the data a reprint needs.
+ */
+export async function getOperatingDocument(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  eventId: string,
+  kind: OperatingDocumentKind
+): Promise<OperatingDocument> {
+  const scope = await assertCompanyMomentAccess(client, ctx, momentId);
+  const setup = await loadSetup(client, momentId);
+  if (!setup) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Operating setup was not found.', 400);
+  }
+  const prefs = prefsOf(setup.preferences);
+  const events = await loadEvents(client, momentId);
+  const event = events.find((row) => row.operatingEventId === eventId);
+  if (!event) throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Record was not found.', 404);
+  if (event.approvalStatus === 'REJECTED') {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'A rejected record cannot be reprinted.', 400);
+  }
+  const masterIds = [
+    ...(event.lines ?? []).flatMap((line) => (line.masterId ? [line.masterId] : [])),
+  ].filter((id) => id.length > 0);
+  const masters = scope.companyId ? await resolveMasterRefs(client, scope.companyId, masterIds) : new Map();
+  const party = await client.query<{
+    gstin: string | null;
+    billing_state: string | null;
+    delivery_state: string | null;
+    business_state: string | null;
+  }>(
+    `SELECT gstin, billing_state, delivery_state, business_state
+     FROM business.operating_master
+     WHERE company_id = $1
+       AND kind IN ('CUSTOMER', 'BUYER', 'SUPPLIER', 'PRINCIPAL', 'DEALER', 'VENDOR')
+       AND lower(btrim(name)) = lower(btrim($2))
+     ORDER BY (status = 'ACTIVE') DESC
+     LIMIT 1`,
+    [scope.companyId, event.counterpartyName ?? '']
+  ).catch(() => ({ rows: [] as Array<{ gstin: string | null; billing_state: string | null; delivery_state: string | null; business_state: string | null }> }));
+  const partyRow = party.rows[0] ?? null;
+
+  const lines = (event.lines ?? []).map((line) => {
+    const master = line.masterId ? masters.get(line.masterId) ?? null : null;
+    return {
+      itemName: line.itemName,
+      quantity: line.quantity ?? null,
+      unit: line.unit ?? master?.unit ?? null,
+      unitPrice: line.unitPrice ?? null,
+      discount: line.discount ?? null,
+      gstRate: line.gstRate ?? master?.gstRate ?? event.contract?.gstRate ?? null,
+      masterId: line.masterId ?? null,
+      masterName: master?.name ?? null,
+    };
+  });
+  const gst = event.contract?.gst ?? null;
+  const subTotal = lines.reduce(
+    (total, line) => total + Number(line.quantity ?? 0) * Number(line.unitPrice ?? 0),
+    0
+  );
+  const discount = lines.reduce((total, line) => total + Number(line.discount ?? 0), 0);
+  const grandTotal = Number(event.amount ?? 0);
+
+  return {
+    kind,
+    eventId,
+    momentId,
+    documentNumber: event.operatingEventId.slice(0, 8).toUpperCase(),
+    issuedAt: event.occurredAt,
+    currency: prefs.currency || 'INR',
+    seller: {
+      name: prefs.identityName || 'Business',
+      gstin: prefs.gstin || null,
+      state: prefs.gstState || null,
+    },
+    buyer: event.counterpartyName
+      ? {
+          name: event.counterpartyName,
+          gstin: partyRow?.gstin ?? null,
+          state: partyRow?.business_state ?? null,
+          billingState: partyRow?.billing_state ?? null,
+          deliveryState: partyRow?.delivery_state ?? null,
+        }
+      : null,
+    lines,
+    tax: {
+      jurisdiction: event.contract?.taxJurisdiction ?? null,
+      placeOfSupply: event.contract?.placeOfSupply ?? null,
+      taxableAmount: gst?.taxableAmount ?? null,
+      cgst: gst?.cgstAmount ?? null,
+      sgst: gst?.sgstAmount ?? null,
+      igst: gst?.igstAmount ?? null,
+      total: gst?.gstTotal ?? event.contract?.taxAmount ?? null,
+    },
+    totals: {
+      subTotal: subTotal.toFixed(4),
+      discount: discount.toFixed(4),
+      tax: String(gst?.gstTotal ?? event.contract?.taxAmount ?? '0.0000'),
+      grandTotal: grandTotal.toFixed(4),
+    },
+    notes: event.note,
+    reprint: true,
+  };
 }
 
 export async function reviseOperatingEvent(

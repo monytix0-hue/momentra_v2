@@ -1,0 +1,27 @@
+{
+  "$description": "Business v3 asset manifest, consumed by tools/design-pipeline/import-assets.mjs. Icons: every Lucide key listed here is imported from the pinned lucide-static package (ISC), normalised to the shared stroke (1.7, round caps/joins, 24 viewBox) and rendered as template/tintable assets. These back the Hub capture-tile glyphs in the Business App States kit (Figma node 2666:31852).",
+  "lucide": { "package": "lucide-static", "strokeWidth": 1.7, "viewBox": 24 },
+  "naming": {
+    "iosIcon": "BusinessIcons/<lucide-key>",
+    "androidIcon": "ic_biz_<lucide_key>"
+  },
+  "icons": [
+    { "key": "camera", "use": "Hub tile — Sale", "figmaNodes": ["2666:31852"] },
+    { "key": "receipt", "use": "Hub tile — Purchase", "figmaNodes": ["2666:31852"] },
+    { "key": "clipboard-list", "use": "Hub tile — Collection", "figmaNodes": ["2666:31852"] },
+    { "key": "banknote", "use": "Hub tile — Payment", "figmaNodes": ["2666:31852"] },
+    { "key": "calculator", "use": "Hub tile — Expense", "figmaNodes": ["2666:31852"] },
+    { "key": "package", "use": "Hub tile — Stock", "figmaNodes": ["2666:31852"] },
+    { "key": "megaphone", "use": "Guided selection — Marketing & Campaigns card", "figmaNodes": ["2943:9101"] },
+    { "key": "truck", "use": "Guided selection — Trading & Distribution card", "figmaNodes": ["2943:9108"] },
+    { "key": "store", "use": "Guided selection — Retail & Consumer card", "figmaNodes": ["2943:9116"] },
+    { "key": "factory", "use": "Guided selection — Manufacturing & Production card, production capability", "figmaNodes": ["2943:9123", "2943:9169"] },
+    { "key": "layers", "use": "Guided selection — BOM & materials capability", "figmaNodes": ["2943:9172"] },
+    { "key": "receipt-text", "use": "Guided selection — invoices capability", "figmaNodes": ["2943:9175"] },
+    { "key": "wallet", "use": "Guided selection — campaign budgets capability", "figmaNodes": ["2943:9075"] },
+    { "key": "target", "use": "Guided selection — lead tracking capability", "figmaNodes": ["2943:9075"] },
+    { "key": "users", "use": "Guided selection — client retainers / customer tabs capability", "figmaNodes": ["2943:9075"] },
+    { "key": "badge-check", "use": "Guided selection — creative approvals capability", "figmaNodes": ["2943:9075"] },
+    { "key": "route", "use": "Guided selection — shipments & tracking capability", "figmaNodes": ["2943:9075"] }
+  ]
+}
