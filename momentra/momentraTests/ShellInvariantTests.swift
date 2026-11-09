@@ -50,7 +50,7 @@ struct ShellInvariantTests {
         #expect(life.primary != ctx.contextAccent || life.type == "LIFE_OPERATIONS")
         let future = MomentThemes.personal("FUTURE_BUILDING")
         #expect(future.type == "FUTURE_BUILDING")
-        #expect(PersonalPulseFamily.forTypeCode("FUTURE_BUILDING").theme.heroTitle == "FUTURE SCORE")
+        #expect(PersonalPulseFamily.forTypeCode("FUTURE_BUILDING").theme.heroTitle == "YOUR FUTURE")
     }
 
     @Test func personalPulseFamilyMapsV018SubtypeCodes() {
@@ -60,21 +60,21 @@ struct ShellInvariantTests {
         #expect(PersonalPulseFamily.forTypeCode("LIFE_RECOVERY") == .lifeOperations)
     }
 
-    @Test func personalActionRegistryUsesDestinationLevelGating() {
+    @Test func personalActionRegistryGatesTilesByCapabilityCode() {
+        // The hub always shows the full catalog and greys tiles whose capability
+        // code was not granted. Gating used to be destination-level, which
+        // over-granted: MILESTONE_CREATE and OPPORTUNITY_CREATE share the
+        // `.future` destination, so one milestone grant unlocked Opportunity,
+        // Pivot, Progress and Learning too.
         let tiles = PersonalActionRegistry.tiles(
             for: .futureBuilding,
             hasActiveMoment: true,
             capabilityCodes: ["MILESTONE_CREATE"]
         )
         #expect(tiles.contains { $0.label == "Milestone" })
-        #expect(!tiles.contains { $0.label == "Opportunity" })
-    }
-
-    @Test func businessRevenueInvoiceGatedToRunwayMomentType() {
-        let caps = [BusinessActionCode.revenueRecord.rawValue, BusinessActionCode.invoiceCreate.rawValue]
-        #expect(!BusinessActionRegistry.isKindEnabled(.revenue, capabilities: caps, momentTypeCode: "TEAM_OPERATIONS"))
-        #expect(!BusinessActionRegistry.isKindEnabled(.invoice, capabilities: caps, momentTypeCode: "BUSINESS_OPERATIONS"))
-        #expect(BusinessActionRegistry.isKindEnabled(.revenue, capabilities: caps, momentTypeCode: "BUSINESS_RUNWAY"))
-        #expect(BusinessActionRegistry.isKindEnabled(.invoice, capabilities: caps, momentTypeCode: "BUSINESS_RUNWAY"))
+        #expect(tiles.first { $0.label == "Milestone" }?.enabledWhenMomentActive == true)
+        // Visible, but not enabled — the capability code was not granted.
+        #expect(tiles.contains { $0.label == "Opportunity" })
+        #expect(tiles.first { $0.label == "Opportunity" }?.enabledWhenMomentActive == false)
     }
 }

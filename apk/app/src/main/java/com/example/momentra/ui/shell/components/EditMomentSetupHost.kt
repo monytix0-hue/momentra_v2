@@ -16,7 +16,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.momentra.domain.AppContext
 import com.example.momentra.ui.create.MomentCreateViewModel
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
-import com.example.momentra.ui.shell.empty.business.BusinessSetupWizardContent
 import com.example.momentra.ui.shell.empty.group.GroupExperienceSetupContent
 import com.example.momentra.ui.shell.empty.group.GroupLivingSetupContent
 import com.example.momentra.ui.shell.empty.group.GroupPurchaseSetupContent
@@ -64,27 +63,12 @@ fun EditMomentSetupHost(
                 )
             }
             AppContext.BUSINESS -> {
-                val kind = OperatingMomentCatalog.kindForTypeCode(momentTypeCode)
-                if (kind == null) {
-                    Text(
-                        "This business moment is retired. Create a new one.",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                } else {
-                    BusinessSetupWizardContent(
-                        kind = kind,
-                        companyId = companyId.orEmpty(),
-                        createViewModel = createViewModel,
-                        submitting = createState.submitting,
-                        error = createState.error,
-                        onClose = onClose,
-                        onCreated = { onSaved() },
-                        editingMomentId = momentId,
-                        initialTitle = momentTitle,
-                    )
-                }
+                Text(
+                    "This business moment is retired. Create a new one.",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    modifier = Modifier.align(Alignment.Center),
+                )
             }
             AppContext.GROUP -> {
                 val family = groupExperienceFamilyFor(momentTypeCode)

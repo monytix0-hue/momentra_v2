@@ -3,6 +3,7 @@ package com.example.momentra.ui.shell.business.shared
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import com.example.momentra.data.api.OperatingActivityDto
 import com.example.momentra.data.api.OperatingAttentionDto
 import com.example.momentra.data.api.OperatingPaymentDto
@@ -16,6 +17,44 @@ object OperatingChromeState {
     var charging by mutableStateOf<OperatingActivityDto?>(null)
     var quickAddHint by mutableStateOf<String?>(null)
     var record: (suspend (OperatingCaptureDraft) -> Unit)? = null
+
+    /** Memory-tab `Generate business story` sheet (TRD-MEMORY-v12 / DST-MEMORY-v12). */
+    var storyConfigOpen by mutableStateOf(false)
+
+    /** Masters sheet tab name, so Quick Add can deep-link into `Create SKU`. */
+    var mastersOpen by mutableStateOf<String?>(null)
+
+    /** `Switch Moment` sheet (TRD-SWITCH 2566:33577). */
+    var switchMomentOpen by mutableStateOf(false)
+
+    /** Set by the shell so the Switch Moment sheet can move the selected moment. */
+    var onSwitchMoment: ((String) -> Unit)? = null
+
+    /** Bumped after a master write so the open projection reloads. */
+    var refresh by mutableStateOf(0)
+
+    /** The moment chrome sheets act on; set by `OperatingMomentPage` before rendering. */
+    var momentId by mutableStateOf<String?>(null)
+
+    /** Vertical accent/surface for the shared chrome sheets. */
+    var storyAccent by mutableStateOf(Color(0xFF10B981))
+    var storySurface by mutableStateOf(Color(0xFF090D16))
+    var storyBorder by mutableStateOf(Color(0xFF1E293B))
+    var storyInk by mutableStateOf(Color.White)
+    var storyBody by mutableStateOf(Color(0xFF94A3B8))
+
+    fun storyTheme(): OperatingSheetTheme = OperatingSheetTheme(
+        accent = storyAccent,
+        accentSoft = storyAccent,
+        canvas = storySurface,
+        surface = storySurface,
+        inset = Color.Black.copy(alpha = 0.25f),
+        border = storyBorder,
+        ink = storyInk,
+        body = storyBody,
+        warning = Color(0xFFF59E0B),
+        negative = Color(0xFFF87171),
+    )
 }
 
 fun openOperatingAttention(

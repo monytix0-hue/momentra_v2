@@ -35,7 +35,6 @@ object MaestroIds {
     const val MOMENT_SWITCHER = "moment.switcher"
     const val MOMENT_SWITCHER_INVITE = "moment.switcher.invite"
     const val MOMENT_CREATE = "moment.create"
-    const val COMPANY_SWITCHER = "company.switcher"
 
     const val BOTTOM_NAV = "bottom.nav"
     const val BOTTOM_PULSE = "bottom.pulse"

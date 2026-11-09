@@ -1057,6 +1057,21 @@ data class PatchPersonalSetupBody(
     val preferences: Map<String, @JvmSuppressWildcards Any>? = null,
 )
 
+/** `PATCH /v1/moments/:momentId/business-setup` — the six-section document saved as a draft. */
+data class PatchBusinessSetupDraftBody(
+    val title: String? = null,
+    val preferences: Map<String, @JvmSuppressWildcards Any>,
+)
+
+data class PatchBusinessSetupDraftResultDto(
+    @SerializedName("momentId") val momentId: String,
+    @SerializedName("setupId") val setupId: String? = null,
+    val title: String,
+    val status: String,
+    val version: Int,
+    val preferences: Map<String, Any?> = emptyMap(),
+)
+
 data class PatchPersonalSetupResultDto(
     @SerializedName("setupId") val setupId: String,
     @SerializedName("systemCode") val systemCode: String,
@@ -1218,6 +1233,9 @@ data class OperatingActivityDto(
     val status: String? = null,
     val orderSide: String? = null,
     val estimatedAmount: String? = null,
+    /** Figma status chip: Open / Part / Overdue / Settled / Done / Transit / On hold. */
+    val badge: String? = null,
+    val subtitle: String? = null,
 )
 
 data class OperatingLifeDto(
@@ -1226,8 +1244,23 @@ data class OperatingLifeDto(
     val resultProgress: String = "",
 )
 
+/** `memory.revisions[]` — the backend sends `{ id, title, occurredAt }` only. */
+data class OperatingRevisionDto(
+    val id: String = "",
+    val title: String = "",
+    val occurredAt: String = "",
+)
+
 data class OperatingMemoryDto(
-    val revisions: List<OperatingAttentionDto> = emptyList(),
+    val revisions: List<OperatingRevisionDto> = emptyList(),
+)
+
+data class OperatingBoardMetricDto(
+    val key: String = "",
+    val label: String = "",
+    val value: String = "",
+    val unit: String? = null,
+    val tone: String? = null,
 )
 
 data class OperatingBoardSectionDto(
@@ -1236,6 +1269,8 @@ data class OperatingBoardSectionDto(
     val detail: String = "",
     val rows: List<OperatingActivityDto> = emptyList(),
     val coverage: String? = null,
+    val metrics: List<OperatingBoardMetricDto> = emptyList(),
+    val why: String? = null,
 )
 
 data class OperatingBoardsDto(
@@ -1282,6 +1317,49 @@ data class OperatingProjectionDto(
     val purchasePriceIncludesGst: String? = null,
     val gstPosition: GstPositionDto? = null,
     val marketing: MarketingInsightDto? = null,
+    /** Quantified tiles for the six Pulse surfaces, one group per surface. */
+    val pulseMetrics: List<OperatingPulseMetricGroupDto>? = null,
+)
+
+data class OperatingPulseMetricGroupDto(
+    val code: String = "",
+    val metrics: List<OperatingBoardMetricDto> = emptyList(),
+    val why: String? = null,
+)
+
+data class OperatingMasterDto(
+    val id: String = "",
+    /** MASTER rows are table-backed and editable; EVENT rows are the legacy fallback. */
+    val source: String? = null,
+    val kind: String = "",
+    val name: String = "",
+    val code: String? = null,
+    val momentId: String? = null,
+    val status: String? = null,
+    val parentMasterId: String? = null,
+    val sellPrice: String? = null,
+    val mrp: String? = null,
+    val purchasePrice: String? = null,
+    val unit: String? = null,
+    val dimension: String? = null,
+    val conversionToBase: String? = null,
+    val tracked: Boolean? = null,
+    val barcode: String? = null,
+    val gstApplicable: String? = null,
+    val gstClassification: String? = null,
+    val gstRate: String? = null,
+    val priceIncludesGst: String? = null,
+    val salePriceIncludesGst: String? = null,
+    val purchasePriceIncludesGst: String? = null,
+    val gstEffectiveFrom: String? = null,
+    val hsn: String? = null,
+    val gstRegistration: String? = null,
+    val businessState: String? = null,
+    val billingState: String? = null,
+    val deliveryState: String? = null,
+    val gstin: String? = null,
+    /** Optimistic-concurrency stamp; required when PATCHing or archiving. */
+    val version: Int = 1,
 )
 
 data class GstPositionSourceDto(
@@ -1309,30 +1387,6 @@ data class GstPositionDto(
     val sources: List<GstPositionSourceDto> = emptyList(),
 )
 
-data class OperatingMasterDto(
-    val id: String = "",
-    val kind: String = "",
-    val name: String = "",
-    val unit: String? = null,
-    val dimension: String? = null,
-    val conversionToBase: String? = null,
-    val tracked: Boolean? = null,
-    val barcode: String? = null,
-    val gstApplicable: String? = null,
-    val gstClassification: String? = null,
-    val gstRate: String? = null,
-    val priceIncludesGst: String? = null,
-    val salePriceIncludesGst: String? = null,
-    val purchasePriceIncludesGst: String? = null,
-    val gstEffectiveFrom: String? = null,
-    val hsn: String? = null,
-    val gstRegistration: String? = null,
-    val businessState: String? = null,
-    val billingState: String? = null,
-    val deliveryState: String? = null,
-    val gstin: String? = null,
-)
-
 data class OperatingLineBody(
     val itemName: String,
     val quantity: String? = null,
@@ -1345,11 +1399,16 @@ data class OperatingLineBody(
 data class OperatingMasterBody(
     val kind: String,
     val name: String,
+    val code: String? = null,
+    val momentId: String? = null,
     val unit: String? = null,
     val dimension: String? = null,
     val conversionToBase: String? = null,
     val tracked: Boolean? = null,
     val barcode: String? = null,
+    val sellPrice: String? = null,
+    val mrp: String? = null,
+    val purchasePrice: String? = null,
     val gstApplicable: String? = null,
     val gstClassification: String? = null,
     val gstRate: String? = null,
@@ -1363,6 +1422,155 @@ data class OperatingMasterBody(
     val billingState: String? = null,
     val deliveryState: String? = null,
     val gstin: String? = null,
+    val parentMasterId: String? = null,
+)
+
+/** PATCH body for a master: every field optional plus the optimistic version. */
+data class OperatingMasterUpdateBody(
+    val kind: String? = null,
+    val name: String? = null,
+    val code: String? = null,
+    val unit: String? = null,
+    val dimension: String? = null,
+    val conversionToBase: String? = null,
+    val tracked: Boolean? = null,
+    val barcode: String? = null,
+    val sellPrice: String? = null,
+    val mrp: String? = null,
+    val purchasePrice: String? = null,
+    val gstApplicable: String? = null,
+    val gstClassification: String? = null,
+    val gstRate: String? = null,
+    val priceIncludesGst: String? = null,
+    val salePriceIncludesGst: String? = null,
+    val purchasePriceIncludesGst: String? = null,
+    val gstEffectiveFrom: String? = null,
+    val hsn: String? = null,
+    val gstin: String? = null,
+    val businessState: String? = null,
+    val billingState: String? = null,
+    val deliveryState: String? = null,
+    val parentMasterId: String? = null,
+    val status: String? = null,
+    val expectedVersion: Int,
+)
+
+data class OperatingMasterArchiveBody(
+    val expectedVersion: Int,
+)
+
+data class OperatingPriceListLineBody(
+    val masterId: String,
+    val price: String,
+    val schemePct: String? = null,
+)
+
+data class OperatingPriceListLineDto(
+    val masterId: String = "",
+    val price: String = "",
+    val schemePct: String? = null,
+)
+
+data class OperatingPriceListDto(
+    val priceListId: String = "",
+    val name: String = "",
+    val momentId: String? = null,
+    val channel: String? = null,
+    val priceUnit: String? = null,
+    val marginPct: String? = null,
+    val schemePct: String? = null,
+    val gstRate: String? = null,
+    val validFrom: String = "",
+    val validTo: String? = null,
+    val warehouseMasterId: String? = null,
+    val minOrder: String? = null,
+    val status: String? = null,
+    val version: Int = 1,
+    val lines: List<OperatingPriceListLineDto> = emptyList(),
+)
+
+data class OperatingPriceListBody(
+    val name: String,
+    val validFrom: String,
+    val momentId: String? = null,
+    val channel: String? = null,
+    val priceUnit: String? = null,
+    val marginPct: String? = null,
+    val schemePct: String? = null,
+    val gstRate: String? = null,
+    val validTo: String? = null,
+    val warehouseMasterId: String? = null,
+    val minOrder: String? = null,
+    val lines: List<OperatingPriceListLineBody>? = null,
+)
+
+data class OperatingPriceListUpdateBody(
+    val name: String? = null,
+    val channel: String? = null,
+    val priceUnit: String? = null,
+    val marginPct: String? = null,
+    val schemePct: String? = null,
+    val gstRate: String? = null,
+    val validFrom: String? = null,
+    val validTo: String? = null,
+    val warehouseMasterId: String? = null,
+    val minOrder: String? = null,
+    val status: String? = null,
+    val lines: List<OperatingPriceListLineBody>? = null,
+    val expectedVersion: Int,
+)
+
+/** Structured reprint payload — no server PDF; the device renders it. */
+data class OperatingDocumentLineDto(
+    val itemName: String = "",
+    val quantity: String? = null,
+    val unit: String? = null,
+    val unitPrice: String? = null,
+    val discount: String? = null,
+    val gstRate: String? = null,
+    val masterId: String? = null,
+    val masterName: String? = null,
+)
+
+data class OperatingDocumentPartyDto(
+    val name: String? = null,
+    val gstin: String? = null,
+    val state: String? = null,
+)
+
+data class OperatingDocumentTaxDto(
+    val taxableAmount: String? = null,
+    val gstRate: String? = null,
+    val cgst: String? = null,
+    val sgst: String? = null,
+    val igst: String? = null,
+    val total: String? = null,
+)
+
+data class OperatingDocumentDto(
+    val kind: String = "",
+    val eventId: String = "",
+    val momentId: String = "",
+    val documentNumber: String = "",
+    val issuedAt: String = "",
+    val currency: String = "INR",
+    val seller: OperatingDocumentPartyDto = OperatingDocumentPartyDto(),
+    val buyer: OperatingDocumentPartyDto = OperatingDocumentPartyDto(),
+    val lines: List<OperatingDocumentLineDto> = emptyList(),
+    val subTotal: String? = null,
+    val discount: String? = null,
+    val tax: OperatingDocumentTaxDto? = null,
+    val grandTotal: String? = null,
+    val notes: String? = null,
+    val reprint: Boolean = true,
+)
+
+data class OperatingMasterListDto(
+    val items: List<OperatingMasterDto> = emptyList(),
+)
+
+data class OperatingPriceListListDto(
+    val items: List<OperatingPriceListDto> = emptyList(),
 )
 
 data class OperatingAllocationBody(
@@ -1409,6 +1617,13 @@ data class OperatingContractBody(
     val deliveryStatus: String? = null,
     val quotationStatus: String? = null,
     val scrapQuantity: String? = null,
+    val holdStatus: String? = null,
+    val holdReason: String? = null,
+    val transferFromMasterId: String? = null,
+    val transferToMasterId: String? = null,
+    val transferFromName: String? = null,
+    val transferToName: String? = null,
+    val locationName: String? = null,
 )
 
 data class RecordOperatingEventBody(

@@ -22,7 +22,6 @@ enum class TourTargetId {
     SETUP_DRAFT,
     QA_HUB_TILE,
     TOP_QR,
-    COMPANY_CHIP,
 }
 
 enum class TourSignal {

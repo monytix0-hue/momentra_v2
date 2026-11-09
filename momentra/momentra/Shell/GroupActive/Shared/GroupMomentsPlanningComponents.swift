@@ -32,10 +32,109 @@ func recentOpenPlanningItems(
         .map { $0 }
 }
 
+/// ASCII digit check — `Character.isNumber` also accepts non-ASCII numerals.
+private func isPlanningASCIIDigit(_ c: Character) -> Bool { c.isASCII && c.isNumber }
+
+/// Strict ISO-8601 instant shape: `yyyy-MM-dd(T|t|' ')HH:mm:ss[.frac](Z|z|±HH|±HHmm|±HH:mm)`.
+///
+/// Foundation's `ISO8601DateFormatter` silently accepts trailing junk
+/// (`"2026-09-09T18:30:00.000Zjunk"` parses), which makes iOS disagree with
+/// Android's strict `OffsetDateTime.parse`. Validate the shape first so both
+/// platforms fail closed on malformed input.
+private func isWellFormedPlanningInstant(_ s: String) -> Bool {
+    let chars = Array(s)
+    // Minimum length: "yyyy-MM-ddTHH:mm:ss" == 19
+    guard chars.count >= 19 else { return false }
+
+    // yyyy-MM-dd — dashes at index 4 and 7.
+    for i in 0..<10 {
+        if i == 4 || i == 7 {
+            if chars[i] != "-" { return false }
+        } else if !isPlanningASCIIDigit(chars[i]) {
+            return false
+        }
+    }
+    // Date-time separator.
+    if chars[10] != "T" && chars[10] != "t" && chars[10] != " " { return false }
+    // HH:mm:ss — colons at index 13 and 16.
+    for i in 11..<19 {
+        if i == 13 || i == 16 {
+            if chars[i] != ":" { return false }
+        } else if !isPlanningASCIIDigit(chars[i]) {
+            return false
+        }
+    }
+
+    var index = 19
+    // Optional fractional seconds — at least one digit required.
+    if index < chars.count, chars[index] == "." {
+        index += 1
+        let fractionStart = index
+        while index < chars.count, isPlanningASCIIDigit(chars[index]) { index += 1 }
+        if index == fractionStart { return false }
+    }
+    // Optional UTC offset: Z | z | ±HH | ±HHmm | ±HH:mm.
+    if index < chars.count {
+        let marker = chars[index]
+        if marker == "Z" || marker == "z" {
+            index += 1
+        } else if marker == "+" || marker == "-" {
+            index += 1
+            guard index + 1 < chars.count,
+                  isPlanningASCIIDigit(chars[index]), isPlanningASCIIDigit(chars[index + 1]) else {
+                return false
+            }
+            index += 2
+            if index < chars.count, chars[index] == ":" {
+                index += 1
+                guard index + 1 < chars.count,
+                      isPlanningASCIIDigit(chars[index]), isPlanningASCIIDigit(chars[index + 1]) else {
+                    return false
+                }
+                index += 2
+            } else if index + 1 < chars.count,
+                      isPlanningASCIIDigit(chars[index]), isPlanningASCIIDigit(chars[index + 1]) {
+                index += 2
+            }
+        }
+    }
+    // Nothing may follow the offset — reject trailing junk.
+    return index == chars.count
+}
+
+/// Strict ISO-8601 date shape: `yyyy-MM-dd`.
+private func isWellFormedPlanningDate(_ s: String) -> Bool {
+    let chars = Array(s)
+    guard chars.count == 10 else { return false }
+    for i in 0..<10 {
+        if i == 4 || i == 7 {
+            if chars[i] != "-" { return false }
+        } else if !isPlanningASCIIDigit(chars[i]) {
+            return false
+        }
+    }
+    return true
+}
+
 func parsePlanningInstant(_ iso: String?) -> Date? {
     guard let iso, !iso.isEmpty else { return nil }
     let trimmed = iso.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
+
+    // Date-only `yyyy-MM-dd` → local midnight. Never take prefix(10) of a full
+    // datetime: that is the UTC calendar date and shifts local day (e.g. IST).
+    if isWellFormedPlanningDate(trimmed) {
+        let dayOnly = DateFormatter()
+        dayOnly.calendar = Calendar(identifier: .gregorian)
+        dayOnly.locale = Locale(identifier: "en_US_POSIX")
+        dayOnly.timeZone = .current
+        dayOnly.dateFormat = "yyyy-MM-dd"
+        return dayOnly.date(from: trimmed)
+    }
+
+    // Reject anything that is not a well-formed instant before handing it to
+    // Foundation — `ISO8601DateFormatter` parses trailing junk silently.
+    guard isWellFormedPlanningInstant(trimmed) else { return nil }
 
     let withFraction = ISO8601DateFormatter()
     withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -63,18 +162,7 @@ func parsePlanningInstant(_ iso: String?) -> Date? {
         if let date = posix.date(from: trimmed) { return date }
     }
 
-    // Date-only `yyyy-MM-dd` → local midnight. Never take prefix(10) of a full
-    // datetime: that is the UTC calendar date and shifts local day (e.g. IST).
-    guard trimmed.count == 10, trimmed[trimmed.index(trimmed.startIndex, offsetBy: 4)] == "-",
-          trimmed[trimmed.index(trimmed.startIndex, offsetBy: 7)] == "-" else {
-        return nil
-    }
-    let dayOnly = DateFormatter()
-    dayOnly.calendar = Calendar(identifier: .gregorian)
-    dayOnly.locale = Locale(identifier: "en_US_POSIX")
-    dayOnly.timeZone = .current
-    dayOnly.dateFormat = "yyyy-MM-dd"
-    return dayOnly.date(from: trimmed)
+    return nil
 }
 
 /// Local calendar day for a planning `dueAt` (matches Android `LocalDate` bucketing).

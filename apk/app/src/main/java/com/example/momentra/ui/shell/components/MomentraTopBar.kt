@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.domain.AppContext
-import com.example.momentra.domain.CompanySummary
 import com.example.momentra.ui.shell.maestro.MaestroIds
 import com.example.momentra.ui.shell.tour.TourTargetId
 import com.example.momentra.ui.shell.tour.tourTarget
@@ -50,28 +49,22 @@ import com.example.momentra.ui.theme.shell.GlobalTheme
  * - Personal `763:12256` — no QR
  * - Group `772:11972` — QR
  * - Business setup `1522:12255` — QR, no company chip
- * - Business activated `692:34971` — company chip + Moments label
+ * - Business activated `692:34971` — QR + Moments label
  */
 data class MomentraTopBarConfig(
     val context: AppContext,
     val displayName: String?,
-    val companies: List<CompanySummary> = emptyList(),
-    val selectedCompany: CompanySummary? = null,
-    val companyMenuOpen: Boolean = false,
     val life360Available: Boolean = true,
     val globalCreateAvailable: Boolean = true,
     val qrScanAvailable: Boolean = false,
     val referAvailable: Boolean = true,
     val unreadNotificationCount: Int = 0,
-    val locationName: String? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MomentraTopBar(
     config: MomentraTopBarConfig,
-    onCompanyMenuToggle: (Boolean) -> Unit = {},
-    onCompanySelected: (CompanySummary) -> Unit = {},
     onQrScan: () -> Unit = {},
     onLife360: () -> Unit = {},
     onNewMoment: () -> Unit = {},
@@ -81,11 +74,12 @@ fun MomentraTopBar(
     modifier: Modifier = Modifier,
 ) {
     val window = rememberMomentraWindowSize()
-    val showCompanyChip =
-        config.context == AppContext.BUSINESS && config.selectedCompany != null
     val showQr = config.qrScanAvailable &&
         (config.context == AppContext.GROUP || config.context == AppContext.BUSINESS)
-    val createLabel = if (showCompanyChip) "Moments" else "New"
+    // Business opens the Moments list; every other context creates a single new Moment.
+    val createLabel = if (config.context == AppContext.BUSINESS) "Moments" else "New"
+    val createContentDescription =
+        if (config.context == AppContext.BUSINESS) "Open moments" else "Create moment"
     val actionBg = Color(0xFF1C233D)
     val labelMuted = Color(0xFFABA3BA)
 
@@ -103,16 +97,6 @@ fun MomentraTopBar(
                     taglineSizeSp = 5.5f,
                     alignStart = true,
                 )
-                if (showCompanyChip) {
-                    CompanySwitcher(
-                        companies = config.companies,
-                        selected = config.selectedCompany,
-                        menuOpen = config.companyMenuOpen,
-                        onToggle = onCompanyMenuToggle,
-                        onSelected = onCompanySelected,
-                        locationName = config.locationName,
-                    )
-                }
             }
         },
         actions = {
@@ -160,7 +144,7 @@ fun MomentraTopBar(
                         label = createLabel,
                         background = GlobalTheme.createMomentCta,
                         onClick = onNewMoment,
-                        contentDescription = if (showCompanyChip) "Open moments" else "Create moment",
+                        contentDescription = createContentDescription,
                         testTag = MaestroIds.TOPBAR_NEW_MOMENT,
                         labelColor = Color.White.copy(alpha = 0.92f),
                     ) {

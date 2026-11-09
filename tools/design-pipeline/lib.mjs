@@ -11,9 +11,12 @@ export const repo = (...parts) => path.join(REPO_ROOT, ...parts);
 
 export const PATHS = {
   tokens: repo('design', 'tokens', 'personal.tokens.json'),
+  businessTokens: repo('design', 'tokens', 'business.tokens.json'),
   taxonomy: repo('design', 'taxonomy', 'personal-taxonomy.v1.json'),
   assetManifest: repo('design', 'assets', 'personal', 'manifest.json'),
   assetDir: repo('design', 'assets', 'personal'),
+  businessAssetManifest: repo('design', 'assets', 'business', 'manifest.json'),
+  businessAssetDir: repo('design', 'assets', 'business'),
   iosApp: repo('momentra', 'momentra'),
   iosAssets: repo('momentra', 'momentra', 'Assets.xcassets'),
   iosGenerated: repo('momentra', 'momentra', 'Design', 'Generated'),

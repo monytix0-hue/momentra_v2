@@ -3,7 +3,9 @@
  * written at posting time. Later master or setup changes do not rewrite it.
  */
 
-export const GST_CALCULATION_VERSION = 'v11.1';
+import { gstStateCodeOf, gstStateName, resolveJurisdiction } from './operating-gst-states';
+
+export const GST_CALCULATION_VERSION = 'v12.0';
 
 export interface GstLineSnapshot {
   enteredUnitPrice: string;
@@ -18,6 +20,8 @@ export interface GstLineSnapshot {
   gstTotal: string;
   lineTotal: string;
   placeOfSupply: string;
+  /** Two-digit GST code of the place of supply; `''` on snapshots written before v12.0. */
+  placeOfSupplyCode?: string;
 }
 
 export interface GstSnapshot {
@@ -34,6 +38,8 @@ export interface GstSnapshot {
   invoiceTotal: string;
   taxJurisdiction: 'INTRA' | 'INTER' | null;
   placeOfSupply: string;
+  /** Two-digit GST code of the place of supply; `''` on snapshots written before v12.0. */
+  placeOfSupplyCode?: string;
   calculationVersion: string;
   taxStatus: 'CALCULATED' | 'NOT_CONFIGURED';
   sellerRegistration: string;
@@ -150,6 +156,7 @@ function lineSnapshot(line: GstLineInput, jurisdiction: 'INTRA' | 'INTER', place
     gstTotal: moneyFromPaise(gst),
     lineTotal: moneyFromPaise(invoice),
     placeOfSupply,
+    placeOfSupplyCode: gstStateCodeOf(placeOfSupply),
   };
 }
 
@@ -177,6 +184,7 @@ function headerFromLines(
     invoiceTotal: moneyFromPaise(sum((row) => row.lineTotal)),
     taxJurisdiction: jurisdiction,
     placeOfSupply,
+    placeOfSupplyCode: gstStateCodeOf(placeOfSupply),
     calculationVersion: GST_CALCULATION_VERSION,
     taxStatus: 'CALCULATED',
     sellerRegistration,
@@ -272,6 +280,7 @@ export function parseGstSnapshot(raw: unknown): GstSnapshot | null {
     invoiceTotal: String(rec.invoiceTotal),
     taxJurisdiction: jurisdiction,
     placeOfSupply: String(rec.placeOfSupply ?? ''),
+    placeOfSupplyCode: String(rec.placeOfSupplyCode ?? '') || gstStateCodeOf(rec.placeOfSupply),
     calculationVersion: String(rec.calculationVersion ?? GST_CALCULATION_VERSION),
     taxStatus: rec.taxStatus === 'NOT_CONFIGURED' ? 'NOT_CONFIGURED' : 'CALCULATED',
     sellerRegistration: String(rec.sellerRegistration ?? ''),
@@ -292,6 +301,7 @@ export function parseGstSnapshot(raw: unknown): GstSnapshot | null {
             gstTotal: String(row.gstTotal ?? '0.0000'),
             lineTotal: String(row.lineTotal ?? row.invoiceTotal ?? '0.0000'),
             placeOfSupply: String(row.placeOfSupply ?? ''),
+            placeOfSupplyCode: String(row.placeOfSupplyCode ?? '') || gstStateCodeOf(row.placeOfSupply),
           }];
         })
       : [],
@@ -407,6 +417,8 @@ export interface GstPostingContext {
   saleIncludesGst: boolean | null;
   purchaseIncludesGst: boolean | null;
   businessState: string;
+  /** Two-digit code for `businessState`; derived at the call site when absent. */
+  businessStateCode?: string;
   registration: string;
 }
 
@@ -452,15 +464,20 @@ export function stampPostedGst(input: {
     return { ok: true, amount: Number(input.contract.gst.invoiceTotal) };
   }
   const preference = input.side === 'SALE' ? input.gst.saleIncludesGst : input.gst.purchaseIncludesGst;
-  const businessState = input.gst.businessState.trim().toLowerCase();
+  const businessState = input.gst.businessState.trim();
+  const businessStateCode = input.gst.businessStateCode || gstStateCodeOf(businessState);
   const supplyState = (input.contract.placeOfSupply || input.partyState || '').trim();
   let jurisdiction = input.contract.taxJurisdiction ?? null;
-  if (!jurisdiction && businessState && supplyState) {
-    jurisdiction = supplyState.toLowerCase() === businessState ? 'INTRA' : 'INTER';
+  // Code comparison, so a `"MH"` master and a `"Maharashtra"` preference agree on intra-state.
+  if (!jurisdiction) {
+    jurisdiction = resolveJurisdiction(businessStateCode || businessState, supplyState);
   }
   if (!jurisdiction) return { ok: false, message: 'Confirm whether this supply is inside your state or outside it.' };
   input.contract.taxJurisdiction = jurisdiction;
-  input.contract.placeOfSupply = supplyState || input.contract.placeOfSupply || input.gst.businessState;
+  // Store the canonical name so a snapshot written from a `"MH"` master and one written from a
+  // `"Maharashtra"` preference read the same on every invoice.
+  const canonicalSupply = supplyState || input.contract.placeOfSupply || businessState;
+  input.contract.placeOfSupply = gstStateName(canonicalSupply) || canonicalSupply;
   const priced = (input.lines ?? []).filter((line) => Number(line.unitPrice) > 0 && Number(line.quantity) > 0);
   const sources = priced.length > 0 ? priced : [{ quantity: '1', unitPrice: String(input.entered), gstRate: input.contract.gstRate, taxMode: input.contract.taxMode === 'NOT_CONFIGURED' ? null : input.contract.taxMode, discount: input.contract.discount, master: null }];
   const gstLines: GstLineInput[] = [];

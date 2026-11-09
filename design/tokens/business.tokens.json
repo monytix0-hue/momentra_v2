@@ -1,0 +1,271 @@
+{
+  "$description": "Momentra Business v3 design tokens (Business mode ONLY; Personal/Group/Circle keep their themes). Source of truth for tools/design-pipeline/generate-tokens.mjs. Format follows W3C Design Tokens (DTCG): every leaf has $type and $value; {path.to.token} values are aliases. $extensions.figma records the Figma node in file TzLvwVwlPbeVB8ug1zB3GM, page 2348:29188 (Business Redesign). The eight domain palettes come from the 'Domain Color System' table (node 2358:29308) and the v12 Pulse/Setup frames that bind it.",
+  "$extensions": {
+    "momentra": {
+      "name": "momentra.business",
+      "version": "3.0.0",
+      "scope": "business",
+      "figmaFile": "TzLvwVwlPbeVB8ug1zB3GM",
+      "figmaPage": "2348:29188",
+      "figmaPaletteTable": "2358:29308",
+      "fontFamily": "Plus Jakarta Sans",
+      "domains": {
+        "corporate": { "label": "Corporate services", "swift": "corporate", "kotlin": "CORPORATE" },
+        "trading": { "label": "Business Trading", "swift": "trading", "kotlin": "TRADING" },
+        "manufacturing": { "label": "Manufacturing", "swift": "manufacturing", "kotlin": "MANUFACTURING" },
+        "retail": { "label": "Retail", "swift": "retail", "kotlin": "RETAIL" },
+        "services": { "label": "Services", "swift": "services", "kotlin": "SERVICES" },
+        "restaurant": { "label": "Restaurant", "swift": "restaurant", "kotlin": "RESTAURANT" },
+        "distribution": { "label": "Distribution", "swift": "distribution", "kotlin": "DISTRIBUTION" },
+        "marketing": { "label": "Marketing", "swift": "marketing", "kotlin": "MARKETING" },
+        "marketingOwn": { "label": "Own-business marketing", "swift": "marketingOwn", "kotlin": "MARKETING_OWN" }
+      }
+    }
+  },
+  "color": {
+    "$description": "Neutral Business ramp shared by every vertical, plus one palette per domain.",
+    "bg": {
+      "canvas": { "$type": "color", "$value": "#090D16", "$extensions": { "figma": "raw: Trading canvas 2566:29337" } },
+      "canvasElevated": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "raw: Retail chrome / app-state sheet 2498:32657" } },
+      "canvasDeep": { "$type": "color", "$value": "#05070C", "$extensions": { "figma": "raw: canvas gradient end (Retail 2399:29655)" } }
+    },
+    "surface": {
+      "sheet": { "$type": "color", "$value": "#0F1623", "$extensions": { "figma": "App States sheet" } },
+      "card": { "$type": "color", "$value": "#151D2E", "$extensions": { "figma": "raw: raised surface / setup panel" } },
+      "inset": { "$type": "color", "$value": "#101828", "$extensions": { "figma": "raw: metric chip inside a section card" } },
+      "raised": { "$type": "color", "$value": "#1E293B", "$extensions": { "figma": "raw: neutral chip, field, emblem well" } },
+      "glass": { "$type": "color", "$value": "rgba(255,255,255,0.08)", "$extensions": { "figma": "App States glassFill" } }
+    },
+    "border": {
+      "default": { "$type": "color", "$value": "#1E293B", "$extensions": { "figma": "color/border" } },
+      "hairline": { "$type": "color", "$value": "rgba(255,255,255,0.10)", "$extensions": { "figma": "raw: section card hairline" } },
+      "strong": { "$type": "color", "$value": "#334155", "$extensions": { "figma": "raw: owner row, selected field" } }
+    },
+    "text": {
+      "primary": { "$type": "color", "$value": "#FFFFFF", "$extensions": { "figma": "color/text" } },
+      "secondary": { "$type": "color", "$value": "#CBD5E1", "$extensions": { "figma": "raw: chip label" } },
+      "muted": { "$type": "color", "$value": "#94A3B8", "$extensions": { "figma": "color/text-muted" } },
+      "subtle": { "$type": "color", "$value": "#64748B", "$extensions": { "figma": "color/text-subtle" } },
+      "inverse": { "$type": "color", "$value": "#0B0A1F", "$extensions": { "figma": "raw: label on a light accent fill" } }
+    },
+    "signal": {
+      "positive": { "$type": "color", "$value": "#22C55E", "$extensions": { "figma": "raw: settled / on track" } },
+      "warning": { "$type": "color", "$value": "#FBBF24", "$extensions": { "figma": "raw: needs attention accent" } },
+      "danger": { "$type": "color", "$value": "#EF4444", "$extensions": { "figma": "raw: overdue / blocked" } },
+      "info": { "$type": "color", "$value": "#06B6D4", "$extensions": { "figma": "raw: neutral insight" } },
+      "neutral": { "$type": "color", "$value": "#94A3B8", "$extensions": { "figma": "raw: offline / no data" } }
+    },
+    "cta": {
+      "start": { "$type": "color", "$value": "#E8621A", "$extensions": { "figma": "App States primary CTA ramp start" } },
+      "end": { "$type": "color", "$value": "#F5A623", "$extensions": { "figma": "App States primary CTA ramp end" } },
+      "text": { "$type": "color", "$value": "#140B06", "$extensions": { "figma": "raw: label on the CTA ramp" } }
+    },
+    "domain": {
+      "$description": "One palette per business vertical. Retail/Restaurant/Services/Manufacturing/Marketing read from their v12 Pulse frame; Trading/Distribution from their v12 Pulse frame; Corporate has no frame yet and uses the palette-table values.",
+      "corporate": {
+        "canvas": { "$type": "color", "$value": "#0F172A" },
+        "canvasTop": { "$type": "color", "$value": "#151D2E" },
+        "canvasDeep": { "$type": "color", "$value": "#0B1220" },
+        "surface": { "$type": "color", "$value": "#1E293B" },
+        "inset": { "$type": "color", "$value": "#151D2E" },
+        "accent": { "$type": "color", "$value": "#3B82F6", "$extensions": { "figma": "Domain Color System 1 Corporate Services · S" } },
+        "accentSoft": { "$type": "color", "$value": "#93C5FD", "$extensions": { "figma": "Domain Color System 1 · H" } },
+        "accentDeep": { "$type": "color", "$value": "#1D4ED8" },
+        "onAccent": { "$type": "color", "$value": "#FFFFFF" },
+        "heroStart": { "$type": "color", "$value": "#60A5FA" },
+        "heroEnd": { "$type": "color", "$value": "#3B82F6" }
+      },
+      "trading": {
+        "canvas": { "$type": "color", "$value": "#090D16", "$extensions": { "figma": "TRD-PULSE-v12 2566:29337 root" } },
+        "canvasTop": { "$type": "color", "$value": "#0F1623" },
+        "canvasDeep": { "$type": "color", "$value": "#05070C" },
+        "surface": { "$type": "color", "$value": "#0F1623" },
+        "inset": { "$type": "color", "$value": "#090D16" },
+        "accent": { "$type": "color", "$value": "#10B981", "$extensions": { "figma": "Domain Color System 2 FinTech / Trading · S" } },
+        "accentSoft": { "$type": "color", "$value": "#6EE7B7", "$extensions": { "figma": "TRD-PULSE-v12 Hero Header gradient start" } },
+        "accentDeep": { "$type": "color", "$value": "#047857" },
+        "onAccent": { "$type": "color", "$value": "#090D16" },
+        "heroStart": { "$type": "color", "$value": "#6EE7B7", "$extensions": { "figma": "TRD-PULSE-v12 Hero Header 2565:29452" } },
+        "heroEnd": { "$type": "color", "$value": "#10B981", "$extensions": { "figma": "TRD-PULSE-v12 Hero Header" } }
+      },
+      "manufacturing": {
+        "canvas": { "$type": "color", "$value": "#18181B", "$extensions": { "figma": "MFG-PULSE-v12 2396:29655 canvas gradient end" } },
+        "canvasTop": { "$type": "color", "$value": "#3F3F46", "$extensions": { "figma": "MFG-PULSE-v12 canvas gradient start" } },
+        "canvasDeep": { "$type": "color", "$value": "#09090B" },
+        "surface": { "$type": "color", "$value": "#27272A" },
+        "inset": { "$type": "color", "$value": "#18181B" },
+        "accent": { "$type": "color", "$value": "#F59E0B", "$extensions": { "figma": "Domain Color System 3 Manufacturing · S" } },
+        "accentSoft": { "$type": "color", "$value": "#FBBF24" },
+        "accentDeep": { "$type": "color", "$value": "#B45309", "$extensions": { "figma": "MFG-PULSE-v12 Hero Header gradient end" } },
+        "onAccent": { "$type": "color", "$value": "#1C1917" },
+        "heroStart": { "$type": "color", "$value": "#F59E0B", "$extensions": { "figma": "MFG-PULSE-v12 Hero Header" } },
+        "heroEnd": { "$type": "color", "$value": "#B45309", "$extensions": { "figma": "MFG-PULSE-v12 Hero Header" } }
+      },
+      "retail": {
+        "canvas": { "$type": "color", "$value": "#0B0A1F", "$extensions": { "figma": "RTL-PULSE-v12 2399:29655 canvas gradient mid" } },
+        "canvasTop": { "$type": "color", "$value": "#4C0519", "$extensions": { "figma": "RTL-PULSE-v12 canvas gradient start" } },
+        "canvasDeep": { "$type": "color", "$value": "#050414", "$extensions": { "figma": "RTL-PULSE-v12 canvas gradient end" } },
+        "surface": { "$type": "color", "$value": "#2A1A1F", "$extensions": { "figma": "RTL-PULSE-v12 section card" } },
+        "inset": { "$type": "color", "$value": "#170D11", "$extensions": { "figma": "RTL-PULSE-v12 metric chip / list row" } },
+        "accent": { "$type": "color", "$value": "#F43F5E", "$extensions": { "figma": "Domain Color System 4 Retail · S" } },
+        "accentSoft": { "$type": "color", "$value": "#FB7185" },
+        "accentDeep": { "$type": "color", "$value": "#BE123C" },
+        "onAccent": { "$type": "color", "$value": "#FFFFFF" },
+        "heroStart": { "$type": "color", "$value": "#F43F5E", "$extensions": { "figma": "RTL-PULSE-v12 hero (solid)" } },
+        "heroEnd": { "$type": "color", "$value": "#F43F5E", "$extensions": { "figma": "RTL-PULSE-v12 hero (solid)" } }
+      },
+      "services": {
+        "canvas": { "$type": "color", "$value": "#042F2E", "$extensions": { "figma": "SVC-PULSE-v12 2401:29655 canvas gradient mid" } },
+        "canvasTop": { "$type": "color", "$value": "#115E59", "$extensions": { "figma": "SVC-PULSE-v12 canvas gradient start" } },
+        "canvasDeep": { "$type": "color", "$value": "#022C22", "$extensions": { "figma": "SVC-PULSE-v12 canvas gradient end" } },
+        "surface": { "$type": "color", "$value": "#134E4A", "$extensions": { "figma": "SVC-PULSE-v12 section card" } },
+        "inset": { "$type": "color", "$value": "#042F2E", "$extensions": { "figma": "SVC-PULSE-v12 metric chip" } },
+        "accent": { "$type": "color", "$value": "#0D9488", "$extensions": { "figma": "Domain Color System 5 Services · P" } },
+        "accentSoft": { "$type": "color", "$value": "#84CC16", "$extensions": { "figma": "Domain Color System 5 Services · S" } },
+        "accentDeep": { "$type": "color", "$value": "#115E59" },
+        "onAccent": { "$type": "color", "$value": "#FFFFFF" },
+        "heroStart": { "$type": "color", "$value": "#0D9488", "$extensions": { "figma": "SVC-PULSE-v12 hero" } },
+        "heroEnd": { "$type": "color", "$value": "#84CC16", "$extensions": { "figma": "SVC-PULSE-v12 hero" } }
+      },
+      "restaurant": {
+        "canvas": { "$type": "color", "$value": "#1C1917", "$extensions": { "figma": "RST-PULSE-v12 2400:29655 canvas gradient mid" } },
+        "canvasTop": { "$type": "color", "$value": "#44403C", "$extensions": { "figma": "RST-PULSE-v12 canvas gradient start" } },
+        "canvasDeep": { "$type": "color", "$value": "#0C0A09", "$extensions": { "figma": "RST-PULSE-v12 canvas gradient end" } },
+        "surface": { "$type": "color", "$value": "#292524", "$extensions": { "figma": "RST-PULSE-v12 section card" } },
+        "inset": { "$type": "color", "$value": "#1C1917", "$extensions": { "figma": "RST-PULSE-v12 metric chip" } },
+        "accent": { "$type": "color", "$value": "#EA580C", "$extensions": { "figma": "Domain Color System 6 Restaurant · S" } },
+        "accentSoft": { "$type": "color", "$value": "#FCD34D", "$extensions": { "figma": "Domain Color System 6 Restaurant · H" } },
+        "accentDeep": { "$type": "color", "$value": "#881337", "$extensions": { "figma": "Domain Color System 6 Restaurant · P" } },
+        "onAccent": { "$type": "color", "$value": "#FFFFFF" },
+        "heroStart": { "$type": "color", "$value": "#881337", "$extensions": { "figma": "RST-PULSE-v12 hero" } },
+        "heroEnd": { "$type": "color", "$value": "#EA580C", "$extensions": { "figma": "RST-PULSE-v12 hero" } }
+      },
+      "distribution": {
+        "canvas": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "DST-PULSE-v12 2365:29452 root" } },
+        "canvasTop": { "$type": "color", "$value": "#0B1226", "$extensions": { "figma": "DST-PULSE-v12 moments selector" } },
+        "canvasDeep": { "$type": "color", "$value": "#050A18" },
+        "surface": { "$type": "color", "$value": "#0B1433", "$extensions": { "figma": "DST-PULSE-v12 section inset" } },
+        "inset": { "$type": "color", "$value": "#071022" },
+        "accent": { "$type": "color", "$value": "#EA580C", "$extensions": { "figma": "Domain Color System 7 Distribution · S" } },
+        "accentSoft": { "$type": "color", "$value": "#FFB598", "$extensions": { "figma": "DST-PULSE-v12 hero gradient start" } },
+        "accentDeep": { "$type": "color", "$value": "#C2410C" },
+        "onAccent": { "$type": "color", "$value": "#0F172A" },
+        "heroStart": { "$type": "color", "$value": "#FFB598", "$extensions": { "figma": "DST-PULSE-v12 hero" } },
+        "heroEnd": { "$type": "color", "$value": "#EA580C", "$extensions": { "figma": "DST-PULSE-v12 hero" } }
+      },
+      "marketing": {
+        "canvas": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "MKT-PULSE-v12 2389:29619 canvas gradient mid" } },
+        "canvasTop": { "$type": "color", "$value": "#1E1B4B", "$extensions": { "figma": "MKT-PULSE-v12 canvas gradient start" } },
+        "canvasDeep": { "$type": "color", "$value": "#0B0F1F" },
+        "surface": { "$type": "color", "$value": "#1E1B4B", "$extensions": { "figma": "MKT-PULSE-v12 section card" } },
+        "inset": { "$type": "color", "$value": "#120F30", "$extensions": { "figma": "MKT-PULSE-v12 metric chip" } },
+        "accent": { "$type": "color", "$value": "#6366F1", "$extensions": { "figma": "Domain Color System 8 Marketing B2B · S" } },
+        "accentSoft": { "$type": "color", "$value": "#8B5CF6", "$extensions": { "figma": "Domain Color System 8 Marketing B2B · H" } },
+        "accentDeep": { "$type": "color", "$value": "#4338CA" },
+        "onAccent": { "$type": "color", "$value": "#FFFFFF" },
+        "heroStart": { "$type": "color", "$value": "#6366F1", "$extensions": { "figma": "MKT-PULSE-v12 hero" } },
+        "heroEnd": { "$type": "color", "$value": "#8B5CF6", "$extensions": { "figma": "MKT-PULSE-v12 hero" } }
+      },
+      "marketingOwn": {
+        "canvas": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "MKT-OWN-PULSE-v12 2582:29187" } },
+        "canvasTop": { "$type": "color", "$value": "#2A1030", "$extensions": { "figma": "MKT-OWN-PULSE-v12 canvas gradient start" } },
+        "canvasDeep": { "$type": "color", "$value": "#150618" },
+        "surface": { "$type": "color", "$value": "#2A1030", "$extensions": { "figma": "MKT-OWN-PULSE-v12 section card" } },
+        "inset": { "$type": "color", "$value": "#18081C", "$extensions": { "figma": "MKT-OWN-PULSE-v12 metric chip" } },
+        "accent": { "$type": "color", "$value": "#D946EF", "$extensions": { "figma": "MKT-OWN-PULSE-v12 hero gradient start" } },
+        "accentSoft": { "$type": "color", "$value": "#F59E0B", "$extensions": { "figma": "MKT-OWN-PULSE-v12 hero gradient end" } },
+        "accentDeep": { "$type": "color", "$value": "#A21CAF" },
+        "onAccent": { "$type": "color", "$value": "#FFFFFF" },
+        "heroStart": { "$type": "color", "$value": "#D946EF", "$extensions": { "figma": "MKT-OWN-PULSE-v12 hero" } },
+        "heroEnd": { "$type": "color", "$value": "#F59E0B", "$extensions": { "figma": "MKT-OWN-PULSE-v12 hero" } }
+      }
+    }
+  },
+  "radius": {
+    "pill": { "$type": "dimension", "$value": 999, "$extensions": { "figma": "radius/pill" } },
+    "hero": { "$type": "dimension", "$value": 24, "$extensions": { "figma": "RTL-PULSE-v12 hero 24" } },
+    "sheet": { "$type": "dimension", "$value": 28 },
+    "card": { "$type": "dimension", "$value": 20, "$extensions": { "figma": "section card 20" } },
+    "panel": { "$type": "dimension", "$value": 16 },
+    "inset": { "$type": "dimension", "$value": 14, "$extensions": { "figma": "metric chip / setup panel 14" } },
+    "row": { "$type": "dimension", "$value": 12, "$extensions": { "figma": "list row / field 12" } },
+    "field": { "$type": "dimension", "$value": 12 },
+    "tile": { "$type": "dimension", "$value": 10, "$extensions": { "figma": "kind chip / icon tile 10" } },
+    "chip": { "$type": "dimension", "$value": 8 }
+  },
+  "space": {
+    "xxs": { "$type": "dimension", "$value": 2 },
+    "xs": { "$type": "dimension", "$value": 4 },
+    "tight": { "$type": "dimension", "$value": 6 },
+    "sm": { "$type": "dimension", "$value": 8 },
+    "snug": { "$type": "dimension", "$value": 10 },
+    "md": { "$type": "dimension", "$value": 12 },
+    "roomy": { "$type": "dimension", "$value": 14 },
+    "lg": { "$type": "dimension", "$value": 16, "$extensions": { "figma": "section card padding / gap" } },
+    "xl": { "$type": "dimension", "$value": 20, "$extensions": { "figma": "screen horizontal padding" } },
+    "xxl": { "$type": "dimension", "$value": 24 },
+    "section": { "$type": "dimension", "$value": 32 }
+  },
+  "size": {
+    "screenPadding": { "$type": "dimension", "$value": 20, "$extensions": { "figma": "RTL-PULSE-v12 frame padding 20" } },
+    "screenPaddingTight": { "$type": "dimension", "$value": 16 },
+    "statusBar": { "$type": "dimension", "$value": 32 },
+    "topBar": { "$type": "dimension", "$value": 60 },
+    "selector": { "$type": "dimension", "$value": 44 },
+    "tabBar": { "$type": "dimension", "$value": 93 },
+    "iconXs": { "$type": "dimension", "$value": 12 },
+    "iconSm": { "$type": "dimension", "$value": 16 },
+    "icon": { "$type": "dimension", "$value": 18 },
+    "iconMd": { "$type": "dimension", "$value": 20 },
+    "iconLg": { "$type": "dimension", "$value": 24 },
+    "iconXl": { "$type": "dimension", "$value": 28 },
+    "iconTile": { "$type": "dimension", "$value": 36, "$extensions": { "figma": "setup row icon tile 36" } },
+    "emblem": { "$type": "dimension", "$value": 96, "$extensions": { "figma": "RTL-SETUP-v6 emblem 96" } },
+    "buttonHeight": { "$type": "dimension", "$value": 51, "$extensions": { "figma": "setup Activate 51" } },
+    "buttonHeightLarge": { "$type": "dimension", "$value": 56, "$extensions": { "figma": "v5 Activate 56" } },
+    "fieldHeight": { "$type": "dimension", "$value": 44, "$extensions": { "figma": "setup field 44" } },
+    "chipHeight": { "$type": "dimension", "$value": 33, "$extensions": { "figma": "context chip 33" } },
+    "pillHeight": { "$type": "dimension", "$value": 26, "$extensions": { "figma": "status pill 26" } },
+    "listRowHeight": { "$type": "dimension", "$value": 52, "$extensions": { "figma": "list row 52" } },
+    "metricChipHeight": { "$type": "dimension", "$value": 63, "$extensions": { "figma": "metric chip 63" } },
+    "ringSize": { "$type": "dimension", "$value": 92, "$extensions": { "figma": "Target hero health ring 92" } },
+    "ringStroke": { "$type": "dimension", "$value": 3 },
+    "hairline": { "$type": "dimension", "$value": 1 },
+    "border": { "$type": "dimension", "$value": 1 },
+    "borderStrong": { "$type": "dimension", "$value": 1.5 }
+  },
+  "font": {
+    "family": {
+      "base": { "$type": "fontFamily", "$value": "Plus Jakarta Sans" }
+    },
+    "face": {
+      "400": { "$type": "fontFace", "$value": { "postScriptName": "PlusJakartaSans-Regular", "file": "PlusJakartaSans-Regular.ttf", "androidResource": "plus_jakarta_sans_regular" } },
+      "500": { "$type": "fontFace", "$value": { "postScriptName": "PlusJakartaSans-Medium", "file": "PlusJakartaSans-Medium.ttf", "androidResource": "plus_jakarta_sans_medium" } },
+      "600": { "$type": "fontFace", "$value": { "postScriptName": "PlusJakartaSans-SemiBold", "file": "PlusJakartaSans-SemiBold.ttf", "androidResource": "plus_jakarta_sans_semibold" } },
+      "700": { "$type": "fontFace", "$value": { "postScriptName": "PlusJakartaSans-Bold", "file": "PlusJakartaSans-Bold.ttf", "androidResource": "plus_jakarta_sans_bold" } },
+      "800": { "$type": "fontFace", "$value": { "postScriptName": "PlusJakartaSans-ExtraBold", "file": "PlusJakartaSans-ExtraBold.ttf", "androidResource": "plus_jakarta_sans_extrabold" } }
+    }
+  },
+  "typography": {
+    "$description": "Measured from the v12 Business frames: line height is 1.26x the font size unless a frame overrides it. All faces are Plus Jakarta Sans.",
+    "display": { "$type": "typography", "$value": { "fontWeight": 800, "fontSize": 32, "lineHeight": 40, "letterSpacing": -0.4, "textCase": "none", "iosRelativeTo": "largeTitle" }, "$extensions": { "figma": "hero title 32/800 (TRD-PULSE-v12)" } },
+    "title": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 24, "lineHeight": 30, "letterSpacing": -0.2, "textCase": "none", "iosRelativeTo": "title" }, "$extensions": { "figma": "\"Harbor Mart Pulse\" 24/700" } },
+    "headline": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 22, "lineHeight": 28, "letterSpacing": -0.2, "textCase": "none", "iosRelativeTo": "title2" }, "$extensions": { "figma": "hero subtitle 22/700" } },
+    "section": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 18, "lineHeight": 23, "letterSpacing": 0, "textCase": "none", "iosRelativeTo": "title3" }, "$extensions": { "figma": "section card title 18/700" } },
+    "sectionSmall": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 16, "lineHeight": 20, "letterSpacing": 0, "textCase": "none", "iosRelativeTo": "headline" }, "$extensions": { "figma": "section card title 16/700 (v12 pulse cards)" } },
+    "bodyStrong": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 14, "lineHeight": 18, "letterSpacing": 0, "textCase": "none", "iosRelativeTo": "body" }, "$extensions": { "figma": "list row title 14/700" } },
+    "body": { "$type": "typography", "$value": { "fontWeight": 400, "fontSize": 14, "lineHeight": 18, "letterSpacing": 0, "textCase": "none", "iosRelativeTo": "body" }, "$extensions": { "figma": "body 14/400" } },
+    "labelStrong": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 13, "lineHeight": 16, "letterSpacing": 0, "textCase": "none", "iosRelativeTo": "subheadline" } },
+    "label": { "$type": "typography", "$value": { "fontWeight": 500, "fontSize": 13, "lineHeight": 16, "letterSpacing": 0, "textCase": "none", "iosRelativeTo": "subheadline" } },
+    "metaStrong": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 12, "lineHeight": 15, "letterSpacing": 0, "textCase": "none", "iosRelativeTo": "caption" }, "$extensions": { "figma": "chip label 12/700" } },
+    "meta": { "$type": "typography", "$value": { "fontWeight": 500, "fontSize": 12, "lineHeight": 15, "letterSpacing": 0, "textCase": "none", "iosRelativeTo": "caption" }, "$extensions": { "figma": "metadata 12/500" } },
+    "caption": { "$type": "typography", "$value": { "fontWeight": 400, "fontSize": 11, "lineHeight": 14, "letterSpacing": 0, "textCase": "none", "iosRelativeTo": "caption2" } },
+    "eyebrow": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 11, "lineHeight": 14, "letterSpacing": 0.6, "textCase": "uppercase", "iosRelativeTo": "caption2" }, "$extensions": { "figma": "HARBOR MART · ANDHERI 11/700 uppercase" } },
+    "micro": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 10, "lineHeight": 13, "letterSpacing": 0.6, "textCase": "uppercase", "iosRelativeTo": "caption2" } },
+    "tiny": { "$type": "typography", "$value": { "fontWeight": 500, "fontSize": 8, "lineHeight": 11, "letterSpacing": 0.12, "textCase": "none", "iosRelativeTo": "caption2" } },
+    "button": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 15, "lineHeight": 19, "letterSpacing": 0, "textCase": "none", "iosRelativeTo": "callout" }, "$extensions": { "figma": "\"Start this store\" 15/700" } },
+    "chip": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 12, "lineHeight": 15, "letterSpacing": 0, "textCase": "none", "iosRelativeTo": "caption" } },
+    "metric": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 20, "lineHeight": 25, "letterSpacing": -0.2, "textCase": "none", "iosRelativeTo": "title3" }, "$extensions": { "figma": "metric value 20/700" } },
+    "metricSmall": { "$type": "typography", "$value": { "fontWeight": 700, "fontSize": 16, "lineHeight": 20, "letterSpacing": 0, "textCase": "none", "iosRelativeTo": "headline" } }
+  }
+}

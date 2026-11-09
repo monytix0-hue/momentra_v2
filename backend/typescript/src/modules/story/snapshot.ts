@@ -737,6 +737,92 @@ export async function buildMomentStorySnapshot(
     };
   }
 
+  if (setup.rows[0]?.family_code === 'TRADING_DISTRIBUTION') {
+    const { parseOperatingContract } = await import('../business/operating-retail-contract');
+    const prefs = setup.rows[0].preferences ?? {};
+    const subtype = String(prefs.subtype ?? '').toUpperCase();
+    const events = await client.query<{
+      operating_event_id: string;
+      event_type: string;
+      title: string;
+      amount: string | null;
+      quantity: string | null;
+      channel_name: string | null;
+      counterparty_name: string | null;
+      payment_status: string;
+      approval_status: string;
+      occurred_at: Date;
+      parent_event_id: string | null;
+      payload: Record<string, unknown> | null;
+    }>(
+      `SELECT operating_event_id, event_type, title, amount::text, quantity::text,
+              channel_name, counterparty_name, payment_status, approval_status, occurred_at, parent_event_id, payload
+       FROM business.operating_event
+       WHERE moment_id = $1
+       ORDER BY occurred_at ASC
+       LIMIT 200`,
+      [momentId]
+    );
+    const mapped = events.rows.map((event) => {
+      const payload = event.payload ?? {};
+      const lines = Array.isArray(payload.lines) ? payload.lines : [];
+      return {
+        operatingEventId: event.operating_event_id,
+        eventType: event.event_type,
+        title: event.title,
+        amount: event.amount,
+        quantity: event.quantity,
+        unit: payload.unit == null ? null : String(payload.unit),
+        channelName: event.channel_name,
+        counterpartyName: event.counterparty_name,
+        paymentStatus: event.payment_status,
+        approvalStatus: event.approval_status,
+        occurredAt: event.occurred_at.toISOString(),
+        parentEventId: event.parent_event_id,
+        contract: parseOperatingContract(payload.contract),
+        lines: lines.flatMap((line) => {
+          if (!line || typeof line !== 'object') return [];
+          const row = line as { itemName?: string; quantity?: string; unit?: string; unitPrice?: string };
+          if (!row.itemName) return [];
+          return [{
+            itemName: String(row.itemName),
+            quantity: String(row.quantity ?? ''),
+            unit: row.unit ?? null,
+            unitPrice: String(row.unitPrice ?? ''),
+          }];
+        }),
+      };
+    });
+    const participants = Array.isArray(prefs.participants)
+      ? prefs.participants.flatMap((person) => {
+          if (!person || typeof person !== 'object') return [];
+          const name = String((person as { displayName?: string }).displayName ?? '').trim();
+          return name ? [name] : [];
+        })
+      : [];
+    const channels = Array.isArray(prefs.channels) ? prefs.channels.map((channel) => String(channel)) : [];
+    const input = {
+      momentId,
+      title: String(prefs.identityName ?? setup.rows[0].title ?? row.title),
+      subtype,
+      currency: String(prefs.currency ?? 'INR'),
+      startAt: prefs.startDate ? String(prefs.startDate) : row.start_at?.toISOString() ?? null,
+      endAt: prefs.endDate ? String(prefs.endDate) : row.end_at?.toISOString() ?? null,
+      channels,
+      participants,
+      events: mapped,
+    };
+    const { composeTradingStory } = await import('./trading-story');
+    const { composeDistributionStory } = await import('./distribution-story');
+    return {
+      snapshot:
+        subtype === 'DISTRIBUTION_DEALERSHIP'
+          ? composeDistributionStory(input)
+          : composeTradingStory(input),
+      sourceManifest: { operatingEvents: mapped.length },
+    };
+  }
+
   const familyProfile = resolveStoryFamilyProfile({
     groupFamily: row.group_family,
     momentTypeCode: row.moment_type_code,

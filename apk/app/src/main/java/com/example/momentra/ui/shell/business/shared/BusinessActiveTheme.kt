@@ -119,6 +119,13 @@ data class BusinessActiveTheme(
             memoryTitle = "Campaign",
         )
         val Trading = BusinessRunway.copy(
+            bg = Color(0xFF090D16),
+            card = Color(0xFF0F1623),
+            accent = Color(0xFF10B981),
+            accentSolid = Color(0xFF047857),
+            accentLight = Color(0xFF6EE7B7),
+            accentSoft = Color(0x3310B981),
+            text = Color(0xFFFFFFFF),
             typeLabel = "Trading / Wholesale",
             pulseTitle = "Trading",
             momentsTitle = "Trading",
@@ -126,8 +133,13 @@ data class BusinessActiveTheme(
             memoryTitle = "Trading",
         )
         val Distribution = BusinessRunway.copy(
-            accent = BusinessRunway.accentLight,
-            accentSolid = BusinessRunway.accent,
+            bg = Color(0xFF0F172A),
+            card = Color(0xFF0B1433),
+            accent = Color(0xFFEA580C),
+            accentSolid = Color(0xFFC2410C),
+            accentLight = Color(0xFFFFB598),
+            accentSoft = Color(0x33EA580C),
+            text = Color(0xFFFFFFFF),
             typeLabel = "Distribution / Dealership",
             pulseTitle = "Distribution",
             momentsTitle = "Distribution",

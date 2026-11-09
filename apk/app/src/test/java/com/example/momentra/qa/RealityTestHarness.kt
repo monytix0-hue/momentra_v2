@@ -132,14 +132,14 @@ class RealityTestHarness {
         assertEquals(bExpected.get("openInvoicesCount").asInt, openInvoices)
         assertEquals(bExpected.get("paidInvoicesCount").asInt, paidInvoices)
 
-        // Store distribution check (~45% Main, ~30% North, ~25% South)
+        // Store distribution check (~38% Main, ~32% North, ~30% South)
         val mainRatio = mainStoreCount.toDouble() / totalBusinessRecordsCount
         val northRatio = northStoreCount.toDouble() / totalBusinessRecordsCount
         val southRatio = southStoreCount.toDouble() / totalBusinessRecordsCount
 
-        assertTrue("Main store ratio ($mainRatio) should be close to 45%", mainRatio in 0.40..0.50)
-        assertTrue("North store ratio ($northRatio) should be close to 30%", northRatio in 0.25..0.35)
-        assertTrue("South store ratio ($southRatio) should be close to 25%", southRatio in 0.20..0.30)
+        assertTrue("Main store ratio ($mainRatio) should be close to 38%", mainRatio in 0.35..0.45)
+        assertTrue("North store ratio ($northRatio) should be close to 32%", northRatio in 0.28..0.36)
+        assertTrue("South store ratio ($southRatio) should be close to 30%", southRatio in 0.25..0.35)
 
         println("=== REALITY TEST HARNESS PASSED SUCCESSFULLY ===")
         println("Personal records verified: 100")

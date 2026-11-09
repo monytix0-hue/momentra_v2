@@ -2,7 +2,7 @@ package com.example.momentra.ui.shell.empty.business
 
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 
-enum class BusinessFieldKind { CHIPS, DROPDOWN, TEXT, TOGGLE, DATE, DATETIME, TIME, MULTI_CHIPS }
+enum class BusinessFieldKind { CHIPS, DROPDOWN, TEXT, TOGGLE, DATE, DATETIME, TIME, MULTI_CHIPS, NUMBER, SELECT }
 
 data class BusinessSetupSectionSpec(
     val title: String,

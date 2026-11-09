@@ -33,23 +33,28 @@ import com.example.momentra.data.api.OperatingBoardSectionDto
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.shell.business.shared.BusinessActivityList
 import com.example.momentra.ui.shell.business.shared.BusinessEmptyState
+import com.example.momentra.ui.shell.business.shared.OperatingBadgeChip
+import com.example.momentra.ui.shell.business.shared.OperatingMetricTiles
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingTab
+import com.example.momentra.ui.shell.business.shared.OperatingWhyFootnote
 import com.example.momentra.ui.theme.PlusJakartaSans
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-internal val TradeBg = Color(0xFF09121F)
-internal val TradeCard = Color(0xFF122235)
-internal val TradeNotice = Color(0xFF16405C)
-internal val TradeField = Color(0xFF09121F)
-internal val TradeBorder = Color(0xFF2B4B63)
-internal val TradeBrand = Color(0xFFF59E0B)
-internal val TradeAccent = Color(0xFFF59E0B)
-internal val TradeSecondary = Color(0xFFA5BBCE)
-internal val TradeInk = Color(0xFFE5E0EE)
-internal val TradeSuccess = Color(0xFF8FD6FF)
+// Domain palette "trading" in design/tokens/business.tokens.json (TRD-PULSE-v12 2566:29337).
+// The old values were the amber BusinessRunway palette; Figma binds emerald here.
+internal val TradeBg = Color(0xFF090D16) // domain.trading.canvas
+internal val TradeCard = Color(0xFF0F1623) // domain.trading.surface
+internal val TradeNotice = Color(0xFF0F1623) // domain.trading.canvasTop
+internal val TradeField = Color(0xFF090D16) // domain.trading.inset
+internal val TradeBorder = Color(0xFF1E293B) // color.border.default
+internal val TradeBrand = Color(0xFF10B981) // domain.trading.accent
+internal val TradeAccent = Color(0xFF10B981) // domain.trading.accent
+internal val TradeSecondary = Color(0xFF94A3B8) // color.text.muted
+internal val TradeInk = Color(0xFFFFFFFF) // color.text.primary
+internal val TradeSuccess = Color(0xFF6EE7B7) // domain.trading.accentSoft
 
 private val dayFormat = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH)
 
@@ -60,9 +65,12 @@ fun TradingActive(
     onOpenQuickAdd: () -> Unit,
     onRecord: suspend (TradingEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
+    companyId: String? = null,
     modifier: Modifier = Modifier,
 ) {
-    var activityOpen by remember { mutableStateOf(false) }
+    // One sheet slot for all eighteen view-all surfaces; `null` means no sheet is open.
+    var sheet by remember { mutableStateOf<TradingSheetState?>(null) }
+    val openSheet: (TradingSheetState) -> Unit = { sheet = it }
     Box(modifier.fillMaxSize().background(TradeBg)) {
     if (tab == OperatingTab.QUICK_ADD) {
         TradingQuickAddHub(model, onRecord, onDecide)
@@ -76,26 +84,61 @@ fun TradingActive(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         when (tab) {
-            OperatingTab.PULSE -> TradingPulse(model, onViewAll = { activityOpen = true }, onOpenQuickAdd = onOpenQuickAdd)
-            OperatingTab.MOMENTS -> TradingMoments(model, onOpenQuickAdd)
-            OperatingTab.LIFE -> TradingLife(model)
-            OperatingTab.MEMORY -> TradingMemory(model)
+            OperatingTab.PULSE -> TradingPulse(model, onViewAll = openSheet, onOpenQuickAdd = onOpenQuickAdd)
+            OperatingTab.MOMENTS -> TradingMoments(model, onOpenQuickAdd, openSheet)
+            OperatingTab.LIFE -> TradingLife(model, openSheet)
+            OperatingTab.MEMORY -> TradingMemory(model, openSheet)
             OperatingTab.QUICK_ADD -> Unit
         }
     }
     }
-    if (activityOpen) {
-        ActivitySheet(model, onClose = { activityOpen = false })
+    sheet?.let { state ->
+        TradingBoardSheet(state, model, TradeSheetTheme, onDismiss = { sheet = null })
     }
-    com.example.momentra.ui.shell.business.shared.OperatingChromeSheets(model)
+    com.example.momentra.ui.shell.business.shared.OperatingChromeSheets(model, companyId)
     }
 }
 
+/** Figma `TRD-SHEET` tokens: emerald accent on the trading canvas. */
+internal val TradeSheetTheme = com.example.momentra.ui.shell.business.shared.OperatingSheetTheme(
+    accent = TradeBrand,
+    accentSoft = TradeSuccess,
+    canvas = TradeBg,
+    surface = TradeCard,
+    inset = TradeField,
+    border = TradeBorder,
+    ink = TradeInk,
+    body = TradeSecondary,
+    warning = com.example.momentra.ui.shell.business.shared.OperatingSheetWarning,
+    negative = com.example.momentra.ui.shell.business.shared.OperatingSheetNegative,
+)
+
+/** Board section code → the view-all surface it opens, or `null` when there is none. */
+internal fun tradingSheetForCode(code: String): TradingSheetState? = when (code) {
+    "orders" -> TradingSheetState.OrdersCommitments
+    "stock" -> TradingSheetState.StockProducts
+    "network" -> TradingSheetState.PeopleNetwork
+    "M4" -> TradingSheetState.OpenCommitments
+    "L1" -> TradingSheetState.LifeCurrentBusiness
+    "L2" -> TradingSheetState.LifeDealersChannels
+    "L3" -> TradingSheetState.LifeMoneyMoving
+    "L4" -> TradingSheetState.LifePeopleActivity
+    "ME1" -> TradingSheetState.MonthlyMemory
+    "ME2" -> TradingSheetState.MoneyMemory
+    "fulfilment" -> TradingSheetState.FulfilmentMemory
+    "ME4" -> TradingSheetState.PeoplePatterns
+    else -> null
+}
+
 @Composable
-private fun TradingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit, onOpenQuickAdd: () -> Unit = {}) {
+private fun TradingPulse(
+    model: OperatingProjectionDto,
+    onViewAll: (TradingSheetState) -> Unit,
+    onOpenQuickAdd: () -> Unit = {},
+) {
     Header(model, "Pulse", "Your sales plan, trade commitments and ready money.")
     if (model.financeVisible) {
-        SectionTitle("Target & Budget")
+        ViewAllSectionTitle("Target & Budget") { onViewAll(TradingSheetState.TargetBudget) }
         TradeCard {
             val target = model.target
             val budget = model.budget
@@ -115,7 +158,7 @@ private fun TradingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit, o
             }
             Text("Validated sales count toward the target. Eligible purchase and expense facts count once toward budget.", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
-        SectionTitle("Needs Attention")
+        ViewAllSectionTitle("Needs Attention") { onViewAll(TradingSheetState.NeedsAttention) }
         if (model.attention.isEmpty()) {
             BusinessEmptyState(
             title = "Nothing is waiting",
@@ -128,7 +171,7 @@ private fun TradingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit, o
         model.attention.forEach { item ->
             AttentionCard(item, model, onOpenQuickAdd)
         }
-        SectionTitle("Payment Readiness")
+        ViewAllSectionTitle("Payment Readiness") { onViewAll(TradingSheetState.PaymentReadiness) }
         val toCollect = model.paymentReadiness.filter { it.relevance == "RECEIVABLE" }
         val toPay = model.paymentReadiness.filter { it.relevance != "RECEIVABLE" }
         ReadinessGroup("To collect", toCollect, model)
@@ -136,15 +179,15 @@ private fun TradingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit, o
         if (model.paymentReadiness.isEmpty()) {
             TradeCard { Text("No open payments or collections.", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 14.sp) }
         }
-        SectionTitle("Finance")
+        ViewAllSectionTitle("Finance") { onViewAll(TradingSheetState.Finance) }
         TradeCard {
             val finance = model.finance
             Line("Recorded sales", money(model, finance?.sales), TradeAccent)
             Line("Received", money(model, finance?.received), TradeSuccess)
-            Line("Still to collect", money(model, finance?.outstanding), Color(0xFFFBBF24))
+            Line("Still to collect", money(model, finance?.outstanding), TradeAccent)
             Line("Eligible cost", money(model, finance?.eligibleCost), TradeInk)
             Line("Business cash paid", money(model, finance?.cashPaid), TradeInk)
-            Line("Still to pay", money(model, finance?.payable), Color(0xFFFBBF24))
+            Line("Still to pay", money(model, finance?.payable), TradeAccent)
             if (model.gstTracking == "YES") {
                 Text("Recorded sales exclude GST. Amounts still to collect or pay include GST.", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
             }
@@ -153,7 +196,7 @@ private fun TradingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit, o
     } else {
         StaffPulse(model, onOpenQuickAdd)
     }
-    SectionTitle("Activity")
+    ViewAllSectionTitle("Activity") { onViewAll(TradingSheetState.Activity) }
     val recent = model.activity.take(5)
     if (recent.isEmpty()) {
         BusinessEmptyState(
@@ -182,7 +225,7 @@ private fun TradingPulse(model: OperatingProjectionDto, onViewAll: () -> Unit, o
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .border(1.dp, TradeBrand, RoundedCornerShape(14.dp))
-            .clickable(onClick = onViewAll)
+            .clickable { onViewAll(TradingSheetState.Activity) }
             .padding(vertical = 14.dp),
     )
 }
@@ -235,8 +278,13 @@ private fun AttentionCard(
 }
 
 @Composable
-private fun TradingMoments(model: OperatingProjectionDto, onOpenQuickAdd: () -> Unit) {
+private fun TradingMoments(
+    model: OperatingProjectionDto,
+    onOpenQuickAdd: () -> Unit,
+    onViewAll: (TradingSheetState) -> Unit,
+) {
     Header(model, "Moments", "Orders, stock, and the trade this month.")
+    ViewAllSectionTitle("This month, in motion") { onViewAll(TradingSheetState.OrdersCommitments) }
     TradeCard {
         Text(periodLabel(model.startDate), color = TradeAccent, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         Text("This month, in motion", color = TradeInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
@@ -253,7 +301,7 @@ private fun TradingMoments(model: OperatingProjectionDto, onOpenQuickAdd: () -> 
         }
     }
     (model.boards?.moments ?: emptyList()).forEach { section ->
-        BoardBlock(section, model)
+        BoardBlock(section, model, onViewAll)
     }
     TradeCard {
         Text("Create the next trading moment", color = TradeInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
@@ -272,9 +320,9 @@ private fun TradingMoments(model: OperatingProjectionDto, onOpenQuickAdd: () -> 
 }
 
 @Composable
-private fun TradingLife(model: OperatingProjectionDto) {
+private fun TradingLife(model: OperatingProjectionDto, onViewAll: (TradingSheetState) -> Unit) {
     Header(model, "Life", "How the trade is moving today.")
-    (model.boards?.life ?: emptyList()).forEach { BoardBlock(it, model) }
+    (model.boards?.life ?: emptyList()).forEach { BoardBlock(it, model, onViewAll) }
     if (model.boards?.life.isNullOrEmpty()) {
         BusinessEmptyState(
             title = "Nothing recorded yet",
@@ -287,56 +335,14 @@ private fun TradingLife(model: OperatingProjectionDto) {
 }
 
 @Composable
-private fun TradingMemory(model: OperatingProjectionDto) {
+private fun TradingMemory(model: OperatingProjectionDto, onViewAll: (TradingSheetState) -> Unit) {
     Header(model, "Memory", "What this trade keeps from the month.")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Pill(periodLabel(model.startDate))
         Pill("Current")
     }
-    (model.boards?.memory ?: emptyList()).forEach { BoardBlock(it, model) }
-}
-
-@Composable
-private fun ActivitySheet(model: OperatingProjectionDto, onClose: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(onClick = onClose)
-            .padding(top = 80.dp),
-    ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                .background(TradeBg)
-                .clickable(enabled = false) {}
-                .verticalScroll(rememberScrollState())
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("All activity", color = TradeInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
-                Text("Close", color = TradeSecondary, fontFamily = PlusJakartaSans, modifier = Modifier.clickable(onClick = onClose))
-            }
-            Text(model.title ?: "Trading", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
-            if (model.activity.isEmpty()) {
-                BusinessEmptyState(
-                    title = "Nothing recorded yet",
-                    body = "Sales, purchases, and money collection will show here.",
-                    accent = TradeAccent,
-                    glyph = "🧾",
-                )
-            } else {
-                BusinessActivityList(
-                    rows = model.activity,
-                    model = model,
-                    accent = TradeAccent,
-                    onEdit = { com.example.momentra.ui.shell.business.shared.OperatingChromeState.editing = it },
-                )
-            }
-        }
-    }
+    (model.boards?.memory ?: emptyList()).forEach { BoardBlock(it, model, onViewAll) }
+    TradingStoryCta(model)
 }
 
 @Composable
@@ -350,23 +356,119 @@ private fun Header(model: OperatingProjectionDto, title: String, body: String) {
 }
 
 @Composable
-private fun BoardBlock(section: OperatingBoardSectionDto, model: OperatingProjectionDto) {
-    SectionTitle(section.title)
+private fun BoardBlock(
+    section: OperatingBoardSectionDto,
+    model: OperatingProjectionDto,
+    onViewAll: (TradingSheetState) -> Unit,
+) {
+    val sheet = tradingSheetForCode(section.code)
+    if (sheet != null) {
+        ViewAllSectionTitle(section.title) { onViewAll(sheet) }
+    } else {
+        SectionTitle(section.title)
+    }
     TradeCard {
-        Text(com.example.momentra.ui.shell.business.shared.formatOperatingDetail(section.detail.ifBlank { "Nothing recorded yet." }, model.currency), color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        // Quantified tiles replace the parsed prose sentence. `Not recorded` is a
+        // real answer here, never a zero.
+        if (section.metrics.isNotEmpty()) {
+            OperatingMetricTiles(section.metrics, TradeSheetTheme)
+        } else {
+            Text(
+                com.example.momentra.ui.shell.business.shared.formatOperatingDetail(
+                    section.detail.ifBlank { "Nothing recorded yet." },
+                    model.currency,
+                ),
+                color = TradeSecondary,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
+        }
+        OperatingWhyFootnote(section.why, TradeSheetTheme)
         if (!section.coverage.isNullOrBlank()) {
             Text(section.coverage, color = TradeAccent, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
         }
-        section.rows.forEach { row ->
+        section.rows.take(5).forEach { row ->
             Column(Modifier.padding(vertical = 6.dp)) {
-                Text(row.title, color = TradeInk, fontFamily = PlusJakartaSans, fontSize = 14.sp)
-                val extra = listOfNotNull(row.channelName, row.counterpartyName, row.paymentStatus?.takeIf { it != "NONE" }).joinToString(" · ")
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        row.title,
+                        color = TradeInk,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 14.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OperatingBadgeChip(row.badge, TradeSheetTheme)
+                }
+                val extra = row.subtitle?.takeIf { it.isNotBlank() }
+                    ?: listOfNotNull(row.channelName, row.counterpartyName, row.paymentStatus?.takeIf { it != "NONE" })
+                        .joinToString(" · ")
                 if (extra.isNotBlank()) Text(extra, color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
                 if (model.financeVisible && !row.amount.isNullOrBlank()) {
                     Text(com.example.momentra.ui.shell.business.shared.formatOperatingAmount(model.currency, row.amount, true), color = TradeAccent, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
             }
         }
+        if (section.rows.size > 5 && sheet != null) {
+            Text(
+                "View all ${section.rows.size}",
+                color = TradeAccent,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable { onViewAll(sheet) },
+            )
+        }
+    }
+}
+
+/** A section heading with the Figma `View all ›` affordance on the right. */
+@Composable
+private fun ViewAllSectionTitle(text: String, onViewAll: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text,
+            color = TradeInk,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 20.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "View all ›",
+            color = TradeAccent,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 12.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .clickable(onClick = onViewAll)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+        )
+    }
+}
+
+/** The Memory-tab CTA that opens the eight-page business story (TRD-MEMORY-v12). */
+@Composable
+private fun TradingStoryCta(model: OperatingProjectionDto) {
+    TradeCard {
+        Text("Business story", color = TradeInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        Text(
+            "Eight pages from the month — moment, motion, orders, money, stock, network, attention, and so far.",
+            color = TradeSecondary,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+        Text(
+            "Generate business story",
+            color = TradeBg,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(TradeBrand)
+                .clickable { com.example.momentra.ui.shell.business.shared.OperatingChromeState.storyConfigOpen = true }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        )
     }
 }
 

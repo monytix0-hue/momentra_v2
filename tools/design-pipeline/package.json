@@ -4,14 +4,18 @@
   "version": "1.0.0",
   "description": "Generates Personal v1.1 design tokens, taxonomy catalogs and native assets for iOS, Android and the backend from design/tokens + design/taxonomy + design/assets.",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "tokens": "node generate-tokens.mjs",
     "tokens:check": "node generate-tokens.mjs --check",
     "assets": "node import-assets.mjs",
     "assets:check": "node import-assets.mjs --check",
-    "all": "node generate-tokens.mjs && node import-assets.mjs",
-    "check": "node generate-tokens.mjs --check && node import-assets.mjs --check"
+    "all": "node generate-tokens.mjs && node generate-business-tokens.mjs && node import-assets.mjs",
+    "check": "node generate-tokens.mjs --check && node generate-business-tokens.mjs --check && node import-assets.mjs --check",
+    "business-tokens": "node generate-business-tokens.mjs",
+    "business-tokens:check": "node generate-business-tokens.mjs --check"
   },
   "devDependencies": {
     "lucide-static": "0.577.0",

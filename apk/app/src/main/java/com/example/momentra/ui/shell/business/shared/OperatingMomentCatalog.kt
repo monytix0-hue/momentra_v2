@@ -2,6 +2,15 @@ package com.example.momentra.ui.shell.business.shared
 
 import com.example.momentra.ui.shell.empty.business.BusinessSetupKind
 
+/**
+ * One row of the setup document's `Roles on invite` chip set.
+ *
+ * [label] is the operator word the frame prints (`Sales exec`, `Route lead`); [code] is the
+ * nearest existing operating capability, because the backend accepts only `OPERATING_ROLES`
+ * and drops anything else. The label is what a person sees; the code is what grants access.
+ */
+data class OperatingInviteRole(val code: String, val label: String)
+
 data class OperatingSubtype(
     val code: String,
     val label: String,
@@ -9,9 +18,43 @@ data class OperatingSubtype(
     val targetMetrics: List<String>,
     val requiresChannel: Boolean,
     val quickAdds: List<String>,
+    /** Setup §03 `Channel` chips, in frame order. Empty means the family has no channel step. */
+    val channels: List<String> = emptyList(),
+    /** Setup §02 `Roles on invite`, in frame order. */
+    val inviteRoles: List<OperatingInviteRole> = emptyList(),
+    /** Setup §04 fourth row: `Principals & dealers` for trading, `Suppliers & buyers` for distribution. */
+    val networkLabel: String = "Principals & dealers",
 )
 
 object OperatingMomentCatalog {
+    /** The frame's five trading channels (`TRD-SETUP-v6` §03). */
+    val tradingChannels = listOf("Retail buyers", "Wholesale", "Modern trade", "HoReCa", "Online")
+
+    /** The frame's five distribution channels (`DST-SETUP-v6` §03). */
+    val distributionChannels = listOf("Retail dealers", "Wholesale", "Modern trade", "HoReCa", "Van sales")
+
+    /**
+     * §02 `Roles on invite`, in frame order. These are exactly the four codes
+     * `POST /v1/company/invites` accepts (`OPERATING_INVITE_ROLES`), so every chip can actually
+     * be minted — `OWNER_ADMIN`, `TEAM_MEMBER` and `OBSERVER` are not mintable and are gone.
+     */
+    val tradingInviteRoles = listOf(
+        OperatingInviteRole("FINANCE", "Finance"),
+        OperatingInviteRole("APPROVER", "Approver"),
+        OperatingInviteRole("OPERATIONS_LEAD", "Operations"),
+        OperatingInviteRole("CONTRIBUTOR", "Contributor"),
+    )
+
+    val distributionInviteRoles = listOf(
+        OperatingInviteRole("FINANCE", "Finance"),
+        OperatingInviteRole("APPROVER", "Approver"),
+        OperatingInviteRole("OPERATIONS_LEAD", "Operations"),
+        OperatingInviteRole("CONTRIBUTOR", "Contributor"),
+    )
+
+    fun isDistribution(subtypeCode: String): Boolean =
+        subtypeCode.equals("DISTRIBUTION_DEALERSHIP", ignoreCase = true)
+
     val roles = listOf(
         "OWNER_ADMIN" to "Owner / Admin",
         "OPERATIONS_LEAD" to "Operations Lead",
@@ -32,8 +75,28 @@ object OperatingMomentCatalog {
             OperatingSubtype("OWN_BUSINESS_CAMPAIGN", "Own Business Campaign", "Brand", listOf("LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT"), false, marketingAdds),
         ),
         BusinessSetupKind.TRADING_DISTRIBUTION to listOf(
-            OperatingSubtype("TRADING_WHOLESALE", "Trading / Wholesale", "Business", listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"), false, listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER", "SHIPMENT")),
-            OperatingSubtype("DISTRIBUTION_DEALERSHIP", "Distribution / Dealership", "Principal", listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"), false, listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER", "SHIPMENT")),
+            OperatingSubtype(
+                code = "TRADING_WHOLESALE",
+                label = "Trading / Wholesale",
+                partyLabel = "Business",
+                targetMetrics = listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"),
+                requiresChannel = false,
+                quickAdds = listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER", "SHIPMENT"),
+                channels = tradingChannels,
+                inviteRoles = tradingInviteRoles,
+                networkLabel = "Principals & dealers",
+            ),
+            OperatingSubtype(
+                code = "DISTRIBUTION_DEALERSHIP",
+                label = "Distribution / Dealership",
+                partyLabel = "Principal",
+                targetMetrics = listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"),
+                requiresChannel = false,
+                quickAdds = listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER", "SHIPMENT"),
+                channels = distributionChannels,
+                inviteRoles = distributionInviteRoles,
+                networkLabel = "Suppliers & buyers",
+            ),
         ),
         BusinessSetupKind.RETAIL_CONSUMER to listOf(
             OperatingSubtype("RETAIL_STORE", "Retail Store", "Store", listOf("REVENUE", "ORDERS", "CUSTOM_COUNT"), true, listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER")),
@@ -90,7 +153,7 @@ object OperatingMomentCatalog {
 
     val preferenceKeys = setOf(
         "subtype", "identityName", "partyName", "description", "currency", "startDate", "endDate", "location", "activationPolicy",
-        "gstTracking", "gstRegistration", "gstState", "gstin", "salePriceIncludesGst", "purchasePriceIncludesGst", "gstEffectiveFrom",
+        "gstTracking", "gstRegistration", "gstState", "gstStateCode", "gstin", "salePriceIncludesGst", "purchasePriceIncludesGst", "gstEffectiveFrom",
         "participants", "counterparties", "channels", "tradeReach", "monthlyBudget", "monthlyTarget", "targetMetric",
         "clientFee", "offering", "creativeApprovalRequired", "reportingCadence",
         "conversionNumerator", "conversionDenominator", "conversionDefinitionVersion", "campaignStatus",

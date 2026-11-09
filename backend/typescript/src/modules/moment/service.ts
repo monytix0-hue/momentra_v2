@@ -19,6 +19,7 @@ import {
   insertBusinessFamilyContext,
   insertBusinessSetupRow,
   insertPersonalSetupRow,
+  updateBusinessSetupDraftRow,
 } from './setup-persistence';
 import { bindInviteToMoment } from '../collaboration/invite-service';
 import { emitLeanBusinessEvent } from '../analytics/lean-events';
@@ -451,10 +452,13 @@ export async function createMoment(
       momentStatus
     );
   } else if (body.businessSetup) {
+    // A DRAFT setup is a half-filled document, so its preferences are normalised leniently;
+    // an ACTIVE one keeps the strict required-field guards.
     const preferences = validateAndMergeBusinessPreferences(
       body.businessSetup.familyCode,
       body.businessSetup.preferences as Record<string, unknown> | undefined,
-      { userId: ctx.userId, displayName: 'Owner' }
+      { userId: ctx.userId, displayName: 'Owner' },
+      { draft: momentStatus === 'DRAFT' }
     );
     result.setupId = await insertBusinessSetupRow(
       client,
@@ -1237,6 +1241,95 @@ export async function duplicateBusinessMoment(
     },
   });
   return createMoment(client, ctx, createBody);
+}
+
+/** The setup document's Section 01–05 edits, saved against a DRAFT moment. */
+export const updateBusinessSetupDraftSchema = z
+  .object({
+    title: z.string().min(1).max(500).optional(),
+    preferences: z.record(z.string(), z.unknown()),
+    expectedVersion: z.number().int().positive().optional(),
+  })
+  .strict();
+
+export type UpdateBusinessSetupDraftInput = z.infer<typeof updateBusinessSetupDraftSchema>;
+
+/**
+ * Save the six-section setup document while the moment is still a draft.
+ *
+ * A draft is incomplete by definition, so the payload is normalised leniently — every
+ * unanswered field is stored empty. Activation (`activateMomentDraft`) keeps its own strict
+ * path through `activateBusinessSetup`, so an incomplete document can never go live.
+ */
+export async function updateBusinessSetupDraft(
+  client: PoolClient,
+  ctx: RequestContext,
+  momentId: string,
+  body: UpdateBusinessSetupDraftInput
+): Promise<{
+  momentId: string;
+  setupId: string | null;
+  title: string;
+  status: string;
+  version: number;
+  preferences: Record<string, unknown>;
+}> {
+  await assertMomentLifecycleLeader(client, ctx, momentId);
+  const row = await client.query<{
+    status: string;
+    domain_code: string;
+    title: string;
+    version: string;
+    family_code: string | null;
+    company_id: string | null;
+  }>(
+    `SELECT m.status, m.domain_code, m.title, m.version::text,
+            bss.family_code, bmc.company_id
+     FROM core.moment m
+     LEFT JOIN business.business_system_setup bss
+       ON bss.moment_id = m.moment_id AND bss.status = 'DRAFT'
+     LEFT JOIN business.business_moment_context bmc ON bmc.moment_id = m.moment_id
+     WHERE m.moment_id = $1`,
+    [momentId]
+  );
+  const found = row.rows[0];
+  if (!found) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Moment not found.', 404);
+  }
+  if (found.domain_code !== 'BUSINESS') {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Only business setups can be saved this way.', 400);
+  }
+  if (found.status !== 'DRAFT') {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Only DRAFT moments can be saved as a draft.', 409);
+  }
+  const familyCode = found.family_code;
+  if (!familyCode) {
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Business setup not found.', 404);
+  }
+  const preferences = validateAndMergeBusinessPreferences(
+    familyCode as Parameters<typeof validateAndMergeBusinessPreferences>[0],
+    body.preferences,
+    { userId: ctx.userId, displayName: 'Owner' },
+    { draft: true }
+  );
+  const title =
+    body.title ?? (String(preferences.identityName ?? '').trim() || found.title);
+  const setupId = await updateBusinessSetupDraftRow(client, momentId, title, preferences);
+  const updated = await client.query<{ version: string }>(
+    `UPDATE core.moment
+     SET title = $2, version = version + 1, updated_at = now()
+     WHERE moment_id = $1
+     RETURNING version::text`,
+    [momentId, title]
+  );
+  return {
+    momentId,
+    setupId,
+    title,
+    status: 'DRAFT',
+    version: parseInt(updated.rows[0]!.version, 10),
+    preferences,
+  };
 }
 
 /** Prefill for Personal or Business setup resume (DRAFT or ACTIVE). */

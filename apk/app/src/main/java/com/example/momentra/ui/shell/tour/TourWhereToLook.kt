@@ -1,11 +1,8 @@
 package com.example.momentra.ui.shell.tour
 
 import com.example.momentra.domain.BottomDestination
-import com.example.momentra.ui.shell.personal.future.create.FutureQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.LifeOpsQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.MoneyQuickAddKind
-import com.example.momentra.ui.shell.personal.shared.LifestyleQuickAddKind
-import com.example.momentra.ui.shell.personal.shared.RelationshipsQuickAddKind
 
 object TourWhereToLook {
 
@@ -49,27 +46,6 @@ object TourWhereToLook {
             goTo = BottomDestination.PULSE,
         )
     }
-
-    @Suppress("UNUSED_PARAMETER")
-    fun forFuture(kind: FutureQuickAddKind): WhereToLookHint = WhereToLookHint(
-        title = "Future action saved",
-        body = "Find it on Life — This week and your journey across Personal.",
-        goTo = BottomDestination.LIFE,
-    )
-
-    @Suppress("UNUSED_PARAMETER")
-    fun forLifestyle(kind: LifestyleQuickAddKind): WhereToLookHint = WhereToLookHint(
-        title = "Lifestyle logged",
-        body = "Find it on Life — This week and your journey across Personal.",
-        goTo = BottomDestination.LIFE,
-    )
-
-    @Suppress("UNUSED_PARAMETER")
-    fun forRelationships(kind: RelationshipsQuickAddKind): WhereToLookHint = WhereToLookHint(
-        title = "Connection saved",
-        body = "Find it on Life — This week and your journey across Personal.",
-        goTo = BottomDestination.LIFE,
-    )
 
     fun forGroupGeneric(label: String = "Saved"): WhereToLookHint = WhereToLookHint(
         title = label,

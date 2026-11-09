@@ -12,8 +12,6 @@ object GlobalTheme {
     val contextUnselected: Color = ShellTokens.ContextUnselected
     val bottomSelected: Color = ShellTokens.BottomSelected
     val bottomUnselected: Color = ShellTokens.BottomUnselected
-    val companyChipBackground: Color = ShellTokens.CompanyChipBackground
-    val companyChipBorder: Color = ShellTokens.CompanyChipBorder
     val actionCircle: Color = ShellTokens.ActionCircle
     val statusOnline: Color = ShellTokens.StatusOnline
     val moduleCardBackground: Color = ShellTokens.ModuleCardBackground

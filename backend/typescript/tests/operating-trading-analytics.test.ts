@@ -1295,6 +1295,9 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
       prefs: gstPrefs,
       role: 'OWNER_ADMIN',
       events: [postedSale, postedBuy],
+      // Pin the month: `gstPosition` reads only the current month, so an unpinned clock makes
+      // this assertion expire the moment the calendar leaves October 2026.
+      asOf: new Date('2026-10-18T00:00:00.000Z'),
     });
     assert.equal(view.gstPosition?.outputGst, '40.0000');
     assert.equal(view.gstPosition?.inputGst, '38.4600');
@@ -1353,6 +1356,8 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
       familyCode: 'TRADING_DISTRIBUTION',
       prefs: gstPrefs,
       role: 'OWNER_ADMIN',
+      // Same month-pinning reason as above.
+      asOf: new Date('2026-10-18T00:00:00.000Z'),
       events: [
         postedSale,
         postedBuy,
@@ -1611,6 +1616,8 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
       familyCode: 'TRADING_DISTRIBUTION',
       prefs: gstPrefs,
       role: 'OWNER_ADMIN',
+      // `gstPosition` only reads the current month, so pin it to the events' month.
+      asOf: new Date('2026-10-18T00:00:00.000Z'),
       events: [
         posted,
         postedBuy,
@@ -1639,5 +1646,171 @@ describe('trading / distribution functional analytics NA-T / M0 / M2', () => {
       events: [posted, postedBuy],
     });
     assert.equal(hidden.gstPosition, null);
+  });
+});
+
+/**
+ * A master may hold a state as a postal abbreviation while the setup holds the full name. The
+ * old jurisdiction check compared those two strings and read them as different states, charging
+ * IGST on an intra-state sale. These pin the code-based compare.
+ */
+describe('trading GST jurisdiction resolves by state code, not spelling', () => {
+  function gstPrefsFor(state: string) {
+    return normalizeOperatingPreferences(
+      'TRADING_DISTRIBUTION',
+      {
+        subtype: 'TRADING_WHOLESALE',
+        identityName: 'Trade',
+        partyName: 'Trade',
+        monthlyBudget: '500000',
+        monthlyTarget: '500000',
+        targetMetric: 'REVENUE',
+        channels: ['Wholesale'],
+        startDate: '2026-10-01',
+        gstTracking: 'YES',
+        gstRegistration: 'REGULAR',
+        gstState: state,
+        salePriceIncludesGst: 'NO',
+        purchasePriceIncludesGst: 'NO',
+      },
+      { userId: 'u', displayName: 'Asha' }
+    );
+  }
+
+  function buyerIn(kind: 'PARTY' | 'CUSTOMER', state: string): TradingMasterRef {
+    return {
+      id: `m-${state}`,
+      kind,
+      name: 'Buyer',
+      unit: null,
+      gstApplicable: 'Yes',
+      gstClassification: 'Taxable',
+      gstRate: '18',
+      businessState: state,
+      billingState: state,
+      deliveryState: state,
+    } as TradingMasterRef;
+  }
+
+  it('reads "MH" and "Maharashtra" as one state and charges CGST + SGST', () => {
+    const result = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Intra sale',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer',
+        dueAt: '2026-10-31',
+        // No explicit jurisdiction: this is the derivation under test.
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'EXCLUSIVE', gstRate: '18' },
+        gst: {
+          enabled: true,
+          businessState: 'Maharashtra',
+          businessStateCode: '27',
+          saleIncludesGst: false,
+          purchaseIncludesGst: false,
+          registration: 'REGULAR',
+        },
+        masterRefs: new Map([['m-1', buyerIn('CUSTOMER', 'MH')]]),
+        master: { masterId: 'm-1' },
+      } as TradingWrite),
+      []
+    );
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.contract.taxJurisdiction, 'INTRA');
+    assert.equal(result.contract.gst?.cgstAmount, '90.0000');
+    assert.equal(result.contract.gst?.sgstAmount, '90.0000');
+    assert.equal(result.contract.gst?.igstAmount, '0.0000');
+    // The snapshot carries the canonical name and its code, never the raw "MH".
+    assert.equal(result.contract.gst?.placeOfSupply, 'Maharashtra');
+    assert.equal(result.contract.gst?.placeOfSupplyCode, '27');
+  });
+
+  it('still charges IGST when the two codes genuinely differ', () => {
+    const result = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Inter sale',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer',
+        dueAt: '2026-10-31',
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'EXCLUSIVE', gstRate: '18' },
+        gst: {
+          enabled: true,
+          businessState: 'Maharashtra',
+          businessStateCode: '27',
+          saleIncludesGst: false,
+          purchaseIncludesGst: false,
+          registration: 'REGULAR',
+        },
+        masterRefs: new Map([['m-2', buyerIn('CUSTOMER', 'KA')]]),
+        master: { masterId: 'm-2' },
+      } as TradingWrite),
+      []
+    );
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.contract.taxJurisdiction, 'INTER');
+    assert.equal(result.contract.gst?.igstAmount, '180.0000');
+    assert.equal(result.contract.gst?.cgstAmount, '0.0000');
+    assert.equal(result.contract.gst?.placeOfSupplyCode, '29');
+  });
+
+  it('resolves the code from the name alone when the context carries no code', () => {
+    // A caller that builds a context without `businessStateCode` must still get INTRA.
+    const result = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Intra sale, no code',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Buyer',
+        dueAt: '2026-10-31',
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'EXCLUSIVE', gstRate: '18' },
+        gst: {
+          enabled: true,
+          businessState: 'Maharashtra',
+          saleIncludesGst: false,
+          purchaseIncludesGst: false,
+          registration: 'REGULAR',
+        },
+        masterRefs: new Map([['m-3', buyerIn('CUSTOMER', 'Maharashtra')]]),
+        master: { masterId: 'm-3' },
+      } as TradingWrite),
+      []
+    );
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.contract.taxJurisdiction, 'INTRA');
+  });
+
+  it('still fails when no place of supply can be resolved at all', () => {
+    const result = validateTradingWrite(
+      write({
+        eventType: 'SALE',
+        title: 'No supply state',
+        amount: '1000',
+        channelName: 'Wholesale',
+        channelTracking: true,
+        counterpartyName: 'Unknown buyer',
+        dueAt: '2026-10-31',
+        contract: { entryMode: 'QUICK', paymentState: 'PAY_LATER', taxMode: 'EXCLUSIVE', gstRate: '18' },
+        gst: {
+          enabled: true,
+          businessState: 'Maharashtra',
+          saleIncludesGst: false,
+          purchaseIncludesGst: false,
+          registration: 'REGULAR',
+        },
+      } as TradingWrite),
+      []
+    );
+    assert.equal(result.ok, false);
+    assert.match(!result.ok ? result.message : '', /inside your state or outside/i);
   });
 });

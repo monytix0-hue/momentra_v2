@@ -31,9 +31,6 @@ enum EditMomentSetupTarget: Identifiable, Equatable {
             case .relationships: return .personal(.relationships)
             }
         case .business:
-            if let kind = OperatingMomentCatalog.kind(for: momentTypeCode) {
-                return .business(kind)
-            }
             return nil
         case .group:
             let family = GroupExperienceFamily.forTypeCode(momentTypeCode)

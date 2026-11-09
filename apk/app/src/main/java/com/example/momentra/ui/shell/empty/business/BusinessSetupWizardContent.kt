@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,28 +22,50 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.analytics.MomentraAnalytics
+import com.example.momentra.data.api.ApiClient
+import com.example.momentra.data.api.CompanyInviteDto
+import com.example.momentra.data.api.MintCompanyInviteBody
+import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.domain.CreateMomentOutcome
 import com.example.momentra.ui.create.MomentCreateViewModel
+import com.example.momentra.ui.shell.business.shared.CompanyJoinLink
+import com.example.momentra.ui.shell.business.shared.OperatingMasterTab
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingSubtype
+import com.example.momentra.ui.shell.empty.group.generateInviteQrBitmap
+import com.example.momentra.ui.shell.empty.group.inviteMessage
+import com.example.momentra.ui.shell.empty.group.sendInviteWhatsApp
+import com.example.momentra.ui.shell.empty.group.shareInviteQr
 import com.example.momentra.ui.shell.maestro.MaestroIds
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.util.UUID
 
 private val Card = Color(0xFF161B26)
 private val Border = Color(0xFF1E293B)
 private val Muted = Color(0xFF94A3B8)
 private val TextPrimary = Color(0xFFE5E0EE)
 
+/** How long `inviteFor` waits on a mint already in flight before giving up on it. */
+private const val MINT_WAIT_MS = 15_000L
+
+/**
+ * Entry point for every business setup. `TRADING_DISTRIBUTION` renders the six-section
+ * `TRD-SETUP-v6` / `DST-SETUP-v6` document; the remaining families keep the four-step form.
+ */
 @Composable
 fun BusinessSetupWizardContent(
     kind: BusinessSetupKind,
@@ -58,6 +81,425 @@ fun BusinessSetupWizardContent(
     editingMomentStatus: String? = null,
     ownerName: String = "",
 ) {
+    DisposableEffect(kind) {
+        MomentraAnalytics.get().onScreenEnter(kind.analyticsScreen)
+        onDispose { MomentraAnalytics.get().onScreenExit(kind.analyticsScreen) }
+    }
+    if (kind == BusinessSetupKind.TRADING_DISTRIBUTION) {
+        TradingDistributionSetupContent(
+            kind = kind,
+            companyId = companyId,
+            createViewModel = createViewModel,
+            submitting = submitting,
+            error = error,
+            onClose = onClose,
+            onCreated = onCreated,
+            modifier = modifier,
+            editingMomentId = editingMomentId,
+            initialTitle = initialTitle,
+            editingMomentStatus = editingMomentStatus,
+            ownerName = ownerName,
+        )
+    } else {
+        LegacySetupWizardContent(
+            kind = kind,
+            companyId = companyId,
+            createViewModel = createViewModel,
+            submitting = submitting,
+            error = error,
+            onClose = onClose,
+            onCreated = onCreated,
+            modifier = modifier,
+            editingMomentId = editingMomentId,
+            initialTitle = initialTitle,
+            editingMomentStatus = editingMomentStatus,
+        )
+    }
+}
+
+/**
+ * The six-section document, plus the draft lifecycle it needs.
+ *
+ * A draft moment exists from the moment the document opens: §04's five rows open real
+ * masters sheets scoped to it, and §06 promotes it. Edits are saved to the draft as the
+ * operator works, so activation only has to flip the status.
+ */
+@Composable
+private fun TradingDistributionSetupContent(
+    kind: BusinessSetupKind,
+    companyId: String,
+    createViewModel: MomentCreateViewModel,
+    submitting: Boolean,
+    error: String?,
+    onClose: () -> Unit,
+    onCreated: (CreateMomentOutcome) -> Unit,
+    modifier: Modifier = Modifier,
+    editingMomentId: String? = null,
+    initialTitle: String? = null,
+    editingMomentStatus: String? = null,
+    ownerName: String = "",
+) {
+    val subtypes = remember(kind) { OperatingMomentCatalog.subtypes(kind) }
+    val state = remember(kind, editingMomentId) {
+        SetupDocState(
+            subtypeCode = subtypes.first().code,
+            initialName = initialTitle.orEmpty(),
+        )
+    }
+
+    var draftId by remember(kind, editingMomentId) { mutableStateOf(editingMomentId) }
+    var draftCompanyId by remember(kind, editingMomentId) {
+        mutableStateOf(companyId.takeIf { it.isNotBlank() })
+    }
+    // A document that was opened for a new setup is a draft; one reopened over an existing moment
+    // edits that moment in place. Only a draft may be discarded or promoted.
+    var momentStatus by remember(kind, editingMomentId) {
+        mutableStateOf(
+            if (editingMomentId == null) {
+                "DRAFT"
+            } else {
+                editingMomentStatus?.trim()?.uppercase()?.takeIf { it.isNotEmpty() } ?: "ACTIVE"
+            },
+        )
+    }
+    var starting by remember(kind) { mutableStateOf(false) }
+    var started by remember(kind) { mutableStateOf(false) }
+    // Close can beat the draft POST. The moment still gets created server-side, so the document
+    // remembers it was abandoned and discards the late arrival instead of orphaning a draft.
+    var abandoned by remember(kind) { mutableStateOf(false) }
+    var counts by remember(kind) { mutableStateOf(SetupMasterCounts()) }
+    var warehouseNames by remember(kind) { mutableStateOf<List<String>>(emptyList()) }
+    var reloadKey by remember(kind) { mutableIntStateOf(0) }
+    var sheetOpen by remember(kind) { mutableStateOf(false) }
+    var sheetTab by remember(kind) { mutableStateOf(OperatingMasterTab.Catalogue) }
+    var sheetForm by remember(kind) { mutableStateOf<OperatingMasterTab?>(null) }
+
+    // §02 mints a real invite in-setup. It is company-scoped, so the lazily created setup company
+    // is the first thing an invite touch needs; the code then rides the sheet and the card.
+    var setupInvite by remember(kind, editingMomentId) { mutableStateOf<CompanyInviteDto?>(null) }
+    var mintingInvite by remember(kind) { mutableStateOf(false) }
+    var inviteError by remember(kind) { mutableStateOf<String?>(null) }
+    var inviteSheetOpen by remember(kind) { mutableStateOf(false) }
+
+    val repo = remember { BusinessSliceRepository() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // Opening the document creates its draft so §04 has somewhere to write.
+    LaunchedEffect(kind, editingMomentId) {
+        if (draftId != null) return@LaunchedEffect
+        createViewModel.submitBusinessSetup(
+            kind = kind,
+            companyId = companyId.takeIf { it.isNotBlank() },
+            preferences = state.preferences(ownerName),
+            title = state.businessName.ifBlank { kind.title },
+            subtype = state.subtype,
+            status = "DRAFT",
+            onSuccess = { outcome ->
+                if (abandoned) {
+                    // Nobody is looking at this draft any more; leaving it behind would show an
+                    // empty setup in the moment directory.
+                    createViewModel.discardMomentDraft(outcome.momentId) {}
+                } else {
+                    draftId = outcome.momentId
+                }
+            },
+        )
+    }
+
+    // The draft carries the company, and that is what the masters endpoints need. Reopening an
+    // existing draft or editing an active moment is prefilled from what was saved, so the
+    // document never starts blank over a live record.
+    LaunchedEffect(draftId) {
+        state.draftMomentId = draftId
+        val id = draftId ?: return@LaunchedEffect
+        // A resumed draft or an edited moment is prefilled from what was saved; a draft this
+        // screen just created only has to contribute its company.
+        val wantsPrefill = editingMomentId != null || state.businessName.isBlank()
+        val prefill = if (wantsPrefill || draftCompanyId == null) {
+            createViewModel.getDomainSetupPrefill(id)
+        } else {
+            null
+        }
+        if (wantsPrefill) {
+            prefill?.preferences?.let { state.applyPrefill(it) }
+            val saved = prefill?.title?.trim().orEmpty()
+            if (saved.isNotEmpty() && state.businessName.isBlank()) {
+                state.businessName = saved
+            }
+        }
+        // The wire's status is authoritative: `Close` must not discard a live moment, and §06
+        // must not report `Start` over one that is already running.
+        prefill?.status?.trim()?.uppercase()?.takeIf { it.isNotEmpty() }?.let { momentStatus = it }
+        prefill?.companyId?.takeIf { it.isNotBlank() }?.let { draftCompanyId = it }
+        state.companyId = draftCompanyId
+    }
+
+    LaunchedEffect(draftCompanyId, draftId, reloadKey) {
+        val cid = draftCompanyId ?: return@LaunchedEffect
+        repo.listMasters(cid, momentId = draftId).onSuccess { masters ->
+            val byKind = masters.groupBy { it.kind.uppercase() }
+            fun count(vararg kinds: String) = kinds.sumOf { byKind[it].orEmpty().size }
+            counts = counts.copy(
+                skus = count("SKU", "PRODUCT", "BATCH"),
+                warehouses = count("WAREHOUSE", "LOCATION"),
+                routes = count("ROUTE"),
+                principals = count("PRINCIPAL", "SUPPLIER"),
+                dealers = count("DEALER", "BUYER", "CUSTOMER"),
+            )
+            warehouseNames = masters
+                .filter { it.kind.uppercase() in setOf("WAREHOUSE", "LOCATION") }
+                .map { it.name }
+            repo.listPriceLists(cid, momentId = draftId).onSuccess { lists ->
+                counts = counts.copy(priceLists = lists.size)
+            }
+        }
+    }
+
+    // Written from an effect, not during composition: `state.companyId` is snapshot-backed, and
+    // writing it while composing would schedule a recomposition on every pass.
+    LaunchedEffect(draftCompanyId) {
+        state.companyId = draftCompanyId
+    }
+
+    // A debounced save keeps the draft in step with the document, so a close mid-way does not
+    // lose §01-§05 and §06 only has to flip the status. A live moment has no draft row to patch,
+    // so its edits ride the §06 submit instead.
+    val revision = with(state) {
+        listOf(
+            subtype, businessName, companyName, gstin, currency, startDate, endDate,
+            description, location, channels.joinToString("|"), month, budget, target, metric,
+            inviteRole, gstTracking, gstRegistration, gstState, gstPricing, gstEffectiveFrom,
+            invitees.joinToString("|") { it.name + ":" + it.roleLabel },
+        ).joinToString("\u0001")
+    }
+    LaunchedEffect(draftId, revision, momentStatus) {
+        val id = draftId ?: return@LaunchedEffect
+        if (!SetupDocumentSpec.isPromotable(momentStatus)) return@LaunchedEffect
+        delay(700)
+        createViewModel.saveBusinessSetupDraft(
+            momentId = id,
+            preferences = state.preferences(ownerName),
+            title = state.businessName.ifBlank { kind.title },
+        )
+    }
+
+    // The invite is company-scoped, and a fresh draft may not have a company yet. Only mint when
+    // §02 actually asks for a share, so an untouched document leaves no company or invite behind.
+    suspend fun mintInvite(roleCode: String): CompanyInviteDto? {
+        val draft = draftId
+        val cid = draftCompanyId ?: if (draft != null) {
+            createViewModel.ensureSetupCompany(
+                momentId = draft,
+                companyName = state.businessName.ifBlank { kind.title },
+                taxIdentifier = state.gstin,
+            )?.also {
+                draftCompanyId = it
+                state.companyId = it
+            }
+        } else {
+            null
+        } ?: return null
+        return runCatching {
+            ApiClient.apiService.mintCompanyInvite(
+                idempotencyKey = UUID.randomUUID().toString(),
+                body = MintCompanyInviteBody(
+                    companyId = cid,
+                    membershipType = SetupDocumentSpec.membershipType(roleCode),
+                    operatingRole = roleCode,
+                ),
+            ).data
+        }.getOrElse { failure ->
+            inviteError = failure.message ?: "Could not mint an invite"
+            null
+        }
+    }
+
+    /**
+     * The code for this role, minting one if §02 does not hold it yet. Suspending, so a share can
+     * await the mint instead of no-op'ing on the first tap — the same shape the group setup's
+     * `ensureInvite()` gives `shareQr()` and `shareWhatsApp()`.
+     */
+    suspend fun inviteFor(roleCode: String = state.inviteRole): CompanyInviteDto? {
+        val current = setupInvite
+        // A code already minted for this role is reusable; only a role change needs a new one.
+        if (current != null && current.operatingRole == roleCode) return current
+        // Another mint is in flight. Wait it out rather than firing a second request; the wait is
+        // bounded so a mint that never settles cannot spin this caller forever.
+        var waitedMs = 0
+        while (mintingInvite && waitedMs < MINT_WAIT_MS) {
+            delay(120)
+            waitedMs += 120
+            val settled = setupInvite
+            if (settled != null && settled.operatingRole == roleCode) return settled
+        }
+        mintingInvite = true
+        inviteError = null
+        val minted = mintInvite(roleCode)
+        if (minted != null) setupInvite = minted
+        mintingInvite = false
+        return minted
+    }
+
+    /** Fire-and-forget open path: the sheet reports the mint's progress through `mintingInvite`. */
+    fun ensureInvite(roleCode: String = state.inviteRole) {
+        scope.launch { inviteFor(roleCode) }
+    }
+
+    // Opening §02's sheet is the first touch that needs a code, so the mint starts there rather
+    // than on open of the document — the same on-demand shape the group setup uses.
+
+    Box(modifier.fillMaxSize()) {
+        TradingSetupDocument(
+            state = state,
+            ownerName = ownerName,
+            counts = counts,
+            warehouseNames = warehouseNames,
+            submitting = submitting && starting,
+            error = error,
+            onClose = {
+                // A draft nobody starts is not left behind as an orphan; a live moment is simply
+                // closed, because discarding it would delete a record still in use.
+                val draft = draftId
+                if (draft != null && !started && SetupDocumentSpec.isDiscardable(momentStatus)) {
+                    createViewModel.discardMomentDraft(draft) { onClose() }
+                } else {
+                    // No draft yet means the create is still in flight; its result is discarded
+                    // when it lands.
+                    if (draft == null) abandoned = true
+                    onClose()
+                }
+            },
+            onOpenMasters = { tab, form ->
+                // §04 writes are company-scoped, and a freshly created draft may not have one
+                // yet. Create it before the sheet opens — the sheet is built once and would sit
+                // on "needs a company" otherwise — but only when a row is actually used, so an
+                // untouched document leaves no company behind.
+                val draft = draftId
+                if (draftCompanyId == null && draft != null) {
+                    scope.launch {
+                        val cid = createViewModel.ensureSetupCompany(
+                            momentId = draft,
+                            companyName = state.businessName.ifBlank { kind.title },
+                            taxIdentifier = state.gstin,
+                        )
+                        if (cid != null) {
+                            draftCompanyId = cid
+                            state.companyId = cid
+                        }
+                        sheetTab = tab
+                        sheetForm = form
+                        sheetOpen = true
+                    }
+                } else {
+                    sheetTab = tab
+                    sheetForm = form
+                    sheetOpen = true
+                }
+            },
+            momentStatus = momentStatus,
+            onStart = {
+                val draft = draftId
+                if (starting || draft == null) return@TradingSetupDocument
+                starting = true
+                createViewModel.submitBusinessSetup(
+                    kind = kind,
+                    companyId = draftCompanyId,
+                    preferences = state.preferences(ownerName),
+                    title = state.businessName.trim().ifBlank { kind.title },
+                    subtype = state.subtype,
+                    editingMomentId = draft,
+                    editingMomentStatus = momentStatus,
+                    status = "ACTIVE",
+                    companyName = state.companyName,
+                    taxIdentifier = state.gstin,
+                    onSuccess = { outcome ->
+                        starting = false
+                        started = true
+                        onCreated(outcome)
+                    },
+                )
+            },
+            onOpenInvite = {
+                inviteSheetOpen = true
+                // Opening §02's sheet is the first touch that needs a code, so the mint starts
+                // here — the same on-demand shape the group setup uses.
+                ensureInvite()
+            },
+            onShareInviteQr = {
+                scope.launch {
+                    // A share never depends on the sheet having been opened: mint, then share the
+                    // QR the code draws, exactly like the group setup card.
+                    val code = inviteFor()?.inviteCode?.takeIf { it.isNotBlank() } ?: return@launch
+                    val px = (156 * context.resources.displayMetrics.density).toInt()
+                    val bitmap = generateInviteQrBitmap(CompanyJoinLink.qrPayload(code), px)
+                    shareInviteQr(context, bitmap, CompanyJoinLink.displayPath(code))
+                }
+            },
+            onWhatsAppInvite = {
+                scope.launch {
+                    val code = inviteFor()?.inviteCode?.takeIf { it.isNotBlank() } ?: return@launch
+                    sendInviteWhatsApp(
+                        context,
+                        null,
+                        inviteMessage(
+                            state.businessName.ifBlank { kind.title },
+                            CompanyJoinLink.displayPath(code),
+                        ),
+                    )
+                }
+            },
+            mintingInvite = mintingInvite,
+            inviteError = inviteError,
+        )
+        SetupMastersHost(
+            state = state,
+            open = sheetOpen,
+            tab = sheetTab,
+            initialForm = sheetForm,
+            onDismiss = { sheetOpen = false },
+            onChanged = { reloadKey += 1 },
+        )
+        if (inviteSheetOpen) {
+            BusinessSetupInviteSheet(
+                title = state.businessName.ifBlank { kind.title },
+                roleCode = state.inviteRole,
+                invite = setupInvite,
+                minting = mintingInvite,
+                error = inviteError,
+                theme = setupDocTheme(state.subtype),
+                existingNames = state.invitees.map { it.name },
+                onRoleChange = { code ->
+                    state.inviteRole = code
+                    // A code grants the role it was minted with, so a role change must re-mint.
+                    ensureInvite(code)
+                },
+                onAddPerson = { invitee ->
+                    if (state.invitees.none { it.name.equals(invitee.name, ignoreCase = true) }) {
+                        state.invitees = state.invitees + invitee
+                    }
+                },
+                onRetry = { ensureInvite(state.inviteRole) },
+                onDismiss = { inviteSheetOpen = false },
+            )
+        }
+    }
+}
+
+@Composable
+private fun LegacySetupWizardContent(
+    kind: BusinessSetupKind,
+    companyId: String,
+    createViewModel: MomentCreateViewModel,
+    submitting: Boolean,
+    error: String?,
+    onClose: () -> Unit,
+    onCreated: (CreateMomentOutcome) -> Unit,
+    modifier: Modifier = Modifier,
+    editingMomentId: String? = null,
+    initialTitle: String? = null,
+    editingMomentStatus: String? = null,
+) {
     val subtypes = remember(kind) { OperatingMomentCatalog.subtypes(kind) }
     var step by remember(kind) { mutableIntStateOf(0) }
     var subtype by remember(kind) { mutableStateOf(subtypes.first()) }
@@ -72,66 +514,7 @@ fun BusinessSetupWizardContent(
     var role by remember(kind) { mutableStateOf("OPERATIONS_LEAD") }
     var counterparties by remember(kind) { mutableStateOf("") }
     var localError by remember(kind) { mutableStateOf<String?>(null) }
-    var companySeed by remember(kind) { mutableStateOf("") }
-    var gstSeed by remember(kind) { mutableStateOf("") }
 
-    LaunchedEffect(editingMomentId, companyId) {
-        val momentId = editingMomentId ?: return@LaunchedEffect
-        val prefill = createViewModel.getDomainSetupPrefill(momentId)
-        val existingCompany = companyId.takeIf { it.isNotBlank() } ?: prefill?.companyId
-        if (!existingCompany.isNullOrBlank()) {
-            val detail = runCatching { com.example.momentra.data.api.ApiClient.apiService.getCompany(existingCompany).data }.getOrNull()
-            companySeed = detail?.get("displayName")?.toString().orEmpty().ifBlank { prefill?.title ?: initialTitle.orEmpty() }
-            gstSeed = detail?.get("taxIdentifier")?.toString().orEmpty()
-        } else {
-            companySeed = prefill?.title ?: initialTitle.orEmpty()
-        }
-    }
-
-    DisposableEffect(kind) {
-        MomentraAnalytics.get().onScreenEnter(kind.analyticsScreen)
-        onDispose { MomentraAnalytics.get().onScreenExit(kind.analyticsScreen) }
-    }
-
-    val dedicatedSetup = (kind == BusinessSetupKind.RETAIL_CONSUMER && subtype.code in setOf("RETAIL_STORE", "RESTAURANT_FOOD", "CONSUMER_SERVICE")) ||
-        (kind == BusinessSetupKind.TRADING_DISTRIBUTION && subtype.code in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")) ||
-        (kind == BusinessSetupKind.MARKETING_CAMPAIGNS && subtype.code in setOf("CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN")) ||
-        (kind == BusinessSetupKind.MANUFACTURING_PRODUCTION && subtype.code in setOf("STANDARD_PRODUCTION", "MADE_TO_ORDER"))
-    if (dedicatedSetup) {
-        RetailStoreSetup(
-            subtypes = subtypes,
-            subtype = subtype,
-            onSubtype = {
-                subtype = it
-                metric = it.targetMetrics.first()
-            },
-            ownerName = ownerName,
-            submitting = submitting,
-            error = error,
-            onClose = onClose,
-            initialName = initialTitle.orEmpty(),
-            initialCompanyName = companySeed,
-            initialGstin = gstSeed,
-            companyId = companyId,
-            onActivate = { preferences, title ->
-                createViewModel.submitBusinessSetup(
-                    kind = kind,
-                    companyId = companyId.takeIf { it.isNotBlank() },
-                    preferences = preferences,
-                    title = title,
-                    subtype = subtype.code,
-                    editingMomentId = editingMomentId,
-                    editingMomentStatus = editingMomentStatus,
-                    status = "ACTIVE",
-                    companyName = preferences["companyName"]?.toString(),
-                    taxIdentifier = preferences["gstin"]?.toString(),
-                    onSuccess = onCreated,
-                )
-            },
-            modifier = modifier,
-        )
-        return
-    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -189,7 +572,7 @@ fun BusinessSetupWizardContent(
                 } else {
                     createViewModel.submitBusinessSetup(
                         kind = kind,
-                        companyId = companyId?.takeIf { it.isNotBlank() },
+                        companyId = companyId.takeIf { it.isNotBlank() },
                         preferences = buildPrefs(
                             subtype, identity, party, description, people, role, counterparties, channels, budget, target, metric,
                         ),
@@ -389,4 +772,33 @@ private fun StepButton(label: String, color: Color, tag: String? = null, onClick
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
     )
+}
+
+internal fun plainAmount(raw: String): String = buildString {
+    var dot = false
+    for (c in raw) {
+        if (c.isDigit()) append(c)
+        else if (c == '.' && !dot) {
+            append('.')
+            dot = true
+        }
+    }
+}
+
+internal fun formatIndianAmount(raw: String): String {
+    val cleaned = plainAmount(raw)
+    if (cleaned.isEmpty()) return ""
+    val dot = cleaned.indexOf('.')
+    val intRaw = if (dot >= 0) cleaned.substring(0, dot) else cleaned
+    val frac = if (dot >= 0) cleaned.substring(dot).take(3) else ""
+    val digits = intRaw.trimStart('0').ifEmpty { if (intRaw.isNotEmpty() || frac.isNotEmpty()) "0" else "" }
+    if (digits.isEmpty()) return ""
+    return indianGroup(digits) + frac
+}
+
+private fun indianGroup(digits: String): String {
+    if (digits.length <= 3) return digits
+    val head = digits.dropLast(3)
+    val tail = digits.takeLast(3)
+    return head.reversed().chunked(2).joinToString(",").reversed() + "," + tail
 }

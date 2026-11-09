@@ -107,6 +107,9 @@ private enum class DistributionSheet(
     ROLE("Add or invite person", "UPDATE", false, false, true, null),
     INVITE("Add or invite person", "UPDATE", false, false, true, null),
     SUPPLIER("Add Principal / Supplier", "UPDATE", false, false, true, null),
+    HOLD("Hold / release order", "ORDER", false, false, false, null),
+    TRANSFER("Transfer stock", "STOCK", false, false, false, null),
+    REPRINT("Reprint invoice / challan", "SALE", false, false, false, null),
 }
 
 @Composable
@@ -229,6 +232,9 @@ fun DistributionQuickAddHub(
     )
     Text("Support & management", color = DistSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     val support = listOf(
+        Triple(DistributionSheet.HOLD, "Hold / release", if ("ORDER" in allowed) null else "Moments only"),
+        Triple(DistributionSheet.TRANSFER, "Transfer stock", if ("STOCK" in allowed) null else "Stock only"),
+        Triple(DistributionSheet.REPRINT, "Reprint document", if ("SALE" in allowed) null else "Sales only"),
         Triple(DistributionSheet.REIMBURSE, "Reimbursement", if ("PAYMENT" in allowed) null else "Finance only"),
         Triple(null, "Approval review", if (approver) null else "Approver only"),
         Triple(DistributionSheet.PERSON, "Add person", if (owner && "UPDATE" in allowed) null else "Owner only"),
@@ -352,6 +358,9 @@ private val DistributionSheet.hubIcon: Int
         DistributionSheet.ROLE -> R.drawable.qa_users
         DistributionSheet.INVITE -> R.drawable.qa_qr
         DistributionSheet.SUPPLIER -> R.drawable.qa_network
+        DistributionSheet.HOLD -> R.drawable.qa_shield
+        DistributionSheet.TRANSFER -> R.drawable.qa_truck
+        DistributionSheet.REPRINT -> R.drawable.qa_receipt
     }
 
 @Composable
@@ -408,6 +417,9 @@ private val DistributionSheet.captureMode: String
         DistributionSheet.ROLE -> "ROLE"
         DistributionSheet.INVITE -> "INVITE"
         DistributionSheet.SUPPLIER -> "SUPPLIER"
+        DistributionSheet.HOLD -> "HOLD"
+        DistributionSheet.TRANSFER -> "TRANSFER"
+        DistributionSheet.REPRINT -> "REPRINT"
     }
 
 private fun OperatingCaptureDraft.toDistribution() = DistributionEventDraft(

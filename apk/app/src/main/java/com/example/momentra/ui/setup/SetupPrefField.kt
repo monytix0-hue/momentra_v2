@@ -26,13 +26,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.momentra.ui.shell.empty.business.BusinessFieldKind
-import com.example.momentra.ui.shell.empty.business.BusinessSetupFieldSpec
+import com.example.momentra.ui.shell.empty.personal.PersonalSetupFieldSpec
 import com.example.momentra.ui.shell.maestro.MaestroIds
 
 @Composable
 fun SetupPrefField(
-    field: BusinessSetupFieldSpec,
+    field: PersonalSetupFieldSpec,
     selections: MutableMap<String, Any>,
     modifier: Modifier = Modifier,
     selectedChipColor: Color = SetupTokens.BizAccent,
@@ -43,35 +42,28 @@ fun SetupPrefField(
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (field.kind) {
-            BusinessFieldKind.CHIPS, BusinessFieldKind.DROPDOWN -> {
-                SetupDropdownField(
-                    label = field.label,
-                    value = selections[field.key]?.toString().orEmpty(),
-                    options = field.options,
-                    onValueChange = { selections[field.key] = it },
-                    accent = selectedChipColor,
-                    testTag = MaestroIds.setupDropdown(field.key),
-                )
+            SetupFieldKind.CHIPS, SetupFieldKind.DROPDOWN -> {
+                if (field.multiSelect) {
+                    SetupMultiChipField(
+                        label = field.label,
+                        hint = "Select options",
+                        key = field.key,
+                        options = field.options,
+                        selections = selections,
+                        accent = selectedChipColor,
+                    )
+                } else {
+                    SetupDropdownField(
+                        label = field.label,
+                        value = selections[field.key]?.toString().orEmpty(),
+                        options = field.options,
+                        onValueChange = { selections[field.key] = it },
+                        accent = selectedChipColor,
+                        testTag = MaestroIds.setupDropdown(field.key),
+                    )
+                }
             }
-            BusinessFieldKind.MULTI_CHIPS -> {
-                SetupMultiChipField(
-                    label = field.label,
-                    hint = "Select additional currencies",
-                    key = field.key,
-                    options = field.options,
-                    selections = selections,
-                    accent = selectedChipColor,
-                )
-            }
-            else -> {
-                Text(field.label, color = Color(0xFFE2E8F0), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            }
-        }
-        when (field.kind) {
-            BusinessFieldKind.CHIPS, BusinessFieldKind.DROPDOWN, BusinessFieldKind.MULTI_CHIPS -> Unit
-            BusinessFieldKind.TEXT, BusinessFieldKind.TOGGLE, BusinessFieldKind.DATE,
-            BusinessFieldKind.DATETIME, BusinessFieldKind.TIME -> when (field.kind) {
-            BusinessFieldKind.TEXT -> {
+            SetupFieldKind.TEXT -> {
                 BasicTextField(
                     value = selections[field.key]?.toString().orEmpty(),
                     onValueChange = { selections[field.key] = it },
@@ -86,7 +78,7 @@ fun SetupPrefField(
                         .testTag("setup.text.${field.key}"),
                 )
             }
-            BusinessFieldKind.TOGGLE -> {
+            SetupFieldKind.TOGGLE -> {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -99,7 +91,7 @@ fun SetupPrefField(
                     )
                 }
             }
-            BusinessFieldKind.DATE -> {
+            SetupFieldKind.DATE -> {
                 SetupDateField(
                     label = field.label,
                     isoValue = selections[field.key]?.toString(),
@@ -107,7 +99,7 @@ fun SetupPrefField(
                     testTag = MaestroIds.setupDate(field.key),
                 )
             }
-            BusinessFieldKind.DATETIME -> {
+            SetupFieldKind.DATETIME -> {
                 SetupDateTimeField(
                     label = field.label,
                     isoValue = selections[field.key]?.toString(),
@@ -115,7 +107,7 @@ fun SetupPrefField(
                     testTag = MaestroIds.setupDateTime(field.key),
                 )
             }
-            BusinessFieldKind.TIME -> {
+            SetupFieldKind.TIME -> {
                 val iso = selections[field.key]?.toString()
                 SetupDateTimeField(
                     label = field.label,
@@ -126,7 +118,8 @@ fun SetupPrefField(
                     testTag = MaestroIds.setupTime(field.key),
                 )
             }
-            else -> Unit
+            else -> {
+                Text(field.label, color = Color(0xFFE2E8F0), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             }
         }
     }

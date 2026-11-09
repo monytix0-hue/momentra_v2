@@ -256,6 +256,155 @@ paths:
           $ref: './schemas/responses.yaml#/Error404'
         '500':
           $ref: './schemas/responses.yaml#/Error500'
+  /business/moments/{momentId}/operating-events:
+    post:
+      operationId: recordOperatingEvent
+      summary: Record an operating (business vertical) record
+      tags: ["Business"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - $ref: '#/components/parameters/idempotencyKeyHeader'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '409':
+          $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /business/moments/{momentId}/operating-events/{eventId}:
+    patch:
+      operationId: reviseOperatingEvent
+      summary: Revise an operating record
+      tags: ["Business"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - $ref: '#/components/parameters/eventIdParam'
+        - $ref: '#/components/parameters/idempotencyKeyHeader'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '409':
+          $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /business/moments/{momentId}/operating-events/{eventId}/decision:
+    post:
+      operationId: decideOperatingEvent
+      summary: Approve or reject an operating record
+      tags: ["Business"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - $ref: '#/components/parameters/eventIdParam'
+        - $ref: '#/components/parameters/idempotencyKeyHeader'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '409':
+          $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /business/moments/{momentId}/operating-events/{eventId}/document:
+    get:
+      operationId: getOperatingDocument
+      summary: Read a structured invoice/challan document for reprint
+      tags: ["Business"]
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/momentIdParam'
+        - $ref: '#/components/parameters/eventIdParam'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ProjectionEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
   /business/moments/{momentId}/progress-snapshot:
     get:
       operationId: getBusinessProgressSnapshot
@@ -650,6 +799,253 @@ paths:
       parameters:
         - $ref: '#/components/parameters/companyIdParam'
         - $ref: '#/components/parameters/locationIdParam'
+        - $ref: '#/components/parameters/idempotencyKeyHeader'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '409':
+          $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /companies/{companyId}/operating-masters:
+    get:
+      operationId: listOperatingMasters
+      summary: List operating masters (customers, items, warehouses, routes)
+      tags: ["Business"]
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/companyIdParam'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ProjectionEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+    post:
+      operationId: createOperatingMaster
+      summary: Create an operating master
+      tags: ["Business"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: '#/components/parameters/companyIdParam'
+        - $ref: '#/components/parameters/idempotencyKeyHeader'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '409':
+          $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /companies/{companyId}/operating-masters/{masterId}:
+    patch:
+      operationId: updateOperatingMaster
+      summary: Update an operating master
+      tags: ["Business"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: '#/components/parameters/companyIdParam'
+        - $ref: '#/components/parameters/masterIdParam'
+        - $ref: '#/components/parameters/idempotencyKeyHeader'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '409':
+          $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+    delete:
+      operationId: archiveOperatingMaster
+      summary: Archive an operating master
+      tags: ["Business"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: '#/components/parameters/companyIdParam'
+        - $ref: '#/components/parameters/masterIdParam'
+        - $ref: '#/components/parameters/idempotencyKeyHeader'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '409':
+          $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /companies/{companyId}/operating-price-lists:
+    get:
+      operationId: listOperatingPriceLists
+      summary: List effective-dated price lists
+      tags: ["Business"]
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/companyIdParam'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ProjectionEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+    post:
+      operationId: createOperatingPriceList
+      summary: Create an effective-dated price list
+      tags: ["Business"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: '#/components/parameters/companyIdParam'
+        - $ref: '#/components/parameters/idempotencyKeyHeader'
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/CommandEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '409':
+          $ref: './schemas/responses.yaml#/Error409Version'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /companies/{companyId}/operating-price-lists/{priceListId}:
+    patch:
+      operationId: updateOperatingPriceList
+      summary: Update a price list
+      tags: ["Business"]
+      x-momentra-kind: command
+      x-momentra-impl: IMPLEMENTED
+      x-momentra-idempotency: required
+      parameters:
+        - $ref: '#/components/parameters/companyIdParam'
+        - $ref: '#/components/parameters/priceListIdParam'
         - $ref: '#/components/parameters/idempotencyKeyHeader'
         - $ref: '#/components/parameters/correlationIdHeader'
       security:
@@ -1608,7 +2004,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './schemas/common.yaml#/BookingCreateRequest'
+              type: object
       responses:
         '201':
           description: Success
@@ -1765,7 +2161,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './schemas/common.yaml#/ExpenseCreateRequest'
+              type: object
       responses:
         '201':
           description: Success
@@ -1783,80 +2179,6 @@ paths:
           $ref: './schemas/responses.yaml#/Error404'
         '409':
           $ref: './schemas/responses.yaml#/Error409Version'
-        '500':
-          $ref: './schemas/responses.yaml#/Error500'
-  /moments/{momentId}/expenses/{expenseId}:
-    get:
-      operationId: getExpense
-      summary: Get personal expense detail with dimensional contributions
-      tags: ["Finance"]
-      x-momentra-kind: query
-      x-momentra-impl: IMPLEMENTED
-      parameters:
-        - $ref: '#/components/parameters/momentIdParam'
-        - name: expenseId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - $ref: '#/components/parameters/correlationIdHeader'
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Expense detail
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    $ref: './schemas/common.yaml#/ExpenseDetail'
-        '401':
-          $ref: './schemas/responses.yaml#/Error401'
-        '404':
-          $ref: './schemas/responses.yaml#/Error404'
-        '500':
-          $ref: './schemas/responses.yaml#/Error500'
-    patch:
-      operationId: updateExpense
-      summary: Update personal expense and recompute dimensional contributions
-      tags: ["Finance"]
-      x-momentra-kind: command
-      x-momentra-impl: IMPLEMENTED
-      x-momentra-idempotency: required
-      parameters:
-        - $ref: '#/components/parameters/momentIdParam'
-        - name: expenseId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - $ref: '#/components/parameters/idempotencyKeyHeader'
-        - $ref: '#/components/parameters/correlationIdHeader'
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: './schemas/common.yaml#/ExpenseUpdateRequest'
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: './schemas/common.yaml#/CommandEnvelope'
-        '400':
-          $ref: './schemas/responses.yaml#/Error400'
-        '401':
-          $ref: './schemas/responses.yaml#/Error401'
-        '404':
-          $ref: './schemas/responses.yaml#/Error404'
         '500':
           $ref: './schemas/responses.yaml#/Error500'
   /moments/{momentId}/future-items:
@@ -2494,43 +2816,6 @@ paths:
           $ref: './schemas/responses.yaml#/Error409Version'
         '500':
           $ref: './schemas/responses.yaml#/Error500'
-  /moments/{momentId}/relationship-activities/{activityId}:
-    delete:
-      operationId: voidRelationshipActivity
-      summary: Void (soft-delete) a manually created relationship activity
-      tags: ["Personal"]
-      x-momentra-kind: command
-      x-momentra-impl: IMPLEMENTED
-      parameters:
-        - $ref: '#/components/parameters/momentIdParam'
-        - name: activityId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - $ref: '#/components/parameters/correlationIdHeader'
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: './schemas/common.yaml#/ProjectionEnvelope'
-        '400':
-          $ref: './schemas/responses.yaml#/Error400'
-        '401':
-          $ref: './schemas/responses.yaml#/Error401'
-        '403':
-          $ref: './schemas/responses.yaml#/Error403'
-        '404':
-          $ref: './schemas/responses.yaml#/Error404'
-        '409':
-          $ref: './schemas/responses.yaml#/Error409Version'
-        '500':
-          $ref: './schemas/responses.yaml#/Error500'
   /moments/{momentId}/residents:
     post:
       operationId: addResident
@@ -2716,11 +3001,22 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: Success — Personal Life projection (thisWeek.byFamily/highlights, journey.familyCode, leverage.ctaAction)
+          description: Success
           content:
             application/json:
               schema:
                 $ref: './schemas/common.yaml#/ProjectionEnvelope'
+        '400':
+          $ref: './schemas/responses.yaml#/Error400'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '403':
+          $ref: './schemas/responses.yaml#/Error403'
+        '404':
+          $ref: './schemas/responses.yaml#/Error404'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /personal/memory:
     get:
       operationId: getPersonalMemory
       summary: Personal memory projection
@@ -3005,6 +3301,34 @@ components:
       schema:
         type: string
         format: uuid
+    eventIdParam:
+      name: eventId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    activityIdParam:
+      name: activityId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    masterIdParam:
+      name: masterId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    priceListIdParam:
+      name: priceListId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   schemas:
     Money:
       $ref: './schemas/common.yaml#/Money'
@@ -3020,12 +3344,6 @@ components:
       $ref: './schemas/common.yaml#/MomentCreateRequest'
     ExpenseCreateRequest:
       $ref: './schemas/common.yaml#/ExpenseCreateRequest'
-    ExpenseUpdateRequest:
-      $ref: './schemas/common.yaml#/ExpenseUpdateRequest'
-    ExpenseDetail:
-      $ref: './schemas/common.yaml#/ExpenseDetail'
-    ExpenseDimensionContribution:
-      $ref: './schemas/common.yaml#/ExpenseDimensionContribution'
     PollResponse:
       $ref: './schemas/common.yaml#/PollResponse'
     CompanyLocationResponse:

@@ -507,6 +507,13 @@ interface ApiService {
         @Body body: PatchPersonalSetupBody,
     ): SuccessEnvelope<PatchPersonalSetupResultDto>
 
+    @PATCH("v1/moments/{momentId}/business-setup")
+    suspend fun patchBusinessSetupDraft(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: PatchBusinessSetupDraftBody,
+    ): SuccessEnvelope<PatchBusinessSetupDraftResultDto>
+
     @GET("v1/business/setups")
     suspend fun getBusinessSetups(): SuccessEnvelope<BusinessSetupsDto>
 
@@ -962,6 +969,67 @@ interface ApiService {
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: DecideOperatingEventBody,
     ): SuccessEnvelope<DecideOperatingEventResultDto>
+
+    @GET("v1/business/moments/{momentId}/operating-events/{eventId}/document")
+    suspend fun getOperatingDocument(
+        @Path("momentId") momentId: String,
+        @Path("eventId") eventId: String,
+        @Query("kind") kind: String,
+    ): SuccessEnvelope<OperatingDocumentDto>
+
+    @GET("v1/companies/{companyId}/operating-masters")
+    suspend fun listOperatingMasters(
+        @Path("companyId") companyId: String,
+        @Query("kind") kind: String? = null,
+        @Query("search") search: String? = null,
+        @Query("momentId") momentId: String? = null,
+        @Query("includeArchived") includeArchived: Boolean? = null,
+    ): SuccessEnvelope<OperatingMasterListDto>
+
+    @POST("v1/companies/{companyId}/operating-masters")
+    suspend fun createOperatingMaster(
+        @Path("companyId") companyId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: OperatingMasterBody,
+    ): SuccessEnvelope<OperatingMasterDto>
+
+    @PATCH("v1/companies/{companyId}/operating-masters/{masterId}")
+    suspend fun updateOperatingMaster(
+        @Path("companyId") companyId: String,
+        @Path("masterId") masterId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: OperatingMasterUpdateBody,
+    ): SuccessEnvelope<OperatingMasterDto>
+
+    @DELETE("v1/companies/{companyId}/operating-masters/{masterId}")
+    suspend fun archiveOperatingMaster(
+        @Path("companyId") companyId: String,
+        @Path("masterId") masterId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: OperatingMasterArchiveBody,
+    ): SuccessEnvelope<OperatingMasterDto>
+
+    @GET("v1/companies/{companyId}/operating-price-lists")
+    suspend fun listOperatingPriceLists(
+        @Path("companyId") companyId: String,
+        @Query("momentId") momentId: String? = null,
+        @Query("includeArchived") includeArchived: Boolean? = null,
+    ): SuccessEnvelope<OperatingPriceListListDto>
+
+    @POST("v1/companies/{companyId}/operating-price-lists")
+    suspend fun createOperatingPriceList(
+        @Path("companyId") companyId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: OperatingPriceListBody,
+    ): SuccessEnvelope<OperatingPriceListDto>
+
+    @PATCH("v1/companies/{companyId}/operating-price-lists/{priceListId}")
+    suspend fun updateOperatingPriceList(
+        @Path("companyId") companyId: String,
+        @Path("priceListId") priceListId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: OperatingPriceListUpdateBody,
+    ): SuccessEnvelope<OperatingPriceListDto>
 
     @GET("v1/business/moments/{momentId}/pulse")
     suspend fun getBusinessPulse(
